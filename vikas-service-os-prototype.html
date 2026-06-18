@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VeveyCRM — Vikas Pioneers workspace (prototype)</title>
+<style>
+  :root{
+    --bg2:#152233; --bg:#0e1a28; --panel:#fff; --panel2:#f4f6f9;
+    --ink:#1c2733; --muted:#5f6b7a; --hint:#8a96a5; --line:#e2e7ee;
+    --accent:#378ADD; --accentbg:#E6F1FB;
+    --blue:#378ADD;--bluebg:#E6F1FB;--blueink:#0C447C;
+    --purple:#7F77DD;--purplebg:#EEEDFE;--purpleink:#26215C;
+    --teal:#1D9E75;--tealbg:#E1F5EE;--tealink:#04342C;
+    --amber:#BA7517;--amberbg:#FAEEDA;--amberink:#633806;
+    --red:#A32D2D;--redbg:#FCEBEB;--redink:#791F1F;
+    --green:#639922;--greenbg:#EAF3DE;--greenink:#173404;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--panel2);color:var(--ink);font-size:14px;line-height:1.5}
+  .app{display:flex;min-height:100vh}
+  .side{width:236px;background:linear-gradient(180deg,#152233,#0e1a28);flex-shrink:0;padding:16px 12px;color:#aebccd}
+  .brand{display:flex;align-items:center;gap:9px;padding:4px 6px 14px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px}
+  .brand .t1{font-weight:600;color:#fff;font-size:14px}
+  .brand .t2{font-size:11px;color:#8aa0b8}
+  .grp{font-size:10px;letter-spacing:1.2px;color:#5d6f82;margin:14px 0 4px;padding-left:10px}
+  .nav button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;border:none;color:#aebccd;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px}
+  .nav button:hover{background:rgba(255,255,255,.06);color:#fff}
+  .nav button.on{background:var(--accent);color:#fff}
+  .nav .ico{width:16px;text-align:center;font-size:14px}
+  .badge{margin-left:auto;font-size:10px;background:rgba(255,255,255,.14);color:#dce6f1;border-radius:10px;padding:1px 7px}
+  .main{flex:1;padding:20px 24px;max-width:1100px;overflow-x:hidden}
+  .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .ph h1{font-size:19px;margin:0;padding-left:12px;border-left:3px solid var(--accent);font-weight:600}
+  .ph .sub{font-size:12px;color:var(--muted);margin-top:3px}
+  .ava{width:34px;height:34px;border-radius:50%;background:var(--accentbg);color:var(--blueink);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px}
+  .view{display:none}.view.on{display:block}
+  .grid{display:grid;gap:12px}.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
+  .mc{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .mc .l{font-size:12px;color:var(--muted);margin:0}.mc .v{font-size:23px;font-weight:600;margin:5px 0 0}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h3{font-size:13px;margin:0 0 12px;font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;color:var(--hint);font-weight:500;padding:8px;border-bottom:1px solid var(--line)}
+  td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:hover td{background:var(--panel2)}
+  .pill{display:inline-block;font-size:11px;padding:2px 9px;border-radius:7px;white-space:nowrap}
+  .p-blue{background:var(--bluebg);color:var(--blueink)}.p-purple{background:var(--purplebg);color:var(--purpleink)}
+  .p-teal{background:var(--tealbg);color:var(--tealink)}.p-amber{background:var(--amberbg);color:var(--amberink)}
+  .p-red{background:var(--redbg);color:var(--redink)}.p-green{background:var(--greenbg);color:var(--greenink)}
+  .bar{height:8px;border-radius:6px;background:#eef1f5;overflow:hidden}.bar i{display:block;height:100%}
+  .note{font-size:11px;color:var(--hint);margin-top:10px}
+  .btn{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 14px;font-size:12.5px;cursor:pointer;color:var(--ink)}
+  .btn:hover{background:var(--panel2)}
+  .funnel{display:flex;align-items:center;gap:4px;margin-bottom:6px}
+  .fstage{flex:1;min-width:0;background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 6px;text-align:center}
+  .fstage b{font-size:18px;display:block}.fstage span{font-size:10px;color:var(--muted);display:block;margin-top:2px}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-bottom:18px;flex-wrap:wrap}
+  .kan{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+  .kcol{flex:0 0 178px;background:var(--panel2);border-radius:10px;padding:8px}
+  .kcol .kh{font-size:11px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:8px;padding:0 2px}
+  .kcard{background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px;margin-bottom:7px}
+  .kcard .ka{font-weight:600;font-size:12px}.kcard .km{font-size:11px;color:var(--muted);margin:2px 0 6px}
+  .chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:7px}
+  .chip{background:var(--panel2);border-radius:9px;padding:8px;text-align:center;cursor:pointer}
+  .chip b{font-size:16px;display:block}.chip span{font-size:10px;color:var(--muted)}
+  .tl{display:flex;gap:10px}
+  .tl .rail{display:flex;flex-direction:column;align-items:center}
+  .tl .dot{width:9px;height:9px;border-radius:50%;margin-top:5px}
+  .tl .ln{flex:1;width:1.5px;background:var(--line)}
+  .tl .body{padding-bottom:13px;font-size:12.5px}
+  .tl .when{color:var(--hint);font-size:11px}
+  @media(max-width:780px){.side{display:none}.g4{grid-template-columns:1fr 1fr}.g3,.g2{grid-template-columns:1fr}.main{padding:14px}}
+</style>
+</head>
+<body>
+<div id="login" style="position:fixed;inset:0;z-index:50;background:linear-gradient(160deg,#152233,#0a1320);display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:34px 30px;width:360px;max-width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+    <svg width="58" height="58" viewBox="0 0 96 96" style="margin-bottom:14px"><rect width="96" height="96" rx="22" fill="#378ADD"/><path d="M29 29 L48 63 L67 29" fill="none" stroke="#fff" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="48" cy="63" r="8" fill="#F6B23C"/></svg>
+    <div style="font-size:24px;font-weight:600;letter-spacing:-.5px">Vevey<span style="color:#378ADD">CRM</span></div>
+    <div style="font-size:12.5px;color:#5f6b7a;margin:5px 0 22px">Sign in to the Vikas Pioneers workspace</div>
+    <input type="email" value="admin@vikaspioneers.com" style="width:100%;height:42px;border:1px solid #e2e7ee;border-radius:9px;padding:0 12px;font-size:13px;margin-bottom:10px;color:#1c2733">
+    <input type="password" value="••••••••" style="width:100%;height:42px;border:1px solid #e2e7ee;border-radius:9px;padding:0 12px;font-size:13px;margin-bottom:16px;color:#1c2733">
+    <button onclick="document.getElementById('login').style.display='none'" style="width:100%;height:44px;background:#378ADD;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer">Sign in</button>
+    <div style="font-size:11px;color:#8a96a5;margin-top:16px">Demo workspace · click Sign in to explore</div>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 96 96"><rect width="96" height="96" rx="22" fill="#378ADD"/><path d="M29 29 L48 63 L67 29" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="48" cy="63" r="8.5" fill="#F6B23C"/></svg>
+      <div><div class="t1">Vevey<span style="color:#7FB4EC">CRM</span></div><div class="t2">Vikas Pioneers workspace</div></div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="grp">WORKSPACE</div>
+      <button data-v="pipe" class="on"><span class="ico">▦</span> Pipeline</button>
+      <button data-v="dash"><span class="ico">◴</span> Dashboard</button>
+      <div class="grp">MARKETING</div>
+      <button data-v="leads"><span class="ico">✦</span> Leads <span class="badge">12</span></button>
+      <button data-v="partners"><span class="ico">⌂</span> Partners</button>
+      <div class="grp">SALES</div>
+      <button data-v="quote"><span class="ico">₹</span> Quotations <span class="badge">8</span></button>
+      <div class="grp">SERVICE</div>
+      <button data-v="cases"><span class="ico">☎</span> Cases <span class="badge">3</span></button>
+      <button data-v="amc"><span class="ico">▥</span> AMC contracts</button>
+      <div class="grp">FIELD SERVICE</div>
+      <button data-v="wo"><span class="ico">▤</span> Work orders</button>
+      <button data-v="dispatch"><span class="ico">◷</span> Dispatch</button>
+      <button data-v="tech"><span class="ico">◍</span> Technicians</button>
+      <div class="grp">RECORDS</div>
+      <button data-v="accounts"><span class="ico">▣</span> Accounts</button>
+      <button data-v="assets"><span class="ico">⚙</span> Assets</button>
+      <button data-v="inv"><span class="ico">⊟</span> Invoices</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="ph"><div><h1 id="title">Pipeline</h1><div class="sub" id="subtitle">The customer journey · Hosapete · 18 Jun 2026</div></div><div class="ava">VP</div></div>
+
+    <!-- PIPELINE -->
+    <section class="view on" data-v="pipe">
+      <div class="funnel">
+        <div class="fstage" style="border-top:2px solid var(--purple)"><b>12</b><span>Lead</span></div>
+        <span style="color:var(--hint)">›</span>
+        <div class="fstage" style="border-top:2px solid var(--blue)"><b>8</b><span>Quoted</span></div>
+        <span style="color:var(--hint)">›</span>
+        <div class="fstage" style="border-top:2px solid var(--blue)"><b>5</b><span>Won</span></div>
+        <span style="color:var(--hint)">›</span>
+        <div class="fstage" style="border-top:2px solid var(--amber)"><b>4</b><span>Scheduled</span></div>
+        <span style="color:var(--hint)">›</span>
+        <div class="fstage" style="border-top:2px solid var(--amber)"><b>3</b><span>In service</span></div>
+        <span style="color:var(--hint)">›</span>
+        <div class="fstage" style="border-top:2px solid var(--green)"><b>6</b><span>Invoiced</span></div>
+      </div>
+      <div class="legend"><span><span style="color:var(--purple)">●</span> Marketing</span><span><span style="color:var(--blue)">●</span> Sales</span><span><span style="color:var(--amber)">●</span> Field service</span><span><span style="color:var(--green)">●</span> Finance</span></div>
+
+      <div class="kan">
+        <div class="kcol"><div class="kh"><span>Lead</span><span>2</span></div>
+          <div class="kcard"><div class="ka">Hosapete Steel</div><div class="km">Transformer oil test</div><span class="pill p-purple">Marathon ref.</span></div>
+          <div class="kcard"><div class="ka">Sandur Mines</div><div class="km">90kW motor rewind</div><span class="pill p-teal">Direct</span></div>
+        </div>
+        <div class="kcol"><div class="kh"><span>Quoted</span><span>2</span></div>
+          <div class="kcard"><div class="ka">Bharat Forge</div><div class="km">75kW · QT-0518</div><span class="pill p-blue">₹46,000</span></div>
+          <div class="kcard"><div class="ka">Tata Motors</div><div class="km">110kW · QT-0510</div><span class="pill p-blue">₹72,000</span></div>
+        </div>
+        <div class="kcol"><div class="kh"><span>Won</span><span>1</span></div>
+          <div class="kcard"><div class="ka">Krishna Textiles</div><div class="km">22kW pump · QT-0517</div><span class="pill p-green">₹18,500</span></div>
+        </div>
+        <div class="kcol"><div class="kh"><span>Scheduled</span><span>1</span></div>
+          <div class="kcard"><div class="ka">Bharat Forge</div><div class="km">WO-2418 · Ramesh P.</div><span class="pill p-amber">19 Jun</span></div>
+        </div>
+        <div class="kcol"><div class="kh"><span>In service</span><span>2</span></div>
+          <div class="kcard"><div class="ka">Krishna Textiles</div><div class="km">WO-2416 · Anil D.</div><span class="pill p-amber">Today</span></div>
+          <div class="kcard"><div class="ka">Sahyadri Hospital</div><div class="km">WO-2417 · Suresh K.</div><span class="pill p-purple">AMC</span></div>
+        </div>
+        <div class="kcol"><div class="kh"><span>Invoiced</span><span>1</span></div>
+          <div class="kcard"><div class="ka">Krishna Textiles</div><div class="km">INV-0912 · WO-2411</div><span class="pill p-green">Paid</span></div>
+        </div>
+      </div>
+      <div class="note">One board, the whole journey. A job flows left→right across Marketing → Sales → Field service → Finance — and every card links back to its account, asset, quote and invoice.</div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section class="view" data-v="dash">
+      <div class="grid g4" style="margin-bottom:14px">
+        <div class="mc"><p class="l">Revenue this month</p><p class="v">₹8.42L</p></div>
+        <div class="mc"><p class="l">Open deals</p><p class="v">8</p></div>
+        <div class="mc"><p class="l">Technician utilization</p><p class="v">78%</p></div>
+        <div class="mc"><p class="l">AMC renewals due</p><p class="v" style="color:var(--amber)">4</p></div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><h3>Revenue by channel</h3>
+          <div style="display:flex;flex-direction:column;gap:11px">
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Vendor referrals</span><span style="color:var(--muted)">₹3.6L</span></div><div class="bar"><i style="width:43%;background:var(--blue)"></i></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>AMC contracts</span><span style="color:var(--muted)">₹3.1L</span></div><div class="bar"><i style="width:37%;background:var(--purple)"></i></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Direct customers</span><span style="color:var(--muted)">₹1.7L</span></div><div class="bar"><i style="width:20%;background:var(--teal)"></i></div></div>
+          </div></div>
+        <div class="card"><h3>Needs attention</h3>
+          <div style="font-size:12.5px;line-height:2.1">
+            <div>● 2 jobs breaching SLA — Siemens window</div>
+            <div>● 4 AMC contracts expire within 30 days</div>
+            <div>● Copper wire 1.2mm below reorder level</div>
+            <div>● ₹1.34L invoices overdue 45+ days (CG Power)</div>
+          </div></div>
+      </div>
+    </section>
+
+    <!-- LEADS -->
+    <section class="view" data-v="leads">
+      <div class="card"><table>
+        <thead><tr><th>Lead</th><th>Account</th><th>Source</th><th>Asset / need</th><th>Owner</th><th>Stage</th></tr></thead>
+        <tbody>
+          <tr><td>LD-208</td><td>Hosapete Steel</td><td><span class="pill p-purple">Marathon ref.</span></td><td>Transformer oil test</td><td>Sales</td><td><span class="pill p-blue">New</span></td></tr>
+          <tr><td>LD-207</td><td>Sandur Mines</td><td><span class="pill p-teal">Direct</span></td><td>90kW motor rewind</td><td>Sales</td><td><span class="pill p-amber">Inspecting</span></td></tr>
+          <tr><td>LD-205</td><td>Bharat Forge</td><td><span class="pill p-blue">Crompton ref.</span></td><td>75kW rewind</td><td>Sales</td><td><span class="pill p-green">Quoted</span></td></tr>
+          <tr><td>LD-203</td><td>JSW Cement</td><td><span class="pill p-blue">Crompton ref.</span></td><td>AMC enquiry</td><td>Sales</td><td><span class="pill p-amber">Inspecting</span></td></tr>
+        </tbody></table>
+        <div class="note">Leads convert into deals (quotes). Source is captured here and rides through the whole journey.</div>
+      </div>
+    </section>
+
+    <!-- PARTNERS -->
+    <section class="view" data-v="partners">
+      <div class="note" style="margin:0 0 12px">OEM partners send referrals and hold AMC contracts — the top of your funnel.</div>
+      <div class="grid g3">
+        <div class="card"><b>Crompton Greaves</b><div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.9">Authorized service centre<br>Referrals MTD: 6 · AMC sites: 8<br>SLA: 24h</div></div>
+        <div class="card"><b>Marathon</b><div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.9">Authorized service centre<br>Referrals MTD: 3 · AMC sites: 4<br>SLA: 48h</div></div>
+        <div class="card"><b>Rotomotive Power Drives</b><div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.9">Authorized service centre<br>Referrals MTD: 2 · AMC sites: 3<br>SLA: 48h</div></div>
+      </div>
+    </section>
+
+    <!-- QUOTATIONS -->
+    <section class="view" data-v="quote">
+      <div class="card" style="margin-bottom:14px"><table>
+        <thead><tr><th>Quote</th><th>Account</th><th>From lead</th><th>Status</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>
+          <tr><td>QT-0518 <span class="pill p-blue" style="font-size:10px">v2</span></td><td>Bharat Forge</td><td>LD-205</td><td><span class="pill p-amber">Sent</span></td><td style="text-align:right">₹46,000</td></tr>
+          <tr><td>QT-0517</td><td>Krishna Textiles</td><td>LD-201</td><td><span class="pill p-green">Approved → WO-2416</span></td><td style="text-align:right">₹18,500</td></tr>
+          <tr><td>QT-0510</td><td>Tata Motors</td><td>LD-198</td><td><span class="pill p-amber">Sent</span></td><td style="text-align:right">₹72,000</td></tr>
+        </tbody></table></div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <div><div style="font-weight:600;font-size:15px">QT-0518 <span class="pill p-blue" style="font-size:10px">v2</span></div><div style="font-size:12px;color:var(--muted);margin-top:3px">Bharat Forge · MTR-0142 · 75kW · from LD-205 (Crompton)</div></div>
+          <span class="pill p-amber">Awaiting approval</span>
+        </div>
+        <table>
+          <thead><tr><th>Item</th><th>Type</th><th style="text-align:right">Amount</th></tr></thead>
+          <tbody>
+            <tr><td>Stator rewinding — 75kW, class F</td><td>Labour</td><td style="text-align:right">₹22,000</td></tr>
+            <tr><td>Copper winding wire 1.2mm — 18kg</td><td>Part</td><td style="text-align:right">₹14,040</td></tr>
+            <tr><td>Insulation + varnish</td><td>Part</td><td style="text-align:right">₹4,200</td></tr>
+            <tr><td>Bearings 6314/6316 ×2</td><td>Part</td><td style="text-align:right">₹2,760</td></tr>
+            <tr><td>Balancing + testing</td><td>Labour</td><td style="text-align:right">₹3,000</td></tr>
+          </tbody>
+        </table>
+        <div style="text-align:right;font-size:13px;margin-top:8px">Subtotal ₹46,000 · GST 18% ₹8,280 · <b>Total ₹54,280</b></div>
+        <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px"><button class="btn" style="border-color:var(--green);color:var(--green)">Mark approved → create work order</button></div>
+        <div class="note">On approval the work order inherits this scope, parts and price — no re-entry.</div>
+      </div>
+    </section>
+
+    <!-- CASES -->
+    <section class="view" data-v="cases">
+      <div class="card"><table>
+        <thead><tr><th>Case</th><th>Account</th><th>Issue</th><th>Priority</th><th>SLA</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>CS-074</td><td>Tata Motors</td><td>110kW noisy after fitting</td><td><span class="pill p-red">High</span></td><td><span class="pill p-red">Breaching</span></td><td><span class="pill p-amber">Tech assigned</span></td></tr>
+          <tr><td>CS-072</td><td>Sahyadri Hospital</td><td>AHU vibration recurring</td><td><span class="pill p-amber">Medium</span></td><td><span class="pill p-green">On track</span></td><td><span class="pill p-blue">Investigating</span></td></tr>
+          <tr><td>CS-069</td><td>Krishna Textiles</td><td>Warranty query — fan motor</td><td><span class="pill p-teal">Low</span></td><td><span class="pill p-green">On track</span></td><td><span class="pill p-green">Resolved</span></td></tr>
+        </tbody></table>
+        <div class="note">Service cases can spawn a work order (field visit) or close with advice — both link back to the account &amp; asset.</div>
+      </div>
+    </section>
+
+    <!-- AMC -->
+    <section class="view" data-v="amc">
+      <div class="card"><table>
+        <thead><tr><th>Contract</th><th>Held with</th><th>Motors</th><th>Visits</th><th>Next</th><th>Renewal</th></tr></thead>
+        <tbody>
+          <tr><td>AMC-031</td><td>Crompton Greaves</td><td>11</td><td>8 / 12</td><td>25 Jun</td><td><span class="pill p-amber">28 days</span></td></tr>
+          <tr><td>AMC-027</td><td>Marathon</td><td>6</td><td>5 / 8</td><td>30 Jun</td><td><span class="pill p-green">112 days</span></td></tr>
+          <tr><td>AMC-022</td><td>CG Power</td><td>4</td><td>10 / 12</td><td>21 Jun</td><td><span class="pill p-red">9 days</span></td></tr>
+          <tr><td>AMC-019</td><td>Krishna Textiles</td><td>14</td><td>3 / 4</td><td>05 Jul</td><td><span class="pill p-green">201 days</span></td></tr>
+        </tbody></table>
+        <div class="note">Contracts auto-generate preventive work orders on schedule and authorize them without a per-job quote.</div>
+      </div>
+    </section>
+
+    <!-- WORK ORDERS -->
+    <section class="view" data-v="wo">
+      <div class="card"><table>
+        <thead><tr><th>WO</th><th>Account</th><th>Asset</th><th>Authorized by</th><th>Tech</th><th>Status</th><th style="text-align:right">Value</th></tr></thead>
+        <tbody>
+          <tr><td>WO-2418</td><td>Bharat Forge</td><td>MTR-0142 · 75kW</td><td><span class="pill p-blue">QT-0518</span></td><td>Ramesh P.</td><td><span class="pill p-amber">Scheduled</span></td><td style="text-align:right">₹46,000</td></tr>
+          <tr><td>WO-2417</td><td>Sahyadri Hospital</td><td>15kW chiller</td><td><span class="pill p-purple">AMC-031</span></td><td>Suresh K.</td><td><span class="pill p-blue">In progress</span></td><td style="text-align:right">Covered</td></tr>
+          <tr><td>WO-2416</td><td>Krishna Textiles</td><td>MTR-0098 · 22kW</td><td><span class="pill p-blue">QT-0517</span></td><td>Anil D.</td><td><span class="pill p-blue">In progress</span></td><td style="text-align:right">₹18,500</td></tr>
+          <tr><td>WO-2411</td><td>Krishna Textiles</td><td>MTR-0064 · 5.5kW</td><td><span class="pill p-blue">QT-0512</span></td><td>Anil D.</td><td><span class="pill p-green">Completed</span></td><td style="text-align:right">₹6,200</td></tr>
+        </tbody></table>
+        <div class="note">Every work order traces to exactly one wrapper: <span class="pill p-blue" style="font-size:10px">QT-…</span> billable · <span class="pill p-purple" style="font-size:10px">AMC-…</span> covered.</div>
+      </div>
+    </section>
+
+    <!-- DISPATCH -->
+    <section class="view" data-v="dispatch">
+      <div class="card"><h3>Today's dispatch · 18 Jun · 5 visits</h3><table>
+        <tbody>
+          <tr><td style="width:60px">09:30</td><td>Ramesh Patil</td><td>75kW rewind pickup — Bharat Forge</td><td><span class="pill p-blue">Vendor</span></td></tr>
+          <tr><td>11:00</td><td>Suresh Kumar</td><td>AMC preventive — Sahyadri Hospital</td><td><span class="pill p-purple">AMC</span></td></tr>
+          <tr><td>13:30</td><td>Anil Deshmukh</td><td>Pump motor fault — Krishna Textiles</td><td><span class="pill p-teal">Direct</span></td></tr>
+          <tr><td>15:00</td><td>Farhan Shaikh</td><td>Bearing replace — Tata Motors</td><td><span class="pill p-blue">Vendor</span></td></tr>
+        </tbody></table></div>
+    </section>
+
+    <!-- TECHNICIANS -->
+    <section class="view" data-v="tech">
+      <div class="grid g2">
+        <div class="card"><b>Ramesh Patil</b><div style="font-size:12px;color:var(--muted);margin:4px 0 9px">Senior winder · 4 jobs today</div><div class="bar"><i style="width:90%;background:var(--blue)"></i></div><div class="note">90% utilized</div></div>
+        <div class="card"><b>Suresh Kumar</b><div style="font-size:12px;color:var(--muted);margin:4px 0 9px">AMC routes · 3 jobs today</div><div class="bar"><i style="width:75%;background:var(--blue)"></i></div><div class="note">75% utilized</div></div>
+        <div class="card"><b>Anil Deshmukh</b><div style="font-size:12px;color:var(--muted);margin:4px 0 9px">Field repair · 2 jobs today</div><div class="bar"><i style="width:62%;background:var(--blue)"></i></div><div class="note">62% utilized</div></div>
+        <div class="card"><b>Farhan Shaikh</b><div style="font-size:12px;color:var(--muted);margin:4px 0 9px">Field repair · 3 jobs today</div><div class="bar"><i style="width:84%;background:var(--blue)"></i></div><div class="note">84% utilized</div></div>
+      </div>
+    </section>
+
+    <!-- ACCOUNTS -->
+    <section class="view" data-v="accounts">
+      <div class="grid g4" style="margin-bottom:14px">
+        <div class="mc"><p class="l">Total accounts</p><p class="v">46</p></div>
+        <div class="mc"><p class="l">OEM partners</p><p class="v">5</p></div>
+        <div class="mc"><p class="l">Direct customers</p><p class="v">31</p></div>
+        <div class="mc"><p class="l">On AMC</p><p class="v">10</p></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <div class="ava">KT</div>
+          <div><div style="font-weight:600;font-size:15px">Krishna Textiles</div><div style="font-size:11px;color:var(--muted)">Direct customer · Hosapete · since 2022</div></div>
+          <span class="pill p-teal" style="margin-left:auto">Active</span>
+        </div>
+        <div class="note" style="margin:12px 0 6px">CONNECTED OBJECTS — every count links to its records</div>
+        <div class="chips">
+          <div class="chip"><b>3</b><span>Contacts</span></div>
+          <div class="chip"><b>2</b><span>Deals</span></div>
+          <div class="chip"><b>2</b><span>Quotes</span></div>
+          <div class="chip"><b>2</b><span>Work orders</span></div>
+          <div class="chip"><b>14</b><span>Assets</span></div>
+          <div class="chip"><b>1</b><span>Contract</span></div>
+          <div class="chip"><b>5</b><span>Invoices</span></div>
+        </div>
+        <div class="note" style="margin:16px 0 8px">UNIFIED TIMELINE — one job flowing across the pillars</div>
+        <div style="display:flex;flex-direction:column">
+          <div class="tl"><div class="rail"><span class="dot" style="background:var(--purple)"></span><span class="ln"></span></div><div class="body"><b style="font-weight:500">Lead captured</b> — Crompton referral <span class="pill p-purple">Marketing</span><div class="when">02 Jun</div></div></div>
+          <div class="tl"><div class="rail"><span class="dot" style="background:var(--blue)"></span><span class="ln"></span></div><div class="body"><b style="font-weight:500">Quote QT-0517 sent</b> — ₹18,500 <span class="pill p-blue">Sales</span><div class="when">05 Jun</div></div></div>
+          <div class="tl"><div class="rail"><span class="dot" style="background:var(--blue)"></span><span class="ln"></span></div><div class="body"><b style="font-weight:500">Approved → deal won</b> <span class="pill p-blue">Sales</span><div class="when">09 Jun</div></div></div>
+          <div class="tl"><div class="rail"><span class="dot" style="background:var(--amber)"></span><span class="ln"></span></div><div class="body"><b style="font-weight:500">WO-2416 dispatched</b> — Anil D., 22kW pump <span class="pill p-amber">Field</span><div class="when">11 Jun</div></div></div>
+          <div class="tl"><div class="rail"><span class="dot" style="background:var(--green)"></span></div><div class="body"><b style="font-weight:500">Invoice INV-0914 raised</b> — ₹18,500 <span class="pill p-green">Finance</span><div class="when">17 Jun</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ASSETS -->
+    <section class="view" data-v="assets">
+      <div class="card"><table>
+        <thead><tr><th>Asset</th><th>Account</th><th>Spec</th><th>Last service</th><th>Repairs</th><th>Health</th></tr></thead>
+        <tbody>
+          <tr><td>MTR-0142</td><td>Bharat Forge</td><td>75kW · induction · 1480rpm</td><td>18 Jun</td><td>4</td><td><span class="pill p-amber">Watch</span></td></tr>
+          <tr><td>MTR-0098</td><td>Krishna Textiles</td><td>22kW · pump motor</td><td>16 Jun</td><td>2</td><td><span class="pill p-green">Good</span></td></tr>
+          <tr><td>MTR-0177</td><td>Tata Motors</td><td>110kW · slip-ring</td><td>11 Jun</td><td>6</td><td><span class="pill p-red">Critical</span></td></tr>
+          <tr><td>TRF-0044</td><td>Hosapete Steel</td><td>HT transformer · 500kVA</td><td>—</td><td>0</td><td><span class="pill p-blue">New</span></td></tr>
+        </tbody></table>
+        <div class="note">Each asset carries winding/transformer specs + full repair history + photos — the data that makes you impossible to leave.</div>
+      </div>
+    </section>
+
+    <!-- INVOICES -->
+    <section class="view" data-v="inv">
+      <div class="card"><table>
+        <thead><tr><th>Invoice</th><th>Bill to</th><th>Against</th><th>Status</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>
+          <tr><td>INV-0912</td><td>Krishna Textiles <span class="pill p-teal">Direct</span></td><td>WO-2411</td><td><span class="pill p-green">Paid</span></td><td style="text-align:right">₹6,200</td></tr>
+          <tr><td>INV-0910</td><td>Crompton Greaves <span class="pill p-blue">Vendor</span></td><td>WO-2414</td><td><span class="pill p-amber">Pending</span></td><td style="text-align:right">₹72,000</td></tr>
+          <tr><td>INV-0905</td><td>CG Power <span class="pill p-blue">Vendor</span></td><td>AMC-022 Q2</td><td><span class="pill p-red">Overdue 47d</span></td><td style="text-align:right">₹1,34,000</td></tr>
+        </tbody></table>
+        <div class="grid g2" style="margin-top:12px">
+          <div class="mc"><p class="l">Collected (MTD)</p><p class="v" style="color:var(--green)">₹4.4L</p></div>
+          <div class="mc"><p class="l">Outstanding</p><p class="v" style="color:var(--amber)">₹2.06L</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+  var titles={
+    pipe:["Pipeline","The customer journey · Hosapete · 18 Jun 2026"],
+    dash:["Dashboard","Business at a glance"],
+    leads:["Leads","Marketing · incoming demand"],
+    partners:["Partners","Marketing · OEM referral sources"],
+    quote:["Quotations","Sales · estimates &amp; approvals"],
+    cases:["Cases","Service · support tickets &amp; SLAs"],
+    amc:["AMC contracts","Service · recurring agreements"],
+    wo:["Work orders","Field service · jobs"],
+    dispatch:["Dispatch","Field service · today's schedule"],
+    tech:["Technicians","Field service · team"],
+    accounts:["Accounts","Records · the connected hub"],
+    assets:["Assets","Records · motors &amp; transformers"],
+    inv:["Invoices","Records · billing &amp; collections"]
+  };
+  var nav=document.getElementById('nav');
+  nav.addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    var v=b.getAttribute('data-v');
+    nav.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b)});
+    document.querySelectorAll('.view').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-v')===v)});
+    document.getElementById('title').innerHTML=titles[v][0];
+    document.getElementById('subtitle').innerHTML=titles[v][1];
+    window.scrollTo(0,0);
+  });
+})();
+</script>
+</body>
+</html>
