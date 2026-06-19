@@ -9,8 +9,9 @@ import { ROUTES } from "@/lib/constants";
 import type { PillarKey } from "@/lib/theme";
 
 const typeTone: Record<Account["type"], PillarKey> = {
-  oem: "purple",
-  direct: "green",
+  prospect:     "amber",
+  oem:          "purple",
+  direct:       "green",
   end_customer: "teal",
 };
 

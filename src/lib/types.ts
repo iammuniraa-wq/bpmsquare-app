@@ -1,7 +1,7 @@
 // VeveyCRM domain model — the Account is the hub; everything carries account_id.
 // Mirrors the LOCKED data model in PROJECT.md §3.
 
-export type AccountType = "oem" | "direct" | "end_customer";
+export type AccountType = "prospect" | "oem" | "direct" | "end_customer";
 
 export type Account = {
   id: string;
@@ -33,11 +33,13 @@ export type Site = {
 
 export type Asset = {
   id: string;
-  account_id: string;
+  account_id: string | null; // null = company-owned loaner stock
   kind: "motor" | "transformer" | "pump" | "generator" | "panel";
   name: string;
   rating: string | null; // e.g. "75 kW · 415V · 1480 rpm"
   serial: string | null;
+  is_loaner: boolean;
+  loaner_status: "available" | "on_loan" | null; // null when not loaner stock
 };
 
 export type Contract = {
@@ -105,11 +107,14 @@ export type WorkOrder = {
   id: string;
   account_id: string;
   ref: string;
+  case_id: string | null;
   asset_id: string | null;
   technician_id: string | null;
   authorized_by: { kind: "quote"; id: string } | { kind: "contract"; id: string };
   status: WorkOrderStatus;
   scheduled_for: string | null;
+  description: string | null;
+  notes: string | null;
 };
 
 export type Invoice = {
@@ -170,6 +175,8 @@ export type ServiceCase = {
   quote_id: string | null;
   contract_id: string | null;
   has_loaner: boolean;
+  loaner_asset_id: string | null; // which loaner unit was dispatched (optional)
+  parent_case_id: string | null;  // set when this is a sub-case of another case
   disposition: "repair" | "buyback" | "scrap" | null;
   notes: string | null;
 };

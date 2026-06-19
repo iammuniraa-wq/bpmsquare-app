@@ -28,6 +28,10 @@ export const accounts: Account[] = [
   { id: "acc_sahyadri",  name: "Sahyadri Hospital",      type: "end_customer", city: "Hubli",   phone: "+91 836 555 8080", email: "facilities@sahyadri.org", referred_by_account_id: "acc_crompton",   created_at: "2026-04-02" },
   { id: "acc_bharat",    name: "Bharat Forge",           type: "end_customer", city: "Pune",    phone: "+91 20 5555 9090", email: "plant@bharatforge.com",   referred_by_account_id: "acc_marathon",   created_at: "2026-04-15" },
   { id: "acc_tata",      name: "Tata Motors",            type: "end_customer", city: "Dharwad", phone: "+91 836 555 7070", email: "upkeep@tatamotors.com",   referred_by_account_id: "acc_rotomotive", created_at: "2026-05-06" },
+
+  // Prospects — being pursued, no active work yet.
+  { id: "acc_rail",  name: "South Western Railway Stores", type: "prospect", city: "Hubballi", phone: "+91 836 555 4455", email: "stores@swr.in",      referred_by_account_id: null, created_at: "2026-06-01" },
+  { id: "acc_sugar", name: "Renuka Sugar Works",           type: "prospect", city: "Belgaum",  phone: "+91 831 555 7788", email: "maint@renuka.co.in", referred_by_account_id: null, created_at: "2026-06-10" },
 ];
 
 export const contacts: Contact[] = [
@@ -35,6 +39,8 @@ export const contacts: Contact[] = [
   { id: "con_sahyadri_1", account_id: "acc_sahyadri", name: "Dr. Nalini",     role: "Facilities Lead",  phone: "+91 99000 44556", email: "nalini@sahyadri.org" },
   { id: "con_bharat_1",   account_id: "acc_bharat",   name: "Sunil Kulkarni", role: "Plant Engineer",   phone: "+91 90110 77889", email: "sunil@bharatforge.com" },
   { id: "con_crompton_1", account_id: "acc_crompton", name: "Anita Desai",    role: "Service Manager",  phone: "+91 98200 33445", email: "anita@cromptongreaves.com" },
+  { id: "con_rail_1",     account_id: "acc_rail",     name: "K. Venkatesh",   role: "Chief Engineer",   phone: "+91 98441 22334", email: "venkatesh@swr.in" },
+  { id: "con_sugar_1",    account_id: "acc_sugar",    name: "Priya Nair",     role: "Maintenance Manager", phone: "+91 94491 55667", email: "priya@renuka.co.in" },
 ];
 
 export const sites: Site[] = [
@@ -45,11 +51,17 @@ export const sites: Site[] = [
 ];
 
 export const assets: Asset[] = [
-  { id: "ast_krishna_m1",  account_id: "acc_krishna",  kind: "motor",       name: "Ring-frame drive motor", rating: "75 kW · 415V · 1480 rpm", serial: "CG-75-2291" },
-  { id: "ast_sahyadri_t1", account_id: "acc_sahyadri", kind: "transformer", name: "Distribution transformer", rating: "500 kVA · 11kV/433V",    serial: "TX-500-0148" },
-  { id: "ast_bharat_m1",   account_id: "acc_bharat",   kind: "motor",       name: "Hammer drive motor",     rating: "160 kW · 415V · 990 rpm", serial: "MR-160-7741" },
-  { id: "ast_hpsteel_m1",  account_id: "acc_hpsteel",  kind: "motor",       name: "Rolling mill motor",     rating: "250 kW · 690V · 740 rpm", serial: "HP-250-3320" },
-  { id: "ast_tata_p1",     account_id: "acc_tata",     kind: "pump",        name: "Coolant pump",           rating: "37 kW · 415V · 2950 rpm", serial: "RM-37-5582" },
+  // ── Customer-owned assets ──────────────────────────────────────────────────
+  { id: "ast_krishna_m1",  account_id: "acc_krishna",  kind: "motor",       name: "Ring-frame drive motor",   rating: "75 kW · 415V · 1480 rpm",  serial: "CG-75-2291",   is_loaner: false, loaner_status: null },
+  { id: "ast_sahyadri_t1", account_id: "acc_sahyadri", kind: "transformer", name: "Distribution transformer", rating: "500 kVA · 11kV/433V",       serial: "TX-500-0148",  is_loaner: false, loaner_status: null },
+  { id: "ast_bharat_m1",   account_id: "acc_bharat",   kind: "motor",       name: "Hammer drive motor",       rating: "160 kW · 415V · 990 rpm",   serial: "MR-160-7741",  is_loaner: false, loaner_status: null },
+  { id: "ast_hpsteel_m1",  account_id: "acc_hpsteel",  kind: "motor",       name: "Rolling mill motor",       rating: "250 kW · 690V · 740 rpm",   serial: "HP-250-3320",  is_loaner: false, loaner_status: null },
+  { id: "ast_tata_p1",     account_id: "acc_tata",     kind: "pump",        name: "Coolant pump",             rating: "37 kW · 415V · 2950 rpm",   serial: "RM-37-5582",   is_loaner: false, loaner_status: null },
+
+  // ── Company loaner stock (Vikas Pioneers — account_id null) ───────────────
+  { id: "lnr_motor_45k",   account_id: null, kind: "motor", name: "Loaner — 45 kW standard motor",   rating: "45 kW · 415V · 1480 rpm",  serial: "VP-LNR-001", is_loaner: true, loaner_status: "on_loan"   },
+  { id: "lnr_motor_22k",   account_id: null, kind: "motor", name: "Loaner — 22 kW general purpose",  rating: "22 kW · 415V · 1480 rpm",  serial: "VP-LNR-002", is_loaner: true, loaner_status: "available" },
+  { id: "lnr_pump_37k",    account_id: null, kind: "pump",  name: "Loaner — 37 kW centrifugal pump", rating: "37 kW · 415V · 2950 rpm",  serial: "VP-LNR-003", is_loaner: true, loaner_status: "available" },
 ];
 
 export const contracts: Contract[] = [
@@ -107,9 +119,33 @@ export const quoteLines: QuoteLine[] = [
 ];
 
 export const workOrders: WorkOrder[] = [
-  { id: "wo_krishna",  account_id: "acc_krishna",  ref: "WO-2026-0301", asset_id: "ast_krishna_m1",  technician_id: "tech_ramesh", authorized_by: { kind: "quote", id: "qt_krishna" },    status: "in_progress", scheduled_for: "2026-06-18" },
-  { id: "wo_sahyadri", account_id: "acc_sahyadri", ref: "WO-2026-0298", asset_id: "ast_sahyadri_t1", technician_id: "tech_suresh", authorized_by: { kind: "contract", id: "ctr_crompton" }, status: "completed",   scheduled_for: "2026-06-12" },
-  { id: "wo_bharat",   account_id: "acc_bharat",   ref: "WO-2026-0305", asset_id: "ast_bharat_m1",   technician_id: "tech_anil",   authorized_by: { kind: "contract", id: "ctr_marathon" }, status: "scheduled",   scheduled_for: "2026-06-20" },
+  {
+    id: "wo_krishna", account_id: "acc_krishna", ref: "WO-2026-0301",
+    case_id: "case_krishna",
+    asset_id: "ast_krishna_m1", technician_id: "tech_ramesh",
+    authorized_by: { kind: "quote", id: "qt_krishna" },
+    status: "in_progress", scheduled_for: "2026-06-18",
+    description: "Full stator rewind — 75 kW, 415V, 1480 rpm, Class F insulation. Replace DE & NDE bearings (SKF/FAG). Varnish treatment and oven bake. No-load and full-load testing.",
+    notes: "Customer's spinning line B is down. Priority completion by 25 Jun. Ensure phase-failure relay recommendation is in handover note.",
+  },
+  {
+    id: "wo_sahyadri", account_id: "acc_sahyadri", ref: "WO-2026-0298",
+    case_id: null,
+    asset_id: "ast_sahyadri_t1", technician_id: "tech_suresh",
+    authorized_by: { kind: "contract", id: "ctr_crompton" },
+    status: "completed", scheduled_for: "2026-06-12",
+    description: "AMC routine — transformer oil dielectric strength test, dissolved gas analysis (DGA), and visual inspection of bushings and radiators.",
+    notes: "Oil test results within limits — dielectric strength 58 kV (limit 40 kV). DGA normal. Bushing surfaces cleaned. Certificate issued.",
+  },
+  {
+    id: "wo_bharat", account_id: "acc_bharat", ref: "WO-2026-0305",
+    case_id: "case_bharat",
+    asset_id: "ast_bharat_m1", technician_id: "tech_anil",
+    authorized_by: { kind: "contract", id: "ctr_marathon" },
+    status: "scheduled", scheduled_for: "2026-06-20",
+    description: "Bearing replacement — DE & NDE sets (160 kW, 415V). Replace labyrinth seal and end-shield gaskets. Insulation resistance and vibration check on reassembly.",
+    notes: "Loaner VP-LNR-001 dispatched to Pune site. Coordinate with Sunil Kulkarni for unit collection once ready.",
+  },
 ];
 
 export const invoices: Invoice[] = [
@@ -145,6 +181,8 @@ export const serviceCases: ServiceCase[] = [
     quote_id: "qt_krishna",
     contract_id: null,
     has_loaner: false,
+    loaner_asset_id: null,
+    parent_case_id: null,
     disposition: "repair",
     notes: "Customer needs motor back by 25 Jun — spinning line B is down. Priority job.",
   },
@@ -163,6 +201,8 @@ export const serviceCases: ServiceCase[] = [
     quote_id: "qt_hpsteel",
     contract_id: null,
     has_loaner: false,
+    loaner_asset_id: null,
+    parent_case_id: null,
     disposition: null,
     notes: "HV motor — handle with care. 690V class. Ensure HV test cert on completion.",
   },
@@ -171,7 +211,7 @@ export const serviceCases: ServiceCase[] = [
     account_id: "acc_bharat",
     ref: "CS-2026-0095",
     type: "amc",
-    status: "intake",
+    status: "inspection",
     asset_id: "ast_bharat_m1",
     equipment_label: "Marathon 160 kW 3-Ph IM · MR-160-7741",
     complaint: "Bearing noise — DE side. Grease leaking from end-shield. Intermittent vibration trip.",
@@ -181,8 +221,31 @@ export const serviceCases: ServiceCase[] = [
     quote_id: null,
     contract_id: "ctr_marathon",
     has_loaner: true,
+    loaner_asset_id: "lnr_motor_45k",
+    parent_case_id: null,
     disposition: null,
-    notes: "AMC case under Marathon contract AMC-MR-2026-02. Loaner motor (45 kW) dispatched to Bharat Forge Pune while this unit is in workshop.",
+    notes: "AMC case under Marathon contract AMC-MR-2026-02. Loaner VP-LNR-001 dispatched to Bharat Forge Pune — coordinate return on delivery.",
+  },
+  {
+    // Sub-case discovered during inspection of case_bharat
+    id: "case_bharat_winding",
+    account_id: "acc_bharat",
+    ref: "CS-2026-0095-A",
+    type: "amc",
+    status: "inspection",
+    asset_id: "ast_bharat_m1",
+    equipment_label: "Marathon 160 kW 3-Ph IM · MR-160-7741",
+    complaint: "Insulation resistance on Phase B found below threshold (8 MΩ, limit 10 MΩ) during bearing inspection. Possible early winding degradation.",
+    assigned_to: "tech_ramesh",
+    intake_at: "2026-06-18T09:00:00",
+    closed_at: null,
+    quote_id: null,
+    contract_id: "ctr_marathon",
+    has_loaner: false,
+    loaner_asset_id: null,
+    parent_case_id: "case_bharat",
+    disposition: null,
+    notes: "Discovered during Phase B IR check. May need partial rewind if further tests confirm degradation. Raise separate quote if not AMC-covered.",
   },
 ];
 

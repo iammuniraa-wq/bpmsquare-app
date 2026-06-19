@@ -3,7 +3,7 @@
 // only this file. (isSupabaseConfigured() gate added when the project exists.)
 
 import * as seed from "./seed";
-import type { Account, Quote, ServiceCase, CaseStatus } from "@/lib/types";
+import type { Account, Asset, Contact, Quote, ServiceCase, CaseStatus, WorkOrder, Technician } from "@/lib/types";
 
 export type AccountSummary = {
   account: Account;
@@ -19,7 +19,7 @@ export type AccountSummary = {
   };
 };
 
-const byAccount = <T extends { account_id: string }>(rows: T[], id: string) =>
+const byAccount = <T extends { account_id: string | null }>(rows: T[], id: string) =>
   rows.filter((r) => r.account_id === id);
 
 export async function listAccounts(): Promise<AccountSummary[]> {
@@ -76,10 +76,26 @@ function summarize(account: Account): AccountSummary {
 }
 
 export const ACCOUNT_TYPE_LABEL: Record<Account["type"], string> = {
-  oem: "OEM / Vendor",
-  direct: "Direct customer",
+  prospect:     "Prospect",
+  oem:          "OEM / Vendor",
+  direct:       "Direct customer",
   end_customer: "End-customer (under OEM)",
 };
+
+// ── Contacts ──────────────────────────────────────────────────────────────────
+
+export type ContactWithAccount = {
+  contact: Contact;
+  account: Account;
+};
+
+export async function listContacts(): Promise<ContactWithAccount[]> {
+  const accountById = new Map(seed.accounts.map((a) => [a.id, a]));
+  return seed.contacts.map((contact) => ({
+    contact,
+    account: accountById.get(contact.account_id)!,
+  }));
+}
 
 export type QuoteSummary = {
   quote: Quote;
@@ -168,7 +184,15 @@ export async function getCase(id: string) {
     .sort((a, b) => +new Date(a.taken_at) - +new Date(b.taken_at));
   const inspectionReport = seed.inspectionReports.find((r) => r.case_id === id) ?? null;
 
-  return { serviceCase, account, contact, asset, technician, contract, quote, photos, inspectionReport };
+  const loanerAsset = serviceCase.loaner_asset_id
+    ? seed.assets.find((a) => a.id === serviceCase.loaner_asset_id) ?? null
+    : null;
+
+  const subCases = seed.serviceCases.filter(
+    (c) => c.parent_case_id === id
+  );
+
+  return { serviceCase, account, contact, asset, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases };
 }
 
 export const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
@@ -231,4 +255,105 @@ export async function getDashboardSummary() {
     .map((act) => ({ activity: act, account: accountById.get(act.account_id) ?? null }));
 
   return { kpis, attention, workOrderRows, recentActivity };
+}
+
+// ── Work Orders ───────────────────────────────────────────────────────────────
+
+export type WorkOrderRow = {
+  workOrder: WorkOrder;
+  account: Account;
+  asset: Asset | null;
+  technician: Technician | null;
+  authRef: string;
+  authKind: "quote" | "contract";
+  serviceCase: ServiceCase | null;
+};
+
+export async function listWorkOrders(): Promise<WorkOrderRow[]> {
+  const accountById    = new Map(seed.accounts.map((a)    => [a.id, a]));
+  const assetById      = new Map(seed.assets.map((a)      => [a.id, a]));
+  const techById       = new Map(seed.technicians.map((t) => [t.id, t]));
+  const quoteById      = new Map(seed.quotes.map((q)      => [q.id, q]));
+  const contractById   = new Map(seed.contracts.map((c)   => [c.id, c]));
+  const caseById       = new Map(seed.serviceCases.map((c) => [c.id, c]));
+
+  return seed.workOrders
+    .slice()
+    .sort((a, b) => (a.scheduled_for ?? "").localeCompare(b.scheduled_for ?? ""))
+    .map((wo) => {
+      const authRef =
+        wo.authorized_by.kind === "quote"
+          ? (quoteById.get(wo.authorized_by.id)?.ref ?? wo.authorized_by.id)
+          : (contractById.get(wo.authorized_by.id)?.ref ?? wo.authorized_by.id);
+      return {
+        workOrder: wo,
+        account:     accountById.get(wo.account_id)!,
+        asset:       wo.asset_id ? (assetById.get(wo.asset_id) ?? null) : null,
+        technician:  wo.technician_id ? (techById.get(wo.technician_id) ?? null) : null,
+        authRef,
+        authKind:    wo.authorized_by.kind,
+        serviceCase: wo.case_id ? (caseById.get(wo.case_id) ?? null) : null,
+      };
+    });
+}
+
+export async function getWorkOrder(id: string) {
+  const wo = seed.workOrders.find((w) => w.id === id);
+  if (!wo) return null;
+
+  const account    = seed.accounts.find((a)     => a.id === wo.account_id) ?? null;
+  const asset      = wo.asset_id ? seed.assets.find((a) => a.id === wo.asset_id) ?? null : null;
+  const technician = wo.technician_id ? seed.technicians.find((t) => t.id === wo.technician_id) ?? null : null;
+  const serviceCase = wo.case_id ? seed.serviceCases.find((c) => c.id === wo.case_id) ?? null : null;
+
+  const quote    = wo.authorized_by.kind === "quote"    ? seed.quotes.find((q)    => q.id === wo.authorized_by.id) ?? null : null;
+  const contract = wo.authorized_by.kind === "contract" ? seed.contracts.find((c) => c.id === wo.authorized_by.id) ?? null : null;
+
+  const loanerAsset = serviceCase?.loaner_asset_id
+    ? seed.assets.find((a) => a.id === serviceCase.loaner_asset_id) ?? null
+    : null;
+
+  return { workOrder: wo, account, asset, technician, serviceCase, quote, contract, loanerAsset };
+}
+
+// ── Assets ────────────────────────────────────────────────────────────────────
+
+export type AssetRow = {
+  asset: Asset;
+  account: Account | null;
+  openCaseCount: number;
+  loanedToCase: ServiceCase | null;   // set when loaner is on_loan
+  loanedToAccount: Account | null;
+};
+
+export async function listAssets(): Promise<{ customerAssets: AssetRow[]; loanerStock: AssetRow[] }> {
+  const accountById = new Map(seed.accounts.map((a) => [a.id, a]));
+
+  const activeCasesByAsset = new Map<string, number>();
+  const loanCaseByAsset    = new Map<string, ServiceCase>();
+  seed.serviceCases.forEach((sc) => {
+    if (sc.asset_id && !["closed","buyback","scrapped"].includes(sc.status)) {
+      activeCasesByAsset.set(sc.asset_id, (activeCasesByAsset.get(sc.asset_id) ?? 0) + 1);
+    }
+    if (sc.loaner_asset_id) {
+      loanCaseByAsset.set(sc.loaner_asset_id, sc);
+    }
+  });
+
+  const toRow = (asset: Asset): AssetRow => {
+    const loanedCase    = asset.is_loaner ? (loanCaseByAsset.get(asset.id) ?? null) : null;
+    const loanedAccount = loanedCase ? (accountById.get(loanedCase.account_id) ?? null) : null;
+    return {
+      asset,
+      account:         asset.account_id ? (accountById.get(asset.account_id) ?? null) : null,
+      openCaseCount:   activeCasesByAsset.get(asset.id) ?? 0,
+      loanedToCase:    loanedCase,
+      loanedToAccount: loanedAccount,
+    };
+  };
+
+  return {
+    customerAssets: seed.assets.filter((a) => !a.is_loaner).map(toRow),
+    loanerStock:    seed.assets.filter((a) =>  a.is_loaner).map(toRow),
+  };
 }

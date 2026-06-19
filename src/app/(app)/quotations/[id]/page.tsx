@@ -232,7 +232,7 @@ export default async function QuotationDetailPage({
                 </Link>
                 <Pill
                   label={ACCOUNT_TYPE_LABEL[account.type]}
-                  tone={account.type === "oem" ? "purple" : account.type === "direct" ? "green" : "teal"}
+                  tone={account.type === "prospect" ? "amber" : account.type === "oem" ? "purple" : account.type === "direct" ? "green" : "teal"}
                 />
                 <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
                   {account.city && <Detail label="City" value={account.city} />}

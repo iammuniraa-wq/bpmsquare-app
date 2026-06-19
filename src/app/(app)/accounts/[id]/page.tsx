@@ -7,10 +7,9 @@ import {
   CASE_TYPE_LABEL,
   QUOTE_STATUS_LABEL,
 } from "@/lib/data";
-import type { Activity } from "@/lib/types";
+import type { Activity, Account } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 
@@ -36,6 +35,9 @@ const CONTRACT_TONE: Record<string, PillarKey> = {
 const ACT_TONE: Record<Activity["pillar"], PillarKey> = {
   marketing: "purple", sales: "blue", service: "teal", field: "amber", finance: "green",
 };
+const TYPE_TONE: Record<Account["type"], PillarKey> = {
+  prospect: "amber", oem: "purple", direct: "blue", end_customer: "teal",
+};
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
@@ -46,32 +48,24 @@ const fmtINR = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function StatChip({
-  href, accent, n, label, sub,
+function SectionHead({
+  icon, label, href, count, meta,
 }: {
-  href: string; accent: string; n: number; label: string; sub?: string;
+  icon: string; label: string; href: string; count?: number; meta?: string;
 }) {
-  return (
-    <Link href={href} style={{ textDecoration: "none" }}>
-      <div style={{
-        background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
-        borderTop: `3px solid ${accent}`,
-        padding: "11px 10px", textAlign: "center",
-      }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: n > 0 ? c.ink : c.hint, lineHeight: 1.1 }}>{n}</div>
-        <div style={{ fontSize: 11, color: c.muted, marginTop: 3, fontWeight: 500 }}>{label}</div>
-        {sub && <div style={{ fontSize: 10, color: c.hint, marginTop: 2 }}>{sub}</div>}
-      </div>
-    </Link>
-  );
-}
-
-function SectionHead({ icon, label, href }: { icon: string; label: string; href: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
       <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: c.ink, display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: 14 }}>{icon}</span>
         {label}
+        {count !== undefined && count > 0 && (
+          <span style={{
+            fontSize: 11, background: c.accentbg, color: c.accent,
+            borderRadius: 4, padding: "1px 7px", fontWeight: 500,
+          }}>
+            {count}{meta ? " · " + meta : ""}
+          </span>
+        )}
       </h3>
       <Link href={href} style={{ fontSize: 11, color: c.accent, textDecoration: "none" }}>
         View all →
@@ -127,84 +121,116 @@ export default async function AccountHubPage({
   ).length;
 
   const quotationTotal = hub.quotes.reduce((s, q) => s + q.total, 0);
-
   const activeContracts = hub.contracts.filter((c) => c.status === "active").length;
-
   const activeWOs = hub.workOrders.filter(
     (wo) => wo.status === "in_progress" || wo.status === "scheduled"
   ).length;
 
   return (
     <>
-      <div style={{ marginBottom: 10 }}>
-        <Link href={ROUTES.accounts} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          ← All accounts
-        </Link>
-      </div>
+      {/* ── Account header card ── */}
+      <div style={{ ...cardStyle, marginBottom: 14 }}>
+        <div style={{ marginBottom: 10 }}>
+          <Link href={ROUTES.accounts} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
+            ← All accounts
+          </Link>
+        </div>
 
-      <PageHeader
-        title={account.name}
-        subtitle={`${ACCOUNT_TYPE_LABEL[account.type]}${account.city ? " · " + account.city : ""}`}
-      />
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          {/* Left: name + type + city */}
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 8px", color: c.ink }}>
+              {account.name}
+            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <Pill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />
+              {account.city && (
+                <span style={{ fontSize: 12.5, color: c.muted }}>📍 {account.city}</span>
+              )}
+              {referredBy && (
+                <span style={{ fontSize: 12.5, color: c.muted }}>
+                  via{" "}
+                  <Link href={ROUTES.account(referredBy.id)} style={{ color: c.accent }}>
+                    {referredBy.name}
+                  </Link>
+                </span>
+              )}
+            </div>
+          </div>
 
-      {/* ── Stat chips ── */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-        gap: 8, marginBottom: 18,
-      }} className="stat-strip">
-        <StatChip href="#contacts" accent={pillar.blue.base}  n={hub.contacts.length}  label="Contacts" />
-        <StatChip href={ROUTES.cases} accent={pillar.teal.base} n={hub.cases.length} label="Cases"
-          sub={openCases > 0 ? `${openCases} open` : undefined} />
-        <StatChip href={ROUTES.quotations} accent={pillar.blue.base} n={hub.quotes.length} label="Quotations"
-          sub={quotationTotal > 0 ? fmtINR(quotationTotal) : undefined} />
-        <StatChip href={ROUTES.amc} accent={pillar.teal.base} n={hub.contracts.length} label="AMC contracts"
-          sub={activeContracts > 0 ? `${activeContracts} active` : undefined} />
-        <StatChip href={ROUTES.workOrders} accent={pillar.amber.base} n={hub.workOrders.length} label="Work orders"
-          sub={activeWOs > 0 ? `${activeWOs} active` : undefined} />
-        <StatChip href={ROUTES.assets} accent={pillar.green.base} n={hub.assets.length}  label="Assets" />
-        <StatChip href={ROUTES.invoices} accent={pillar.green.base} n={hub.invoices.length} label="Invoices" />
+          {/* Right: contact details */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: c.muted, textAlign: "right" }}>
+            {account.phone && <span>📞 {account.phone}</span>}
+            {account.email && (
+              <a href={`mailto:${account.email}`} style={{ color: c.accent, textDecoration: "none" }}>
+                ✉ {account.email}
+              </a>
+            )}
+            <span>Since {fmtDate(account.created_at)}</span>
+          </div>
+        </div>
+
+        {/* Summary row — plain text, no chips */}
+        <div style={{
+          borderTop: `1px solid ${c.line}`, marginTop: 12, paddingTop: 10,
+          display: "flex", flexWrap: "wrap", gap: "6px 20px", fontSize: 12, color: c.muted,
+        }}>
+          {hub.contacts.length > 0 && (
+            <span><strong style={{ color: c.ink }}>{hub.contacts.length}</strong> {hub.contacts.length === 1 ? "Contact" : "Contacts"}</span>
+          )}
+          {hub.cases.length > 0 && (
+            <span>
+              <strong style={{ color: c.ink }}>{hub.cases.length}</strong> Cases
+              {openCases > 0 && <span style={{ color: c.accent }}> ({openCases} open)</span>}
+            </span>
+          )}
+          {hub.quotes.length > 0 && (
+            <span>
+              <strong style={{ color: c.ink }}>{hub.quotes.length}</strong> Quotations
+              {quotationTotal > 0 && <span> · {fmtINR(quotationTotal)}</span>}
+            </span>
+          )}
+          {hub.contracts.length > 0 && (
+            <span>
+              <strong style={{ color: c.ink }}>{hub.contracts.length}</strong> AMC contracts
+              {activeContracts > 0 && <span style={{ color: pillar.teal.base }}> ({activeContracts} active)</span>}
+            </span>
+          )}
+          {hub.workOrders.length > 0 && (
+            <span>
+              <strong style={{ color: c.ink }}>{hub.workOrders.length}</strong> Work orders
+              {activeWOs > 0 && <span style={{ color: pillar.amber.base }}> ({activeWOs} active)</span>}
+            </span>
+          )}
+          {hub.assets.length > 0 && (
+            <span><strong style={{ color: c.ink }}>{hub.assets.length}</strong> Assets</span>
+          )}
+          {hub.invoices.length > 0 && (
+            <span><strong style={{ color: c.ink }}>{hub.invoices.length}</strong> Invoices</span>
+          )}
+        </div>
       </div>
 
       {/* ── Two-column grid ── */}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.4fr)", gap: 14 }} className="hub-grid">
 
-        {/* ── LEFT: account details + contacts + assets ── */}
+        {/* ── LEFT: contacts + assets ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-          {/* Account details */}
-          <section style={cardStyle} id="details">
-            <h3 style={{ fontSize: 13, margin: "0 0 10px", fontWeight: 600 }}>Account details</h3>
-            <Detail label="Type" value={
-              <Pill label={ACCOUNT_TYPE_LABEL[account.type]} tone="blue" />
-            } />
-            {referredBy && (
-              <Detail label="Referred by" value={
-                <Link href={ROUTES.account(referredBy.id)} style={{ color: c.accent, textDecoration: "none" }}>
-                  {referredBy.name}
-                </Link>
-              } />
-            )}
-            {account.phone && <Detail label="Phone" value={account.phone} />}
-            {account.email && <Detail label="Email" value={
-              <a href={`mailto:${account.email}`} style={{ color: c.accent, textDecoration: "none" }}>{account.email}</a>
-            } />}
-            {account.city && <Detail label="City" value={account.city} />}
-            <Detail label="Customer since" value={fmtDate(account.created_at)} />
-          </section>
 
           {/* Contacts */}
           {hub.contacts.length > 0 && (
             <section style={cardStyle} id="contacts">
-              <h3 style={{ fontSize: 13, margin: "0 0 10px", fontWeight: 600 }}>Contacts</h3>
+              <SectionHead icon="◉" label="Contacts" href={ROUTES.contacts} count={hub.contacts.length} />
               {hub.contacts.map((ct) => (
                 <div key={ct.id} style={{ padding: "8px 0", borderTop: `1px solid ${c.line}` }}>
                   <div style={{ fontWeight: 600, fontSize: 12.5, color: c.ink }}>{ct.name}</div>
                   <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{ct.role}</div>
-                  <div style={{ fontSize: 11, color: c.hint, marginTop: 2, display: "flex", gap: 10 }}>
-                    {ct.phone && <span>{ct.phone}</span>}
+                  <div style={{ fontSize: 11, color: c.hint, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {ct.phone && <span>📞 {ct.phone}</span>}
                     {ct.email && (
-                      <a href={`mailto:${ct.email}`} style={{ color: c.accent, textDecoration: "none" }}>{ct.email}</a>
+                      <a href={`mailto:${ct.email}`} style={{ color: c.accent, textDecoration: "none" }}>
+                        {ct.email}
+                      </a>
                     )}
                   </div>
                 </div>
@@ -215,7 +241,7 @@ export default async function AccountHubPage({
           {/* Assets */}
           {hub.assets.length > 0 && (
             <section style={cardStyle}>
-              <SectionHead icon="⚙" label="Assets" href={ROUTES.assets} />
+              <SectionHead icon="⚙" label="Assets" href={ROUTES.assets} count={hub.assets.length} />
               {hub.assets.map((a) => (
                 <RecordRow key={a.id}>
                   <div style={{
@@ -237,13 +263,17 @@ export default async function AccountHubPage({
           )}
         </div>
 
-        {/* ── RIGHT: cases, quotations, AMC contracts, work orders ── */}
+        {/* ── RIGHT: cases, quotations, AMC contracts, work orders, invoices ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
           {/* Cases */}
           {hub.cases.length > 0 && (
             <section style={cardStyle}>
-              <SectionHead icon="☎" label="Cases" href={ROUTES.cases} />
+              <SectionHead
+                icon="☎" label="Cases" href={ROUTES.cases}
+                count={hub.cases.length}
+                meta={openCases > 0 ? `${openCases} open` : undefined}
+              />
               {hub.cases.map((sc) => (
                 <RecordRow key={sc.id}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -268,7 +298,11 @@ export default async function AccountHubPage({
           {/* Quotations */}
           {hub.quotes.length > 0 && (
             <section style={cardStyle}>
-              <SectionHead icon="₹" label="Quotations" href={ROUTES.quotations} />
+              <SectionHead
+                icon="₹" label="Quotations" href={ROUTES.quotations}
+                count={hub.quotes.length}
+                meta={quotationTotal > 0 ? fmtINR(quotationTotal) : undefined}
+              />
               {hub.quotes.map((q) => (
                 <RecordRow key={q.id}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -295,7 +329,11 @@ export default async function AccountHubPage({
           {/* AMC contracts */}
           {hub.contracts.length > 0 && (
             <section style={cardStyle}>
-              <SectionHead icon="▥" label="AMC contracts" href={ROUTES.amc} />
+              <SectionHead
+                icon="▥" label="AMC contracts" href={ROUTES.amc}
+                count={hub.contracts.length}
+                meta={activeContracts > 0 ? `${activeContracts} active` : undefined}
+              />
               {hub.contracts.map((ctr) => (
                 <RecordRow key={ctr.id}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -305,7 +343,9 @@ export default async function AccountHubPage({
                     </div>
                     <div style={{ fontSize: 11.5, color: c.muted, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
                       {ctr.value != null && <span style={{ fontWeight: 600, color: c.ink }}>{fmtINR(ctr.value)}</span>}
-                      {ctr.start_date && ctr.end_date && <span>{fmtDate(ctr.start_date)} → {fmtDate(ctr.end_date)}</span>}
+                      {ctr.start_date && ctr.end_date && (
+                        <span>{fmtDate(ctr.start_date)} → {fmtDate(ctr.end_date)}</span>
+                      )}
                     </div>
                   </div>
                   <OpenLink href={ROUTES.amc} />
@@ -317,7 +357,11 @@ export default async function AccountHubPage({
           {/* Work orders */}
           {hub.workOrders.length > 0 && (
             <section style={cardStyle}>
-              <SectionHead icon="▤" label="Work orders" href={ROUTES.workOrders} />
+              <SectionHead
+                icon="▤" label="Work orders" href={ROUTES.workOrders}
+                count={hub.workOrders.length}
+                meta={activeWOs > 0 ? `${activeWOs} active` : undefined}
+              />
               {hub.workOrders.map((wo) => {
                 const auth = wo.authorized_by.kind === "quote"
                   ? { label: "Quotation", tone: "blue" as PillarKey }
@@ -346,13 +390,16 @@ export default async function AccountHubPage({
           {/* Invoices */}
           {hub.invoices.length > 0 && (
             <section style={cardStyle}>
-              <SectionHead icon="⊟" label="Invoices" href={ROUTES.invoices} />
+              <SectionHead icon="⊟" label="Invoices" href={ROUTES.invoices} count={hub.invoices.length} />
               {hub.invoices.map((inv) => (
                 <RecordRow key={inv.id}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{inv.ref}</span>
-                      <Pill label={inv.status} tone={inv.status === "paid" ? "green" : inv.status === "overdue" ? "red" : inv.status === "sent" ? "amber" : "blue"} />
+                      <Pill
+                        label={inv.status}
+                        tone={inv.status === "paid" ? "green" : inv.status === "overdue" ? "red" : inv.status === "sent" ? "amber" : "blue"}
+                      />
                     </div>
                     <div style={{ fontSize: 11.5, color: c.muted, marginTop: 3, display: "flex", gap: 12 }}>
                       {inv.total > 0 && <span style={{ fontWeight: 600, color: c.ink }}>{fmtINR(inv.total)}</span>}

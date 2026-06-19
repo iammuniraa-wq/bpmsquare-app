@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCase, CASE_STATUS_LABEL, CASE_TYPE_LABEL, QUOTE_STATUS_LABEL } from "@/lib/data";
 import type { ServiceCase, CasePhoto, InspectionReport } from "@/lib/types";
-import { c } from "@/lib/theme";
+import { c, pillar } from "@/lib/theme";
 import type { PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
@@ -93,7 +93,7 @@ export default async function CaseDetailPage({
   const data = await getCase(id);
   if (!data) notFound();
 
-  const { serviceCase: sc, account, contact, asset, technician, contract, quote, photos, inspectionReport } = data;
+  const { serviceCase: sc, account, contact, asset, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases } = data;
 
   const currentIdx = stageIndex(sc.status);
   const isExit = EXIT_STATUSES.includes(sc.status);
@@ -116,9 +116,17 @@ export default async function CaseDetailPage({
         <Link href={ROUTES.cases} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           ← All cases
         </Link>
+        {sc.parent_case_id && (
+          <>
+            <span style={{ fontSize: 12, color: c.hint }}>/</span>
+            <Link href={ROUTES.case(sc.parent_case_id)} style={{ fontSize: 12, color: c.accent, textDecoration: "none", fontFamily: "monospace" }}>
+              Sub-case of {sc.parent_case_id.replace("case_", "CS-2026-00")}
+            </Link>
+          </>
+        )}
         <Pill label={CASE_STATUS_LABEL[sc.status]} tone={statusTone[sc.status]} />
         <Pill label={CASE_TYPE_LABEL[sc.type]} tone={typeTone[sc.type]} />
-        {sc.has_loaner && <Pill label="Loaner out" tone="purple" />}
+        {sc.has_loaner && <Pill label="Loaner out" tone="amber" />}
         {sc.disposition === "buyback" && <Pill label="Buyback" tone="purple" />}
         {sc.disposition === "scrap"   && <Pill label="Scrapped" tone="red" />}
       </div>
@@ -275,6 +283,41 @@ export default async function CaseDetailPage({
             <PhotoSection title="Inspection photos" photos={photosByStage.inspection} />
           )}
 
+          {/* Sub-cases */}
+          {subCases.length > 0 && (
+            <section style={cardStyle}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <SectionHeading>Sub-cases ({subCases.length})</SectionHeading>
+              </div>
+              {subCases.map((sub, i) => (
+                <div key={sub.id} style={{
+                  padding: "10px 0",
+                  borderTop: i === 0 ? "none" : `1px solid ${c.line}`,
+                  display: "flex", alignItems: "flex-start", gap: 10,
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
+                      <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12.5, color: c.ink }}>{sub.ref}</span>
+                      <Pill label={CASE_STATUS_LABEL[sub.status]} tone={statusTone[sub.status]} />
+                    </div>
+                    <div style={{ fontSize: 12, color: c.muted, lineHeight: 1.45 }}>
+                      {sub.complaint.length > 100 ? sub.complaint.slice(0, 100) + "…" : sub.complaint}
+                    </div>
+                  </div>
+                  <Link
+                    href={ROUTES.case(sub.id)}
+                    style={{
+                      fontSize: 11, fontWeight: 600, color: c.accent, textDecoration: "none",
+                      background: c.accentbg, borderRadius: 6, padding: "3px 8px", flexShrink: 0,
+                    }}
+                  >
+                    Open →
+                  </Link>
+                </div>
+              ))}
+            </section>
+          )}
+
           {/* Linked quote */}
           {quote && (
             <section style={cardStyle}>
@@ -357,6 +400,26 @@ export default async function CaseDetailPage({
               </>
             )}
           </section>
+
+          {/* Loaner */}
+          {loanerAsset && (
+            <section style={{ ...cardStyle, borderLeft: `3px solid ${pillar.amber.base}`, background: pillar.amber.bg }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <SectionHeading>Loaner dispatched</SectionHeading>
+                <Pill label="On Loan" tone="amber" />
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{loanerAsset.name}</div>
+              {loanerAsset.rating && (
+                <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>{loanerAsset.rating}</div>
+              )}
+              {loanerAsset.serial && (
+                <div style={{ fontSize: 11, color: c.hint, marginTop: 2, fontFamily: "monospace" }}>S/N {loanerAsset.serial}</div>
+              )}
+              <div style={{ fontSize: 11.5, color: pillar.amber.base, marginTop: 8, fontWeight: 500 }}>
+                Return on delivery of repaired unit
+              </div>
+            </section>
+          )}
 
           {/* Technician */}
           <section style={cardStyle}>

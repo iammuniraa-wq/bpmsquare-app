@@ -37,4 +37,5 @@ a { color: inherit; text-decoration: none; }
 
 @media (max-width: 780px) {
   .hub-grid { grid-template-columns: 1fr !important; }
+  .contact-actions { display: none !important; }
 }
