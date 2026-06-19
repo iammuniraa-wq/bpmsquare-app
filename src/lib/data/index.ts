@@ -190,3 +190,44 @@ export const CASE_TYPE_LABEL: Record<ServiceCase["type"], string> = {
   adhoc:  "Adhoc",
   direct: "Direct",
 };
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
+const OPEN_CASE_STATUSES: CaseStatus[] = [
+  "intake","inspection","report_sent","report_approved",
+  "quote_sent","quote_approved","in_repair","qa","ready",
+];
+
+export async function getDashboardSummary() {
+  const accountById  = new Map(seed.accounts.map((a)    => [a.id, a]));
+  const techById     = new Map(seed.technicians.map((t) => [t.id, t]));
+
+  const kpis = {
+    openCases:        seed.serviceCases.filter((sc) => OPEN_CASE_STATUSES.includes(sc.status)).length,
+    inRepair:         seed.serviceCases.filter((sc) => sc.status === "in_repair").length,
+    awaitingApproval: seed.serviceCases.filter((sc) => sc.status === "report_sent" || sc.status === "quote_sent").length,
+    activeContracts:  seed.contracts.filter((c) => c.status === "active").length,
+    openQuoteValue:   seed.quotes.filter((q) => q.status === "sent" || q.status === "approved").reduce((s, q) => s + q.total, 0),
+    activeWorkOrders: seed.workOrders.filter((wo) => wo.status === "in_progress" || wo.status === "scheduled").length,
+  };
+
+  const attention = seed.serviceCases
+    .filter((sc) => sc.status === "report_sent" || sc.status === "quote_sent")
+    .map((sc) => ({ serviceCase: sc, account: accountById.get(sc.account_id) ?? null }));
+
+  const workOrderRows = seed.workOrders
+    .filter((wo) => wo.status === "in_progress" || wo.status === "scheduled")
+    .map((wo) => ({
+      workOrder: wo,
+      account:   accountById.get(wo.account_id) ?? null,
+      tech:      wo.technician_id ? (techById.get(wo.technician_id) ?? null) : null,
+    }));
+
+  const recentActivity = seed.activities
+    .slice()
+    .sort((a, b) => +new Date(b.at) - +new Date(a.at))
+    .slice(0, 5)
+    .map((act) => ({ activity: act, account: accountById.get(act.account_id) ?? null }));
+
+  return { kpis, attention, workOrderRows, recentActivity };
+}

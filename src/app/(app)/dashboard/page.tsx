@@ -1,5 +1,6 @@
-import Placeholder from "@/components/Placeholder";
+import { redirect } from "next/navigation";
 
-export default function DashboardPage() {
-  return <Placeholder title="Dashboard" subtitle="Workspace overview" />;
+// Dashboard moved to "/" — redirect any old bookmarks.
+export default function DashboardRedirect() {
+  redirect("/");
 }

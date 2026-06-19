@@ -5,8 +5,8 @@ import type { PillarKey } from "./theme";
 
 export const ROUTES = {
   login: "/login",
-  pipeline: "/",
-  dashboard: "/dashboard",
+  pipeline: "/pipeline",
+  dashboard: "/",
   leads: "/leads",
   partners: "/partners",
   quotations: "/quotations",
@@ -39,9 +39,10 @@ export const NAV: NavGroup[] = [
   {
     group: "WORKSPACE",
     items: [
-      { label: "Accounts", href: ROUTES.accounts, icon: "▣", pillar: "blue" },
-      { label: "Pipeline", href: ROUTES.pipeline, icon: "▦", pillar: "blue" },
       { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue" },
+      { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue" },
+      { label: "Cases",     href: ROUTES.cases,     icon: "☎", pillar: "teal", badge: 3 },
+      { label: "Pipeline",  href: ROUTES.pipeline,  icon: "▦", pillar: "blue" },
     ],
   },
   {
@@ -60,7 +61,6 @@ export const NAV: NavGroup[] = [
   {
     group: "SERVICE",
     items: [
-      { label: "Cases", href: ROUTES.cases, icon: "☎", pillar: "teal", badge: 3 },
       { label: "AMC contracts", href: ROUTES.amc, icon: "▥", pillar: "teal" },
     ],
   },
