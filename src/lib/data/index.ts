@@ -3,7 +3,7 @@
 // only this file. (isSupabaseConfigured() gate added when the project exists.)
 
 import * as seed from "./seed";
-import type { Account } from "@/lib/types";
+import type { Account, Quote } from "@/lib/types";
 
 export type AccountSummary = {
   account: Account;
@@ -78,4 +78,43 @@ export const ACCOUNT_TYPE_LABEL: Record<Account["type"], string> = {
   oem: "OEM / Vendor",
   direct: "Direct customer",
   end_customer: "End-customer (under OEM)",
+};
+
+export type QuoteSummary = {
+  quote: Quote;
+  account: Account;
+  lineCount: number;
+};
+
+export async function listQuotes(): Promise<QuoteSummary[]> {
+  const accountById = new Map(seed.accounts.map((a) => [a.id, a]));
+  return seed.quotes
+    .slice()
+    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+    .map((quote) => ({
+      quote,
+      account: accountById.get(quote.account_id)!,
+      lineCount: seed.quoteLines.filter((l) => l.quote_id === quote.id).length,
+    }));
+}
+
+export async function getQuote(id: string) {
+  const quote = seed.quotes.find((q) => q.id === id);
+  if (!quote) return null;
+
+  const account = seed.accounts.find((a) => a.id === quote.account_id) ?? null;
+  const contact = seed.contacts.find((c) => c.account_id === quote.account_id) ?? null;
+  const lines = seed.quoteLines.filter((l) => l.quote_id === id);
+  const workOrders = seed.workOrders.filter(
+    (wo) => wo.authorized_by.kind === "quote" && wo.authorized_by.id === id
+  );
+
+  return { quote, account, contact, lines, workOrders };
+}
+
+export const QUOTE_STATUS_LABEL: Record<Quote["status"], string> = {
+  draft: "Draft",
+  sent: "Sent",
+  approved: "Approved",
+  rejected: "Rejected",
 };

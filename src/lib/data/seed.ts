@@ -3,7 +3,7 @@
 // Stable string ids keep cross-references readable.
 
 import type {
-  Account, Contact, Site, Asset, Contract, Lead, Quote,
+  Account, Contact, Site, Asset, Contract, Lead, Quote, QuoteLine,
   WorkOrder, Invoice, Technician, Activity,
 } from "@/lib/types";
 
@@ -66,8 +66,34 @@ export const leads: Lead[] = [
 ];
 
 export const quotes: Quote[] = [
-  { id: "qt_krishna", account_id: "acc_krishna", ref: "QT-2026-0148", status: "approved", total: 86500, created_at: "2026-06-11" },
-  { id: "qt_hpsteel", account_id: "acc_hpsteel", ref: "QT-2026-0152", status: "sent",     total: 142000, created_at: "2026-06-15" },
+  { id: "qt_krishna", account_id: "acc_krishna", ref: "QT-2026-0148", status: "approved", total: 86500,  created_at: "2026-06-11", valid_until: "2026-07-11", notes: "Price includes pickup and delivery within Hosapete. Additional copper surcharge may apply if current copper rate exceeds ₹750/kg." },
+  { id: "qt_hpsteel", account_id: "acc_hpsteel", ref: "QT-2026-0152", status: "sent",     total: 142000, created_at: "2026-06-15", valid_until: "2026-07-15", notes: "Rotor balancing to IS 11723 standard. HV testing certificate provided on completion." },
+  { id: "qt_bharat",  account_id: "acc_bharat",  ref: "QT-2026-0155", status: "draft",    total: 48500,  created_at: "2026-06-17", valid_until: "2026-07-17", notes: null },
+];
+
+export const quoteLines: QuoteLine[] = [
+  // QT-2026-0148 — Krishna Textiles, 75 kW ring-frame motor rewind
+  { id: "ql_k1", quote_id: "qt_krishna", description: "Stripping & cleaning of stator windings",        qty: 1,  rate: 8000,  amount: 8000  },
+  { id: "ql_k2", quote_id: "qt_krishna", description: "HT insulation paper & slot liner material",       qty: 12, rate: 850,   amount: 10200 },
+  { id: "ql_k3", quote_id: "qt_krishna", description: "Rewinding — 75 kW, 415 V, 1480 rpm, 3-phase",    qty: 1,  rate: 32000, amount: 32000 },
+  { id: "ql_k4", quote_id: "qt_krishna", description: "Class F varnish treatment & oven baking",         qty: 1,  rate: 6500,  amount: 6500  },
+  { id: "ql_k5", quote_id: "qt_krishna", description: "Bearing replacement — DE & NDE (SKF/FAG)",        qty: 2,  rate: 4800,  amount: 9600  },
+  { id: "ql_k6", quote_id: "qt_krishna", description: "No-load & full-load testing, test certificate",   qty: 1,  rate: 5200,  amount: 5200  },
+  { id: "ql_k7", quote_id: "qt_krishna", description: "Transportation — pickup & delivery, Hosapete",    qty: 1,  rate: 15000, amount: 15000 },
+
+  // QT-2026-0152 — Hosapete Steel, 250 kW rolling mill motor
+  { id: "ql_h1", quote_id: "qt_hpsteel", description: "Disassembly, cleaning & condition inspection",    qty: 1,  rate: 12000, amount: 12000 },
+  { id: "ql_h2", quote_id: "qt_hpsteel", description: "Complete rewind — 250 kW, 690 V, 740 rpm",       qty: 1,  rate: 75000, amount: 75000 },
+  { id: "ql_h3", quote_id: "qt_hpsteel", description: "Dynamic rotor balancing to IS 11723 G2.5",       qty: 1,  rate: 18000, amount: 18000 },
+  { id: "ql_h4", quote_id: "qt_hpsteel", description: "Bearing replacement — 4 sets (Toller/SKF)",      qty: 4,  rate: 5500,  amount: 22000 },
+  { id: "ql_h5", quote_id: "qt_hpsteel", description: "Enclosure repair, sealing & repainting",         qty: 1,  rate: 8000,  amount: 8000  },
+  { id: "ql_h6", quote_id: "qt_hpsteel", description: "HV withstand test & insulation resistance cert", qty: 1,  rate: 7000,  amount: 7000  },
+
+  // QT-2026-0155 — Bharat Forge, 160 kW hammer drive motor (draft)
+  { id: "ql_b1", quote_id: "qt_bharat",  description: "Bearing replacement — DE & NDE, all 4 sets",     qty: 4,  rate: 5200,  amount: 20800 },
+  { id: "ql_b2", quote_id: "qt_bharat",  description: "Shaft seal & end-shield gasket replacement",     qty: 1,  rate: 4200,  amount: 4200  },
+  { id: "ql_b3", quote_id: "qt_bharat",  description: "Insulation resistance & vibration check",        qty: 1,  rate: 8500,  amount: 8500  },
+  { id: "ql_b4", quote_id: "qt_bharat",  description: "Onsite labour — Bharat Forge, Pune (2 days)",    qty: 2,  rate: 7500,  amount: 15000 },
 ];
 
 export const workOrders: WorkOrder[] = [

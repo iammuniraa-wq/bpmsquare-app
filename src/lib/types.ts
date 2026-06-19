@@ -70,6 +70,17 @@ export type Quote = {
   status: "draft" | "sent" | "approved" | "rejected";
   total: number;
   created_at: string;
+  valid_until: string | null;
+  notes: string | null;
+};
+
+export type QuoteLine = {
+  id: string;
+  quote_id: string;
+  description: string;
+  qty: number;
+  rate: number;
+  amount: number;
 };
 
 export type WorkOrderStatus =

@@ -10,6 +10,7 @@ export const ROUTES = {
   leads: "/leads",
   partners: "/partners",
   quotations: "/quotations",
+  quotation: (id: string) => `/quotations/${id}`,
   cases: "/cases",
   amc: "/amc",
   workOrders: "/work-orders",
@@ -31,11 +32,12 @@ export type NavItem = {
 
 export type NavGroup = { group: string; items: NavItem[] };
 
-// Grouped sidebar — mirrors the prototype, organised by journey pillar.
+// Grouped sidebar — Accounts at the top (the hub everything points to).
 export const NAV: NavGroup[] = [
   {
     group: "WORKSPACE",
     items: [
+      { label: "Accounts", href: ROUTES.accounts, icon: "▣", pillar: "blue" },
       { label: "Pipeline", href: ROUTES.pipeline, icon: "▦", pillar: "blue" },
       { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue" },
     ],
@@ -71,7 +73,6 @@ export const NAV: NavGroup[] = [
   {
     group: "RECORDS",
     items: [
-      { label: "Accounts", href: ROUTES.accounts, icon: "▣", pillar: "green" },
       { label: "Assets", href: ROUTES.assets, icon: "⚙", pillar: "green" },
       { label: "Invoices", href: ROUTES.invoices, icon: "⊟", pillar: "green" },
     ],
