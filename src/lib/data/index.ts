@@ -41,6 +41,7 @@ export async function getAccountHub(id: string) {
     sites: byAccount(seed.sites, id),
     assets: byAccount(seed.assets, id),
     contracts: byAccount(seed.contracts, id),
+    cases: byAccount(seed.serviceCases, id),
     leads: byAccount(seed.leads, id),
     quotes: byAccount(seed.quotes, id),
     workOrders: byAccount(seed.workOrders, id).map((wo) => ({
