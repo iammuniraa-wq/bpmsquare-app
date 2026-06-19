@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --bg2: #152233;
+  --bg: #0e1a28;
+  --panel: #fff;
+  --panel2: #f4f6f9;
+  --ink: #1c2733;
+  --muted: #5f6b7a;
+  --hint: #8a96a5;
+  --line: #e2e7ee;
+  --accent: #378add;
+  --accentbg: #e6f1fb;
+  --amber: #f6b23c;
+
+  --blue: #378add;        --bluebg: #e6f1fb;   --blueink: #0c447c;
+  --purple: #7f77dd;      --purplebg: #eeedfe; --purpleink: #26215c;
+  --teal: #1d9e75;        --tealbg: #e1f5ee;   --tealink: #04342c;
+  --amberc: #ba7517;      --amberbg: #faeeda;  --amberink: #633806;
+  --red: #a32d2d;         --redbg: #fcebeb;    --redink: #791f1f;
+  --green: #639922;       --greenbg: #eaf3de;  --greenink: #173404;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--panel2);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: inherit; text-decoration: none; }
+
+@media (max-width: 780px) {
+  .hub-grid { grid-template-columns: 1fr !important; }
+}
