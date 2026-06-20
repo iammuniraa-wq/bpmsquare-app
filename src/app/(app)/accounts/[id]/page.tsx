@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  getAccountHub,
   ACCOUNT_TYPE_LABEL,
   CASE_STATUS_LABEL,
   CASE_TYPE_LABEL,
   QUOTE_STATUS_LABEL,
 } from "@/lib/data";
+import { getAccountHubLive } from "@/lib/data/live";
 import type { Activity, Account } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -111,7 +111,7 @@ export default async function AccountHubPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const hub = await getAccountHub(id);
+  const hub = await getAccountHubLive(id);
   if (!hub) notFound();
 
   const { account, referredBy } = hub;
