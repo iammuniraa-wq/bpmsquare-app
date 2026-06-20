@@ -38,7 +38,8 @@ export async function requireTenantUser(): Promise<{
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw { status: 401, message: "Unauthorized" };
 
-  const { data: tu } = await supabase
+  // Use service role to look up tenant — bypasses RLS for this internal join
+  const { data: tu } = await createAdminSupabase()
     .from("tenant_users")
     .select("tenant_id")
     .eq("user_id", user.id)
