@@ -699,7 +699,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
   const activeContracts = seed.contracts.filter((c) => c.status === "active");
   const contractStats = {
     activeCount: activeContracts.length,
-    totalValue:  activeContracts.reduce((s, c) => s + c.value, 0),
+    totalValue:  activeContracts.reduce((s, c) => s + (c.value ?? 0), 0),
   };
 
   // Recent activity
