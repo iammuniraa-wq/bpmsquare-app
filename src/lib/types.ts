@@ -36,8 +36,11 @@ export type Asset = {
   account_id: string | null; // null = company-owned loaner stock
   kind: "motor" | "transformer" | "pump" | "generator" | "panel";
   name: string;
-  rating: string | null; // e.g. "75 kW · 415V · 1480 rpm"
+  make: string | null;       // manufacturer, e.g. "Crompton Greaves"
+  model: string | null;      // model / frame number, e.g. "ND315S-2"
+  rating: string | null;     // e.g. "75 kW · 415V · 1480 rpm"
   serial: string | null;
+  notes: string | null;      // service history or remarks
   is_loaner: boolean;
   loaner_status: "available" | "on_loan" | null; // null when not loaner stock
 };

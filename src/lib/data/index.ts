@@ -3,7 +3,7 @@
 // only this file. (isSupabaseConfigured() gate added when the project exists.)
 
 import * as seed from "./seed";
-import type { Account, Asset, Contact, Quote, ServiceCase, CaseStatus, WorkOrder, Technician, TechnicianLeave, VisitLog, VisitStatus, PricingItem, TextFragment } from "@/lib/types";
+import type { Account, Asset, Contact, Quote, QuoteLine, ServiceCase, CaseStatus, WorkOrder, Technician, TechnicianLeave, VisitLog, VisitStatus, PricingItem, TextFragment } from "@/lib/types";
 
 export type AccountSummary = {
   account: Account;
@@ -101,17 +101,25 @@ export type QuoteSummary = {
   quote: Quote;
   account: Account;
   lineCount: number;
+  lines: QuoteLine[];
 };
 
 export async function listQuotes(): Promise<QuoteSummary[]> {
-  const accountById = new Map(seed.accounts.map((a) => [a.id, a]));
+  const accountById  = new Map(seed.accounts.map((a) => [a.id, a]));
+  const linesByQuote = new Map<string, QuoteLine[]>();
+  seed.quoteLines.forEach((l) => {
+    const arr = linesByQuote.get(l.quote_id) ?? [];
+    arr.push(l);
+    linesByQuote.set(l.quote_id, arr);
+  });
   return seed.quotes
     .slice()
     .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
     .map((quote) => ({
       quote,
-      account: accountById.get(quote.account_id)!,
-      lineCount: seed.quoteLines.filter((l) => l.quote_id === quote.id).length,
+      account:   accountById.get(quote.account_id)!,
+      lines:     linesByQuote.get(quote.id) ?? [],
+      lineCount: (linesByQuote.get(quote.id) ?? []).length,
     }));
 }
 
@@ -530,6 +538,7 @@ export async function getQuoteFormData() {
   return {
     accounts:      seed.accounts,
     contacts:      seed.contacts,
+    assets:        seed.assets.filter((a) => a.account_id !== null), // customer-owned only
     pricingItems:  seed.pricingItems,
     textFragments: seed.textFragments,
   };

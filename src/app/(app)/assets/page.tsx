@@ -133,11 +133,16 @@ export default async function AssetsPage() {
                   <div style={{ fontWeight: 600, fontSize: 13, color: c.ink, marginBottom: 2 }}>
                     {asset.name}
                   </div>
-                  <div style={{ fontSize: 11.5, color: c.muted, marginBottom: 3 }}>
+                  {(asset.make || asset.model) && (
+                    <div style={{ fontSize: 12, color: c.muted, marginBottom: 2 }}>
+                      {[asset.make, asset.model].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: c.hint, marginBottom: 3 }}>
                     {KIND_LABEL[asset.kind] ?? asset.kind}
                     {asset.rating ? " · " + asset.rating : ""}
                     {asset.serial ? (
-                      <span style={{ fontFamily: "monospace", color: c.hint }}> · {asset.serial}</span>
+                      <span style={{ fontFamily: "monospace" }}> · {asset.serial}</span>
                     ) : null}
                   </div>
                   {account && (
@@ -147,6 +152,11 @@ export default async function AssetsPage() {
                     >
                       {account.name}
                     </Link>
+                  )}
+                  {asset.notes && (
+                    <div style={{ fontSize: 10.5, color: c.hint, marginTop: 3, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {asset.notes}
+                    </div>
                   )}
                 </div>
 

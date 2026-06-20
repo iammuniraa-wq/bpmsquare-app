@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/data";
-import type { Account, Contact, PricingItem, TextFragment, PricingCategory } from "@/lib/types";
+import type { Account, Asset, Contact, PricingItem, TextFragment, PricingCategory } from "@/lib/types";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -17,11 +17,8 @@ const inp: React.CSSProperties = {
   padding: "8px 12px", fontSize: 13, color: c.ink,
   background: c.panel, fontFamily: "inherit", outline: "none",
 };
-const smInp: React.CSSProperties = {
-  ...inp, padding: "6px 8px", fontSize: 12,
-};
 const sel: React.CSSProperties = { ...inp, cursor: "pointer" };
-const label: React.CSSProperties = {
+const lbl: React.CSSProperties = {
   display: "block", fontSize: 11, fontWeight: 600,
   color: c.muted, textTransform: "uppercase", letterSpacing: "0.06em",
   marginBottom: 5,
@@ -38,21 +35,28 @@ const CAT_LABEL: Record<PricingCategory, string> = {
   labour: "Labour", material: "Materials", testing: "Testing", transport: "Transport",
 };
 
-type LineRow = { id: string; description: string; qty: string; rate: string };
-
-type ItemRow = {
-  id: string; type: string; make: string; model: string;
-  serial: string; spec: string; qty: string; notes: string;
+const KIND_LABEL: Record<Asset["kind"], string> = {
+  motor: "Motor", transformer: "Transformer", pump: "Pump",
+  generator: "Generator", panel: "Panel",
 };
+const KIND_ICON: Record<Asset["kind"], string> = {
+  motor: "⚙", transformer: "⚡", pump: "◎", generator: "◈", panel: "▤",
+};
+const KIND_TONE: Record<Asset["kind"], PillarKey> = {
+  motor: "blue", transformer: "amber", pump: "teal", generator: "green", panel: "purple",
+};
+
+type LineRow = { id: string; description: string; qty: string; rate: string };
 
 type Props = {
   accounts: Account[];
   contacts: Contact[];
+  assets: Asset[];
   pricingItems: PricingItem[];
   textFragments: TextFragment[];
 };
 
-export default function QuoteForm({ accounts, contacts, pricingItems, textFragments }: Props) {
+export default function QuoteForm({ accounts, contacts, assets, pricingItems, textFragments }: Props) {
   const today        = new Date().toISOString().slice(0, 10);
   const defaultValid = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
 
@@ -68,10 +72,9 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
   const [poAmount, setPoAmount]     = useState("");
   const [owner, setOwner]           = useState("VP — Admin");
 
-  // Item / product details rows
-  const [itemRows, setItemRows] = useState<ItemRow[]>([
-    { id: "1", type: "", make: "", model: "", serial: "", spec: "", qty: "1", notes: "" },
-  ]);
+  // Linked assets
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [assetPickerOpen, setAssetPickerOpen]   = useState(false);
 
   // Line items
   const [lines, setLines] = useState<LineRow[]>([
@@ -88,11 +91,11 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
   const [terms, setTerms] = useState("");
 
   // UI panels
-  const [catalogOpen, setCatalogOpen]       = useState(false);
-  const [catalogTarget, setCatalogTarget]   = useState<string | null>(null);
-  const [catalogCat, setCatalogCat]         = useState<PricingCategory | "">("");
-  const [fragTarget, setFragTarget]         = useState<"notes" | "terms" | null>(null);
-  const [saved, setSaved]                   = useState(false);
+  const [catalogOpen, setCatalogOpen]     = useState(false);
+  const [catalogTarget, setCatalogTarget] = useState<string | null>(null);
+  const [catalogCat, setCatalogCat]       = useState<PricingCategory | "">("");
+  const [fragTarget, setFragTarget]       = useState<"notes" | "terms" | null>(null);
+  const [saved, setSaved]                 = useState(false);
 
   const quoteRef = useMemo(() => {
     const n = 160 + Math.floor(Math.random() * 30);
@@ -100,8 +103,26 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Pre-fill from a "Copy quote" action on the quotations list
+  useEffect(() => {
+    const raw = sessionStorage.getItem("vvcrm_copy_quote");
+    if (!raw) return;
+    sessionStorage.removeItem("vvcrm_copy_quote");
+    try {
+      const copy = JSON.parse(raw);
+      if (copy.accountId) setAccountId(copy.accountId);
+      if (copy.quoteName) setQuoteName(copy.quoteName);
+      if (copy.notes)     setNotes(copy.notes);
+      if (Array.isArray(copy.lines) && copy.lines.length > 0) setLines(copy.lines);
+    } catch { /* malformed payload — ignore */ }
+  }, []);
+
   const accountContacts = contacts.filter((ct) => ct.account_id === accountId);
   const selectedAccount = accounts.find((a) => a.id === accountId);
+  const accountAssets   = assets.filter((a) => a.account_id === accountId);
+  const selectedAssets  = selectedAssetIds
+    .map((id) => assets.find((a) => a.id === id))
+    .filter((a): a is Asset => !!a);
 
   const parsedLines = lines.map((l) => {
     const qty  = parseFloat(l.qty) || 0;
@@ -113,24 +134,21 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
   const discAmount = discountType === "pct"
     ? Math.round(subtotal * discPct / 100)
     : Math.min(Math.round(parseFloat(discountFixed) || 0), subtotal);
-  const total      = subtotal - discAmount;
-  const poVal      = parseFloat(poAmount) || 0;
+  const total  = subtotal - discAmount;
+  const poVal  = parseFloat(poAmount) || 0;
 
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
-  // Line item handlers
+  // Line handlers
   const addLine    = () => setLines((p) => [...p, { id: String(Date.now()), description: "", qty: "1", rate: "0" }]);
   const removeLine = (id: string) => setLines((p) => p.length > 1 ? p.filter((l) => l.id !== id) : p);
   const updateLine = (id: string, field: keyof LineRow, val: string) =>
     setLines((p) => p.map((l) => l.id === id ? { ...l, [field]: val } : l));
 
-  // Item row handlers
-  const addItem    = () => setItemRows((p) => [...p, { id: String(Date.now()), type: "", make: "", model: "", serial: "", spec: "", qty: "1", notes: "" }]);
-  const removeItem = (id: string) => setItemRows((p) => p.length > 1 ? p.filter((i) => i.id !== id) : p);
-  const updateItem = (id: string, field: keyof ItemRow, val: string) =>
-    setItemRows((p) => p.map((i) => i.id === id ? { ...i, [field]: val } : i));
+  const toggleAsset = (id: string) =>
+    setSelectedAssetIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
-  // Catalog handlers
+  // Catalog
   const openCatalog = (lineId: string) => { setCatalogTarget(lineId); setCatalogCat(""); setCatalogOpen(true); };
   const insertCatalogItem = (item: PricingItem) => {
     if (catalogTarget) { updateLine(catalogTarget, "description", item.description); updateLine(catalogTarget, "rate", String(item.rate)); }
@@ -138,7 +156,7 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
   };
   const filteredCatalog = catalogCat ? pricingItems.filter((p) => p.category === catalogCat) : pricingItems;
 
-  // Fragment handlers
+  // Fragments
   const insertFragment = (frag: TextFragment) => {
     if (fragTarget === "notes") setNotes((p) => p ? p + "\n\n" + frag.text : frag.text);
     if (fragTarget === "terms") setTerms((p) => p ? p + "\n\n" + frag.text : frag.text);
@@ -158,12 +176,8 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
           Saved as draft for {selectedAccount?.name ?? "the customer"}. You can review and send it from the quotations list.
         </p>
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-          <Link href={ROUTES.quotations} style={{ background: c.accent, color: "#fff", padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>
-            All quotations
-          </Link>
-          <button onClick={() => setSaved(false)} style={{ border: `1px solid ${c.line}`, background: c.panel, color: c.muted, padding: "8px 20px", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>
-            Edit again
-          </button>
+          <Link href={ROUTES.quotations} style={{ background: c.accent, color: "#fff", padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>All quotations</Link>
+          <button onClick={() => setSaved(false)} style={{ border: `1px solid ${c.line}`, background: c.panel, color: c.muted, padding: "8px 20px", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>Edit again</button>
         </div>
       </div>
     );
@@ -193,8 +207,12 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
             <h3 style={sectionTitle}>Account & Contact</h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <div>
-                <span style={label}>Account *</span>
-                <select style={sel} value={accountId} onChange={(e) => { setAccountId(e.target.value); setContactId(""); }}>
+                <span style={lbl}>Account *</span>
+                <select
+                  style={sel}
+                  value={accountId}
+                  onChange={(e) => { setAccountId(e.target.value); setContactId(""); setSelectedAssetIds([]); }}
+                >
                   <option value="">Select account…</option>
                   {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
@@ -206,7 +224,7 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
                 )}
               </div>
               <div>
-                <span style={label}>Contact</span>
+                <span style={lbl}>Contact</span>
                 <select style={{ ...sel, opacity: !accountId ? 0.5 : 1 }} value={contactId} onChange={(e) => setContactId(e.target.value)} disabled={!accountId}>
                   <option value="">{accountId ? "Select contact…" : "Choose account first"}</option>
                   {accountContacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}{ct.role ? ` · ${ct.role}` : ""}</option>)}
@@ -219,123 +237,154 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
           <section style={cardStyle}>
             <h3 style={sectionTitle}>Quote details</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-              {/* Row 1 — name + owner */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 190px", gap: 14 }}>
                 <div>
-                  <span style={label}>Quote name</span>
+                  <span style={lbl}>Quote name</span>
                   <input style={inp} value={quoteName} onChange={(e) => setQuoteName(e.target.value)} placeholder="e.g. Annual maintenance — Pump rewinding" />
                 </div>
                 <div>
-                  <span style={label}>Created by</span>
+                  <span style={lbl}>Created by</span>
                   <input style={inp} value={owner} onChange={(e) => setOwner(e.target.value)} />
                 </div>
               </div>
-
-              {/* Row 2 — ref + date + valid until */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
                 <div>
-                  <span style={label}>Reference</span>
+                  <span style={lbl}>Reference</span>
                   <input style={{ ...inp, color: c.muted, background: c.panel2 }} value={quoteRef} readOnly />
                 </div>
                 <div>
-                  <span style={label}>Date</span>
+                  <span style={lbl}>Date</span>
                   <input style={inp} type="date" value={quoteDate} onChange={(e) => setQuoteDate(e.target.value)} />
                 </div>
                 <div>
-                  <span style={label}>Valid until</span>
+                  <span style={lbl}>Valid until</span>
                   <input style={inp} type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
                 </div>
               </div>
-
-              {/* Row 3 — customer PO */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div>
-                  <span style={label}>Customer PO no.</span>
+                  <span style={lbl}>Customer PO no.</span>
                   <input style={inp} value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="PO-2026-XXXX" />
                 </div>
                 <div>
-                  <span style={label}>PO amount (₹)</span>
+                  <span style={lbl}>PO amount (₹)</span>
                   <input style={inp} type="number" min="0" step="1000" value={poAmount} onChange={(e) => setPoAmount(e.target.value)} placeholder="0" />
                 </div>
               </div>
-
             </div>
           </section>
 
-          {/* Item / product details */}
+          {/* ── Linked assets ─────────────────────────────────────────────── */}
           <section style={cardStyle}>
-            <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: selectedAssets.length > 0 ? 12 : 0 }}>
               <div>
-                <h3 style={{ ...sectionTitle, margin: 0 }}>Item / Product details</h3>
-                <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Motor · transformer · pump · generator · panel · any equipment</div>
+                <h3 style={{ ...sectionTitle, margin: 0 }}>Linked assets</h3>
+                {selectedAccount && (
+                  <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>
+                    {accountAssets.length} asset{accountAssets.length !== 1 ? "s" : ""} registered for {selectedAccount.name}
+                  </div>
+                )}
               </div>
-              <button
-                onClick={addItem}
-                style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer", flexShrink: 0 }}
-              >
-                + Add item
-              </button>
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+                {accountId && accountAssets.length === 0 && (
+                  <Link
+                    href={ROUTES.assets}
+                    style={{ fontSize: 11.5, color: c.accent, textDecoration: "none", fontWeight: 500 }}
+                  >
+                    + Create asset first →
+                  </Link>
+                )}
+                <button
+                  onClick={() => setAssetPickerOpen(true)}
+                  disabled={!accountId || accountAssets.length === 0}
+                  style={{
+                    fontSize: 12, fontWeight: 600, borderRadius: 6, padding: "6px 14px", border: "none", cursor: !accountId || accountAssets.length === 0 ? "not-allowed" : "pointer",
+                    background: !accountId || accountAssets.length === 0 ? c.panel2 : c.accentbg,
+                    color: !accountId || accountAssets.length === 0 ? c.hint : c.accent,
+                  }}
+                >
+                  {selectedAssets.length > 0 ? "Edit selection" : "+ Link asset"}
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {itemRows.map((item, idx) => (
-                <div key={item.id} style={{ borderLeft: `3px solid ${c.accent}`, borderRadius: "0 8px 8px 0", background: c.panel2, padding: "12px 14px" }}>
+            {/* No account selected */}
+            {!accountId && (
+              <div style={{ padding: "20px 0", textAlign: "center", color: c.hint, fontSize: 13 }}>
+                Select an account to link its assets
+              </div>
+            )}
 
-                  {/* Top row: # | Type | Make | Model | Serial | Qty | × */}
-                  <div style={{ display: "grid", gridTemplateColumns: "20px 110px 110px 1fr 1fr 56px 28px", gap: 8, alignItems: "end", marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, color: c.hint, fontWeight: 600, paddingBottom: 9 }}>{idx + 1}</div>
-                    <div>
-                      <span style={label}>Type</span>
-                      <input style={smInp} value={item.type} onChange={(e) => updateItem(item.id, "type", e.target.value)} placeholder="Motor…" />
+            {/* Account selected but no assets */}
+            {accountId && accountAssets.length === 0 && (
+              <div style={{ padding: "18px 0", textAlign: "center" }}>
+                <div style={{ fontSize: 13, color: c.muted, marginBottom: 8 }}>No assets registered for this account yet.</div>
+                <Link href={ROUTES.assets} style={{ fontSize: 13, color: c.accent, fontWeight: 600, textDecoration: "none" }}>
+                  Go to Assets and create one →
+                </Link>
+              </div>
+            )}
+
+            {/* Selected asset cards */}
+            {selectedAssets.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {selectedAssets.map((asset) => (
+                  <div
+                    key={asset.id}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "10px 14px", borderRadius: 8,
+                      background: c.panel2, border: `1px solid ${c.line}`,
+                    }}
+                  >
+                    {/* Kind badge */}
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 9, flexShrink: 0,
+                      background: pillar[KIND_TONE[asset.kind]].bg,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 16,
+                    }}>
+                      {KIND_ICON[asset.kind]}
                     </div>
-                    <div>
-                      <span style={label}>Make</span>
-                      <input style={smInp} value={item.make} onChange={(e) => updateItem(item.id, "make", e.target.value)} placeholder="Crompton…" />
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{asset.name}</span>
+                        <Pill label={KIND_LABEL[asset.kind]} tone={KIND_TONE[asset.kind]} />
+                      </div>
+                      <div style={{ fontSize: 12, color: c.muted, marginBottom: 2 }}>
+                        {asset.make && <span>{asset.make}</span>}
+                        {asset.make && asset.model && <span style={{ margin: "0 5px", color: c.hint }}>·</span>}
+                        {asset.model && <span style={{ fontWeight: 500 }}>{asset.model}</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: c.hint }}>
+                        {asset.serial && <span style={{ fontFamily: "monospace" }}>{asset.serial}</span>}
+                        {asset.serial && asset.rating && <span style={{ margin: "0 5px" }}>·</span>}
+                        {asset.rating && <span>{asset.rating}</span>}
+                      </div>
+                      {asset.notes && (
+                        <div style={{ fontSize: 10.5, color: c.hint, marginTop: 3, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {asset.notes}
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <span style={label}>Model / Part no.</span>
-                      <input style={smInp} value={item.model} onChange={(e) => updateItem(item.id, "model", e.target.value)} placeholder="CG-3PH-7.5" />
-                    </div>
-                    <div>
-                      <span style={label}>Serial / Tag no.</span>
-                      <input style={smInp} value={item.serial} onChange={(e) => updateItem(item.id, "serial", e.target.value)} placeholder="SN-XXXXXX" />
-                    </div>
-                    <div>
-                      <span style={label}>Qty</span>
-                      <input style={{ ...smInp, textAlign: "center" }} type="number" min="1" step="1" value={item.qty} onChange={(e) => updateItem(item.id, "qty", e.target.value)} />
-                    </div>
+                    {/* Remove */}
                     <button
-                      onClick={() => removeItem(item.id)}
-                      style={{ background: "none", border: "none", color: pillar.red.fg, fontSize: 18, cursor: "pointer", paddingBottom: 2, lineHeight: 1 }}
-                      title="Remove item"
+                      onClick={() => toggleAsset(asset.id)}
+                      style={{ background: "none", border: "none", color: c.hint, fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}
+                      title="Unlink asset"
                     >×</button>
                   </div>
+                ))}
+              </div>
+            )}
 
-                  {/* Spec row */}
-                  <div style={{ marginBottom: 8 }}>
-                    <span style={label}>Specification / Rating</span>
-                    <input
-                      style={smInp}
-                      value={item.spec}
-                      onChange={(e) => updateItem(item.id, "spec", e.target.value)}
-                      placeholder="e.g. 7.5 kW · 415 V · 3 Ph · 1450 rpm · Frame 132S"
-                    />
-                  </div>
-
-                  {/* Fault / condition notes */}
-                  <div>
-                    <span style={label}>Condition / Fault description</span>
-                    <textarea
-                      style={{ ...smInp, resize: "vertical", minHeight: 48, lineHeight: 1.5 }}
-                      value={item.notes}
-                      onChange={(e) => updateItem(item.id, "notes", e.target.value)}
-                      placeholder="Describe the fault, condition observed, or any additional remarks…"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            {/* Empty state when account has assets but none selected */}
+            {accountId && accountAssets.length > 0 && selectedAssets.length === 0 && (
+              <div style={{ padding: "16px 0", textAlign: "center", color: c.hint, fontSize: 13 }}>
+                No assets linked yet — click <strong>+ Link asset</strong> to choose
+              </div>
+            )}
           </section>
 
           {/* Line items */}
@@ -357,15 +406,8 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
               {parsedLines.map((line) => (
                 <div key={line.id} style={{ display: "grid", gridTemplateColumns: "1fr 60px 120px 110px 32px", gap: 8, alignItems: "start", paddingBottom: 8, borderBottom: `1px solid ${c.line}` }}>
                   <div>
-                    <textarea
-                      style={{ ...inp, resize: "vertical", minHeight: 58, lineHeight: 1.5 }}
-                      value={line.description}
-                      onChange={(e) => updateLine(line.id, "description", e.target.value)}
-                      placeholder="Describe the service or item…"
-                    />
-                    <button onClick={() => openCatalog(line.id)} style={{ marginTop: 4, fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
-                      ◈ From catalog
-                    </button>
+                    <textarea style={{ ...inp, resize: "vertical", minHeight: 58, lineHeight: 1.5 }} value={line.description} onChange={(e) => updateLine(line.id, "description", e.target.value)} placeholder="Describe the service or item…" />
+                    <button onClick={() => openCatalog(line.id)} style={{ marginTop: 4, fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ From catalog</button>
                   </div>
                   <input style={{ ...inp, textAlign: "center" }} type="number" min="0" step="1" value={line.qty} onChange={(e) => updateLine(line.id, "qty", e.target.value)} />
                   <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={line.rate} onChange={(e) => updateLine(line.id, "rate", e.target.value)} />
@@ -374,19 +416,14 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
                 </div>
               ))}
             </div>
-
-            {lines.length === 0 && (
-              <div style={{ textAlign: "center", padding: "24px 0", color: c.hint, fontSize: 13 }}>No lines yet — click + Add line</div>
-            )}
+            {lines.length === 0 && <div style={{ textAlign: "center", padding: "24px 0", color: c.hint, fontSize: 13 }}>No lines yet — click + Add line</div>}
           </section>
 
           {/* Notes */}
           <section style={cardStyle}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
               <h3 style={{ ...sectionTitle, margin: 0 }}>Notes</h3>
-              <button onClick={() => setFragTarget("notes")} style={{ marginLeft: "auto", fontSize: 11.5, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>
-                + Insert template
-              </button>
+              <button onClick={() => setFragTarget("notes")} style={{ marginLeft: "auto", fontSize: 11.5, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>+ Insert template</button>
             </div>
             <textarea style={{ ...inp, minHeight: 88, resize: "vertical", lineHeight: 1.6 }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes for the customer (payment terms, special conditions, delivery notes)…" />
           </section>
@@ -395,15 +432,13 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
           <section style={cardStyle}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
               <h3 style={{ ...sectionTitle, margin: 0 }}>Terms & Conditions</h3>
-              <button onClick={() => setFragTarget("terms")} style={{ marginLeft: "auto", fontSize: 11.5, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>
-                + Use preset
-              </button>
+              <button onClick={() => setFragTarget("terms")} style={{ marginLeft: "auto", fontSize: 11.5, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>+ Use preset</button>
             </div>
             <textarea style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Standard terms and conditions…" />
           </section>
         </div>
 
-        {/* ── RIGHT (summary + actions) ─────────────────────────────────────── */}
+        {/* ── RIGHT ────────────────────────────────────────────────────────── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12, position: "sticky", top: 20 }}>
 
           {/* Summary */}
@@ -424,21 +459,13 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
                 <span style={{ fontWeight: 600, color: c.ink }}>{fmt(subtotal)}</span>
               </div>
 
-              {/* Discount — type toggle + input */}
+              {/* Discount */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ fontSize: 13, color: c.muted }}>Discount</span>
                   <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: `1px solid ${c.line}` }}>
                     {(["pct", "fixed"] as const).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setDiscountType(t)}
-                        style={{
-                          padding: "3px 11px", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer",
-                          background: discountType === t ? c.accent : c.panel2,
-                          color: discountType === t ? "#fff" : c.muted,
-                        }}
-                      >
+                      <button key={t} onClick={() => setDiscountType(t)} style={{ padding: "3px 11px", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: discountType === t ? c.accent : c.panel2, color: discountType === t ? "#fff" : c.muted }}>
                         {t === "pct" ? "%" : "₹"}
                       </button>
                     ))}
@@ -447,23 +474,13 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
                 <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
                   {discountType === "pct" ? (
                     <>
-                      <input
-                        type="number" min="0" max="100" step="0.5"
-                        value={discountPct}
-                        onChange={(e) => setDiscountPct(e.target.value)}
-                        style={{ width: 52, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }}
-                      />
+                      <input type="number" min="0" max="100" step="0.5" value={discountPct} onChange={(e) => setDiscountPct(e.target.value)} style={{ width: 52, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }} />
                       <span style={{ fontSize: 11, color: c.hint }}>%</span>
                     </>
                   ) : (
                     <>
                       <span style={{ fontSize: 11, color: c.hint }}>₹</span>
-                      <input
-                        type="number" min="0" step="100"
-                        value={discountFixed}
-                        onChange={(e) => setDiscountFixed(e.target.value)}
-                        style={{ width: 84, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }}
-                      />
+                      <input type="number" min="0" step="100" value={discountFixed} onChange={(e) => setDiscountFixed(e.target.value)} style={{ width: 84, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }} />
                     </>
                   )}
                   <span style={{ fontWeight: 600, color: discAmount > 0 ? pillar.red.fg : c.muted, minWidth: 60, textAlign: "right" }}>
@@ -479,13 +496,11 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
             </div>
           </section>
 
-          {/* PO status — shown only when PO data entered */}
+          {/* PO status */}
           {(poNumber || poAmount) && (
             <section style={{ ...cardStyle, background: c.panel2, padding: "12px 14px" }}>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Customer PO</div>
-              {poNumber && (
-                <div style={{ fontSize: 12.5, color: c.ink, fontFamily: "monospace", marginBottom: 6 }}>{poNumber}</div>
-              )}
+              {poNumber && <div style={{ fontSize: 12.5, color: c.ink, fontFamily: "monospace", marginBottom: 6 }}>{poNumber}</div>}
               {poAmount && (
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                   <span style={{ fontSize: 11.5, color: c.muted }}>PO value</span>
@@ -503,22 +518,30 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
             </section>
           )}
 
-          {/* Item summary — shown when at least one item has data */}
-          {itemRows.some((i) => i.type || i.make) && (
+          {/* Linked assets summary */}
+          {selectedAssets.length > 0 && (
             <section style={{ ...cardStyle, padding: "12px 14px" }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Items</div>
-              {itemRows.filter((i) => i.type || i.make).map((item, idx) => (
-                <div key={item.id} style={{ display: "flex", gap: 6, alignItems: "center", padding: "5px 0", borderTop: idx > 0 ? `1px solid ${c.line}` : "none" }}>
-                  <span style={{ fontSize: 10.5, color: c.hint, fontWeight: 600, flexShrink: 0 }}>#{idx + 1}</span>
-                  <span style={{ fontSize: 12, color: c.ink, fontWeight: 500 }}>{item.type || "Item"}</span>
-                  {item.make && <span style={{ fontSize: 11, color: c.muted }}>· {item.make}</span>}
-                  {item.qty !== "1" && <span style={{ fontSize: 11, color: c.hint, marginLeft: "auto" }}>×{item.qty}</span>}
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                Assets · {selectedAssets.length}
+              </div>
+              {selectedAssets.map((asset, idx) => (
+                <div key={asset.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: idx > 0 ? `1px solid ${c.line}` : "none" }}>
+                  <span style={{ fontSize: 14 }}>{KIND_ICON[asset.kind]}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: c.ink, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{asset.name}</div>
+                    {(asset.make || asset.model) && (
+                      <div style={{ fontSize: 10.5, color: c.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {[asset.make, asset.model].filter(Boolean).join(" · ")}
+                      </div>
+                    )}
+                    {asset.serial && <div style={{ fontSize: 10.5, color: c.hint, fontFamily: "monospace" }}>{asset.serial}</div>}
+                  </div>
                 </div>
               ))}
             </section>
           )}
 
-          {/* Owner chip */}
+          {/* Owner */}
           <div style={{ fontSize: 11, color: c.hint, textAlign: "center" }}>
             Created by <span style={{ color: c.muted, fontWeight: 600 }}>{owner || "—"}</span>
           </div>
@@ -527,19 +550,11 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
           <section style={cardStyle}>
             <h3 style={sectionTitle}>Actions</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button
-                onClick={() => setSaved(true)}
-                disabled={!accountId}
-                style={{ width: "100%", padding: "10px 0", borderRadius: 9, fontSize: 13.5, fontWeight: 700, background: accountId ? c.accent : c.line, color: accountId ? "#fff" : c.hint, border: "none", cursor: accountId ? "pointer" : "not-allowed" }}
-              >
+              <button onClick={() => setSaved(true)} disabled={!accountId} style={{ width: "100%", padding: "10px 0", borderRadius: 9, fontSize: 13.5, fontWeight: 700, background: accountId ? c.accent : c.line, color: accountId ? "#fff" : c.hint, border: "none", cursor: accountId ? "pointer" : "not-allowed" }}>
                 Save as draft
               </button>
-              <button disabled style={{ width: "100%", padding: "9px 0", borderRadius: 9, fontSize: 13, fontWeight: 600, background: pillar.teal.bg, color: pillar.teal.fg, border: "none", cursor: "not-allowed", opacity: 0.7 }}>
-                Preview PDF · Coming soon
-              </button>
-              <button disabled style={{ width: "100%", padding: "9px 0", borderRadius: 9, fontSize: 13, fontWeight: 600, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "not-allowed", opacity: 0.7 }}>
-                Send to customer · Coming soon
-              </button>
+              <button disabled style={{ width: "100%", padding: "9px 0", borderRadius: 9, fontSize: 13, fontWeight: 600, background: pillar.teal.bg, color: pillar.teal.fg, border: "none", cursor: "not-allowed", opacity: 0.7 }}>Preview PDF · Coming soon</button>
+              <button disabled style={{ width: "100%", padding: "9px 0", borderRadius: 9, fontSize: 13, fontWeight: 600, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "not-allowed", opacity: 0.7 }}>Send to customer · Coming soon</button>
             </div>
           </section>
 
@@ -549,7 +564,109 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
         </div>
       </div>
 
-      {/* ── Catalog slide panel ─────────────────────────────────────────────── */}
+      {/* ── Asset picker panel ────────────────────────────────────────────── */}
+      {assetPickerOpen && (
+        <>
+          <div onClick={() => setAssetPickerOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
+            {/* Header */}
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Link assets</div>
+                <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>
+                  {selectedAccount?.name} · {accountAssets.length} asset{accountAssets.length !== 1 ? "s" : ""}
+                </div>
+              </div>
+              <button onClick={() => setAssetPickerOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* Asset list */}
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {accountAssets.map((asset) => {
+                const selected = selectedAssetIds.includes(asset.id);
+                return (
+                  <button
+                    key={asset.id}
+                    onClick={() => toggleAsset(asset.id)}
+                    style={{
+                      width: "100%", textAlign: "left", padding: "14px 20px",
+                      background: selected ? c.accentbg : "none",
+                      border: "none", borderBottom: `1px solid ${c.line}`,
+                      cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
+                    }}
+                    onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = c.panel2; }}
+                    onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "none"; }}
+                  >
+                    {/* Checkbox */}
+                    <div style={{
+                      width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                      border: `2px solid ${selected ? c.accent : c.line}`,
+                      background: selected ? c.accent : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, color: "#fff", fontWeight: 700,
+                    }}>
+                      {selected ? "✓" : ""}
+                    </div>
+                    {/* Kind icon */}
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+                      background: pillar[KIND_TONE[asset.kind]].bg,
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+                    }}>
+                      {KIND_ICON[asset.kind]}
+                    </div>
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{asset.name}</span>
+                        <Pill label={KIND_LABEL[asset.kind]} tone={KIND_TONE[asset.kind]} />
+                      </div>
+                      <div style={{ fontSize: 12, color: c.muted, marginBottom: 2 }}>
+                        {asset.make && <span>{asset.make}</span>}
+                        {asset.make && asset.model && <span style={{ margin: "0 5px", color: c.hint }}>·</span>}
+                        {asset.model && <span style={{ fontWeight: 500 }}>{asset.model}</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: c.hint }}>
+                        {asset.serial && <span style={{ fontFamily: "monospace" }}>{asset.serial}</span>}
+                        {asset.serial && asset.rating && <span style={{ margin: "0 5px" }}>·</span>}
+                        {asset.rating && <span>{asset.rating}</span>}
+                      </div>
+                      {asset.notes && (
+                        <div style={{ fontSize: 10.5, color: c.hint, marginTop: 3, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {asset.notes}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "14px 20px", borderTop: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: c.muted }}>
+                {selectedAssetIds.length} selected
+              </span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Link
+                  href={ROUTES.assets}
+                  style={{ fontSize: 12, color: c.accent, textDecoration: "none", padding: "7px 14px", border: `1px solid ${c.accent}`, borderRadius: 7, fontWeight: 500 }}
+                >
+                  + Create new asset
+                </Link>
+                <button
+                  onClick={() => setAssetPickerOpen(false)}
+                  style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: c.accent, border: "none", borderRadius: 7, padding: "7px 18px", cursor: "pointer" }}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Catalog slide panel ──────────────────────────────────────────── */}
       {catalogOpen && (
         <>
           <div onClick={() => setCatalogOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
@@ -593,7 +710,7 @@ export default function QuoteForm({ accounts, contacts, pricingItems, textFragme
         </>
       )}
 
-      {/* ── Fragment picker panel ───────────────────────────────────────────── */}
+      {/* ── Fragment picker panel ────────────────────────────────────────── */}
       {fragTarget && (
         <>
           <div onClick={() => setFragTarget(null)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />

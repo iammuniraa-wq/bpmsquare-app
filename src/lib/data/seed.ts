@@ -125,16 +125,72 @@ export const sites: Site[] = [
 
 export const assets: Asset[] = [
   // ── Customer-owned assets ──────────────────────────────────────────────────
-  { id: "ast_krishna_m1",  account_id: "acc_krishna",  kind: "motor",       name: "Ring-frame drive motor",   rating: "75 kW · 415V · 1480 rpm",  serial: "CG-75-2291",   is_loaner: false, loaner_status: null },
-  { id: "ast_sahyadri_t1", account_id: "acc_sahyadri", kind: "transformer", name: "Distribution transformer", rating: "500 kVA · 11kV/433V",       serial: "TX-500-0148",  is_loaner: false, loaner_status: null },
-  { id: "ast_bharat_m1",   account_id: "acc_bharat",   kind: "motor",       name: "Hammer drive motor",       rating: "160 kW · 415V · 990 rpm",   serial: "MR-160-7741",  is_loaner: false, loaner_status: null },
-  { id: "ast_hpsteel_m1",  account_id: "acc_hpsteel",  kind: "motor",       name: "Rolling mill motor",       rating: "250 kW · 690V · 740 rpm",   serial: "HP-250-3320",  is_loaner: false, loaner_status: null },
-  { id: "ast_tata_p1",     account_id: "acc_tata",     kind: "pump",        name: "Coolant pump",             rating: "37 kW · 415V · 2950 rpm",   serial: "RM-37-5582",   is_loaner: false, loaner_status: null },
+  {
+    id: "ast_krishna_m1",  account_id: "acc_krishna",  kind: "motor",
+    name: "Ring-frame drive motor",
+    make: "Crompton Greaves",  model: "ND315S-2",
+    rating: "75 kW · 415V · 1480 rpm",  serial: "CG-75-2291",
+    notes: "Rewound once — June 2024. Bearings last replaced Jan 2025.",
+    is_loaner: false, loaner_status: null,
+  },
+  {
+    id: "ast_sahyadri_t1", account_id: "acc_sahyadri", kind: "transformer",
+    name: "Distribution transformer",
+    make: "Voltamp",           model: "ONAN-500-11/0.433",
+    rating: "500 kVA · 11kV/433V",       serial: "TX-500-0148",
+    notes: "Oil tested under AMC — last test May 2026. BDV: 58 kV.",
+    is_loaner: false, loaner_status: null,
+  },
+  {
+    id: "ast_bharat_m1",   account_id: "acc_bharat",   kind: "motor",
+    name: "Hammer drive motor",
+    make: "Marathon Electric", model: "MG280MC-6",
+    rating: "160 kW · 415V · 990 rpm",   serial: "MR-160-7741",
+    notes: "Bearings replaced March 2025. Vibration within spec as of last inspection.",
+    is_loaner: false, loaner_status: null,
+  },
+  {
+    id: "ast_hpsteel_m1",  account_id: "acc_hpsteel",  kind: "motor",
+    name: "Rolling mill motor",
+    make: "Rotomotive",        model: "GG355M-8",
+    rating: "250 kW · 690V · 740 rpm",   serial: "HP-250-3320",
+    notes: "Covered under AMC (ctr_marathon). Noisy bearing reported June 2026.",
+    is_loaner: false, loaner_status: null,
+  },
+  {
+    id: "ast_tata_p1",     account_id: "acc_tata",     kind: "pump",
+    name: "Coolant pump",
+    make: "Kirloskar",         model: "KDS-316",
+    rating: "37 kW · 415V · 2950 rpm",   serial: "RM-37-5582",
+    notes: null,
+    is_loaner: false, loaner_status: null,
+  },
 
   // ── Company loaner stock (Vikas Pioneers — account_id null) ───────────────
-  { id: "lnr_motor_45k",   account_id: null, kind: "motor", name: "Loaner — 45 kW standard motor",   rating: "45 kW · 415V · 1480 rpm",  serial: "VP-LNR-001", is_loaner: true, loaner_status: "on_loan"   },
-  { id: "lnr_motor_22k",   account_id: null, kind: "motor", name: "Loaner — 22 kW general purpose",  rating: "22 kW · 415V · 1480 rpm",  serial: "VP-LNR-002", is_loaner: true, loaner_status: "available" },
-  { id: "lnr_pump_37k",    account_id: null, kind: "pump",  name: "Loaner — 37 kW centrifugal pump", rating: "37 kW · 415V · 2950 rpm",  serial: "VP-LNR-003", is_loaner: true, loaner_status: "available" },
+  {
+    id: "lnr_motor_45k",   account_id: null, kind: "motor",
+    name: "Loaner — 45 kW standard motor",
+    make: "Crompton Greaves",  model: "ND250M-2",
+    rating: "45 kW · 415V · 1480 rpm",  serial: "VP-LNR-001",
+    notes: null,
+    is_loaner: true, loaner_status: "on_loan",
+  },
+  {
+    id: "lnr_motor_22k",   account_id: null, kind: "motor",
+    name: "Loaner — 22 kW general purpose",
+    make: "Marathon Electric", model: "MG200LA-2",
+    rating: "22 kW · 415V · 1480 rpm",  serial: "VP-LNR-002",
+    notes: null,
+    is_loaner: true, loaner_status: "available",
+  },
+  {
+    id: "lnr_pump_37k",    account_id: null, kind: "pump",
+    name: "Loaner — 37 kW centrifugal pump",
+    make: "Kirloskar",         model: "KDS-280",
+    rating: "37 kW · 415V · 2950 rpm",  serial: "VP-LNR-003",
+    notes: null,
+    is_loaner: true, loaner_status: "available",
+  },
 ];
 
 export const contracts: Contract[] = [

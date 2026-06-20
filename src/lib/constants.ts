@@ -29,6 +29,7 @@ export const ROUTES = {
   invoices: "/invoices",
   case: (id: string) => `/cases/${id}`,
   settings: "/settings",
+  reports: "/reports",
 } as const;
 
 export type NavItem = {
@@ -83,8 +84,9 @@ export const NAV: NavGroup[] = [
   {
     group: "RECORDS",
     items: [
-      { label: "Assets", href: ROUTES.assets, icon: "⚙", pillar: "green" },
-      { label: "Invoices", href: ROUTES.invoices, icon: "⊟", pillar: "green" },
+      { label: "Assets",    href: ROUTES.assets,    icon: "⚙", pillar: "green" },
+      { label: "Invoices",  href: ROUTES.invoices,  icon: "⊟", pillar: "green" },
+      { label: "Analytics", href: ROUTES.reports,   icon: "◫", pillar: "purple" },
     ],
   },
 ];
