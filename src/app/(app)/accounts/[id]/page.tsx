@@ -114,7 +114,8 @@ export default async function AccountHubPage({
   const hub = await getAccountHubLive(id);
   if (!hub) notFound();
 
-  const { account, referredBy } = hub;
+  const { referredBy } = hub;
+  const account = hub.account as import("@/lib/types").Account;
 
   const openCases = hub.cases.filter(
     (sc) => !["closed", "buyback", "scrapped"].includes(sc.status)
