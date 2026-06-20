@@ -247,7 +247,7 @@ export default async function TechnicianDetailPage({
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 12 }} className="hub-grid">
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 240px", gap: 12 }} className="hub-grid">
 
         {/* ── LEFT COLUMN ────────────────────────────────────────────────── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -269,111 +269,46 @@ export default async function TechnicianDetailPage({
             </div>
           )}
 
-          {/* Calendar */}
-          <section style={cardStyle}>
-            {/* Month nav */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <Link href={`?month=${prevMonth}`} style={{
-                padding: "3px 10px", borderRadius: 6, fontSize: 12.5,
-                background: c.panel2, color: c.muted, textDecoration: "none",
-                border: `1px solid ${c.line}`,
-              }}>←</Link>
-              <span style={{ fontWeight: 700, fontSize: 14, color: c.ink, flex: 1, textAlign: "center" }}>
-                {monthLabel}
-              </span>
-              <Link href={`?month=${nextMonth}`} style={{
-                padding: "3px 10px", borderRadius: 6, fontSize: 12.5,
-                background: c.panel2, color: c.muted, textDecoration: "none",
-                border: `1px solid ${c.line}`,
-              }}>→</Link>
-            </div>
+          {/* Skills + Certs side by side */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {/* Skills */}
+            <Section title="Skills">
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+                {(tech.skills?.split(",") ?? []).map((sk) => (
+                  <span key={sk} style={{
+                    fontSize: 12, padding: "3px 9px", borderRadius: 20,
+                    background: c.panel2, color: c.ink, border: `1px solid ${c.line}`,
+                  }}>
+                    {sk.trim()}
+                  </span>
+                ))}
+              </div>
+            </Section>
 
-            {/* Day-name header */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, marginBottom: 4 }}>
-              {DAY_NAMES.map((d) => (
-                <div key={d} style={{ textAlign: "center", fontSize: 10, color: c.hint, fontWeight: 600, paddingBottom: 3 }}>
-                  {d}
-                </div>
-              ))}
-            </div>
-
-            {/* Day grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
-              {/* Blank cells for days before start */}
-              {Array.from({ length: firstDow }).map((_, i) => <div key={`blank-${i}`} />)}
-
-              {calendarDays.map((day) => {
-                const isToday     = day.date === today;
-                const isPast      = day.date < today;
-                const hasWO       = day.workOrders.length > 0;
-                const hasVisit    = day.visitLogs.length > 0;
-                const allComplete = day.visitLogs.every((v) => v.status === "completed");
-                const hasConflict = day.isLeave && (hasWO || hasVisit);
-
-                let bg: string = "transparent";
-                let textColor: string = c.ink;
-                let borderColor: string = "transparent";
-
-                if (hasConflict) { bg = pillar.red.bg; textColor = pillar.red.fg; borderColor = pillar.red.base; }
-                else if (day.isLeave) { bg = pillar.amber.bg; textColor = pillar.amber.fg; }
-                else if (hasVisit && allComplete) { bg = pillar.green.bg; textColor = pillar.green.fg; }
-                else if (hasWO || hasVisit) { bg = pillar.blue.bg; textColor = pillar.blue.fg; }
-                else if (!isPast) { bg = c.panel2; }
-
-                const slotLabel = !day.isLeave ? `${day.slotsFree}/${day.slotsTotal}` : null;
-
+            {/* Certifications */}
+            <Section title="Certifications">
+              {tech.certifications.map((cert) => {
+                const expiry = tech.cert_expiry[cert];
+                const isExpiring = expiry && new Date(expiry) < new Date(Date.now() + 90 * 86400000);
+                const isExpired  = expiry && new Date(expiry) < new Date();
                 return (
-                  <div
-                    key={day.date}
-                    style={{
-                      background: bg,
-                      border: `1px solid ${isToday ? c.accent : borderColor}`,
-                      borderRadius: 7,
-                      padding: "4px 3px 3px",
-                      textAlign: "center",
-                      minHeight: 48,
-                      opacity: isPast && !hasWO && !hasVisit && !day.isLeave ? 0.45 : 1,
-                    }}
-                    title={day.date}
-                  >
-                    <div style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: textColor }}>
-                      {parseInt(day.date.slice(-2))}
+                  <div key={cert} style={{ borderTop: `1px solid ${c.line}`, paddingTop: 5, marginTop: 5 }}>
+                    <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                      <span style={{ fontSize: 11, color: isExpired ? pillar.red.base : isExpiring ? pillar.amber.base : pillar.green.base }}>
+                        {isExpired ? "✗" : "✓"}
+                      </span>
+                      <span style={{ fontSize: 12, color: c.ink, flex: 1, minWidth: 0, wordBreak: "break-word" }}>{cert}</span>
                     </div>
-                    {/* Slot indicator */}
-                    {slotLabel && !isPast && (
-                      <div style={{ fontSize: 9, color: day.slotsFree === 0 ? pillar.red.fg : pillar.green.fg, marginTop: 1 }}>
-                        {slotLabel}
-                      </div>
-                    )}
-                    {/* WO dots */}
-                    {(hasWO || hasVisit) && (
-                      <div style={{ display: "flex", justifyContent: "center", gap: 2, marginTop: 2, flexWrap: "wrap" }}>
-                        {day.workOrders.map((_, i) => (
-                          <span key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: textColor, display: "inline-block", opacity: 0.7 }} />
-                        ))}
+                    {expiry && (
+                      <div style={{ fontSize: 10.5, color: isExpired ? pillar.red.fg : isExpiring ? pillar.amber.fg : c.hint, marginTop: 2, paddingLeft: 16 }}>
+                        {isExpired ? "Expired" : isExpiring ? "Expiring soon" : "Valid until"} {fmtDate(expiry)}
                       </div>
                     )}
                   </div>
                 );
               })}
-            </div>
-
-            {/* Calendar legend */}
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10, paddingTop: 8, borderTop: `1px solid ${c.line}` }}>
-              {[
-                { color: pillar.green.bg, border: pillar.green.base, label: "Completed visits" },
-                { color: pillar.blue.bg,  border: pillar.blue.base,  label: "Scheduled WO" },
-                { color: pillar.amber.bg, border: pillar.amber.base, label: "Leave" },
-                { color: pillar.red.bg,   border: pillar.red.base,   label: "Conflict" },
-                { color: c.panel2,       border: c.line,            label: "Free slot" },
-              ].map((it) => (
-                <span key={it.label} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: c.muted }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: it.color, border: `1px solid ${it.border}`, display: "inline-block" }} />
-                  {it.label}
-                </span>
-              ))}
-            </div>
-          </section>
+            </Section>
+          </div>
 
           {/* Visit log history */}
           {recentVisits.length > 0 && (
@@ -390,10 +325,7 @@ export default async function TechnicianDetailPage({
                 const VISIT_TONE: Record<string, PillarKey> = { planned: "blue", in_progress: "amber", completed: "green", cancelled: "red" };
 
                 return (
-                  <div key={v.id} style={{
-                    borderTop: `1px solid ${c.line}`, paddingTop: 10, marginTop: 10,
-                  }}>
-                    {/* Row header */}
+                  <div key={v.id} style={{ borderTop: `1px solid ${c.line}`, paddingTop: 10, marginTop: 10 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>
                         {fmtDate(v.visit_date)}
@@ -413,11 +345,7 @@ export default async function TechnicianDetailPage({
                         {v.travel_distance_km != null ? `${v.travel_distance_km * 2} km round trip` : ""}
                       </span>
                     </div>
-
-                    {/* Time bar */}
                     <VisitTimeline v={v} />
-
-                    {/* Time breakdown chips */}
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6, fontSize: 11 }}>
                       <span style={{ color: pillar.blue.fg }}>
                         Travel out: {hhmm(v.travel_start_time)} → {hhmm(v.arrived_time)} ({fmtMins(travelOutMin)})
@@ -428,9 +356,7 @@ export default async function TechnicianDetailPage({
                         </span>
                       )}
                       {breakMin > 0 && (
-                        <span style={{ color: pillar.amber.fg }}>
-                          Break: {fmtMins(breakMin)}
-                        </span>
+                        <span style={{ color: pillar.amber.fg }}>Break: {fmtMins(breakMin)}</span>
                       )}
                       {returnMin > 0 && (
                         <span style={{ color: pillar.purple.fg }}>
@@ -438,12 +364,8 @@ export default async function TechnicianDetailPage({
                         </span>
                       )}
                     </div>
-
-                    {/* Work done */}
                     {v.work_done && (
-                      <p style={{ fontSize: 12, color: c.muted, margin: "4px 0", lineHeight: 1.55 }}>
-                        {v.work_done}
-                      </p>
+                      <p style={{ fontSize: 12, color: c.muted, margin: "4px 0", lineHeight: 1.55 }}>{v.work_done}</p>
                     )}
                     {v.parts_used && (
                       <p style={{ fontSize: 11.5, color: c.hint, margin: "4px 0" }}>
@@ -456,14 +378,10 @@ export default async function TechnicianDetailPage({
                       </p>
                     )}
                     {v.next_action && (
-                      <p style={{ fontSize: 11.5, color: pillar.blue.fg, margin: "4px 0" }}>
-                        → {v.next_action}
-                      </p>
+                      <p style={{ fontSize: 11.5, color: pillar.blue.fg, margin: "4px 0" }}>→ {v.next_action}</p>
                     )}
                     {v.needs_escalation && (
-                      <div style={{ marginTop: 4 }}>
-                        <Pill label="Needs escalation" tone="red" />
-                      </div>
+                      <div style={{ marginTop: 4 }}><Pill label="Needs escalation" tone="red" /></div>
                     )}
                     {v.customer_acknowledged && (
                       <span style={{ fontSize: 11, color: pillar.green.fg }}>✓ Customer acknowledged</span>
@@ -475,59 +393,114 @@ export default async function TechnicianDetailPage({
           )}
         </div>
 
-        {/* ── RIGHT COLUMN ───────────────────────────────────────────────── */}
+        {/* ── RIGHT COLUMN — compact calendar + schedule ──────────────────── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-          {/* Skills */}
-          <Section title="Skills">
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
-              {(tech.skills?.split(",") ?? []).map((sk) => (
-                <div key={sk} style={{
-                  fontSize: 12.5, padding: "4px 10px", borderRadius: 6,
-                  background: c.panel2, color: c.ink, border: `1px solid ${c.line}`,
-                }}>
-                  ◈ {sk.trim()}
+          {/* Calendar */}
+          <section style={cardStyle}>
+            {/* Month nav */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+              <Link href={`?month=${prevMonth}`} style={{
+                padding: "2px 8px", borderRadius: 5, fontSize: 12,
+                background: c.panel2, color: c.muted, textDecoration: "none",
+                border: `1px solid ${c.line}`, lineHeight: 1.6,
+              }}>←</Link>
+              <span style={{ fontWeight: 700, fontSize: 12.5, color: c.ink, flex: 1, textAlign: "center" }}>
+                {monthLabel}
+              </span>
+              <Link href={`?month=${nextMonth}`} style={{
+                padding: "2px 8px", borderRadius: 5, fontSize: 12,
+                background: c.panel2, color: c.muted, textDecoration: "none",
+                border: `1px solid ${c.line}`, lineHeight: 1.6,
+              }}>→</Link>
+            </div>
+
+            {/* Day-name header */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>
+              {DAY_NAMES.map((d) => (
+                <div key={d} style={{ textAlign: "center", fontSize: 9, color: c.hint, fontWeight: 700, paddingBottom: 2 }}>
+                  {d}
                 </div>
               ))}
             </div>
-          </Section>
 
-          {/* Certifications */}
-          <Section title="Certifications">
-            {tech.certifications.map((cert) => {
-              const expiry = tech.cert_expiry[cert];
-              const isExpiring = expiry && new Date(expiry) < new Date(Date.now() + 90 * 86400000);
-              const isExpired  = expiry && new Date(expiry) < new Date();
-              return (
-                <div key={cert} style={{
-                  borderTop: `1px solid ${c.line}`, paddingTop: 6, marginTop: 6,
-                }}>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <span style={{ fontSize: 12, color: isExpired ? pillar.red.base : isExpiring ? pillar.amber.base : pillar.green.base }}>
-                      {isExpired ? "✗" : "✓"}
-                    </span>
-                    <span style={{ fontSize: 12.5, color: c.ink }}>{cert}</span>
-                  </div>
-                  {expiry && (
-                    <div style={{ fontSize: 11, color: isExpired ? pillar.red.fg : isExpiring ? pillar.amber.fg : c.hint, marginTop: 2, paddingLeft: 18 }}>
-                      {isExpired ? "Expired" : isExpiring ? "Expiring soon"  : "Valid until"} {fmtDate(expiry)}
+            {/* Day grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+              {Array.from({ length: firstDow }).map((_, i) => <div key={`blank-${i}`} />)}
+
+              {calendarDays.map((day) => {
+                const isToday     = day.date === today;
+                const isPast      = day.date < today;
+                const hasWO       = day.workOrders.length > 0;
+                const hasVisit    = day.visitLogs.length > 0;
+                const allComplete = day.visitLogs.every((v) => v.status === "completed");
+                const hasConflict = day.isLeave && (hasWO || hasVisit);
+
+                let bg: string = "transparent";
+                let textColor: string = c.muted;
+                let borderColor: string = "transparent";
+
+                if (hasConflict) { bg = pillar.red.bg; textColor = pillar.red.fg; borderColor = pillar.red.base; }
+                else if (day.isLeave) { bg = pillar.amber.bg; textColor = pillar.amber.fg; }
+                else if (hasVisit && allComplete) { bg = pillar.green.bg; textColor = pillar.green.fg; }
+                else if (hasWO || hasVisit) { bg = pillar.blue.bg; textColor = pillar.blue.fg; }
+                else if (!isPast) { bg = c.panel2; textColor = c.ink; }
+
+                return (
+                  <div
+                    key={day.date}
+                    title={day.date}
+                    style={{
+                      background: bg,
+                      border: `1px solid ${isToday ? c.accent : borderColor}`,
+                      borderRadius: 4,
+                      padding: "3px 2px 2px",
+                      textAlign: "center",
+                      minHeight: 28,
+                      opacity: isPast && !hasWO && !hasVisit && !day.isLeave ? 0.4 : 1,
+                    }}
+                  >
+                    <div style={{ fontSize: 10.5, fontWeight: isToday ? 700 : 400, color: textColor, lineHeight: 1.2 }}>
+                      {parseInt(day.date.slice(-2))}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </Section>
+                    {(hasWO || hasVisit) && (
+                      <div style={{ display: "flex", justifyContent: "center", gap: 1, marginTop: 1 }}>
+                        {day.workOrders.slice(0, 3).map((_, i) => (
+                          <span key={i} style={{ width: 3, height: 3, borderRadius: "50%", background: textColor, display: "inline-block", opacity: 0.8 }} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Compact legend */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, paddingTop: 7, borderTop: `1px solid ${c.line}` }}>
+              {[
+                { color: pillar.green.bg, border: pillar.green.base, label: "Done" },
+                { color: pillar.blue.bg,  border: pillar.blue.base,  label: "WO" },
+                { color: pillar.amber.bg, border: pillar.amber.base, label: "Leave" },
+                { color: pillar.red.bg,   border: pillar.red.base,   label: "Conflict" },
+              ].map((it) => (
+                <span key={it.label} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: c.muted }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: it.color, border: `1px solid ${it.border}`, display: "inline-block" }} />
+                  {it.label}
+                </span>
+              ))}
+            </div>
+          </section>
 
           {/* Upcoming work orders */}
           {upcomingWOs.length > 0 && (
             <Section title="Upcoming">
               {upcomingWOs.map(({ workOrder: wo, account }) => (
                 <div key={wo.id} style={{ borderTop: `1px solid ${c.line}`, paddingTop: 8, marginTop: 8 }}>
-                  <Link href={ROUTES.workOrder(wo.id)} style={{ fontFamily: "monospace", fontSize: 12.5, color: c.accent, textDecoration: "none", fontWeight: 600 }}>
+                  <Link href={ROUTES.workOrder(wo.id)} style={{ fontFamily: "monospace", fontSize: 12, color: c.accent, textDecoration: "none", fontWeight: 600 }}>
                     {wo.ref}
                   </Link>
                   {account && (
-                    <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>{account.name}</div>
+                    <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{account.name}</div>
                   )}
                   {wo.scheduled_for && (
                     <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>{fmtDate(wo.scheduled_for)}</div>
@@ -542,14 +515,12 @@ export default async function TechnicianDetailPage({
             <Section title="Leave schedule">
               {leaves.map((lv) => (
                 <div key={lv.id} style={{ borderTop: `1px solid ${c.line}`, paddingTop: 8, marginTop: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <Pill label={LEAVE_REASON_LABEL[lv.reason]} tone="amber" />
-                  </div>
-                  <div style={{ fontSize: 12, color: c.muted, marginTop: 4 }}>
+                  <Pill label={LEAVE_REASON_LABEL[lv.reason]} tone="amber" />
+                  <div style={{ fontSize: 11.5, color: c.muted, marginTop: 4 }}>
                     {fmtDate(lv.from_date)} — {fmtDate(lv.to_date)}
                   </div>
                   {lv.notes && (
-                    <div style={{ fontSize: 11.5, color: c.hint, marginTop: 3, lineHeight: 1.4 }}>{lv.notes}</div>
+                    <div style={{ fontSize: 11, color: c.hint, marginTop: 3, lineHeight: 1.4 }}>{lv.notes}</div>
                   )}
                 </div>
               ))}
