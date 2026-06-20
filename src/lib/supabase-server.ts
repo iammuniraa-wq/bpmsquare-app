@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 /**
@@ -20,6 +20,33 @@ export function createAdminSupabase() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
+}
+
+/**
+ * Returns the authenticated user's tenant_id, or throws a Response-like object
+ * with status 401/403 that route handlers can return directly.
+ *
+ * Usage:
+ *   const { supabase, tenantId } = await requireTenantUser();
+ */
+export async function requireTenantUser(): Promise<{
+  supabase: SupabaseClient;
+  tenantId: string;
+  userId: string;
+}> {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw { status: 401, message: "Unauthorized" };
+
+  const { data: tu } = await supabase
+    .from("tenant_users")
+    .select("tenant_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!tu?.tenant_id) throw { status: 403, message: "No tenant membership" };
+
+  return { supabase, tenantId: tu.tenant_id as string, userId: user.id };
 }
 
 export async function createServerSupabase() {
