@@ -1,6 +1,6 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase-server";
-import type { Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder, Contract } from "@/lib/types";
+import type { Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder, Contract, Activity } from "@/lib/types";
 
 export type InvoiceRow = Invoice & { account_name: string };
 
@@ -127,7 +127,7 @@ export async function getAccountHubLive(id: string) {
     quotes: (quotes ?? []) as Quote[],
     workOrders: mappedWOs as (WorkOrder & { asset: Asset | null; technician: { name: string } | null })[],
     invoices: (invoices ?? []) as Invoice[],
-    activities: [],
+    activities: [] as Activity[],
   };
 }
 
