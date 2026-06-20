@@ -4,14 +4,86 @@
 
 import type {
   Account, Contact, Site, Asset, Contract, Lead, Quote, QuoteLine, QuoteRevision,
-  WorkOrder, Invoice, Technician, Activity, ServiceCase, CasePhoto, InspectionReport,
+  WorkOrder, Invoice, Technician, TechnicianLeave, VisitLog, Activity, ServiceCase, CasePhoto, InspectionReport,
 } from "@/lib/types";
 
 export const technicians: Technician[] = [
-  { id: "tech_ramesh", name: "Ramesh", skills: "HT motor rewinding" },
-  { id: "tech_suresh", name: "Suresh", skills: "Transformer oil testing" },
-  { id: "tech_anil",   name: "Anil",   skills: "Pump & generator overhaul" },
-  { id: "tech_farhan", name: "Farhan", skills: "Panel & onsite field service" },
+  {
+    id: "tech_ramesh", name: "Ramesh Kumar",
+    phone: "+91 94482 11223", email: "ramesh.k@vikaspioneers.com",
+    skills: "HT motor rewinding, stator repair, varnish treatment, test bed operation",
+    certifications: ["HV License (IS 5571)", "Electrical Safety Supervisor (KSEB)"],
+    cert_expiry: { "HV License (IS 5571)": "2027-03-31", "Electrical Safety Supervisor (KSEB)": "2026-12-31" },
+    status: "active", base_location: "Hosapete", max_visits_per_day: 2,
+  },
+  {
+    id: "tech_suresh", name: "Suresh Naik",
+    phone: "+91 98802 44556", email: "suresh.n@vikaspioneers.com",
+    skills: "Transformer oil testing, DGA, bushing inspection, AMC site visits",
+    certifications: ["DGA Certified (IEC 60599)", "Thermography Level 1"],
+    cert_expiry: { "DGA Certified (IEC 60599)": "2027-06-30", "Thermography Level 1": "2027-01-15" },
+    status: "active", base_location: "Hubli", max_visits_per_day: 3,
+  },
+  {
+    id: "tech_anil", name: "Anil Hegde",
+    phone: "+91 97421 77889", email: "anil.h@vikaspioneers.com",
+    skills: "Pump & generator overhaul, bearing replacement, alignment, vibration analysis",
+    certifications: ["Vibration Analyst ISO Cat I", "Pump Hydraulics (KSB Certified)"],
+    cert_expiry: { "Vibration Analyst ISO Cat I": "2026-09-30", "Pump Hydraulics (KSB Certified)": "2028-04-30" },
+    status: "on_leave", base_location: "Hosapete", max_visits_per_day: 2,
+  },
+  {
+    id: "tech_farhan", name: "Farhan Shaikh",
+    phone: "+91 99001 33445", email: "farhan.s@vikaspioneers.com",
+    skills: "LT/HT panel wiring, PLC commissioning, onsite field service, emergency callouts",
+    certifications: ["Electrician License (ITI)", "PLC Fundamentals (Siemens)"],
+    cert_expiry: { "Electrician License (ITI)": "2029-06-30", "PLC Fundamentals (Siemens)": "2027-09-30" },
+    status: "active", base_location: "Hosapete", max_visits_per_day: 4,
+  },
+];
+
+export const technicianLeaves: TechnicianLeave[] = [
+  {
+    id: "lv_anil_vacation", technician_id: "tech_anil",
+    from_date: "2026-06-16", to_date: "2026-06-23",
+    reason: "vacation", notes: "Annual family vacation — pre-approved.",
+  },
+  {
+    id: "lv_ramesh_training", technician_id: "tech_ramesh",
+    from_date: "2026-06-26", to_date: "2026-06-27",
+    reason: "training", notes: "Refresher course — HV safety (KSEB, Hubli).",
+  },
+];
+
+export const visitLogs: VisitLog[] = [
+  {
+    id: "vl_sahyadri_jun12", work_order_id: "wo_sahyadri", technician_id: "tech_suresh",
+    account_id: "acc_sahyadri", visit_date: "2026-06-12",
+    travel_start_time: "07:45", travel_distance_km: 62,
+    arrived_time: "09:10",
+    work_start_time: "09:20", break_start_time: "13:00", break_end_time: "13:45",
+    work_end_time: "16:30",
+    return_start_time: "16:45", return_end_time: "18:15",
+    work_done: "Transformer oil dielectric strength test completed — 58 kV (limit 40 kV, pass). DGA sample collected and analysed on-site: H2 < 50 ppm, C2H2 = 0 (no arcing, pass). Visual inspection of all 6 bushings — surface contamination cleaned with dry cloth. Radiator fins checked — no leaks, top-up not required. Protection relay trip test performed — responded at 105% rated current.",
+    parts_used: null,
+    customer_feedback: "Very professional — Suresh explained all readings clearly. Happy with the certificate provided.",
+    next_action: "Next AMC visit due Dec 2026. Recommend thermography scan of HT cable terminations before monsoon.",
+    needs_escalation: false, customer_acknowledged: true, status: "completed",
+  },
+  {
+    id: "vl_krishna_jun18", work_order_id: "wo_krishna", technician_id: "tech_ramesh",
+    account_id: "acc_krishna", visit_date: "2026-06-18",
+    travel_start_time: "08:30", travel_distance_km: 8,
+    arrived_time: "08:45",
+    work_start_time: "09:00", break_start_time: "13:00", break_end_time: "13:30",
+    work_end_time: null,
+    return_start_time: null, return_end_time: null,
+    work_done: "Stator stripping and cleaning completed. Old windings removed and slot insulation replaced. New Class F winding in progress — 40% complete as of EOD.",
+    parts_used: "HT insulation paper (12 sheets), slot liner material, Class F varnish (1L)",
+    customer_feedback: null,
+    next_action: "Continue winding tomorrow. Varnish and oven bake scheduled Jun 22. Test bed booking confirmed for Jun 24.",
+    needs_escalation: false, customer_acknowledged: false, status: "in_progress",
+  },
 ];
 
 export const accounts: Account[] = [

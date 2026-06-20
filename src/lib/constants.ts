@@ -18,6 +18,7 @@ export const ROUTES = {
   workOrder: (id: string) => `/work-orders/${id}`,
   dispatch: "/dispatch",
   technicians: "/technicians",
+  technician: (id: string) => `/technicians/${id}`,
   accounts: "/accounts",
   account: (id: string) => `/accounts/${id}`,
   contacts: "/contacts",

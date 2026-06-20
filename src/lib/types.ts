@@ -127,10 +127,65 @@ export type Invoice = {
   issued_at: string | null;
 };
 
+export type TechnicianStatus = "active" | "on_leave" | "inactive";
+
 export type Technician = {
   id: string;
   name: string;
+  phone: string | null;
+  email: string | null;
   skills: string | null;
+  certifications: string[];          // e.g. ["HV License (IS 5571)", "DGA Certified"]
+  cert_expiry: Record<string, string>; // cert name → YYYY-MM-DD expiry
+  status: TechnicianStatus;
+  base_location: string | null;
+  max_visits_per_day: number;
+};
+
+export type LeaveReason = "vacation" | "sick" | "training" | "other";
+
+export type TechnicianLeave = {
+  id: string;
+  technician_id: string;
+  from_date: string; // YYYY-MM-DD
+  to_date: string;   // YYYY-MM-DD (inclusive)
+  reason: LeaveReason;
+  notes: string | null;
+};
+
+export type VisitStatus = "planned" | "in_progress" | "completed" | "cancelled";
+
+export type VisitLog = {
+  id: string;
+  work_order_id: string;
+  technician_id: string;
+  account_id: string;
+  visit_date: string;              // YYYY-MM-DD
+
+  // ── Travel out ───────────────────────────────────────────────────────
+  travel_start_time: string | null; // "HH:MM" — left base / home
+  travel_distance_km: number | null;
+  arrived_time: string | null;      // arrived at customer site
+
+  // ── On-site work ─────────────────────────────────────────────────────
+  work_start_time: string | null;
+  break_start_time: string | null;
+  break_end_time: string | null;
+  work_end_time: string | null;
+
+  // ── Return travel ────────────────────────────────────────────────────
+  return_start_time: string | null;
+  return_end_time: string | null;   // back at base
+
+  // ── Visit summary ────────────────────────────────────────────────────
+  work_done: string | null;
+  parts_used: string | null;
+  customer_feedback: string | null;
+  next_action: string | null;
+  needs_escalation: boolean;
+  customer_acknowledged: boolean;
+
+  status: VisitStatus;
 };
 
 // Unified timeline — one job visibly travels across pillars. PROJECT.md §4.

@@ -3,7 +3,7 @@
 // only this file. (isSupabaseConfigured() gate added when the project exists.)
 
 import * as seed from "./seed";
-import type { Account, Asset, Contact, Quote, ServiceCase, CaseStatus, WorkOrder, Technician } from "@/lib/types";
+import type { Account, Asset, Contact, Quote, ServiceCase, CaseStatus, WorkOrder, Technician, TechnicianLeave, VisitLog, VisitStatus } from "@/lib/types";
 
 export type AccountSummary = {
   account: Account;
@@ -313,7 +313,9 @@ export async function getWorkOrder(id: string) {
     ? seed.assets.find((a) => a.id === serviceCase.loaner_asset_id) ?? null
     : null;
 
-  return { workOrder: wo, account, asset, technician, serviceCase, quote, contract, loanerAsset };
+  const visitLogs = seed.visitLogs.filter((v) => v.work_order_id === id);
+
+  return { workOrder: wo, account, asset, technician, serviceCase, quote, contract, loanerAsset, visitLogs };
 }
 
 // ── Assets ────────────────────────────────────────────────────────────────────
@@ -356,4 +358,153 @@ export async function listAssets(): Promise<{ customerAssets: AssetRow[]; loaner
     customerAssets: seed.assets.filter((a) => !a.is_loaner).map(toRow),
     loanerStock:    seed.assets.filter((a) =>  a.is_loaner).map(toRow),
   };
+}
+
+// ── Technicians ───────────────────────────────────────────────────────────────
+
+export const TECH_STATUS_LABEL: Record<Technician["status"], string> = {
+  active:   "Active",
+  on_leave: "On Leave",
+  inactive: "Inactive",
+};
+
+export const LEAVE_REASON_LABEL: Record<TechnicianLeave["reason"], string> = {
+  vacation: "Vacation",
+  sick:     "Sick leave",
+  training: "Training",
+  other:    "Other",
+};
+
+export const VISIT_STATUS_LABEL: Record<VisitStatus, string> = {
+  planned:     "Planned",
+  in_progress: "In Progress",
+  completed:   "Completed",
+  cancelled:   "Cancelled",
+};
+
+export type TechnicianCard = {
+  technician: Technician;
+  todayWorkOrders: typeof seed.workOrders;
+  currentLeave: TechnicianLeave | null;
+  monthStats: { visits: number; kmTravelled: number; visitedAccounts: number };
+};
+
+function isOnLeaveOn(tech_id: string, date: string): TechnicianLeave | null {
+  return seed.technicianLeaves.find(
+    (l) => l.technician_id === tech_id && l.from_date <= date && l.to_date >= date
+  ) ?? null;
+}
+
+export async function listTechnicians(): Promise<TechnicianCard[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const thisMonth = today.slice(0, 7); // "YYYY-MM"
+
+  return seed.technicians.map((tech) => {
+    const todayWorkOrders = seed.workOrders.filter(
+      (wo) => wo.technician_id === tech.id && wo.scheduled_for === today
+    );
+    const currentLeave = isOnLeaveOn(tech.id, today);
+    const monthLogs = seed.visitLogs.filter(
+      (v) => v.technician_id === tech.id && v.visit_date.startsWith(thisMonth) && v.status === "completed"
+    );
+    return {
+      technician: tech,
+      todayWorkOrders,
+      currentLeave,
+      monthStats: {
+        visits:          monthLogs.length,
+        kmTravelled:     monthLogs.reduce((s, v) => s + (v.travel_distance_km ?? 0) * 2, 0),
+        visitedAccounts: new Set(monthLogs.map((v) => v.account_id)).size,
+      },
+    };
+  });
+}
+
+export type CalendarDay = {
+  date: string;        // YYYY-MM-DD
+  isLeave: boolean;
+  leaveReason: LeaveReason | null;
+  workOrders: typeof seed.workOrders;
+  visitLogs: VisitLog[];
+  slotsFree: number;
+  slotsTotal: number;
+};
+
+import type { LeaveReason } from "@/lib/types";
+
+export async function getTechnicianDetail(techId: string, yearMonth: string) {
+  const tech = seed.technicians.find((t) => t.id === techId);
+  if (!tech) return null;
+
+  const [year, month] = yearMonth.split("-").map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  const leaves = seed.technicianLeaves.filter((l) => l.technician_id === techId);
+  const allWOs = seed.workOrders.filter((wo) => wo.technician_id === techId);
+  const allVisits = seed.visitLogs.filter((v) => v.technician_id === techId);
+
+  const calendarDays: CalendarDay[] = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = String(i + 1).padStart(2, "0");
+    const date = `${yearMonth}-${day}`;
+    const leave = leaves.find((l) => l.from_date <= date && l.to_date >= date) ?? null;
+    const dayWOs = allWOs.filter((wo) => wo.scheduled_for === date);
+    const dayVisits = allVisits.filter((v) => v.visit_date === date);
+    const scheduledCount = dayWOs.length + dayVisits.filter((v) => !dayWOs.some((w) => w.id === v.work_order_id)).length;
+    return {
+      date,
+      isLeave: leave !== null,
+      leaveReason: leave?.reason ?? null,
+      workOrders: dayWOs,
+      visitLogs: dayVisits,
+      slotsFree: Math.max(0, tech.max_visits_per_day - scheduledCount),
+      slotsTotal: tech.max_visits_per_day,
+    };
+  });
+
+  const accountById = new Map(seed.accounts.map((a) => [a.id, a]));
+  const woById      = new Map(seed.workOrders.map((w) => [w.id, w]));
+
+  const recentVisits = allVisits
+    .slice()
+    .sort((a, b) => b.visit_date.localeCompare(a.visit_date))
+    .slice(0, 10)
+    .map((v) => ({
+      visitLog: v,
+      account:   accountById.get(v.account_id) ?? null,
+      workOrder: woById.get(v.work_order_id) ?? null,
+    }));
+
+  const upcomingWOs = allWOs
+    .filter((wo) => {
+      const sf = wo.scheduled_for ?? "";
+      return sf >= yearMonth + "-01" && (wo.status === "scheduled" || wo.status === "in_progress");
+    })
+    .map((wo) => ({ workOrder: wo, account: accountById.get(wo.account_id) ?? null }));
+
+  const monthStats = (() => {
+    const monthVisits = allVisits.filter((v) => v.visit_date.startsWith(yearMonth));
+    const completed   = monthVisits.filter((v) => v.status === "completed");
+    return {
+      totalVisits:   monthVisits.length,
+      completed:     completed.length,
+      kmTravelled:   monthVisits.reduce((s, v) => s + (v.travel_distance_km ?? 0) * 2, 0),
+      avgWorkMinutes: completed.length === 0 ? 0 : Math.round(
+        completed.reduce((s, v) => {
+          if (!v.work_start_time || !v.work_end_time) return s;
+          const [sh, sm] = v.work_start_time.split(":").map(Number);
+          const [eh, em] = v.work_end_time.split(":").map(Number);
+          const bk = (v.break_start_time && v.break_end_time)
+            ? (() => {
+                const [bsh, bsm] = v.break_start_time!.split(":").map(Number);
+                const [beh, bem] = v.break_end_time!.split(":").map(Number);
+                return (beh * 60 + bem) - (bsh * 60 + bsm);
+              })()
+            : 0;
+          return s + ((eh * 60 + em) - (sh * 60 + sm) - bk);
+        }, 0) / completed.length
+      ),
+    };
+  })();
+
+  return { technician: tech, calendarDays, leaves, recentVisits, upcomingWOs, monthStats };
 }
