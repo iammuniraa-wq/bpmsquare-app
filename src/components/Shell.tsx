@@ -1,158 +1,158 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { MOBILE_BREAKPOINT, NAV, ROUTES } from "@/lib/constants";
 import { c, g, pillar } from "@/lib/theme";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import Logo from "./Logo";
 import Sidebar from "./Sidebar";
-import type { NavItem } from "@/lib/constants";
 
-// ── Mobile icon rail ──────────────────────────────────────────────────────────
+// ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 
-const RAIL_W = 52;
-
-function MobileRail() {
-  const pathname    = usePathname();
-  const router      = useRouter();
+function MobileTopBar() {
+  const pathname = usePathname();
+  const router = useRouter();
   const { settings } = useSettings();
-  const accent      = ACCENT_PRESETS[settings.accentPreset].color;
+  const accent = ACCENT_PRESETS[settings.accentPreset].color;
+  const [open, setOpen] = useState(false);
 
-  const [tooltip, setTooltip] = useState<{ label: string; y: number } | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const allItems: NavItem[] = NAV.flatMap((g) => g.items);
+  useEffect(() => { setOpen(false); }, [pathname]);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
 
-  const handleTap = (item: NavItem, e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setTooltip({ label: item.label, y: rect.top + rect.height / 2 });
-    timerRef.current = setTimeout(() => setTooltip(null), 1300);
-    router.push(item.href);
-  };
-
-  const handleSettingsTap = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setTooltip({ label: "Settings", y: rect.top + rect.height / 2 });
-    timerRef.current = setTimeout(() => setTooltip(null), 1300);
-    router.push(ROUTES.settings);
-  };
-
-  // Close tooltip on route change
-  useEffect(() => { setTooltip(null); }, [pathname]);
-
   return (
-    <aside style={{
-      width: RAIL_W, flexShrink: 0,
-      background: g.sidebar,
-      position: "sticky", top: 0,
-      height: "100vh", overflowY: "auto",
-      display: "flex", flexDirection: "column",
-      alignItems: "center",
-      paddingTop: 10, paddingBottom: 10,
-      boxSizing: "border-box",
-      // hide scrollbar
-      scrollbarWidth: "none",
-      msOverflowStyle: "none" as React.CSSProperties["msOverflowStyle"],
-      zIndex: 10,
-    }}>
-      {/* Logo mark */}
-      <div style={{ marginBottom: 12, flexShrink: 0 }}>
-        <Logo size={28} />
-      </div>
-
-      {/* Divider */}
-      <div style={{ width: 28, height: 1, background: "rgba(255,255,255,.08)", marginBottom: 8, flexShrink: 0 }} />
-
-      {/* Nav icons */}
-      <div style={{
-        flex: 1, width: "100%",
-        display: "flex", flexDirection: "column",
-        alignItems: "center", gap: 3,
-        padding: "0 6px", boxSizing: "border-box",
-        overflowY: "auto", scrollbarWidth: "none",
+    <>
+      {/* Top bar */}
+      <header style={{
+        position: "sticky", top: 0, zIndex: 100, flexShrink: 0,
+        background: g.sidebar,
+        height: 48,
+        display: "flex", alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 14px",
+        boxShadow: "0 1px 6px rgba(0,0,0,.45)",
       }}>
-        {allItems.map((item) => {
-          const on = isActive(item.href);
-          return (
-            <button
-              key={item.href}
-              onClick={(e) => handleTap(item, e)}
-              style={{
-                width: 40, height: 40, borderRadius: 9, flexShrink: 0,
-                border: "none", cursor: "pointer",
-                background: on ? accent : "transparent",
-                color: on ? "#fff" : "#6b8499",
-                fontSize: 15,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                position: "relative", transition: "background .12s, color .12s",
-              }}
-            >
-              {item.icon}
-              {item.badge != null && (
-                <span style={{
-                  position: "absolute", top: 5, right: 5,
-                  width: 12, height: 12, borderRadius: "50%",
-                  background: pillar.red.base, color: "#fff",
-                  fontSize: 8, lineHeight: "12px", textAlign: "center",
-                  fontWeight: 700, pointerEvents: "none",
-                }}>
-                  {item.badge > 9 ? "9+" : item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Divider */}
-      <div style={{ width: 28, height: 1, background: "rgba(255,255,255,.08)", margin: "6px 0", flexShrink: 0 }} />
-
-      {/* Settings */}
-      <button
-        onClick={handleSettingsTap}
-        style={{
-          width: 40, height: 40, borderRadius: 9, flexShrink: 0,
-          border: "none", cursor: "pointer",
-          background: pathname.startsWith(ROUTES.settings) ? accent : "transparent",
-          color: pathname.startsWith(ROUTES.settings) ? "#fff" : "#6b8499",
-          fontSize: 15,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "background .12s, color .12s",
-        }}
-      >
-        ⚙
-      </button>
-
-      {/* Floating label tooltip — rendered outside rail via portal-like fixed div */}
-      {tooltip && (
-        <div style={{
-          position: "fixed",
-          left: RAIL_W + 8,
-          top: tooltip.y,
-          transform: "translateY(-50%)",
-          background: "#1c2733",
-          color: "#e2e7ee",
-          padding: "5px 12px",
-          borderRadius: 7,
-          fontSize: 13,
-          fontWeight: 600,
-          boxShadow: "0 4px 18px rgba(0,0,0,.5)",
-          zIndex: 9999,
-          whiteSpace: "nowrap",
-          pointerEvents: "none",
-          // tiny left arrow
-          borderLeft: `3px solid ${accent}`,
-        }}>
-          {tooltip.label}
+        {/* Brand */}
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <Logo size={26} />
+          <span style={{ color: "#e2e7ee", fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em" }}>
+            VeveyCRM
+          </span>
         </div>
+
+        {/* Hamburger / close */}
+        <button
+          onClick={() => setOpen(v => !v)}
+          aria-label={open ? "Close menu" : "Open menu"}
+          style={{
+            width: 36, height: 36, borderRadius: 7,
+            background: open ? "rgba(255,255,255,.1)" : "transparent",
+            border: "none", cursor: "pointer",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 5,
+          }}
+        >
+          {open ? (
+            <span style={{ color: "#e2e7ee", fontSize: 18, lineHeight: 1, fontWeight: 300 }}>✕</span>
+          ) : (
+            <>
+              <span style={{ width: 18, height: 1.5, background: "#c5d3de", borderRadius: 1, display: "block" }} />
+              <span style={{ width: 18, height: 1.5, background: "#c5d3de", borderRadius: 1, display: "block" }} />
+              <span style={{ width: 18, height: 1.5, background: "#c5d3de", borderRadius: 1, display: "block" }} />
+            </>
+          )}
+        </button>
+      </header>
+
+      {/* Backdrop */}
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: "fixed", top: 48, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,.5)", zIndex: 90,
+          }}
+        />
       )}
-    </aside>
+
+      {/* Drawer */}
+      <nav style={{
+        position: "fixed", top: 48, left: 0,
+        width: 250, height: "calc(100vh - 48px)",
+        background: g.sidebar,
+        zIndex: 95,
+        transform: open ? "translateX(0)" : "translateX(-100%)",
+        transition: "transform .2s ease",
+        overflowY: "auto", scrollbarWidth: "none",
+        padding: "14px 8px 24px",
+        boxSizing: "border-box",
+      }}>
+        {NAV.map((group) => (
+          <div key={group.group} style={{ marginBottom: 18 }}>
+            <div style={{
+              fontSize: 9.5, fontWeight: 700, color: "#4a6070",
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              padding: "0 10px", marginBottom: 5,
+            }}>
+              {group.group}
+            </div>
+            {group.items.map((item) => {
+              const on = isActive(item.href);
+              return (
+                <button
+                  key={item.href}
+                  onClick={() => { router.push(item.href); setOpen(false); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    width: "100%", padding: "9px 10px", borderRadius: 8,
+                    border: "none", cursor: "pointer", marginBottom: 2,
+                    background: on ? accent : "transparent",
+                    color: on ? "#fff" : "#9db3c4",
+                    fontSize: 13.5, fontWeight: on ? 600 : 400,
+                    textAlign: "left",
+                    transition: "background .12s, color .12s",
+                  }}
+                >
+                  <span style={{ fontSize: 14, width: 20, textAlign: "center", flexShrink: 0 }}>
+                    {item.icon}
+                  </span>
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {item.badge != null && (
+                    <span style={{
+                      background: pillar.red.base, color: "#fff",
+                      fontSize: 10, fontWeight: 700,
+                      borderRadius: 10, padding: "1px 6px", lineHeight: 1.6,
+                    }}>
+                      {item.badge > 9 ? "9+" : item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+
+        {/* Settings */}
+        <div style={{ borderTop: "1px solid rgba(255,255,255,.07)", paddingTop: 12 }}>
+          <button
+            onClick={() => { router.push(ROUTES.settings); setOpen(false); }}
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              width: "100%", padding: "9px 10px", borderRadius: 8,
+              border: "none", cursor: "pointer",
+              background: pathname.startsWith(ROUTES.settings) ? accent : "transparent",
+              color: pathname.startsWith(ROUTES.settings) ? "#fff" : "#9db3c4",
+              fontSize: 13.5, fontWeight: 400, textAlign: "left",
+            }}
+          >
+            <span style={{ fontSize: 14, width: 20, textAlign: "center" }}>⚙</span>
+            <span>Settings</span>
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }
 
@@ -168,16 +168,21 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  if (mobile) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        <MobileTopBar />
+        <main style={{ flex: 1, padding: 12, overflowX: "auto", minWidth: 0 }}>
+          {children}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      {mobile ? <MobileRail /> : <Sidebar />}
-
-      <main style={{
-        flex: 1,
-        padding: mobile ? 12 : "20px 24px",
-        overflowX: "hidden",
-        maxWidth: mobile ? `calc(100vw - ${RAIL_W}px)` : 1100,
-      }}>
+      <Sidebar />
+      <main style={{ flex: 1, padding: "20px 24px", overflowX: "hidden", maxWidth: 1100 }}>
         {children}
       </main>
     </div>
