@@ -1,4 +1,4 @@
-﻿import { listPricingItems, PRICING_CATEGORY_LABEL } from "@/lib/data";
+import { listPricingItems, PRICING_CATEGORY_LABEL } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
@@ -35,7 +35,6 @@ export default async function PricingConfigPage() {
                 <span style={{ fontSize: 12, color: c.hint }}>{catItems.length} items</span>
               </div>
 
-              {/* Table header */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 90px 80px", gap: 12, padding: "0 0 6px", borderBottom: `1px solid ${c.line}` }}>
                 {["Description", "Unit", "Rate (₹)", ""].map((h) => (
                   <div key={h} style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>

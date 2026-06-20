@@ -54,6 +54,19 @@ export default async function QuotationsPage() {
       <PageHeader
         title="Quotations"
         subtitle={`Sales · ${rows.length} quotes`}
+        action={
+          <Link
+            href={ROUTES.quotationNew}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: "var(--vevey-accent, #378ADD)", color: "#fff",
+              textDecoration: "none",
+            }}
+          >
+            + Create quote
+          </Link>
+        }
       />
 
       {/* summary strip */}

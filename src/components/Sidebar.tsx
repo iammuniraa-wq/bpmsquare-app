@@ -209,6 +209,11 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const [navState, setNavState] = useState<NavState>(defaultNavState);
   useEffect(() => { setNavState(loadNavState()); }, []);
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(() => {
+    if (pathname.startsWith(ROUTES.settings)) setSettingsOpen(true);
+  }, [pathname]);
+
   const allMap  = new Map(flattenNav().map((i) => [i.href, i]));
   const hidden  = new Set(settings.hiddenNavHrefs);
 
@@ -324,23 +329,60 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           compact={compact}
         />
 
-        {/* Settings + reset — flow directly below nav items */}
+        {/* Settings accordion + reset */}
         <div style={{ borderTop: "1px solid rgba(255,255,255,.06)", marginTop: 10, paddingTop: 8 }}>
-          <Link
-            href={ROUTES.settings}
-            onClick={onNavigate}
+          <button
+            onClick={() => setSettingsOpen((o) => !o)}
             style={{
-              display: "flex", alignItems: "center", gap: 8,
+              display: "flex", alignItems: "center", gap: 8, width: "100%",
               padding: "7px 10px", borderRadius: 8, fontSize: 12.5,
-              color: isActive(ROUTES.settings) ? "#fff" : "#8aa0b8",
-              background: isActive(ROUTES.settings) ? accent : "transparent",
-              textDecoration: "none",
+              color: isActive(ROUTES.settings) ? "#dce9f6" : "#8aa0b8",
+              background: isActive(ROUTES.settings) && !settingsOpen ? accent : isActive(ROUTES.settings) ? "rgba(55,138,221,.12)" : "transparent",
+              border: "none", cursor: "pointer", textAlign: "left",
               transition: "background 0.12s",
             }}
           >
             <span style={{ fontSize: 14 }}>⚙</span>
-            Settings
-          </Link>
+            <span style={{ flex: 1 }}>Settings</span>
+            <span style={{
+              fontSize: 11, color: "#4a6070",
+              display: "inline-block",
+              transform: settingsOpen ? "rotate(90deg)" : "none",
+              transition: "transform 0.15s",
+            }}>›</span>
+          </button>
+
+          {settingsOpen && (
+            <div style={{ paddingLeft: 10, paddingTop: 2, paddingBottom: 2 }}>
+              {([
+                { label: "General",      href: ROUTES.settings,        icon: "◉" },
+                { label: "Pricing",      href: ROUTES.configPricing,   icon: "◈" },
+                { label: "Quote config", href: ROUTES.configTemplates, icon: "◧" },
+              ] as const).map((sub) => {
+                const active = pathname === sub.href;
+                return (
+                  <Link
+                    key={sub.href}
+                    href={sub.href}
+                    onClick={onNavigate}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 7,
+                      padding: "6px 10px", borderRadius: 7, fontSize: 12,
+                      color: active ? "#fff" : "#6b8499",
+                      background: active ? accent : "transparent",
+                      textDecoration: "none",
+                      transition: "background 0.12s",
+                      marginBottom: 1,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, opacity: active ? 1 : 0.6 }}>{sub.icon}</span>
+                    {sub.label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
           <button
             onClick={resetNav}
             style={{
@@ -348,6 +390,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               color: "#3d5166", fontSize: 11, cursor: "pointer",
               padding: "4px 10px", borderRadius: 5,
               textAlign: "left", width: "100%",
+              marginTop: 2,
             }}
           >
             ↺ Reset nav order

@@ -13,8 +13,8 @@ export const ROUTES = {
   quotation: (id: string) => `/quotations/${id}`,
   quotationNew: "/quotations/new",
   quotationPrint: (id: string) => `/quotations/${id}/print`,
-  configPricing: "/config/pricing",
-  configTemplates: "/config/templates",
+  configPricing: "/settings/pricing",
+  configTemplates: "/settings/templates",
   cases: "/cases",
   amc: "/amc",
   workOrders: "/work-orders",
@@ -64,14 +64,6 @@ export const NAV: NavGroup[] = [
     group: "SALES",
     items: [
       { label: "Quotations",     href: ROUTES.quotations,    icon: "₹", pillar: "blue", badge: 8 },
-      { label: "New quotation",  href: ROUTES.quotationNew,  icon: "+", pillar: "blue" },
-    ],
-  },
-  {
-    group: "CONFIGURE",
-    items: [
-      { label: "Pricing",        href: ROUTES.configPricing,   icon: "◈", pillar: "green" },
-      { label: "Quote config",   href: ROUTES.configTemplates, icon: "◧", pillar: "green" },
     ],
   },
   {

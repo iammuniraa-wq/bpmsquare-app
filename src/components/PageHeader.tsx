@@ -1,12 +1,14 @@
 import { c } from "@/lib/theme";
 
-// Page-header convention: paddingLeft + amber-blue accent left border.
+// Page-header convention: paddingLeft + accent left border. Pass `action` for a top-right CTA.
 export default function PageHeader({
   title,
   subtitle,
+  action,
 }: {
   title: string;
   subtitle?: string;
+  action?: React.ReactNode;
 }) {
   return (
     <div
@@ -35,22 +37,25 @@ export default function PageHeader({
           </div>
         )}
       </div>
-      <div
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: "50%",
-          background: c.accentbg,
-          color: "#0c447c",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontWeight: 600,
-          fontSize: 12,
-          flexShrink: 0,
-        }}
-      >
-        VP
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {action}
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: "50%",
+            background: c.accentbg,
+            color: "#0c447c",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 600,
+            fontSize: 12,
+            flexShrink: 0,
+          }}
+        >
+          VP
+        </div>
       </div>
     </div>
   );
