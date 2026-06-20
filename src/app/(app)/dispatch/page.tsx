@@ -1,4 +1,4 @@
-import { listDispatch } from "@/lib/data";
+import { listDispatch } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
