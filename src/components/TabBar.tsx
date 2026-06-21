@@ -5,7 +5,7 @@ import { useTabs } from "@/lib/tabs-context";
 import { c, g } from "@/lib/theme";
 
 export default function TabBar() {
-  const { tabs, activeHref, focusTab, closeTab } = useTabs();
+  const { tabs, activeHref, focusTab, closeTab, closeAllTabs } = useTabs();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft]   = useState(false);
   const [canRight, setCanRight] = useState(false);
@@ -54,7 +54,7 @@ export default function TabBar() {
       display: "flex", alignItems: "center",
       borderBottom: "1px solid rgba(255,255,255,.07)",
       background: g.sidebar,
-      height: 36, minHeight: 36, flexShrink: 0,
+      height: 42, minHeight: 42, flexShrink: 0,
       position: "relative",
     }}>
       {/* Left arrow */}
@@ -82,8 +82,8 @@ export default function TabBar() {
               style={{
                 display: "flex", alignItems: "center", gap: 5,
                 padding: "0 10px 0 12px",
-                minWidth: 100, maxWidth: 180, flexShrink: 0,
-                height: 36,
+                minWidth: 110, maxWidth: 180, flexShrink: 0,
+                height: 42,
                 background: active ? "rgba(255,255,255,.09)" : "transparent",
                 borderBottom: active ? `2px solid ${c.accent}` : "2px solid transparent",
                 cursor: "pointer",
@@ -96,12 +96,24 @@ export default function TabBar() {
               onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
             >
               <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>{tab.icon}</span>
-              <span style={{
-                fontSize: 12, fontWeight: active ? 600 : 400,
-                color: active ? "#e2e7ee" : "#8fa8be",
-                flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>
-                {tab.title}
+              <span style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <span style={{
+                  fontSize: 12, fontWeight: active ? 600 : 400,
+                  color: active ? "#e2e7ee" : "#8fa8be",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  lineHeight: "1.2",
+                }}>
+                  {tab.title}
+                </span>
+                {tab.section && (
+                  <span style={{
+                    fontSize: 9, color: active ? "#5a8ab0" : "#3d5f78",
+                    textTransform: "uppercase", letterSpacing: "0.04em",
+                    lineHeight: "1.2", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>
+                    {tab.section}
+                  </span>
+                )}
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); closeTab(tab.href); }}
@@ -154,6 +166,22 @@ export default function TabBar() {
               zIndex: 401, overflow: "hidden",
               padding: "4px 0",
             }}>
+              {/* Close all */}
+              <button
+                onClick={() => { closeAllTabs(); setDropOpen(false); }}
+                style={{
+                  width: "100%", textAlign: "left",
+                  padding: "7px 14px", border: "none", borderBottom: "1px solid rgba(255,255,255,.07)",
+                  background: "transparent", color: "#e05a5a",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8,
+                  marginBottom: 2,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(224,90,90,.12)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ fontSize: 13 }}>✕</span> Close all tabs
+              </button>
               {tabs.map((tab) => {
                 const active = tab.href === activeHref;
                 return (
@@ -171,8 +199,11 @@ export default function TabBar() {
                     onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "rgba(255,255,255,.05)"; }}
                     onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = active ? "rgba(55,138,221,.2)" : "transparent"; }}
                   >
-                    <span style={{ fontSize: 11, opacity: 0.7 }}>{tab.icon}</span>
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tab.title}</span>
+                    <span style={{ fontSize: 11, opacity: 0.7, flexShrink: 0 }}>{tab.icon}</span>
+                    <span style={{ flex: 1, overflow: "hidden" }}>
+                      <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tab.title}</span>
+                      {tab.section && <span style={{ display: "block", fontSize: 10, color: "#3d5f78", textTransform: "uppercase", letterSpacing: "0.04em" }}>{tab.section}</span>}
+                    </span>
                     {active && <span style={{ fontSize: 10, color: c.accent }}>●</span>}
                     <span
                       onClick={(e) => { e.stopPropagation(); closeTab(tab.href); setDropOpen(false); }}

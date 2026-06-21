@@ -10,6 +10,7 @@ export type Tab = {
   href: string;   // unique key — one tab per URL
   title: string;
   icon: string;
+  section: string; // small type label shown below title
 };
 
 type TabsCtx = {
@@ -17,6 +18,7 @@ type TabsCtx = {
   activeHref: string;
   openTab: (href: string, title?: string, icon?: string) => void;
   closeTab: (href: string) => void;
+  closeAllTabs: () => void;
   focusTab: (href: string) => void;
 };
 
@@ -30,33 +32,42 @@ export function useTabs() {
 
 // ── Derive title + icon from pathname ────────────────────────────────────────
 
-function tabMeta(href: string): { title: string; icon: string } {
+// Returns a short human-readable ID from the last URL segment (for detail tabs).
+// UUIDs are truncated to 6 chars; ref-like strings (e.g. Q-2024-001) kept as-is.
+function shortId(href: string): string {
+  const seg = href.split("/").filter(Boolean).pop() ?? "";
+  if (seg.length === 36 && seg.includes("-")) return seg.slice(0, 6).toUpperCase();
+  return seg.length > 12 ? seg.slice(0, 10) + "…" : seg;
+}
+
+function tabMeta(href: string): { title: string; icon: string; section: string } {
   const p = href.split("?")[0];
-  if (p === ROUTES.dashboard)           return { title: "Dashboard",    icon: "◈" };
-  if (p === ROUTES.leads)               return { title: "Leads",        icon: "◎" };
-  if (p === ROUTES.accounts)            return { title: "Accounts",     icon: "▣" };
-  if (p.startsWith("/accounts/new"))    return { title: "New Account",  icon: "▣" };
-  if (p.startsWith("/accounts/"))       return { title: "Account",      icon: "▣" };
-  if (p === ROUTES.contacts)            return { title: "Contacts",     icon: "◉" };
-  if (p.startsWith("/contacts/new"))    return { title: "New Contact",  icon: "◉" };
-  if (p === ROUTES.assets)              return { title: "Assets",       icon: "⚙" };
-  if (p.startsWith("/assets/new"))      return { title: "New Asset",    icon: "⚙" };
-  if (p === ROUTES.quotations)          return { title: "Quotations",   icon: "₹" };
-  if (p.startsWith("/quotations/new"))  return { title: "New Quote",    icon: "₹" };
-  if (p.startsWith("/quotations/"))     return { title: "Quotation",    icon: "₹" };
-  if (p === ROUTES.cases)               return { title: "Cases",        icon: "☎" };
-  if (p.startsWith("/cases/"))          return { title: "Case",         icon: "☎" };
-  if (p === ROUTES.amc)                 return { title: "AMC",          icon: "▥" };
-  if (p === ROUTES.workOrders)          return { title: "Work Orders",  icon: "▤" };
-  if (p.startsWith("/work-orders/"))    return { title: "Work Order",   icon: "▤" };
-  if (p === ROUTES.dispatch)            return { title: "Dispatch",     icon: "◐" };
-  if (p === ROUTES.invoices)            return { title: "Invoices",     icon: "⊟" };
-  if (p === ROUTES.technicians)         return { title: "Technicians",  icon: "◑" };
-  if (p.startsWith("/technicians/"))    return { title: "Technician",   icon: "◑" };
-  if (p.startsWith(ROUTES.settings))   return { title: "Settings",     icon: "⚙" };
-  if (p === ROUTES.reports)             return { title: "Reports",      icon: "◧" };
-  if (p.startsWith(ROUTES.admin))       return { title: "Admin",        icon: "◈" };
-  return { title: p.split("/").filter(Boolean).pop() ?? "Page", icon: "◫" };
+  if (p === ROUTES.dashboard)           return { title: "Dashboard",           icon: "◈", section: "Home" };
+  if (p === ROUTES.pipeline)            return { title: "Pipeline",            icon: "▦", section: "Sales" };
+  if (p === ROUTES.leads)               return { title: "Leads",               icon: "◎", section: "Marketing" };
+  if (p === ROUTES.accounts)            return { title: "Accounts",            icon: "▣", section: "Workspace" };
+  if (p.startsWith("/accounts/new"))    return { title: "New Account",         icon: "▣", section: "Accounts" };
+  if (p.startsWith("/accounts/"))       return { title: shortId(p),            icon: "▣", section: "Account" };
+  if (p === ROUTES.contacts)            return { title: "Contacts",            icon: "◉", section: "Workspace" };
+  if (p.startsWith("/contacts/new"))    return { title: "New Contact",         icon: "◉", section: "Contacts" };
+  if (p === ROUTES.assets)              return { title: "Assets",              icon: "⚙", section: "Records" };
+  if (p.startsWith("/assets/new"))      return { title: "New Asset",           icon: "⚙", section: "Assets" };
+  if (p === ROUTES.quotations)          return { title: "Quotations",          icon: "₹", section: "Sales" };
+  if (p.startsWith("/quotations/new"))  return { title: "New Quote",           icon: "₹", section: "Quotations" };
+  if (p.startsWith("/quotations/"))     return { title: shortId(p),            icon: "₹", section: "Quotation" };
+  if (p === ROUTES.cases)               return { title: "Cases",               icon: "☎", section: "Service" };
+  if (p.startsWith("/cases/"))          return { title: shortId(p),            icon: "☎", section: "Case" };
+  if (p === ROUTES.amc)                 return { title: "AMC Contracts",       icon: "▥", section: "Service" };
+  if (p === ROUTES.workOrders)          return { title: "Work Orders",         icon: "▤", section: "Field" };
+  if (p.startsWith("/work-orders/"))    return { title: shortId(p),            icon: "▤", section: "Work Order" };
+  if (p === ROUTES.dispatch)            return { title: "Dispatch",            icon: "◐", section: "Field" };
+  if (p === ROUTES.invoices)            return { title: "Invoices",            icon: "⊟", section: "Records" };
+  if (p === ROUTES.technicians)         return { title: "Technicians",         icon: "◑", section: "Field" };
+  if (p.startsWith("/technicians/"))    return { title: shortId(p),            icon: "◑", section: "Technician" };
+  if (p.startsWith(ROUTES.settings))   return { title: "Settings",            icon: "⚙", section: "Config" };
+  if (p === ROUTES.reports)             return { title: "Analytics",           icon: "◧", section: "Records" };
+  if (p.startsWith(ROUTES.admin))       return { title: "Admin",               icon: "◈", section: "System" };
+  return { title: p.split("/").filter(Boolean).pop() ?? "Page", icon: "◫", section: "" };
 }
 
 const MAX_TABS = 10;
@@ -96,7 +107,6 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
       if (exists) return prev; // already open
       const meta = tabMeta(pathname);
       const next = prev.length >= MAX_TABS
-        // drop oldest non-active tab when at limit
         ? [...prev.filter((t) => t.href !== prev[0].href), { href: pathname, ...meta }]
         : [...prev, { href: pathname, ...meta }];
       save(next);
@@ -104,12 +114,19 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
     });
   }, [pathname]);
 
+  // Prefetch all open tab routes so switching is instant
+  useEffect(() => {
+    tabs.forEach((t) => {
+      if (t.href !== pathname) router.prefetch(t.href);
+    });
+  }, [tabs, pathname, router]);
+
   const openTab = useCallback((href: string, title?: string, icon?: string) => {
     const meta = tabMeta(href);
     setTabs((prev) => {
       const exists = prev.find((t) => t.href === href);
       if (exists) { router.push(href); return prev; }
-      const tab: Tab = { href, title: title ?? meta.title, icon: icon ?? meta.icon };
+      const tab: Tab = { href, title: title ?? meta.title, icon: icon ?? meta.icon, section: meta.section };
       const next = prev.length >= MAX_TABS
         ? [...prev.filter((_, i) => i !== 0), tab]
         : [...prev, tab];
@@ -125,7 +142,6 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
       if (idx === -1) return prev;
       const next = prev.filter((t) => t.href !== href);
       save(next);
-      // If closing active tab, go to adjacent tab
       if (href === pathname) {
         const target = next[idx] ?? next[idx - 1];
         if (target) router.push(target.href);
@@ -135,12 +151,18 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
     });
   }, [pathname, router]);
 
+  const closeAllTabs = useCallback(() => {
+    save([]);
+    setTabs([]);
+    router.push(ROUTES.dashboard);
+  }, [router]);
+
   const focusTab = useCallback((href: string) => {
     router.push(href);
   }, [router]);
 
   return (
-    <Ctx.Provider value={{ tabs, activeHref: pathname, openTab, closeTab, focusTab }}>
+    <Ctx.Provider value={{ tabs, activeHref: pathname, openTab, closeTab, closeAllTabs, focusTab }}>
       {children}
     </Ctx.Provider>
   );
