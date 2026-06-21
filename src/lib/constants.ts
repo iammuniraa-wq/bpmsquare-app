@@ -101,7 +101,6 @@ export const NAV: NavGroup[] = [
     group: "CONFIGURATION",
     items: [
       { label: "Pricing",   href: ROUTES.configPricing,   icon: "₹", pillar: "green" },
-      { label: "Settings",  href: ROUTES.settings,        icon: "⚙", pillar: "green" },
     ],
   },
 ];
