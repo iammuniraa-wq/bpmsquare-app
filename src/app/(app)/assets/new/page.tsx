@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -26,16 +26,26 @@ const input: React.CSSProperties = {
 };
 const fieldWrap: React.CSSProperties = { marginBottom: 14 };
 
+type AccountOption = { id: string; name: string };
+
 export default function NewAssetPage() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [accounts, setAccounts] = useState<AccountOption[]>([]);
 
   const [form, setForm] = useState({
     name: "", kind: "motor", make: "", model: "",
     rating: "", serial: "", notes: "",
     account_id: "", is_loaner: false,
   });
+
+  useEffect(() => {
+    fetch("/api/accounts")
+      .then((r) => r.json())
+      .then((data: AccountOption[]) => setAccounts(data ?? []))
+      .catch(() => {});
+  }, []);
 
   const set = (k: keyof typeof form) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -134,11 +144,13 @@ export default function NewAssetPage() {
               <p style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, margin: "0 0 14px" }}>Ownership</p>
 
               <div style={fieldWrap}>
-                <label style={label}>Account ID (optional)</label>
-                <input style={input} value={form.account_id} onChange={set("account_id")} placeholder="Paste account UUID" />
-                <p style={{ fontSize: 11, color: c.hint, margin: "5px 0 0" }}>
-                  Leave blank for loaner/workshop stock
-                </p>
+                <label style={label}>Customer account</label>
+                <select style={input} value={form.account_id} onChange={set("account_id")}>
+                  <option value="">— None (loaner / workshop stock) —</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${c.line}` }}>
