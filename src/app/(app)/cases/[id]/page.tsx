@@ -9,6 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ComingSoon from "@/components/ComingSoon";
 import { ROUTES } from "@/lib/constants";
+import TabTitle from "@/components/TabTitle";
 
 // ── Stage timeline config ─────────────────────────────────────────────────────
 
@@ -106,6 +107,7 @@ export default async function CaseDetailPage({
 
   return (
     <>
+      <TabTitle title={sc.ref} />
       <PageHeader
         title={sc.ref}
         subtitle={`Service · Case · ${account?.name ?? ""}`}

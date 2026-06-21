@@ -7,6 +7,7 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import WorkOrderActions from "./WorkOrderActions";
 import { ROUTES } from "@/lib/constants";
+import TabTitle from "@/components/TabTitle";
 import type { WorkOrderStatus } from "@/lib/types";
 
 const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
@@ -51,6 +52,7 @@ export default async function WorkOrderDetailPage({
 
   return (
     <>
+      <TabTitle title={wo.ref} />
       <div style={{ marginBottom: 10 }}>
         <Link href={ROUTES.workOrders} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           ← All work orders

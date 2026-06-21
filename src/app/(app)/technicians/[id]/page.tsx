@@ -9,6 +9,7 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
+import TabTitle from "@/components/TabTitle";
 import type { Technician, VisitLog } from "@/lib/types";
 
 // Config button is rendered separately — avoids making this whole page a client component
@@ -204,6 +205,7 @@ export default async function TechnicianDetailPage({
 
   return (
     <>
+      <TabTitle title={tech.name} />
       <div style={{ marginBottom: 10 }}>
         <Link href={ROUTES.technicians} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           ← All technicians

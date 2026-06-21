@@ -9,6 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ComingSoon from "@/components/ComingSoon";
 import { ROUTES } from "@/lib/constants";
+import TabTitle from "@/components/TabTitle";
 
 const statusTone: Record<Quote["status"], PillarKey> = {
   draft:    "blue",
@@ -56,6 +57,7 @@ export default async function QuotationDetailPage({
 
   return (
     <>
+      <TabTitle title={quote.ref} />
       <PageHeader
         title={quote.ref}
         subtitle={`Sales · Quotation · ${account?.name ?? ""}`}

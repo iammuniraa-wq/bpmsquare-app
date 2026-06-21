@@ -12,6 +12,7 @@ import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
+import TabTitle from "@/components/TabTitle";
 
 // ── Status tone maps ──────────────────────────────────────────────────────────
 
@@ -128,6 +129,7 @@ export default async function AccountHubPage({
 
   return (
     <>
+      <TabTitle title={account.name} />
       {/* ── Account header card ── */}
       <div style={{ ...cardStyle, marginBottom: 14 }}>
         <div style={{ marginBottom: 10 }}>

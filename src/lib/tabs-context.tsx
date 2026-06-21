@@ -20,6 +20,7 @@ type TabsCtx = {
   closeTab: (href: string) => void;
   closeAllTabs: () => void;
   focusTab: (href: string) => void;
+  updateTabTitle: (href: string, title: string) => void;
 };
 
 const Ctx = createContext<TabsCtx | null>(null);
@@ -157,12 +158,20 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
     router.push(ROUTES.dashboard);
   }, [router]);
 
+  const updateTabTitle = useCallback((href: string, title: string) => {
+    setTabs((prev) => {
+      const next = prev.map((t) => t.href === href ? { ...t, title } : t);
+      save(next);
+      return next;
+    });
+  }, []);
+
   const focusTab = useCallback((href: string) => {
     router.push(href);
   }, [router]);
 
   return (
-    <Ctx.Provider value={{ tabs, activeHref: pathname, openTab, closeTab, closeAllTabs, focusTab }}>
+    <Ctx.Provider value={{ tabs, activeHref: pathname, openTab, closeTab, closeAllTabs, focusTab, updateTabTitle }}>
       {children}
     </Ctx.Provider>
   );
