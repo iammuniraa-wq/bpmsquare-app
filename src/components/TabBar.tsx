@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useLayoutEffect } from "react";
 import { useTabs } from "@/lib/tabs-context";
-import { c } from "@/lib/theme";
+import { c, g } from "@/lib/theme";
 
 export default function TabBar() {
   const { tabs, activeHref, focusTab, closeTab } = useTabs();
@@ -53,7 +53,7 @@ export default function TabBar() {
     <div style={{
       display: "flex", alignItems: "center",
       borderBottom: "1px solid rgba(255,255,255,.07)",
-      background: "rgba(0,0,0,.18)",
+      background: g.sidebar,
       height: 36, minHeight: 36, flexShrink: 0,
       position: "relative",
     }}>
@@ -148,7 +148,7 @@ export default function TabBar() {
             />
             <div style={{
               position: "absolute", top: "calc(100% + 4px)", right: 0,
-              width: 240, background: "#1a2a3a",
+              width: 240, background: "#152233",
               border: "1px solid rgba(255,255,255,.1)", borderRadius: 10,
               boxShadow: "0 8px 32px rgba(0,0,0,.5)",
               zIndex: 401, overflow: "hidden",
