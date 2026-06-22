@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
       .filter((l) => l.description?.trim())
       .slice(0, 200)
       .map((l) => ({
+        tenant_id: tenantId,
         quote_id: quote.id,
         description: String(l.description).slice(0, 500),
         qty: Math.max(0, parseFloat(l.qty) || 1),
@@ -58,11 +59,13 @@ export async function POST(request: NextRequest) {
         amount: Math.max(0, parseFloat(l.qty) || 1) * Math.max(0, parseFloat(l.rate) || 0),
       }));
     if (lineRows.length > 0) {
-      await supabase.from("quote_lines").insert(lineRows);
+      const { error: lErr } = await supabase.from("quote_lines").insert(lineRows);
+      if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 });
     }
   }
 
   await supabase.from("quote_revisions").insert({
+    tenant_id: tenantId,
     quote_id: quote.id,
     rev: 1,
     date: new Date().toISOString().split("T")[0],

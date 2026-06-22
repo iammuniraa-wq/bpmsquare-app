@@ -48,6 +48,18 @@ const KIND_TONE: Record<Asset["kind"], PillarKey> = {
 
 type LineRow = { id: string; description: string; qty: string; rate: string };
 
+const DRAFT_KEY = "vvcrm_quote_draft";
+
+function saveDraft(data: object) {
+  try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(data)); } catch { /* noop */ }
+}
+function loadDraft() {
+  try { const r = sessionStorage.getItem(DRAFT_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
+}
+function clearDraft() {
+  try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* noop */ }
+}
+
 const ASSET_KINDS: { value: Asset["kind"]; label: string }[] = [
   { value: "motor",       label: "Motor" },
   { value: "transformer", label: "Transformer" },
@@ -138,6 +150,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [savedId, setSavedId]             = useState<string | null>(null);
   const [saveError, setSaveError]         = useState("");
   const [savePending, startSave]          = useTransition();
+  const [hasDraft, setHasDraft]           = useState(false);
+
+  useEffect(() => {
+    setHasDraft(!!sessionStorage.getItem(DRAFT_KEY));
+  }, []);
 
   const quoteRef = useMemo(() => {
     const n = 160 + Math.floor(Math.random() * 30);
@@ -145,19 +162,54 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pre-fill from a "Copy quote" action on the quotations list
+  // Restore draft or pre-fill from copy-quote on first mount
   useEffect(() => {
-    const raw = sessionStorage.getItem("vvcrm_copy_quote");
-    if (!raw) return;
-    sessionStorage.removeItem("vvcrm_copy_quote");
-    try {
-      const copy = JSON.parse(raw);
-      if (copy.accountId) setAccountId(copy.accountId);
-      if (copy.quoteName) setQuoteName(copy.quoteName);
-      if (copy.notes)     setNotes(copy.notes);
-      if (Array.isArray(copy.lines) && copy.lines.length > 0) setLines(copy.lines);
-    } catch { /* malformed payload — ignore */ }
+    // Copy-quote takes priority over draft
+    const copyRaw = sessionStorage.getItem("vvcrm_copy_quote");
+    if (copyRaw) {
+      sessionStorage.removeItem("vvcrm_copy_quote");
+      try {
+        const copy = JSON.parse(copyRaw);
+        if (copy.accountId) setAccountId(copy.accountId);
+        if (copy.quoteName) setQuoteName(copy.quoteName);
+        if (copy.notes)     setNotes(copy.notes);
+        if (Array.isArray(copy.lines) && copy.lines.length > 0) setLines(copy.lines);
+      } catch { /* malformed — ignore */ }
+      return;
+    }
+    // Restore auto-saved draft
+    const draft = loadDraft();
+    if (!draft) return;
+    if (draft.accountId)    setAccountId(draft.accountId);
+    if (draft.contactId)    setContactId(draft.contactId);
+    if (draft.quoteName)    setQuoteName(draft.quoteName);
+    if (draft.quoteDate)    setQuoteDate(draft.quoteDate);
+    if (draft.validUntil)   setValidUntil(draft.validUntil);
+    if (draft.poNumber)     setPoNumber(draft.poNumber);
+    if (draft.poAmount)     setPoAmount(draft.poAmount);
+    if (draft.owner)        setOwner(draft.owner);
+    if (draft.notes)        setNotes(draft.notes);
+    if (draft.terms)        setTerms(draft.terms);
+    if (draft.discountType) setDiscountType(draft.discountType);
+    if (draft.discountPct)  setDiscountPct(draft.discountPct);
+    if (draft.discountFixed) setDiscountFixed(draft.discountFixed);
+    if (Array.isArray(draft.lines) && draft.lines.length > 0)           setLines(draft.lines);
+    if (Array.isArray(draft.selectedAssetIds) && draft.selectedAssetIds.length > 0) setSelectedAssetIds(draft.selectedAssetIds);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-save draft on every change
+  useEffect(() => {
+    saveDraft({
+      accountId, contactId, quoteName, quoteDate, validUntil,
+      poNumber, poAmount, owner, notes, terms,
+      discountType, discountPct, discountFixed,
+      lines, selectedAssetIds,
+    });
+  }, [accountId, contactId, quoteName, quoteDate, validUntil,
+      poNumber, poAmount, owner, notes, terms,
+      discountType, discountPct, discountFixed,
+      lines, selectedAssetIds]);
 
   const accountContacts = contacts.filter((ct) => ct.account_id === accountId);
   const selectedAccount = accounts.find((a) => a.id === accountId);
@@ -225,6 +277,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       });
       const json = await res.json();
       if (!res.ok) { setSaveError(json.error ?? "Save failed"); return; }
+      clearDraft();
       setSavedId(json.id);
     });
   }
@@ -255,12 +308,28 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         <Link href={ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>← Quotations</Link>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: hasDraft ? 10 : 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Quotation</h1>
           <div style={{ fontSize: 12.5, color: c.muted, marginTop: 3, fontFamily: "monospace" }}>{quoteRef} · Draft</div>
         </div>
       </div>
+
+      {hasDraft && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, marginBottom: 16,
+          background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8,
+          padding: "8px 14px", fontSize: 12.5,
+        }}>
+          <span style={{ color: "#92400e" }}>⟳ Draft restored — your unsaved work has been recovered.</span>
+          <button
+            onClick={() => { clearDraft(); setHasDraft(false); window.location.reload(); }}
+            style={{ marginLeft: "auto", fontSize: 11.5, color: "#b45309", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+          >
+            Discard draft
+          </button>
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 288px", gap: 14, alignItems: "start" }} className="hub-grid">
 
