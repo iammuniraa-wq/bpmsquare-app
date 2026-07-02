@@ -30,12 +30,14 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
   const { settings } = useSettings();
   const accent = ACCENT_PRESETS[settings.accentPreset].color;
 
-  const [fields, setFields]   = useState<CustomField[]>([]);
-  const [data, setData]       = useState<Record<string, unknown>>(customData ?? {});
-  const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft]     = useState<unknown>("");
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
+  const [fields, setFields]     = useState<CustomField[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [fetchErr, setFetchErr] = useState("");
+  const [data, setData]         = useState<Record<string, unknown>>(customData ?? {});
+  const [editing, setEditing]   = useState<string | null>(null);
+  const [draft, setDraft]       = useState<unknown>("");
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
 
   // Drag-to-reorder
   const dragId   = useRef<string | null>(null);
@@ -43,8 +45,21 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
   const [dragActive, setDragActive] = useState<string | null>(null);
 
   const fetchFields = useCallback(async () => {
-    const res = await fetch(`/api/settings/custom-fields?object=${objectType}`);
-    if (res.ok) setFields(await res.json());
+    setLoading(true);
+    setFetchErr("");
+    try {
+      const res = await fetch(`/api/settings/custom-fields?object=${objectType}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setFetchErr(j.error ?? `Error ${res.status}`);
+      } else {
+        setFields(await res.json());
+      }
+    } catch {
+      setFetchErr("Network error");
+    } finally {
+      setLoading(false);
+    }
   }, [objectType]);
 
   useEffect(() => { fetchFields(); }, [fetchFields]);
@@ -70,6 +85,16 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
     );
   };
 
+  if (loading) return (
+    <section style={cardStyle}>
+      <div style={{ fontSize: 12, color: c.hint }}>Loading custom fields…</div>
+    </section>
+  );
+  if (fetchErr) return (
+    <section style={cardStyle}>
+      <div style={{ fontSize: 12, color: "#e05252" }}>Custom fields error: {fetchErr}</div>
+    </section>
+  );
   if (fields.length === 0) return null;
 
   const startEdit = (field: CustomField) => {
