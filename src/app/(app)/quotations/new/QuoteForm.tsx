@@ -338,10 +338,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           notes,
           terms,
           selected_option_id: effectiveAltId,
-          lines: rows.flatMap((r) =>
+          lines: rows.flatMap((r): { description: string; qty: string; rate: string; group_id: string | null; group_label: string | null; group_type: string | null }[] =>
             r.kind === "line"
-              ? [{ ...r, group_id: null, group_label: null, group_type: null }]
-              : r.items.map((i) => ({ ...i, group_id: r.id, group_label: r.label, group_type: r.group_type }))
+              ? [{ description: r.description, qty: r.qty, rate: r.rate, group_id: null, group_label: null, group_type: null }]
+              : r.items.map((i) => ({ description: i.description, qty: i.qty, rate: i.rate, group_id: r.id, group_label: r.label, group_type: r.group_type }))
           ),
         }),
       });
