@@ -46,7 +46,7 @@ const KIND_TONE: Record<Asset["kind"], PillarKey> = {
   motor: "blue", transformer: "amber", pump: "teal", generator: "green", panel: "purple",
 };
 
-type LineItem = { id: string; description: string; qty: string; rate: string };
+type LineItem = { id: string; description: string; qty: string; rate: string; group_id?: string | null; group_label?: string | null };
 type GroupRow = { kind: "group"; id: string; label: string; items: LineItem[] };
 type LineRow  = { kind: "line" } & LineItem;
 type Row = LineRow | GroupRow;
