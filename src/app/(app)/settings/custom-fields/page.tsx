@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import { c } from "@/lib/theme";
@@ -80,6 +80,11 @@ export default function CustomFieldsPage() {
 
   const [deleting, setDeleting]   = useState<string | null>(null);
 
+  // Drag-to-reorder
+  const dragId    = useRef<string | null>(null);
+  const dragOver  = useRef<string | null>(null);
+  const [dragActive, setDragActive] = useState<string | null>(null);
+
   const fetchFields = useCallback(async (obj: ObjectType) => {
     setLoading(true);
     setError(null);
@@ -154,6 +159,35 @@ export default function CustomFieldsPage() {
     setDeleting(null);
     if (!res.ok) { const j = await res.json(); setError(j.error); return; }
     setFields((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const handleDragEnd = async () => {
+    setDragActive(null);
+    if (!dragId.current || !dragOver.current || dragId.current === dragOver.current) return;
+
+    const from = fields.findIndex((f) => f.id === dragId.current);
+    const to   = fields.findIndex((f) => f.id === dragOver.current);
+    if (from === -1 || to === -1) return;
+
+    const reordered = [...fields];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    const withPositions = reordered.map((f, i) => ({ ...f, position: i }));
+    setFields(withPositions);
+
+    // Persist all new positions
+    await Promise.all(
+      withPositions.map((f) =>
+        fetch(`/api/settings/custom-fields/${f.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: f.position }),
+        })
+      )
+    );
+
+    dragId.current   = null;
+    dragOver.current = null;
   };
 
   const toggleRequired = async (f: CustomField) => {
@@ -322,12 +356,23 @@ export default function CustomFieldsPage() {
             {fields.map((field, idx) => (
               <div
                 key={field.id}
+                draggable
+                onDragStart={() => { dragId.current = field.id; setDragActive(field.id); }}
+                onDragEnter={() => { dragOver.current = field.id; }}
+                onDragOver={(e) => e.preventDefault()}
+                onDragEnd={handleDragEnd}
                 style={{
                   display: "flex", alignItems: "center", gap: 12,
                   padding: "11px 0",
                   borderTop: idx > 0 ? `1px solid ${c.line}` : undefined,
+                  opacity: dragActive === field.id ? 0.35 : 1,
+                  transition: "opacity 0.12s",
+                  cursor: "default",
                 }}
               >
+                {/* Drag handle */}
+                <div style={{ color: c.hint, fontSize: 16, flexShrink: 0, cursor: "grab", lineHeight: 1, userSelect: "none" }} title="Drag to reorder">⠿</div>
+
                 {/* Type badge */}
                 <div style={{ width: 30, height: 30, borderRadius: 7, background: `${accent}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 13, fontWeight: 700, color: accent }}>
                   {FIELD_TYPE_ICON[field.field_type]}

@@ -10,6 +10,7 @@ import Pill from "@/components/Pill";
 import ComingSoon from "@/components/ComingSoon";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
+import CustomFieldsSection from "@/components/CustomFieldsSection";
 
 const statusTone: Record<Quote["status"], PillarKey> = {
   draft:    "blue",
@@ -283,6 +284,13 @@ export default async function QuotationDetailPage({
         </div>
 
       </div>
+
+      <CustomFieldsSection
+        objectType="quote"
+        recordId={quote.id}
+        customData={(quote as Record<string, unknown>).custom_data as Record<string, unknown> | null}
+        patchUrl={`/api/quotes/${quote.id}`}
+      />
     </>
   );
 }

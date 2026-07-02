@@ -10,6 +10,7 @@ import Pill from "@/components/Pill";
 import ComingSoon from "@/components/ComingSoon";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
+import CustomFieldsSection from "@/components/CustomFieldsSection";
 
 // ── Stage timeline config ─────────────────────────────────────────────────────
 
@@ -465,6 +466,13 @@ export default async function CaseDetailPage({
           </section>
         </div>
       </div>
+
+      <CustomFieldsSection
+        objectType="case"
+        recordId={sc.id}
+        customData={(sc as Record<string, unknown>).custom_data as Record<string, unknown> | null}
+        patchUrl={`/api/cases/${sc.id}`}
+      />
     </>
   );
 }

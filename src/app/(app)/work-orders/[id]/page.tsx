@@ -8,6 +8,7 @@ import Pill from "@/components/Pill";
 import WorkOrderActions from "./WorkOrderActions";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
+import CustomFieldsSection from "@/components/CustomFieldsSection";
 import type { WorkOrderStatus } from "@/lib/types";
 
 const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
@@ -199,6 +200,13 @@ export default async function WorkOrderDetailPage({
           )}
         </div>
       </div>
+
+      <CustomFieldsSection
+        objectType="work_order"
+        recordId={wo.id}
+        customData={(wo as Record<string, unknown>).custom_data as Record<string, unknown> | null}
+        patchUrl={`/api/work-orders/${wo.id}`}
+      />
     </>
   );
 }
