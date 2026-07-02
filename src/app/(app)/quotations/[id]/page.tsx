@@ -220,12 +220,6 @@ export default async function QuotationDetailPage({
             </section>
           )}
 
-          <CustomFieldsSection
-            objectType="quote"
-            recordId={quote.id}
-            customData={(quote as Record<string, unknown>).custom_data as Record<string, unknown> | null}
-            patchUrl={`/api/quotes/${quote.id}`}
-          />
         </div>
 
         {/* Right — account context */}
@@ -288,6 +282,13 @@ export default async function QuotationDetailPage({
               </div>
             </div>
           </section>
+
+          <CustomFieldsSection
+            objectType="quote"
+            recordId={quote.id}
+            customData={(quote as Record<string, unknown>).custom_data as Record<string, unknown> | null}
+            patchUrl={`/api/quotes/${quote.id}`}
+          />
         </div>
 
       </div>
