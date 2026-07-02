@@ -407,13 +407,15 @@ export async function listCasesLive(): Promise<CaseSummary[]> {
 export async function getCaseLive(id: string) {
   const supabase = await createServerSupabase();
 
+  // Note: service_cases has two FKs to assets (asset_id + loaner_asset_id).
+  // Use explicit alias "asset:asset_id(*)" to avoid PostgREST ambiguity error.
   const [
     { data: serviceCase },
     { data: photos },
     { data: inspectionReport },
     { data: subCases },
   ] = await Promise.all([
-    supabase.from("service_cases").select("*, accounts(*), technicians(*), assets(*), contracts(*), quotes(*)").eq("id", id).maybeSingle(),
+    supabase.from("service_cases").select("*, accounts(*), technicians(*), asset:asset_id(*), contracts(*), quotes(*)").eq("id", id).maybeSingle(),
     supabase.from("case_photos").select("*").eq("case_id", id).order("taken_at"),
     supabase.from("inspection_reports").select("*").eq("case_id", id).maybeSingle(),
     supabase.from("service_cases").select("*").eq("parent_case_id", id),
@@ -423,11 +425,11 @@ export async function getCaseLive(id: string) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r = serviceCase as any;
-  const account   = (Array.isArray(r.accounts)     ? r.accounts[0]     : r.accounts)     as Account | null;
-  const technician = (Array.isArray(r.technicians) ? r.technicians[0]  : r.technicians)  as Technician | null;
-  const asset     = (Array.isArray(r.assets)       ? r.assets[0]       : r.assets)       as Asset | null;
-  const contract  = (Array.isArray(r.contracts)    ? r.contracts[0]    : r.contracts)    as Contract | null;
-  const quote     = (Array.isArray(r.quotes)       ? r.quotes[0]       : r.quotes)       as Quote | null;
+  const account    = (Array.isArray(r.accounts)    ? r.accounts[0]    : r.accounts)    as Account | null;
+  const technician = (Array.isArray(r.technicians) ? r.technicians[0] : r.technicians) as Technician | null;
+  const asset      = (Array.isArray(r.asset)       ? r.asset[0]       : r.asset)       as Asset | null;
+  const contract   = (Array.isArray(r.contracts)   ? r.contracts[0]   : r.contracts)   as Contract | null;
+  const quote      = (Array.isArray(r.quotes)      ? r.quotes[0]      : r.quotes)      as Quote | null;
 
   // Fetch contact for account
   let contact: Contact | null = null;
