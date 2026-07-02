@@ -21,6 +21,8 @@ type TabsCtx = {
   closeAllTabs: () => void;
   focusTab: (href: string) => void;
   updateTabTitle: (href: string, title: string) => void;
+  limitWarning: boolean;
+  clearLimitWarning: () => void;
 };
 
 const Ctx = createContext<TabsCtx | null>(null);
@@ -90,6 +92,8 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
   const [tabs, setTabs] = useState<Tab[]>([]);
+  const [limitWarning, setLimitWarning] = useState(false);
+  const tabsRef = useRef<Tab[]>([]);
   const initRef = useRef(false);
 
   // Load from localStorage on first mount
@@ -97,7 +101,8 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
     if (initRef.current) return;
     initRef.current = true;
     const stored = load();
-    setTabs(stored.length ? stored : []);
+    tabsRef.current = stored.length ? stored : [];
+    setTabs(tabsRef.current);
   }, []);
 
   // Auto-register every page visit as a tab
@@ -105,11 +110,14 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
     if (!pathname) return;
     setTabs((prev) => {
       const exists = prev.find((t) => t.href === pathname);
-      if (exists) return prev; // already open
+      if (exists) return prev;
+      if (prev.length >= MAX_TABS) {
+        setLimitWarning(true);
+        return prev; // block — don't open or evict
+      }
       const meta = tabMeta(pathname);
-      const next = prev.length >= MAX_TABS
-        ? [...prev.filter((t) => t.href !== prev[0].href), { href: pathname, ...meta }]
-        : [...prev, { href: pathname, ...meta }];
+      const next = [...prev, { href: pathname, ...meta }];
+      tabsRef.current = next;
       save(next);
       return next;
     });
@@ -127,21 +135,27 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
     setTabs((prev) => {
       const exists = prev.find((t) => t.href === href);
       if (exists) { router.push(href); return prev; }
+      if (prev.length >= MAX_TABS) {
+        setLimitWarning(true);
+        return prev;
+      }
       const tab: Tab = { href, title: title ?? meta.title, icon: icon ?? meta.icon, section: meta.section };
-      const next = prev.length >= MAX_TABS
-        ? [...prev.filter((_, i) => i !== 0), tab]
-        : [...prev, tab];
+      const next = [...prev, tab];
+      tabsRef.current = next;
       save(next);
       router.push(href);
       return next;
     });
   }, [router]);
 
+  const clearLimitWarning = useCallback(() => setLimitWarning(false), []);
+
   const closeTab = useCallback((href: string) => {
     setTabs((prev) => {
       const idx = prev.findIndex((t) => t.href === href);
       if (idx === -1) return prev;
       const next = prev.filter((t) => t.href !== href);
+      tabsRef.current = next;
       save(next);
       if (href === pathname) {
         const target = next[idx] ?? next[idx - 1];
@@ -153,8 +167,10 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
   }, [pathname, router]);
 
   const closeAllTabs = useCallback(() => {
+    tabsRef.current = [];
     save([]);
     setTabs([]);
+    setLimitWarning(false);
     router.push(ROUTES.dashboard);
   }, [router]);
 
@@ -171,7 +187,7 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <Ctx.Provider value={{ tabs, activeHref: pathname, openTab, closeTab, closeAllTabs, focusTab, updateTabTitle }}>
+    <Ctx.Provider value={{ tabs, activeHref: pathname, openTab, closeTab, closeAllTabs, focusTab, updateTabTitle, limitWarning, clearLimitWarning }}>
       {children}
     </Ctx.Provider>
   );

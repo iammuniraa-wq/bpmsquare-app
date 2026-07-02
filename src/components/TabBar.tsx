@@ -5,7 +5,7 @@ import { useTabs } from "@/lib/tabs-context";
 import { c, g } from "@/lib/theme";
 
 export default function TabBar() {
-  const { tabs, activeHref, focusTab, closeTab, closeAllTabs } = useTabs();
+  const { tabs, activeHref, focusTab, closeTab, closeAllTabs, limitWarning, clearLimitWarning } = useTabs();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft]   = useState(false);
   const [canRight, setCanRight] = useState(false);
@@ -37,6 +37,8 @@ export default function TabBar() {
   }, [activeHref]);
 
   if (tabs.length === 0) return null;
+
+  const MAX_TABS = 8; // mirror of tabs-context constant — for display only
 
   const scroll = (dir: "left" | "right") => {
     scrollRef.current?.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" });
@@ -139,6 +141,30 @@ export default function TabBar() {
         onClick={() => scroll("right")}
         title="Scroll tabs right"
       >›</button>
+
+      {/* Max-tabs warning toast */}
+      {limitWarning && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: "50%",
+          transform: "translateX(-50%)",
+          background: "#1e2e3e", border: "1px solid #e09a2a",
+          borderRadius: 8, padding: "8px 14px",
+          display: "flex", alignItems: "center", gap: 10,
+          boxShadow: "0 4px 20px rgba(0,0,0,.5)",
+          zIndex: 500, whiteSpace: "nowrap",
+          animation: "vvcrm-fadein .18s ease",
+        }}>
+          <span style={{ fontSize: 14 }}>⚠</span>
+          <span style={{ fontSize: 12.5, color: "#e2c97e", fontWeight: 500 }}>
+            Maximum {MAX_TABS} tabs open — close a tab to open a new one.
+          </span>
+          <button
+            onClick={clearLimitWarning}
+            style={{ background: "none", border: "none", color: "#7a9ab5", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 2px", marginLeft: 4 }}
+            title="Dismiss"
+          >×</button>
+        </div>
+      )}
 
       {/* Dropdown — all tabs */}
       <div style={{ position: "relative", flexShrink: 0 }}>

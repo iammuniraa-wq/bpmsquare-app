@@ -42,3 +42,8 @@ a { color: inherit; text-decoration: none; }
   .mob-truncate { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 100%; }
   .contact-actions { display: none !important; }
 }
+
+@keyframes vvcrm-fadein {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
