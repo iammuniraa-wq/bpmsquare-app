@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { account_id, ref, total, valid_until, notes, terms, lines } = body;
+  const { account_id, ref, total, valid_until, notes, terms, lines, selected_option_id } = body;
 
   if (!account_id || !ref) {
     return NextResponse.json({ error: "account_id and ref are required" }, { status: 400 });
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       valid_until: valid_until || null,
       notes: [notes, terms].filter(Boolean).join("\n\n") || null,
       revision: 1,
+      selected_option_id: selected_option_id ?? null,
     })
     .select("id, ref")
     .single();
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
         amount: Math.max(0, parseFloat(l.qty) || 1) * Math.max(0, parseFloat(l.rate) || 0),
         group_id:    l.group_id    ?? null,
         group_label: l.group_label ?? null,
+        group_type:  l.group_type  ?? null,
       }));
     if (lineRows.length > 0) {
       const { error: lErr } = await supabase.from("quote_lines").insert(lineRows);

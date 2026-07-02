@@ -46,7 +46,10 @@ export default function QuotePrint({ quote, account, contact, site, lines, revis
     footer_tagline:   companyInfo.footer_tagline   ?? COMPANY.footer_tagline,
   };
 
-  const subtotal = lines.reduce((s, l) => s + l.amount, 0);
+  const selectedAltId = quote.selected_option_id ?? null;
+  const subtotal = lines
+    .filter((l) => !l.group_id || l.group_type !== "alternative" || l.group_id === selectedAltId)
+    .reduce((s, l) => s + l.amount, 0);
   const gst = Math.round(subtotal * 0.18);
   const grandTotal = subtotal + gst;
 
@@ -228,26 +231,33 @@ export default function QuotePrint({ quote, account, contact, site, lines, revis
           </thead>
           <tbody>
             {(() => {
-              // Build print rows: group headers + indented lines + standalone lines
               const out: React.ReactNode[] = [];
               const seenGroups = new Set<string>();
               let lineNum = 1;
 
               for (const line of lines) {
                 if (line.group_id) {
+                  const isAlt = line.group_type === "alternative";
+                  const isSelected = !isAlt || line.group_id === selectedAltId;
+                  const headerBg  = isAlt ? (isSelected ? "#fffbeb" : "#fafafa") : "#eaf2fb";
+                  const headerColor = isAlt ? (isSelected ? "#92400e" : "#9ca3af") : "#0c447c";
+                  const rowOpacity = isAlt && !isSelected ? 0.45 : 1;
+
                   if (!seenGroups.has(line.group_id)) {
                     seenGroups.add(line.group_id);
                     out.push(
-                      <tr key={`gh-${line.group_id}`} style={{ background: "#eaf2fb" }}>
-                        <td colSpan={5} style={{ padding: "7px 28px", fontWeight: 700, fontSize: 11.5, color: "#0c447c", letterSpacing: 0.3 }}>
-                          ▦ {line.group_label ?? "Group"}
+                      <tr key={`gh-${line.group_id}`} style={{ background: headerBg }}>
+                        <td colSpan={5} style={{ padding: "7px 28px", fontWeight: 700, fontSize: 11.5, color: headerColor, letterSpacing: 0.3 }}>
+                          {isAlt ? (isSelected ? "✓ " : "✗ ") : "▦ "}
+                          {line.group_label ?? (isAlt ? "Option" : "Group")}
+                          {isAlt && !isSelected && <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 8 }}>(not selected)</span>}
                         </td>
                       </tr>
                     );
                   }
                   const n = lineNum++;
                   out.push(
-                    <tr key={line.id}>
+                    <tr key={line.id} style={{ opacity: rowOpacity }}>
                       <td style={{ padding: "7px 12px 7px 40px", color: "#8a96a5", fontSize: 11 }}>{n}</td>
                       <td style={{ padding: "7px 12px 7px 8px", fontSize: 12.5 }}>{line.description}</td>
                       <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>

@@ -78,6 +78,7 @@ export type Quote = {
   valid_until: string | null;
   notes: string | null;
   revision: number;
+  selected_option_id?: string | null;
 };
 
 // One row per revision of a quote — tracks what changed between versions.
@@ -98,6 +99,7 @@ export type QuoteLine = {
   amount: number;
   group_id?: string | null;
   group_label?: string | null;
+  group_type?: string | null;
 };
 
 export type WorkOrderStatus =

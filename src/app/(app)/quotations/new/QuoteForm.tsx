@@ -47,7 +47,7 @@ const KIND_TONE: Record<Asset["kind"], PillarKey> = {
 };
 
 type LineItem = { id: string; description: string; qty: string; rate: string; group_id?: string | null; group_label?: string | null };
-type GroupRow = { kind: "group"; id: string; label: string; items: LineItem[] };
+type GroupRow = { kind: "group"; id: string; label: string; items: LineItem[]; group_type: "additive" | "alternative" };
 type LineRow  = { kind: "line" } & LineItem;
 type Row = LineRow | GroupRow;
 
@@ -107,6 +107,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     { kind: "line", id: "1", description: "", qty: "1", rate: "0" },
   ]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
 
   // Discount
   const [discountType, setDiscountType]   = useState<"pct" | "fixed">("pct");
@@ -200,9 +201,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     if (draft.discountPct)  setDiscountPct(draft.discountPct);
     if (draft.discountFixed) setDiscountFixed(draft.discountFixed);
     if (Array.isArray(draft.rows) && draft.rows.length > 0)
-      setRows(draft.rows);
+      setRows(draft.rows.map((r: Row) => r.kind === "group" ? { ...r, group_type: r.group_type ?? "additive" } : r));
     else if (Array.isArray(draft.lines) && draft.lines.length > 0)
       setRows(draft.lines.map((l: LineItem) => ({ kind: "line" as const, ...l })));
+    if (draft.selectedAltId !== undefined) setSelectedAltId(draft.selectedAltId);
     if (Array.isArray(draft.selectedAssetIds) && draft.selectedAssetIds.length > 0) setSelectedAssetIds(draft.selectedAssetIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -213,12 +215,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       accountId, contactId, quoteName, quoteDate, validUntil,
       poNumber, poAmount, owner, notes, terms,
       discountType, discountPct, discountFixed,
-      rows, selectedAssetIds,
+      rows, selectedAssetIds, selectedAltId,
     });
   }, [accountId, contactId, quoteName, quoteDate, validUntil,
       poNumber, poAmount, owner, notes, terms,
       discountType, discountPct, discountFixed,
-      rows, selectedAssetIds]);
+      rows, selectedAssetIds, selectedAltId]);
 
   const accountContacts = contacts.filter((ct) => ct.account_id === accountId);
   const selectedAccount = accounts.find((a) => a.id === accountId);
@@ -227,9 +229,14 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     .map((id) => localAssets.find((a) => a.id === id))
     .filter((a): a is Asset => !!a);
 
-  const allLineItems: LineItem[] = rows.flatMap((r) =>
-    r.kind === "line" ? [r] : r.items
-  );
+  // For total: standalone lines + additive groups + only the selected alternative group
+  const altGroups = rows.filter((r): r is GroupRow => r.kind === "group" && r.group_type === "alternative");
+  const effectiveAltId = selectedAltId ?? altGroups[0]?.id ?? null;
+  const allLineItems: LineItem[] = rows.flatMap((r) => {
+    if (r.kind === "line") return [r];
+    if (r.group_type === "additive") return r.items;
+    return r.id === effectiveAltId ? r.items : [];
+  });
   const parsedLines = allLineItems.map((l) => {
     const qty  = parseFloat(l.qty) || 0;
     const rate = parseFloat(l.rate) || 0;
@@ -249,7 +256,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const newLineItem = (): LineItem => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, description: "", qty: "1", rate: "0" });
 
   const addLine  = () => setRows((p) => [...p, { kind: "line", ...newLineItem() }]);
-  const addGroup = () => setRows((p) => [...p, { kind: "group", id: `${Date.now()}`, label: "Group", items: [newLineItem()] }]);
+  const addGroup = () => setRows((p) => [...p, { kind: "group", id: `${Date.now()}`, label: "Group", group_type: "additive", items: [newLineItem()] }]);
+  const addAlternative = () => {
+    const gid = `${Date.now()}`;
+    setRows((p) => [...p, { kind: "group", id: gid, label: "Option A", group_type: "alternative", items: [newLineItem()] }]);
+    setSelectedAltId((prev) => prev ?? gid);
+  };
 
   const removeRow = (rowId: string) => {
     setRows((p) => { const n = p.filter((r) => r.id !== rowId); return n.length ? n : [{ kind: "line", ...newLineItem() }]; });
@@ -286,7 +298,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         groupItems.push({ id: r.id, description: r.description, qty: r.qty, rate: r.rate });
       } else { rest.push(r); }
     });
-    const group: GroupRow = { kind: "group", id: gid, label: "Group", items: groupItems };
+    const group: GroupRow = { kind: "group", id: gid, label: "Group", group_type: "additive", items: groupItems };
     rest.splice(Math.max(0, insertAt), 0, group);
     setRows(rest);
     setSelectedIds(new Set());
@@ -325,10 +337,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           valid_until: null,
           notes,
           terms,
+          selected_option_id: effectiveAltId,
           lines: rows.flatMap((r) =>
             r.kind === "line"
-              ? [{ ...r, group_id: null, group_label: null }]
-              : r.items.map((i) => ({ ...i, group_id: r.id, group_label: r.label }))
+              ? [{ ...r, group_id: null, group_label: null, group_type: null }]
+              : r.items.map((i) => ({ ...i, group_id: r.id, group_label: r.label, group_type: r.group_type }))
           ),
         }),
       });
@@ -592,6 +605,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     ▦ Group selected ({selectedIds.size})
                   </button>
                 )}
+                <button onClick={addAlternative} style={{ fontSize: 12, fontWeight: 600, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+                  ⊕ Add option
+                </button>
                 <button onClick={addGroup} style={{ fontSize: 12, fontWeight: 600, color: c.muted, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
                   + Add group
                 </button>
@@ -633,18 +649,37 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 }
 
                 // Group row
+                const isAlt = row.group_type === "alternative";
+                const isSelectedAlt = isAlt && row.id === effectiveAltId;
+                const groupColor = isAlt ? "#d97706" : c.accent;
+                const groupBg    = isAlt ? "#fffbeb" : `${c.accent}06`;
+                const groupBorder = isAlt ? "#fde68a" : `${c.accent}40`;
                 const groupTotal = row.items.reduce((s, i) => s + (parseFloat(i.qty) || 0) * (parseFloat(i.rate) || 0), 0);
                 return (
-                  <div key={row.id} style={{ border: `1px solid ${c.accent}40`, borderLeft: `3px solid ${c.accent}`, borderRadius: 8, background: `${c.accent}06`, padding: "10px 12px", marginBottom: 2 }}>
+                  <div key={row.id} style={{ border: `1px solid ${groupBorder}`, borderLeft: `3px solid ${groupColor}`, borderRadius: 8, background: groupBg, padding: "10px 12px", marginBottom: 2, opacity: isAlt && !isSelectedAlt ? 0.6 : 1 }}>
                     {/* Group header */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      <span style={{ fontSize: 12, color: c.accent }}>▦</span>
+                      <span style={{ fontSize: 12, color: groupColor }}>{isAlt ? "⊕" : "▦"}</span>
+                      {isAlt && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" }}>
+                          OPTION
+                        </span>
+                      )}
                       <input
                         value={row.label}
                         onChange={(e) => updateGroupLabel(row.id, e.target.value)}
                         style={{ flex: 1, fontSize: 13, fontWeight: 600, border: "none", background: "transparent", color: c.ink, outline: "none", borderBottom: `1px dashed ${c.line}`, padding: "2px 0" }}
-                        placeholder="Group name…"
+                        placeholder={isAlt ? "Option name (e.g. Option A)…" : "Group name…"}
                       />
+                      {isAlt && (
+                        isSelectedAlt ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", background: "#d1fae5", border: "1px solid #6ee7b7", borderRadius: 5, padding: "2px 8px", whiteSpace: "nowrap" }}>✓ Selected</span>
+                        ) : (
+                          <button onClick={() => setSelectedAltId(row.id)} style={{ fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 5, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                            Select this option
+                          </button>
+                        )
+                      )}
                       <button onClick={() => ungroup(row.id)} style={{ fontSize: 11, color: c.muted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", whiteSpace: "nowrap" }}>Ungroup</button>
                       <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", lineHeight: 1 }} title="Delete group">×</button>
                     </div>
@@ -679,8 +714,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
                     {/* Group footer */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, paddingTop: 6 }}>
-                      <button onClick={() => addLineToGroup(row.id)} style={{ fontSize: 11.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Add line to group</button>
-                      <span style={{ fontSize: 12, color: c.muted }}>Group total: <strong style={{ color: c.ink, marginLeft: 4 }}>{fmt(groupTotal)}</strong></span>
+                      <button onClick={() => addLineToGroup(row.id)} style={{ fontSize: 11.5, color: groupColor, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Add line</button>
+                      <span style={{ fontSize: 12, color: c.muted }}>{isAlt ? "Option total" : "Group total"}: <strong style={{ color: c.ink, marginLeft: 4 }}>{fmt(groupTotal)}</strong></span>
                     </div>
                   </div>
                 );
