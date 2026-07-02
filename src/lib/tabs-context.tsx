@@ -71,7 +71,7 @@ function tabMeta(href: string): { title: string; icon: string; section: string }
   return { title: p.split("/").filter(Boolean).pop() ?? "Page", icon: "◫", section: "" };
 }
 
-const MAX_TABS = 10;
+const MAX_TABS = 8;
 const STORAGE_KEY = "vvcrm_tabs";
 
 function load(): Tab[] {
