@@ -243,6 +243,17 @@ export type ServiceCase = {
   notes: string | null;
 };
 
+// ── Page layout builder ───────────────────────────────────────────────────────
+
+export type LayoutSection = {
+  id: string;                          // 'core' | 'lines' | 'notes' | 'work_orders' | UUID
+  kind: "builtin" | "custom_fields";
+  label: string;
+  field_keys: string[];                // for custom_fields: ordered cf_ keys in this section
+};
+
+export type PageLayout = LayoutSection[];
+
 // ── Pricing catalog & text fragments ─────────────────────────────────────────
 
 export type PricingCategory = "labour" | "material" | "testing" | "transport";
