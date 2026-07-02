@@ -15,6 +15,7 @@ export const ROUTES = {
   quotationPrint: (id: string) => `/quotations/${id}/print`,
   configPricing: "/settings/pricing",
   configTemplates: "/settings/templates",
+  configCustomFields: "/settings/custom-fields",
   cases: "/cases",
   caseNew: "/cases/new",
   amc: "/amc",

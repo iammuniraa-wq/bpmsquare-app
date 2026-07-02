@@ -156,7 +156,7 @@ function DraggableSection({
                 display: "flex", alignItems: "center", gap: 9,
                 padding: `${py} 10px`,
                 borderRadius: 8, fontSize: 13, marginBottom: 1,
-                color: on ? "#fff" : "#aebccd",
+                color: on ? "#fff" : "#cdd8e6",
                 background: on ? accent : "transparent",
                 opacity: isDragging ? 0.35 : 1,
                 textDecoration: "none",
@@ -183,7 +183,7 @@ function DraggableSection({
                   title={isFavSection ? "Remove from favourites" : "Add to favourites"}
                   style={{
                     fontSize: 13, flexShrink: 0, cursor: "pointer", lineHeight: 1,
-                    color: isFavSection ? "#f6b23c" : "rgba(255,255,255,.28)",
+                    color: isFavSection ? "#f6b23c" : "#f6b23c99",
                   }}
                 >
                   {isFavSection ? "★" : "☆"}
@@ -389,7 +389,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         {/* All items */}
         <div style={{
           fontSize: 9.5, letterSpacing: 1.1, fontWeight: 600,
-          color: "#3d5166", paddingLeft: 10, marginBottom: 3,
+          color: "#7a9ab8", paddingLeft: 10, marginBottom: 3,
         }}>
           ALL · drag · ☆ to pin
         </div>
@@ -411,7 +411,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             style={{
               display: "flex", alignItems: "center", gap: 8, width: "100%",
               padding: "7px 10px", borderRadius: 8, fontSize: 12.5,
-              color: isActive(ROUTES.settings) ? "#dce9f6" : "#8aa0b8",
+              color: isActive(ROUTES.settings) ? "#dce9f6" : "#cdd8e6",
               background: isActive(ROUTES.settings) && !settingsOpen ? accent : isActive(ROUTES.settings) ? "rgba(55,138,221,.12)" : "transparent",
               border: "none", cursor: "pointer", textAlign: "left",
               transition: "background 0.12s",
@@ -420,7 +420,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <span style={{ fontSize: 14 }}>⚙</span>
             <span style={{ flex: 1 }}>Settings</span>
             <span style={{
-              fontSize: 11, color: "#4a6070",
+              fontSize: 11, color: "#7a9ab8",
               display: "inline-block",
               transform: settingsOpen ? "rotate(90deg)" : "none",
               transition: "transform 0.15s",
@@ -430,9 +430,10 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           {settingsOpen && (
             <div style={{ paddingLeft: 10, paddingTop: 2, paddingBottom: 2 }}>
               {([
-                { label: "General",      href: ROUTES.settings,        icon: "◉" },
-                { label: "Pricing",      href: ROUTES.configPricing,   icon: "◈" },
-                { label: "Quote config", href: ROUTES.configTemplates, icon: "◧" },
+                { label: "General",       href: ROUTES.settings,          icon: "◉" },
+                { label: "Pricing",       href: ROUTES.configPricing,    icon: "◈" },
+                { label: "Quote config",  href: ROUTES.configTemplates,  icon: "◧" },
+                { label: "Custom fields", href: ROUTES.configCustomFields, icon: "⊞" },
               ] as const).map((sub) => {
                 const active = pathname === sub.href;
                 return (
@@ -443,7 +444,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     style={{
                       display: "flex", alignItems: "center", gap: 7,
                       padding: "6px 10px", borderRadius: 7, fontSize: 12,
-                      color: active ? "#fff" : "#6b8499",
+                      color: active ? "#fff" : "#b0c4d8",
                       background: active ? accent : "transparent",
                       textDecoration: "none",
                       transition: "background 0.12s",
@@ -462,7 +463,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             onClick={resetNav}
             style={{
               background: "transparent", border: "none",
-              color: "#3d5166", fontSize: 11, cursor: "pointer",
+              color: "#7a9ab8", fontSize: 11, cursor: "pointer",
               padding: "4px 10px", borderRadius: 5,
               textAlign: "left", width: "100%",
               marginTop: 2,

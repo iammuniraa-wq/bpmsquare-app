@@ -13,12 +13,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ["status", "notes", "description", "custom_data"];
+  const allowed = ["name", "type", "serial_number", "status", "account_id", "custom_data"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
 
   const { data, error } = await supabase
-    .from("work_orders")
+    .from("assets")
     .update(patch)
     .eq("id", id)
     .eq("tenant_id", tenantId)

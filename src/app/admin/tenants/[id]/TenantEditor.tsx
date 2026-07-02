@@ -44,6 +44,22 @@ export default function TenantEditor({ tenant, users }: Props) {
   );
   const [saved, setSaved]             = useState(false);
   const [error, setError]             = useState("");
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+
+  async function uploadPartnerLogo(i: number, file: File) {
+    setUploadingIdx(i);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/admin/upload-logo", { method: "POST", body: fd });
+    setUploadingIdx(null);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setError(j.error ?? "Upload failed");
+      return;
+    }
+    const { url } = await res.json();
+    setPartnerField(i, "logo_url", url);
+  }
 
   function setInfoField(key: keyof Omit<CompanyInfo, "partners">, val: string) {
     setInfo((prev) => ({ ...prev, [key]: val }));
@@ -184,25 +200,42 @@ export default function TenantEditor({ tenant, users }: Props) {
                     placeholder="Partner name (e.g. ABB)"
                     onChange={(e) => setPartnerField(i, "name", e.target.value)}
                   />
-                  <input
-                    style={inputStyle}
-                    value={p.logo_url}
-                    placeholder="Logo URL (https://…)"
-                    onChange={(e) => setPartnerField(i, "logo_url", e.target.value)}
-                  />
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {p.logo_url && (
-                      <img src={p.logo_url} alt={p.name} style={{ height: 24, maxWidth: 48, objectFit: "contain", borderRadius: 3, border: "1px solid #e5e7eb" }} />
+                  <div style={{ position: "relative" }}>
+                    {p.logo_url ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, height: 38, border: "1px solid #d1d5db", borderRadius: 8, padding: "0 10px", background: "#f9fafb" }}>
+                        <img src={p.logo_url} alt={p.name} style={{ height: 22, maxWidth: 60, objectFit: "contain" }} />
+                        <span style={{ fontSize: 11, color: "#6b7280", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {p.logo_url.split("/").pop()}
+                        </span>
+                        <label style={{ fontSize: 11, color: "#3b82f6", cursor: "pointer", flexShrink: 0, fontWeight: 500 }}>
+                          Change
+                          <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }}
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPartnerLogo(i, f); e.target.value = ""; }} />
+                        </label>
+                      </div>
+                    ) : (
+                      <label style={{
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        height: 38, border: "2px dashed #d1d5db", borderRadius: 8,
+                        cursor: uploadingIdx === i ? "wait" : "pointer",
+                        fontSize: 12, color: uploadingIdx === i ? "#9ca3af" : "#6b7280",
+                        background: "#fafafa",
+                      }}>
+                        {uploadingIdx === i ? "Uploading…" : "⬆ Upload logo (PNG / JPG / SVG)"}
+                        <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }}
+                          disabled={uploadingIdx === i}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPartnerLogo(i, f); e.target.value = ""; }} />
+                      </label>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => removePartner(i)}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 16, lineHeight: 1 }}
-                      title="Remove"
-                    >
-                      ×
-                    </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => removePartner(i)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 16, lineHeight: 1, alignSelf: "center" }}
+                    title="Remove"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
               {partners.length === 0 && (

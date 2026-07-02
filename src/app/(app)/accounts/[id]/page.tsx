@@ -13,6 +13,7 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
+import CustomFieldsSection from "@/components/CustomFieldsSection";
 
 // ── Status tone maps ──────────────────────────────────────────────────────────
 
@@ -211,6 +212,12 @@ export default async function AccountHubPage({
             <span><strong style={{ color: c.ink }}>{hub.invoices.length}</strong> Invoices</span>
           )}
         </div>
+        <CustomFieldsSection
+          objectType="account"
+          recordId={account.id}
+          customData={(account as Record<string, unknown>).custom_data as Record<string, unknown> | null}
+          patchUrl={`/api/accounts/${account.id}`}
+        />
       </div>
 
       {/* ── Two-column grid ── */}
