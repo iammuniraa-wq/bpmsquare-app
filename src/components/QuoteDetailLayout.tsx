@@ -230,18 +230,96 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
     );
   };
 
-  // ── Section content renderers ────────────────────────────────────────────────
+  // ── Shared custom-field cards rendered at the bottom of ANY section ──────────
+  const renderCfCards = (section: LayoutSection) => {
+    const defs = section.field_keys
+      .map(k => cfDefs.find(d => d.field_key === k))
+      .filter((d): d is CfDef => !!d);
+    if (defs.length === 0 && addingFieldTo !== section.id) return null;
+    return (
+      <div style={{ marginTop: defs.length > 0 ? 12 : 0 }}>
+        {defs.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {defs.map(field => {
+              const isEditing = editingKey === field.field_key;
+              const val = cfData[field.field_key];
+              return (
+                <div
+                  key={field.id}
+                  style={{ padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}`, cursor: isEditing || adaptMode ? "default" : "pointer" }}
+                  onClick={() => { if (!isEditing && !adaptMode) { setEditingKey(field.field_key); setDraftValue(val ?? ""); } }}
+                >
+                  <div style={{ fontSize: 10.5, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span>{field.field_label}{field.is_required && <span style={{ color: "#e05252", marginLeft: 3 }}>*</span>}</span>
+                    {adaptMode && (
+                      <button onClick={e => { e.stopPropagation(); removeFieldFromSection(section.id, field.field_key); }} style={{ background: "none", border: "none", color: "#e05252", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }} title="Remove field">×</button>
+                    )}
+                  </div>
+                  {isEditing ? (
+                    <div onClick={e => e.stopPropagation()}>
+                      {renderFieldInput(field)}
+                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                        <button onClick={() => saveCfValue(field.field_key)} disabled={cfSaving} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, background: c.accent, color: "#fff", border: "none", cursor: "pointer" }}>{cfSaving ? "…" : "Save"}</button>
+                        <button onClick={() => setEditingKey(null)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer" }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: val ? c.ink : c.hint, minHeight: 20 }}>
+                      {val ? (field.field_type === "checkbox" ? (val ? "Yes" : "No") : String(val)) : "—"}
+                      {!adaptMode && <span style={{ float: "right", fontSize: 10, color: c.hint, opacity: 0.5 }}>✎</span>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {/* Inline add-field form — shown when this section is being edited */}
+        {addingFieldTo === section.id && (
+          <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-end", background: "#f0f7ff", borderRadius: 8, padding: "10px 12px", border: `1px dashed ${c.accent}` }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10.5, color: c.hint, marginBottom: 4 }}>Field label</div>
+              <input
+                autoFocus
+                value={newFieldLabel}
+                onChange={e => setNewFieldLabel(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addFieldToSection(section.id)}
+                placeholder="e.g. Motor Frame Size"
+                style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: `1px solid ${c.line}`, fontSize: 13, boxSizing: "border-box" }}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 10.5, color: c.hint, marginBottom: 4 }}>Type</div>
+              <select value={newFieldType} onChange={e => setNewFieldType(e.target.value as FieldType)} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${c.line}`, fontSize: 13 }}>
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+                <option value="date">Date</option>
+                <option value="select">Dropdown</option>
+                <option value="checkbox">Yes / No</option>
+                <option value="textarea">Long text</option>
+              </select>
+            </div>
+            <button onClick={() => addFieldToSection(section.id)} disabled={fieldCreating || !newFieldLabel.trim()} style={{ padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, background: c.accent, color: "#fff", border: "none", cursor: "pointer" }}>{fieldCreating ? "…" : "Add"}</button>
+            <button onClick={() => { setAddingFieldTo(null); setNewFieldLabel(""); }} style={{ padding: "6px 10px", borderRadius: 6, fontSize: 12, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer" }}>Cancel</button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── Section content renderers (builtin content only — cf cards added separately) ──
   const renderSectionContent = (section: LayoutSection): React.ReactNode => {
     switch (section.id) {
 
       case "core":
         return (
-          <section style={{ ...cardStyle, display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ ...cardStyle, display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <CoreField label="Quotation ref" value={<span style={{ fontSize: 16, fontWeight: 600, fontFamily: "monospace", color: c.ink }}>{quote.ref}</span>} />
             <CoreField label="Issued"       value={fmtDate(quote.created_at)} />
             <CoreField label="Valid until"  value={quote.valid_until ? fmtDate(quote.valid_until) : "—"} />
             <CoreField label="Status"       value={<Pill label={QUOTE_STATUS[quote.status]} tone={STATUS_TONE[quote.status]} />} />
-          </section>
+            {renderCfCards(section)}
+          </div>
         );
 
       case "lines":
@@ -280,140 +358,55 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                 <span style={{ fontSize: 15, fontWeight: 600, color: c.accent }}>{inr(grandTotal)}</span>
               </div>
             </div>
+            {section.field_keys.length > 0 || addingFieldTo === section.id ? (
+              <div style={{ padding: "0 14px 12px" }}>{renderCfCards(section)}</div>
+            ) : null}
           </section>
         );
 
       case "notes":
-        return quote.notes ? (
+        return (quote.notes || adaptMode || section.field_keys.length > 0 || addingFieldTo === section.id) ? (
           <section style={cardStyle}>
             <h3 style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>Notes &amp; terms</h3>
-            <p style={{ fontSize: 12.5, color: c.muted, margin: 0, lineHeight: 1.6 }}>{quote.notes}</p>
+            {quote.notes
+              ? <p style={{ fontSize: 12.5, color: c.muted, margin: 0, lineHeight: 1.6 }}>{quote.notes}</p>
+              : <p style={{ fontSize: 12.5, color: c.hint, margin: 0, fontStyle: "italic" }}>Notes &amp; terms (empty)</p>
+            }
+            {renderCfCards(section)}
           </section>
-        ) : adaptMode ? (
-          <section style={{ ...cardStyle, color: c.hint, fontSize: 12.5, fontStyle: "italic" }}>Notes &amp; terms (empty)</section>
         ) : null;
 
       case "work_orders":
-        return workOrders.length > 0 ? (
+        return (workOrders.length > 0 || adaptMode || section.field_keys.length > 0 || addingFieldTo === section.id) ? (
           <section style={cardStyle}>
             <h3 style={{ fontSize: 13, margin: "0 0 10px", fontWeight: 600 }}>Work order — authorized by this quote</h3>
+            {workOrders.length === 0 && adaptMode && (
+              <p style={{ fontSize: 12.5, color: c.hint, fontStyle: "italic", margin: "0 0 8px" }}>Work orders (none yet)</p>
+            )}
             {workOrders.map(wo => (
               <div key={wo.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${c.line}`, fontSize: 12.5 }}>
                 <span style={{ fontWeight: 600, fontFamily: "monospace" }}>{wo.ref}</span>
                 <Pill label={wo.status.replace("_", " ")} tone="amber" />
               </div>
             ))}
+            {renderCfCards(section)}
           </section>
-        ) : adaptMode ? (
-          <section style={{ ...cardStyle, color: c.hint, fontSize: 12.5, fontStyle: "italic" }}>Work orders (none yet)</section>
         ) : null;
 
       default:
         if (section.kind !== "custom_fields") return null;
-        const sectionDefs = section.field_keys
-          .map(k => cfDefs.find(d => d.field_key === k))
-          .filter((d): d is CfDef => !!d);
-
         return (
           <section style={cardStyle}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: sectionDefs.length > 0 || adaptMode ? 12 : 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <h3 style={{ fontSize: 13, margin: 0, fontWeight: 600 }}>{section.label}</h3>
               {cfSaved && <span style={{ fontSize: 11, color: "#1d9e75", fontWeight: 500 }}>✓ Saved</span>}
             </div>
-
-            {sectionDefs.length === 0 && !adaptMode && (
+            {section.field_keys.length === 0 && !adaptMode && (
               <div style={{ fontSize: 12.5, color: c.hint, textAlign: "center", padding: "12px 0" }}>
                 No fields yet — click <strong>⊙ Adapt</strong> to add fields.
               </div>
             )}
-
-            {sectionDefs.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {sectionDefs.map(field => {
-                  const isEditing = editingKey === field.field_key;
-                  const val = cfData[field.field_key];
-                  return (
-                    <div
-                      key={field.id}
-                      style={{ padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}`, cursor: isEditing || adaptMode ? "default" : "pointer" }}
-                      onClick={() => !isEditing && !adaptMode && (() => { setEditingKey(field.field_key); setDraftValue(val ?? ""); })()}
-                    >
-                      <div style={{ fontSize: 10.5, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span>{field.field_label}{field.is_required && <span style={{ color: "#e05252", marginLeft: 3 }}>*</span>}</span>
-                        {adaptMode && (
-                          <button
-                            onClick={e => { e.stopPropagation(); removeFieldFromSection(section.id, field.field_key); }}
-                            style={{ background: "none", border: "none", color: "#e05252", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }}
-                            title="Remove field from section"
-                          >×</button>
-                        )}
-                      </div>
-                      {isEditing ? (
-                        <div onClick={e => e.stopPropagation()}>
-                          {renderFieldInput(field)}
-                          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                            <button onClick={() => saveCfValue(field.field_key)} disabled={cfSaving} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, background: c.accent, color: "#fff", border: "none", cursor: "pointer" }}>
-                              {cfSaving ? "…" : "Save"}
-                            </button>
-                            <button onClick={() => setEditingKey(null)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer" }}>
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: 13, color: val ? c.ink : c.hint, minHeight: 20 }}>
-                          {val ? (field.field_type === "checkbox" ? (val ? "Yes" : "No") : String(val)) : "—"}
-                          {!adaptMode && <span style={{ float: "right", fontSize: 10, color: c.hint, opacity: 0.5 }}>✎</span>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Add field row — adapt mode only */}
-            {adaptMode && (
-              addingFieldTo === section.id ? (
-                <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "flex-end", background: "#f0f7ff", borderRadius: 8, padding: "10px 12px", border: `1px dashed ${c.accent}` }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 10.5, color: c.hint, marginBottom: 4 }}>Field label</div>
-                    <input
-                      autoFocus
-                      value={newFieldLabel}
-                      onChange={e => setNewFieldLabel(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && addFieldToSection(section.id)}
-                      placeholder="e.g. Motor Frame Size"
-                      style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: `1px solid ${c.line}`, fontSize: 13, boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10.5, color: c.hint, marginBottom: 4 }}>Type</div>
-                    <select value={newFieldType} onChange={e => setNewFieldType(e.target.value as FieldType)} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${c.line}`, fontSize: 13 }}>
-                      <option value="text">Text</option>
-                      <option value="number">Number</option>
-                      <option value="date">Date</option>
-                      <option value="select">Dropdown</option>
-                      <option value="checkbox">Yes / No</option>
-                      <option value="textarea">Long text</option>
-                    </select>
-                  </div>
-                  <button onClick={() => addFieldToSection(section.id)} disabled={fieldCreating || !newFieldLabel.trim()} style={{ padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, background: c.accent, color: "#fff", border: "none", cursor: "pointer" }}>
-                    {fieldCreating ? "…" : "Add"}
-                  </button>
-                  <button onClick={() => { setAddingFieldTo(null); setNewFieldLabel(""); }} style={{ padding: "6px 10px", borderRadius: 6, fontSize: 12, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer" }}>
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setAddingFieldTo(section.id)}
-                  style={{ marginTop: sectionDefs.length > 0 ? 10 : 0, width: "100%", padding: "7px 0", borderRadius: 6, border: `1px dashed ${c.line}`, background: "transparent", color: c.accent, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                >
-                  + Add field
-                </button>
-              )
-            )}
+            {renderCfCards(section)}
           </section>
         );
     }
@@ -508,12 +501,18 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                 <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "#e6f1fb", borderRadius: "8px 8px 0 0", border: "1px dashed #378ADD", borderBottom: "none" }}>
                   <span style={{ cursor: "grab", color: "#378ADD", fontSize: 16, userSelect: "none" }}>⠿</span>
                   <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0c447c", flex: 1 }}>{section.label}</span>
+                  <button
+                    onClick={() => { setAddingFieldTo(addingFieldTo === section.id ? null : section.id); setNewFieldLabel(""); }}
+                    style={{ background: addingFieldTo === section.id ? c.accent : "none", border: `1px solid ${addingFieldTo === section.id ? c.accent : "#378ADD"}`, color: addingFieldTo === section.id ? "#fff" : "#378ADD", cursor: "pointer", fontSize: 11.5, fontWeight: 600, padding: "2px 10px", borderRadius: 5 }}
+                  >
+                    + Add field
+                  </button>
                   {section.kind === "custom_fields" && (
                     <button
                       onClick={() => removeSection(section.id)}
                       style={{ background: "none", border: "none", color: "#e05252", cursor: "pointer", fontSize: 12, fontWeight: 600, padding: "0 4px" }}
                     >
-                      × Remove section
+                      × Remove
                     </button>
                   )}
                 </div>
