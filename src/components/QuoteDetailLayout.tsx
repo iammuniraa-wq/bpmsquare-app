@@ -230,49 +230,89 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
     );
   };
 
-  // ── Shared custom-field cards rendered at the bottom of ANY section ──────────
-  const renderCfCards = (section: LayoutSection) => {
+  // ── Shared custom-field rendering — "inline" matches CoreField style, "card" uses grid cards ──
+  const renderCfCards = (section: LayoutSection, variant: "inline" | "card" = "card") => {
     const defs = section.field_keys
       .map(k => cfDefs.find(d => d.field_key === k))
       .filter((d): d is CfDef => !!d);
     if (defs.length === 0 && addingFieldTo !== section.id) return null;
-    return (
-      <div style={{ marginTop: defs.length > 0 ? 12 : 0 }}>
-        {defs.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {defs.map(field => {
-              const isEditing = editingKey === field.field_key;
-              const val = cfData[field.field_key];
-              return (
-                <div
-                  key={field.id}
-                  style={{ padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}`, cursor: isEditing || adaptMode ? "default" : "pointer" }}
-                  onClick={() => { if (!isEditing && !adaptMode) { setEditingKey(field.field_key); setDraftValue(val ?? ""); } }}
-                >
-                  <div style={{ fontSize: 10.5, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span>{field.field_label}{field.is_required && <span style={{ color: "#e05252", marginLeft: 3 }}>*</span>}</span>
-                    {adaptMode && (
-                      <button onClick={e => { e.stopPropagation(); removeFieldFromSection(section.id, field.field_key); }} style={{ background: "none", border: "none", color: "#e05252", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }} title="Remove field">×</button>
-                    )}
-                  </div>
-                  {isEditing ? (
-                    <div onClick={e => e.stopPropagation()}>
-                      {renderFieldInput(field)}
-                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                        <button onClick={() => saveCfValue(field.field_key)} disabled={cfSaving} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, background: c.accent, color: "#fff", border: "none", cursor: "pointer" }}>{cfSaving ? "…" : "Save"}</button>
-                        <button onClick={() => setEditingKey(null)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer" }}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 13, color: val ? c.ink : c.hint, minHeight: 20 }}>
-                      {val ? (field.field_type === "checkbox" ? (val ? "Yes" : "No") : String(val)) : "—"}
-                      {!adaptMode && <span style={{ float: "right", fontSize: 10, color: c.hint, opacity: 0.5 }}>✎</span>}
-                    </div>
-                  )}
+
+    const renderField = (field: CfDef) => {
+      const isEditing = editingKey === field.field_key;
+      const val = cfData[field.field_key];
+      const displayVal = val
+        ? (field.field_type === "checkbox" ? (val ? "Yes" : "No") : String(val))
+        : "—";
+
+      if (variant === "inline") {
+        // Matches CoreField: small muted label + value below, no box
+        return (
+          <div key={field.id} style={{ cursor: isEditing || adaptMode ? "default" : "pointer", position: "relative" }}
+            onClick={() => { if (!isEditing && !adaptMode) { setEditingKey(field.field_key); setDraftValue(val ?? ""); } }}
+          >
+            <div style={{ fontSize: 11, color: c.muted, marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
+              {field.field_label}
+              {field.is_required && <span style={{ color: "#e05252" }}>*</span>}
+              {adaptMode && (
+                <button onClick={e => { e.stopPropagation(); removeFieldFromSection(section.id, field.field_key); }}
+                  style={{ background: "none", border: "none", color: "#e05252", cursor: "pointer", fontSize: 12, lineHeight: 1, padding: "0 2px", marginLeft: 2 }} title="Remove">×</button>
+              )}
+            </div>
+            {isEditing ? (
+              <div onClick={e => e.stopPropagation()} style={{ minWidth: 160 }}>
+                {renderFieldInput(field)}
+                <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                  <button onClick={() => saveCfValue(field.field_key)} disabled={cfSaving} style={{ padding: "3px 10px", borderRadius: 5, fontSize: 11, fontWeight: 600, background: c.accent, color: "#fff", border: "none", cursor: "pointer" }}>{cfSaving ? "…" : "Save"}</button>
+                  <button onClick={() => setEditingKey(null)} style={{ padding: "3px 8px", borderRadius: 5, fontSize: 11, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer" }}>×</button>
                 </div>
-              );
-            })}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: val ? c.ink : c.hint }}>
+                {displayVal}
+                {!adaptMode && <span style={{ marginLeft: 4, fontSize: 10, color: c.hint, opacity: 0.4 }}>✎</span>}
+              </div>
+            )}
           </div>
+        );
+      }
+
+      // Card variant (used by lines, notes, work_orders, custom sections)
+      return (
+        <div
+          key={field.id}
+          style={{ padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}`, cursor: isEditing || adaptMode ? "default" : "pointer" }}
+          onClick={() => { if (!isEditing && !adaptMode) { setEditingKey(field.field_key); setDraftValue(val ?? ""); } }}
+        >
+          <div style={{ fontSize: 10.5, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>{field.field_label}{field.is_required && <span style={{ color: "#e05252", marginLeft: 3 }}>*</span>}</span>
+            {adaptMode && (
+              <button onClick={e => { e.stopPropagation(); removeFieldFromSection(section.id, field.field_key); }} style={{ background: "none", border: "none", color: "#e05252", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }} title="Remove field">×</button>
+            )}
+          </div>
+          {isEditing ? (
+            <div onClick={e => e.stopPropagation()}>
+              {renderFieldInput(field)}
+              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                <button onClick={() => saveCfValue(field.field_key)} disabled={cfSaving} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, background: c.accent, color: "#fff", border: "none", cursor: "pointer" }}>{cfSaving ? "…" : "Save"}</button>
+                <button onClick={() => setEditingKey(null)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer" }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, color: val ? c.ink : c.hint, minHeight: 20 }}>
+              {displayVal}
+              {!adaptMode && <span style={{ float: "right", fontSize: 10, color: c.hint, opacity: 0.5 }}>✎</span>}
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    return (
+      <div style={{ marginTop: defs.length > 0 ? (variant === "inline" ? 0 : 12) : 0 }}>
+        {defs.length > 0 && (
+          variant === "inline"
+            ? <>{defs.map(renderField)}</>
+            : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>{defs.map(renderField)}</div>
         )}
         {/* Inline add-field form — shown when this section is being edited */}
         {addingFieldTo === section.id && (
@@ -318,7 +358,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             <CoreField label="Issued"       value={fmtDate(quote.created_at)} />
             <CoreField label="Valid until"  value={quote.valid_until ? fmtDate(quote.valid_until) : "—"} />
             <CoreField label="Status"       value={<Pill label={QUOTE_STATUS[quote.status]} tone={STATUS_TONE[quote.status]} />} />
-            {renderCfCards(section)}
+            {renderCfCards(section, "inline")}
           </div>
         );
 
