@@ -46,7 +46,8 @@ const KIND_TONE: Record<Asset["kind"], PillarKey> = {
   motor: "blue", transformer: "amber", pump: "teal", generator: "green", panel: "purple",
 };
 
-type LineRow = { id: string; description: string; qty: string; rate: string };
+type SubLineRow = { id: string; description: string };
+type LineRow = { id: string; description: string; qty: string; rate: string; sub_lines: SubLineRow[] };
 
 const DRAFT_KEY = "vvcrm_quote_draft";
 
@@ -101,7 +102,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
   // Line items
   const [lines, setLines] = useState<LineRow[]>([
-    { id: "1", description: "", qty: "1", rate: "0" },
+    { id: "1", description: "", qty: "1", rate: "0", sub_lines: [] },
   ]);
 
   // Discount
@@ -193,7 +194,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     if (draft.discountType) setDiscountType(draft.discountType);
     if (draft.discountPct)  setDiscountPct(draft.discountPct);
     if (draft.discountFixed) setDiscountFixed(draft.discountFixed);
-    if (Array.isArray(draft.lines) && draft.lines.length > 0)           setLines(draft.lines);
+    if (Array.isArray(draft.lines) && draft.lines.length > 0)
+      setLines(draft.lines.map((l: LineRow) => ({ ...l, sub_lines: l.sub_lines ?? [] })));
     if (Array.isArray(draft.selectedAssetIds) && draft.selectedAssetIds.length > 0) setSelectedAssetIds(draft.selectedAssetIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -234,10 +236,24 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
   // Line handlers
-  const addLine    = () => setLines((p) => [...p, { id: String(Date.now()), description: "", qty: "1", rate: "0" }]);
+  const addLine    = () => setLines((p) => [...p, { id: String(Date.now()), description: "", qty: "1", rate: "0", sub_lines: [] }]);
   const removeLine = (id: string) => setLines((p) => p.length > 1 ? p.filter((l) => l.id !== id) : p);
-  const updateLine = (id: string, field: keyof LineRow, val: string) =>
+  const updateLine = (id: string, field: keyof Omit<LineRow, "sub_lines">, val: string) =>
     setLines((p) => p.map((l) => l.id === id ? { ...l, [field]: val } : l));
+
+  // Sub-line handlers
+  const addSubLine = (lineId: string) =>
+    setLines((p) => p.map((l) => l.id === lineId
+      ? { ...l, sub_lines: [...l.sub_lines, { id: String(Date.now()), description: "" }] }
+      : l));
+  const updateSubLine = (lineId: string, subId: string, val: string) =>
+    setLines((p) => p.map((l) => l.id === lineId
+      ? { ...l, sub_lines: l.sub_lines.map((s) => s.id === subId ? { ...s, description: val } : s) }
+      : l));
+  const removeSubLine = (lineId: string, subId: string) =>
+    setLines((p) => p.map((l) => l.id === lineId
+      ? { ...l, sub_lines: l.sub_lines.filter((s) => s.id !== subId) }
+      : l));
 
   const toggleAsset = (id: string) =>
     setSelectedAssetIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
@@ -541,15 +557,39 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {parsedLines.map((line) => (
-                <div key={line.id} style={{ display: "grid", gridTemplateColumns: "1fr 60px 120px 110px 32px", gap: 8, alignItems: "start", paddingBottom: 8, borderBottom: `1px solid ${c.line}` }}>
-                  <div>
-                    <textarea style={{ ...inp, resize: "vertical", minHeight: 58, lineHeight: 1.5 }} value={line.description} onChange={(e) => updateLine(line.id, "description", e.target.value)} placeholder="Describe the service or item…" />
-                    <button onClick={() => openCatalog(line.id)} style={{ marginTop: 4, fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ From catalog</button>
+                <div key={line.id} style={{ paddingBottom: 10, borderBottom: `1px solid ${c.line}` }}>
+                  {/* Parent line row */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 120px 110px 32px", gap: 8, alignItems: "start" }}>
+                    <div>
+                      <textarea style={{ ...inp, resize: "vertical", minHeight: 58, lineHeight: 1.5 }} value={line.description} onChange={(e) => updateLine(line.id, "description", e.target.value)} placeholder="Describe the service or item…" />
+                      <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                        <button onClick={() => openCatalog(line.id)} style={{ fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ From catalog</button>
+                        <button onClick={() => addSubLine(line.id)} style={{ fontSize: 11, color: c.muted, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>+ sub-item</button>
+                      </div>
+                    </div>
+                    <input style={{ ...inp, textAlign: "center" }} type="number" min="0" step="1" value={line.qty} onChange={(e) => updateLine(line.id, "qty", e.target.value)} />
+                    <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={line.rate} onChange={(e) => updateLine(line.id, "rate", e.target.value)} />
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink, textAlign: "right", paddingTop: 8 }}>{fmt(line.amount)}</div>
+                    <button onClick={() => removeLine(line.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove line">×</button>
                   </div>
-                  <input style={{ ...inp, textAlign: "center" }} type="number" min="0" step="1" value={line.qty} onChange={(e) => updateLine(line.id, "qty", e.target.value)} />
-                  <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={line.rate} onChange={(e) => updateLine(line.id, "rate", e.target.value)} />
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink, textAlign: "right", paddingTop: 8 }}>{fmt(line.amount)}</div>
-                  <button onClick={() => removeLine(line.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove line">×</button>
+
+                  {/* Sub-line rows */}
+                  {line.sub_lines.length > 0 && (
+                    <div style={{ marginTop: 6, paddingLeft: 16, borderLeft: `2px solid ${c.line}`, display: "flex", flexDirection: "column", gap: 4 }}>
+                      {line.sub_lines.map((sub) => (
+                        <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 10, color: c.hint, flexShrink: 0 }}>›</span>
+                          <input
+                            style={{ ...inp, padding: "5px 8px", fontSize: 12, flex: 1 }}
+                            value={sub.description}
+                            onChange={(e) => updateSubLine(line.id, sub.id, e.target.value)}
+                            placeholder="Sub-item description…"
+                          />
+                          <button onClick={() => removeSubLine(line.id, sub.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 16, cursor: "pointer", lineHeight: 1, flexShrink: 0 }} title="Remove sub-item">×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

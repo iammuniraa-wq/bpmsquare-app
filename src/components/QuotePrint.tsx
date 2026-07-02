@@ -227,15 +227,29 @@ export default function QuotePrint({ quote, account, contact, site, lines, revis
             </tr>
           </thead>
           <tbody>
-            {lines.map((line, i) => (
-              <tr key={line.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff" }}>
-                <td style={{ padding: "9px 12px 9px 28px", color: "#8a96a5", fontSize: 11 }}>{i + 1}</td>
-                <td style={{ padding: "9px 12px", fontSize: 12.5 }}>{line.description}</td>
-                <td style={{ padding: "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
-                <td style={{ padding: "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString("en-IN")}</td>
-                <td style={{ padding: "9px 28px 9px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(line.amount)}</td>
-              </tr>
-            ))}
+            {lines.map((line, i) => {
+              const hasSubs = Array.isArray(line.sub_lines) && line.sub_lines.length > 0;
+              const rowBg = i % 2 === 1 ? "#fafbfc" : "#fff";
+              return (
+                <>
+                  <tr key={line.id} style={{ background: rowBg }}>
+                    <td style={{ padding: hasSubs ? "9px 12px 4px 28px" : "9px 12px 9px 28px", color: "#8a96a5", fontSize: 11, verticalAlign: "top" }}>{i + 1}</td>
+                    <td style={{ padding: hasSubs ? "9px 12px 4px" : "9px 12px", fontSize: 12.5, fontWeight: hasSubs ? 600 : 400 }}>{line.description}</td>
+                    <td style={{ padding: hasSubs ? "9px 12px 4px" : "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12, verticalAlign: "top" }}>{line.qty}</td>
+                    <td style={{ padding: hasSubs ? "9px 12px 4px" : "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12, verticalAlign: "top" }}>{line.rate.toLocaleString("en-IN")}</td>
+                    <td style={{ padding: hasSubs ? "9px 28px 4px 12px" : "9px 28px 9px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5, verticalAlign: "top" }}>{inr(line.amount)}</td>
+                  </tr>
+                  {hasSubs && line.sub_lines!.map((sub, si) => (
+                    <tr key={sub.id} style={{ background: rowBg }}>
+                      <td style={{ padding: si === line.sub_lines!.length - 1 ? "1px 12px 9px 28px" : "1px 12px 1px 28px" }} />
+                      <td colSpan={4} style={{ padding: si === line.sub_lines!.length - 1 ? "1px 28px 9px 20px" : "1px 28px 1px 20px", fontSize: 11.5, color: "#6b7a8d" }}>
+                        <span style={{ marginRight: 6, color: "#b0bcc8" }}>›</span>{sub.description}
+                      </td>
+                    </tr>
+                  ))}
+                </>
+              );
+            })}
           </tbody>
         </table>
 
