@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
+import { cardStyle } from "@/components/Shell";
 
 type FieldType = "text" | "number" | "date" | "select" | "checkbox" | "textarea";
 
@@ -36,12 +37,38 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
 
+  // Drag-to-reorder
+  const dragId   = useRef<string | null>(null);
+  const dragOver = useRef<string | null>(null);
+  const [dragActive, setDragActive] = useState<string | null>(null);
+
   const fetchFields = useCallback(async () => {
     const res = await fetch(`/api/settings/custom-fields?object=${objectType}`);
     if (res.ok) setFields(await res.json());
   }, [objectType]);
 
   useEffect(() => { fetchFields(); }, [fetchFields]);
+
+  const handleDragEnd = async () => {
+    if (!dragId.current || !dragOver.current || dragId.current === dragOver.current) {
+      setDragActive(null); dragId.current = null; dragOver.current = null; return;
+    }
+    const reordered = [...fields];
+    const fromIdx = reordered.findIndex((f) => f.id === dragId.current);
+    const toIdx   = reordered.findIndex((f) => f.id === dragOver.current);
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const withPos = reordered.map((f, i) => ({ ...f, position: i }));
+    setFields(withPos);
+    setDragActive(null); dragId.current = null; dragOver.current = null;
+    await Promise.all(
+      withPos.map((f) => fetch(`/api/settings/custom-fields/${f.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ position: f.position }),
+      }))
+    );
+  };
 
   if (fields.length === 0) return null;
 
@@ -77,23 +104,36 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
   };
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>
-          Custom fields
+    <section style={cardStyle}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <h3 style={{ fontSize: 13, margin: 0, fontWeight: 600 }}>Custom fields</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10.5, color: c.hint }}>⠿ drag to reorder</span>
+          {saved && <span style={{ fontSize: 11, color: "#1d9e75", fontWeight: 500 }}>✓ Saved</span>}
         </div>
-        {saved && <span style={{ fontSize: 11, color: "#1d9e75", fontWeight: 500 }}>✓ Saved</span>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {fields.map((field) => {
           const isEditing = editing === field.field_key;
+          const isDragging = dragActive === field.id;
           return (
             <div
               key={field.id}
-              style={{ padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}`, cursor: isEditing ? "default" : "pointer" }}
+              draggable
+              onDragStart={() => { dragId.current = field.id; setDragActive(field.id); }}
+              onDragEnter={() => { dragOver.current = field.id; }}
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnd={handleDragEnd}
+              style={{
+                padding: "10px 12px", background: isDragging ? c.accentbg : c.panel2,
+                borderRadius: 8, border: `1px solid ${isDragging ? accent : c.line}`,
+                cursor: isEditing ? "default" : "grab", opacity: isDragging ? 0.5 : 1,
+                transition: "border-color 0.15s, background 0.15s",
+              }}
               onClick={() => !isEditing && startEdit(field)}
             >
-              <div style={{ fontSize: 10.5, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4 }}>
+              <div style={{ fontSize: 10.5, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ color: c.hint, opacity: 0.4, fontSize: 12, cursor: "grab" }}>⠿</span>
                 {field.field_label}
                 {field.is_required && <span style={{ color: "#e05252", marginLeft: 3 }}>*</span>}
               </div>
@@ -164,6 +204,6 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
