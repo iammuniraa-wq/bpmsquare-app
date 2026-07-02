@@ -227,29 +227,50 @@ export default function QuotePrint({ quote, account, contact, site, lines, revis
             </tr>
           </thead>
           <tbody>
-            {lines.map((line, i) => {
-              const hasSubs = Array.isArray(line.sub_lines) && line.sub_lines.length > 0;
-              const rowBg = i % 2 === 1 ? "#fafbfc" : "#fff";
-              return (
-                <>
-                  <tr key={line.id} style={{ background: rowBg }}>
-                    <td style={{ padding: hasSubs ? "9px 12px 4px 28px" : "9px 12px 9px 28px", color: "#8a96a5", fontSize: 11, verticalAlign: "top" }}>{i + 1}</td>
-                    <td style={{ padding: hasSubs ? "9px 12px 4px" : "9px 12px", fontSize: 12.5, fontWeight: hasSubs ? 600 : 400 }}>{line.description}</td>
-                    <td style={{ padding: hasSubs ? "9px 12px 4px" : "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12, verticalAlign: "top" }}>{line.qty}</td>
-                    <td style={{ padding: hasSubs ? "9px 12px 4px" : "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12, verticalAlign: "top" }}>{line.rate.toLocaleString("en-IN")}</td>
-                    <td style={{ padding: hasSubs ? "9px 28px 4px 12px" : "9px 28px 9px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5, verticalAlign: "top" }}>{inr(line.amount)}</td>
-                  </tr>
-                  {hasSubs && line.sub_lines!.map((sub, si) => (
-                    <tr key={sub.id} style={{ background: rowBg }}>
-                      <td style={{ padding: si === line.sub_lines!.length - 1 ? "1px 12px 9px 28px" : "1px 12px 1px 28px" }} />
-                      <td colSpan={4} style={{ padding: si === line.sub_lines!.length - 1 ? "1px 28px 9px 20px" : "1px 28px 1px 20px", fontSize: 11.5, color: "#6b7a8d" }}>
-                        <span style={{ marginRight: 6, color: "#b0bcc8" }}>›</span>{sub.description}
-                      </td>
+            {(() => {
+              // Build print rows: group headers + indented lines + standalone lines
+              const out: React.ReactNode[] = [];
+              const seenGroups = new Set<string>();
+              let lineNum = 1;
+
+              for (const line of lines) {
+                if (line.group_id) {
+                  if (!seenGroups.has(line.group_id)) {
+                    seenGroups.add(line.group_id);
+                    out.push(
+                      <tr key={`gh-${line.group_id}`} style={{ background: "#eaf2fb" }}>
+                        <td colSpan={5} style={{ padding: "7px 28px", fontWeight: 700, fontSize: 11.5, color: "#0c447c", letterSpacing: 0.3 }}>
+                          ▦ {line.group_label ?? "Group"}
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const n = lineNum++;
+                  out.push(
+                    <tr key={line.id}>
+                      <td style={{ padding: "7px 12px 7px 40px", color: "#8a96a5", fontSize: 11 }}>{n}</td>
+                      <td style={{ padding: "7px 12px 7px 8px", fontSize: 12.5 }}>{line.description}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString("en-IN")}</td>
+                      <td style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(line.amount)}</td>
                     </tr>
-                  ))}
-                </>
-              );
-            })}
+                  );
+                } else {
+                  const n = lineNum++;
+                  const i = n - 1;
+                  out.push(
+                    <tr key={line.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff" }}>
+                      <td style={{ padding: "9px 12px 9px 28px", color: "#8a96a5", fontSize: 11 }}>{n}</td>
+                      <td style={{ padding: "9px 12px", fontSize: 12.5 }}>{line.description}</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString("en-IN")}</td>
+                      <td style={{ padding: "9px 28px 9px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(line.amount)}</td>
+                    </tr>
+                  );
+                }
+              }
+              return out;
+            })()}
           </tbody>
         </table>
 

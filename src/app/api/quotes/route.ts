@@ -57,9 +57,8 @@ export async function POST(request: NextRequest) {
         qty: Math.max(0, parseFloat(l.qty) || 1),
         rate: Math.max(0, parseFloat(l.rate) || 0),
         amount: Math.max(0, parseFloat(l.qty) || 1) * Math.max(0, parseFloat(l.rate) || 0),
-        sub_lines: Array.isArray(l.sub_lines) && l.sub_lines.length > 0
-          ? l.sub_lines.filter((s: { description?: string }) => s.description?.trim()).map((s: { id: string; description: string }) => ({ id: s.id, description: String(s.description).slice(0, 300) }))
-          : null,
+        group_id:    l.group_id    ?? null,
+        group_label: l.group_label ?? null,
       }));
     if (lineRows.length > 0) {
       const { error: lErr } = await supabase.from("quote_lines").insert(lineRows);

@@ -46,8 +46,10 @@ const KIND_TONE: Record<Asset["kind"], PillarKey> = {
   motor: "blue", transformer: "amber", pump: "teal", generator: "green", panel: "purple",
 };
 
-type SubLineRow = { id: string; description: string };
-type LineRow = { id: string; description: string; qty: string; rate: string; sub_lines: SubLineRow[] };
+type LineItem = { id: string; description: string; qty: string; rate: string };
+type GroupRow = { kind: "group"; id: string; label: string; items: LineItem[] };
+type LineRow  = { kind: "line" } & LineItem;
+type Row = LineRow | GroupRow;
 
 const DRAFT_KEY = "vvcrm_quote_draft";
 
@@ -100,10 +102,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [assetPickerOpen, setAssetPickerOpen]   = useState(false);
 
-  // Line items
-  const [lines, setLines] = useState<LineRow[]>([
-    { id: "1", description: "", qty: "1", rate: "0", sub_lines: [] },
+  // Line items & groups
+  const [rows, setRows] = useState<Row[]>([
+    { kind: "line", id: "1", description: "", qty: "1", rate: "0" },
   ]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Discount
   const [discountType, setDiscountType]   = useState<"pct" | "fixed">("pct");
@@ -174,7 +177,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         if (copy.accountId) setAccountId(copy.accountId);
         if (copy.quoteName) setQuoteName(copy.quoteName);
         if (copy.notes)     setNotes(copy.notes);
-        if (Array.isArray(copy.lines) && copy.lines.length > 0) setLines(copy.lines);
+        if (Array.isArray(copy.rows)  && copy.rows.length  > 0) setRows(copy.rows);
+        else if (Array.isArray(copy.lines) && copy.lines.length > 0)
+          setRows(copy.lines.map((l: LineItem) => ({ kind: "line" as const, ...l })));
       } catch { /* malformed — ignore */ }
       return;
     }
@@ -194,8 +199,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     if (draft.discountType) setDiscountType(draft.discountType);
     if (draft.discountPct)  setDiscountPct(draft.discountPct);
     if (draft.discountFixed) setDiscountFixed(draft.discountFixed);
-    if (Array.isArray(draft.lines) && draft.lines.length > 0)
-      setLines(draft.lines.map((l: LineRow) => ({ ...l, sub_lines: l.sub_lines ?? [] })));
+    if (Array.isArray(draft.rows) && draft.rows.length > 0)
+      setRows(draft.rows);
+    else if (Array.isArray(draft.lines) && draft.lines.length > 0)
+      setRows(draft.lines.map((l: LineItem) => ({ kind: "line" as const, ...l })));
     if (Array.isArray(draft.selectedAssetIds) && draft.selectedAssetIds.length > 0) setSelectedAssetIds(draft.selectedAssetIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -206,12 +213,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       accountId, contactId, quoteName, quoteDate, validUntil,
       poNumber, poAmount, owner, notes, terms,
       discountType, discountPct, discountFixed,
-      lines, selectedAssetIds,
+      rows, selectedAssetIds,
     });
   }, [accountId, contactId, quoteName, quoteDate, validUntil,
       poNumber, poAmount, owner, notes, terms,
       discountType, discountPct, discountFixed,
-      lines, selectedAssetIds]);
+      rows, selectedAssetIds]);
 
   const accountContacts = contacts.filter((ct) => ct.account_id === accountId);
   const selectedAccount = accounts.find((a) => a.id === accountId);
@@ -220,12 +227,15 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     .map((id) => localAssets.find((a) => a.id === id))
     .filter((a): a is Asset => !!a);
 
-  const parsedLines = lines.map((l) => {
+  const allLineItems: LineItem[] = rows.flatMap((r) =>
+    r.kind === "line" ? [r] : r.items
+  );
+  const parsedLines = allLineItems.map((l) => {
     const qty  = parseFloat(l.qty) || 0;
     const rate = parseFloat(l.rate) || 0;
     return { ...l, qty, rate, amount: qty * rate };
   });
-  const subtotal   = parsedLines.reduce((s, l) => s + l.amount, 0);
+  const subtotal = parsedLines.reduce((s, l) => s + l.amount, 0);
   const discPct    = Math.max(0, Math.min(100, parseFloat(discountPct) || 0));
   const discAmount = discountType === "pct"
     ? Math.round(subtotal * discPct / 100)
@@ -235,25 +245,52 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
-  // Line handlers
-  const addLine    = () => setLines((p) => [...p, { id: String(Date.now()), description: "", qty: "1", rate: "0", sub_lines: [] }]);
-  const removeLine = (id: string) => setLines((p) => p.length > 1 ? p.filter((l) => l.id !== id) : p);
-  const updateLine = (id: string, field: keyof Omit<LineRow, "sub_lines">, val: string) =>
-    setLines((p) => p.map((l) => l.id === id ? { ...l, [field]: val } : l));
+  // ── Row / line / group handlers ─────────────────────────────────────────────
+  const newLineItem = (): LineItem => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, description: "", qty: "1", rate: "0" });
 
-  // Sub-line handlers
-  const addSubLine = (lineId: string) =>
-    setLines((p) => p.map((l) => l.id === lineId
-      ? { ...l, sub_lines: [...l.sub_lines, { id: String(Date.now()), description: "" }] }
-      : l));
-  const updateSubLine = (lineId: string, subId: string, val: string) =>
-    setLines((p) => p.map((l) => l.id === lineId
-      ? { ...l, sub_lines: l.sub_lines.map((s) => s.id === subId ? { ...s, description: val } : s) }
-      : l));
-  const removeSubLine = (lineId: string, subId: string) =>
-    setLines((p) => p.map((l) => l.id === lineId
-      ? { ...l, sub_lines: l.sub_lines.filter((s) => s.id !== subId) }
-      : l));
+  const addLine  = () => setRows((p) => [...p, { kind: "line", ...newLineItem() }]);
+  const addGroup = () => setRows((p) => [...p, { kind: "group", id: `${Date.now()}`, label: "Group", items: [newLineItem()] }]);
+
+  const removeRow = (rowId: string) => {
+    setRows((p) => { const n = p.filter((r) => r.id !== rowId); return n.length ? n : [{ kind: "line", ...newLineItem() }]; });
+    setSelectedIds((p) => { const n = new Set(p); n.delete(rowId); return n; });
+  };
+
+  const updateLine = (lineId: string, field: keyof LineItem, val: string) =>
+    setRows((p) => p.map((r) => {
+      if (r.kind === "line"  && r.id === lineId) return { ...r, [field]: val };
+      if (r.kind === "group") return { ...r, items: r.items.map((i) => i.id === lineId ? { ...i, [field]: val } : i) };
+      return r;
+    }));
+
+  const addLineToGroup    = (gid: string) => setRows((p) => p.map((r) => r.kind === "group" && r.id === gid ? { ...r, items: [...r.items, newLineItem()] } : r));
+  const removeLineFromGroup = (gid: string, lid: string) => setRows((p) => p.map((r) => {
+    if (r.kind !== "group" || r.id !== gid) return r;
+    const items = r.items.filter((i) => i.id !== lid);
+    return { ...r, items: items.length ? items : [newLineItem()] };
+  }));
+  const updateGroupLabel  = (gid: string, label: string) => setRows((p) => p.map((r) => r.kind === "group" && r.id === gid ? { ...r, label } : r));
+  const ungroup           = (gid: string) => setRows((p) => p.flatMap((r) => r.kind === "group" && r.id === gid ? r.items.map((i): Row => ({ kind: "line", ...i })) : [r]));
+
+  const toggleSelect = (lid: string) => setSelectedIds((p) => { const n = new Set(p); n.has(lid) ? n.delete(lid) : n.add(lid); return n; });
+
+  const groupSelected = () => {
+    if (selectedIds.size < 2) return;
+    const gid = `${Date.now()}`;
+    const groupItems: LineItem[] = [];
+    let insertAt = -1;
+    const rest: Row[] = [];
+    rows.forEach((r, i) => {
+      if (r.kind === "line" && selectedIds.has(r.id)) {
+        if (insertAt === -1) insertAt = i - groupItems.length;
+        groupItems.push({ id: r.id, description: r.description, qty: r.qty, rate: r.rate });
+      } else { rest.push(r); }
+    });
+    const group: GroupRow = { kind: "group", id: gid, label: "Group", items: groupItems };
+    rest.splice(Math.max(0, insertAt), 0, group);
+    setRows(rest);
+    setSelectedIds(new Set());
+  };
 
   const toggleAsset = (id: string) =>
     setSelectedAssetIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
@@ -288,7 +325,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           valid_until: null,
           notes,
           terms,
-          lines,
+          lines: rows.flatMap((r) =>
+            r.kind === "line"
+              ? [{ ...r, group_id: null, group_label: null }]
+              : r.items.map((i) => ({ ...i, group_id: r.id, group_label: r.label }))
+          ),
         }),
       });
       const json = await res.json();
@@ -542,58 +583,109 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
           {/* Line items */}
           <section style={cardStyle}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            {/* Toolbar */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
               <h3 style={{ ...sectionTitle, margin: 0 }}>Line items</h3>
-              <button onClick={addLine} style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
-                + Add line
-              </button>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                {selectedIds.size >= 2 && (
+                  <button onClick={groupSelected} style={{ fontSize: 12, fontWeight: 600, color: "#0c447c", background: "#e6f1fb", border: "1px solid #c5dbf5", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+                    ▦ Group selected ({selectedIds.size})
+                  </button>
+                )}
+                <button onClick={addGroup} style={{ fontSize: 12, fontWeight: 600, color: c.muted, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+                  + Add group
+                </button>
+                <button onClick={addLine} style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+                  + Add line
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 120px 110px 32px", gap: 8, marginBottom: 6 }}>
-              {["Description", "Qty", "Rate (₹)", "Amount", ""].map((h) => (
+            {/* Column headers — only shown above standalone lines */}
+            <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 60px 120px 110px 32px", gap: 8, marginBottom: 6 }}>
+              {["", "Description", "Qty", "Rate (₹)", "Amount", ""].map((h) => (
                 <div key={h} style={{ fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</div>
               ))}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {parsedLines.map((line) => (
-                <div key={line.id} style={{ paddingBottom: 10, borderBottom: `1px solid ${c.line}` }}>
-                  {/* Parent line row */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 120px 110px 32px", gap: 8, alignItems: "start" }}>
-                    <div>
-                      <textarea style={{ ...inp, resize: "vertical", minHeight: 58, lineHeight: 1.5 }} value={line.description} onChange={(e) => updateLine(line.id, "description", e.target.value)} placeholder="Describe the service or item…" />
-                      <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                        <button onClick={() => openCatalog(line.id)} style={{ fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ From catalog</button>
-                        <button onClick={() => addSubLine(line.id)} style={{ fontSize: 11, color: c.muted, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>+ sub-item</button>
+              {rows.map((row) => {
+                if (row.kind === "line") {
+                  const qty = parseFloat(row.qty) || 0;
+                  const rate = parseFloat(row.rate) || 0;
+                  const amount = qty * rate;
+                  const sel = selectedIds.has(row.id);
+                  return (
+                    <div key={row.id} style={{ display: "grid", gridTemplateColumns: "20px 1fr 60px 120px 110px 32px", gap: 8, alignItems: "start", paddingBottom: 8, borderBottom: `1px solid ${c.line}`, background: sel ? c.accentbg : "transparent", borderRadius: sel ? 6 : 0, padding: sel ? "4px 6px 8px" : "0 0 8px" }}>
+                      <div style={{ paddingTop: 10 }}>
+                        <input type="checkbox" checked={sel} onChange={() => toggleSelect(row.id)} style={{ width: 13, height: 13, accentColor: c.accent, cursor: "pointer" }} />
                       </div>
+                      <div>
+                        <textarea style={{ ...inp, resize: "vertical", minHeight: 58, lineHeight: 1.5 }} value={row.description} onChange={(e) => updateLine(row.id, "description", e.target.value)} placeholder="Describe the service or item…" />
+                        <button onClick={() => openCatalog(row.id)} style={{ marginTop: 4, fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ From catalog</button>
+                      </div>
+                      <input style={{ ...inp, textAlign: "center" }} type="number" min="0" step="1" value={row.qty} onChange={(e) => updateLine(row.id, "qty", e.target.value)} />
+                      <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={row.rate} onChange={(e) => updateLine(row.id, "rate", e.target.value)} />
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink, textAlign: "right", paddingTop: 8 }}>{fmt(amount)}</div>
+                      <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove">×</button>
                     </div>
-                    <input style={{ ...inp, textAlign: "center" }} type="number" min="0" step="1" value={line.qty} onChange={(e) => updateLine(line.id, "qty", e.target.value)} />
-                    <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={line.rate} onChange={(e) => updateLine(line.id, "rate", e.target.value)} />
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink, textAlign: "right", paddingTop: 8 }}>{fmt(line.amount)}</div>
-                    <button onClick={() => removeLine(line.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove line">×</button>
-                  </div>
+                  );
+                }
 
-                  {/* Sub-line rows */}
-                  {line.sub_lines.length > 0 && (
-                    <div style={{ marginTop: 6, paddingLeft: 16, borderLeft: `2px solid ${c.line}`, display: "flex", flexDirection: "column", gap: 4 }}>
-                      {line.sub_lines.map((sub) => (
-                        <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 10, color: c.hint, flexShrink: 0 }}>›</span>
-                          <input
-                            style={{ ...inp, padding: "5px 8px", fontSize: 12, flex: 1 }}
-                            value={sub.description}
-                            onChange={(e) => updateSubLine(line.id, sub.id, e.target.value)}
-                            placeholder="Sub-item description…"
-                          />
-                          <button onClick={() => removeSubLine(line.id, sub.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 16, cursor: "pointer", lineHeight: 1, flexShrink: 0 }} title="Remove sub-item">×</button>
-                        </div>
+                // Group row
+                const groupTotal = row.items.reduce((s, i) => s + (parseFloat(i.qty) || 0) * (parseFloat(i.rate) || 0), 0);
+                return (
+                  <div key={row.id} style={{ border: `1px solid ${c.accent}40`, borderLeft: `3px solid ${c.accent}`, borderRadius: 8, background: `${c.accent}06`, padding: "10px 12px", marginBottom: 2 }}>
+                    {/* Group header */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <span style={{ fontSize: 12, color: c.accent }}>▦</span>
+                      <input
+                        value={row.label}
+                        onChange={(e) => updateGroupLabel(row.id, e.target.value)}
+                        style={{ flex: 1, fontSize: 13, fontWeight: 600, border: "none", background: "transparent", color: c.ink, outline: "none", borderBottom: `1px dashed ${c.line}`, padding: "2px 0" }}
+                        placeholder="Group name…"
+                      />
+                      <button onClick={() => ungroup(row.id)} style={{ fontSize: 11, color: c.muted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", whiteSpace: "nowrap" }}>Ungroup</button>
+                      <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", lineHeight: 1 }} title="Delete group">×</button>
+                    </div>
+
+                    {/* Column headers inside group */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 120px 110px 32px", gap: 8, marginBottom: 4, paddingLeft: 4 }}>
+                      {["Description", "Qty", "Rate (₹)", "Amount", ""].map((h) => (
+                        <div key={h} style={{ fontSize: 10, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</div>
                       ))}
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* Group line items */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {row.items.map((item) => {
+                        const qty = parseFloat(item.qty) || 0;
+                        const rate = parseFloat(item.rate) || 0;
+                        const amount = qty * rate;
+                        return (
+                          <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 60px 120px 110px 32px", gap: 8, alignItems: "start", paddingBottom: 6, borderBottom: `1px solid ${c.accent}20` }}>
+                            <div>
+                              <textarea style={{ ...inp, resize: "vertical", minHeight: 48, lineHeight: 1.5, fontSize: 12.5 }} value={item.description} onChange={(e) => updateLine(item.id, "description", e.target.value)} placeholder="Line description…" />
+                              <button onClick={() => openCatalog(item.id)} style={{ marginTop: 3, fontSize: 10.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ Catalog</button>
+                            </div>
+                            <input style={{ ...inp, textAlign: "center", fontSize: 12.5 }} type="number" min="0" step="1" value={item.qty} onChange={(e) => updateLine(item.id, "qty", e.target.value)} />
+                            <input style={{ ...inp, textAlign: "right", fontSize: 12.5 }} type="number" min="0" step="100" value={item.rate} onChange={(e) => updateLine(item.id, "rate", e.target.value)} />
+                            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, textAlign: "right", paddingTop: 8 }}>{fmt(amount)}</div>
+                            <button onClick={() => removeLineFromGroup(row.id, item.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 16, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove line">×</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Group footer */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, paddingTop: 6 }}>
+                      <button onClick={() => addLineToGroup(row.id)} style={{ fontSize: 11.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Add line to group</button>
+                      <span style={{ fontSize: 12, color: c.muted }}>Group total: <strong style={{ color: c.ink, marginLeft: 4 }}>{fmt(groupTotal)}</strong></span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {lines.length === 0 && <div style={{ textAlign: "center", padding: "24px 0", color: c.hint, fontSize: 13 }}>No lines yet — click + Add line</div>}
           </section>
 
           {/* Notes */}
@@ -736,7 +828,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           </section>
 
           <div style={{ fontSize: 11.5, color: c.hint, textAlign: "center" }}>
-            {parsedLines.filter((l) => l.amount > 0).length} of {lines.length} line{lines.length !== 1 ? "s" : ""} have values
+            {parsedLines.filter((l) => l.amount > 0).length} of {allLineItems.length} line{allLineItems.length !== 1 ? "s" : ""} have values
           </div>
         </div>
       </div>

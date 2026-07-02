@@ -89,11 +89,6 @@ export type QuoteRevision = {
   description: string;
 };
 
-export type QuoteSubLine = {
-  id: string;
-  description: string;
-};
-
 export type QuoteLine = {
   id: string;
   quote_id: string;
@@ -101,7 +96,8 @@ export type QuoteLine = {
   qty: number;
   rate: number;
   amount: number;
-  sub_lines?: QuoteSubLine[] | null;
+  group_id?: string | null;
+  group_label?: string | null;
 };
 
 export type WorkOrderStatus =
