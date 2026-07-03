@@ -157,9 +157,31 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [savePending, startSave]          = useTransition();
   const [hasDraft, setHasDraft]           = useState(false);
 
+  // Case carry-over
+  type CaseSource = { caseId: string; caseRef: string; accountId: string; findings: string; recommendations: string; estimatedCost: number | null };
+  const [caseSource, setCaseSource] = useState<CaseSource | null>(null);
+  const [carryoverDismissed, setCarryoverDismissed] = useState(false);
+
   useEffect(() => {
     setHasDraft(!!sessionStorage.getItem(DRAFT_KEY));
+    try {
+      const raw = sessionStorage.getItem("vvcrm_quote_source");
+      if (raw) {
+        sessionStorage.removeItem("vvcrm_quote_source");
+        setCaseSource(JSON.parse(raw) as CaseSource);
+      }
+    } catch { /* ignore */ }
   }, []);
+
+  function applyCarryover() {
+    if (!caseSource) return;
+    setAccountId(caseSource.accountId);
+    const parts: string[] = [];
+    if (caseSource.findings) parts.push(`Findings:\n${caseSource.findings}`);
+    if (caseSource.recommendations) parts.push(`Recommendations:\n${caseSource.recommendations}`);
+    setNotes(parts.join("\n\n"));
+    setCarryoverDismissed(true);
+  }
 
   const quoteRef = useMemo(() => {
     const n = 160 + Math.floor(Math.random() * 30);
@@ -386,6 +408,31 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           <div style={{ fontSize: 12.5, color: c.muted, marginTop: 3, fontFamily: "monospace" }}>{quoteRef} · Draft</div>
         </div>
       </div>
+
+      {/* Case carry-over banner */}
+      {caseSource && !carryoverDismissed && (
+        <div style={{
+          marginBottom: 14, background: "#eef4ff", border: "1px solid #bfdbfe",
+          borderLeft: "3px solid #378ADD", borderRadius: 8, padding: "12px 16px",
+        }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: "#1e3a5f", marginBottom: 6 }}>
+            Creating quotation from case {caseSource.caseRef}
+          </div>
+          <div style={{ fontSize: 12, color: "#3a5a80", marginBottom: 10 }}>
+            Carry over inspection findings to the quotation notes, and pre-select the account?
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" onClick={applyCarryover}
+              style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#378ADD", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>
+              Yes, carry over
+            </button>
+            <button type="button" onClick={() => setCarryoverDismissed(true)}
+              style={{ fontSize: 12, fontWeight: 500, color: "#3a5a80", background: "none", border: "1px solid #bfdbfe", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>
+              Start fresh
+            </button>
+          </div>
+        </div>
+      )}
 
       {hasDraft && (
         <div style={{

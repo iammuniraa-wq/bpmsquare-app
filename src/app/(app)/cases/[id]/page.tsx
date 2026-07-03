@@ -183,55 +183,37 @@ export default async function CaseDetailPage({
         </span>
       </div>
 
-      {/* Stage timeline */}
+      {/* Stage progress track */}
       {!isExit && (
-        <div style={{ ...cardStyle, marginBottom: 12, padding: "14px 18px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 0, overflowX: "auto" }}>
-            {STAGE_GROUPS.map((group, gi) => {
-              const groupIdxes = group.statuses.map((s) => stageIndex(s));
-              const minIdx = Math.min(...groupIdxes);
-              const maxIdx = Math.max(...groupIdxes);
-              const isDone    = currentIdx > maxIdx;
-              const isCurrent = currentIdx >= minIdx && currentIdx <= maxIdx;
+        <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 0, overflowX: "auto", padding: "2px 0" }}>
+          {STAGE_GROUPS.map((group, gi) => {
+            const groupIdxes = group.statuses.map((s) => stageIndex(s));
+            const minIdx = Math.min(...groupIdxes);
+            const maxIdx = Math.max(...groupIdxes);
+            const isDone    = currentIdx > maxIdx;
+            const isCurrent = currentIdx >= minIdx && currentIdx <= maxIdx;
+            const prevDone  = gi === 0 || currentIdx > STAGE_GROUPS[gi - 1].statuses.map(s => stageIndex(s)).reduce((a,b)=>Math.max(a,b));
 
-              const dotColor = isDone ? "#1d9e75" : isCurrent ? "#378ADD" : c.line;
-              const dotBg    = isDone ? "#e1f5ee" : isCurrent ? "#e6f1fb" : "#f4f6f9";
-              const labelColor = isDone ? "#04342c" : isCurrent ? "#0c447c" : c.hint;
-
-              return (
-                <div key={group.label} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                  {/* connector line before each group (except first) */}
-                  {gi > 0 && (
-                    <div style={{
-                      width: 32, height: 2,
-                      background: currentIdx > STAGE_GROUPS[gi - 1].statuses.map(s => stageIndex(s)).reduce((a,b)=>Math.max(a,b))
-                        ? "#1d9e75" : c.line,
-                      flexShrink: 0,
-                    }} />
-                  )}
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: "50%",
-                      background: dotBg,
-                      border: `2px solid ${dotColor}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: isDone ? 14 : 11, color: dotColor, fontWeight: 700,
-                    }}>
-                      {isDone ? "✓" : gi + 1}
-                    </div>
-                    <div style={{ fontSize: 10, color: labelColor, fontWeight: isCurrent ? 700 : 500, whiteSpace: "nowrap" }}>
-                      {group.label}
-                    </div>
-                    {isCurrent && (
-                      <div style={{ fontSize: 9, color: "#378ADD", fontWeight: 600, background: "#e6f1fb", borderRadius: 3, padding: "1px 5px" }}>
-                        Now
-                      </div>
-                    )}
+            return (
+              <div key={group.label} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                {gi > 0 && (
+                  <div style={{ width: 24, height: 2, background: prevDone ? "#1d9e75" : c.line, flexShrink: 0 }} />
+                )}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: isDone ? "#1d9e75" : isCurrent ? "#378ADD" : c.line,
+                  }} />
+                  <div style={{
+                    fontSize: 10, fontWeight: isCurrent ? 700 : 400, whiteSpace: "nowrap",
+                    color: isDone ? "#1d9e75" : isCurrent ? "#378ADD" : c.hint,
+                  }}>
+                    {group.label}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
