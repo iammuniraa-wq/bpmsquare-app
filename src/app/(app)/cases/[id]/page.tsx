@@ -12,6 +12,7 @@ import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import CustomFieldsSection from "@/components/CustomFieldsSection";
 import CaseActions from "@/components/CaseActions";
+import CaseInfoHeader from "@/components/CaseInfoHeader";
 
 // ── Stage timeline config ─────────────────────────────────────────────────────
 
@@ -135,6 +136,26 @@ export default async function CaseDetailPage({
         {sc.disposition === "scrap"   && <Pill label="Scrapped" tone="red" />}
       </div>
 
+      {/* Collapsed info header */}
+      <CaseInfoHeader
+        accountId={sc.account_id}
+        accountName={account?.name ?? "—"}
+        accountCity={account?.city ?? null}
+        accountPhone={account?.phone ?? null}
+        accountEmail={account?.email ?? null}
+        contactName={contact?.name ?? null}
+        contactRole={contact?.role ?? null}
+        contactPhone={contact?.phone ?? null}
+        equipmentLabel={sc.equipment_label}
+        technicianName={technician?.name ?? null}
+        intakeAt={sc.intake_at}
+        closedAt={sc.closed_at}
+        complaint={sc.complaint}
+        notes={sc.notes ?? null}
+        loanerName={loanerAsset?.name ?? null}
+        contractRef={contract?.ref ?? null}
+      />
+
       {/* Action bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
         {quote && (
@@ -243,247 +264,102 @@ export default async function CaseDetailPage({
         inspectionPhotos={photosByStage.inspection}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 260px", gap: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-        {/* ── Left column ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Complaint */}
+        <section style={cardStyle}>
+          <SectionHeading>Complaint</SectionHeading>
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{sc.complaint}</p>
+          {sc.notes && (
+            <p style={{ margin: "10px 0 0", fontSize: 12, color: c.muted, lineHeight: 1.6, borderTop: `1px solid ${c.line}`, paddingTop: 10 }}>
+              <strong style={{ color: c.ink }}>Note: </strong>{sc.notes}
+            </p>
+          )}
+        </section>
 
-          {/* Complaint */}
+        {/* Photos — intake */}
+        {photosByStage.intake.length > 0 && (
+          <PhotoSection title="Intake photos" photos={photosByStage.intake} />
+        )}
+
+        {/* Inspection report */}
+        {inspectionReport && (
           <section style={cardStyle}>
-            <SectionHeading>Complaint</SectionHeading>
-            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{sc.complaint}</p>
-            {sc.notes && (
-              <p style={{ margin: "10px 0 0", fontSize: 12, color: c.muted, lineHeight: 1.6, borderTop: `1px solid ${c.line}`, paddingTop: 10 }}>
-                <strong style={{ color: c.ink }}>Note: </strong>{sc.notes}
-              </p>
-            )}
-          </section>
-
-          {/* Photos — intake */}
-          {photosByStage.intake.length > 0 && (
-            <PhotoSection title="Intake photos" photos={photosByStage.intake} />
-          )}
-
-          {/* Inspection report */}
-          {inspectionReport && (
-            <section style={cardStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <SectionHeading>Inspection report</SectionHeading>
-                <Pill label={irStatusLabel[inspectionReport.status]} tone={irStatusTone[inspectionReport.status]} />
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: c.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>
-                  Findings
-                </div>
-                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: c.ink }}>{inspectionReport.findings}</p>
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: c.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>
-                  Recommendations
-                </div>
-                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: c.ink }}>{inspectionReport.recommendations}</p>
-              </div>
-
-              <div style={{ display: "flex", gap: 20, paddingTop: 10, borderTop: `1px solid ${c.line}`, flexWrap: "wrap" }}>
-                {inspectionReport.estimated_cost != null && (
-                  <MiniDetail label="Estimated cost" value={inr(inspectionReport.estimated_cost)} />
-                )}
-                {inspectionReport.sent_at && (
-                  <MiniDetail label="Sent" value={fmtDateTime(inspectionReport.sent_at)} />
-                )}
-                {inspectionReport.approved_at && (
-                  <MiniDetail label="Approved" value={fmtDateTime(inspectionReport.approved_at)} />
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* Inspection photos */}
-          {photosByStage.inspection.length > 0 && (
-            <PhotoSection title="Inspection photos" photos={photosByStage.inspection} />
-          )}
-
-          {/* Sub-cases */}
-          {subCases.length > 0 && (
-            <section style={cardStyle}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <SectionHeading>Sub-cases ({subCases.length})</SectionHeading>
-              </div>
-              {subCases.map((sub, i) => (
-                <div key={sub.id} style={{
-                  padding: "10px 0",
-                  borderTop: i === 0 ? "none" : `1px solid ${c.line}`,
-                  display: "flex", alignItems: "flex-start", gap: 10,
-                }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
-                      <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12.5, color: c.ink }}>{sub.ref}</span>
-                      <Pill label={CASE_STATUS_LABEL[sub.status]} tone={statusTone[sub.status]} />
-                    </div>
-                    <div style={{ fontSize: 12, color: c.muted, lineHeight: 1.45 }}>
-                      {sub.complaint.length > 100 ? sub.complaint.slice(0, 100) + "…" : sub.complaint}
-                    </div>
-                  </div>
-                  <Link
-                    href={ROUTES.case(sub.id)}
-                    style={{
-                      fontSize: 11, fontWeight: 600, color: c.accent, textDecoration: "none",
-                      background: c.accentbg, borderRadius: 6, padding: "3px 8px", flexShrink: 0,
-                    }}
-                  >
-                    Open →
-                  </Link>
-                </div>
-              ))}
-            </section>
-          )}
-
-          {/* Linked quote */}
-          {quote && (
-            <section style={cardStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <SectionHeading>Quotation</SectionHeading>
-                <Pill
-                  label={QUOTE_STATUS_LABEL[quote.status]}
-                  tone={quote.status === "approved" ? "teal" : quote.status === "sent" ? "amber" : "blue"}
-                />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontFamily: "monospace", color: c.accent, fontSize: 14 }}>{quote.ref}</div>
-                  <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
-                    Rev. {quote.revision} · Valid until {quote.valid_until ? fmtDate(quote.valid_until) : "—"}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: c.ink }}>
-                    {"₹" + quote.total.toLocaleString("en-IN")}
-                  </div>
-                  <div style={{ marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                    <Link href={ROUTES.quotation(quote.id)} style={{ fontSize: 12, color: c.accent }}>
-                      View quote →
-                    </Link>
-                    <Link href={ROUTES.quotationPrint(quote.id)} target="_blank" rel="noopener" style={{ fontSize: 12, color: c.muted }}>
-                      PDF ↗
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Final photos */}
-          {photosByStage.final.length > 0 && (
-            <PhotoSection title="Final / delivery photos" photos={photosByStage.final} />
-          )}
-        </div>
-
-        {/* ── Right sidebar ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-          {/* Account */}
-          <section style={cardStyle}>
-            <SectionHeading>Account</SectionHeading>
-            {account && (
-              <>
-                <Link
-                  href={ROUTES.account(account.id)}
-                  style={{ fontSize: 14, fontWeight: 600, color: c.accent, display: "block", marginBottom: 6 }}
-                >
-                  {account.name}
-                </Link>
-                {account.city  && <SideDetail label="City"  value={account.city} />}
-                {account.phone && <SideDetail label="Phone" value={account.phone} />}
-                {account.email && <SideDetail label="Email" value={account.email} />}
-              </>
-            )}
-            {contact && (
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.line}` }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: c.hint, marginBottom: 4 }}>CONTACT</div>
-                <div style={{ fontWeight: 600, fontSize: 12.5 }}>{contact.name}</div>
-                {contact.role  && <div style={{ fontSize: 12, color: c.muted }}>{contact.role}</div>}
-                {contact.phone && <SideDetail label="Phone" value={contact.phone} />}
-                {contact.email && <SideDetail label="Email" value={contact.email} />}
-              </div>
-            )}
-          </section>
-
-          {/* Equipment */}
-          <section style={cardStyle}>
-            <SectionHeading>Equipment</SectionHeading>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{sc.equipment_label}</div>
-            {asset && (
-              <>
-                <SideDetail label="Kind"   value={asset.kind.charAt(0).toUpperCase() + asset.kind.slice(1)} />
-                {asset.rating && <SideDetail label="Rating" value={asset.rating} />}
-                {asset.serial && <SideDetail label="Serial" value={asset.serial} />}
-              </>
-            )}
-          </section>
-
-          {/* Loaner */}
-          {loanerAsset && (
-            <section style={{ ...cardStyle, borderLeft: `3px solid ${pillar.amber.base}`, background: pillar.amber.bg }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <SectionHeading>Loaner dispatched</SectionHeading>
-                <Pill label="On Loan" tone="amber" />
-              </div>
-              <div style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{loanerAsset.name}</div>
-              {loanerAsset.rating && (
-                <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>{loanerAsset.rating}</div>
-              )}
-              {loanerAsset.serial && (
-                <div style={{ fontSize: 11, color: c.hint, marginTop: 2, fontFamily: "monospace" }}>S/N {loanerAsset.serial}</div>
-              )}
-              <div style={{ fontSize: 11.5, color: pillar.amber.base, marginTop: 8, fontWeight: 500 }}>
-                Return on delivery of repaired unit
-              </div>
-            </section>
-          )}
-
-          {/* Technician */}
-          <section style={cardStyle}>
-            <SectionHeading>Assigned to</SectionHeading>
-            {technician ? (
-              <>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{technician.name}</div>
-                {technician.skills && (
-                  <div style={{ fontSize: 12, color: c.muted, marginTop: 3 }}>{technician.skills}</div>
-                )}
-              </>
-            ) : (
-              <div style={{ color: c.hint, fontSize: 12 }}>Not yet assigned</div>
-            )}
-          </section>
-
-          {/* AMC contract */}
-          {contract && (
-            <section style={cardStyle}>
-              <SectionHeading>AMC contract</SectionHeading>
-              <div style={{ fontWeight: 600, fontFamily: "monospace", fontSize: 13, color: c.accent }}>{contract.ref}</div>
-              <Pill label={contract.status.charAt(0).toUpperCase() + contract.status.slice(1)} tone={contract.status === "active" ? "teal" : "red"} />
-              {contract.end_date && (
-                <div style={{ marginTop: 6 }}>
-                  <SideDetail label="Valid until" value={fmtDate(contract.end_date)} />
-                </div>
-              )}
-              {contract.value != null && (
-                <SideDetail label="AMC value" value={inr(contract.value)} />
-              )}
-            </section>
-          )}
-
-          {/* Case timeline */}
-          <section style={cardStyle}>
-            <SectionHeading>Timeline</SectionHeading>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <TimelineRow label="Intake"  value={fmtDateTime(sc.intake_at)} />
-              {sc.closed_at && <TimelineRow label="Closed" value={fmtDateTime(sc.closed_at)} />}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <SectionHeading>Inspection report</SectionHeading>
+              <Pill label={irStatusLabel[inspectionReport.status]} tone={irStatusTone[inspectionReport.status]} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: c.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>Findings</div>
+              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: c.ink }}>{inspectionReport.findings}</p>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: c.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>Recommendations</div>
+              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: c.ink }}>{inspectionReport.recommendations}</p>
+            </div>
+            <div style={{ display: "flex", gap: 20, paddingTop: 10, borderTop: `1px solid ${c.line}`, flexWrap: "wrap" }}>
+              {inspectionReport.estimated_cost != null && <MiniDetail label="Estimated cost" value={inr(inspectionReport.estimated_cost)} />}
+              {inspectionReport.sent_at     && <MiniDetail label="Sent"     value={fmtDateTime(inspectionReport.sent_at)} />}
+              {inspectionReport.approved_at && <MiniDetail label="Approved" value={fmtDateTime(inspectionReport.approved_at)} />}
             </div>
           </section>
-        </div>
+        )}
+
+        {/* Inspection photos */}
+        {photosByStage.inspection.length > 0 && (
+          <PhotoSection title="Inspection photos" photos={photosByStage.inspection} />
+        )}
+
+        {/* Sub-cases */}
+        {subCases.length > 0 && (
+          <section style={cardStyle}>
+            <SectionHeading>Sub-cases ({subCases.length})</SectionHeading>
+            {subCases.map((sub, i) => (
+              <div key={sub.id} style={{ padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${c.line}`, display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
+                    <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12.5, color: c.ink }}>{sub.ref}</span>
+                    <Pill label={CASE_STATUS_LABEL[sub.status]} tone={statusTone[sub.status]} />
+                  </div>
+                  <div style={{ fontSize: 12, color: c.muted, lineHeight: 1.45 }}>
+                    {sub.complaint.length > 100 ? sub.complaint.slice(0, 100) + "…" : sub.complaint}
+                  </div>
+                </div>
+                <Link href={ROUTES.case(sub.id)} style={{ fontSize: 11, fontWeight: 600, color: c.accent, textDecoration: "none", background: c.accentbg, borderRadius: 6, padding: "3px 8px", flexShrink: 0 }}>
+                  Open →
+                </Link>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* Linked quote */}
+        {quote && (
+          <section style={cardStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <SectionHeading>Quotation</SectionHeading>
+              <Pill label={QUOTE_STATUS_LABEL[quote.status]} tone={quote.status === "approved" ? "teal" : quote.status === "sent" ? "amber" : "blue"} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontFamily: "monospace", color: c.accent, fontSize: 14 }}>{quote.ref}</div>
+                <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>Rev. {quote.revision} · Valid until {quote.valid_until ? fmtDate(quote.valid_until) : "—"}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: c.ink }}>{"₹" + quote.total.toLocaleString("en-IN")}</div>
+                <div style={{ marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <Link href={ROUTES.quotation(quote.id)} style={{ fontSize: 12, color: c.accent }}>View quote →</Link>
+                  <Link href={ROUTES.quotationPrint(quote.id)} target="_blank" rel="noopener" style={{ fontSize: 12, color: c.muted }}>PDF ↗</Link>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Final photos */}
+        {photosByStage.final.length > 0 && (
+          <PhotoSection title="Final / delivery photos" photos={photosByStage.final} />
+        )}
       </div>
 
       <CustomFieldsSection
