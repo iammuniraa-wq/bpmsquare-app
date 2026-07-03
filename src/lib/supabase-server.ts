@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 /**
  * True when Supabase env vars are present. The first build slice runs on seed
@@ -49,6 +50,16 @@ export async function requireTenantUser(): Promise<{
 
   return { supabase, tenantId: tu.tenant_id as string, userId: user.id };
 }
+
+/**
+ * Per-request cached getUser — React cache() deduplicates across multiple
+ * callers in the same render (AppLayout + getTenant no longer make 2 auth calls).
+ */
+export const getAuthUser = cache(async () => {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+});
 
 export async function createServerSupabase() {
   const cookieStore = await cookies();

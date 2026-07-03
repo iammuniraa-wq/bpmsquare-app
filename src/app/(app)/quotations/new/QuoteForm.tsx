@@ -409,7 +409,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           {/* Account & Contact */}
           <section style={cardStyle}>
             <h3 style={sectionTitle}>Account & Contact</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fg2">
               <div>
                 <span style={lbl}>Account *</span>
                 <select
@@ -441,7 +441,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           <section style={cardStyle}>
             <h3 style={sectionTitle}>Quote details</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 190px", gap: 14 }}>
+              <div className="fg2">
                 <div>
                   <span style={lbl}>Quote name</span>
                   <input style={inp} value={quoteName} onChange={(e) => setQuoteName(e.target.value)} placeholder="e.g. Annual maintenance — Pump rewinding" />
@@ -451,7 +451,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   <input style={inp} value={owner} onChange={(e) => setOwner(e.target.value)} />
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+              <div className="fg3">
                 <div>
                   <span style={lbl}>Reference</span>
                   <input style={{ ...inp, color: c.muted, background: c.panel2 }} value={quoteRef} readOnly />
@@ -465,7 +465,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   <input style={inp} type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div className="fg2">
                 <div>
                   <span style={lbl}>Customer PO no.</span>
                   <input style={inp} value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="PO-2026-XXXX" />

@@ -2,11 +2,10 @@ import { redirect } from "next/navigation";
 import Shell from "@/components/Shell";
 import { getTenant, isPlatformAdmin } from "@/lib/tenant";
 import { TenantProvider } from "@/lib/tenant-context";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getAuthUser } from "@/lib/supabase-server";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
 
   // Not logged in at all
   if (!user) redirect("/login");
