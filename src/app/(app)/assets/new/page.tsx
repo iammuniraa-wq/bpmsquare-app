@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
@@ -30,6 +30,8 @@ type AccountOption = { id: string; name: string };
 
 export default function NewAssetPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillAccountId = searchParams.get("account_id") ?? "";
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
@@ -37,7 +39,7 @@ export default function NewAssetPage() {
   const [form, setForm] = useState({
     name: "", kind: "motor", make: "", model: "",
     rating: "", serial: "", notes: "",
-    account_id: "", is_loaner: false,
+    account_id: prefillAccountId, is_loaner: false,
   });
 
   useEffect(() => {

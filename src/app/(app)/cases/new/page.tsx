@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -29,6 +29,8 @@ type Opt = { id: string; name: string };
 
 export default function NewCasePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillAccountId = searchParams.get("account_id") ?? "";
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
@@ -37,7 +39,7 @@ export default function NewCasePage() {
   const [technicians, setTechs] = useState<Opt[]>([]);
 
   const [form, setForm] = useState({
-    account_id: "", type: "adhoc", equipment_label: "",
+    account_id: prefillAccountId, type: "adhoc", equipment_label: "",
     complaint: "", asset_id: "", assigned_to: "",
   });
 

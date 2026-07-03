@@ -24,13 +24,13 @@ const sectionTitle: React.CSSProperties = {
   textTransform: "uppercase", letterSpacing: 0.6, margin: "0 0 12px",
 };
 
-export default function NewContactForm({ accounts }: { accounts: Account[] }) {
+export default function NewContactForm({ accounts, defaultAccountId }: { accounts: Account[]; defaultAccountId?: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
-    account_id: accounts[0]?.id ?? "",
+    account_id: defaultAccountId || accounts[0]?.id || "",
     name: "", role: "",
     phone: "", phone2: "", phone3: "",
     email: "", email2: "",

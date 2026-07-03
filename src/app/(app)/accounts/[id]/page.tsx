@@ -243,7 +243,7 @@ export default async function AccountHubPage({
 
             {/* Contacts preview */}
             <section style={cardStyle}>
-              <SectionHead icon="◉" label="Contacts" count={hub.contacts.length} newHref={`${ROUTES.contactNew}?account_id=${id}`} newLabel="New contact" />
+              <SectionHead icon="◉" label="Contacts" count={hub.contacts.length} />
               {hub.contacts.length === 0
                 ? <div style={{ fontSize: 12.5, color: c.hint, paddingTop: 8 }}>No contacts yet</div>
                 : hub.contacts.slice(0, 5).map((ct) => (
@@ -269,7 +269,7 @@ export default async function AccountHubPage({
 
             {/* Assets preview */}
             <section style={cardStyle}>
-              <SectionHead icon="⚙" label="Assets" count={hub.assets.length} newHref={`${ROUTES.assetNew}?account_id=${id}`} newLabel="New asset" />
+              <SectionHead icon="⚙" label="Assets" count={hub.assets.length} />
               {hub.assets.length === 0
                 ? <div style={{ fontSize: 12.5, color: c.hint, paddingTop: 8 }}>No assets yet</div>
                 : hub.assets.slice(0, 5).map((a) => (
@@ -295,7 +295,7 @@ export default async function AccountHubPage({
 
             {/* Cases preview */}
             <section style={cardStyle}>
-              <SectionHead icon="☎" label="Cases" count={hub.cases.length} meta={openCases.length > 0 ? `${openCases.length} open` : undefined} newHref={`${ROUTES.caseNew}?account_id=${id}`} newLabel="New case" />
+              <SectionHead icon="☎" label="Cases" count={hub.cases.length} meta={openCases.length > 0 ? `${openCases.length} open` : undefined} />
               {hub.cases.length === 0
                 ? <div style={{ fontSize: 12.5, color: c.hint, paddingTop: 8 }}>No cases yet</div>
                 : hub.cases.slice(0, 5).map((sc) => (
@@ -323,7 +323,7 @@ export default async function AccountHubPage({
             {/* Quotations preview */}
             {hub.quotes.length > 0 && (
               <section style={cardStyle}>
-                <SectionHead icon="₹" label="Quotations" count={hub.quotes.length} meta={quotationTotal > 0 ? fmtINR(quotationTotal) : undefined} newHref={ROUTES.quotationNew} newLabel="New quotation" />
+                <SectionHead icon="₹" label="Quotations" count={hub.quotes.length} meta={quotationTotal > 0 ? fmtINR(quotationTotal) : undefined} />
                 {hub.quotes.slice(0, 3).map((q) => (
                   <RecordRow key={q.id}>
                     <div style={{ flex: 1, minWidth: 0 }}>
