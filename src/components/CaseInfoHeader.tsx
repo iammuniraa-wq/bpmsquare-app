@@ -24,9 +24,6 @@ type Props = {
   contractRef: string | null;
 };
 
-const fmtDate = (s: string) =>
-  new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
 const fmtDateTime = (s: string) =>
   new Date(s).toLocaleString("en-IN", {
     day: "2-digit", month: "short", year: "numeric",
@@ -41,6 +38,14 @@ export default function CaseInfoHeader({
 }: Props) {
   const [open, setOpen] = useState(false);
 
+  // Summary chips shown in collapsed state
+  const chips = [
+    { icon: "▣", label: accountName },
+    equipmentLabel ? { icon: "⚙", label: equipmentLabel } : null,
+    technicianName ? { icon: "◑", label: technicianName } : null,
+    loanerName     ? { icon: "↔", label: `Loaner: ${loanerName}` } : null,
+  ].filter(Boolean) as { icon: string; label: string }[];
+
   return (
     <div style={{
       background: c.panel,
@@ -49,53 +54,94 @@ export default function CaseInfoHeader({
       marginBottom: 12,
       overflow: "hidden",
     }}>
-      {/* ── Collapsed strip ── */}
+      {/* Toggle button — always visible */}
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(v => !v)}
         style={{
-          width: "100%", display: "flex", alignItems: "center",
-          gap: 0, padding: "10px 14px",
-          background: "none", border: "none", cursor: "pointer",
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 14px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
           textAlign: "left",
         }}
       >
-        {/* Key facts as chips */}
-        <div style={{ flex: 1, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          <Chip icon="▣" label={accountName} href={ROUTES.account(accountId)} accent />
-          <Sep />
-          <Chip icon="⚙" label={equipmentLabel.length > 40 ? equipmentLabel.slice(0, 40) + "…" : equipmentLabel} />
-          <Sep />
-          <Chip icon="◑" label={technicianName ?? "Unassigned"} muted={!technicianName} />
-          <Sep />
-          <Chip icon="📅" label={fmtDate(intakeAt)} muted />
-          {loanerName && <><Sep /><Chip icon="⟳" label="Loaner out" warn /></>}
-          {contractRef && <><Sep /><Chip icon="▥" label="AMC" /></>}
-        </div>
+        {/* Label */}
+        <span style={{ fontSize: 11, fontWeight: 700, color: c.accent, textTransform: "uppercase", letterSpacing: 0.8, flexShrink: 0 }}>
+          Overview
+        </span>
+
+        {/* Chips — hidden on mobile when collapsed to keep header slim */}
+        {!open && (
+          <span
+            className="mob-hide"
+            style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, overflow: "hidden" }}
+          >
+            {chips.map((chip, i) => (
+              <span key={i} style={{
+                fontSize: 11.5, color: c.muted, display: "flex", alignItems: "center", gap: 3,
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>
+                {i > 0 && <span style={{ color: c.hint, margin: "0 2px" }}>·</span>}
+                <span style={{ color: c.hint }}>{chip.icon}</span>
+                {chip.label}
+              </span>
+            ))}
+          </span>
+        )}
+
+        {/* Complaint preview on mobile (collapsed) */}
+        {!open && (
+          <span
+            className="mob-show"
+            style={{
+              flex: 1, fontSize: 11.5, color: c.muted,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}
+          >
+            {complaint.length > 60 ? complaint.slice(0, 60) + "…" : complaint}
+          </span>
+        )}
+
+        {/* Chevron */}
         <span style={{
-          fontSize: 14, color: c.hint, marginLeft: 10, flexShrink: 0,
+          flexShrink: 0,
+          marginLeft: "auto",
+          fontSize: 13,
+          color: c.hint,
           transform: open ? "rotate(180deg)" : "rotate(0deg)",
-          transition: "transform .15s",
-          display: "inline-block",
-        }}>▾</span>
+          transition: "transform 0.18s",
+          lineHeight: 1,
+        }}>
+          ▾
+        </span>
       </button>
 
-      {/* ── Expanded detail ── */}
+      {/* Expanded content */}
       {open && (
-        <div style={{ borderTop: `1px solid ${c.line}`, padding: "14px 16px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
+        <div style={{ borderTop: `1px solid ${c.line}` }}>
+          {/* Case description — full width */}
+          <div style={{ padding: "14px 16px 0" }}>
+            <FieldLabel>Case description</FieldLabel>
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{complaint}</p>
+            {notes && (
+              <p style={{ margin: "6px 0 0", fontSize: 12, color: c.muted, lineHeight: 1.6 }}>
+                <strong style={{ color: c.ink }}>Note: </strong>{notes}
+              </p>
+            )}
+          </div>
 
-            {/* Complaint */}
-            <div style={{ gridColumn: "1 / -1" }}>
-              <FieldLabel>Complaint</FieldLabel>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{complaint}</p>
-              {notes && (
-                <p style={{ margin: "6px 0 0", fontSize: 12, color: c.muted, lineHeight: 1.6 }}>
-                  <strong style={{ color: c.ink }}>Note: </strong>{notes}
-                </p>
-              )}
-            </div>
-
+          {/* Detail grid */}
+          <div style={{
+            padding: "14px 16px",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gap: 16,
+          }}>
             {/* Account */}
             <div>
               <FieldLabel>Account</FieldLabel>
@@ -111,27 +157,35 @@ export default function CaseInfoHeader({
             </div>
 
             {/* Contact */}
-            {contactName && (
-              <div>
-                <FieldLabel>Contact</FieldLabel>
-                <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{contactName}</div>
-                {contactRole  && <div style={{ fontSize: 12, color: c.muted }}>{contactRole}</div>}
-                {contactPhone && <FieldRow label="Phone" value={contactPhone} />}
+            <div>
+              <FieldLabel>Contact</FieldLabel>
+              {contactName ? (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{contactName}</div>
+                  {contactRole  && <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>{contactRole}</div>}
+                  {contactPhone && <FieldRow label="Phone" value={contactPhone} />}
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: c.hint }}>—</div>
+              )}
+            </div>
+
+            {/* Owner */}
+            <div>
+              <FieldLabel>Owner</FieldLabel>
+              <div style={{
+                fontSize: 13,
+                color: technicianName ? c.ink : c.hint,
+                fontWeight: technicianName ? 600 : 400,
+              }}>
+                {technicianName ?? "Not yet assigned"}
               </div>
-            )}
+            </div>
 
             {/* Equipment */}
             <div>
               <FieldLabel>Equipment</FieldLabel>
               <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, lineHeight: 1.5 }}>{equipmentLabel}</div>
-            </div>
-
-            {/* Technician */}
-            <div>
-              <FieldLabel>Assigned to</FieldLabel>
-              <div style={{ fontSize: 13, color: technicianName ? c.ink : c.hint, fontWeight: technicianName ? 600 : 400 }}>
-                {technicianName ?? "Not yet assigned"}
-              </div>
             </div>
 
             {/* Timeline */}
@@ -164,28 +218,12 @@ export default function CaseInfoHeader({
   );
 }
 
-function Chip({ icon, label, href, accent, muted, warn }: {
-  icon: string; label: string; href?: string;
-  accent?: boolean; muted?: boolean; warn?: boolean;
-}) {
-  const color = accent ? c.accent : warn ? "#ba7517" : muted ? c.hint : c.ink;
-  const content = (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12.5, color }}>
-      <span style={{ fontSize: 11 }}>{icon}</span>
-      <span style={{ fontWeight: accent ? 700 : 500 }}>{label}</span>
-    </span>
-  );
-  if (href) return <Link href={href} style={{ textDecoration: "none" }}>{content}</Link>;
-  return content;
-}
-
-function Sep() {
-  return <span style={{ color: c.line, fontSize: 14, userSelect: "none" }}>·</span>;
-}
-
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 10.5, fontWeight: 700, color: c.accent, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 5 }}>
+    <div style={{
+      fontSize: 10.5, fontWeight: 700, color: c.accent,
+      textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 5,
+    }}>
       {children}
     </div>
   );

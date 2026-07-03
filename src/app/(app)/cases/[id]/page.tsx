@@ -266,17 +266,6 @@ export default async function CaseDetailPage({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-        {/* Complaint */}
-        <section style={cardStyle}>
-          <SectionHeading>Complaint</SectionHeading>
-          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{sc.complaint}</p>
-          {sc.notes && (
-            <p style={{ margin: "10px 0 0", fontSize: 12, color: c.muted, lineHeight: 1.6, borderTop: `1px solid ${c.line}`, paddingTop: 10 }}>
-              <strong style={{ color: c.ink }}>Note: </strong>{sc.notes}
-            </p>
-          )}
-        </section>
-
         {/* Photos — intake */}
         {photosByStage.intake.length > 0 && (
           <PhotoSection title="Intake photos" photos={photosByStage.intake} />
