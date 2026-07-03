@@ -207,9 +207,9 @@ export const leads: Lead[] = [
 ];
 
 export const quotes: Quote[] = [
-  { id: "qt_krishna", account_id: "acc_krishna", ref: "QT-2026-0148", status: "approved", total: 86500,  created_at: "2026-06-11", valid_until: "2026-07-11", revision: 2, notes: "Price includes pickup and delivery within Hosapete. Additional copper surcharge may apply if current copper rate exceeds ₹750/kg. Payment: 50% advance, balance on delivery." },
-  { id: "qt_hpsteel", account_id: "acc_hpsteel", ref: "QT-2026-0152", status: "sent",     total: 142000, created_at: "2026-06-15", valid_until: "2026-07-15", revision: 1, notes: "Rotor balancing to IS 11723 G2.5 standard. HV withstand test certificate provided on completion. Payment: 40% advance, 60% against delivery." },
-  { id: "qt_bharat",  account_id: "acc_bharat",  ref: "QT-2026-0155", status: "draft",    total: 48500,  created_at: "2026-06-17", valid_until: "2026-07-17", revision: 1, notes: null },
+  { id: "qt_krishna", account_id: "acc_krishna", ref: "QT-2026-0148", type: "repair", status: "approved", total: 86500,  created_at: "2026-06-11", valid_until: "2026-07-11", revision: 2, notes: "Price includes pickup and delivery within Hosapete. Additional copper surcharge may apply if current copper rate exceeds ₹750/kg. Payment: 50% advance, balance on delivery." },
+  { id: "qt_hpsteel", account_id: "acc_hpsteel", ref: "QT-2026-0152", type: "repair", status: "sent",     total: 142000, created_at: "2026-06-15", valid_until: "2026-07-15", revision: 1, notes: "Rotor balancing to IS 11723 G2.5 standard. HV withstand test certificate provided on completion. Payment: 40% advance, 60% against delivery." },
+  { id: "qt_bharat",  account_id: "acc_bharat",  ref: "QT-2026-0155", type: "repair", status: "draft",    total: 48500,  created_at: "2026-06-17", valid_until: "2026-07-17", revision: 1, notes: null },
 ];
 
 export const quoteRevisions: QuoteRevision[] = [

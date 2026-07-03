@@ -104,6 +104,43 @@ export const NAV: NavGroup[] = [
   },
 ];
 
+// ── Quote type registry ───────────────────────────────────────────────────────
+// Add a new entry here to register a new quote type. No DB change needed.
+// When the form for that type is built, set `available: true`.
+
+export const QUOTE_TYPES = [
+  {
+    id:          "repair",
+    label:       "Repair Quotation",
+    description: "Labour, materials, testing & transport for motor / transformer repair",
+    icon:        "⚙",
+    available:   true,
+  },
+  {
+    id:          "supply",
+    label:       "Supply Quotation",
+    description: "Sale of motors, parts or equipment — with HSN codes and GST per line",
+    icon:        "📦",
+    available:   true,
+  },
+  {
+    id:          "amc",
+    label:       "AMC Contract",
+    description: "Annual maintenance coverage, visit schedule and equipment list",
+    icon:        "▥",
+    available:   false,
+  },
+  {
+    id:          "installation",
+    label:       "Installation",
+    description: "Civil, electrical, commissioning and site-specific scope",
+    icon:        "⚡",
+    available:   false,
+  },
+] as const;
+
+export type QuoteTypeId = typeof QUOTE_TYPES[number]["id"];
+
 export const MOBILE_BREAKPOINT = 780;
 export const WORKSPACE_NAME = "Vikas Pioneers workspace";
 

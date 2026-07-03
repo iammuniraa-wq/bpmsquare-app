@@ -72,6 +72,7 @@ export type Quote = {
   id: string;
   account_id: string;
   ref: string;
+  type: string;
   status: "draft" | "sent" | "approved" | "rejected";
   total: number;
   created_at: string;

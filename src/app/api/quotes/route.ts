@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { account_id, ref, total, valid_until, notes, terms, lines, selected_option_id } = body;
+  const { account_id, ref, type, total, valid_until, notes, terms, lines, selected_option_id, meta } = body;
 
   if (!account_id || !ref) {
     return NextResponse.json({ error: "account_id and ref are required" }, { status: 400 });
@@ -35,12 +35,14 @@ export async function POST(request: NextRequest) {
       tenant_id: tenantId,
       account_id,
       ref,
+      type: type ?? "repair",
       status: "draft",
       total: total ?? 0,
       valid_until: valid_until || null,
       notes: [notes, terms].filter(Boolean).join("\n\n") || null,
       revision: 1,
       selected_option_id: selected_option_id ?? null,
+      meta: meta ?? null,
     })
     .select("id, ref")
     .single();

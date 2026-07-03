@@ -357,6 +357,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         body: JSON.stringify({
           account_id: accountId,
           ref: quoteRef,
+          type: "repair",
           total,
           valid_until: null,
           notes,
