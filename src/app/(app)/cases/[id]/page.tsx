@@ -262,17 +262,18 @@ export default async function CaseDetailPage({
         accountId={sc.account_id}
         intakePhotos={photosByStage.intake}
         inspectionPhotos={photosByStage.inspection}
+        intakeNotes={sc.notes ?? null}
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-        {/* Photos — intake */}
-        {photosByStage.intake.length > 0 && (
+        {/* Intake photos — only shown after inspection stage (earlier stages handle them inline) */}
+        {photosByStage.intake.length > 0 && sc.status !== "intake" && sc.status !== "inspection" && (
           <PhotoSection title="Intake photos" photos={photosByStage.intake} />
         )}
 
-        {/* Inspection report */}
-        {inspectionReport && (
+        {/* Inspection report — only show as read-only after inspection stage is done */}
+        {inspectionReport && sc.status !== "inspection" && (
           <section style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <SectionHeading>Inspection report</SectionHeading>
@@ -294,8 +295,8 @@ export default async function CaseDetailPage({
           </section>
         )}
 
-        {/* Inspection photos */}
-        {photosByStage.inspection.length > 0 && (
+        {/* Inspection photos — only shown after inspection stage */}
+        {photosByStage.inspection.length > 0 && sc.status !== "inspection" && (
           <PhotoSection title="Inspection photos" photos={photosByStage.inspection} />
         )}
 

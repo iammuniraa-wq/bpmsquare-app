@@ -26,11 +26,14 @@ type Props = {
   accountId: string;
   intakePhotos: CasePhoto[];
   inspectionPhotos: CasePhoto[];
+  intakeNotes: string | null;
 };
 
-const btn: React.CSSProperties = {
-  padding: "10px 16px", borderRadius: 8, border: "none",
-  background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13,
+// ── Shared styles ─────────────────────────────────────────────────────────────
+
+const btnPrimary: React.CSSProperties = {
+  padding: "11px 20px", borderRadius: 8, border: "none",
+  background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13.5,
   cursor: "pointer", width: "100%",
 };
 
@@ -41,9 +44,16 @@ const btnSecondary: React.CSSProperties = {
   cursor: "pointer", width: "100%",
 };
 
+const btnGhost: React.CSSProperties = {
+  padding: "6px 12px", borderRadius: 6,
+  border: `1px solid ${c.line}`, background: "none",
+  color: c.muted, fontWeight: 600, fontSize: 12,
+  cursor: "pointer",
+};
+
 const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11.5, fontWeight: 600,
-  color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,
+  display: "block", fontSize: 11, fontWeight: 700,
+  color: c.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6,
 };
 
 const inp: React.CSSProperties = {
@@ -54,23 +64,124 @@ const inp: React.CSSProperties = {
 
 const fw: React.CSSProperties = { marginBottom: 14 };
 
+const card: React.CSSProperties = {
+  background: c.panel,
+  border: `1px solid ${c.line}`,
+  borderLeft: `3px solid ${c.accent}`,
+  borderRadius: 10,
+  padding: "16px 18px",
+  marginBottom: 12,
+};
+
+const sectionTitle: React.CSSProperties = {
+  fontSize: 11, fontWeight: 700, color: c.accent,
+  textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 14,
+};
+
+const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+
+// ── Intake reference (collapsed, for use during inspection) ───────────────────
+
+function IntakeReference({ notes, photos }: { notes: string | null; photos: CasePhoto[] }) {
+  const [open, setOpen] = useState(false);
+  const hasContent = notes || photos.length > 0;
+  if (!hasContent) return null;
+
+  return (
+    <div style={{
+      background: "#f8fafc",
+      border: `1px solid ${c.line}`,
+      borderRadius: 10,
+      marginBottom: 12,
+      overflow: "hidden",
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "10px 14px", background: "none", border: "none", cursor: "pointer",
+        }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 700, color: c.muted, textTransform: "uppercase", letterSpacing: 0.7 }}>
+          📋 Intake reference {photos.length > 0 ? `· ${photos.length} photo${photos.length > 1 ? "s" : ""}` : ""}
+        </span>
+        <span style={{ color: c.hint, fontSize: 13, transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ borderTop: `1px solid ${c.line}`, padding: "12px 14px" }}>
+          {notes && (
+            <div style={{ marginBottom: photos.length > 0 ? 12 : 0 }}>
+              <div style={{ ...lbl, color: c.muted }}>Notes from intake</div>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{notes}</p>
+            </div>
+          )}
+          {photos.length > 0 && (
+            <div>
+              <div style={{ ...lbl, color: c.muted }}>Intake photos</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
+                {photos.map((photo) => (
+                  <a key={photo.id} href={photo.url} target="_blank" rel="noopener noreferrer"
+                    style={{ borderRadius: 6, overflow: "hidden", border: `1px solid ${c.line}`, display: "block" }}>
+                    <img src={photo.url} alt={photo.caption || "Intake photo"}
+                      style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover", display: "block" }} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Read-only inspection report view ─────────────────────────────────────────
+
+function InspectionReportView({
+  report, onEdit,
+}: {
+  report: NonNullable<InspectionReportProps>;
+  onEdit: () => void;
+}) {
+  return (
+    <div style={{ ...card, borderLeftColor: "#6c6bd4" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ ...sectionTitle, marginBottom: 0 }}>Inspection report · Draft saved</div>
+        <button type="button" onClick={onEdit} style={btnGhost}>✏ Edit</button>
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <div style={lbl}>Findings</div>
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{report.findings}</p>
+      </div>
+      <div style={{ marginBottom: report.estimated_cost != null ? 12 : 0 }}>
+        <div style={lbl}>Recommendations</div>
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{report.recommendations}</p>
+      </div>
+      {report.estimated_cost != null && (
+        <div style={{ paddingTop: 10, borderTop: `1px solid ${c.line}` }}>
+          <span style={{ fontSize: 12, color: c.muted }}>Estimated cost: </span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>{inr(report.estimated_cost)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function CaseActions({
-  caseId,
-  currentStatus,
-  notes,
-  inspectionReport,
-  intakePhotos,
-  inspectionPhotos,
+  caseId, currentStatus, notes, inspectionReport,
+  intakePhotos, inspectionPhotos, intakeNotes,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-
-  // Notes state (used in intake + in_repair stages)
   const [localNotes, setLocalNotes] = useState(notes ?? "");
+  const [notesSaved, setNotesSaved] = useState(false);
 
-  // Inspection report state
+  // Inspection report form state
+  const [editing, setEditing] = useState(!inspectionReport); // open form if no draft yet
   const [findings, setFindings] = useState(inspectionReport?.findings ?? "");
   const [recommendations, setRecommendations] = useState(inspectionReport?.recommendations ?? "");
   const [estimatedCost, setEstimatedCost] = useState<string>(
@@ -85,39 +196,42 @@ export default function CaseActions({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       });
-      if (res.ok) {
-        onSuccess?.();
-        router.refresh();
-      } else {
-        const j = await res.json();
-        setError(j.error ?? "Action failed");
-      }
+      if (res.ok) { onSuccess?.(); router.refresh(); }
+      else { const j = await res.json(); setError(j.error ?? "Action failed"); }
     });
   }
 
   function saveNotes() {
-    patchCase({ notes: localNotes });
+    setError("");
+    startTransition(async () => {
+      const res = await fetch(`/api/cases/${caseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: localNotes }),
+      });
+      if (res.ok) { setNotesSaved(true); router.refresh(); }
+      else { const j = await res.json(); setError(j.error ?? "Failed to save"); }
+    });
   }
 
   function postInspectionReport(action: "save" | "send") {
     setError("");
+    if (!findings.trim() || !recommendations.trim()) {
+      setError("Findings and recommendations are required.");
+      return;
+    }
     startTransition(async () => {
       const res = await fetch(`/api/cases/${caseId}/inspection-report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          findings,
-          recommendations,
+          findings, recommendations,
           estimated_cost: estimatedCost !== "" ? Number(estimatedCost) : null,
           action,
         }),
       });
-      if (res.ok) {
-        router.refresh();
-      } else {
-        const j = await res.json();
-        setError(j.error ?? "Failed to save report");
-      }
+      if (res.ok) { setEditing(false); router.refresh(); }
+      else { const j = await res.json(); setError(j.error ?? "Failed to save report"); }
     });
   }
 
@@ -126,63 +240,48 @@ export default function CaseActions({
     router.push(ROUTES.quotationNew);
   }
 
-  const panelStyle: React.CSSProperties = {
-    background: c.panel,
-    border: `1px solid ${c.line}`,
-    borderLeft: `3px solid ${c.accent}`,
-    borderRadius: 10,
-    padding: "16px 18px",
-    marginBottom: 12,
-  };
-
-  const panelTitle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 700, color: c.accent,
-    textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12,
-  };
-
   const errorBox = error ? (
     <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "#dc2626", marginTop: 10 }}>
       {error}
     </div>
   ) : null;
 
-  // ── "intake" stage ────────────────────────────────────────────────────────
+  // ── INTAKE ──────────────────────────────────────────────────────────────────
 
   if (currentStatus === "intake") {
     return (
-      <div style={panelStyle}>
-        <div style={panelTitle}>Intake actions</div>
+      <div style={card}>
+        <div style={sectionTitle}>Intake</div>
+
         <div style={fw}>
           <label style={lbl}>Internal notes</label>
           <textarea
             style={{ ...inp, minHeight: 80, resize: "vertical" }}
             value={localNotes}
-            onChange={(e) => setLocalNotes(e.target.value)}
-            placeholder="Add intake notes, condition on arrival, accessories received…"
+            onChange={(e) => { setLocalNotes(e.target.value); setNotesSaved(false); }}
+            placeholder="Condition on arrival, accessories received, customer remarks…"
           />
         </div>
-        <div style={{ marginBottom: 12 }}>
+
+        <div style={{ marginBottom: 16 }}>
           <button style={btnSecondary} onClick={saveNotes} disabled={pending} type="button">
-            {pending ? "Saving…" : "Save notes"}
+            {pending ? "Saving…" : notesSaved ? "✓ Saved" : "Save notes"}
           </button>
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ ...lbl, marginBottom: 8 }}>Intake photos</label>
-          <PhotoUploader
-            caseId={caseId}
-            stage="intake"
-            existingPhotos={intakePhotos}
-            onUploaded={() => router.refresh()}
-          />
+
+        <div style={fw}>
+          <label style={lbl}>Intake photos</label>
+          <PhotoUploader caseId={caseId} stage="intake" existingPhotos={intakePhotos} onUploaded={() => router.refresh()} />
         </div>
-        <div style={{ marginTop: 12 }}>
+
+        <div style={{ marginTop: 4 }}>
           <button
-            style={{ ...btn, fontSize: 14 }}
+            style={{ ...btnPrimary, background: "#1d9e75" }}
             onClick={() => patchCase({ status: "inspection" })}
             disabled={pending}
             type="button"
           >
-            {pending ? "…" : "→ Start Inspection"}
+            {pending ? "…" : "Done — Start Inspection →"}
           </button>
         </div>
         {errorBox}
@@ -190,99 +289,119 @@ export default function CaseActions({
     );
   }
 
-  // ── "inspection" stage ────────────────────────────────────────────────────
+  // ── INSPECTION ──────────────────────────────────────────────────────────────
 
   if (currentStatus === "inspection") {
+    const hasDraft = !!inspectionReport && !editing;
+    const canSend  = !!inspectionReport;
+
     return (
-      <div style={panelStyle}>
-        <div style={panelTitle}>Inspection report</div>
-        <div style={fw}>
-          <label style={lbl}>Findings *</label>
-          <textarea
-            style={{ ...inp, minHeight: 80, resize: "vertical" }}
-            value={findings}
-            onChange={(e) => setFindings(e.target.value)}
-            placeholder="Describe what was found during inspection…"
+      <div>
+        {/* Intake reference for technician */}
+        <IntakeReference notes={intakeNotes} photos={intakePhotos} />
+
+        {/* Report: view mode or edit form */}
+        {hasDraft ? (
+          <InspectionReportView
+            report={inspectionReport!}
+            onEdit={() => setEditing(true)}
           />
-        </div>
-        <div style={fw}>
-          <label style={lbl}>Recommendations *</label>
-          <textarea
-            style={{ ...inp, minHeight: 80, resize: "vertical" }}
-            value={recommendations}
-            onChange={(e) => setRecommendations(e.target.value)}
-            placeholder="Recommended repair actions…"
-          />
-        </div>
-        <div style={fw}>
-          <label style={lbl}>Estimated cost (₹, optional)</label>
-          <input
-            style={inp}
-            type="number"
-            min={0}
-            value={estimatedCost}
-            onChange={(e) => setEstimatedCost(e.target.value)}
-            placeholder="e.g. 15000"
-          />
-        </div>
-        <div style={{ marginBottom: 4 }}>
-          <label style={{ ...lbl, marginBottom: 8 }}>Inspection photos</label>
-          <PhotoUploader
-            caseId={caseId}
-            stage="inspection"
-            existingPhotos={inspectionPhotos}
-            onUploaded={() => router.refresh()}
-          />
-        </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <button
-            style={{ ...btnSecondary, flex: 1 }}
-            onClick={() => postInspectionReport("save")}
-            disabled={pending}
-            type="button"
-          >
-            {pending ? "Saving…" : "Save draft"}
-          </button>
-          <button
-            style={{ ...btn, flex: 1 }}
-            onClick={() => postInspectionReport("send")}
-            disabled={pending}
-            type="button"
-          >
-            {pending ? "…" : "Send to customer →"}
-          </button>
-        </div>
-        {errorBox}
+        ) : (
+          <div style={card}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ ...sectionTitle, marginBottom: 0 }}>
+                {inspectionReport ? "Edit inspection report" : "Inspection report"}
+              </div>
+              {inspectionReport && (
+                <button type="button" onClick={() => setEditing(false)} style={btnGhost}>Cancel</button>
+              )}
+            </div>
+
+            <div style={fw}>
+              <label style={lbl}>Findings *</label>
+              <textarea
+                style={{ ...inp, minHeight: 90, resize: "vertical" }}
+                value={findings}
+                onChange={(e) => setFindings(e.target.value)}
+                placeholder="What was found during inspection…"
+              />
+            </div>
+            <div style={fw}>
+              <label style={lbl}>Recommendations *</label>
+              <textarea
+                style={{ ...inp, minHeight: 90, resize: "vertical" }}
+                value={recommendations}
+                onChange={(e) => setRecommendations(e.target.value)}
+                placeholder="Recommended repair actions…"
+              />
+            </div>
+            <div style={fw}>
+              <label style={lbl}>Estimated cost (₹, optional)</label>
+              <input
+                style={inp} type="number" min={0}
+                value={estimatedCost}
+                onChange={(e) => setEstimatedCost(e.target.value)}
+                placeholder="e.g. 14999"
+              />
+            </div>
+
+            <div style={{ marginBottom: 4 }}>
+              <label style={lbl}>Inspection photos</label>
+              <PhotoUploader caseId={caseId} stage="inspection" existingPhotos={inspectionPhotos} onUploaded={() => router.refresh()} />
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <button
+                style={btnSecondary}
+                onClick={() => postInspectionReport("save")}
+                disabled={pending}
+                type="button"
+              >
+                {pending ? "Saving…" : "Save draft"}
+              </button>
+            </div>
+            {errorBox}
+          </div>
+        )}
+
+        {/* Send to customer — only shown when a draft exists, outside the form */}
+        {canSend && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button
+              style={btnPrimary}
+              onClick={() => postInspectionReport("send")}
+              disabled={pending}
+              type="button"
+            >
+              {pending ? "…" : "Send report to customer →"}
+            </button>
+            <button
+              style={btnSecondary}
+              onClick={navigateToNewQuotation}
+              type="button"
+            >
+              Skip report — Create Quotation →
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
-  // ── "report_sent" stage ───────────────────────────────────────────────────
+  // ── REPORT SENT ─────────────────────────────────────────────────────────────
 
   if (currentStatus === "report_sent") {
     return (
-      <div style={panelStyle}>
-        <div style={panelTitle}>Awaiting customer approval</div>
-        <div style={{
-          background: c.accentbg, borderRadius: 8, padding: "12px 14px",
-          fontSize: 13, color: "#0c447c", marginBottom: 14,
-        }}>
-          Waiting for customer to approve the inspection report
+      <div style={card}>
+        <div style={sectionTitle}>Awaiting customer approval</div>
+        <div style={{ background: c.accentbg, borderRadius: 8, padding: "12px 14px", fontSize: 13, color: "#0c447c", marginBottom: 14 }}>
+          Report sent to customer. Waiting for approval.
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <button
-            style={btn}
-            onClick={() => patchCase({ status: "report_approved" })}
-            disabled={pending}
-            type="button"
-          >
+          <button style={btnPrimary} onClick={() => patchCase({ status: "report_approved" })} disabled={pending} type="button">
             {pending ? "…" : "Customer approved →"}
           </button>
-          <button
-            style={btnSecondary}
-            onClick={navigateToNewQuotation}
-            type="button"
-          >
+          <button style={btnSecondary} onClick={navigateToNewQuotation} type="button">
             Create Quotation →
           </button>
         </div>
@@ -291,27 +410,18 @@ export default function CaseActions({
     );
   }
 
-  // ── "report_approved" stage ───────────────────────────────────────────────
+  // ── REPORT APPROVED ─────────────────────────────────────────────────────────
 
   if (currentStatus === "report_approved") {
     return (
-      <div style={panelStyle}>
-        <div style={panelTitle}>Report approved</div>
+      <div style={card}>
+        <div style={sectionTitle}>Report approved</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <button
-            style={btn}
-            onClick={navigateToNewQuotation}
-            type="button"
-          >
+          <button style={btnPrimary} onClick={navigateToNewQuotation} type="button">
             Create Quotation →
           </button>
-          <button
-            style={btnSecondary}
-            onClick={() => patchCase({ status: "in_repair" })}
-            disabled={pending}
-            type="button"
-          >
-            {pending ? "…" : "Start Repair →"}
+          <button style={btnSecondary} onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
+            {pending ? "…" : "Skip quote — Start Repair →"}
           </button>
         </div>
         {errorBox}
@@ -319,18 +429,13 @@ export default function CaseActions({
     );
   }
 
-  // ── "quote_sent" / "quote_approved" stages ────────────────────────────────
+  // ── QUOTE SENT / APPROVED ───────────────────────────────────────────────────
 
   if (currentStatus === "quote_sent" || currentStatus === "quote_approved") {
     return (
-      <div style={panelStyle}>
-        <div style={panelTitle}>{currentStatus === "quote_sent" ? "Quote sent" : "Quote approved"}</div>
-        <button
-          style={btn}
-          onClick={() => patchCase({ status: "in_repair" })}
-          disabled={pending}
-          type="button"
-        >
+      <div style={card}>
+        <div style={sectionTitle}>{currentStatus === "quote_sent" ? "Quote sent — awaiting approval" : "Quote approved"}</div>
+        <button style={btnPrimary} onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
           {pending ? "…" : "Start Repair →"}
         </button>
         {errorBox}
@@ -338,32 +443,27 @@ export default function CaseActions({
     );
   }
 
-  // ── "in_repair" stage ─────────────────────────────────────────────────────
+  // ── IN REPAIR ───────────────────────────────────────────────────────────────
 
   if (currentStatus === "in_repair") {
     return (
-      <div style={panelStyle}>
-        <div style={panelTitle}>In repair</div>
+      <div style={card}>
+        <div style={sectionTitle}>In repair</div>
         <div style={fw}>
-          <label style={lbl}>Internal notes</label>
+          <label style={lbl}>Repair notes</label>
           <textarea
             style={{ ...inp, minHeight: 80, resize: "vertical" }}
             value={localNotes}
-            onChange={(e) => setLocalNotes(e.target.value)}
-            placeholder="Repair progress notes…"
+            onChange={(e) => { setLocalNotes(e.target.value); setNotesSaved(false); }}
+            placeholder="Repair progress, parts replaced…"
           />
         </div>
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 14 }}>
           <button style={btnSecondary} onClick={saveNotes} disabled={pending} type="button">
-            {pending ? "Saving…" : "Save notes"}
+            {pending ? "Saving…" : notesSaved ? "✓ Saved" : "Save notes"}
           </button>
         </div>
-        <button
-          style={btn}
-          onClick={() => patchCase({ status: "qa" })}
-          disabled={pending}
-          type="button"
-        >
+        <button style={{ ...btnPrimary, background: "#6c6bd4" }} onClick={() => patchCase({ status: "qa" })} disabled={pending} type="button">
           {pending ? "…" : "Move to QA →"}
         </button>
         {errorBox}
@@ -371,76 +471,64 @@ export default function CaseActions({
     );
   }
 
-  // ── "qa" stage ────────────────────────────────────────────────────────────
+  // ── QA ──────────────────────────────────────────────────────────────────────
 
   if (currentStatus === "qa") {
     return (
-      <div style={panelStyle}>
-        <div style={panelTitle}>Quality assurance</div>
-        <button
-          style={btn}
-          onClick={() => patchCase({ status: "ready" })}
-          disabled={pending}
-          type="button"
-        >
-          {pending ? "…" : "Mark Ready →"}
-        </button>
+      <div style={card}>
+        <div style={sectionTitle}>Quality assurance</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <button style={{ ...btnPrimary, background: "#1d9e75" }} onClick={() => patchCase({ status: "ready" })} disabled={pending} type="button">
+            {pending ? "…" : "QA passed — Mark Ready →"}
+          </button>
+          <button style={btnSecondary} onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
+            {pending ? "…" : "Failed — Back to Repair"}
+          </button>
+        </div>
         {errorBox}
       </div>
     );
   }
 
-  // ── "ready" stage ─────────────────────────────────────────────────────────
+  // ── READY ────────────────────────────────────────────────────────────────────
 
   if (currentStatus === "ready") {
     return (
-      <div style={panelStyle}>
-        <div style={panelTitle}>Ready for pickup</div>
-        <button
-          style={{ ...btn, background: "#1d9e75" }}
-          onClick={() => patchCase({ status: "closed" })}
-          disabled={pending}
-          type="button"
-        >
-          {pending ? "…" : "Close case ✓"}
+      <div style={{ ...card, borderLeftColor: "#1d9e75" }}>
+        <div style={{ ...sectionTitle, color: "#1d9e75" }}>Ready for pickup</div>
+        <button style={{ ...btnPrimary, background: "#1d9e75" }} onClick={() => patchCase({ status: "closed" })} disabled={pending} type="button">
+          {pending ? "…" : "Close case — handed to customer ✓"}
         </button>
         {errorBox}
       </div>
     );
   }
 
-  // ── "closed" + exit statuses ──────────────────────────────────────────────
+  // ── CLOSED / EXIT ────────────────────────────────────────────────────────────
 
   if (currentStatus === "closed") {
     return (
-      <div style={{ ...panelStyle, borderLeftColor: "#1d9e75" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#04342c" }}>
-          ✓ Case closed
-        </div>
+      <div style={{ ...card, borderLeftColor: "#1d9e75", background: "#f0faf5" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#04342c" }}>✓ Case closed</div>
       </div>
     );
   }
 
   if (currentStatus === "buyback") {
     return (
-      <div style={{ ...panelStyle, borderLeftColor: "#7f77dd" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#26215c" }}>
-          Unit purchased (buyback)
-        </div>
+      <div style={{ ...card, borderLeftColor: "#7f77dd", background: "#eeedfe" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#26215c" }}>Unit purchased (buyback)</div>
       </div>
     );
   }
 
   if (currentStatus === "scrapped") {
     return (
-      <div style={{ ...panelStyle, borderLeftColor: "#a32d2d" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#791f1f" }}>
-          Unit scrapped
-        </div>
+      <div style={{ ...card, borderLeftColor: "#a32d2d", background: "#fcebeb" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#791f1f" }}>Unit scrapped</div>
       </div>
     );
   }
 
-  // Fallback for unrecognised statuses
   return null;
 }
