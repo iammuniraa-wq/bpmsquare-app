@@ -7,6 +7,7 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
+import AssetEditPanel from "./AssetEditPanel";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -120,6 +121,9 @@ export default async function AssetDetailPage({
             {asset.notes}
           </div>
         )}
+
+        {/* Inline edit form */}
+        <AssetEditPanel asset={asset} />
       </div>
 
       {/* Open cases */}

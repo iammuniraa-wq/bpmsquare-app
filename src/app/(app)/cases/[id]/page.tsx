@@ -158,6 +158,14 @@ export default async function CaseDetailPage({
 
       {/* Action bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        {asset && (
+          <Link
+            href={ROUTES.asset(asset.id)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, background: c.panel2, color: c.muted, borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 500, textDecoration: "none", border: `1px solid ${c.line}` }}
+          >
+            ⚙ Edit asset
+          </Link>
+        )}
         {quote && (
           <Link
             href={ROUTES.quotation(quote.id)}
