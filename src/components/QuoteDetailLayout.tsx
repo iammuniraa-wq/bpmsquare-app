@@ -8,6 +8,7 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import ComingSoon from "@/components/ComingSoon";
 import { ROUTES } from "@/lib/constants";
+import { MessageSquare, CheckIcon } from "@/components/Icons";
 
 // ── Static label maps (safe for client — no server imports) ───────────────────
 
@@ -439,7 +440,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           <section style={cardStyle}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <h3 style={{ fontSize: 13, margin: 0, fontWeight: 600 }}>{section.label}</h3>
-              {cfSaved && <span style={{ fontSize: 11, color: "#1d9e75", fontWeight: 500 }}>✓ Saved</span>}
+              {cfSaved && <span style={{ fontSize: 11, color: "#1d9e75", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckIcon size={11} color="#1d9e75" /> Saved</span>}
             </div>
             {section.field_keys.length === 0 && !adaptMode && (
               <div style={{ fontSize: 12.5, color: c.hint, textAlign: "center", padding: "12px 0" }}>
@@ -469,7 +470,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
               disabled={saving}
               style={{ padding: "6px 18px", borderRadius: 6, fontSize: 12, fontWeight: 600, background: saving ? "#5a7a9c" : "#fff", color: "#0c447c", border: "none", cursor: "pointer" }}
             >
-              {saving ? "Saving…" : "✓ Save layout"}
+              {saving ? "Saving…" : "Save layout"}
             </button>
             <button
               onClick={() => { setAdaptMode(false); setShowAddSection(false); setAddingFieldTo(null); }}
@@ -496,10 +497,10 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             </button>
           )}
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f4f6f9", color: c.hint, borderRadius: 7, padding: "6px 12px", fontSize: 12.5, cursor: "not-allowed" }}>
-            📧 Email quote <ComingSoon size="xs" />
+            Email quote <ComingSoon size="xs" />
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0faf5", color: "#3d7a5a", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, cursor: "not-allowed" }}>
-            💬 WhatsApp <ComingSoon size="xs" />
+            <MessageSquare size={13} color="#3d7a5a" /> WhatsApp <ComingSoon size="xs" />
           </span>
           <Link
             href={ROUTES.quotationPrint(quote.id)}

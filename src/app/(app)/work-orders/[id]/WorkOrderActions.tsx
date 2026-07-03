@@ -42,7 +42,7 @@ export default function WorkOrderActions({ id, status }: { id: string; status: W
           disabled={pending}
           style={{ display: "inline-flex", alignItems: "center", gap: 5, background: pillar.teal.bg, color: pillar.teal.fg, borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, border: "none", cursor: pending ? "wait" : "pointer" }}
         >
-          {pending ? "Updating…" : "✓ Mark Complete"}
+          {pending ? "Updating…" : "Mark Complete"}
         </button>
       )}
       {status === "completed" && (

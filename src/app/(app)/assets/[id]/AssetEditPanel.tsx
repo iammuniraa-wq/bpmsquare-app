@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { Asset } from "@/lib/types";
+import { Pencil, CheckIcon } from "@/components/Icons";
 
 const KINDS: { value: Asset["kind"]; label: string }[] = [
   { value: "motor",       label: "Motor" },
@@ -82,7 +83,7 @@ export default function AssetEditPanel({ asset }: Props) {
           borderRadius: 6, padding: "5px 12px", cursor: "pointer",
         }}
       >
-        {saved ? "✓ Saved" : "✏ Edit asset"}
+        {saved ? <><CheckIcon size={12} /> Saved</> : <><Pencil size={12} /> Edit asset</>}
       </button>
     );
   }

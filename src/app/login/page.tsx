@@ -6,6 +6,7 @@ import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { c, g, sh } from "@/lib/theme";
 import Logo from "@/components/Logo";
 import { Suspense } from "react";
+import { Mail } from "@/components/Icons";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -98,7 +99,7 @@ function LoginForm() {
             borderRadius: 10, padding: "16px 14px",
             fontSize: 13.5, color: "#166534", lineHeight: 1.5,
           }}>
-            ✉️ Check your email<br />
+            <Mail size={16} color="#166534" style={{ marginRight: 6, verticalAlign: "middle" }} /> Check your email<br />
             <span style={{ fontSize: 12, color: "#15803d" }}>
               A sign-in link has been sent to <strong>{email}</strong>
             </span>

@@ -24,10 +24,10 @@ interface CustomField {
 const OBJECTS: { key: ObjectType; label: string; icon: string }[] = [
   { key: "account",    label: "Account",    icon: "▣" },
   { key: "contact",    label: "Contact",    icon: "◉" },
-  { key: "case",       label: "Case",       icon: "☎" },
+  { key: "case",       label: "Case",       icon: "◉" },
   { key: "quote",      label: "Quote",      icon: "₹" },
   { key: "work_order", label: "Work Order", icon: "▤" },
-  { key: "asset",      label: "Asset",      icon: "⚙" },
+  { key: "asset",      label: "Asset",      icon: "◧" },
 ];
 
 const FIELD_TYPES: { key: FieldType; label: string }[] = [

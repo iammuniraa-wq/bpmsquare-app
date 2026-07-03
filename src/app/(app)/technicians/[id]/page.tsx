@@ -11,6 +11,7 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import type { Technician, VisitLog } from "@/lib/types";
+import { Gear, Phone, Mail, AlertTriangle } from "@/components/Icons";
 
 // Config button is rendered separately — avoids making this whole page a client component
 function ConfigButton({ id }: { id: string }) {
@@ -20,7 +21,7 @@ function ConfigButton({ id }: { id: string }) {
       padding: "7px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
       background: "#1c2733", color: "#e2e7ee", textDecoration: "none",
     }}>
-      ⚙ Edit profile
+      <Gear size={14} /> Edit profile
     </Link>
   );
 }
@@ -222,10 +223,10 @@ export default async function TechnicianDetailPage({
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
         <Pill label={TECH_STATUS_LABEL[tech.status]} tone={tone} />
         {tech.phone && (
-          <span style={{ fontSize: 12.5, color: c.muted }}>☎ {tech.phone}</span>
+          <span style={{ fontSize: 12.5, color: c.muted, display: "inline-flex", alignItems: "center", gap: 4 }}><Phone size={12} color={c.hint} /> {tech.phone}</span>
         )}
         {tech.email && (
-          <span style={{ fontSize: 12.5, color: c.muted }}>✉ {tech.email}</span>
+          <span style={{ fontSize: 12.5, color: c.muted, display: "inline-flex", alignItems: "center", gap: 4 }}><Mail size={12} color={c.hint} /> {tech.email}</span>
         )}
         <span style={{ fontSize: 12.5, color: c.muted, marginLeft: "auto" }}>
           Max {tech.max_visits_per_day} visits/day
@@ -261,7 +262,7 @@ export default async function TechnicianDetailPage({
               background: pillar.amber.bg, padding: "10px 14px",
             }}>
               <div style={{ fontWeight: 600, fontSize: 13, color: pillar.amber.fg, marginBottom: 4 }}>
-                ⚠ Certification expiring soon
+                <AlertTriangle size={13} color={pillar.amber.fg} style={{ marginRight: 5 }} /> Certification expiring soon
               </div>
               {soonExpiring.map((cert) => (
                 <div key={cert} style={{ fontSize: 12, color: c.ink, marginBottom: 2 }}>

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { c, pillar } from "@/lib/theme";
 import { QUOTE_TYPES, ROUTES } from "@/lib/constants";
+import { Wrench, Package, CalendarCheck, Zap } from "@/components/Icons";
 
 export default function QuoteTypePicker() {
   const router = useRouter();
@@ -56,7 +57,12 @@ export default function QuoteTypePicker() {
                 (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
               }}
             >
-              <div style={{ fontSize: 26, marginBottom: 10 }}>{qt.icon}</div>
+              <div style={{ marginBottom: 10 }}>
+                {qt.id === "repair"       && <Wrench size={26} color={available ? c.accent : c.hint} />}
+                {qt.id === "supply"       && <Package size={26} color={available ? c.accent : c.hint} />}
+                {qt.id === "amc"          && <CalendarCheck size={26} color={available ? c.accent : c.hint} />}
+                {qt.id === "installation" && <Zap size={26} color={available ? c.accent : c.hint} />}
+              </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 5 }}>
                 {qt.label}
               </div>

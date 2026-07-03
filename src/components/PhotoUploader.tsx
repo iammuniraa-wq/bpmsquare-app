@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import type { CasePhoto } from "@/lib/types";
+import { Camera, CheckIcon } from "@/components/Icons";
 
 type Stage = CasePhoto["stage"];
 
@@ -148,7 +149,7 @@ export default function PhotoUploader({ caseId, stage, existingPhotos, onUploade
                   <div style={{ fontSize: 12, color: c.accent }}>Uploading…</div>
                 )}
                 {p.status === "done" && (
-                  <div style={{ fontSize: 12, color: "#1d9e75", fontWeight: 600 }}>✓ Uploaded</div>
+                  <div style={{ fontSize: 12, color: "#1d9e75", fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}><CheckIcon size={12} color="#1d9e75" /> Uploaded</div>
                 )}
                 {p.status === "error" && (
                   <div style={{ fontSize: 12, color: "#dc2626" }}>{p.errorMsg}</div>
@@ -191,7 +192,7 @@ export default function PhotoUploader({ caseId, stage, existingPhotos, onUploade
             display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
           }}
         >
-          <span style={{ fontSize: 18 }}>📷</span>
+          <Camera size={18} color={c.accent} />
           {existingPhotos.length > 0 ? "Add more photos" : "Add photos"}
         </button>
 

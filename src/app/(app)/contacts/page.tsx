@@ -8,6 +8,7 @@ import ComingSoon from "@/components/ComingSoon";
 import ViewToggle from "@/components/ViewToggle";
 import { ROUTES } from "@/lib/constants";
 import type { Account } from "@/lib/types";
+import { Phone, Mail } from "@/components/Icons";
 
 const TYPE_TONE: Record<Account["type"], PillarKey> = {
   prospect:     "amber",
@@ -93,11 +94,11 @@ export default async function ContactsPage({
                 {/* Contact info */}
                 <div style={{ marginTop: "auto", paddingTop: 8, borderTop: `1px solid ${c.line}`, display: "flex", flexDirection: "column", gap: 3 }}>
                   {contact.phone && (
-                    <span style={{ fontSize: 12, color: c.muted }}>📞 {contact.phone}</span>
+                    <span style={{ fontSize: 12, color: c.muted, display: "flex", alignItems: "center", gap: 4 }}><Phone size={11} color={c.hint} /> {contact.phone}</span>
                   )}
                   {contact.email && (
-                    <a href={`mailto:${contact.email}`} style={{ fontSize: 12, color: c.accent, textDecoration: "none" }}>
-                      ✉ {contact.email}
+                    <a href={`mailto:${contact.email}`} style={{ fontSize: 12, color: c.accent, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
+                      <Mail size={11} color={c.accent} /> {contact.email}
                     </a>
                   )}
                 </div>
@@ -152,10 +153,10 @@ export default async function ContactsPage({
 
                 <div className="contact-actions" style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f0faf5", color: "#3d7a5a", borderRadius: 7, padding: "5px 10px", fontSize: 12, fontWeight: 500, cursor: "not-allowed", whiteSpace: "nowrap" }}>
-                    💬 WhatsApp <ComingSoon size="xs" />
+                    WhatsApp <ComingSoon size="xs" />
                   </span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: c.panel2, color: c.hint, borderRadius: 7, padding: "5px 10px", fontSize: 12, fontWeight: 500, cursor: "not-allowed", whiteSpace: "nowrap" }}>
-                    📧 Email <ComingSoon size="xs" />
+                    Email <ComingSoon size="xs" />
                   </span>
                 </div>
               </div>

@@ -7,6 +7,7 @@ import Pill from "@/components/Pill";
 import ViewToggle from "@/components/ViewToggle";
 import { ROUTES } from "@/lib/constants";
 import type { WorkOrderStatus } from "@/lib/types";
+import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 
 const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
   scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
@@ -14,9 +15,18 @@ const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
 const STATUS_LABEL: Record<WorkOrderStatus, string> = {
   scheduled: "Scheduled", in_progress: "In Progress", completed: "Completed", invoiced: "Invoiced",
 };
-const KIND_ICON: Record<string, string> = {
-  motor: "⚡", transformer: "⚙", pump: "💧", generator: "🔋", panel: "🖥",
-};
+
+function KindIcon({ kind, size = 14, color }: { kind: string; size?: number; color?: string }) {
+  const p = { size, color: color ?? "currentColor" };
+  switch (kind) {
+    case "motor":       return <Zap {...p} />;
+    case "transformer": return <Gear {...p} />;
+    case "pump":        return <Droplet {...p} />;
+    case "generator":   return <Battery {...p} />;
+    case "panel":       return <Monitor {...p} />;
+    default:            return <Activity {...p} />;
+  }
+}
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -104,7 +114,7 @@ export default async function WorkOrdersPage({
 
                 {asset && (
                   <div style={{ fontSize: 12, color: c.muted }}>
-                    {KIND_ICON[asset.kind] ?? "⚙"} {asset.name}
+                    <KindIcon kind={asset.kind} size={12} /> {asset.name}
                   </div>
                 )}
 
@@ -152,7 +162,7 @@ export default async function WorkOrdersPage({
                   <Link href={ROUTES.account(account.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>{account.name}</Link>
                   {asset && (
                     <span style={{ color: c.muted, fontSize: 12.5 }}>
-                      {" · "}{KIND_ICON[asset.kind] ?? "⚙"} {asset.name}
+                      {" · "}<KindIcon kind={asset.kind} size={12} /> {asset.name}
                     </span>
                   )}
                 </div>
@@ -169,13 +179,13 @@ export default async function WorkOrdersPage({
                       {technician.name}
                     </span>
                   )}
-                  {wo.scheduled_for && <span>📅 {fmtDate(wo.scheduled_for)}</span>}
+                  {wo.scheduled_for && <span>{fmtDate(wo.scheduled_for)}</span>}
                   <span style={{ color: authKind === "contract" ? pillar.teal.base : c.hint }}>
                     {authKind === "contract" ? "▥" : "₹"} {authRef}
                   </span>
                   {serviceCase && (
                     <Link href={ROUTES.case(serviceCase.id)} style={{ color: pillar.teal.base, textDecoration: "none", fontWeight: 500 }}>
-                      ☎ {serviceCase.ref}
+                      {serviceCase.ref}
                     </Link>
                   )}
                 </div>

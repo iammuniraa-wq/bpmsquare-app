@@ -8,6 +8,7 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ViewToggle from "@/components/ViewToggle";
 import { ROUTES } from "@/lib/constants";
+import { MapPin } from "@/components/Icons";
 import type { PillarKey } from "@/lib/theme";
 
 const typeTone: Record<Account["type"], PillarKey> = {
@@ -93,7 +94,7 @@ export default async function AccountsPage({
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>{account.name}</div>
                   {account.city && (
-                    <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>📍 {account.city}</div>
+                    <div style={{ fontSize: 12, color: c.muted, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}><MapPin size={11} color={c.hint} /> {account.city}</div>
                   )}
                   {referredBy && (
                     <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>via {referredBy.name}</div>

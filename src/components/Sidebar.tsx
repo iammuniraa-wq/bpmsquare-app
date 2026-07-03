@@ -8,6 +8,7 @@ import type { NavItem } from "@/lib/constants";
 import { g } from "@/lib/theme";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
+import { StarFilled, StarOutline, Gear } from "@/components/Icons";
 import { useTenant } from "@/lib/tenant-context";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 
@@ -123,7 +124,7 @@ function DraggableSection({
   if (items.length === 0 && isFavSection) {
     return (
       <div style={{ padding: "5px 10px 8px", fontSize: 11, color: "#3a5166", fontStyle: "italic" }}>
-        Hover an item below · click ☆ to pin
+        Hover an item below · click <StarOutline size={10} color="#f6b23c" /> to pin
       </div>
     );
   }
@@ -186,7 +187,7 @@ function DraggableSection({
                     color: isFavSection ? "#f6b23c" : "#f6b23c99",
                   }}
                 >
-                  {isFavSection ? "★" : "☆"}
+                  {isFavSection ? <StarFilled size={12} color="#f6b23c" /> : <StarOutline size={12} color="#f6b23c99" />}
                 </span>
               )}
               <span style={{
@@ -370,7 +371,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           fontSize: 9.5, letterSpacing: 1.1, fontWeight: 700,
           color: "#f6b23c", paddingLeft: 10, marginBottom: 3,
         }}>
-          ★ FAVOURITES
+          <StarFilled size={9} color="#f6b23c" style={{ marginRight: 4 }} /> FAVOURITES
         </div>
         <DraggableSection
           items={favItems}
@@ -391,7 +392,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           fontSize: 9.5, letterSpacing: 1.1, fontWeight: 600,
           color: "#7a9ab8", paddingLeft: 10, marginBottom: 3,
         }}>
-          ALL · drag · ☆ to pin
+          ALL · drag · <StarOutline size={9} color="#7a9ab8" /> to pin
         </div>
         <DraggableSection
           items={restItems}
@@ -417,7 +418,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               transition: "background 0.12s",
             }}
           >
-            <span style={{ fontSize: 14 }}>⚙</span>
+            <Gear size={14} color={isActive(ROUTES.settings) ? "#fff" : "#9db3c4"} />
             <span style={{ flex: 1 }}>Settings</span>
             <span style={{
               fontSize: 11, color: "#7a9ab8",

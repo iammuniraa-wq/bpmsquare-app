@@ -5,10 +5,19 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import { listAssetsLive } from "@/lib/data/live";
+import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 
-const KIND_ICON: Record<string, string> = {
-  motor: "⚡", transformer: "⚙", pump: "💧", generator: "🔋", panel: "🖥",
-};
+function KindIcon({ kind, size = 18, color }: { kind: string; size?: number; color?: string }) {
+  const p = { size, color: color ?? "currentColor" };
+  switch (kind) {
+    case "motor":       return <Zap {...p} />;
+    case "transformer": return <Gear {...p} />;
+    case "pump":        return <Droplet {...p} />;
+    case "generator":   return <Battery {...p} />;
+    case "panel":       return <Monitor {...p} />;
+    default:            return <Activity {...p} />;
+  }
+}
 const KIND_LABEL: Record<string, string> = {
   motor: "Motor", transformer: "Transformer", pump: "Pump", generator: "Generator", panel: "Panel",
 };
@@ -68,7 +77,7 @@ export default async function AssetsPage() {
                   background: tone.bg + "44",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 18 }}>{KIND_ICON[asset.kind] ?? "⚙"}</span>
+                    <KindIcon kind={asset.kind} size={18} color={tone.base} />
                     <Pill label={isOnLoan ? "On Loan" : "Available"} tone={isOnLoan ? "amber" : "teal"} />
                     {asset.serial && (
                       <span style={{ fontSize: 10, color: c.hint, fontFamily: "monospace", marginLeft: "auto" }}>{asset.serial}</span>
@@ -92,7 +101,7 @@ export default async function AssetsPage() {
                           href={ROUTES.case(loanedToCase.id)}
                           style={{ fontSize: 11, color: pillar.teal.base, fontFamily: "monospace", textDecoration: "none" }}
                         >
-                          ☎ {loanedToCase.ref}
+                          {loanedToCase.ref}
                         </Link>
                       </div>
                     </div>
@@ -134,9 +143,9 @@ export default async function AssetsPage() {
                 <div style={{
                   width: 36, height: 36, borderRadius: 9, flexShrink: 0,
                   background: pillar[tone].bg, color: pillar[tone].fg,
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+                  display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  {KIND_ICON[asset.kind] ?? "⚙"}
+                  <KindIcon kind={asset.kind} size={16} color={pillar[tone].fg} />
                 </div>
 
                 {/* Details */}
@@ -181,7 +190,7 @@ export default async function AssetsPage() {
                       textDecoration: "none", flexShrink: 0, whiteSpace: "nowrap",
                     }}
                   >
-                    ☎ {openCaseCount} case{openCaseCount > 1 ? "s" : ""}
+                    {openCaseCount} case{openCaseCount > 1 ? "s" : ""}
                   </Link>
                 )}
               </div>

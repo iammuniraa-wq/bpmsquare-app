@@ -13,6 +13,7 @@ import TabTitle from "@/components/TabTitle";
 import CustomFieldsSection from "@/components/CustomFieldsSection";
 import CaseActions from "@/components/CaseActions";
 import CaseInfoHeader from "@/components/CaseInfoHeader";
+import { Gear, MessageSquare } from "@/components/Icons";
 
 // ── Stage timeline config ─────────────────────────────────────────────────────
 
@@ -163,7 +164,7 @@ export default async function CaseDetailPage({
             href={ROUTES.asset(asset.id)}
             style={{ display: "inline-flex", alignItems: "center", gap: 5, background: c.panel2, color: c.muted, borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 500, textDecoration: "none", border: `1px solid ${c.line}` }}
           >
-            ⚙ Edit asset
+            <Gear size={13} /> Edit asset
           </Link>
         )}
         {quote && (
@@ -184,10 +185,10 @@ export default async function CaseDetailPage({
           </Link>
         )}
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f4f6f9", color: c.hint, borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }}>
-          📧 Email report <ComingSoon size="xs" />
+          Email report <ComingSoon size="xs" />
         </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0faf5", color: "#3d7a5a", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }}>
-          💬 WhatsApp contact <ComingSoon size="xs" />
+          <MessageSquare size={13} color="#3d7a5a" /> WhatsApp <ComingSoon size="xs" />
         </span>
       </div>
 

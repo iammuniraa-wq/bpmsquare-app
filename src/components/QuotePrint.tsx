@@ -3,6 +3,7 @@
 import type { Quote, QuoteLine, QuoteRevision, Account, Contact, Site } from "@/lib/types";
 import type { CompanyInfo } from "@/lib/tenant";
 import { COMPANY } from "@/lib/constants";
+import { MapPin, Mail, Phone, Globe, MessageSquare } from "@/components/Icons";
 
 const STATUS_LABEL: Record<Quote["status"], string> = {
   draft: "Draft", sent: "Sent", approved: "Approved", rejected: "Rejected",
@@ -77,14 +78,14 @@ export default function QuotePrint({ quote, account, contact, site, lines, revis
         </button>
         {/* Email — Coming Soon */}
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.07)", color: "#6b8099", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }}>
-          📧 Email quote
+          Email quote
           <span style={{ fontSize: 9, fontWeight: 700, color: "#f6b23c", background: "rgba(246,178,60,.15)", border: "1px solid rgba(246,178,60,.3)", borderRadius: 5, padding: "1px 5px", letterSpacing: 0.4 }}>
             SOON
           </span>
         </span>
         {/* WhatsApp — Coming Soon */}
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.07)", color: "#6b8099", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }}>
-          💬 WhatsApp
+          <MessageSquare size={13} color="#6b8099" style={{ marginRight: 4 }} /> WhatsApp
           <span style={{ fontSize: 9, fontWeight: 700, color: "#f6b23c", background: "rgba(246,178,60,.15)", border: "1px solid rgba(246,178,60,.3)", borderRadius: 5, padding: "1px 5px", letterSpacing: 0.4 }}>
             SOON
           </span>
@@ -161,10 +162,10 @@ export default function QuotePrint({ quote, account, contact, site, lines, revis
 
           {/* Contact grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 24px", fontSize: 10.5, color: "#8aa0b8", lineHeight: 1.75 }}>
-            <span>📍 {co.address}</span>
-            <span>✉ {co.email}{co.email2 ? ` · ${co.email2}` : ""}</span>
-            <span>📞 Dir/Tech: {co.phone_dir_tech} · Commercial: {co.phone_commercial}</span>
-            <span>🌐 {co.web}{co.landline ? ` · ☎ ${co.landline}` : ""}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={10} color="#8aa0b8" /> {co.address}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Mail size={10} color="#8aa0b8" /> {co.email}{co.email2 ? ` · ${co.email2}` : ""}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Phone size={10} color="#8aa0b8" /> Dir/Tech: {co.phone_dir_tech} · Commercial: {co.phone_commercial}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Globe size={10} color="#8aa0b8" /> {co.web}{co.landline ? ` · ${co.landline}` : ""}</span>
             <span style={{ color: "#FFB347" }}>GSTIN: {co.gstin}</span>
             {co.iso && <span style={{ color: "#FFB347" }}>{co.iso} Certified</span>}
           </div>

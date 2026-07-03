@@ -6,6 +6,7 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { Technician } from "@/lib/types";
+import { AlertTriangle } from "@/components/Icons";
 
 const STATUS_TONE: Record<Technician["status"], PillarKey> = {
   active: "green", on_leave: "amber", inactive: "red",
@@ -142,7 +143,7 @@ export default async function TechniciansPage() {
                     background: pillar.amber.bg, borderRadius: 5,
                     padding: "3px 7px", fontWeight: 500,
                   }} title={expiringSoon.join(", ")}>
-                    ⚠ {expiringSoon.length} cert{expiringSoon.length > 1 ? "s" : ""} expiring
+                    <AlertTriangle size={11} color={pillar.amber.fg} style={{ marginRight: 4 }} /> {expiringSoon.length} cert{expiringSoon.length > 1 ? "s" : ""} expiring
                   </div>
                 )}
 

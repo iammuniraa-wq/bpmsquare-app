@@ -7,6 +7,7 @@ import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import PhotoUploader from "./PhotoUploader";
 import type { CasePhoto } from "@/lib/types";
+import { Clipboard, Pencil, CheckIcon } from "@/components/Icons";
 
 type InspectionReportProps = {
   id: string;
@@ -88,7 +89,7 @@ function IntakeReference({ notes, photos }: { notes: string | null; photos: Case
     <div style={{ background: "#f8fafc", border: `1px solid ${c.line}`, borderRadius: 10, marginBottom: 12, overflow: "hidden" }}>
       <button type="button" onClick={() => setOpen(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 14px", background: "none", border: "none", cursor: "pointer" }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: c.muted, textTransform: "uppercase", letterSpacing: 0.7 }}>
-          📋 Intake reference{photos.length > 0 ? ` · ${photos.length} photo${photos.length > 1 ? "s" : ""}` : ""}
+          <Clipboard size={12} color={c.muted} style={{ marginRight: 5 }} /> Intake reference{photos.length > 0 ? ` · ${photos.length} photo${photos.length > 1 ? "s" : ""}` : ""}
         </span>
         <span style={{ color: c.hint, fontSize: 13, display: "inline-block", transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }}>▾</span>
       </button>
@@ -125,7 +126,7 @@ function InspectionReportView({ report, onEdit }: { report: NonNullable<Inspecti
     <div style={{ ...card, borderLeftColor: "#6c6bd4" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: "#6c6bd4", textTransform: "uppercase", letterSpacing: 0.6 }}>Inspection report · Draft saved</span>
-        <button type="button" onClick={onEdit} style={btnGhost}>✏ Edit</button>
+        <button type="button" onClick={onEdit} style={btnGhost}><Pencil size={12} style={{ marginRight: 4 }} /> Edit</button>
       </div>
       <div style={{ marginBottom: 10 }}>
         <div style={lbl}>Findings</div>
@@ -243,7 +244,7 @@ export default function CaseActions({
             {pending ? "…" : "Start Inspection →"}
           </button>
           <button style={btnSecondary} onClick={saveNotes} disabled={pending} type="button">
-            {pending ? "Saving…" : notesSaved ? "✓ Saved" : "Save notes"}
+            {pending ? "Saving…" : notesSaved ? "Saved" : "Save notes"}
           </button>
         </div>
         {errorBox}
@@ -383,7 +384,7 @@ export default function CaseActions({
             {pending ? "…" : "Move to QA →"}
           </button>
           <button style={btnSecondary} onClick={saveNotes} disabled={pending} type="button">
-            {pending ? "Saving…" : notesSaved ? "✓ Saved" : "Save notes"}
+            {pending ? "Saving…" : notesSaved ? "Saved" : "Save notes"}
           </button>
         </div>
         {errorBox}
@@ -428,7 +429,7 @@ export default function CaseActions({
   if (currentStatus === "closed") {
     return (
       <div style={{ ...card, borderLeftColor: "#1d9e75", background: "#f0faf5" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#04342c" }}>✓ Case closed</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#04342c" }}>Case closed</div>
       </div>
     );
   }

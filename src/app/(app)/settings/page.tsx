@@ -7,6 +7,7 @@ import type { AccentPreset } from "@/lib/settings";
 import { NAV, ROUTES } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { Mail, MessageSquare, LinkIcon, Globe, Phone } from "@/components/Icons";
 
 const PILLAR_DOT: Record<string, string> = {
   blue: "#378ADD", purple: "#7f77dd", teal: "#1d9e75",
@@ -17,31 +18,31 @@ const PILLAR_DOT: Record<string, string> = {
 
 const INTEGRATIONS = [
   {
-    icon: "📧", name: "Email — Resend",
+    icon: <Mail size={16} />, name: "Email — Resend",
     desc: "Send quotations, inspection reports and invoices directly from the system",
     status: "coming-soon" as const,
     note: "Free tier: 3,000 emails/month · ~30 min to wire up",
   },
   {
-    icon: "💬", name: "WhatsApp Business API",
+    icon: <MessageSquare size={16} />, name: "WhatsApp Business API",
     desc: "Message contacts from cases, quotations and work orders via WhatsApp",
     status: "coming-soon" as const,
     note: "Meta Cloud API · 1,000 free conversations/month · recommended for India",
   },
   {
-    icon: "🔗", name: "Webhooks",
+    icon: <LinkIcon size={16} />, name: "Webhooks",
     desc: "Push real-time events to your systems when cases or quotations change status",
     status: "coming-soon" as const,
     note: "POST to any URL on: case.created, case.status_changed, quote.approved, invoice.sent",
   },
   {
-    icon: "🤖", name: "MCP Server",
+    icon: <Globe size={16} />, name: "MCP Server",
     desc: "Allow any AI assistant to read and write CRM data via Model Context Protocol",
     status: "ready" as const,
     note: "Config at mcp-server/mcp.json · connect to Claude, Cursor, or any MCP-compatible client",
   },
   {
-    icon: "📱", name: "PWA / Mobile app",
+    icon: <Phone size={16} />, name: "PWA / Mobile app",
     desc: "Install VeveyCRM on Android or iOS for field technicians — works offline",
     status: "coming-soon" as const,
     note: "manifest.json added · icons and service-worker needed to complete PWA setup",

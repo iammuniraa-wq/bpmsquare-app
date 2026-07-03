@@ -10,6 +10,7 @@ import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import CustomFieldsSection from "@/components/CustomFieldsSection";
 import type { WorkOrderStatus } from "@/lib/types";
+import { Zap, Gear, Droplet, Battery, Activity } from "@/components/Icons";
 
 const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
   scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
@@ -91,9 +92,9 @@ export default async function WorkOrderDetailPage({
                 <div style={{
                   width: 42, height: 42, borderRadius: 10, flexShrink: 0,
                   background: pillar.green.bg, color: pillar.green.fg,
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
+                  display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  {asset.kind === "motor" ? "⚡" : asset.kind === "transformer" ? "⚙" : asset.kind === "pump" ? "💧" : "🔋"}
+                  {asset.kind === "motor" ? <Zap size={20} color={pillar.green.fg} /> : asset.kind === "transformer" ? <Gear size={20} color={pillar.green.fg} /> : asset.kind === "pump" ? <Droplet size={20} color={pillar.green.fg} /> : asset.kind === "generator" ? <Battery size={20} color={pillar.green.fg} /> : <Activity size={20} color={pillar.green.fg} />}
                 </div>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{asset.name}</div>

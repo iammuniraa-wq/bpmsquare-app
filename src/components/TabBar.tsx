@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect, useLayoutEffect } from "react";
 import { useTabs } from "@/lib/tabs-context";
 import { c, g } from "@/lib/theme";
+import { AlertTriangle, XIcon, Dot } from "@/components/Icons";
 
 export default function TabBar() {
   const { tabs, activeHref, focusTab, closeTab, closeAllTabs, limitWarning, clearLimitWarning } = useTabs();
@@ -154,7 +155,7 @@ export default function TabBar() {
           zIndex: 500, whiteSpace: "nowrap",
           animation: "vvcrm-fadein .18s ease",
         }}>
-          <span style={{ fontSize: 14 }}>⚠</span>
+          <AlertTriangle size={14} color="#e09a2a" />
           <span style={{ fontSize: 12.5, color: "#e2c97e", fontWeight: 500 }}>
             Maximum {MAX_TABS} tabs open — close a tab to open a new one.
           </span>
@@ -206,7 +207,7 @@ export default function TabBar() {
                 onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(224,90,90,.12)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
-                <span style={{ fontSize: 13 }}>✕</span> Close all tabs
+                <XIcon size={13} color="#e05a5a" /> Close all tabs
               </button>
               {tabs.map((tab) => {
                 const active = tab.href === activeHref;
@@ -230,7 +231,7 @@ export default function TabBar() {
                       <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tab.title}</span>
                       {tab.section && <span style={{ display: "block", fontSize: 10, color: "#3d5f78", textTransform: "uppercase", letterSpacing: "0.04em" }}>{tab.section}</span>}
                     </span>
-                    {active && <span style={{ fontSize: 10, color: c.accent }}>●</span>}
+                    {active && <Dot size={8} color={c.accent} />}
                     <span
                       onClick={(e) => { e.stopPropagation(); closeTab(tab.href); setDropOpen(false); }}
                       style={{ color: "#4a6070", fontSize: 14, lineHeight: 1, padding: "0 2px" }}

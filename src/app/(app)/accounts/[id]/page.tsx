@@ -14,6 +14,7 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import CustomFieldsSection from "@/components/CustomFieldsSection";
+import { MapPin, Phone, Mail, Gear } from "@/components/Icons";
 
 // ── Tone maps ─────────────────────────────────────────────────────────────────
 
@@ -181,7 +182,7 @@ export default async function AccountHubPage({
             <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 6px", color: c.ink }}>{account.name}</h1>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <Pill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />
-              {account.city && <span style={{ fontSize: 12, color: c.muted }}>📍 {account.city}</span>}
+              {account.city && <span style={{ fontSize: 12, color: c.muted, display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} color={c.hint} /> {account.city}</span>}
               {referredBy && (
                 <span style={{ fontSize: 12, color: c.muted }}>
                   via <Link href={ROUTES.account(referredBy.id)} style={{ color: c.accent }}>{referredBy.name}</Link>
@@ -197,35 +198,7 @@ export default async function AccountHubPage({
         {/* Quick-create on mobile — below name */}
         <div className="mob-show" style={{ marginTop: 12 }}>{quickLinks}</div>
 
-        {/* Stat pills row */}
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.line}`, display: "flex", flexWrap: "wrap", gap: "4px 16px", fontSize: 11.5, color: c.muted }}>
-          {hub.contacts.length > 0 && <span><strong style={{ color: c.ink }}>{hub.contacts.length}</strong> Contact{hub.contacts.length > 1 ? "s" : ""}</span>}
-          {hub.cases.length > 0 && (
-            <span>
-              <strong style={{ color: c.ink }}>{hub.cases.length}</strong> Cases
-              {openCases.length > 0 && <span style={{ color: c.accent }}> · {openCases.length} open</span>}
-            </span>
-          )}
-          {hub.quotes.length > 0 && (
-            <span>
-              <strong style={{ color: c.ink }}>{hub.quotes.length}</strong> Quotes
-              {quotationTotal > 0 && <span> · {fmtINR(quotationTotal)}</span>}
-            </span>
-          )}
-          {hub.contracts.length > 0 && (
-            <span>
-              <strong style={{ color: c.ink }}>{hub.contracts.length}</strong> AMC
-              {activeContracts > 0 && <span style={{ color: pillar.teal.base }}> · {activeContracts} active</span>}
-            </span>
-          )}
-          {hub.workOrders.length > 0 && (
-            <span>
-              <strong style={{ color: c.ink }}>{hub.workOrders.length}</strong> Work orders
-              {activeWOs > 0 && <span style={{ color: pillar.amber.base }}> · {activeWOs} active</span>}
-            </span>
-          )}
-          {hub.assets.length > 0 && <span><strong style={{ color: c.ink }}>{hub.assets.length}</strong> Assets</span>}
-        </div>
+
       </div>
 
       {/* ── Tab bar ── */}
@@ -342,12 +315,12 @@ export default async function AccountHubPage({
                     <div style={{ marginTop: 5, display: "flex", flexDirection: "column", gap: 3 }}>
                       {ct.phone && (
                         <a href={`tel:${ct.phone}`} style={{ fontSize: 12, color: c.accent, textDecoration: "none", display: "flex", alignItems: "center", gap: 5 }}>
-                          <span style={{ fontSize: 13 }}>📞</span> {ct.phone}
+                          <Phone size={12} color={c.accent} /> {ct.phone}
                         </a>
                       )}
                       {ct.email && (
                         <a href={`mailto:${ct.email}`} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none", display: "flex", alignItems: "center", gap: 5, wordBreak: "break-all" }}>
-                          <span style={{ fontSize: 12 }}>✉</span> {ct.email}
+                          <Mail size={12} color={c.hint} /> {ct.email}
                         </a>
                       )}
                     </div>
@@ -430,7 +403,7 @@ export default async function AccountHubPage({
                 <SectionHead label="Assets" count={hub.assets.length} newHref={`${ROUTES.assetNew}?account_id=${id}`} newLabel="New asset" />
                 {hub.assets.slice(0, 4).map((a) => (
                   <RecordRow key={a.id}>
-                    <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: pillar.green.bg, color: pillar.green.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>⚙</div>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: pillar.green.bg, color: pillar.green.fg, display: "flex", alignItems: "center", justifyContent: "center" }}><Gear size={14} color={pillar.green.fg} /></div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 600, color: c.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</div>
                       <div style={{ fontSize: 11, color: c.muted, marginTop: 1, display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -569,12 +542,12 @@ export default async function AccountHubPage({
                   <div style={{ marginTop: 5, display: "flex", flexDirection: "column", gap: 3 }}>
                     {ct.phone && (
                       <a href={`tel:${ct.phone}`} style={{ fontSize: 12.5, color: c.accent, textDecoration: "none", display: "flex", alignItems: "center", gap: 5 }}>
-                        <span>📞</span> {ct.phone}
+                        <Phone size={13} color={c.accent} /> {ct.phone}
                       </a>
                     )}
                     {ct.email && (
                       <a href={`mailto:${ct.email}`} style={{ fontSize: 12, color: c.muted, textDecoration: "none", display: "flex", alignItems: "center", gap: 5 }}>
-                        <span>✉</span> {ct.email}
+                        <Mail size={12} color={c.hint} /> {ct.email}
                       </a>
                     )}
                   </div>
@@ -594,7 +567,7 @@ export default async function AccountHubPage({
             ? <EmptyState label="No assets yet" newHref={`${ROUTES.assetNew}?account_id=${id}`} newLabel="Register first asset" />
             : hub.assets.map((a) => (
               <RecordRow key={a.id}>
-                <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: pillar.green.bg, color: pillar.green.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⚙</div>
+                <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: pillar.green.bg, color: pillar.green.fg, display: "flex", alignItems: "center", justifyContent: "center" }}><Gear size={16} color={pillar.green.fg} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{a.name}</div>
                   <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>

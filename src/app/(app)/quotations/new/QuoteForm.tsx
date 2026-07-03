@@ -8,6 +8,7 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/data/labels";
 import type { Account, Asset, Contact, PricingItem, TextFragment, PricingCategory } from "@/lib/types";
+import { Gear, Zap, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -39,9 +40,17 @@ const KIND_LABEL: Record<Asset["kind"], string> = {
   motor: "Motor", transformer: "Transformer", pump: "Pump",
   generator: "Generator", panel: "Panel",
 };
-const KIND_ICON: Record<Asset["kind"], string> = {
-  motor: "⚙", transformer: "⚡", pump: "◎", generator: "◈", panel: "▤",
-};
+function KindIcon({ kind, size = 14, color }: { kind: string; size?: number; color?: string }) {
+  const p = { size, color: color ?? "currentColor" };
+  switch (kind) {
+    case "motor":       return <Gear {...p} />;
+    case "transformer": return <Zap {...p} />;
+    case "pump":        return <Droplet {...p} />;
+    case "generator":   return <Battery {...p} />;
+    case "panel":       return <Monitor {...p} />;
+    default:            return <Activity {...p} />;
+  }
+}
 const KIND_TONE: Record<Asset["kind"], PillarKey> = {
   motor: "blue", transformer: "amber", pump: "teal", generator: "green", panel: "purple",
 };
@@ -599,9 +608,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       width: 36, height: 36, borderRadius: 9, flexShrink: 0,
                       background: pillar[KIND_TONE[asset.kind]].bg,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 16,
                     }}>
-                      {KIND_ICON[asset.kind]}
+                      <KindIcon kind={asset.kind} size={16} color={pillar[KIND_TONE[asset.kind]].fg} />
                     </div>
                     {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -895,7 +903,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               </div>
               {selectedAssets.map((asset, idx) => (
                 <div key={asset.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: idx > 0 ? `1px solid ${c.line}` : "none" }}>
-                  <span style={{ fontSize: 14 }}>{KIND_ICON[asset.kind]}</span>
+                  <KindIcon kind={asset.kind} size={14} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 12, color: c.ink, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{asset.name}</div>
                     {(asset.make || asset.model) && (
@@ -980,9 +988,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     <div style={{
                       width: 36, height: 36, borderRadius: 8, flexShrink: 0,
                       background: pillar[KIND_TONE[asset.kind]].bg,
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+                      display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
-                      {KIND_ICON[asset.kind]}
+                      <KindIcon kind={asset.kind} size={16} color={pillar[KIND_TONE[asset.kind]].fg} />
                     </div>
                     {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>

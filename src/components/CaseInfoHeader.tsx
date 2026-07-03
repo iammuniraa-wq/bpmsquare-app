@@ -40,10 +40,10 @@ export default function CaseInfoHeader({
 
   // Summary chips shown in collapsed state
   const chips = [
-    { icon: "▣", label: accountName },
-    equipmentLabel ? { icon: "⚙", label: equipmentLabel } : null,
-    technicianName ? { icon: "◑", label: technicianName } : null,
-    loanerName     ? { icon: "↔", label: `Loaner: ${loanerName}` } : null,
+    { icon: "", label: accountName },
+    equipmentLabel ? { icon: "", label: equipmentLabel } : null,
+    technicianName ? { icon: "", label: technicianName } : null,
+    loanerName     ? { icon: "", label: `Loaner: ${loanerName}` } : null,
   ].filter(Boolean) as { icon: string; label: string }[];
 
   return (

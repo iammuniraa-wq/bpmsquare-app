@@ -1,8 +1,8 @@
-{
+﻿{
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "veveycrm",
+      "name": "veveycrm-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000

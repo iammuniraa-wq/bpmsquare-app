@@ -8,6 +8,7 @@ import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import Logo from "./Logo";
 import Sidebar from "./Sidebar";
 import { TabsProvider } from "@/lib/tabs-context";
+import { Gear, XIcon } from "@/components/Icons";
 import TabBar from "./TabBar";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
@@ -57,7 +58,7 @@ function MobileTopBar() {
           }}
         >
           {open ? (
-            <span style={{ color: "#e2e7ee", fontSize: 18, lineHeight: 1, fontWeight: 300 }}>✕</span>
+            <XIcon size={18} color="#e2e7ee" />
           ) : (
             <>
               <span style={{ width: 18, height: 1.5, background: "#c5d3de", borderRadius: 1, display: "block" }} />
@@ -149,7 +150,7 @@ function MobileTopBar() {
               fontSize: 13.5, fontWeight: 400, textAlign: "left",
             }}
           >
-            <span style={{ fontSize: 14, width: 20, textAlign: "center" }}>⚙</span>
+            <Gear size={14} color={pathname.startsWith(ROUTES.settings) ? "#fff" : "#9db3c4"} />
             <span>Settings</span>
           </button>
         </div>

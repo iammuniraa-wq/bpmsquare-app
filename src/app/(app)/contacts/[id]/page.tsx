@@ -7,6 +7,7 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
+import { Phone, Mail, MapPin } from "@/components/Icons";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -58,9 +59,9 @@ export default async function ContactDetailPage({
             {contact.role && <div style={{ fontSize: 13, color: c.muted }}>{contact.role}</div>}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: c.muted, textAlign: "right" }}>
-            {contact.phone && <span>📞 {contact.phone}</span>}
+            {contact.phone && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Phone size={12} color={c.hint} /> {contact.phone}</span>}
             {contact.email && (
-              <a href={`mailto:${contact.email}`} style={{ color: c.accent, textDecoration: "none" }}>✉ {contact.email}</a>
+              <a href={`mailto:${contact.email}`} style={{ color: c.accent, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}><Mail size={12} color={c.accent} /> {contact.email}</a>
             )}
           </div>
         </div>
@@ -71,7 +72,7 @@ export default async function ContactDetailPage({
             <Link href={ROUTES.account(account.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
               {account.name}
             </Link>
-            {account.city && <span style={{ marginLeft: 8 }}>📍 {account.city}</span>}
+            {account.city && <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={11} color={c.hint} /> {account.city}</span>}
           </div>
         )}
       </div>

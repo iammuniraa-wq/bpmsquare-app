@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { cardStyle } from "@/components/Shell";
+import { CheckIcon } from "@/components/Icons";
 
 type FieldType = "text" | "number" | "date" | "select" | "checkbox" | "textarea";
 
@@ -134,7 +135,7 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
         <h3 style={{ fontSize: 13, margin: 0, fontWeight: 600 }}>Custom fields</h3>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10.5, color: c.hint }}>⠿ drag to reorder</span>
-          {saved && <span style={{ fontSize: 11, color: "#1d9e75", fontWeight: 500 }}>✓ Saved</span>}
+          {saved && <span style={{ fontSize: 11, color: "#1d9e75", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckIcon size={11} color="#1d9e75" /> Saved</span>}
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>

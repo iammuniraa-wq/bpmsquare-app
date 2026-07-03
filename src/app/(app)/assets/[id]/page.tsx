@@ -8,6 +8,7 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import AssetEditPanel from "./AssetEditPanel";
+import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -18,9 +19,17 @@ const CASE_TONE: Record<string, PillarKey> = {
   buyback: "purple", scrapped: "red",
 };
 
-const KIND_ICON: Record<string, string> = {
-  motor: "⚙", transformer: "⚡", pump: "◎", generator: "◈", panel: "▤",
-};
+function KindIcon({ kind, size = 22, color }: { kind: string; size?: number; color?: string }) {
+  const p = { size, color: color ?? "currentColor" };
+  switch (kind) {
+    case "motor":       return <Zap {...p} />;
+    case "transformer": return <Gear {...p} />;
+    case "pump":        return <Droplet {...p} />;
+    case "generator":   return <Battery {...p} />;
+    case "panel":       return <Monitor {...p} />;
+    default:            return <Activity {...p} />;
+  }
+}
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -62,9 +71,9 @@ export default async function AssetDetailPage({
           <div style={{
             width: 52, height: 52, borderRadius: 12, flexShrink: 0,
             background: pillar.green.bg, color: pillar.green.fg,
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24,
+            display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            {KIND_ICON[asset.kind] ?? "⚙"}
+            <KindIcon kind={asset.kind} size={24} color={pillar.green.fg} />
           </div>
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px", color: c.ink }}>{asset.name}</h1>
