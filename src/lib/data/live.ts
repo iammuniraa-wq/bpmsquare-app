@@ -326,6 +326,60 @@ export async function listContactsLive(): Promise<ContactWithAccount[]> {
   }));
 }
 
+// ── Contact detail ───────────────────────────────────────────────────────────
+
+export async function getContactLive(id: string) {
+  const supabase = await createServerSupabase();
+  const { data: contact } = await supabase
+    .from("contacts")
+    .select("*, accounts(*)")
+    .eq("id", id)
+    .maybeSingle();
+  if (!contact) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const acct = (contact as any).accounts;
+  const account = (Array.isArray(acct) ? acct[0] : acct) as Account | null;
+
+  const { data: cases } = await supabase
+    .from("service_cases")
+    .select("id, ref, status, type, complaint, equipment_label, intake_at")
+    .eq("account_id", contact.account_id)
+    .order("intake_at", { ascending: false });
+
+  return {
+    contact: contact as Contact,
+    account,
+    cases: (cases ?? []) as Pick<ServiceCase, "id" | "ref" | "status" | "type" | "complaint" | "equipment_label" | "intake_at">[],
+  };
+}
+
+// ── Asset detail ──────────────────────────────────────────────────────────────
+
+export async function getAssetLive(id: string) {
+  const supabase = await createServerSupabase();
+  const { data: asset } = await supabase
+    .from("assets")
+    .select("*, accounts(*)")
+    .eq("id", id)
+    .maybeSingle();
+  if (!asset) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const acct = (asset as any).accounts;
+  const account = (Array.isArray(acct) ? acct[0] : acct) as Account | null;
+
+  const { data: cases } = await supabase
+    .from("service_cases")
+    .select("id, ref, status, type, complaint, equipment_label, intake_at, closed_at")
+    .eq("asset_id", id)
+    .order("intake_at", { ascending: false });
+
+  return {
+    asset: asset as Asset,
+    account,
+    cases: (cases ?? []) as Pick<ServiceCase, "id" | "ref" | "status" | "type" | "complaint" | "equipment_label" | "intake_at" | "closed_at">[],
+  };
+}
+
 // ── Quotes ────────────────────────────────────────────────────────────────────
 
 export type QuoteSummary = {
