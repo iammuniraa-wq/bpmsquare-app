@@ -7,6 +7,7 @@ import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import Link from "next/link";
 import type { Account } from "@/lib/types";
+import MobileSection from "@/components/MobileSection";
 
 const label: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -57,6 +58,88 @@ export default function NewContactForm({ accounts }: { accounts: Account[] }) {
     });
   }
 
+  const identityFields = (
+    <>
+      <div style={fieldWrap}>
+        <label style={label}>Full name *</label>
+        <input style={input} value={form.name} onChange={set("name")} required placeholder="e.g. Rajesh Kumar" />
+      </div>
+      <div style={fieldWrap}>
+        <label style={label}>Account *</label>
+        <select style={input} value={form.account_id} onChange={set("account_id")} required>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>{a.name}</option>
+          ))}
+        </select>
+      </div>
+      <div style={{ ...fieldWrap, marginBottom: 0 }}>
+        <label style={label}>Role / designation</label>
+        <input style={input} value={form.role} onChange={set("role")} placeholder="e.g. Purchase Manager" />
+      </div>
+    </>
+  );
+
+  const phoneFields = (
+    <>
+      <div style={fieldWrap}>
+        <label style={label}>Primary phone</label>
+        <input style={input} value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
+      </div>
+      <div style={fieldWrap}>
+        <label style={label}>Phone 2</label>
+        <input style={input} value={form.phone2} onChange={set("phone2")} placeholder="+91 97654 32109" />
+      </div>
+      <div style={{ ...fieldWrap, marginBottom: 0 }}>
+        <label style={label}>Phone 3</label>
+        <input style={input} value={form.phone3} onChange={set("phone3")} placeholder="+91 96543 21098" />
+      </div>
+    </>
+  );
+
+  const emailFields = (
+    <>
+      <div style={fieldWrap}>
+        <label style={label}>Primary email</label>
+        <input style={input} type="email" value={form.email} onChange={set("email")} placeholder="rajesh@company.com" />
+      </div>
+      <div style={{ ...fieldWrap, marginBottom: 0 }}>
+        <label style={label}>Email 2</label>
+        <input style={input} type="email" value={form.email2} onChange={set("email2")} placeholder="rajesh.personal@gmail.com" />
+      </div>
+    </>
+  );
+
+  const submitRow = (
+    <div style={{ display: "flex", gap: 8 }}>
+      <button
+        type="submit"
+        disabled={pending}
+        style={{
+          flex: 1, padding: "10px 0", borderRadius: 8, border: "none",
+          background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13,
+          cursor: pending ? "wait" : "pointer",
+        }}
+      >
+        {pending ? "Saving…" : "Create Contact"}
+      </button>
+      <Link
+        href={ROUTES.contacts}
+        style={{
+          padding: "10px 18px", borderRadius: 8, border: `1px solid ${c.line}`,
+          color: c.muted, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center",
+        }}
+      >
+        Cancel
+      </Link>
+    </div>
+  );
+
+  const errorBox = error ? (
+    <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "#dc2626" }}>
+      {error}
+    </div>
+  ) : null;
+
   return (
     <>
       <div style={{ marginBottom: 12 }}>
@@ -71,98 +154,43 @@ export default function NewContactForm({ accounts }: { accounts: Account[] }) {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }}>
-
+        {/* ── Desktop ── */}
+        <div className="mob-hide" style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }}>
           {/* Left col */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
             <div style={cardStyle}>
               <p style={sectionTitle}>Identity</p>
-
-              <div style={fieldWrap}>
-                <label style={label}>Full name *</label>
-                <input style={input} value={form.name} onChange={set("name")} required placeholder="e.g. Rajesh Kumar" />
-              </div>
-
-              <div style={fieldWrap}>
-                <label style={label}>Account *</label>
-                <select style={input} value={form.account_id} onChange={set("account_id")} required>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={fieldWrap}>
-                <label style={label}>Role / designation</label>
-                <input style={input} value={form.role} onChange={set("role")} placeholder="e.g. Purchase Manager" />
-              </div>
+              {identityFields}
             </div>
-
             <div style={cardStyle}>
               <p style={sectionTitle}>Phone numbers</p>
-
-              <div style={fieldWrap}>
-                <label style={label}>Primary phone</label>
-                <input style={input} value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
-              </div>
-              <div style={fieldWrap}>
-                <label style={label}>Phone 2</label>
-                <input style={input} value={form.phone2} onChange={set("phone2")} placeholder="+91 97654 32109" />
-              </div>
-              <div style={{ ...fieldWrap, marginBottom: 0 }}>
-                <label style={label}>Phone 3</label>
-                <input style={input} value={form.phone3} onChange={set("phone3")} placeholder="+91 96543 21098" />
-              </div>
+              {phoneFields}
             </div>
-
           </div>
-
           {/* Right col */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
             <div style={cardStyle}>
               <p style={sectionTitle}>Email addresses</p>
-
-              <div style={fieldWrap}>
-                <label style={label}>Primary email</label>
-                <input style={input} type="email" value={form.email} onChange={set("email")} placeholder="rajesh@company.com" />
-              </div>
-              <div style={{ ...fieldWrap, marginBottom: 0 }}>
-                <label style={label}>Email 2</label>
-                <input style={input} type="email" value={form.email2} onChange={set("email2")} placeholder="rajesh.personal@gmail.com" />
-              </div>
+              {emailFields}
             </div>
-
-            {error && (
-              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "#dc2626" }}>
-                {error}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="submit"
-                disabled={pending}
-                style={{
-                  flex: 1, padding: "10px 0", borderRadius: 8, border: "none",
-                  background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13,
-                  cursor: pending ? "wait" : "pointer",
-                }}
-              >
-                {pending ? "Saving…" : "Create Contact"}
-              </button>
-              <Link
-                href={ROUTES.contacts}
-                style={{
-                  padding: "10px 18px", borderRadius: 8, border: `1px solid ${c.line}`,
-                  color: c.muted, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center",
-                }}
-              >
-                Cancel
-              </Link>
-            </div>
+            {errorBox}
+            {submitRow}
           </div>
+        </div>
+
+        {/* ── Mobile ── */}
+        <div className="mob-show" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <MobileSection title="Identity" defaultOpen>
+            {identityFields}
+          </MobileSection>
+          <MobileSection title="Phone numbers">
+            {phoneFields}
+          </MobileSection>
+          <MobileSection title="Email addresses">
+            {emailFields}
+          </MobileSection>
+          {errorBox}
+          {submitRow}
         </div>
       </form>
     </>

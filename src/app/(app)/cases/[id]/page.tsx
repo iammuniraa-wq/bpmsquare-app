@@ -11,6 +11,7 @@ import ComingSoon from "@/components/ComingSoon";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import CustomFieldsSection from "@/components/CustomFieldsSection";
+import CaseActions from "@/components/CaseActions";
 
 // ── Stage timeline config ─────────────────────────────────────────────────────
 
@@ -223,6 +224,22 @@ export default async function CaseDetailPage({
           )}
         </div>
       )}
+
+      <CaseActions
+        caseId={sc.id}
+        caseRef={sc.ref}
+        currentStatus={sc.status}
+        notes={sc.notes ?? null}
+        assignedTo={sc.assigned_to ?? null}
+        inspectionReport={inspectionReport ? {
+          id: inspectionReport.id,
+          findings: inspectionReport.findings,
+          recommendations: inspectionReport.recommendations,
+          estimated_cost: inspectionReport.estimated_cost ?? null,
+          status: inspectionReport.status,
+        } : null}
+        accountId={sc.account_id}
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 260px", gap: 12 }}>
 
