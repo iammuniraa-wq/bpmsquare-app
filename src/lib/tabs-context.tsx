@@ -95,6 +95,7 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
   const [limitWarning, setLimitWarning] = useState(false);
   const tabsRef = useRef<Tab[]>([]);
   const initRef = useRef(false);
+  const lastValidHref = useRef<string>("");
 
   // Load from localStorage on first mount
   useEffect(() => {
@@ -110,18 +111,25 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
     if (!pathname) return;
     setTabs((prev) => {
       const exists = prev.find((t) => t.href === pathname);
-      if (exists) return prev;
+      if (exists) {
+        lastValidHref.current = pathname;
+        return prev;
+      }
       if (prev.length >= MAX_TABS) {
         setLimitWarning(true);
-        return prev; // block — don't open or evict
+        // Navigate back to last valid tab — user must close one first
+        const fallback = lastValidHref.current || (prev[prev.length - 1]?.href ?? ROUTES.dashboard);
+        router.replace(fallback);
+        return prev;
       }
       const meta = tabMeta(pathname);
       const next = [...prev, { href: pathname, ...meta }];
       tabsRef.current = next;
       save(next);
+      lastValidHref.current = pathname;
       return next;
     });
-  }, [pathname]);
+  }, [pathname, router]);
 
   // Prefetch all open tab routes so switching is instant
   useEffect(() => {
