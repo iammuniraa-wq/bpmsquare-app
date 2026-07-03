@@ -96,7 +96,8 @@ export type QuoteLine = {
   description: string;
   qty: number;
   rate: number;
-  amount: number;
+  discount_pct?: number;  // 0–100, per-line discount percentage (default 0)
+  amount: number;        // qty * rate * (1 - discount_pct/100)
   group_id?: string | null;
   group_label?: string | null;
   group_type?: string | null;

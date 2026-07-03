@@ -46,7 +46,7 @@ const KIND_TONE: Record<Asset["kind"], PillarKey> = {
   motor: "blue", transformer: "amber", pump: "teal", generator: "green", panel: "purple",
 };
 
-type LineItem = { id: string; description: string; qty: string; rate: string; group_id?: string | null; group_label?: string | null };
+type LineItem = { id: string; description: string; qty: string; rate: string; discount: string; group_id?: string | null; group_label?: string | null };
 type GroupRow = { kind: "group"; id: string; label: string; items: LineItem[]; group_type: "additive" | "alternative" };
 type LineRow  = { kind: "line" } & LineItem;
 type Row = LineRow | GroupRow;
@@ -104,7 +104,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
   // Line items & groups
   const [rows, setRows] = useState<Row[]>([
-    { kind: "line", id: "1", description: "", qty: "1", rate: "0" },
+    { kind: "line", id: "1", description: "", qty: "1", rate: "0", discount: "" },
   ]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
@@ -240,7 +240,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const parsedLines = allLineItems.map((l) => {
     const qty  = parseFloat(l.qty) || 0;
     const rate = parseFloat(l.rate) || 0;
-    return { ...l, qty, rate, amount: qty * rate };
+    const disc = Math.max(0, Math.min(100, parseFloat(l.discount) || 0));
+    const amount = qty * rate * (1 - disc / 100);
+    return { ...l, qty, rate, disc, amount };
   });
   const subtotal = parsedLines.reduce((s, l) => s + l.amount, 0);
   const discPct    = Math.max(0, Math.min(100, parseFloat(discountPct) || 0));
@@ -253,7 +255,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
   // ── Row / line / group handlers ─────────────────────────────────────────────
-  const newLineItem = (): LineItem => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, description: "", qty: "1", rate: "0" });
+  const newLineItem = (): LineItem => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, description: "", qty: "1", rate: "0", discount: "" });
 
   const addLine  = () => setRows((p) => [...p, { kind: "line", ...newLineItem() }]);
   const addGroup = () => setRows((p) => [...p, { kind: "group", id: `${Date.now()}`, label: "Group", group_type: "additive", items: [newLineItem()] }]);
@@ -295,7 +297,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     rows.forEach((r, i) => {
       if (r.kind === "line" && selectedIds.has(r.id)) {
         if (insertAt === -1) insertAt = i - groupItems.length;
-        groupItems.push({ id: r.id, description: r.description, qty: r.qty, rate: r.rate });
+        groupItems.push({ id: r.id, description: r.description, qty: r.qty, rate: r.rate, discount: r.discount });
       } else { rest.push(r); }
     });
     const group: GroupRow = { kind: "group", id: gid, label: "Group", group_type: "additive", items: groupItems };
@@ -338,10 +340,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           notes,
           terms,
           selected_option_id: effectiveAltId,
-          lines: rows.flatMap((r): { description: string; qty: string; rate: string; group_id: string | null; group_label: string | null; group_type: string | null }[] =>
+          lines: rows.flatMap((r): { description: string; qty: string; rate: string; discount_pct: number; group_id: string | null; group_label: string | null; group_type: string | null }[] =>
             r.kind === "line"
-              ? [{ description: r.description, qty: r.qty, rate: r.rate, group_id: null, group_label: null, group_type: null }]
-              : r.items.map((i) => ({ description: i.description, qty: i.qty, rate: i.rate, group_id: r.id, group_label: r.label, group_type: r.group_type }))
+              ? [{ description: r.description, qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null }]
+              : r.items.map((i) => ({ description: i.description, qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type }))
           ),
         }),
       });
@@ -618,8 +620,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             </div>
 
             {/* Column headers — only shown above standalone lines */}
-            <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 60px 120px 110px 32px", gap: 8, marginBottom: 6 }}>
-              {["", "Description", "Qty", "Rate (₹)", "Amount", ""].map((h) => (
+            <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 60px 100px 68px 100px 32px", gap: 8, marginBottom: 6 }}>
+              {["", "Description", "Qty", "Rate (₹)", "Disc %", "Amount", ""].map((h) => (
                 <div key={h} style={{ fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</div>
               ))}
             </div>
@@ -627,12 +629,13 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {rows.map((row) => {
                 if (row.kind === "line") {
-                  const qty = parseFloat(row.qty) || 0;
-                  const rate = parseFloat(row.rate) || 0;
-                  const amount = qty * rate;
-                  const sel = selectedIds.has(row.id);
+                  const qty    = parseFloat(row.qty) || 0;
+                  const rate   = parseFloat(row.rate) || 0;
+                  const disc   = Math.max(0, Math.min(100, parseFloat(row.discount) || 0));
+                  const amount = qty * rate * (1 - disc / 100);
+                  const sel    = selectedIds.has(row.id);
                   return (
-                    <div key={row.id} style={{ display: "grid", gridTemplateColumns: "20px 1fr 60px 120px 110px 32px", gap: 8, alignItems: "start", paddingBottom: 8, borderBottom: `1px solid ${c.line}`, background: sel ? c.accentbg : "transparent", borderRadius: sel ? 6 : 0, padding: sel ? "4px 6px 8px" : "0 0 8px" }}>
+                    <div key={row.id} style={{ display: "grid", gridTemplateColumns: "20px 1fr 60px 100px 68px 100px 32px", gap: 8, alignItems: "start", borderBottom: `1px solid ${c.line}`, background: sel ? c.accentbg : "transparent", borderRadius: sel ? 6 : 0, padding: sel ? "4px 6px 8px" : "0 0 8px" }}>
                       <div style={{ paddingTop: 10 }}>
                         <input type="checkbox" checked={sel} onChange={() => toggleSelect(row.id)} style={{ width: 13, height: 13, accentColor: c.accent, cursor: "pointer" }} />
                       </div>
@@ -642,7 +645,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       </div>
                       <input style={{ ...inp, textAlign: "center" }} type="number" min="0" step="1" value={row.qty} onChange={(e) => updateLine(row.id, "qty", e.target.value)} />
                       <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={row.rate} onChange={(e) => updateLine(row.id, "rate", e.target.value)} />
-                      <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink, textAlign: "right", paddingTop: 8 }}>{fmt(amount)}</div>
+                      <input style={{ ...inp, textAlign: "right", color: disc > 0 ? "#d97706" : c.muted }} type="number" min="0" max="100" step="0.5" value={row.discount} onChange={(e) => updateLine(row.id, "discount", e.target.value)} placeholder="0" />
+                      <div style={{ textAlign: "right", paddingTop: 8 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{fmt(amount)}</div>
+                        {disc > 0 && <div style={{ fontSize: 10.5, color: "#d97706", marginTop: 1 }}>−{disc}%</div>}
+                      </div>
                       <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove">×</button>
                     </div>
                   );
@@ -654,7 +661,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 const groupColor = isAlt ? "#d97706" : c.accent;
                 const groupBg    = isAlt ? "#fffbeb" : `${c.accent}06`;
                 const groupBorder = isAlt ? "#fde68a" : `${c.accent}40`;
-                const groupTotal = row.items.reduce((s, i) => s + (parseFloat(i.qty) || 0) * (parseFloat(i.rate) || 0), 0);
+                const groupTotal = row.items.reduce((s, i) => {
+                  const qty  = parseFloat(i.qty) || 0;
+                  const rate = parseFloat(i.rate) || 0;
+                  const disc = Math.max(0, Math.min(100, parseFloat(i.discount) || 0));
+                  return s + qty * rate * (1 - disc / 100);
+                }, 0);
                 return (
                   <div key={row.id} style={{ border: `1px solid ${groupBorder}`, borderLeft: `3px solid ${groupColor}`, borderRadius: 8, background: groupBg, padding: "10px 12px", marginBottom: 2, opacity: isAlt && !isSelectedAlt ? 0.6 : 1 }}>
                     {/* Group header */}
@@ -685,8 +697,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     </div>
 
                     {/* Column headers inside group */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 120px 110px 32px", gap: 8, marginBottom: 4, paddingLeft: 4 }}>
-                      {["Description", "Qty", "Rate (₹)", "Amount", ""].map((h) => (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 100px 68px 100px 32px", gap: 8, marginBottom: 4, paddingLeft: 4 }}>
+                      {["Description", "Qty", "Rate (₹)", "Disc %", "Amount", ""].map((h) => (
                         <div key={h} style={{ fontSize: 10, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</div>
                       ))}
                     </div>
@@ -694,18 +706,23 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     {/* Group line items */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       {row.items.map((item) => {
-                        const qty = parseFloat(item.qty) || 0;
-                        const rate = parseFloat(item.rate) || 0;
-                        const amount = qty * rate;
+                        const qty    = parseFloat(item.qty) || 0;
+                        const rate   = parseFloat(item.rate) || 0;
+                        const disc   = Math.max(0, Math.min(100, parseFloat(item.discount) || 0));
+                        const amount = qty * rate * (1 - disc / 100);
                         return (
-                          <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 60px 120px 110px 32px", gap: 8, alignItems: "start", paddingBottom: 6, borderBottom: `1px solid ${c.accent}20` }}>
+                          <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 60px 100px 68px 100px 32px", gap: 8, alignItems: "start", paddingBottom: 6, borderBottom: `1px solid ${c.accent}20` }}>
                             <div>
                               <textarea style={{ ...inp, resize: "vertical", minHeight: 48, lineHeight: 1.5, fontSize: 12.5 }} value={item.description} onChange={(e) => updateLine(item.id, "description", e.target.value)} placeholder="Line description…" />
                               <button onClick={() => openCatalog(item.id)} style={{ marginTop: 3, fontSize: 10.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ Catalog</button>
                             </div>
                             <input style={{ ...inp, textAlign: "center", fontSize: 12.5 }} type="number" min="0" step="1" value={item.qty} onChange={(e) => updateLine(item.id, "qty", e.target.value)} />
                             <input style={{ ...inp, textAlign: "right", fontSize: 12.5 }} type="number" min="0" step="100" value={item.rate} onChange={(e) => updateLine(item.id, "rate", e.target.value)} />
-                            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, textAlign: "right", paddingTop: 8 }}>{fmt(amount)}</div>
+                            <input style={{ ...inp, textAlign: "right", fontSize: 12.5, color: disc > 0 ? "#d97706" : c.muted }} type="number" min="0" max="100" step="0.5" value={item.discount} onChange={(e) => updateLine(item.id, "discount", e.target.value)} placeholder="0" />
+                            <div style={{ textAlign: "right", paddingTop: 8 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{fmt(amount)}</div>
+                              {disc > 0 && <div style={{ fontSize: 10, color: "#d97706", marginTop: 1 }}>−{disc}%</div>}
+                            </div>
                             <button onClick={() => removeLineFromGroup(row.id, item.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 16, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove line">×</button>
                           </div>
                         );

@@ -51,17 +51,23 @@ export async function POST(request: NextRequest) {
     const lineRows = lines
       .filter((l) => l.description?.trim())
       .slice(0, 200)
-      .map((l) => ({
-        tenant_id: tenantId,
-        quote_id: quote.id,
-        description: String(l.description).slice(0, 500),
-        qty: Math.max(0, parseFloat(l.qty) || 1),
-        rate: Math.max(0, parseFloat(l.rate) || 0),
-        amount: Math.max(0, parseFloat(l.qty) || 1) * Math.max(0, parseFloat(l.rate) || 0),
-        group_id:    l.group_id    ?? null,
-        group_label: l.group_label ?? null,
-        group_type:  l.group_type  ?? null,
-      }));
+      .map((l) => {
+        const qty  = Math.max(0, parseFloat(l.qty) || 1);
+        const rate = Math.max(0, parseFloat(l.rate) || 0);
+        const disc = Math.max(0, Math.min(100, parseFloat(l.discount_pct) || 0));
+        return {
+          tenant_id: tenantId,
+          quote_id: quote.id,
+          description: String(l.description).slice(0, 500),
+          qty,
+          rate,
+          discount_pct: disc,
+          amount: qty * rate * (1 - disc / 100),
+          group_id:    l.group_id    ?? null,
+          group_label: l.group_label ?? null,
+          group_type:  l.group_type  ?? null,
+        };
+      });
     if (lineRows.length > 0) {
       const { error: lErr } = await supabase.from("quote_lines").insert(lineRows);
       if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 });
