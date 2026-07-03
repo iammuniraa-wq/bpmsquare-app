@@ -380,25 +380,25 @@ export const serviceCases: ServiceCase[] = [
 
 export const casePhotos: CasePhoto[] = [
   // CS-2026-0089 — Krishna Textiles — intake
-  { id: "ph_k_i1", case_id: "case_krishna", stage: "intake", caption: "Gate receipt — motor on trolley, nameplate visible", taken_at: "2026-06-10T08:35:00" },
-  { id: "ph_k_i2", case_id: "case_krishna", stage: "intake", caption: "Burnt terminal box — visible carbon deposits on leads", taken_at: "2026-06-10T08:37:00" },
-  { id: "ph_k_i3", case_id: "case_krishna", stage: "intake", caption: "DE bearing end — grease discolouration noted", taken_at: "2026-06-10T08:39:00" },
+  { id: "ph_k_i1", case_id: "case_krishna", stage: "intake", url: "", caption: "Gate receipt — motor on trolley, nameplate visible", taken_at: "2026-06-10T08:35:00" },
+  { id: "ph_k_i2", case_id: "case_krishna", stage: "intake", url: "", caption: "Burnt terminal box — visible carbon deposits on leads", taken_at: "2026-06-10T08:37:00" },
+  { id: "ph_k_i3", case_id: "case_krishna", stage: "intake", url: "", caption: "DE bearing end — grease discolouration noted", taken_at: "2026-06-10T08:39:00" },
   // CS-2026-0089 — inspection
-  { id: "ph_k_s1", case_id: "case_krishna", stage: "inspection", caption: "Stator after stripping — Phase U winding completely burnt, carbon on slots", taken_at: "2026-06-11T10:20:00" },
-  { id: "ph_k_s2", case_id: "case_krishna", stage: "inspection", caption: "Rotor surface — no mechanical damage, shaft runout within tolerance", taken_at: "2026-06-11T10:28:00" },
-  { id: "ph_k_s3", case_id: "case_krishna", stage: "inspection", caption: "DE bearing removed — inner race pitting confirmed", taken_at: "2026-06-11T10:35:00" },
+  { id: "ph_k_s1", case_id: "case_krishna", stage: "inspection", url: "", caption: "Stator after stripping — Phase U winding completely burnt, carbon on slots", taken_at: "2026-06-11T10:20:00" },
+  { id: "ph_k_s2", case_id: "case_krishna", stage: "inspection", url: "", caption: "Rotor surface — no mechanical damage, shaft runout within tolerance", taken_at: "2026-06-11T10:28:00" },
+  { id: "ph_k_s3", case_id: "case_krishna", stage: "inspection", url: "", caption: "DE bearing removed — inner race pitting confirmed", taken_at: "2026-06-11T10:35:00" },
 
   // CS-2026-0092 — Hosapete Steel — intake
-  { id: "ph_h_i1", case_id: "case_hpsteel", stage: "intake", caption: "Motor at gate — transport cradle intact, nameplate photographed", taken_at: "2026-06-14T10:20:00" },
-  { id: "ph_h_i2", case_id: "case_hpsteel", stage: "intake", caption: "DE bearing housing — visible oil leak at labyrinth seal", taken_at: "2026-06-14T10:24:00" },
+  { id: "ph_h_i1", case_id: "case_hpsteel", stage: "intake", url: "", caption: "Motor at gate — transport cradle intact, nameplate photographed", taken_at: "2026-06-14T10:20:00" },
+  { id: "ph_h_i2", case_id: "case_hpsteel", stage: "intake", url: "", caption: "DE bearing housing — visible oil leak at labyrinth seal", taken_at: "2026-06-14T10:24:00" },
   // CS-2026-0092 — inspection
-  { id: "ph_h_s1", case_id: "case_hpsteel", stage: "inspection", caption: "DE bearing removed — heavy pitting on outer race, cage deformed", taken_at: "2026-06-15T09:10:00" },
-  { id: "ph_h_s2", case_id: "case_hpsteel", stage: "inspection", caption: "Rotor — dynamic balance check setup, unbalance reading 12 g·mm (limit: 4 g·mm)", taken_at: "2026-06-15T11:00:00" },
-  { id: "ph_h_s3", case_id: "case_hpsteel", stage: "inspection", caption: "Winding insulation resistance — Phase R: 42 MΩ, Phase Y: 38 MΩ, Phase B: 41 MΩ (acceptable)", taken_at: "2026-06-15T14:15:00" },
+  { id: "ph_h_s1", case_id: "case_hpsteel", stage: "inspection", url: "", caption: "DE bearing removed — heavy pitting on outer race, cage deformed", taken_at: "2026-06-15T09:10:00" },
+  { id: "ph_h_s2", case_id: "case_hpsteel", stage: "inspection", url: "", caption: "Rotor — dynamic balance check setup, unbalance reading 12 g·mm (limit: 4 g·mm)", taken_at: "2026-06-15T11:00:00" },
+  { id: "ph_h_s3", case_id: "case_hpsteel", stage: "inspection", url: "", caption: "Winding insulation resistance — Phase R: 42 MΩ, Phase Y: 38 MΩ, Phase B: 41 MΩ (acceptable)", taken_at: "2026-06-15T14:15:00" },
 
   // CS-2026-0095 — Bharat Forge — intake only
-  { id: "ph_b_i1", case_id: "case_bharat", stage: "intake", caption: "Motor received from Bharat Forge Pune — logistics partner delivery", taken_at: "2026-06-17T14:05:00" },
-  { id: "ph_b_i2", case_id: "case_bharat", stage: "intake", caption: "DE end-shield — grease leakage and discolouration around labyrinth seal", taken_at: "2026-06-17T14:10:00" },
+  { id: "ph_b_i1", case_id: "case_bharat", stage: "intake", url: "", caption: "Motor received from Bharat Forge Pune — logistics partner delivery", taken_at: "2026-06-17T14:05:00" },
+  { id: "ph_b_i2", case_id: "case_bharat", stage: "intake", url: "", caption: "DE end-shield — grease leakage and discolouration around labyrinth seal", taken_at: "2026-06-17T14:10:00" },
 ];
 
 export const inspectionReports: InspectionReport[] = [

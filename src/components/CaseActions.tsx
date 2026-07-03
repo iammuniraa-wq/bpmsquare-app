@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
+import PhotoUploader from "./PhotoUploader";
+import type { CasePhoto } from "@/lib/types";
 
 type InspectionReportProps = {
   id: string;
@@ -22,6 +24,8 @@ type Props = {
   assignedTo: string | null;
   inspectionReport: InspectionReportProps;
   accountId: string;
+  intakePhotos: CasePhoto[];
+  inspectionPhotos: CasePhoto[];
 };
 
 const btn: React.CSSProperties = {
@@ -50,21 +54,14 @@ const inp: React.CSSProperties = {
 
 const fw: React.CSSProperties = { marginBottom: 14 };
 
-const photoHint = (
-  <div style={{
-    border: `1.5px dashed ${c.line}`, borderRadius: 8,
-    padding: "14px 16px", textAlign: "center",
-    fontSize: 12.5, color: c.hint, marginTop: 4,
-  }}>
-    📷 Attach photos — use camera on mobile (coming soon)
-  </div>
-);
 
 export default function CaseActions({
   caseId,
   currentStatus,
   notes,
   inspectionReport,
+  intakePhotos,
+  inspectionPhotos,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -164,12 +161,20 @@ export default function CaseActions({
             placeholder="Add intake notes, condition on arrival, accessories received…"
           />
         </div>
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 12 }}>
           <button style={btnSecondary} onClick={saveNotes} disabled={pending} type="button">
             {pending ? "Saving…" : "Save notes"}
           </button>
         </div>
-        {photoHint}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ ...lbl, marginBottom: 8 }}>Intake photos</label>
+          <PhotoUploader
+            caseId={caseId}
+            stage="intake"
+            existingPhotos={intakePhotos}
+            onUploaded={() => router.refresh()}
+          />
+        </div>
         <div style={{ marginTop: 12 }}>
           <button
             style={{ ...btn, fontSize: 14 }}
@@ -220,7 +225,15 @@ export default function CaseActions({
             placeholder="e.g. 15000"
           />
         </div>
-        {photoHint}
+        <div style={{ marginBottom: 4 }}>
+          <label style={{ ...lbl, marginBottom: 8 }}>Inspection photos</label>
+          <PhotoUploader
+            caseId={caseId}
+            stage="inspection"
+            existingPhotos={inspectionPhotos}
+            onUploaded={() => router.refresh()}
+          />
+        </div>
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
           <button
             style={{ ...btnSecondary, flex: 1 }}

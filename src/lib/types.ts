@@ -280,6 +280,7 @@ export type CasePhoto = {
   id: string;
   case_id: string;
   stage: "intake" | "inspection" | "final";
+  url: string;
   caption: string;
   taken_at: string;
 };

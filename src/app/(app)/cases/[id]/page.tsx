@@ -239,6 +239,8 @@ export default async function CaseDetailPage({
           status: inspectionReport.status,
         } : null}
         accountId={sc.account_id}
+        intakePhotos={photosByStage.intake}
+        inspectionPhotos={photosByStage.inspection}
       />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 260px", gap: 12 }}>
@@ -537,20 +539,22 @@ function PhotoSection({ title, photos }: { title: string; photos: CasePhoto[] })
       <SectionHeading>{title}</SectionHeading>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
         {photos.map((photo) => (
-          <div key={photo.id} style={{ borderRadius: 6, overflow: "hidden", border: `1px solid ${c.line}` }}>
-            {/* Placeholder — in prod this is an <img src={photo.url} /> */}
-            <div style={{
-              height: 100,
-              background: "linear-gradient(135deg, #e6f1fb 0%, #d0e4f5 100%)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 28,
-            }}>
-              📷
-            </div>
+          <a
+            key={photo.id}
+            href={photo.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ borderRadius: 6, overflow: "hidden", border: `1px solid ${c.line}`, display: "block", textDecoration: "none" }}
+          >
+            <img
+              src={photo.url}
+              alt={photo.caption || title}
+              style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover", display: "block" }}
+            />
             <div style={{ padding: "6px 8px", fontSize: 11, color: c.muted, lineHeight: 1.4 }}>
               {photo.caption}
             </div>
-          </div>
+          </a>
         ))}
       </div>
     </section>
