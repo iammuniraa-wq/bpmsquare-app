@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Tenant, TenantFeatures, CompanyInfo } from "@/lib/tenant";
+import type { Tenant, TenantFeatures } from "@/lib/tenant";
 import { c } from "@/lib/theme";
 
 type Props = {
@@ -38,48 +38,8 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [status, setStatus]           = useState(tenant.status);
   const [plan, setPlan]               = useState(tenant.plan);
   const [features, setFeatures]       = useState<TenantFeatures>({ ...tenant.features });
-  const [info, setInfo]               = useState<CompanyInfo>({ ...(tenant.company_info ?? {}) });
-  const [partners, setPartners]       = useState<{ name: string; logo_url: string }[]>(
-    (tenant.company_info?.partners ?? []).map((p) => ({ name: p.name, logo_url: p.logo_url ?? "" }))
-  );
   const [saved, setSaved]             = useState(false);
   const [error, setError]             = useState("");
-  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
-
-  async function uploadPartnerLogo(i: number, file: File) {
-    setUploadingIdx(i);
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/admin/upload-logo", { method: "POST", body: fd });
-    setUploadingIdx(null);
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setError(j.error ?? "Upload failed");
-      return;
-    }
-    const { url } = await res.json();
-    setPartnerField(i, "logo_url", url);
-  }
-
-  function setInfoField(key: keyof Omit<CompanyInfo, "partners">, val: string) {
-    setInfo((prev) => ({ ...prev, [key]: val }));
-    setSaved(false);
-  }
-
-  function setPartnerField(i: number, key: "name" | "logo_url", val: string) {
-    setPartners((prev) => prev.map((p, idx) => idx === i ? { ...p, [key]: val } : p));
-    setSaved(false);
-  }
-
-  function addPartner() {
-    setPartners((prev) => [...prev, { name: "", logo_url: "" }]);
-    setSaved(false);
-  }
-
-  function removePartner(i: number) {
-    setPartners((prev) => prev.filter((_, idx) => idx !== i));
-    setSaved(false);
-  }
 
   function toggleFeature(key: keyof TenantFeatures) {
     setFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -93,7 +53,7 @@ export default function TenantEditor({ tenant, users }: Props) {
       const res = await fetch(`/api/admin/tenants/${tenant.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, slug, accent_color: accentColor, logo_url: logoUrl || null, status, plan, features, company_info: { ...info, partners: partners.filter((p) => p.name.trim()) } }),
+        body: JSON.stringify({ name, slug, accent_color: accentColor, logo_url: logoUrl || null, status, plan, features }),
       });
       if (res.ok) {
         setSaved(true);
@@ -141,106 +101,6 @@ export default function TenantEditor({ tenant, users }: Props) {
               <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)}
                 style={{ width: 38, height: 38, border: "1px solid #d1d5db", borderRadius: 8, cursor: "pointer", padding: 2 }} />
               <input style={{ ...inputStyle, flex: 1 }} value={accentColor} onChange={(e) => setAccentColor(e.target.value)} />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Company Info */}
-      <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Company Info</h2>
-        <p style={{ margin: "0 0 14px", fontSize: 12, color: "#6b7280" }}>
-          Shown in the quotation PDF header. Leave blank to use the system default.
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {([
-            { key: "tagline",          label: "Tagline",                     placeholder: "Professional in Motor Rewindings" },
-            { key: "undertaking",      label: "Services (undertaking line)",  placeholder: "Rewinding of LT / HT Large Motors…" },
-            { key: "address",          label: "Address",                      placeholder: "Plot No: N3-N4/1, Industrial Estate…" },
-            { key: "phone_dir_tech",   label: "Phone — Dir / Tech",           placeholder: "9342681227 / 9538884600" },
-            { key: "phone_commercial", label: "Phone — Commercial",           placeholder: "9538884603" },
-            { key: "phone_work",       label: "Phone — Work",                 placeholder: "9538884602" },
-            { key: "landline",         label: "Landline",                     placeholder: "08394-231687" },
-            { key: "email",            label: "Email (primary)",              placeholder: "vikaspioneers@gmail.com" },
-            { key: "email2",           label: "Email (secondary)",            placeholder: "vew@vikaspioneers.com" },
-            { key: "web",              label: "Website",                      placeholder: "www.vikaspioneers.com" },
-            { key: "gstin",            label: "GSTIN",                        placeholder: "29AHHPG0831F1ZN" },
-            { key: "iso",              label: "Certification",                placeholder: "ISO 9001:2015" },
-            { key: "footer_tagline",   label: "Footer tagline",               placeholder: "Assuring our best services as always!" },
-          ] as { key: keyof Omit<CompanyInfo, "partners">; label: string; placeholder: string }[]).map(({ key, label, placeholder }) => (
-            <div key={key}>
-              <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 3 }}>{label}</label>
-              <input
-                style={inputStyle}
-                value={(info[key] as string) ?? ""}
-                placeholder={placeholder}
-                onChange={(e) => setInfoField(key, e.target.value)}
-              />
-            </div>
-          ))}
-
-          {/* Channel Partners — dynamic logo list */}
-          <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <label style={{ fontSize: 12, color: "#6b7280" }}>Channel partners (with logos)</label>
-              <button
-                type="button"
-                onClick={addPartner}
-                style={{ fontSize: 12, color: "#3b82f6", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}
-              >
-                + Add partner
-              </button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {partners.map((p, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: 6, alignItems: "center" }}>
-                  <input
-                    style={inputStyle}
-                    value={p.name}
-                    placeholder="Partner name (e.g. ABB)"
-                    onChange={(e) => setPartnerField(i, "name", e.target.value)}
-                  />
-                  <div style={{ position: "relative" }}>
-                    {p.logo_url ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, height: 38, border: "1px solid #d1d5db", borderRadius: 8, padding: "0 10px", background: "#f9fafb" }}>
-                        <img src={p.logo_url} alt={p.name} style={{ height: 22, maxWidth: 60, objectFit: "contain" }} />
-                        <span style={{ fontSize: 11, color: "#6b7280", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {p.logo_url.split("/").pop()}
-                        </span>
-                        <label style={{ fontSize: 11, color: "#3b82f6", cursor: "pointer", flexShrink: 0, fontWeight: 500 }}>
-                          Change
-                          <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }}
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPartnerLogo(i, f); e.target.value = ""; }} />
-                        </label>
-                      </div>
-                    ) : (
-                      <label style={{
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                        height: 38, border: "2px dashed #d1d5db", borderRadius: 8,
-                        cursor: uploadingIdx === i ? "wait" : "pointer",
-                        fontSize: 12, color: uploadingIdx === i ? "#9ca3af" : "#6b7280",
-                        background: "#fafafa",
-                      }}>
-                        {uploadingIdx === i ? "Uploading…" : "⬆ Upload logo (PNG / JPG / SVG)"}
-                        <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style={{ display: "none" }}
-                          disabled={uploadingIdx === i}
-                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPartnerLogo(i, f); e.target.value = ""; }} />
-                      </label>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removePartner(i)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 16, lineHeight: 1, alignSelf: "center" }}
-                    title="Remove"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              {partners.length === 0 && (
-                <div style={{ fontSize: 12, color: "#9ca3af", padding: "8px 0" }}>No partners added yet. Click "+ Add partner" above.</div>
-              )}
             </div>
           </div>
         </div>

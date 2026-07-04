@@ -22,7 +22,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Logo size={28} />
           <div>
             <div style={{ color: "#e2e7ee", fontWeight: 700, fontSize: 13 }}>
-              Vevey<span style={{ color: c.accent }}>CRM</span>
+              BPM<span style={{ color: c.accent }}>Square</span>
             </div>
             <div style={{ color: "#dc2626", fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>
               PLATFORM ADMIN
