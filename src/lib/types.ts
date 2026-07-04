@@ -252,6 +252,7 @@ export type LayoutSection = {
   kind: "builtin" | "custom_fields";
   label: string;
   field_keys: string[];                // for custom_fields: ordered cf_ keys in this section
+  hidden?: boolean;                    // dashboard widgets: toggled off but kept in order
 };
 
 export type PageLayout = LayoutSection[];

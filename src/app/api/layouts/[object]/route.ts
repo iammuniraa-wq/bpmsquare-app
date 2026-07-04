@@ -20,6 +20,13 @@ const DEFAULTS: Record<string, PageLayout> = {
     { id: "core",  kind: "builtin", label: "Work order details", field_keys: [] },
     { id: "notes", kind: "builtin", label: "Notes",              field_keys: [] },
   ],
+  dashboard: [
+    { id: "kpis",         kind: "builtin", label: "Key metrics",     field_keys: [] },
+    { id: "attention",    kind: "builtin", label: "Needs action",    field_keys: [] },
+    { id: "work_orders",  kind: "builtin", label: "Work orders",     field_keys: [] },
+    { id: "quick_create", kind: "builtin", label: "Quick create",    field_keys: [] },
+    { id: "activity",     kind: "builtin", label: "Recent activity", field_keys: [] },
+  ],
 };
 
 export async function GET(
