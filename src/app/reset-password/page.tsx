@@ -23,18 +23,39 @@ const labelStyle: React.CSSProperties = {
 };
 
 export default function ResetPasswordPage() {
-  const [password, setPassword]   = useState("");
-  const [confirm, setConfirm]     = useState("");
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState("");
-  const [done, setDone]           = useState(false);
-  const [ready, setReady]         = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm]   = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const [done, setDone]         = useState(false);
+  const [ready, setReady]       = useState(false);
+  const [expired, setExpired]   = useState(false);
 
-  // Supabase puts the session in the URL hash on redirect — wait for it
   useEffect(() => {
     const supabase = createBrowserSupabase();
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") setReady(true);
+
+    // First try: check if Supabase already exchanged the hash token
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setReady(true);
+        return;
+      }
+      // Second try: listen for PASSWORD_RECOVERY event
+      const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+        if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+          setReady(true);
+        }
+      });
+
+      // If nothing fires in 6 seconds, the link is expired or invalid
+      const timeout = setTimeout(() => {
+        setExpired(true);
+      }, 6000);
+
+      return () => {
+        listener.subscription.unsubscribe();
+        clearTimeout(timeout);
+      };
     });
   }, []);
 
@@ -82,19 +103,40 @@ export default function ResetPasswordPage() {
           <div style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Set a new password</div>
         </div>
 
-        {done ? (
+        {done && (
           <div style={{
             background: "#f0fdf4", border: "1px solid #bbf7d0",
             borderRadius: 9, padding: "16px 14px",
             fontSize: 13.5, color: "#166534", lineHeight: 1.6, textAlign: "center",
           }}>
-            Password updated. Redirecting you to the app…
+            Password updated. Taking you to the app…
           </div>
-        ) : !ready ? (
+        )}
+
+        {!done && expired && (
+          <div style={{ textAlign: "center" }}>
+            <div style={{
+              background: "#fef2f2", border: "1px solid #fecaca",
+              borderRadius: 9, padding: "14px", fontSize: 13.5,
+              color: "#dc2626", marginBottom: 16,
+            }}>
+              This reset link has expired or is invalid.
+            </div>
+            <a href="/login" style={{
+              fontSize: 13.5, fontWeight: 600, color: c.accent, textDecoration: "none",
+            }}>
+              ← Request a new reset link
+            </a>
+          </div>
+        )}
+
+        {!done && !expired && !ready && (
           <div style={{ textAlign: "center", fontSize: 13.5, color: c.muted, padding: "16px 0" }}>
             Verifying reset link…
           </div>
-        ) : (
+        )}
+
+        {!done && !expired && ready && (
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
               <label style={labelStyle}>New password</label>
