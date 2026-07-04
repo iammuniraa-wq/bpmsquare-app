@@ -6,64 +6,68 @@ import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { c, g, sh } from "@/lib/theme";
 import Logo from "@/components/Logo";
 import { Suspense } from "react";
-import { Mail } from "@/components/Icons";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  height: 42,
+  height: 44,
   border: `1px solid ${c.line}`,
-  borderRadius: 9,
-  padding: "0 12px",
-  fontSize: 13,
+  borderRadius: 8,
+  padding: "0 14px",
+  fontSize: 14,
   color: c.ink,
   boxSizing: "border-box",
+  outline: "none",
+  transition: "border-color .15s",
 };
 
 function LoginForm() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/";
-  const hasError = searchParams.get("error") === "auth";
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState(hasError ? "Login link expired. Please try again." : "");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [mode, setMode]         = useState<"login" | "forgot">("login");
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !password) return;
+    setLoading(true);
+    setError("");
+
+    const supabase = createBrowserSupabase();
+    const { error: err } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    setLoading(false);
+    if (err) {
+      setError("Incorrect email or password. Please try again.");
+    } else {
+      window.location.href = next;
+    }
+  }
+
+  async function handleForgot(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) return;
     setLoading(true);
     setError("");
 
     const supabase = createBrowserSupabase();
-
-    // If password entered, use password login
-    if (password) {
-      const { error: err } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      setLoading(false);
-      if (err) { setError(err.message ?? "Login failed. Check your credentials."); return; }
-      window.location.href = next;
-      return;
-    }
-
-    // Otherwise magic link
-    const { error: err } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-        shouldCreateUser: true,
-      },
-    });
+    const { error: err } = await supabase.auth.resetPasswordForEmail(
+      email.trim(),
+      { redirectTo: `${window.location.origin}/reset-password` }
+    );
 
     setLoading(false);
     if (err) {
       setError(err.message);
     } else {
-      setSent(true);
+      setResetSent(true);
     }
   }
 
@@ -76,85 +80,141 @@ function LoginForm() {
     }}>
       <div style={{
         background: "#fff",
-        borderRadius: 16,
-        padding: "34px 30px",
-        width: 360,
+        borderRadius: 14,
+        padding: "36px 32px 30px",
+        width: 380,
         maxWidth: "100%",
-        textAlign: "center",
         boxShadow: sh.modal,
       }}>
-        <div style={{ marginBottom: 14, display: "flex", justifyContent: "center" }}>
-          <Logo size={58} />
-        </div>
-        <div style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.5 }}>
-          Vevey<span style={{ color: c.accent }}>CRM</span>
-        </div>
-        <div style={{ fontSize: 12.5, color: c.muted, margin: "5px 0 22px" }}>
-          Sign in to your workspace
+
+        {/* Logo + brand */}
+        <div style={{ textAlign: "center", marginBottom: 26 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+            <Logo size={52} />
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.5, color: c.ink }}>
+            BPM<span style={{ color: c.accent }}>Square</span>
+          </div>
+          <div style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>
+            {mode === "login" ? "Sign in to your workspace" : "Reset your password"}
+          </div>
         </div>
 
-        {sent ? (
-          <div style={{
-            background: "#f0fdf4", border: "1px solid #bbf7d0",
-            borderRadius: 10, padding: "16px 14px",
-            fontSize: 13.5, color: "#166534", lineHeight: 1.5,
-          }}>
-            <Mail size={16} color="#166534" style={{ marginRight: 6, verticalAlign: "middle" }} /> Check your email<br />
-            <span style={{ fontSize: 12, color: "#15803d" }}>
-              A sign-in link has been sent to <strong>{email}</strong>
-            </span>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            <input
-              type="email"
-              placeholder="you@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{ ...inputStyle, marginBottom: 8 }}
-            />
-            <input
-              type="password"
-              placeholder="Password (optional — or use magic link)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{ ...inputStyle, marginBottom: 12 }}
-            />
-            {error && (
-              <div style={{
-                fontSize: 12, color: "#dc2626",
-                background: "#fef2f2", border: "1px solid #fecaca",
-                borderRadius: 7, padding: "8px 10px", marginBottom: 10,
-                textAlign: "left",
-              }}>
-                {error}
+        {/* ── FORGOT PASSWORD ── */}
+        {mode === "forgot" && (
+          resetSent ? (
+            <div style={{
+              background: "#f0fdf4", border: "1px solid #bbf7d0",
+              borderRadius: 9, padding: "16px 14px",
+              fontSize: 13.5, color: "#166534", lineHeight: 1.6, textAlign: "center",
+            }}>
+              Password reset email sent to <strong>{email}</strong>.<br />
+              <span style={{ fontSize: 12.5 }}>Check your inbox and follow the link.</span>
+            </div>
+          ) : (
+            <form onSubmit={handleForgot} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Email address</label>
+                <input
+                  type="email"
+                  placeholder="you@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                  style={inputStyle}
+                />
               </div>
-            )}
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: "100%", height: 44,
-                background: loading ? "#93c5fd" : c.accent,
-                color: "#fff", border: "none",
-                borderRadius: 9, fontSize: 14, fontWeight: 500,
-                cursor: loading ? "not-allowed" : "pointer",
-                transition: "background .15s",
-              }}
-            >
-              {loading ? "Sending…" : "Send sign-in link"}
+              {error && <ErrorBox>{error}</ErrorBox>}
+              <button type="submit" disabled={loading} style={btnStyle(loading)}>
+                {loading ? "Sending…" : "Send reset link"}
+              </button>
+            </form>
+          )
+        )}
+
+        {/* ── LOGIN ── */}
+        {mode === "login" && (
+          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Email address</label>
+              <input
+                type="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Password</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={inputStyle}
+              />
+            </div>
+            {error && <ErrorBox>{error}</ErrorBox>}
+            <button type="submit" disabled={loading} style={btnStyle(loading)}>
+              {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
         )}
 
-        <div style={{ fontSize: 11, color: c.hint, marginTop: 16 }}>
-          No password required · magic link sent to your email
+        {/* Footer links */}
+        <div style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: c.hint }}>
+          {mode === "login" ? (
+            <button
+              onClick={() => { setMode("forgot"); setError(""); }}
+              style={{ background: "none", border: "none", color: c.accent, cursor: "pointer", fontSize: 13, fontWeight: 500 }}
+            >
+              Forgot your password?
+            </button>
+          ) : (
+            <button
+              onClick={() => { setMode("login"); setError(""); setResetSent(false); }}
+              style={{ background: "none", border: "none", color: c.accent, cursor: "pointer", fontSize: 13, fontWeight: 500 }}
+            >
+              ← Back to sign in
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
+function ErrorBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: 13, color: "#dc2626",
+      background: "#fef2f2", border: "1px solid #fecaca",
+      borderRadius: 7, padding: "9px 12px",
+    }}>
+      {children}
+    </div>
+  );
+}
+
+const labelStyle: React.CSSProperties = {
+  display: "block", fontSize: 12.5, fontWeight: 600,
+  color: c.muted, marginBottom: 6,
+};
+
+const btnStyle = (loading: boolean): React.CSSProperties => ({
+  width: "100%", height: 46,
+  background: loading ? "#93c5fd" : c.accent,
+  color: "#fff", border: "none",
+  borderRadius: 8, fontSize: 14.5, fontWeight: 600,
+  cursor: loading ? "not-allowed" : "pointer",
+  transition: "background .15s",
+  marginTop: 2,
+});
 
 export default function LoginPage() {
   return (

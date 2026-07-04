@@ -1,0 +1,150 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { createBrowserSupabase } from "@/lib/supabase-browser";
+import { c, g, sh } from "@/lib/theme";
+import Logo from "@/components/Logo";
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  height: 44,
+  border: `1px solid ${c.line}`,
+  borderRadius: 8,
+  padding: "0 14px",
+  fontSize: 14,
+  color: c.ink,
+  boxSizing: "border-box",
+  outline: "none",
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block", fontSize: 12.5, fontWeight: 600,
+  color: c.muted, marginBottom: 6,
+};
+
+export default function ResetPasswordPage() {
+  const [password, setPassword]   = useState("");
+  const [confirm, setConfirm]     = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState("");
+  const [done, setDone]           = useState(false);
+  const [ready, setReady]         = useState(false);
+
+  // Supabase puts the session in the URL hash on redirect — wait for it
+  useEffect(() => {
+    const supabase = createBrowserSupabase();
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setReady(true);
+    });
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password !== confirm) { setError("Passwords do not match."); return; }
+    if (password.length < 8)  { setError("Password must be at least 8 characters."); return; }
+    setLoading(true);
+    setError("");
+
+    const supabase = createBrowserSupabase();
+    const { error: err } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+
+    if (err) {
+      setError(err.message);
+    } else {
+      setDone(true);
+      setTimeout(() => { window.location.href = "/"; }, 2000);
+    }
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0,
+      background: g.login,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 20,
+    }}>
+      <div style={{
+        background: "#fff",
+        borderRadius: 14,
+        padding: "36px 32px 30px",
+        width: 380,
+        maxWidth: "100%",
+        boxShadow: sh.modal,
+      }}>
+        <div style={{ textAlign: "center", marginBottom: 26 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+            <Logo size={52} />
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.5, color: c.ink }}>
+            BPM<span style={{ color: c.accent }}>Square</span>
+          </div>
+          <div style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Set a new password</div>
+        </div>
+
+        {done ? (
+          <div style={{
+            background: "#f0fdf4", border: "1px solid #bbf7d0",
+            borderRadius: 9, padding: "16px 14px",
+            fontSize: 13.5, color: "#166534", lineHeight: 1.6, textAlign: "center",
+          }}>
+            Password updated. Redirecting you to the app…
+          </div>
+        ) : !ready ? (
+          <div style={{ textAlign: "center", fontSize: 13.5, color: c.muted, padding: "16px 0" }}>
+            Verifying reset link…
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={labelStyle}>New password</label>
+              <input
+                type="password"
+                placeholder="Min. 8 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoFocus
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Confirm password</label>
+              <input
+                type="password"
+                placeholder="Repeat password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
+                style={inputStyle}
+              />
+            </div>
+            {error && (
+              <div style={{
+                fontSize: 13, color: "#dc2626",
+                background: "#fef2f2", border: "1px solid #fecaca",
+                borderRadius: 7, padding: "9px 12px",
+              }}>
+                {error}
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%", height: 46,
+                background: loading ? "#93c5fd" : c.accent,
+                color: "#fff", border: "none",
+                borderRadius: 8, fontSize: 14.5, fontWeight: 600,
+                cursor: loading ? "not-allowed" : "pointer",
+                marginTop: 2,
+              }}
+            >
+              {loading ? "Saving…" : "Set new password"}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
