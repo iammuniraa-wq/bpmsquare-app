@@ -49,16 +49,19 @@ export async function GET(request: NextRequest) {
         return;
       }
 
+      const type = params.get('type');
+      const destination = type === 'recovery' ? '/reset-password' : '${next}';
+
       // POST tokens to server so it can set proper SSR cookies
       const res = await fetch('${origin}/api/auth/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token, refresh_token, next: '${next}' }),
+        body: JSON.stringify({ access_token, refresh_token, next: destination }),
         credentials: 'include',
       });
 
       if (res.ok) {
-        window.location.replace('${origin}${next}');
+        window.location.replace('${origin}' + destination);
       } else {
         window.location.replace('${origin}/login?error=auth');
       }
