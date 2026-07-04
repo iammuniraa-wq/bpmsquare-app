@@ -1,29 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { MOBILE_BREAKPOINT, NAV, ROUTES } from "@/lib/constants";
-import { c, g, pillar } from "@/lib/theme";
-import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
+import { usePathname } from "next/navigation";
+import { MOBILE_BREAKPOINT } from "@/lib/constants";
+import { c, g } from "@/lib/theme";
 import Logo from "./Logo";
 import Sidebar from "./Sidebar";
 import { TabsProvider } from "@/lib/tabs-context";
-import { Gear, XIcon } from "@/components/Icons";
+import { XIcon } from "@/components/Icons";
 import TabBar from "./TabBar";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
+// Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
+// feature-flag filtering stay identical across platforms.
 
 function MobileTopBar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const { settings } = useSettings();
-  const accent = ACCENT_PRESETS[settings.accentPreset].color;
   const [open, setOpen] = useState(false);
 
+  // Close the drawer whenever the route changes.
   useEffect(() => { setOpen(false); }, [pathname]);
-
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
 
   return (
     <>
@@ -80,81 +76,18 @@ function MobileTopBar() {
         />
       )}
 
-      {/* Drawer */}
-      <nav style={{
+      {/* Drawer — hosts the shared Sidebar */}
+      <div style={{
         position: "fixed", top: 48, left: 0,
-        width: 250, height: "calc(100vh - 48px)",
-        background: g.sidebar,
+        height: "calc(100vh - 48px)",
         zIndex: 95,
         transform: open ? "translateX(0)" : "translateX(-100%)",
         transition: "transform .2s ease",
         overflowY: "auto", scrollbarWidth: "none",
-        padding: "14px 8px 24px",
-        boxSizing: "border-box",
+        boxShadow: open ? "2px 0 14px rgba(0,0,0,.45)" : "none",
       }}>
-        {NAV.map((group) => (
-          <div key={group.group} style={{ marginBottom: 18 }}>
-            <div style={{
-              fontSize: 9.5, fontWeight: 700, color: "#4a6070",
-              letterSpacing: "0.1em", textTransform: "uppercase",
-              padding: "0 10px", marginBottom: 5,
-            }}>
-              {group.group}
-            </div>
-            {group.items.map((item) => {
-              const on = isActive(item.href);
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => { router.push(item.href); setOpen(false); }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    width: "100%", padding: "9px 10px", borderRadius: 8,
-                    border: "none", cursor: "pointer", marginBottom: 2,
-                    background: on ? accent : "transparent",
-                    color: on ? "#fff" : "#9db3c4",
-                    fontSize: 13.5, fontWeight: on ? 600 : 400,
-                    textAlign: "left",
-                    transition: "background .12s, color .12s",
-                  }}
-                >
-                  <span style={{ fontSize: 14, width: 20, textAlign: "center", flexShrink: 0 }}>
-                    {item.icon}
-                  </span>
-                  <span style={{ flex: 1 }}>{item.label}</span>
-                  {item.badge != null && (
-                    <span style={{
-                      background: pillar.red.base, color: "#fff",
-                      fontSize: 10, fontWeight: 700,
-                      borderRadius: 10, padding: "1px 6px", lineHeight: 1.6,
-                    }}>
-                      {item.badge > 9 ? "9+" : item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ))}
-
-        {/* Settings */}
-        <div style={{ borderTop: "1px solid rgba(255,255,255,.07)", paddingTop: 12 }}>
-          <button
-            onClick={() => { router.push(ROUTES.settings); setOpen(false); }}
-            style={{
-              display: "flex", alignItems: "center", gap: 10,
-              width: "100%", padding: "9px 10px", borderRadius: 8,
-              border: "none", cursor: "pointer",
-              background: pathname.startsWith(ROUTES.settings) ? accent : "transparent",
-              color: pathname.startsWith(ROUTES.settings) ? "#fff" : "#9db3c4",
-              fontSize: 13.5, fontWeight: 400, textAlign: "left",
-            }}
-          >
-            <Gear size={14} color={pathname.startsWith(ROUTES.settings) ? "#fff" : "#9db3c4"} />
-            <span>Settings</span>
-          </button>
-        </div>
-      </nav>
+        <Sidebar onNavigate={() => setOpen(false)} />
+      </div>
     </>
   );
 }
