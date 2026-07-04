@@ -11,6 +11,7 @@ import TabTitle from "@/components/TabTitle";
 import CustomFieldsSection from "@/components/CustomFieldsSection";
 import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Activity } from "@/components/Icons";
+import WorkOrderEditPanel from "./WorkOrderEditPanel";
 
 const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
   scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
@@ -72,6 +73,10 @@ export default async function WorkOrderDetailPage({
         <div style={{ marginLeft: "auto" }}>
           <WorkOrderActions id={wo.id} status={wo.status} />
         </div>
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <WorkOrderEditPanel wo={wo} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 12 }} className="hub-grid">

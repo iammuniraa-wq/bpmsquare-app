@@ -1,0 +1,87 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { requireTenantUser } from "@/lib/supabase-server";
+
+// Full edit of a DRAFT quote: header fields + line items (replaced wholesale).
+// Server enforces draft-only; sent/approved quotes must use /revise instead.
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let supabase, tenantId;
+  try {
+    ({ supabase, tenantId } = await requireTenantUser());
+  } catch (e: unknown) {
+    const err = e as { status: number; message: string };
+    return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+
+  const { id } = await params;
+  const body = await request.json();
+  const { valid_until, notes, lines } = body;
+
+  const { data: quote, error: qErr } = await supabase
+    .from("quotes")
+    .select("id, status")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (qErr || !quote) {
+    return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+  }
+  if (quote.status !== "draft") {
+    return NextResponse.json({ error: "Only draft quotes can be edited. Create a new version instead." }, { status: 409 });
+  }
+
+  // Normalize incoming lines and compute total.
+  const cleanLines = Array.isArray(lines)
+    ? lines
+        .filter((l) => l?.description?.trim())
+        .slice(0, 200)
+        .map((l) => {
+          const qty  = Math.max(0, parseFloat(l.qty) || 0);
+          const rate = Math.max(0, parseFloat(l.rate) || 0);
+          const disc = Math.max(0, Math.min(100, parseFloat(l.discount_pct) || 0));
+          return {
+            tenant_id: tenantId,
+            quote_id: id,
+            description: String(l.description).slice(0, 500),
+            qty,
+            rate,
+            discount_pct: disc,
+            amount: qty * rate * (1 - disc / 100),
+            group_id:    l.group_id    ?? null,
+            group_label: l.group_label ?? null,
+            group_type:  l.group_type  ?? null,
+          };
+        })
+    : [];
+
+  const total = cleanLines.reduce((s, l) => s + l.amount, 0);
+
+  // Update header
+  const { error: uErr } = await supabase
+    .from("quotes")
+    .update({
+      valid_until: valid_until || null,
+      notes: notes ?? null,
+      total,
+    })
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
+
+  if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
+
+  // Replace lines wholesale
+  const { error: dErr } = await supabase
+    .from("quote_lines")
+    .delete()
+    .eq("quote_id", id)
+    .eq("tenant_id", tenantId);
+
+  if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
+
+  if (cleanLines.length > 0) {
+    const { error: iErr } = await supabase.from("quote_lines").insert(cleanLines);
+    if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ id, total }, { status: 200 });
+}

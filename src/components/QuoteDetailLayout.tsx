@@ -9,6 +9,7 @@ import Pill from "@/components/Pill";
 import ComingSoon from "@/components/ComingSoon";
 import { ROUTES } from "@/lib/constants";
 import { MessageSquare, CheckIcon } from "@/components/Icons";
+import QuoteEditPanel from "@/components/QuoteEditPanel";
 
 // ── Static label maps (safe for client — no server imports) ───────────────────
 
@@ -488,6 +489,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
         <Pill label={QUOTE_STATUS[quote.status]} tone={STATUS_TONE[quote.status]} />
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {!adaptMode && <QuoteEditPanel quote={quote} lines={lines} />}
           {!adaptMode && (
             <button
               onClick={() => setAdaptMode(true)}

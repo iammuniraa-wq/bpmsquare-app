@@ -13,6 +13,7 @@ import TabTitle from "@/components/TabTitle";
 import CustomFieldsSection from "@/components/CustomFieldsSection";
 import CaseActions from "@/components/CaseActions";
 import CaseInfoHeader from "@/components/CaseInfoHeader";
+import CaseCoreEditPanel from "./CaseCoreEditPanel";
 import { Gear, MessageSquare } from "@/components/Icons";
 
 // ── Stage timeline config ─────────────────────────────────────────────────────
@@ -190,6 +191,16 @@ export default async function CaseDetailPage({
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0faf5", color: "#3d7a5a", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }}>
           <MessageSquare size={13} color="#3d7a5a" /> WhatsApp <ComingSoon size="xs" />
         </span>
+      </div>
+
+      {/* Edit core case fields — available at any stage */}
+      <div style={{ marginBottom: 14 }}>
+        <CaseCoreEditPanel
+          caseId={sc.id}
+          equipmentLabel={sc.equipment_label}
+          complaint={sc.complaint}
+          notes={sc.notes ?? null}
+        />
       </div>
 
       {/* Stage progress track */}

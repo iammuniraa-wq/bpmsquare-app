@@ -15,6 +15,7 @@ import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import CustomFieldsSection from "@/components/CustomFieldsSection";
 import { MapPin, Phone, Mail, Gear } from "@/components/Icons";
+import AccountEditPanel from "./AccountEditPanel";
 
 // ── Tone maps ─────────────────────────────────────────────────────────────────
 
@@ -198,7 +199,9 @@ export default async function AccountHubPage({
         {/* Quick-create on mobile — below name */}
         <div className="mob-show" style={{ marginTop: 12 }}>{quickLinks}</div>
 
-
+        <div style={{ marginTop: 12 }}>
+          <AccountEditPanel account={account} />
+        </div>
       </div>
 
       {/* ── Tab bar ── */}

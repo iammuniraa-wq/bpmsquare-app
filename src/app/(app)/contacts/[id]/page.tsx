@@ -8,6 +8,7 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import { Phone, Mail, MapPin } from "@/components/Icons";
+import ContactEditPanel from "./ContactEditPanel";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -75,6 +76,10 @@ export default async function ContactDetailPage({
             {account.city && <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={11} color={c.hint} /> {account.city}</span>}
           </div>
         )}
+
+        <div style={{ marginTop: account ? 10 : 12 }}>
+          <ContactEditPanel contact={contact} />
+        </div>
       </div>
 
       {/* Cases */}
