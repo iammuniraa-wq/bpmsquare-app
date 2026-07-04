@@ -3,10 +3,10 @@ import "./globals.css";
 import ThemeApplier from "@/components/ThemeApplier";
 
 export const metadata: Metadata = {
-  title: "VeveyCRM — Vikas Pioneers workspace",
+  title: "BPMSquare",
   description: "CRM + Field Service for electromechanical repair & service businesses.",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "VeveyCRM" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "BPMSquare" },
 };
 
 export default function RootLayout({
