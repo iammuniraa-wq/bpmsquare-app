@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { account_id, name, role, phone, phone2, phone3, email } = body;
+  const { account_id, name, role, phone, email } = body;
 
   if (!name || !account_id) {
     return NextResponse.json({ error: "name and account_id are required" }, { status: 400 });
@@ -35,8 +35,6 @@ export async function POST(request: NextRequest) {
       name,
       role: role || null,
       phone: phone || null,
-      phone2: phone2 || null,
-      phone3: phone3 || null,
       email: email || null,
     })
     .select("id, name")

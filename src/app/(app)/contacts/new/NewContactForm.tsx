@@ -32,7 +32,7 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
   const [form, setForm] = useState({
     account_id: defaultAccountId || accounts[0]?.id || "",
     name: "", role: "",
-    phone: "", phone2: "", phone3: "",
+    phone: "",
     email: "",
   });
 
@@ -80,20 +80,10 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
   );
 
   const phoneFields = (
-    <>
-      <div style={fieldWrap}>
-        <label style={label}>Primary phone</label>
-        <input style={input} value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
-      </div>
-      <div style={fieldWrap}>
-        <label style={label}>Phone 2</label>
-        <input style={input} value={form.phone2} onChange={set("phone2")} placeholder="+91 97654 32109" />
-      </div>
-      <div style={{ ...fieldWrap, marginBottom: 0 }}>
-        <label style={label}>Phone 3</label>
-        <input style={input} value={form.phone3} onChange={set("phone3")} placeholder="+91 96543 21098" />
-      </div>
-    </>
+    <div style={{ ...fieldWrap, marginBottom: 0 }}>
+      <label style={label}>Primary phone</label>
+      <input style={input} value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
+    </div>
   );
 
   const emailFields = (
