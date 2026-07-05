@@ -34,6 +34,7 @@ export async function requireTenantUser(): Promise<{
   supabase: SupabaseClient;
   tenantId: string;
   userId: string;
+  role: "admin" | "member";
 }> {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -42,13 +43,18 @@ export async function requireTenantUser(): Promise<{
   // Use service role to look up tenant — bypasses RLS for this internal join
   const { data: tu } = await createAdminSupabase()
     .from("tenant_users")
-    .select("tenant_id")
+    .select("tenant_id, role")
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (!tu?.tenant_id) throw { status: 403, message: "No tenant membership" };
 
-  return { supabase, tenantId: tu.tenant_id as string, userId: user.id };
+  return {
+    supabase,
+    tenantId: tu.tenant_id as string,
+    userId: user.id,
+    role: (tu.role as "admin" | "member") ?? "member",
+  };
 }
 
 /**

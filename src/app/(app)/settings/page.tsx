@@ -7,6 +7,7 @@ import type { AccentPreset } from "@/lib/settings";
 import { NAV, ROUTES } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { useTenant } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone } from "@/components/Icons";
 
 const PILLAR_DOT: Record<string, string> = {
@@ -117,6 +118,8 @@ function StatusBadge({ status }: { status: "active" | "ready" | "coming-soon" })
 export default function SettingsPage() {
   const router = useRouter();
   const { settings, update, reset } = useSettings();
+  const tenant = useTenant();
+  const tenantFeatures = tenant?.features as Record<string, boolean> | undefined;
   const accent = ACCENT_PRESETS[settings.accentPreset].color;
   const [saved, flashSaved] = useSavedFlash();
 
@@ -125,7 +128,13 @@ export default function SettingsPage() {
 
   const [copied, setCopied] = useState(false);
 
-  const allNavItems = NAV.flatMap((grp) => grp.items.map((item) => ({ ...item, group: grp.group })));
+  // Only show nav items whose feature is enabled at the tenant (platform admin) level.
+  // If platform admin turns off a feature, local admin cannot see or re-enable it here.
+  const allNavItems = NAV.flatMap((grp) =>
+    grp.items
+      .filter((item) => !item.featureKey || tenantFeatures?.[item.featureKey] === true)
+      .map((item) => ({ ...item, group: grp.group }))
+  );
   const isVisible = (href: string) => !settings.hiddenNavHrefs.includes(href);
 
   const patch = (vals: Parameters<typeof update>[0]) => { update(vals); flashSaved(); };

@@ -31,13 +31,14 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  let supabase, tenantId;
+  let supabase, tenantId, role;
   try {
-    ({ supabase, tenantId } = await requireTenantUser());
+    ({ supabase, tenantId, role } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+  if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
   const { object_type, field_label, field_type, options, is_required } = body;

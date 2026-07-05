@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Shell from "@/components/Shell";
-import { getTenant, isPlatformAdmin } from "@/lib/tenant";
+import { getTenant, getUserRole, isPlatformAdmin } from "@/lib/tenant";
 import { TenantProvider } from "@/lib/tenant-context";
 import { getAuthUser } from "@/lib/supabase-server";
 import { LinkIcon } from "@/components/Icons";
@@ -11,14 +11,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Not logged in at all
   if (!user) redirect("/login");
 
-  const tenant = await getTenant();
+  const [tenant, userRole] = await Promise.all([getTenant(), getUserRole()]);
 
   // Platform admins can use the app even without a tenant assignment
   if (!tenant) {
     const isAdmin = await isPlatformAdmin();
     if (isAdmin) {
       return (
-        <TenantProvider tenant={null}>
+        <TenantProvider tenant={null} userRole={null}>
           <Shell>{children}</Shell>
         </TenantProvider>
       );
@@ -53,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <TenantProvider tenant={tenant}>
+    <TenantProvider tenant={tenant} userRole={userRole}>
       <style>{`:root { --tenant-accent: ${tenant.accent_color}; }`}</style>
       <Shell>{children}</Shell>
     </TenantProvider>

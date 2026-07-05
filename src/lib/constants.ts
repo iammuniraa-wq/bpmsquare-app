@@ -38,6 +38,7 @@ export const ROUTES = {
   invoices: "/invoices",
   case: (id: string) => `/cases/${id}`,
   settings: "/settings",
+  settingsTeam: "/settings/team",
   reports: "/reports",
   admin: "/admin",
   adminTenant: (id: string) => `/admin/tenants/${id}`,

@@ -9,7 +9,7 @@ import { g } from "@/lib/theme";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear } from "@/components/Icons";
-import { useTenant } from "@/lib/tenant-context";
+import { useTenant, useUserRole } from "@/lib/tenant-context";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -268,8 +268,9 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { settings } = useSettings();
   const tenant = useTenant();
 
-  const features = tenant?.features as Record<string, boolean> | undefined;
-  const accent  = tenant?.accent_color ?? ACCENT_PRESETS[settings.accentPreset].color;
+  const features  = tenant?.features as Record<string, boolean> | undefined;
+  const accent    = tenant?.accent_color ?? ACCENT_PRESETS[settings.accentPreset].color;
+  const userRole  = useUserRole();
   const compact = settings.compactSidebar;
 
   const [navState, setNavState] = useState<NavState>(() => defaultNavState(features));
@@ -431,11 +432,12 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           {settingsOpen && (
             <div style={{ paddingLeft: 10, paddingTop: 2, paddingBottom: 2 }}>
               {([
-                { label: "General",       href: ROUTES.settings,          icon: "◉" },
-                { label: "Pricing",       href: ROUTES.configPricing,    icon: "◈" },
-                { label: "Quote config",  href: ROUTES.configTemplates,  icon: "◧" },
-                { label: "Custom fields", href: ROUTES.configCustomFields, icon: "⊞" },
-              ] as const).map((sub) => {
+                { label: "General",       href: ROUTES.settings,           icon: "◉", adminOnly: false },
+                { label: "Team",          href: ROUTES.settingsTeam,       icon: "◉", adminOnly: true  },
+                { label: "Pricing",       href: ROUTES.configPricing,      icon: "◈", adminOnly: false },
+                { label: "Quote config",  href: ROUTES.configTemplates,    icon: "◧", adminOnly: false },
+                { label: "Custom fields", href: ROUTES.configCustomFields,  icon: "⊞", adminOnly: false },
+              ] as const).filter((s) => !s.adminOnly || userRole === "admin").map((sub) => {
                 const active = pathname === sub.href;
                 return (
                   <Link
