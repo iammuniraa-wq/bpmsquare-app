@@ -213,16 +213,7 @@ export default async function AccountHubPage({
             </div>
           </div>
 
-          {/* Edit + quick-create */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <AccountEditPanel account={account} />
-            <div className="mob-hide" style={{ display: "flex", gap: 6 }}>
-              <Link href={`${ROUTES.caseNew}?account_id=${id}`}    style={quickBtn}>+ Case</Link>
-              <Link href={`${ROUTES.contactNew}?account_id=${id}`} style={quickBtn}>+ Contact</Link>
-              <Link href={ROUTES.quotationNew}                      style={quickBtn}>+ Quotation</Link>
-              <Link href={`${ROUTES.assetNew}?account_id=${id}`}   style={quickBtn}>+ Asset</Link>
-            </div>
-          </div>
+          <AccountEditPanel account={account} />
         </div>
       </div>
 
@@ -692,12 +683,6 @@ export default async function AccountHubPage({
 }
 
 // ── Shared styles ──────────────────────────────────────────────────────────────
-
-const quickBtn: React.CSSProperties = {
-  fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg,
-  border: `1px solid ${c.accent}25`, borderRadius: 6, padding: "5px 11px",
-  textDecoration: "none", whiteSpace: "nowrap",
-};
 
 // Case table inside overview
 const cth: React.CSSProperties = {
