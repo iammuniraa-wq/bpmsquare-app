@@ -5,42 +5,33 @@ import type { ServiceCase, CasePhoto, InspectionReport } from "@/lib/types";
 import { c, pillar } from "@/lib/theme";
 import type { PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ComingSoon from "@/components/ComingSoon";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import CustomFieldsSection from "@/components/CustomFieldsSection";
 import CaseActions from "@/components/CaseActions";
-import CaseInfoHeader from "@/components/CaseInfoHeader";
 import CaseCoreEditPanel from "./CaseCoreEditPanel";
-import { Gear, MessageSquare } from "@/components/Icons";
+import { MessageSquare } from "@/components/Icons";
 
-// ── Stage timeline config ─────────────────────────────────────────────────────
+// ── Stage groups ──────────────────────────────────────────────────────────────
 
-type Stage = {
-  status: ServiceCase["status"];
-  label: string;
-  short: string;
-};
-
-const STAGES: Stage[] = [
-  { status: "intake",          label: "Intake",          short: "Intake" },
-  { status: "inspection",      label: "Inspection",      short: "Inspect" },
-  { status: "report_sent",     label: "Report sent",     short: "Report" },
-  { status: "report_approved", label: "Report approved", short: "Approved" },
-  { status: "quote_sent",      label: "Quote sent",      short: "Quote" },
-  { status: "quote_approved",  label: "Quote approved",  short: "Approved" },
-  { status: "in_repair",       label: "In repair",       short: "Repair" },
-  { status: "qa",              label: "QA",              short: "QA" },
-  { status: "ready",           label: "Ready",           short: "Ready" },
-  { status: "closed",          label: "Closed",          short: "Closed" },
+const STAGE_GROUPS: { label: string; statuses: ServiceCase["status"][] }[] = [
+  { label: "Intake",     statuses: ["intake"] },
+  { label: "Inspection", statuses: ["inspection"] },
+  { label: "Report",     statuses: ["report_sent", "report_approved"] },
+  { label: "Quote",      statuses: ["quote_sent", "quote_approved"] },
+  { label: "Repair",     statuses: ["in_repair", "qa"] },
+  { label: "Close",      statuses: ["ready", "closed"] },
 ];
 
 const EXIT_STATUSES: ServiceCase["status"][] = ["buyback", "scrapped"];
 
 function stageIndex(status: ServiceCase["status"]): number {
-  return STAGES.findIndex((s) => s.status === status);
+  for (let i = 0; i < STAGE_GROUPS.length; i++) {
+    if (STAGE_GROUPS[i].statuses.includes(status)) return i;
+  }
+  return -1;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -49,12 +40,10 @@ const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 const fmtDateTime = (s: string | null) =>
-  s
-    ? new Date(s).toLocaleString("en-IN", {
-        day: "2-digit", month: "short", year: "numeric",
-        hour: "2-digit", minute: "2-digit", hour12: true,
-      })
-    : "—";
+  s ? new Date(s).toLocaleString("en-IN", {
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  }) : "—";
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
@@ -79,29 +68,16 @@ const irStatusLabel: Record<InspectionReport["status"], string> = {
   draft: "Draft", sent: "Sent to customer", approved: "Customer approved", rejected: "Customer rejected",
 };
 
-const STAGE_GROUPS: { label: string; statuses: ServiceCase["status"][] }[] = [
-  { label: "Intake",     statuses: ["intake"] },
-  { label: "Inspection", statuses: ["inspection"] },
-  { label: "Report",     statuses: ["report_sent", "report_approved"] },
-  { label: "Quote",      statuses: ["quote_sent", "quote_approved"] },
-  { label: "Repair",     statuses: ["in_repair", "qa"] },
-  { label: "Close",      statuses: ["ready", "closed"] },
-];
-
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export default async function CaseDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const data = await getCase(id);
   if (!data) notFound();
 
   const { serviceCase: sc, account, contact, asset, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases } = data;
 
-  const currentIdx = stageIndex(sc.status);
+  const currentGroupIdx = stageIndex(sc.status);
   const isExit = EXIT_STATUSES.includes(sc.status);
 
   const photosByStage = {
@@ -113,133 +89,90 @@ export default async function CaseDetailPage({
   return (
     <>
       <TabTitle title={sc.ref} />
-      <PageHeader
-        title={sc.ref}
-        subtitle={`Service · Case · ${account?.name ?? ""}`}
-      />
 
-      {/* Back + badges row */}
-      <div style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <Link href={ROUTES.cases} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
+      {/* Compact header */}
+      <div style={{ marginBottom: 18 }}>
+        <Link href={ROUTES.cases} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none", display: "inline-block", marginBottom: 8 }}>
           ← All cases
         </Link>
-        {sc.parent_case_id && (
-          <>
-            <span style={{ fontSize: 12, color: c.hint }}>/</span>
-            <Link href={ROUTES.case(sc.parent_case_id)} style={{ fontSize: 12, color: c.accent, textDecoration: "none", fontFamily: "monospace" }}>
-              Sub-case of {sc.parent_case_id.replace("case_", "CS-2026-00")}
-            </Link>
-          </>
-        )}
-        <Pill label={CASE_STATUS_LABEL[sc.status]} tone={statusTone[sc.status]} />
-        <Pill label={CASE_TYPE_LABEL[sc.type]} tone={typeTone[sc.type]} />
-        {sc.has_loaner && <Pill label="Loaner out" tone="amber" />}
-        {sc.disposition === "buyback" && <Pill label="Buyback" tone="purple" />}
-        {sc.disposition === "scrap"   && <Pill label="Scrapped" tone="red" />}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, fontFamily: "monospace", lineHeight: 1 }}>{sc.ref}</h1>
+              <Pill label={CASE_STATUS_LABEL[sc.status]} tone={statusTone[sc.status]} />
+              <Pill label={CASE_TYPE_LABEL[sc.type]} tone={typeTone[sc.type]} />
+              {sc.has_loaner && <Pill label="Loaner out" tone="amber" />}
+              {sc.parent_case_id && (
+                <Link href={ROUTES.case(sc.parent_case_id)} style={{ fontSize: 11.5, color: c.accent, textDecoration: "none", background: c.accentbg, borderRadius: 5, padding: "2px 7px" }}>
+                  Sub-case →
+                </Link>
+              )}
+            </div>
+            <div style={{ fontSize: 13.5, color: c.muted, fontWeight: 500 }}>
+              {account?.name ?? "—"}{sc.equipment_label ? <span style={{ color: c.hint }}> · {sc.equipment_label}</span> : ""}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Collapsed info header */}
-      <CaseInfoHeader
-        accountId={sc.account_id}
-        accountName={account?.name ?? "—"}
-        accountCity={account?.city ?? null}
-        accountPhone={account?.phone ?? null}
-        accountEmail={account?.email ?? null}
-        contactName={contact?.name ?? null}
-        contactRole={contact?.role ?? null}
-        contactPhone={contact?.phone ?? null}
-        equipmentLabel={sc.equipment_label}
-        technicianName={technician?.name ?? null}
-        intakeAt={sc.intake_at}
-        closedAt={sc.closed_at}
-        complaint={sc.complaint}
-        notes={sc.notes ?? null}
-        loanerName={loanerAsset?.name ?? null}
-        contractRef={contract?.ref ?? null}
-      />
+      {/* Stage stepper */}
+      {!isExit ? (
+        <div style={{ ...cardStyle, marginBottom: 16, padding: "14px 18px", overflowX: "auto" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", minWidth: "fit-content" }}>
+            {STAGE_GROUPS.map((group, gi) => {
+              const isDone    = currentGroupIdx > gi;
+              const isCurrent = currentGroupIdx === gi;
+              const lineColor = currentGroupIdx > gi ? pillar.green.base : c.line;
 
-      {/* Action bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-        {asset && (
-          <Link
-            href={ROUTES.asset(asset.id)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 5, background: c.panel2, color: c.muted, borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 500, textDecoration: "none", border: `1px solid ${c.line}` }}
-          >
-            <Gear size={13} /> Edit asset
-          </Link>
-        )}
-        {quote && (
-          <Link
-            href={ROUTES.quotation(quote.id)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: c.accent, color: "#fff", borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 500, textDecoration: "none" }}
-          >
-            ₹ View quotation
-          </Link>
-        )}
-        {quote && (
-          <Link
-            href={ROUTES.quotationPrint(quote.id)}
-            target="_blank"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#e6f1fb", color: "#0c447c", borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 500, textDecoration: "none" }}
-          >
-            ↓ Download PDF
-          </Link>
-        )}
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f4f6f9", color: c.hint, borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }}>
-          Email report <ComingSoon size="xs" />
-        </span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0faf5", color: "#3d7a5a", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }}>
-          <MessageSquare size={13} color="#3d7a5a" /> WhatsApp <ComingSoon size="xs" />
-        </span>
-      </div>
-
-      {/* Edit core case fields — available at any stage */}
-      <div style={{ marginBottom: 14 }}>
-        <CaseCoreEditPanel
-          caseId={sc.id}
-          equipmentLabel={sc.equipment_label}
-          complaint={sc.complaint}
-          notes={sc.notes ?? null}
-        />
-      </div>
-
-      {/* Stage progress track */}
-      {!isExit && (
-        <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 0, overflowX: "auto", padding: "2px 0" }}>
-          {STAGE_GROUPS.map((group, gi) => {
-            const groupIdxes = group.statuses.map((s) => stageIndex(s));
-            const minIdx = Math.min(...groupIdxes);
-            const maxIdx = Math.max(...groupIdxes);
-            const isDone    = currentIdx > maxIdx;
-            const isCurrent = currentIdx >= minIdx && currentIdx <= maxIdx;
-            const prevDone  = gi === 0 || currentIdx > STAGE_GROUPS[gi - 1].statuses.map(s => stageIndex(s)).reduce((a,b)=>Math.max(a,b));
-
-            return (
-              <div key={group.label} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                {gi > 0 && (
-                  <div style={{ width: 24, height: 2, background: prevDone ? "#1d9e75" : c.line, flexShrink: 0 }} />
-                )}
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                  <div style={{
-                    width: 8, height: 8, borderRadius: "50%",
-                    background: isDone ? "#1d9e75" : isCurrent ? "#378ADD" : c.line,
-                  }} />
-                  <div style={{
-                    fontSize: 10, fontWeight: isCurrent ? 700 : 400, whiteSpace: "nowrap",
-                    color: isDone ? "#1d9e75" : isCurrent ? "#378ADD" : c.hint,
-                  }}>
-                    {group.label}
+              return (
+                <div key={group.label} style={{ display: "flex", alignItems: "flex-start", flexShrink: 0 }}>
+                  {gi > 0 && (
+                    <div style={{ width: 40, height: 2, background: lineColor, flexShrink: 0, marginTop: 14 }} />
+                  )}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 68 }}>
+                    {/* Step circle */}
+                    <div style={{
+                      width: isDone ? 28 : isCurrent ? 32 : 28,
+                      height: isDone ? 28 : isCurrent ? 32 : 28,
+                      borderRadius: "50%",
+                      background: isDone ? pillar.green.base : isCurrent ? c.accent : c.panel2,
+                      border: `2px solid ${isDone ? pillar.green.base : isCurrent ? c.accent : c.line}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0,
+                      boxShadow: isCurrent ? `0 0 0 4px ${c.accentbg}` : "none",
+                      transition: "all 0.15s",
+                    }}>
+                      {isDone ? (
+                        <span style={{ color: "#fff", fontSize: 13, fontWeight: 700 }}>✓</span>
+                      ) : (
+                        <span style={{ color: isCurrent ? "#fff" : c.hint, fontSize: 11.5, fontWeight: 700 }}>{gi + 1}</span>
+                      )}
+                    </div>
+                    {/* Label */}
+                    <div style={{
+                      fontSize: 11, fontWeight: isCurrent ? 700 : 500, textAlign: "center", whiteSpace: "nowrap",
+                      color: isDone ? pillar.green.base : isCurrent ? c.accent : c.hint,
+                    }}>
+                      {group.label}
+                    </div>
+                    {/* Sub-status label (only on current) */}
+                    {isCurrent && (
+                      <div style={{
+                        fontSize: 9.5, color: c.accent, background: c.accentbg, borderRadius: 4,
+                        padding: "1px 6px", fontWeight: 600, whiteSpace: "nowrap",
+                      }}>
+                        {CASE_STATUS_LABEL[sc.status]}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      )}
-
-      {isExit && (
-        <div style={{ ...cardStyle, marginBottom: 12, padding: "12px 16px", background: sc.status === "scrapped" ? "#fcebeb" : "#eeedfe", borderLeft: `3px solid ${sc.status === "scrapped" ? "#a32d2d" : "#7f77dd"}` }}>
-          <span style={{ fontWeight: 600, fontSize: 13, color: sc.status === "scrapped" ? "#791f1f" : "#26215c" }}>
+      ) : (
+        <div style={{ ...cardStyle, marginBottom: 16, padding: "13px 16px", background: sc.status === "scrapped" ? "#fcebeb" : "#eeedfe", borderLeft: `3px solid ${sc.status === "scrapped" ? "#a32d2d" : "#7f77dd"}` }}>
+          <span style={{ fontWeight: 600, fontSize: 13.5, color: sc.status === "scrapped" ? "#791f1f" : "#26215c" }}>
             {sc.status === "scrapped" ? "Unit scrapped" : "Buyback — unit purchased by Vikas Pioneers"}
           </span>
           {sc.closed_at && (
@@ -248,118 +181,234 @@ export default async function CaseDetailPage({
         </div>
       )}
 
-      <CaseActions
-        caseId={sc.id}
-        caseRef={sc.ref}
-        currentStatus={sc.status}
-        notes={sc.notes ?? null}
-        assignedTo={sc.assigned_to ?? null}
-        inspectionReport={inspectionReport ? {
-          id: inspectionReport.id,
-          findings: inspectionReport.findings,
-          recommendations: inspectionReport.recommendations,
-          estimated_cost: inspectionReport.estimated_cost ?? null,
-          status: inspectionReport.status,
-        } : null}
-        accountId={sc.account_id}
-        intakePhotos={photosByStage.intake}
-        inspectionPhotos={photosByStage.inspection}
-        intakeNotes={sc.notes ?? null}
-      />
+      {/* Two-column body */}
+      <div className="case-body" style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 14, alignItems: "start" }}>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* LEFT — stage action + history */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <CaseActions
+            caseId={sc.id}
+            caseRef={sc.ref}
+            currentStatus={sc.status}
+            notes={sc.notes ?? null}
+            assignedTo={sc.assigned_to ?? null}
+            inspectionReport={inspectionReport ? {
+              id: inspectionReport.id,
+              findings: inspectionReport.findings,
+              recommendations: inspectionReport.recommendations,
+              estimated_cost: inspectionReport.estimated_cost ?? null,
+              status: inspectionReport.status,
+            } : null}
+            accountId={sc.account_id}
+            intakePhotos={photosByStage.intake}
+            inspectionPhotos={photosByStage.inspection}
+            intakeNotes={sc.notes ?? null}
+          />
 
-        {/* Intake photos — only shown after inspection stage (earlier stages handle them inline) */}
-        {photosByStage.intake.length > 0 && sc.status !== "intake" && sc.status !== "inspection" && (
-          <PhotoSection title="Intake photos" photos={photosByStage.intake} />
-        )}
+          {/* Inspection report (read-only after inspection stage) */}
+          {inspectionReport && sc.status !== "inspection" && (
+            <section style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <SectionHeading>Inspection report</SectionHeading>
+                <Pill label={irStatusLabel[inspectionReport.status]} tone={irStatusTone[inspectionReport.status]} />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: c.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>Findings</div>
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: c.ink }}>{inspectionReport.findings}</p>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: c.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>Recommendations</div>
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: c.ink }}>{inspectionReport.recommendations}</p>
+              </div>
+              {(inspectionReport.estimated_cost != null || inspectionReport.sent_at || inspectionReport.approved_at) && (
+                <div style={{ display: "flex", gap: 20, paddingTop: 10, borderTop: `1px solid ${c.line}`, flexWrap: "wrap" }}>
+                  {inspectionReport.estimated_cost != null && <MiniDetail label="Estimated cost" value={inr(inspectionReport.estimated_cost)} />}
+                  {inspectionReport.sent_at     && <MiniDetail label="Sent"     value={fmtDateTime(inspectionReport.sent_at)} />}
+                  {inspectionReport.approved_at && <MiniDetail label="Approved" value={fmtDateTime(inspectionReport.approved_at)} />}
+                </div>
+              )}
+            </section>
+          )}
 
-        {/* Inspection report — only show as read-only after inspection stage is done */}
-        {inspectionReport && sc.status !== "inspection" && (
-          <section style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <SectionHeading>Inspection report</SectionHeading>
-              <Pill label={irStatusLabel[inspectionReport.status]} tone={irStatusTone[inspectionReport.status]} />
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>Findings</div>
-              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: c.ink }}>{inspectionReport.findings}</p>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>Recommendations</div>
-              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: c.ink }}>{inspectionReport.recommendations}</p>
-            </div>
-            <div style={{ display: "flex", gap: 20, paddingTop: 10, borderTop: `1px solid ${c.line}`, flexWrap: "wrap" }}>
-              {inspectionReport.estimated_cost != null && <MiniDetail label="Estimated cost" value={inr(inspectionReport.estimated_cost)} />}
-              {inspectionReport.sent_at     && <MiniDetail label="Sent"     value={fmtDateTime(inspectionReport.sent_at)} />}
-              {inspectionReport.approved_at && <MiniDetail label="Approved" value={fmtDateTime(inspectionReport.approved_at)} />}
-            </div>
-          </section>
-        )}
-
-        {/* Inspection photos — only shown after inspection stage */}
-        {photosByStage.inspection.length > 0 && sc.status !== "inspection" && (
-          <PhotoSection title="Inspection photos" photos={photosByStage.inspection} />
-        )}
-
-        {/* Sub-cases */}
-        {subCases.length > 0 && (
-          <section style={cardStyle}>
-            <SectionHeading>Sub-cases ({subCases.length})</SectionHeading>
-            {subCases.map((sub, i) => (
-              <div key={sub.id} style={{ padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${c.line}`, display: "flex", alignItems: "flex-start", gap: 10 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
-                    <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12.5, color: c.ink }}>{sub.ref}</span>
-                    <Pill label={CASE_STATUS_LABEL[sub.status]} tone={statusTone[sub.status]} />
-                  </div>
-                  <div style={{ fontSize: 12, color: c.muted, lineHeight: 1.45 }}>
-                    {sub.complaint.length > 100 ? sub.complaint.slice(0, 100) + "…" : sub.complaint}
+          {/* Linked quote */}
+          {quote && (
+            <section style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <SectionHeading>Quotation</SectionHeading>
+                <Pill label={QUOTE_STATUS_LABEL[quote.status]} tone={quote.status === "approved" ? "teal" : quote.status === "sent" ? "amber" : "blue"} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontFamily: "monospace", color: c.accent, fontSize: 14 }}>{quote.ref}</div>
+                  <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>Rev. {quote.revision} · Valid until {quote.valid_until ? fmtDate(quote.valid_until) : "—"}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: c.ink }}>{"₹" + quote.total.toLocaleString("en-IN")}</div>
+                  <div style={{ marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <Link href={ROUTES.quotation(quote.id)} style={{ fontSize: 12, color: c.accent }}>View →</Link>
+                    <Link href={ROUTES.quotationPrint(quote.id)} target="_blank" rel="noopener" style={{ fontSize: 12, color: c.muted }}>PDF ↗</Link>
                   </div>
                 </div>
-                <Link href={ROUTES.case(sub.id)} style={{ fontSize: 11, fontWeight: 600, color: c.accent, textDecoration: "none", background: c.accentbg, borderRadius: 6, padding: "3px 8px", flexShrink: 0 }}>
-                  Open →
+              </div>
+            </section>
+          )}
+
+          {/* Photos */}
+          {photosByStage.intake.length > 0 && sc.status !== "intake" && sc.status !== "inspection" && (
+            <PhotoSection title="Intake photos" photos={photosByStage.intake} />
+          )}
+          {photosByStage.inspection.length > 0 && sc.status !== "inspection" && (
+            <PhotoSection title="Inspection photos" photos={photosByStage.inspection} />
+          )}
+          {photosByStage.final.length > 0 && (
+            <PhotoSection title="Final / delivery photos" photos={photosByStage.final} />
+          )}
+
+          {/* Sub-cases */}
+          {subCases.length > 0 && (
+            <section style={cardStyle}>
+              <SectionHeading>Sub-cases ({subCases.length})</SectionHeading>
+              {subCases.map((sub, i) => (
+                <div key={sub.id} style={{ padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${c.line}`, display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
+                      <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12.5, color: c.ink }}>{sub.ref}</span>
+                      <Pill label={CASE_STATUS_LABEL[sub.status]} tone={statusTone[sub.status]} />
+                    </div>
+                    <div style={{ fontSize: 12, color: c.muted, lineHeight: 1.45 }}>
+                      {sub.complaint.length > 100 ? sub.complaint.slice(0, 100) + "…" : sub.complaint}
+                    </div>
+                  </div>
+                  <Link href={ROUTES.case(sub.id)} style={{ fontSize: 11, fontWeight: 600, color: c.accent, textDecoration: "none", background: c.accentbg, borderRadius: 6, padding: "3px 8px", flexShrink: 0 }}>
+                    Open →
+                  </Link>
+                </div>
+              ))}
+            </section>
+          )}
+
+          <CustomFieldsSection
+            objectType="case"
+            recordId={sc.id}
+            customData={(sc as Record<string, unknown>).custom_data as Record<string, unknown> | null}
+            patchUrl={`/api/cases/${sc.id}`}
+          />
+        </div>
+
+        {/* RIGHT — context card */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <section style={{ ...cardStyle, padding: "14px 14px 12px" }}>
+
+            {/* Account */}
+            <CtxLabel>Customer</CtxLabel>
+            <Link href={ROUTES.account(sc.account_id)} style={{ fontSize: 13.5, fontWeight: 600, color: c.accent, display: "block", textDecoration: "none", marginBottom: 4 }}>
+              {account?.name ?? "—"}
+            </Link>
+            {account?.city  && <CtxRow label="City"  value={account.city} />}
+            {account?.phone && <CtxRow label="Phone" value={account.phone} />}
+
+            {/* Contact */}
+            {(contact?.name || contact?.phone) && (
+              <>
+                <div style={{ borderTop: `1px solid ${c.line}`, margin: "10px 0" }} />
+                <CtxLabel>Contact</CtxLabel>
+                {contact.name  && <div style={{ fontSize: 12.5, fontWeight: 600, color: c.ink, marginBottom: 2 }}>{contact.name}{contact.role ? <span style={{ fontWeight: 400, color: c.hint }}> · {contact.role}</span> : ""}</div>}
+                {contact.phone && <CtxRow label="Phone" value={contact.phone} />}
+              </>
+            )}
+
+            {/* Complaint */}
+            <div style={{ borderTop: `1px solid ${c.line}`, margin: "10px 0" }} />
+            <CtxLabel>Complaint</CtxLabel>
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: c.ink }}>{sc.complaint}</p>
+
+            {/* Technician */}
+            <div style={{ borderTop: `1px solid ${c.line}`, margin: "10px 0" }} />
+            <CtxLabel>Technician</CtxLabel>
+            <div style={{ fontSize: 12.5, color: technician ? c.ink : c.hint, fontWeight: technician ? 600 : 400 }}>
+              {technician?.name ?? "Not assigned"}
+            </div>
+
+            {/* Timeline */}
+            <div style={{ borderTop: `1px solid ${c.line}`, margin: "10px 0" }} />
+            <CtxLabel>Timeline</CtxLabel>
+            <CtxRow label="Intake"  value={fmtDate(sc.intake_at)} />
+            {sc.closed_at && <CtxRow label="Closed" value={fmtDate(sc.closed_at)} />}
+
+            {/* Contract */}
+            {contract && (
+              <>
+                <div style={{ borderTop: `1px solid ${c.line}`, margin: "10px 0" }} />
+                <CtxLabel>AMC contract</CtxLabel>
+                <div style={{ fontSize: 12.5, fontFamily: "monospace", fontWeight: 600, color: c.accent }}>{contract.ref}</div>
+              </>
+            )}
+
+            {/* Loaner */}
+            {loanerAsset && (
+              <>
+                <div style={{ borderTop: `1px solid ${c.line}`, margin: "10px 0" }} />
+                <CtxLabel>Loaner dispatched</CtxLabel>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: "#ba7517" }}>{loanerAsset.name}</div>
+                <div style={{ fontSize: 11, color: "#ba7517", marginTop: 2 }}>Return on delivery</div>
+              </>
+            )}
+
+            {/* Asset link */}
+            {asset && (
+              <>
+                <div style={{ borderTop: `1px solid ${c.line}`, margin: "10px 0" }} />
+                <CtxLabel>Asset</CtxLabel>
+                <Link href={ROUTES.asset(asset.id)} style={{ fontSize: 12.5, fontWeight: 600, color: c.accent, textDecoration: "none" }}>
+                  {asset.name} →
                 </Link>
-              </div>
-            ))}
+              </>
+            )}
           </section>
-        )}
 
-        {/* Linked quote */}
-        {quote && (
-          <section style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <SectionHeading>Quotation</SectionHeading>
-              <Pill label={QUOTE_STATUS_LABEL[quote.status]} tone={quote.status === "approved" ? "teal" : quote.status === "sent" ? "amber" : "blue"} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontWeight: 600, fontFamily: "monospace", color: c.accent, fontSize: 14 }}>{quote.ref}</div>
-                <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>Rev. {quote.revision} · Valid until {quote.valid_until ? fmtDate(quote.valid_until) : "—"}</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: c.ink }}>{"₹" + quote.total.toLocaleString("en-IN")}</div>
-                <div style={{ marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                  <Link href={ROUTES.quotation(quote.id)} style={{ fontSize: 12, color: c.accent }}>View quote →</Link>
-                  <Link href={ROUTES.quotationPrint(quote.id)} target="_blank" rel="noopener" style={{ fontSize: 12, color: c.muted }}>PDF ↗</Link>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
+          {/* Action buttons */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {quote && (
+              <Link href={ROUTES.quotation(quote.id)} style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                background: c.accent, color: "#fff", borderRadius: 8, padding: "8px 14px",
+                fontSize: 12.5, fontWeight: 600, textDecoration: "none",
+              }}>
+                ₹ View quotation
+              </Link>
+            )}
+            {quote && (
+              <Link href={ROUTES.quotationPrint(quote.id)} target="_blank" style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                background: c.accentbg, color: "#0c447c", borderRadius: 8, padding: "8px 14px",
+                fontSize: 12.5, fontWeight: 600, textDecoration: "none",
+              }}>
+                ↓ Download PDF
+              </Link>
+            )}
+            <span style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              background: "#f0faf5", color: "#3d7a5a", borderRadius: 8, padding: "7px 14px",
+              fontSize: 12, fontWeight: 500, cursor: "not-allowed",
+            }}>
+              <MessageSquare size={12} color="#3d7a5a" /> WhatsApp <ComingSoon size="xs" />
+            </span>
 
-        {/* Final photos */}
-        {photosByStage.final.length > 0 && (
-          <PhotoSection title="Final / delivery photos" photos={photosByStage.final} />
-        )}
+            <CaseCoreEditPanel
+              caseId={sc.id}
+              equipmentLabel={sc.equipment_label}
+              complaint={sc.complaint}
+              notes={sc.notes ?? null}
+            />
+          </div>
+        </div>
       </div>
 
-      <CustomFieldsSection
-        objectType="case"
-        recordId={sc.id}
-        customData={(sc as Record<string, unknown>).custom_data as Record<string, unknown> | null}
-        patchUrl={`/api/cases/${sc.id}`}
-      />
+      <style>{`
+        @media (max-width: 860px) {
+          .case-body { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </>
   );
 }
@@ -374,11 +423,19 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SideDetail({ label, value }: { label: string; value: string }) {
+function CtxLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, marginTop: 5 }}>
-      <span style={{ color: c.muted, flexShrink: 0 }}>{label}</span>
-      <span style={{ textAlign: "right", wordBreak: "break-all" }}>{value}</span>
+    <div style={{ fontSize: 10, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 4 }}>
+      {children}
+    </div>
+  );
+}
+
+function CtxRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11.5, marginTop: 3 }}>
+      <span style={{ color: c.hint, flexShrink: 0 }}>{label}</span>
+      <span style={{ textAlign: "right", color: c.muted, wordBreak: "break-all" }}>{value}</span>
     </div>
   );
 }
@@ -392,36 +449,19 @@ function MiniDetail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TimelineRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-      <span style={{ color: c.muted }}>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
-
 function PhotoSection({ title, photos }: { title: string; photos: CasePhoto[] }) {
   return (
     <section style={cardStyle}>
       <SectionHeading>{title}</SectionHeading>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
         {photos.map((photo) => (
-          <a
-            key={photo.id}
-            href={photo.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ borderRadius: 6, overflow: "hidden", border: `1px solid ${c.line}`, display: "block", textDecoration: "none" }}
-          >
-            <img
-              src={photo.url}
-              alt={photo.caption || title}
-              style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover", display: "block" }}
-            />
-            <div style={{ padding: "6px 8px", fontSize: 11, color: c.muted, lineHeight: 1.4 }}>
-              {photo.caption}
-            </div>
+          <a key={photo.id} href={photo.url} target="_blank" rel="noopener noreferrer"
+            style={{ borderRadius: 6, overflow: "hidden", border: `1px solid ${c.line}`, display: "block", textDecoration: "none" }}>
+            <img src={photo.url} alt={photo.caption || title}
+              style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover", display: "block" }} />
+            {photo.caption && (
+              <div style={{ padding: "5px 8px", fontSize: 11, color: c.muted, lineHeight: 1.4 }}>{photo.caption}</div>
+            )}
           </a>
         ))}
       </div>
