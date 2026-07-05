@@ -881,7 +881,7 @@ export async function getDashboardSummaryLive() {
     { data: workOrders },
     { data: activities },
   ] = await Promise.all([
-    supabase.from("service_cases").select("id, status, account_id, ref").order("intake_at", { ascending: false }),
+    supabase.from("service_cases").select("id, status, account_id, ref, intake_at, equipment_label").order("intake_at", { ascending: true }),
     supabase.from("contracts").select("id, status"),
     supabase.from("quotes").select("id, status, total"),
     supabase.from("work_orders").select("*, accounts(name), technicians(name)").in("status", ["in_progress", "scheduled"]).order("scheduled_for"),
@@ -901,17 +901,22 @@ export async function getDashboardSummaryLive() {
     activeWorkOrders: (workOrders ?? []).length,
   };
 
-  // Fetch account names for attention cases
-  const attentionCaseIds = allCases
-    .filter((sc) => sc.status === "report_sent" || sc.status === "quote_sent")
-    .map((sc) => sc.account_id);
-  const { data: attentionAccounts } = attentionCaseIds.length
-    ? await supabase.from("accounts").select("id, name").in("id", attentionCaseIds)
+  // Fetch account names for all priority cases (awaiting response + qa/ready)
+  const PRIORITY_STATUSES: CaseStatus[] = ["report_sent", "quote_sent", "qa", "ready"];
+  const priorityAccountIds = [...new Set(
+    allCases.filter((sc) => PRIORITY_STATUSES.includes(sc.status)).map((sc) => sc.account_id)
+  )];
+  const { data: priorityAccounts } = priorityAccountIds.length
+    ? await supabase.from("accounts").select("id, name").in("id", priorityAccountIds)
     : { data: [] };
-  const acctMap = new Map((attentionAccounts ?? []).map((a) => [a.id, a as Account]));
+  const acctMap = new Map((priorityAccounts ?? []).map((a) => [a.id, a as Account]));
 
   const attention = allCases
     .filter((sc) => sc.status === "report_sent" || sc.status === "quote_sent")
+    .map((sc) => ({ serviceCase: sc, account: acctMap.get(sc.account_id) ?? null }));
+
+  const readyCases = allCases
+    .filter((sc) => sc.status === "qa" || sc.status === "ready")
     .map((sc) => ({ serviceCase: sc, account: acctMap.get(sc.account_id) ?? null }));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -927,7 +932,7 @@ export async function getDashboardSummaryLive() {
     account: (Array.isArray(act.accounts) ? act.accounts[0] : act.accounts) as Account | null,
   }));
 
-  return { kpis, attention, workOrderRows, recentActivity };
+  return { kpis, attention, readyCases, workOrderRows, recentActivity };
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
