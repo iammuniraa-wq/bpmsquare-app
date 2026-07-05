@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ACCOUNT_TYPE_LABEL } from "@/lib/data";
 import type { Account } from "@/lib/types";
+
+const ACCOUNT_TYPE_LABEL: Record<Account["type"], string> = {
+  prospect: "Prospect", oem: "OEM", direct: "Direct", end_customer: "End customer",
+};
 import { c, pillar } from "@/lib/theme";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
