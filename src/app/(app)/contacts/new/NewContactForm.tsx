@@ -33,7 +33,7 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
     account_id: defaultAccountId || accounts[0]?.id || "",
     name: "", role: "",
     phone: "", phone2: "", phone3: "",
-    email: "", email2: "",
+    email: "",
   });
 
   const set = (k: keyof typeof form) =>
@@ -101,10 +101,6 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
       <div style={fieldWrap}>
         <label style={label}>Primary email</label>
         <input style={input} type="email" value={form.email} onChange={set("email")} placeholder="rajesh@company.com" />
-      </div>
-      <div style={{ ...fieldWrap, marginBottom: 0 }}>
-        <label style={label}>Email 2</label>
-        <input style={input} type="email" value={form.email2} onChange={set("email2")} placeholder="rajesh.personal@gmail.com" />
       </div>
     </>
   );
