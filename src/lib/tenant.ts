@@ -69,24 +69,15 @@ export async function adminUpdateTenant(
   return createAdminSupabase().from("tenants").update(patch).eq("id", id);
 }
 
-/** Returns the current user's role in their tenant. Cached 60 s per user. */
-const _getRoleCached = unstable_cache(
-  async (userId: string): Promise<"admin" | "member" | null> => {
-    const { data } = await createAdminSupabase()
-      .from("tenant_users")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
-    return (data?.role as "admin" | "member") ?? null;
-  },
-  ["role-by-user"],
-  { revalidate: 60, tags: ["tenant-role"] }
-);
-
 export async function getUserRole(): Promise<"admin" | "member" | null> {
   const user = await getAuthUser();
   if (!user) return null;
-  return _getRoleCached(user.id);
+  const { data } = await createAdminSupabase()
+    .from("tenant_users")
+    .select("role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return (data?.role as "admin" | "member") ?? null;
 }
 
 /** Admin: check if the current user is a platform admin. */
