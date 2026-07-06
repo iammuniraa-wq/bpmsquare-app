@@ -6,9 +6,7 @@ import { MOBILE_BREAKPOINT } from "@/lib/constants";
 import { c, g } from "@/lib/theme";
 import Logo from "./Logo";
 import Sidebar from "./Sidebar";
-import { TabsProvider } from "@/lib/tabs-context";
 import { XIcon } from "@/components/Icons";
-import TabBar from "./TabBar";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 // Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
@@ -106,29 +104,22 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   if (mobile) {
     return (
-      <TabsProvider>
-        <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-          <MobileTopBar />
-          <main style={{ flex: 1, padding: 12, overflowX: "auto", minWidth: 0 }}>
-            {children}
-          </main>
-        </div>
-      </TabsProvider>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        <MobileTopBar />
+        <main style={{ flex: 1, padding: 12, overflowX: "auto", minWidth: 0 }}>
+          {children}
+        </main>
+      </div>
     );
   }
 
   return (
-    <TabsProvider>
-      <div style={{ display: "flex", minHeight: "100vh" }}>
-        <Sidebar />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <TabBar />
-          <main style={{ flex: 1, padding: "20px 24px", overflowX: "hidden", maxWidth: 1100 }}>
-            {children}
-          </main>
-        </div>
-      </div>
-    </TabsProvider>
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      <Sidebar />
+      <main style={{ flex: 1, padding: "20px 24px", overflowX: "hidden", maxWidth: 1100 }}>
+        {children}
+      </main>
+    </div>
   );
 }
 

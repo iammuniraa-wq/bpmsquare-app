@@ -27,10 +27,15 @@ type TabsCtx = {
 
 const Ctx = createContext<TabsCtx | null>(null);
 
+const noopTabs: TabsCtx = {
+  tabs: [], activeHref: "",
+  openTab: () => {}, closeTab: () => {}, closeAllTabs: () => {},
+  focusTab: () => {}, updateTabTitle: () => {},
+  limitWarning: false, clearLimitWarning: () => {},
+};
+
 export function useTabs() {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useTabs must be inside TabsProvider");
-  return ctx;
+  return useContext(Ctx) ?? noopTabs;
 }
 
 // ── Derive title + icon from pathname ────────────────────────────────────────
