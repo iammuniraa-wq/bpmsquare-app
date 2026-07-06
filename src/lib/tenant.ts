@@ -1,4 +1,3 @@
-import { unstable_cache } from "next/cache";
 import { createAdminSupabase, getAuthUser } from "./supabase-server";
 
 export type TenantFeatures = {
@@ -41,25 +40,16 @@ export type Tenant = {
   company_info: CompanyInfo;
 };
 
-const _getTenantCached = unstable_cache(
-  async (userId: string): Promise<Tenant | null> => {
-    // Use admin client so we can query by userId without RLS ambiguity
-    const { data } = await createAdminSupabase()
-      .from("tenant_users")
-      .select("tenants(id, slug, name, logo_url, accent_color, status, plan, features, company_info)")
-      .eq("user_id", userId)
-      .maybeSingle();
-    return (data?.tenants as unknown as Tenant) ?? null;
-  },
-  ["tenant-by-user"],
-  { revalidate: 10, tags: ["tenant"] },
-);
-
-/** Load the current user's tenant. Cached 60 s per user; single auth call per request. */
+/** Load the current user's tenant. Always fresh — features must reflect platform admin changes immediately. */
 export async function getTenant(): Promise<Tenant | null> {
   const user = await getAuthUser();
   if (!user) return null;
-  return _getTenantCached(user.id);
+  const { data } = await createAdminSupabase()
+    .from("tenant_users")
+    .select("tenants(id, slug, name, logo_url, accent_color, status, plan, features, company_info)")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return (data?.tenants as unknown as Tenant) ?? null;
 }
 
 /** Admin: list all tenants. Uses service role. */
