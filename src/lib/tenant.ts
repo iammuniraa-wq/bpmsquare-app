@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createAdminSupabase, getAuthUser } from "./supabase-server";
 
@@ -41,8 +42,12 @@ export type Tenant = {
   company_info: CompanyInfo;
 };
 
-/** Load the current user's tenant. Always fresh — features must reflect platform admin changes immediately. */
-export async function getTenant(): Promise<Tenant | null> {
+/**
+ * Load the current user's tenant.
+ * React cache() deduplicates within a single render (layout + requireFeature = 1 DB call).
+ * Fresh per request — no Vercel Data Cache, so platform admin changes take effect immediately.
+ */
+export const getTenant = cache(async (): Promise<Tenant | null> => {
   const user = await getAuthUser();
   if (!user) return null;
   const { data } = await createAdminSupabase()
@@ -51,7 +56,7 @@ export async function getTenant(): Promise<Tenant | null> {
     .eq("user_id", user.id)
     .maybeSingle();
   return (data?.tenants as unknown as Tenant) ?? null;
-}
+});
 
 /**
  * Server-side guard for feature-gated pages.
@@ -80,7 +85,7 @@ export async function adminUpdateTenant(
   return createAdminSupabase().from("tenants").update(patch).eq("id", id);
 }
 
-export async function getUserRole(): Promise<"admin" | "member" | null> {
+export const getUserRole = cache(async (): Promise<"admin" | "member" | null> => {
   const user = await getAuthUser();
   if (!user) return null;
   const { data } = await createAdminSupabase()
@@ -89,7 +94,7 @@ export async function getUserRole(): Promise<"admin" | "member" | null> {
     .eq("user_id", user.id)
     .maybeSingle();
   return (data?.role as "admin" | "member") ?? null;
-}
+});
 
 /** Admin: check if the current user is a platform admin. */
 export async function isPlatformAdmin(): Promise<boolean> {
