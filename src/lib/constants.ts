@@ -65,7 +65,7 @@ export const NAV: NavGroup[] = [
       { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue" },
       { label: "Contacts",  href: ROUTES.contacts,  icon: "◉", pillar: "blue" },
       { label: "Cases",     href: ROUTES.cases,     icon: "☎", pillar: "teal", badge: 3 },
-      { label: "Pipeline",  href: ROUTES.pipeline,  icon: "▦", pillar: "blue" },
+      { label: "Pipeline",  href: ROUTES.pipeline,  icon: "▦", pillar: "blue", featureKey: "pipeline" },
     ],
   },
   {
