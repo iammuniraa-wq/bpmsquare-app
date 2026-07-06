@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createAdminSupabase, getAuthUser } from "./supabase-server";
 
 export type TenantFeatures = {
@@ -50,6 +51,16 @@ export async function getTenant(): Promise<Tenant | null> {
     .eq("user_id", user.id)
     .maybeSingle();
   return (data?.tenants as unknown as Tenant) ?? null;
+}
+
+/**
+ * Server-side guard for feature-gated pages.
+ * Call at the top of any page that requires a specific feature to be enabled.
+ * Redirects to dashboard if the feature is off for this tenant.
+ */
+export async function requireFeature(key: keyof TenantFeatures): Promise<void> {
+  const tenant = await getTenant();
+  if (!tenant?.features?.[key]) redirect("/");
 }
 
 /** Admin: list all tenants. Uses service role. */

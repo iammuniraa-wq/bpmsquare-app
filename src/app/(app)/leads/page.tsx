@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 import { listLeadsLive } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -30,6 +31,7 @@ const td: React.CSSProperties = {
 };
 
 export default async function LeadsPage() {
+  await requireFeature("leads");
   const leads = await listLeadsLive();
 
   const byStatus = (["new", "inspecting", "quoted", "won", "lost"] as LeadStatus[]).map((s) => ({

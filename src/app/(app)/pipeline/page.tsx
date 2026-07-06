@@ -1,6 +1,8 @@
+import { requireFeature } from "@/lib/tenant";
 import Placeholder from "@/components/Placeholder";
 
-export default function PipelinePage() {
+export default async function PipelinePage() {
+  await requireFeature("pipeline");
   return (
     <Placeholder
       title="Pipeline"

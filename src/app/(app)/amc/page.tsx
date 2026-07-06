@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 import { listContracts } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -33,6 +34,7 @@ const td: React.CSSProperties = {
 };
 
 export default async function AmcPage() {
+  await requireFeature("amc");
   const contracts = await listContracts();
   const active = contracts.filter((con) => con.status === "active");
   const expiringSoon = active.filter((con) => daysLeft(con.end_date) <= 60);

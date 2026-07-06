@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 import { listInvoices } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -28,6 +29,7 @@ const td: React.CSSProperties = {
 };
 
 export default async function InvoicesPage() {
+  await requireFeature("invoices");
   const invoices = await listInvoices();
 
   const summary = (["draft", "sent", "paid", "overdue"] as InvoiceStatus[]).map((s) => ({
