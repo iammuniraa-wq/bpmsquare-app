@@ -52,7 +52,7 @@ const _getTenantCached = unstable_cache(
     return (data?.tenants as unknown as Tenant) ?? null;
   },
   ["tenant-by-user"],
-  { revalidate: 60, tags: ["tenant"] },
+  { revalidate: 10, tags: ["tenant"] },
 );
 
 /** Load the current user's tenant. Cached 60 s per user; single auth call per request. */
