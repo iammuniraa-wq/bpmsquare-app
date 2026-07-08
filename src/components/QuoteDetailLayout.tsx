@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import type { Quote, QuoteLine, Account, Contact, LayoutSection } from "@/lib/types";
+import type { TenantTaxConfig } from "@/lib/constants";
+import { OFFER_TYPE_LABEL } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -48,6 +50,7 @@ interface Props {
   contact: Contact | null;
   lines: QuoteLine[];
   workOrders: WOItem[];
+  tenantTax?: TenantTaxConfig;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -67,10 +70,13 @@ const td: React.CSSProperties = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders }: Props) {
-  const subtotal = lines.reduce((s, l) => s + l.amount, 0);
-  const gst      = Math.round(subtotal * 0.18);
-  const grandTotal = subtotal + gst;
+export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax }: Props) {
+  const isTechnical = quote.type === "technical";
+  const taxRate     = tenantTax?.rate ?? 18;
+  const taxLabel    = tenantTax?.label ?? "GST";
+  const subtotal    = lines.reduce((s, l) => s + l.amount, 0);
+  const gst         = Math.round(subtotal * taxRate / 100);
+  const grandTotal  = subtotal + gst;
 
   // ── Layout state ────────────────────────────────────────────────────────────
   const [layout, setLayout]           = useState<LayoutSection[]>([]);
@@ -392,31 +398,51 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                 ))}
               </tbody>
             </table>
-            <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", borderTop: `1px solid ${c.line}` }}>
-              <TotalRow label="Subtotal"   value={inr(subtotal)} />
-              <TotalRow label="GST @ 18%" value={inr(gst)} muted />
-              <div style={{ display: "flex", justifyContent: "space-between", width: 220, paddingTop: 8, borderTop: `2px solid ${c.ink}` }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>Grand total</span>
-                <span style={{ fontSize: 15, fontWeight: 600, color: c.accent }}>{inr(grandTotal)}</span>
+            {!isTechnical && (
+              <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", borderTop: `1px solid ${c.line}` }}>
+                <TotalRow label="Subtotal"                value={inr(subtotal)} />
+                <TotalRow label={`${taxLabel} @ ${taxRate}%`} value={inr(gst)} muted />
+                <div style={{ display: "flex", justifyContent: "space-between", width: 220, paddingTop: 8, borderTop: `2px solid ${c.ink}` }}>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>Grand total</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: c.accent }}>{inr(grandTotal)}</span>
+                </div>
               </div>
-            </div>
+            )}
             {section.field_keys.length > 0 || addingFieldTo === section.id ? (
               <div style={{ padding: "0 14px 12px" }}>{renderCfCards(section)}</div>
             ) : null}
           </section>
         );
 
-      case "notes":
-        return (quote.notes || adaptMode || section.field_keys.length > 0 || addingFieldTo === section.id) ? (
+      case "notes": {
+        const hasContent = quote.scope_of_work || quote.notes || quote.terms || adaptMode || section.field_keys.length > 0 || addingFieldTo === section.id;
+        return hasContent ? (
           <section style={cardStyle}>
-            <h3 style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>Notes &amp; terms</h3>
-            {quote.notes
-              ? <p style={{ fontSize: 12.5, color: c.muted, margin: 0, lineHeight: 1.6 }}>{quote.notes}</p>
-              : <p style={{ fontSize: 12.5, color: c.hint, margin: 0, fontStyle: "italic" }}>Notes &amp; terms (empty)</p>
-            }
+            {quote.scope_of_work && (
+              <div style={{ marginBottom: 14 }}>
+                <h3 style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>Scope of work</h3>
+                <p style={{ fontSize: 12.5, color: c.muted, margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{quote.scope_of_work}</p>
+              </div>
+            )}
+            {quote.notes && (
+              <div style={{ marginBottom: quote.terms ? 14 : 0 }}>
+                <h3 style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>Notes</h3>
+                <p style={{ fontSize: 12.5, color: c.muted, margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{quote.notes}</p>
+              </div>
+            )}
+            {quote.terms && (
+              <div>
+                <h3 style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600, color: "#92400e" }}>Terms &amp; Conditions</h3>
+                <p style={{ fontSize: 12.5, color: c.muted, margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{quote.terms}</p>
+              </div>
+            )}
+            {!quote.scope_of_work && !quote.notes && !quote.terms && adaptMode && (
+              <p style={{ fontSize: 12.5, color: c.hint, margin: 0, fontStyle: "italic" }}>Scope, notes &amp; terms (empty)</p>
+            )}
             {renderCfCards(section)}
           </section>
         ) : null;
+      }
 
       case "work_orders":
         return (workOrders.length > 0 || adaptMode || section.field_keys.length > 0 || addingFieldTo === section.id) ? (
@@ -624,12 +650,15 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             <h3 style={{ fontSize: 13, margin: "0 0 10px", fontWeight: 600 }}>Summary</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <Detail label="Line items" value={String(lines.length)} />
-              <Detail label="Subtotal"   value={inr(subtotal)} />
-              <Detail label="GST 18%"    value={inr(gst)} />
-              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${c.line}`, fontSize: 13, fontWeight: 600 }}>
-                <span>Total</span>
-                <span style={{ color: c.accent }}>{inr(grandTotal)}</span>
-              </div>
+              <Detail label="Offer type" value={OFFER_TYPE_LABEL[quote.type] ?? quote.type} />
+              {!isTechnical && <>
+                <Detail label="Subtotal"              value={inr(subtotal)} />
+                <Detail label={`${taxLabel} ${taxRate}%`} value={inr(gst)} />
+                <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${c.line}`, fontSize: 13, fontWeight: 600 }}>
+                  <span>Total</span>
+                  <span style={{ color: c.accent }}>{inr(grandTotal)}</span>
+                </div>
+              </>}
             </div>
           </section>
 

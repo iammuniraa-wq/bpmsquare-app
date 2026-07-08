@@ -9,7 +9,7 @@ import { g } from "@/lib/theme";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear } from "@/components/Icons";
-import { useTenant, useUserRole } from "@/lib/tenant-context";
+import { useTenant } from "@/lib/tenant-context";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -270,16 +270,11 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   const features  = tenant?.features as Record<string, boolean> | undefined;
   const accent    = tenant?.accent_color ?? ACCENT_PRESETS[settings.accentPreset].color;
-  const userRole  = useUserRole();
   const compact = settings.compactSidebar;
 
   const [navState, setNavState] = useState<NavState>(() => defaultNavState(features));
   useEffect(() => { setNavState(loadNavState(features)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  useEffect(() => {
-    if (pathname.startsWith(ROUTES.settings)) setSettingsOpen(true);
-  }, [pathname]);
 
   const allMap  = new Map(flattenNav(features).map((i) => [i.href, i]));
   const hidden  = new Set(settings.hiddenNavHrefs);
@@ -406,62 +401,23 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           compact={compact}
         />
 
-        {/* Settings accordion + reset */}
+        {/* Settings link + reset */}
         <div style={{ borderTop: "1px solid rgba(255,255,255,.06)", marginTop: 10, paddingTop: 8 }}>
-          <button
-            onClick={() => setSettingsOpen((o) => !o)}
+          <Link
+            href={ROUTES.settings}
+            onClick={onNavigate}
             style={{
               display: "flex", alignItems: "center", gap: 8, width: "100%",
               padding: "7px 10px", borderRadius: 8, fontSize: 12.5,
               color: isActive(ROUTES.settings) ? "#dce9f6" : "#cdd8e6",
-              background: isActive(ROUTES.settings) && !settingsOpen ? accent : isActive(ROUTES.settings) ? "rgba(55,138,221,.12)" : "transparent",
-              border: "none", cursor: "pointer", textAlign: "left",
+              background: isActive(ROUTES.settings) ? accent : "transparent",
+              textDecoration: "none",
               transition: "background 0.12s",
             }}
           >
             <Gear size={14} color={isActive(ROUTES.settings) ? "#fff" : "#9db3c4"} />
-            <span style={{ flex: 1 }}>Settings</span>
-            <span style={{
-              fontSize: 11, color: "#7a9ab8",
-              display: "inline-block",
-              transform: settingsOpen ? "rotate(90deg)" : "none",
-              transition: "transform 0.15s",
-            }}>›</span>
-          </button>
-
-          {settingsOpen && (
-            <div style={{ paddingLeft: 10, paddingTop: 2, paddingBottom: 2 }}>
-              {([
-                { label: "General",       href: ROUTES.settings,           icon: "◉", adminOnly: false },
-                { label: "Team",          href: ROUTES.settingsTeam,       icon: "◉", adminOnly: true  },
-                { label: "Pricing",       href: ROUTES.configPricing,      icon: "◈", adminOnly: false },
-                { label: "Quote config",  href: ROUTES.configTemplates,    icon: "◧", adminOnly: false },
-                { label: "Custom fields", href: ROUTES.configCustomFields,  icon: "⊞", adminOnly: false },
-              ] as const).filter((s) => !s.adminOnly || userRole === "admin").map((sub) => {
-                const active = pathname === sub.href;
-                return (
-                  <Link
-                    key={sub.href}
-                    href={sub.href}
-                    onClick={onNavigate}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 7,
-                      padding: "6px 10px", borderRadius: 7, fontSize: 12,
-                      color: active ? "#fff" : "#b0c4d8",
-                      background: active ? accent : "transparent",
-                      textDecoration: "none",
-                      transition: "background 0.12s",
-                      marginBottom: 1,
-                    }}
-                  >
-                    <span style={{ fontSize: 12, opacity: active ? 1 : 0.6 }}>{sub.icon}</span>
-                    {sub.label}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-
+            <span>Settings</span>
+          </Link>
           <button
             onClick={resetNav}
             style={{

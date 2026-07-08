@@ -454,9 +454,13 @@ export async function getQuoteLive(id: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const acc = (Array.isArray((quote as any).accounts) ? (quote as any).accounts[0] : (quote as any).accounts) as Account | null;
 
-  const { data: cd } = acc
-    ? await supabase.from("contacts").select("*").eq("account_id", acc.id).limit(1).maybeSingle()
-    : { data: null };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const storedContactId = (quote as any).contact_id as string | null | undefined;
+  const { data: cd } = storedContactId
+    ? await supabase.from("contacts").select("*").eq("id", storedContactId).maybeSingle()
+    : acc
+      ? await supabase.from("contacts").select("*").eq("account_id", acc.id).limit(1).maybeSingle()
+      : { data: null };
   const contact = cd as Contact | null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -842,25 +846,41 @@ export async function listTextFragmentsLive(): Promise<TextFragment[]> {
 
 export async function getQuoteFormDataLive() {
   const supabase = await createServerSupabase();
+  const admin = createAdminSupabase();
+
+  // Resolve tenant_id from current user's JWT
+  const { data: { user } } = await supabase.auth.getUser();
+  const tenantId = user?.app_metadata?.tenant_id as string | undefined;
+
   const [
     { data: accounts },
     { data: contacts },
     { data: assets },
     { data: pricingItems },
     { data: textFragments },
+    { data: tenantRow },
   ] = await Promise.all([
     supabase.from("accounts").select("*").order("name"),
     supabase.from("contacts").select("*").order("name"),
     supabase.from("assets").select("*").not("account_id", "is", null).order("name"),
     supabase.from("pricing_items").select("*").order("category").order("description"),
     supabase.from("text_fragments").select("*").order("category").order("label"),
+    tenantId
+      ? admin.from("tenants").select("config").eq("id", tenantId).single()
+      : Promise.resolve({ data: null }),
   ]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const config = (tenantRow as any)?.config ?? {};
+
   return {
     accounts:      (accounts      ?? []) as Account[],
     contacts:      (contacts      ?? []) as Contact[],
     assets:        (assets        ?? []) as Asset[],
     pricingItems:  (pricingItems  ?? []) as PricingItem[],
     textFragments: (textFragments ?? []) as TextFragment[],
+    tenantEntities: (config.entities ?? []) as import("@/lib/constants").TenantEntity[],
+    tenantTax:      config.tax ?? { label: "GST", rate: 18, inclusive: false },
   };
 }
 

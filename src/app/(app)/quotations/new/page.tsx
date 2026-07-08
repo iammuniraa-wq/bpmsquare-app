@@ -1,7 +1,10 @@
 import { getQuoteFormData } from "@/lib/data";
+import type { QuoteOfferType } from "@/lib/types";
 import QuoteForm from "./QuoteForm";
 import QuoteFormSupply from "./QuoteFormSupply";
 import QuoteTypePicker from "./QuoteTypePicker";
+
+const OFFER_TYPES: QuoteOfferType[] = ["quotation", "technical", "budgetary"];
 
 export default async function NewQuotationPage({
   searchParams,
@@ -10,7 +13,6 @@ export default async function NewQuotationPage({
 }) {
   const { type } = await searchParams;
 
-  // No type selected → show picker
   if (!type) return <QuoteTypePicker />;
 
   const data = await getQuoteFormData();
@@ -19,6 +21,14 @@ export default async function NewQuotationPage({
     return <QuoteFormSupply accounts={data.accounts} contacts={data.contacts} />;
   }
 
-  // Default: repair (and any unknown type falls back to repair)
-  return <QuoteForm {...data} />;
+  const offerType: QuoteOfferType = OFFER_TYPES.includes(type as QuoteOfferType)
+    ? (type as QuoteOfferType)
+    : "quotation";
+
+  return (
+    <QuoteForm
+      {...data}
+      offerType={offerType}
+    />
+  );
 }

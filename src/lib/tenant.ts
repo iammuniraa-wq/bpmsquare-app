@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createAdminSupabase, getAuthUser } from "./supabase-server";
+import type { TenantConfig } from "./constants";
 
 export type TenantFeatures = {
   leads: boolean;
@@ -14,20 +15,32 @@ export type TenantFeatures = {
 };
 
 export type CompanyInfo = {
+  // Core identity
+  name?: string;
   tagline?: string;
-  undertaking?: string;
   address?: string;
+  email?: string;
+  web?: string;
+  gstin?: string;
+  footer_tagline?: string;
+  // Logo: use logo_url if available, otherwise auto-initials from name; logo_bg is the icon background colour
+  logo_url?: string;
+  logo_bg?: string;
+  // Flexible phone list — renders as a labelled row per entry
+  phones?: { label: string; number: string }[];
+  // Optional extras — only rendered when present
+  undertaking?: string;
+  iso?: string;
+  partners?: { name: string; logo_url?: string }[];
+  // Tax override for print (falls back to tenants.config.tax)
+  tax_label?: string;
+  tax_rate?: number;
+  // Legacy individual phone fields — kept for backwards compatibility
   phone_dir_tech?: string;
   phone_commercial?: string;
   phone_work?: string;
   landline?: string;
-  email?: string;
   email2?: string;
-  web?: string;
-  gstin?: string;
-  iso?: string;
-  partners?: { name: string; logo_url?: string }[];
-  footer_tagline?: string;
 };
 
 export type Tenant = {
@@ -40,6 +53,7 @@ export type Tenant = {
   plan: "free" | "pro" | "enterprise";
   features: TenantFeatures;
   company_info: CompanyInfo;
+  config: TenantConfig;
 };
 
 /**
@@ -52,7 +66,7 @@ export const getTenant = cache(async (): Promise<Tenant | null> => {
   if (!user) return null;
   const { data } = await createAdminSupabase()
     .from("tenant_users")
-    .select("tenants(id, slug, name, logo_url, accent_color, status, plan, features, company_info)")
+    .select("tenants(id, slug, name, logo_url, accent_color, status, plan, features, company_info, config)")
     .eq("user_id", user.id)
     .maybeSingle();
   return (data?.tenants as unknown as Tenant) ?? null;
@@ -72,7 +86,7 @@ export async function requireFeature(key: keyof TenantFeatures): Promise<void> {
 export async function adminListTenants(): Promise<Tenant[]> {
   const { data } = await createAdminSupabase()
     .from("tenants")
-    .select("id, slug, name, logo_url, accent_color, status, plan, features, company_info, created_at")
+    .select("id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, created_at")
     .order("created_at", { ascending: false });
   return (data as Tenant[]) ?? [];
 }

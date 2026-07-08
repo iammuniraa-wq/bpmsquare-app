@@ -1,33 +1,42 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { c, pillar } from "@/lib/theme";
+import { c } from "@/lib/theme";
 import { QUOTE_TYPES, ROUTES } from "@/lib/constants";
-import { Wrench, Package, CalendarCheck, Zap } from "@/components/Icons";
+import { FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
+
+function TypeIcon({ id, size = 26, color }: { id: string; size?: number; color: string }) {
+  const p = { size, color };
+  switch (id) {
+    case "quotation":    return <FileText {...p} />;
+    case "technical":    return <Wrench {...p} />;
+    case "budgetary":    return <BarChart2 {...p} />;
+    case "supply":       return <Package {...p} />;
+    case "amc":          return <CalendarCheck {...p} />;
+    case "installation": return <Zap {...p} />;
+    default:             return <FileText {...p} />;
+  }
+}
 
 export default function QuoteTypePicker() {
   const router = useRouter();
 
   return (
-    <div style={{ maxWidth: 680, margin: "0 auto" }}>
+    <div style={{ maxWidth: 720, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 12, color: c.muted, marginBottom: 12 }}>
-          <span
-            onClick={() => router.push(ROUTES.quotations)}
-            style={{ cursor: "pointer", textDecoration: "none" }}
-          >
-            ← Quotations
-          </span>
+        <div style={{ fontSize: 12, color: c.muted, marginBottom: 12, cursor: "pointer" }}
+          onClick={() => router.push(ROUTES.quotations)}>
+          ← Quotations
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: "0 0 6px" }}>
           New Quotation
         </h1>
         <p style={{ margin: 0, fontSize: 13, color: c.muted }}>
-          Choose the type of quotation to create
+          Choose the type of offer to create
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="fg2">
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         {QUOTE_TYPES.map((qt) => {
           const available = qt.available;
           return (
@@ -39,11 +48,11 @@ export default function QuoteTypePicker() {
               style={{
                 textAlign: "left",
                 background: available ? c.panel : c.panel2,
-                border: `1.5px solid ${available ? c.line : c.line}`,
+                border: `1.5px solid ${c.line}`,
                 borderRadius: 12,
                 padding: "20px 22px",
                 cursor: available ? "pointer" : "not-allowed",
-                opacity: available ? 1 : 0.55,
+                opacity: available ? 1 : 0.5,
                 transition: "border-color 0.15s, box-shadow 0.15s",
                 position: "relative",
               }}
@@ -58,10 +67,7 @@ export default function QuoteTypePicker() {
               }}
             >
               <div style={{ marginBottom: 10 }}>
-                {qt.id === "repair"       && <Wrench size={26} color={available ? c.accent : c.hint} />}
-                {qt.id === "supply"       && <Package size={26} color={available ? c.accent : c.hint} />}
-                {qt.id === "amc"          && <CalendarCheck size={26} color={available ? c.accent : c.hint} />}
-                {qt.id === "installation" && <Zap size={26} color={available ? c.accent : c.hint} />}
+                <TypeIcon id={qt.id} color={available ? c.accent : c.hint} />
               </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 5 }}>
                 {qt.label}
@@ -81,10 +87,7 @@ export default function QuoteTypePicker() {
                 </div>
               )}
               {available && (
-                <div style={{
-                  marginTop: 14, fontSize: 12, fontWeight: 600,
-                  color: c.accent, display: "flex", alignItems: "center", gap: 4,
-                }}>
+                <div style={{ marginTop: 14, fontSize: 12, fontWeight: 600, color: c.accent }}>
                   Select →
                 </div>
               )}

@@ -43,6 +43,8 @@ create table tenants (
     "ai_assistant": false,
     "db_export":    false
   }'::jsonb,
+  -- Local admin configurable: entities (name, address, GSTIN) + tax settings
+  config       jsonb not null default '{}'::jsonb,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );

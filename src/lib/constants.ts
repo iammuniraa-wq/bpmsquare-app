@@ -39,6 +39,7 @@ export const ROUTES = {
   case: (id: string) => `/cases/${id}`,
   settings: "/settings",
   settingsTeam: "/settings/team",
+  settingsEntities: "/settings/entities",
   reports: "/reports",
   admin: "/admin",
   adminTenant: (id: string) => `/admin/tenants/${id}`,
@@ -111,10 +112,24 @@ export const NAV: NavGroup[] = [
 
 export const QUOTE_TYPES = [
   {
-    id:          "repair",
-    label:       "Repair Quotation",
-    description: "Labour, materials, testing & transport for motor / transformer repair",
+    id:          "quotation",
+    label:       "Quotation",
+    description: "Full quotation with Sl no, Particulars, UOM, Qty, Rate and Amount",
+    icon:        "₹",
+    available:   true,
+  },
+  {
+    id:          "technical",
+    label:       "Technical Offer",
+    description: "Scope and quantities only — no pricing. Sl no, Particulars, UOM, Qty",
     icon:        "⚙",
+    available:   true,
+  },
+  {
+    id:          "budgetary",
+    label:       "Budgetary Offer",
+    description: "Budget estimate for a group of motors — same fields as a Quotation",
+    icon:        "◈",
     available:   true,
   },
   {
@@ -142,25 +157,42 @@ export const QUOTE_TYPES = [
 
 export type QuoteTypeId = typeof QUOTE_TYPES[number]["id"];
 
-export const MOBILE_BREAKPOINT = 780;
-export const WORKSPACE_NAME = "Vikas Pioneers workspace";
+export const OFFER_TYPE_LABEL: Record<string, string> = {
+  quotation:  "Quotation",
+  technical:  "Technical Offer",
+  budgetary:  "Budgetary Offer",
+  supply:     "Supply",
+  repair:     "Repair Quotation",
+};
 
-// Company details — used in PDF headers and footers.
-export const COMPANY = {
-  name: "VIKAS PIONEERS [INDIA] PVT. LTD.",
-  shortName: "Vikas Pioneers",
-  tagline: "Professional in Motor Rewindings",
-  undertaking: "Rewinding of LT / HT Large Motors · Drives Application Motors · DC Motors · Transformers & Hydro Gensets",
-  address: "Plot No: N3-N4/1, Industrial Estate, Dam Road, Hosapete - 583201, Vijayanagara (Dist), Karnataka.",
-  phone_dir_tech: "9342681227 / 9538884600",
-  phone_commercial: "9538884603",
-  phone_work: "9538884602",
-  landline: "08394-231687",
-  email: "vikaspioneers@gmail.com",
-  email2: "vew@vikaspioneers.com",
-  web: "www.vikaspioneers.com",
-  gstin: "29AHHPG0831F1ZN",
-  iso: "ISO 9001:2015",
-  partners: "ABB · WEG · SIEMENS · Kirloskar · Jyoti Ltd. · Marathon",
-  footer_tagline: "Assuring our best services as always!",
-} as const;
+export const UOM_OPTIONS = ["Nos", "Job", "Set", "Mtr", "Kg", "Ltr", "Box", "Pair", "Lot"] as const;
+
+export const MOBILE_BREAKPOINT = 780;
+
+// TenantEntity — shape stored in tenants.config.entities[].
+// Populated by the local admin via Settings → Entities.
+// Used in PDF headers/footers and quotation entity selectors.
+export type TenantEntity = {
+  id: string;
+  name: string;
+  short_name: string;
+  tagline?: string;
+  address: string;
+  phone?: string;
+  email?: string;
+  gstin?: string;
+  is_default: boolean;
+};
+
+// TenantTaxConfig — shape stored in tenants.config.tax.
+export type TenantTaxConfig = {
+  label: string;   // e.g. "GST", "VAT", "MwSt"
+  rate: number;    // percentage, e.g. 18
+  inclusive: boolean;
+};
+
+// TenantConfig — full shape of tenants.config JSONB column.
+export type TenantConfig = {
+  entities: TenantEntity[];
+  tax: TenantTaxConfig;
+};

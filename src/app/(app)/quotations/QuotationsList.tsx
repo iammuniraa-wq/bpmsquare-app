@@ -6,7 +6,7 @@ import Link from "next/link";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
-import { ROUTES } from "@/lib/constants";
+import { ROUTES, OFFER_TYPE_LABEL } from "@/lib/constants";
 import { QUOTE_STATUS_LABEL } from "@/lib/data/labels";
 import type { QuoteSummary } from "@/lib/data/labels";
 import type { Quote } from "@/lib/types";
@@ -80,11 +80,21 @@ export default function QuotationsList({ initialRows }: { initialRows: QuoteSumm
     setTimeout(() => setToast(null), 3200);
   };
 
-  const deleteSelected = () => {
-    const count = selected.size;
-    setRows((r) => r.filter((row) => !selected.has(row.quote.id)));
-    setSelected(new Set());
-    showToast(`${count} quote${count > 1 ? "s" : ""} removed`);
+  const deleteSelected = async () => {
+    const ids = [...selected];
+    const results = await Promise.all(
+      ids.map((id) => fetch(`/api/quotes/${id}`, { method: "DELETE" }))
+    );
+    const failed = results.filter((r) => !r.ok).length;
+    const deleted = ids.length - failed;
+    if (deleted > 0) {
+      setRows((r) => r.filter((row) => !selected.has(row.quote.id)));
+      setSelected(new Set());
+    }
+    showToast(failed > 0
+      ? `${deleted} deleted, ${failed} failed`
+      : `${deleted} quote${deleted > 1 ? "s" : ""} deleted`
+    );
   };
 
   const copyQuote = () => {
@@ -92,14 +102,22 @@ export default function QuotationsList({ initialRows }: { initialRows: QuoteSumm
     const row = rows.find((r) => r.quote.id === firstId);
     if (!row) return;
     sessionStorage.setItem("vvcrm_copy_quote", JSON.stringify({
-      accountId: row.quote.account_id,
-      quoteName: `Copy of ${row.quote.ref}`,
-      notes:     row.quote.notes ?? "",
-      lines: row.lines.map((l, i) => ({
+      accountId:   row.quote.account_id,
+      contactId:   row.quote.contact_id ?? "",
+      quoteName:   `Copy of ${row.quote.ref}`,
+      notes:       row.quote.notes ?? "",
+      terms:       row.quote.terms ?? "",
+      scopeOfWork: row.quote.scope_of_work ?? "",
+      rows: row.lines.map((l, i) => ({
+        kind:        "line",
         id:          String(Date.now() + i),
         description: l.description,
+        uom:         l.uom ?? "",
         qty:         String(l.qty),
         rate:        String(l.rate),
+        discount:    String(l.discount_pct ?? 0),
+        group_id:    l.group_id ?? null,
+        group_label: l.group_label ?? null,
       })),
     }));
     router.push(ROUTES.quotationNew);
@@ -187,6 +205,7 @@ export default function QuotationsList({ initialRows }: { initialRows: QuoteSumm
                 />
               </th>
               <th style={th}>Ref</th>
+              <th style={th}>Type</th>
               <th style={th}>Account</th>
               <th style={th}>Status</th>
               <th style={th}>Lines</th>
@@ -198,7 +217,7 @@ export default function QuotationsList({ initialRows }: { initialRows: QuoteSumm
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ ...td, textAlign: "center", padding: "32px 0", color: c.hint }}>
+                <td colSpan={9} style={{ ...td, textAlign: "center", padding: "32px 0", color: c.hint }}>
                   No quotes match the current filters
                 </td>
               </tr>
@@ -230,6 +249,9 @@ export default function QuotationsList({ initialRows }: { initialRows: QuoteSumm
                       >
                         {quote.ref}
                       </Link>
+                    </td>
+                    <td style={{ ...td, color: c.muted, fontSize: 12 }}>
+                      {OFFER_TYPE_LABEL[quote.type] ?? quote.type}
                     </td>
                     <td style={td}>
                       <Link

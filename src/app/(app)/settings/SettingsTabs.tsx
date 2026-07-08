@@ -6,10 +6,12 @@ import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 
 const ALL_TABS = [
-  { label: "General",       href: ROUTES.settings,      adminOnly: false },
-  { label: "Team",          href: ROUTES.settingsTeam,  adminOnly: true  },
-  { label: "Pricing",       href: ROUTES.configPricing, adminOnly: false },
-  { label: "Templates",     href: ROUTES.configTemplates, adminOnly: false },
+  { label: "General",       href: ROUTES.settings,           adminOnly: false },
+  { label: "Team",          href: ROUTES.settingsTeam,       adminOnly: true  },
+  { label: "Entities",      href: ROUTES.settingsEntities,   adminOnly: true  },
+  { label: "Pricing",       href: ROUTES.configPricing,      adminOnly: false },
+  { label: "Templates",     href: ROUTES.configTemplates,    adminOnly: false },
+  { label: "Custom fields", href: ROUTES.configCustomFields, adminOnly: false },
 ];
 
 export default function SettingsTabs({

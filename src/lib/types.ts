@@ -68,16 +68,30 @@ export type Lead = {
   created_at: string;
 };
 
+export type QuoteOfferType = "quotation" | "technical" | "budgetary" | "supply" | "repair";
+
 export type Quote = {
   id: string;
   account_id: string;
   ref: string;
-  type: string;
+  type: QuoteOfferType;
   status: "draft" | "sent" | "approved" | "rejected";
+  business_status?: "pending" | "po_received";
   total: number;
   created_at: string;
   valid_until: string | null;
   notes: string | null;
+  terms?: string | null;
+  scope_of_work?: string | null;
+  entity_id?: string | null;
+  name?: string | null;
+  contact_id?: string | null;
+  po_number?: string | null;
+  po_amount?: number | null;
+  discount_type?: "pct" | "fixed";
+  discount_pct?: number;
+  discount_fixed?: number;
+  asset_ids?: string[];
   revision: number;
   selected_option_id?: string | null;
 };
@@ -95,10 +109,11 @@ export type QuoteLine = {
   id: string;
   quote_id: string;
   description: string;
+  uom?: string | null;
   qty: number;
   rate: number;
-  discount_pct?: number;  // 0–100, per-line discount percentage (default 0)
-  amount: number;        // qty * rate * (1 - discount_pct/100)
+  discount_pct?: number;
+  amount: number;
   group_id?: string | null;
   group_label?: string | null;
   group_type?: string | null;

@@ -11,10 +11,15 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { account_id, ref, type, total, valid_until, notes, terms, lines, selected_option_id, meta } = body;
+  const {
+    account_id, type, total, valid_until, notes, terms, scope_of_work,
+    entity_id, lines, selected_option_id, meta,
+    name, contact_id, po_number, po_amount,
+    discount_type, discount_pct, discount_fixed, asset_ids,
+  } = body;
 
-  if (!account_id || !ref) {
-    return NextResponse.json({ error: "account_id and ref are required" }, { status: 400 });
+  if (!account_id) {
+    return NextResponse.json({ error: "account_id is required" }, { status: 400 });
   }
 
   // Verify account belongs to this tenant
@@ -29,17 +34,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
+  // Server-side sequential ref generation
+  const { count } = await supabase
+    .from("quotes")
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+  const seq = String((count ?? 0) + 1).padStart(4, "0");
+  const ref = `QT-${new Date().getFullYear()}-${seq}`;
+
   const { data: quote, error: qErr } = await supabase
     .from("quotes")
     .insert({
       tenant_id: tenantId,
       account_id,
       ref,
-      type: type ?? "repair",
+      type: type ?? "quotation",
       status: "draft",
       total: total ?? 0,
       valid_until: valid_until || null,
-      notes: [notes, terms].filter(Boolean).join("\n\n") || null,
+      notes: notes || null,
+      terms: terms || null,
+      scope_of_work: scope_of_work || null,
+      entity_id: entity_id || null,
+      name: name || null,
+      contact_id: contact_id || null,
+      po_number: po_number || null,
+      po_amount: po_amount ? parseFloat(po_amount) : null,
+      discount_type: discount_type ?? "pct",
+      discount_pct: parseFloat(discount_pct) || 0,
+      discount_fixed: parseFloat(discount_fixed) || 0,
+      asset_ids: Array.isArray(asset_ids) ? asset_ids : [],
       revision: 1,
       selected_option_id: selected_option_id ?? null,
       meta: meta ?? null,
@@ -61,6 +85,7 @@ export async function POST(request: NextRequest) {
           tenant_id: tenantId,
           quote_id: quote.id,
           description: String(l.description).slice(0, 500),
+          uom: l.uom || null,
           qty,
           rate,
           discount_pct: disc,

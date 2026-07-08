@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WORKSPACE_NAME } from "./constants";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,7 +31,7 @@ export const ACCENT_PRESETS: Record<
 export const DEFAULT_SETTINGS: AppSettings = {
   hiddenNavHrefs: [],
   accentPreset: "blue",
-  workspaceName: WORKSPACE_NAME,
+  workspaceName: "My Workspace",
   compactSidebar: false,
 };
 

@@ -18,6 +18,9 @@ export default async function QuotePrintPage({ params }: { params: Promise<{ id:
       lines={lines}
       revisions={revisions}
       companyInfo={tenant?.company_info ?? {}}
+      logoUrl={tenant?.logo_url ?? null}
+      tenantEntities={tenant?.config?.entities ?? []}
+      tenantTax={tenant?.config?.tax ?? { label: "GST", rate: 18, inclusive: false }}
     />
   );
 }
