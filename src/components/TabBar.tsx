@@ -39,7 +39,7 @@ export default function TabBar() {
 
   if (tabs.length === 0) return null;
 
-  const MAX_TABS = 8; // mirror of tabs-context constant — for display only
+  const MAX_TABS = 20; // mirror of tabs-context constant — for display only
 
   const scroll = (dir: "left" | "right") => {
     scrollRef.current?.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" });
