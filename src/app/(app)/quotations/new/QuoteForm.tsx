@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
@@ -11,7 +11,7 @@ import { ACCOUNT_TYPE_LABEL } from "@/lib/data/labels";
 import type { Account, Asset, Contact, PricingItem, TextFragment, PricingCategory } from "@/lib/types";
 import { Gear, Zap, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 
-// â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const inp: React.CSSProperties = {
   width: "100%", boxSizing: "border-box",
@@ -97,7 +97,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const today        = new Date().toISOString().slice(0, 10);
   const defaultValid = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
 
-  // Local assets â€” starts from server-loaded list, new ones appended without page reload
+  // Local assets — starts from server-loaded list, new ones appended without page reload
   const [localAssets, setLocalAssets] = useState<Asset[]>(initialAssets);
 
   // Account & contact
@@ -110,7 +110,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [validUntil, setValidUntil] = useState(defaultValid);
   const [poNumber, setPoNumber]     = useState("");
   const [poAmount, setPoAmount]     = useState("");
-  const [owner, setOwner]           = useState("VP â€” Admin");
+  const [owner, setOwner]           = useState("VP — Admin");
 
   // Linked assets
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
@@ -136,7 +136,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [notes, setNotes] = useState("");
   const [terms, setTerms] = useState("");
 
-  // Create-asset drawer (opened from within the form â€” no page navigation)
+  // Create-asset drawer (opened from within the form — no page navigation)
   const [createAssetOpen, setCreateAssetOpen] = useState(false);
   const [newAsset, setNewAsset] = useState({ name: "", kind: "motor" as Asset["kind"], make: "", model: "", serial: "", rating: "", notes: "" });
   const [createAssetPending, startCreateAsset] = useTransition();
@@ -220,7 +220,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         if (Array.isArray(copy.rows) && copy.rows.length > 0) setRows(copy.rows);
         else if (Array.isArray(copy.lines) && copy.lines.length > 0)
           setRows(copy.lines.map((l: LineItem) => ({ kind: "line" as const, ...l })));
-      } catch { /* malformed â€” ignore */ }
+      } catch { /* malformed — ignore */ }
       return;
     }
     // Restore auto-saved draft
@@ -295,9 +295,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const total  = subtotal - discAmount;
   const poVal  = parseFloat(poAmount) || 0;
 
-  const fmt = (n: number) => `â‚¹${n.toLocaleString("en-IN")}`;
+  const fmt = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
-  // â”€â”€ Row / line / group handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Row / line / group handlers ─────────────────────────────────────────────
   const newLineItem = (): LineItem => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, description: "", uom: "", qty: "1", rate: "0", discount: "" });
 
   const addLine  = () => setRows((p) => [...p, { kind: "line", ...newLineItem() }]);
@@ -408,11 +408,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     });
   }
 
-  // â”€â”€ Success screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Success screen ────────────────────────────────────────────────────────
   if (savedId) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "55vh", gap: 14, textAlign: "center" }}>
-        <div style={{ width: 64, height: 64, borderRadius: "50%", background: pillar.green.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, color: pillar.green.base }}>âœ“</div>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", background: pillar.green.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, color: pillar.green.base }}>✓</div>
         <div style={{ fontSize: 20, fontWeight: 700, color: c.ink }}>Draft saved</div>
         <div style={{ fontFamily: "monospace", fontSize: 15, color: c.accent, background: c.accentbg, padding: "6px 16px", borderRadius: 8 }}>{savedRef}</div>
         <p style={{ fontSize: 13, color: c.muted, maxWidth: 340, lineHeight: 1.6 }}>
@@ -420,18 +420,18 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         </p>
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
           <Link href={ROUTES.quotations} style={{ background: c.accent, color: "#fff", padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>All quotations</Link>
-          <Link href={ROUTES.quotationPrint(savedId)} target="_blank" style={{ background: pillar.teal.bg, color: pillar.teal.fg, padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>ðŸ–¨ Preview PDF</Link>
+          <Link href={ROUTES.quotationPrint(savedId)} target="_blank" style={{ background: pillar.teal.bg, color: pillar.teal.fg, padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>🖨 Preview PDF</Link>
           <button onClick={() => setSavedId(null)} style={{ border: `1px solid ${c.line}`, background: c.panel, color: c.muted, padding: "8px 20px", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>Edit again</button>
         </div>
       </div>
     );
   }
 
-  // â”€â”€ Main form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Main form ─────────────────────────────────────────────────────────────
   return (
     <>
       <div style={{ marginBottom: 10 }}>
-        <Link href={ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>â† Quotations</Link>
+        <Link href={ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>← Quotations</Link>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: hasDraft ? 10 : 20 }}>
@@ -472,7 +472,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8,
           padding: "8px 14px", fontSize: 12.5,
         }}>
-          <span style={{ color: "#92400e" }}>âŸ³ Draft restored â€” your unsaved work has been recovered.</span>
+          <span style={{ color: "#92400e" }}>⟳ Draft restored — your unsaved work has been recovered.</span>
           <button
             onClick={() => { clearDraft(); setHasDraft(false); window.location.reload(); }}
             style={{ marginLeft: "auto", fontSize: 11.5, color: "#b45309", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
@@ -484,7 +484,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 288px", gap: 14, alignItems: "start" }} className="hub-grid">
 
-        {/* â”€â”€ LEFT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── LEFT ─────────────────────────────────────────────────────────── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
           {/* Account & Contact */}
@@ -498,7 +498,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   value={accountId}
                   onChange={(e) => { setAccountId(e.target.value); setContactId(""); setSelectedAssetIds([]); }}
                 >
-                  <option value="">Select accountâ€¦</option>
+                  <option value="">Select account…</option>
                   {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
                 {selectedAccount && (
@@ -511,8 +511,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <div>
                 <span style={lbl}>Contact</span>
                 <select style={{ ...selStyle, opacity: !accountId ? 0.5 : 1 }} value={contactId} onChange={(e) => setContactId(e.target.value)} disabled={!accountId}>
-                  <option value="">{accountId ? "Select contactâ€¦" : "Choose account first"}</option>
-                  {accountContacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}{ct.role ? ` Â· ${ct.role}` : ""}</option>)}
+                  <option value="">{accountId ? "Select contact…" : "Choose account first"}</option>
+                  {accountContacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}{ct.role ? ` · ${ct.role}` : ""}</option>)}
                 </select>
               </div>
             </div>
@@ -525,7 +525,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <div className="fg2">
                 <div>
                   <span style={lbl}>Quote name</span>
-                  <input style={inp} value={quoteName} onChange={(e) => setQuoteName(e.target.value)} placeholder="e.g. Annual maintenance â€” Pump rewinding" />
+                  <input style={inp} value={quoteName} onChange={(e) => setQuoteName(e.target.value)} placeholder="e.g. Annual maintenance — Pump rewinding" />
                 </div>
                 <div>
                   <span style={lbl}>Created by</span>
@@ -552,7 +552,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   <input style={inp} value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="PO-2026-XXXX" />
                 </div>
                 <div>
-                  <span style={lbl}>PO amount (â‚¹)</span>
+                  <span style={lbl}>PO amount (₹)</span>
                   <input style={inp} type="number" min="0" step="1000" value={poAmount} onChange={(e) => setPoAmount(e.target.value)} placeholder="0" />
                 </div>
               </div>
@@ -560,7 +560,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 <div>
                   <span style={lbl}>Issuing entity</span>
                   <select style={selStyle} value={entityId} onChange={(e) => setEntityId(e.target.value)}>
-                    <option value="">â€” Select entity â€”</option>
+                    <option value="">— Select entity —</option>
                     {tenantEntities.map((e) => (
                       <option key={e.id} value={e.id}>{e.name}{e.is_default ? " (default)" : ""}</option>
                     ))}
@@ -577,11 +577,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               style={{ ...inp, minHeight: 88, resize: "vertical", lineHeight: 1.6 }}
               value={scopeOfWork}
               onChange={(e) => setScopeOfWork(e.target.value)}
-              placeholder="Describe the scope of work, deliverables, and any inclusions / exclusionsâ€¦"
+              placeholder="Describe the scope of work, deliverables, and any inclusions / exclusions…"
             />
           </section>
 
-          {/* â”€â”€ Linked assets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Linked assets ─────────────────────────────────────────────── */}
           <section style={cardStyle}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: selectedAssets.length > 0 ? 12 : 0 }}>
               <div>
@@ -663,12 +663,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       </div>
                       <div style={{ fontSize: 12, color: c.muted, marginBottom: 2 }}>
                         {asset.make && <span>{asset.make}</span>}
-                        {asset.make && asset.model && <span style={{ margin: "0 5px", color: c.hint }}>Â·</span>}
+                        {asset.make && asset.model && <span style={{ margin: "0 5px", color: c.hint }}>·</span>}
                         {asset.model && <span style={{ fontWeight: 500 }}>{asset.model}</span>}
                       </div>
                       <div style={{ fontSize: 11, color: c.hint }}>
                         {asset.serial && <span style={{ fontFamily: "monospace" }}>{asset.serial}</span>}
-                        {asset.serial && asset.rating && <span style={{ margin: "0 5px" }}>Â·</span>}
+                        {asset.serial && asset.rating && <span style={{ margin: "0 5px" }}>·</span>}
                         {asset.rating && <span>{asset.rating}</span>}
                       </div>
                       {asset.notes && (
@@ -682,7 +682,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       onClick={() => toggleAsset(asset.id)}
                       style={{ background: "none", border: "none", color: c.hint, fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}
                       title="Unlink asset"
-                    >Ã—</button>
+                    >×</button>
                   </div>
                 ))}
               </div>
@@ -691,7 +691,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             {/* Empty state when account has assets but none selected */}
             {accountId && accountAssets.length > 0 && selectedAssets.length === 0 && (
               <div style={{ padding: "16px 0", textAlign: "center", color: c.hint, fontSize: 13 }}>
-                No assets linked yet â€” click <strong>+ Link asset</strong> to choose
+                No assets linked yet — click <strong>+ Link asset</strong> to choose
               </div>
             )}
           </section>
@@ -704,11 +704,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
                 {selectedIds.size >= 2 && (
                   <button onClick={groupSelected} style={{ fontSize: 12, fontWeight: 600, color: "#0c447c", background: "#e6f1fb", border: "1px solid #c5dbf5", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
-                    â–¦ Group selected ({selectedIds.size})
+                    ▦ Group selected ({selectedIds.size})
                   </button>
                 )}
                 <button onClick={addAlternative} style={{ fontSize: 12, fontWeight: 600, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
-                  âŠ• Add option
+                  ⊕ Add option
                 </button>
                 <button onClick={addGroup} style={{ fontSize: 12, fontWeight: 600, color: c.muted, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
                   + Add group
@@ -719,11 +719,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               </div>
             </div>
 
-            {/* Column headers â€” only shown above standalone lines */}
+            {/* Column headers — only shown above standalone lines */}
             <div style={{ display: "grid", gridTemplateColumns: isTechnical ? "20px 1fr 72px 60px 32px" : "20px 1fr 72px 60px 100px 68px 100px 32px", gap: 8, marginBottom: 6 }}>
               {(isTechnical
                 ? ["", "Description", "UOM", "Qty", ""]
-                : ["", "Description", "UOM", "Qty", "Rate (â‚¹)", "Disc %", "Amount", ""]
+                : ["", "Description", "UOM", "Qty", "Rate (₹)", "Disc %", "Amount", ""]
               ).map((h, i) => (
                 <div key={i} style={{ fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</div>
               ))}
@@ -743,11 +743,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         <input type="checkbox" checked={sel} onChange={() => toggleSelect(row.id)} style={{ width: 13, height: 13, accentColor: c.accent, cursor: "pointer" }} />
                       </div>
                       <div>
-                        <textarea style={{ ...inp, resize: "vertical", minHeight: 58, lineHeight: 1.5 }} value={row.description} onChange={(e) => updateLine(row.id, "description", e.target.value)} placeholder="Describe the service or itemâ€¦" />
-                        <button onClick={() => openCatalog(row.id)} style={{ marginTop: 4, fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>â—ˆ From catalog</button>
+                        <textarea style={{ ...inp, resize: "vertical", minHeight: 58, lineHeight: 1.5 }} value={row.description} onChange={(e) => updateLine(row.id, "description", e.target.value)} placeholder="Describe the service or item…" />
+                        <button onClick={() => openCatalog(row.id)} style={{ marginTop: 4, fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ From catalog</button>
                       </div>
                       <select style={{ ...selStyle, fontSize: 12 }} value={row.uom ?? ""} onChange={(e) => updateLine(row.id, "uom", e.target.value)}>
-                        <option value="">â€”</option>
+                        <option value="">—</option>
                         {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
                       </select>
                       <input style={{ ...inp, textAlign: "center" }} type="number" min="0" step="1" value={row.qty} onChange={(e) => updateLine(row.id, "qty", e.target.value)} />
@@ -756,10 +756,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       {!isTechnical && (
                         <div style={{ textAlign: "right", paddingTop: 8 }}>
                           <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{fmt(amount)}</div>
-                          {disc > 0 && <div style={{ fontSize: 10.5, color: "#d97706", marginTop: 1 }}>âˆ’{disc}%</div>}
+                          {disc > 0 && <div style={{ fontSize: 10.5, color: "#d97706", marginTop: 1 }}>−{disc}%</div>}
                         </div>
                       )}
-                      <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove">Ã—</button>
+                      <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove">×</button>
                     </div>
                   );
                 }
@@ -780,7 +780,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   <div key={row.id} style={{ border: `1px solid ${groupBorder}`, borderLeft: `3px solid ${groupColor}`, borderRadius: 8, background: groupBg, padding: "10px 12px", marginBottom: 2, opacity: isAlt && !isSelectedAlt ? 0.6 : 1 }}>
                     {/* Group header */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      <span style={{ fontSize: 12, color: groupColor }}>{isAlt ? "âŠ•" : "â–¦"}</span>
+                      <span style={{ fontSize: 12, color: groupColor }}>{isAlt ? "⊕" : "▦"}</span>
                       {isAlt && (
                         <span style={{ fontSize: 10, fontWeight: 700, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" }}>
                           OPTION
@@ -790,11 +790,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         value={row.label}
                         onChange={(e) => updateGroupLabel(row.id, e.target.value)}
                         style={{ flex: 1, fontSize: 13, fontWeight: 600, border: "none", background: "transparent", color: c.ink, outline: "none", borderBottom: `1px dashed ${c.line}`, padding: "2px 0" }}
-                        placeholder={isAlt ? "Option name (e.g. Option A)â€¦" : "Group nameâ€¦"}
+                        placeholder={isAlt ? "Option name (e.g. Option A)…" : "Group name…"}
                       />
                       {isAlt && (
                         isSelectedAlt ? (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", background: "#d1fae5", border: "1px solid #6ee7b7", borderRadius: 5, padding: "2px 8px", whiteSpace: "nowrap" }}>âœ“ Selected</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", background: "#d1fae5", border: "1px solid #6ee7b7", borderRadius: 5, padding: "2px 8px", whiteSpace: "nowrap" }}>✓ Selected</span>
                         ) : (
                           <button onClick={() => setSelectedAltId(row.id)} style={{ fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 5, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>
                             Select this option
@@ -802,14 +802,14 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         )
                       )}
                       <button onClick={() => ungroup(row.id)} style={{ fontSize: 11, color: c.muted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", whiteSpace: "nowrap" }}>Ungroup</button>
-                      <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", lineHeight: 1 }} title="Delete group">Ã—</button>
+                      <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", lineHeight: 1 }} title="Delete group">×</button>
                     </div>
 
                     {/* Column headers inside group */}
                     <div style={{ display: "grid", gridTemplateColumns: isTechnical ? "1fr 72px 60px 32px" : "1fr 72px 60px 100px 68px 100px 32px", gap: 8, marginBottom: 4, paddingLeft: 4 }}>
                       {(isTechnical
                         ? ["Description", "UOM", "Qty", ""]
-                        : ["Description", "UOM", "Qty", "Rate (â‚¹)", "Disc %", "Amount", ""]
+                        : ["Description", "UOM", "Qty", "Rate (₹)", "Disc %", "Amount", ""]
                       ).map((h, i) => (
                         <div key={i} style={{ fontSize: 10, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</div>
                       ))}
@@ -825,11 +825,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         return (
                           <div key={item.id} style={{ display: "grid", gridTemplateColumns: isTechnical ? "1fr 72px 60px 32px" : "1fr 72px 60px 100px 68px 100px 32px", gap: 8, alignItems: "start", paddingBottom: 6, borderBottom: `1px solid ${c.accent}20` }}>
                             <div>
-                              <textarea style={{ ...inp, resize: "vertical", minHeight: 48, lineHeight: 1.5, fontSize: 12.5 }} value={item.description} onChange={(e) => updateLine(item.id, "description", e.target.value)} placeholder="Line descriptionâ€¦" />
-                              <button onClick={() => openCatalog(item.id)} style={{ marginTop: 3, fontSize: 10.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>â—ˆ Catalog</button>
+                              <textarea style={{ ...inp, resize: "vertical", minHeight: 48, lineHeight: 1.5, fontSize: 12.5 }} value={item.description} onChange={(e) => updateLine(item.id, "description", e.target.value)} placeholder="Line description…" />
+                              <button onClick={() => openCatalog(item.id)} style={{ marginTop: 3, fontSize: 10.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ Catalog</button>
                             </div>
                             <select style={{ ...selStyle, fontSize: 12 }} value={item.uom ?? ""} onChange={(e) => updateLine(item.id, "uom", e.target.value)}>
-                              <option value="">â€”</option>
+                              <option value="">—</option>
                               {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
                             </select>
                             <input style={{ ...inp, textAlign: "center", fontSize: 12.5 }} type="number" min="0" step="1" value={item.qty} onChange={(e) => updateLine(item.id, "qty", e.target.value)} />
@@ -838,10 +838,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                             {!isTechnical && (
                               <div style={{ textAlign: "right", paddingTop: 8 }}>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{fmt(amount)}</div>
-                                {disc > 0 && <div style={{ fontSize: 10, color: "#d97706", marginTop: 1 }}>âˆ’{disc}%</div>}
+                                {disc > 0 && <div style={{ fontSize: 10, color: "#d97706", marginTop: 1 }}>−{disc}%</div>}
                               </div>
                             )}
-                            <button onClick={() => removeLineFromGroup(row.id, item.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 16, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove line">Ã—</button>
+                            <button onClick={() => removeLineFromGroup(row.id, item.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 16, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove line">×</button>
                           </div>
                         );
                       })}
@@ -864,7 +864,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <h3 style={{ ...sectionTitle, margin: 0 }}>Notes</h3>
               <button onClick={() => setFragTarget("notes")} style={{ marginLeft: "auto", fontSize: 11.5, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>+ Insert template</button>
             </div>
-            <textarea style={{ ...inp, minHeight: 88, resize: "vertical", lineHeight: 1.6 }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes for the customer (payment terms, special conditions, delivery notes)â€¦" />
+            <textarea style={{ ...inp, minHeight: 88, resize: "vertical", lineHeight: 1.6 }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes for the customer (payment terms, special conditions, delivery notes)…" />
           </section>
 
           {/* Terms */}
@@ -873,14 +873,14 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <h3 style={{ ...sectionTitle, margin: 0 }}>Terms & Conditions</h3>
               <button onClick={() => setFragTarget("terms")} style={{ marginLeft: "auto", fontSize: 11.5, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>+ Use preset</button>
             </div>
-            <textarea style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Standard terms and conditionsâ€¦" />
+            <textarea style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Standard terms and conditions…" />
           </section>
         </div>
 
-        {/* â”€â”€ RIGHT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── RIGHT ────────────────────────────────────────────────────────── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12, position: "sticky", top: 20 }}>
 
-          {/* Summary â€” hidden for technical offers */}
+          {/* Summary — hidden for technical offers */}
           {!isTechnical && <section style={cardStyle}>
             <h3 style={sectionTitle}>Summary</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -905,7 +905,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: `1px solid ${c.line}` }}>
                     {(["pct", "fixed"] as const).map((t) => (
                       <button key={t} onClick={() => setDiscountType(t)} style={{ padding: "3px 11px", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: discountType === t ? c.accent : c.panel2, color: discountType === t ? "#fff" : c.muted }}>
-                        {t === "pct" ? "%" : "â‚¹"}
+                        {t === "pct" ? "%" : "₹"}
                       </button>
                     ))}
                   </div>
@@ -918,12 +918,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     </>
                   ) : (
                     <>
-                      <span style={{ fontSize: 11, color: c.hint }}>â‚¹</span>
+                      <span style={{ fontSize: 11, color: c.hint }}>₹</span>
                       <input type="number" min="0" step="100" value={discountFixed} onChange={(e) => setDiscountFixed(e.target.value)} style={{ width: 84, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }} />
                     </>
                   )}
                   <span style={{ fontWeight: 600, color: discAmount > 0 ? pillar.red.fg : c.muted, minWidth: 60, textAlign: "right" }}>
-                    {discAmount > 0 ? `âˆ’ ${fmt(discAmount)}` : "â€”"}
+                    {discAmount > 0 ? `− ${fmt(discAmount)}` : "—"}
                   </span>
                 </div>
               </div>
@@ -950,7 +950,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 6, borderTop: `1px solid ${c.line}` }}>
                   <span style={{ fontSize: 11, color: c.hint }}>Quote vs PO</span>
                   <span style={{ fontSize: 11.5, fontWeight: 600, color: total <= poVal ? pillar.green.fg : pillar.red.fg }}>
-                    {total <= poVal ? "âœ“ Within PO" : `â–² Exceeds by ${fmt(total - poVal)}`}
+                    {total <= poVal ? "✓ Within PO" : `▲ Exceeds by ${fmt(total - poVal)}`}
                   </span>
                 </div>
               )}
@@ -961,7 +961,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           {selectedAssets.length > 0 && (
             <section style={{ ...cardStyle, padding: "12px 14px" }}>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-                Assets Â· {selectedAssets.length}
+                Assets · {selectedAssets.length}
               </div>
               {selectedAssets.map((asset, idx) => (
                 <div key={asset.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: idx > 0 ? `1px solid ${c.line}` : "none" }}>
@@ -970,7 +970,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     <div style={{ fontSize: 12, color: c.ink, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{asset.name}</div>
                     {(asset.make || asset.model) && (
                       <div style={{ fontSize: 10.5, color: c.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {[asset.make, asset.model].filter(Boolean).join(" Â· ")}
+                        {[asset.make, asset.model].filter(Boolean).join(" · ")}
                       </div>
                     )}
                     {asset.serial && <div style={{ fontSize: 10.5, color: c.hint, fontFamily: "monospace" }}>{asset.serial}</div>}
@@ -982,7 +982,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
           {/* Owner */}
           <div style={{ fontSize: 11, color: c.hint, textAlign: "center" }}>
-            Created by <span style={{ color: c.muted, fontWeight: 600 }}>{owner || "â€”"}</span>
+            Created by <span style={{ color: c.muted, fontWeight: 600 }}>{owner || "—"}</span>
           </div>
 
           {/* Actions */}
@@ -991,9 +991,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {saveError && <div style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", borderRadius: 7, padding: "6px 10px" }}>{saveError}</div>}
               <button onClick={handleSave} disabled={!accountId || savePending} style={{ width: "100%", padding: "10px 0", borderRadius: 9, fontSize: 13.5, fontWeight: 700, background: accountId ? c.accent : c.line, color: accountId ? "#fff" : c.hint, border: "none", cursor: accountId && !savePending ? "pointer" : "not-allowed" }}>
-                {savePending ? "Savingâ€¦" : "Save as draft"}
+                {savePending ? "Saving…" : "Save as draft"}
               </button>
-              <button disabled style={{ width: "100%", padding: "9px 0", borderRadius: 9, fontSize: 13, fontWeight: 600, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "not-allowed", opacity: 0.7 }}>Send to customer Â· Coming soon</button>
+              <button disabled style={{ width: "100%", padding: "9px 0", borderRadius: 9, fontSize: 13, fontWeight: 600, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "not-allowed", opacity: 0.7 }}>Send to customer · Coming soon</button>
             </div>
           </section>
 
@@ -1003,7 +1003,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         </div>
       </div>
 
-      {/* â”€â”€ Asset picker panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Asset picker panel ────────────────────────────────────────────── */}
       {assetPickerOpen && (
         <>
           <div onClick={() => setAssetPickerOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
@@ -1013,10 +1013,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Link assets</div>
                 <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>
-                  {selectedAccount?.name} Â· {accountAssets.length} asset{accountAssets.length !== 1 ? "s" : ""}
+                  {selectedAccount?.name} · {accountAssets.length} asset{accountAssets.length !== 1 ? "s" : ""}
                 </div>
               </div>
-              <button onClick={() => setAssetPickerOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>Ã—</button>
+              <button onClick={() => setAssetPickerOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
 
             {/* Asset list */}
@@ -1044,7 +1044,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 11, color: "#fff", fontWeight: 700,
                     }}>
-                      {selected ? "âœ“" : ""}
+                      {selected ? "✓" : ""}
                     </div>
                     {/* Kind icon */}
                     <div style={{
@@ -1062,12 +1062,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       </div>
                       <div style={{ fontSize: 12, color: c.muted, marginBottom: 2 }}>
                         {asset.make && <span>{asset.make}</span>}
-                        {asset.make && asset.model && <span style={{ margin: "0 5px", color: c.hint }}>Â·</span>}
+                        {asset.make && asset.model && <span style={{ margin: "0 5px", color: c.hint }}>·</span>}
                         {asset.model && <span style={{ fontWeight: 500 }}>{asset.model}</span>}
                       </div>
                       <div style={{ fontSize: 11, color: c.hint }}>
                         {asset.serial && <span style={{ fontFamily: "monospace" }}>{asset.serial}</span>}
-                        {asset.serial && asset.rating && <span style={{ margin: "0 5px" }}>Â·</span>}
+                        {asset.serial && asset.rating && <span style={{ margin: "0 5px" }}>·</span>}
                         {asset.rating && <span>{asset.rating}</span>}
                       </div>
                       {asset.notes && (
@@ -1105,7 +1105,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         </>
       )}
 
-      {/* â”€â”€ Catalog slide panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Catalog slide panel ──────────────────────────────────────────── */}
       {catalogOpen && (
         <>
           <div onClick={() => setCatalogOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
@@ -1115,7 +1115,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Pricing catalog</div>
                 <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>Click an item to insert it into the line</div>
               </div>
-              <button onClick={() => setCatalogOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>Ã—</button>
+              <button onClick={() => setCatalogOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
             <div style={{ display: "flex", gap: 6, padding: "12px 16px", borderBottom: `1px solid ${c.line}`, flexWrap: "wrap" }}>
               {(["", "labour", "material", "testing", "transport"] as const).map((cat) => (
@@ -1135,9 +1135,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       <button key={item.id} onClick={() => insertCatalogItem(item)} style={{ width: "100%", textAlign: "left", padding: "10px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: `1px solid ${c.line}` }} onMouseEnter={(e) => (e.currentTarget.style.background = c.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
                         <div style={{ fontSize: 12.5, color: c.ink, fontWeight: 500, lineHeight: 1.4 }}>{item.description}</div>
                         <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>â‚¹{item.rate.toLocaleString("en-IN")}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>₹{item.rate.toLocaleString("en-IN")}</span>
                           <span style={{ fontSize: 11, color: c.hint }}>/ {item.unit}</span>
-                          {item.notes && <span style={{ fontSize: 10.5, color: c.hint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Â· {item.notes}</span>}
+                          {item.notes && <span style={{ fontSize: 10.5, color: c.hint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>· {item.notes}</span>}
                         </div>
                       </button>
                     ))}
@@ -1149,7 +1149,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         </>
       )}
 
-      {/* â”€â”€ Create asset drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Create asset drawer ─────────────────────────────────────────── */}
       {createAssetOpen && (
         <>
           <div onClick={() => setCreateAssetOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
@@ -1161,7 +1161,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   {selectedAccount ? `Linked to ${selectedAccount.name}` : "No account selected"}
                 </div>
               </div>
-              <button onClick={() => setCreateAssetOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>Ã—</button>
+              <button onClick={() => setCreateAssetOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
 
             <form onSubmit={handleCreateAsset} style={{ flex: 1, overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1193,11 +1193,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               </div>
               <div>
                 <label style={lbl}>Rating / specs</label>
-                <input style={inp} value={newAsset.rating} onChange={setNA("rating")} placeholder="e.g. 75 kW Â· 415V Â· 1480 rpm" />
+                <input style={inp} value={newAsset.rating} onChange={setNA("rating")} placeholder="e.g. 75 kW · 415V · 1480 rpm" />
               </div>
               <div>
                 <label style={lbl}>Notes / history</label>
-                <textarea style={{ ...inp, resize: "vertical", minHeight: 64 }} value={newAsset.notes} onChange={setNA("notes")} placeholder="e.g. Rewound once â€” June 2024." />
+                <textarea style={{ ...inp, resize: "vertical", minHeight: 64 }} value={newAsset.notes} onChange={setNA("notes")} placeholder="e.g. Rewound once — June 2024." />
               </div>
 
               {createAssetError && (
@@ -1210,7 +1210,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   disabled={createAssetPending}
                   style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13, cursor: createAssetPending ? "wait" : "pointer" }}
                 >
-                  {createAssetPending ? "Creatingâ€¦" : "Create & link asset"}
+                  {createAssetPending ? "Creating…" : "Create & link asset"}
                 </button>
                 <button
                   type="button"
@@ -1225,7 +1225,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         </>
       )}
 
-      {/* â”€â”€ Fragment picker panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Fragment picker panel ────────────────────────────────────────── */}
       {fragTarget && (
         <>
           <div onClick={() => setFragTarget(null)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
@@ -1235,7 +1235,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>{fragTarget === "notes" ? "Note templates" : "Terms presets"}</div>
                 <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>Click to append to the text area</div>
               </div>
-              <button onClick={() => setFragTarget(null)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer" }}>Ã—</button>
+              <button onClick={() => setFragTarget(null)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer" }}>×</button>
             </div>
             <div style={{ flex: 1, overflowY: "auto" }}>
               {(fragTarget === "notes" ? noteFrags : termsFrags).map((frag) => (
