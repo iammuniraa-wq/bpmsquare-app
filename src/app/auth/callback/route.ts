@@ -3,16 +3,15 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  const type = searchParams.get("type");
+  const code      = searchParams.get("code");
+  const tokenHash = searchParams.get("token_hash");
+  const type      = searchParams.get("type");
   const next = type === "recovery"
     ? "/reset-password"
     : (searchParams.get("next") ?? "/");
 
-  // PKCE flow — code in query param
-  if (code) {
-    const response = NextResponse.redirect(`${origin}${next}`);
-    const supabase = createServerClient(
+  const makeSupabase = (response: NextResponse) =>
+    createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
@@ -26,6 +25,22 @@ export async function GET(request: NextRequest) {
         },
       }
     );
+
+  // token_hash flow — used by Supabase recovery / magic-link emails
+  if (tokenHash && type) {
+    const response = NextResponse.redirect(`${origin}${next}`);
+    const supabase = makeSupabase(response);
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: type as "recovery" | "email" | "magiclink" | "invite",
+    });
+    if (!error) return response;
+  }
+
+  // PKCE flow — code in query param
+  if (code) {
+    const response = NextResponse.redirect(`${origin}${next}`);
+    const supabase = makeSupabase(response);
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) return response;
   }
