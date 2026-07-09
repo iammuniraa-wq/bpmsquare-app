@@ -191,7 +191,7 @@ type ImportResult = {
 const card: React.CSSProperties = {
   background: "#fff", border: `1px solid ${c.line}`, borderRadius: 12, padding: "20px 22px",
 };
-const btn = (accent = c.accent): React.CSSProperties => ({
+const btn = (accent: string = c.accent): React.CSSProperties => ({
   display: "inline-flex", alignItems: "center", gap: 6,
   padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
   background: accent, color: "#fff", border: "none", cursor: "pointer",
