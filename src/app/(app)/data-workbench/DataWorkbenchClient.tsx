@@ -5,7 +5,7 @@ import { c } from "@/lib/theme";
 
 // ── Object definitions ────────────────────────────────────────────────────────
 
-type ObjectId = "accounts" | "contacts" | "assets" | "users";
+type ObjectId = "accounts" | "contacts" | "assets" | "quotes" | "users";
 
 type ColDef = { key: string; label: string; required: boolean; hint: string };
 
@@ -74,6 +74,39 @@ const OBJECTS: {
       ["Vikas Pioneers India Pvt Ltd", "Ring Frame Drive Motor #1", "motor", "Crompton Greaves", "ND315S-2", "CG-75-2291", "75 kW · 415V · 1480 rpm", "Rewound June 2024"],
       ["Vikas Pioneers India Pvt Ltd", "Main Transformer", "transformer", "Siemens", "SG-500KVA", "SM-0042", "500 KVA · 11KV/415V", ""],
       ["Bharat Textiles Ltd", "Cooling Tower Pump", "pump", "Kirloskar", "STAR-3T", "KP-9981", "3 HP · 415V", "Last serviced Jan 2025"],
+    ],
+  },
+  {
+    id: "quotes",
+    label: "Quotes",
+    icon: "₹",
+    description: "Import full quotations with line items — one row per line item, repeated quote header on first row",
+    columns: [
+      { key: "quote_name",        label: "quote_name",        required: true,  hint: "Unique name for this quote — groups rows into one quote" },
+      { key: "account_name",      label: "account_name",      required: true,  hint: "Must match an existing account name exactly (first row only)" },
+      { key: "contact_name",      label: "contact_name",      required: false, hint: "Contact person at the account (first row only)" },
+      { key: "type",              label: "type",              required: false, hint: "quotation | technical | budgetary | supply (first row only)" },
+      { key: "date",              label: "date",              required: false, hint: "Quote date YYYY-MM-DD (first row only)" },
+      { key: "valid_until",       label: "valid_until",       required: false, hint: "Expiry date YYYY-MM-DD (first row only)" },
+      { key: "scope_of_work",     label: "scope_of_work",     required: false, hint: "Scope description (first row only)" },
+      { key: "notes",             label: "notes",             required: false, hint: "Notes for customer (first row only)" },
+      { key: "terms",             label: "terms",             required: false, hint: "T&C text (first row only)" },
+      { key: "po_number",         label: "po_number",         required: false, hint: "Customer PO number (first row only)" },
+      { key: "po_amount",         label: "po_amount",         required: false, hint: "PO value in INR (first row only)" },
+      { key: "line_description",  label: "line_description",  required: true,  hint: "Line item description (every row)" },
+      { key: "line_uom",          label: "line_uom",          required: false, hint: "Unit: Nos / Job / Set / Mtr / Kg (every row)" },
+      { key: "line_qty",          label: "line_qty",          required: false, hint: "Quantity — default 1 (every row)" },
+      { key: "line_rate",         label: "line_rate",         required: false, hint: "Rate in INR (every row)" },
+      { key: "line_discount_pct", label: "line_discount_pct", required: false, hint: "Discount % 0-100 (every row)" },
+    ],
+    sampleRows: [
+      // Quote 1 — three lines
+      ["AMC 2025 - Vikas Pioneers", "Vikas Pioneers India Pvt Ltd", "Rajesh Sharma", "quotation", "2025-01-15", "2025-02-15", "Annual maintenance of all motors in spinning section", "Payment within 30 days of invoice", "18% GST applicable. Prices valid for 30 days.", "PO-2025-001", "150000", "Motor rewinding - 75 kW ring frame drive", "Job", "1", "45000", "0"],
+      ["AMC 2025 - Vikas Pioneers", "", "", "", "", "", "", "", "", "", "", "Bearing replacement - SKF 6312", "Nos", "4", "2500", "0"],
+      ["AMC 2025 - Vikas Pioneers", "", "", "", "", "", "", "", "", "", "", "Testing and commissioning", "Job", "1", "8000", "5"],
+      // Quote 2 — two lines
+      ["Pump Supply - Bharat Textiles", "Bharat Textiles Ltd", "Anand Mehta", "supply", "2025-01-20", "2025-02-20", "Supply of centrifugal pumps for cooling tower", "", "Delivery within 4 weeks. GST extra.", "", "", "3 HP Centrifugal Pump - Kirloskar STAR-3T", "Nos", "2", "18000", "5"],
+      ["Pump Supply - Bharat Textiles", "", "", "", "", "", "", "", "", "", "", "Gate Valve 50mm - Cast Iron", "Nos", "4", "850", "0"],
     ],
   },
   {
