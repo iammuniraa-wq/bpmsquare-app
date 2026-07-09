@@ -43,6 +43,9 @@ export const ROUTES = {
   reports: "/reports",
   admin: "/admin",
   adminTenant: (id: string) => `/admin/tenants/${id}`,
+  suppliers: "/suppliers",
+  supplierNew: "/suppliers/new",
+  supplier: (id: string) => `/suppliers/${id}`,
 } as const;
 
 export type NavItem = {
@@ -99,9 +102,10 @@ export const NAV: NavGroup[] = [
   {
     group: "RECORDS",
     items: [
-      { label: "Assets",    href: ROUTES.assets,    icon: "⚙", pillar: "green" },
-      { label: "Invoices",  href: ROUTES.invoices,  icon: "⊟", pillar: "green", featureKey: "invoices" },
-      { label: "Analytics", href: ROUTES.reports,   icon: "◫", pillar: "purple" },
+      { label: "Assets",     href: ROUTES.assets,     icon: "⚙", pillar: "green" },
+      { label: "Suppliers",  href: ROUTES.suppliers,  icon: "◫", pillar: "green" },
+      { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "green", featureKey: "invoices" },
+      { label: "Analytics",  href: ROUTES.reports,    icon: "◫", pillar: "purple" },
     ],
   },
 ];

@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
     entity_id, lines, selected_option_id, meta,
     name, contact_id, po_number, po_amount,
     discount_type, discount_pct, discount_fixed, asset_ids,
+    case_id,
   } = body;
 
   if (!account_id) {
@@ -99,6 +100,15 @@ export async function POST(request: NextRequest) {
       const { error: lErr } = await supabase.from("quote_lines").insert(lineRows);
       if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 });
     }
+  }
+
+  // Link quote back to the originating case
+  if (case_id) {
+    await supabase
+      .from("service_cases")
+      .update({ quote_id: quote.id, status: "quote_sent" })
+      .eq("id", case_id)
+      .eq("tenant_id", tenantId);
   }
 
   await supabase.from("quote_revisions").insert({

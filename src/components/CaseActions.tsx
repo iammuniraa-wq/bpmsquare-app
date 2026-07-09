@@ -416,9 +416,17 @@ export default function CaseActions({
     return (
       <div style={{ ...card, borderLeftColor: "#1d9e75" }}>
         <div style={{ fontSize: 12.5, color: "#1d6b4a", marginBottom: 12 }}>Equipment is ready for pickup.</div>
-        <button style={btnSuccess} onClick={() => patchCase({ status: "closed" })} disabled={pending} type="button">
-          {pending ? "…" : "Close case — handed to customer ✓"}
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button style={btnSuccess} onClick={() => patchCase({ status: "closed" })} disabled={pending} type="button">
+            {pending ? "…" : "Close — handed to customer ✓"}
+          </button>
+          <button style={{ ...btnSecondary, color: "#7f77dd", borderColor: "#c4c2f0" }} onClick={() => patchCase({ status: "buyback" })} disabled={pending} type="button">
+            {pending ? "…" : "Buyback — customer sold unit"}
+          </button>
+          <button style={{ ...btnSecondary, color: "#a32d2d", borderColor: "#f5c0c0" }} onClick={() => patchCase({ status: "scrapped" })} disabled={pending} type="button">
+            {pending ? "…" : "Scrap unit"}
+          </button>
+        </div>
         {errorBox}
       </div>
     );

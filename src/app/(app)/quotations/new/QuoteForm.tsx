@@ -393,6 +393,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           discount_fixed:  discAmount,
           asset_ids:       selectedAssetIds,
           selected_option_id: effectiveAltId,
+          case_id: caseSource?.caseId ?? null,
           lines: rows.flatMap((r): { description: string; uom: string; qty: string; rate: string; discount_pct: number; group_id: string | null; group_label: string | null; group_type: string | null }[] =>
             r.kind === "line"
               ? [{ description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null }]

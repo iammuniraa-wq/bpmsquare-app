@@ -59,6 +59,9 @@ function tabMeta(href: string): { title: string; icon: string; section: string }
   if (p === ROUTES.contacts)            return { title: "Contacts",            icon: "◉", section: "Workspace" };
   if (p.startsWith("/contacts/new"))    return { title: "New Contact",         icon: "◉", section: "Contacts" };
   if (p === ROUTES.assets)              return { title: "Assets",              icon: "◧", section: "Records" };
+  if (p === ROUTES.suppliers)           return { title: "Suppliers",           icon: "◫", section: "Records" };
+  if (p.startsWith("/suppliers/new"))   return { title: "New Supplier",        icon: "◫", section: "Suppliers" };
+  if (p.startsWith("/suppliers/"))      return { title: shortId(p),            icon: "◫", section: "Supplier" };
   if (p.startsWith("/assets/new"))      return { title: "New Asset",           icon: "◧", section: "Assets" };
   if (p === ROUTES.quotations)          return { title: "Quotations",          icon: "₹", section: "Sales" };
   if (p.startsWith("/quotations/new"))  return { title: "New Quote",           icon: "₹", section: "Quotations" };

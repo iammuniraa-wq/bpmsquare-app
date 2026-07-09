@@ -313,3 +313,20 @@ export type InspectionReport = {
   sent_at: string | null;
   approved_at: string | null;
 };
+
+export type SupplierType = "vendor" | "subcontractor" | "both";
+export type SupplierStatus = "active" | "inactive";
+
+export type Supplier = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  type: SupplierType;
+  city: string | null;
+  phone: string | null;
+  email: string | null;
+  gstin: string | null;
+  notes: string | null;
+  status: SupplierStatus;
+  created_at: string;
+};

@@ -3,18 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { ServiceCase, Account } from "@/lib/types";
-
-const CASE_STATUS_LABEL: Record<ServiceCase["status"], string> = {
-  intake: "Intake", inspection: "Inspection",
-  report_sent: "Report sent", report_approved: "Report approved",
-  quote_sent: "Quote sent", quote_approved: "Quote approved",
-  in_repair: "In repair", qa: "QA", ready: "Ready",
-  closed: "Closed", buyback: "Buyback", scrapped: "Scrapped",
-};
-
-const CASE_TYPE_LABEL: Record<ServiceCase["type"], string> = {
-  amc: "AMC", adhoc: "Adhoc", direct: "Direct",
-};
+import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/data";
 import { c, pillar } from "@/lib/theme";
 import type { PillarKey } from "@/lib/theme";
 import Pill from "@/components/Pill";
