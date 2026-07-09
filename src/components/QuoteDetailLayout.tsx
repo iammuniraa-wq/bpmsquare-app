@@ -78,6 +78,16 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const gst         = Math.round(subtotal * taxRate / 100);
   const grandTotal  = subtotal + gst;
 
+  // ── Revisions (sibling quotes sharing same base ref) ────────────────────────
+  type RevRow = { id: string; ref: string; status: string; revision: number; created_at: string };
+  const [revisions, setRevisions] = useState<RevRow[]>([]);
+  useEffect(() => {
+    fetch(`/api/quotes/${quote.id}/revisions`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: RevRow[]) => setRevisions(data))
+      .catch(() => {});
+  }, [quote.id]);
+
   // ── Layout state ────────────────────────────────────────────────────────────
   const [layout, setLayout]           = useState<LayoutSection[]>([]);
   const [layoutLoading, setLayoutLoading] = useState(true);
@@ -531,6 +541,12 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             <MessageSquare size={13} color="#3d7a5a" /> WhatsApp <ComingSoon size="xs" />
           </span>
           <Link
+            href={`/api/quotes/${quote.id}/export`}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0faf5", color: "#1d7a4a", borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 500, textDecoration: "none" }}
+          >
+            ↓ Export CSV
+          </Link>
+          <Link
             href={ROUTES.quotationPrint(quote.id)}
             target="_blank"
             rel="noopener"
@@ -642,6 +658,33 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                 {contact.phone && <Detail label="Phone" value={contact.phone} />}
                 {contact.email && <Detail label="Email" value={contact.email} />}
+              </div>
+            </section>
+          )}
+
+          {revisions.length > 1 && (
+            <section style={cardStyle}>
+              <h3 style={{ fontSize: 13, margin: "0 0 10px", fontWeight: 600 }}>Versions · {revisions.length}</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {revisions.map((rev) => {
+                  const isCurrent = rev.id === quote.id;
+                  return (
+                    <div key={rev.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", borderRadius: 7, background: isCurrent ? c.accentbg : "transparent", border: isCurrent ? `1px solid ${c.accent}40` : "1px solid transparent" }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: isCurrent ? 700 : 500, fontFamily: "monospace", color: isCurrent ? c.accent : c.ink }}>{rev.ref}</div>
+                        <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1 }}>
+                          {new Date(rev.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <Pill label={rev.status.charAt(0).toUpperCase() + rev.status.slice(1)} tone={rev.status === "approved" ? "green" : rev.status === "rejected" ? "red" : rev.status === "sent" ? "purple" : "blue"} />
+                        {!isCurrent && (
+                          <Link href={ROUTES.quotation(rev.id)} style={{ fontSize: 11, color: c.accent, textDecoration: "none", fontWeight: 600 }}>View →</Link>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
           )}

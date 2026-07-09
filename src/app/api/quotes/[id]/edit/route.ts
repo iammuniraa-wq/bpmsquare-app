@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const body = await request.json();
-  const { valid_until, notes, lines } = body;
+  const { valid_until, notes, terms, scope_of_work, lines } = body;
 
   const { data: quote, error: qErr } = await supabase
     .from("quotes")
@@ -62,6 +62,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .update({
       valid_until: valid_until || null,
       notes: notes ?? null,
+      terms: terms ?? null,
+      scope_of_work: scope_of_work ?? null,
       total,
     })
     .eq("id", id)

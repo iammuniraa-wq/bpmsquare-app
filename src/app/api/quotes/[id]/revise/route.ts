@@ -40,6 +40,8 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       total: original.total ?? 0,
       valid_until: original.valid_until,
       notes: original.notes,
+      terms: original.terms ?? null,
+      scope_of_work: original.scope_of_work ?? null,
       revision: newRev,
       selected_option_id: original.selected_option_id ?? null,
       meta: original.meta ?? null,

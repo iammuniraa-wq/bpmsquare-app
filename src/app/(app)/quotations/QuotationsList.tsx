@@ -104,7 +104,7 @@ export default function QuotationsList({ initialRows }: { initialRows: QuoteSumm
     sessionStorage.setItem("vvcrm_copy_quote", JSON.stringify({
       accountId:   row.quote.account_id,
       contactId:   row.quote.contact_id ?? "",
-      quoteName:   `Copy of ${row.quote.ref}`,
+      quoteName:   `Copy of ${row.quote.name || row.quote.ref}`,
       notes:       row.quote.notes ?? "",
       terms:       row.quote.terms ?? "",
       scopeOfWork: row.quote.scope_of_work ?? "",

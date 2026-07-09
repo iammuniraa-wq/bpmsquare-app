@@ -45,6 +45,8 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
   const [openEditor, setOpenEditor] = useState(false);
   const [validUntil, setValidUntil] = useState(quote.valid_until ?? "");
   const [notes, setNotes] = useState(quote.notes ?? "");
+  const [terms, setTerms] = useState(quote.terms ?? "");
+  const [scopeOfWork, setScopeOfWork] = useState(quote.scope_of_work ?? "");
   const [rows, setRows] = useState<Row[]>(
     lines.map((l) => ({
       description: l.description,
@@ -73,7 +75,7 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
       const res = await fetch(`/api/quotes/${quote.id}/edit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ valid_until: validUntil, notes, lines: rows }),
+        body: JSON.stringify({ valid_until: validUntil, notes, terms, scope_of_work: scopeOfWork, lines: rows }),
       });
       if (res.ok) { setOpenEditor(false); router.refresh(); }
       else { const j = await res.json(); setError(j.error ?? "Failed to save"); }
@@ -178,9 +180,19 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
                 + Add line
               </button>
 
+              <div style={{ marginBottom: 10 }}>
+                <label style={lbl}>Scope of work</label>
+                <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={scopeOfWork} onChange={(e) => setScopeOfWork(e.target.value)} placeholder="Describe the scope of work…" />
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label style={lbl}>Notes</label>
+                <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Payment terms, validity, exclusions…" />
+              </div>
+
               <div style={{ marginBottom: 4 }}>
-                <label style={lbl}>Notes &amp; terms</label>
-                <textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Payment terms, validity, exclusions…" />
+                <label style={lbl}>Terms &amp; Conditions</label>
+                <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Standard T&C…" />
               </div>
 
               {error && (
