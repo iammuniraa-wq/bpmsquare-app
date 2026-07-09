@@ -78,6 +78,7 @@ function tabMeta(href: string): { title: string; icon: string; section: string }
   if (p.startsWith(ROUTES.settings))   return { title: "Settings",            icon: "◈", section: "Config" };
   if (p === ROUTES.reports)             return { title: "Analytics",           icon: "◧", section: "Records" };
   if (p.startsWith(ROUTES.admin))       return { title: "Admin",               icon: "◈", section: "System" };
+  if (p === ROUTES.dataWorkbench)       return { title: "Data Workbench",      icon: "⇅", section: "Admin" };
   return { title: p.split("/").filter(Boolean).pop() ?? "Page", icon: "◫", section: "" };
 }
 

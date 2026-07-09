@@ -46,6 +46,7 @@ export const ROUTES = {
   suppliers: "/suppliers",
   supplierNew: "/suppliers/new",
   supplier: (id: string) => `/suppliers/${id}`,
+  dataWorkbench: "/data-workbench",
 } as const;
 
 export type NavItem = {
@@ -106,6 +107,12 @@ export const NAV: NavGroup[] = [
       { label: "Suppliers",  href: ROUTES.suppliers,  icon: "◫", pillar: "green" },
       { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "green", featureKey: "invoices" },
       { label: "Analytics",  href: ROUTES.reports,    icon: "◫", pillar: "purple" },
+    ],
+  },
+  {
+    group: "ADMIN",
+    items: [
+      { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal" },
     ],
   },
 ];
