@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { ServiceCase, Account } from "@/lib/types";
-import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/data";
+import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/constants";
 import { c, pillar } from "@/lib/theme";
 import type { PillarKey } from "@/lib/theme";
 import Pill from "@/components/Pill";

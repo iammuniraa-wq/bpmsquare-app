@@ -195,6 +195,36 @@ export type TenantTaxConfig = {
   inclusive: boolean;
 };
 
+// ── Label maps (safe to import in client components) ─────────────────────────
+
+export const QUOTE_STATUS_LABEL: Record<string, string> = {
+  draft:    "Draft",
+  sent:     "Sent",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
+export const CASE_STATUS_LABEL: Record<string, string> = {
+  intake:          "Intake",
+  inspection:      "Inspection",
+  report_sent:     "Report sent",
+  report_approved: "Report approved",
+  quote_sent:      "Quote sent",
+  quote_approved:  "Quote approved",
+  in_repair:       "In repair",
+  qa:              "QA",
+  ready:           "Ready",
+  closed:          "Closed",
+  buyback:         "Buyback",
+  scrapped:        "Scrapped",
+};
+
+export const CASE_TYPE_LABEL: Record<string, string> = {
+  amc:    "AMC",
+  adhoc:  "Adhoc",
+  direct: "Direct",
+};
+
 // TenantConfig — full shape of tenants.config JSONB column.
 export type TenantConfig = {
   entities: TenantEntity[];

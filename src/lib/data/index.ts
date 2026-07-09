@@ -2,7 +2,7 @@
 // Seed data (seed.ts) is demo data pushed once to the Vikas tenant in Supabase.
 // New tenants get a blank DB — no seed imports here.
 
-import type { Account, Quote, ServiceCase, WorkOrder, Technician, TechnicianLeave, VisitLog, PricingItem, TextFragment, Activity } from "@/lib/types";
+import type { Account, WorkOrder, Technician, TechnicianLeave, VisitLog, PricingItem, TextFragment, Activity } from "@/lib/types";
 import type { LeaveReason } from "@/lib/types";
 
 export type {
@@ -64,33 +64,7 @@ export const ACCOUNT_TYPE_LABEL: Record<Account["type"], string> = {
   end_customer: "End-customer (under OEM)",
 };
 
-export const QUOTE_STATUS_LABEL: Record<Quote["status"], string> = {
-  draft:    "Draft",
-  sent:     "Sent",
-  approved: "Approved",
-  rejected: "Rejected",
-};
-
-export const CASE_STATUS_LABEL: Record<ServiceCase["status"], string> = {
-  intake:          "Intake",
-  inspection:      "Inspection",
-  report_sent:     "Report sent",
-  report_approved: "Report approved",
-  quote_sent:      "Quote sent",
-  quote_approved:  "Quote approved",
-  in_repair:       "In repair",
-  qa:              "QA",
-  ready:           "Ready",
-  closed:          "Closed",
-  buyback:         "Buyback",
-  scrapped:        "Scrapped",
-};
-
-export const CASE_TYPE_LABEL: Record<ServiceCase["type"], string> = {
-  amc:    "AMC",
-  adhoc:  "Adhoc",
-  direct: "Direct",
-};
+export { QUOTE_STATUS_LABEL, CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/constants";
 
 export const TECH_STATUS_LABEL: Record<Technician["status"], string> = {
   active:   "Active",
