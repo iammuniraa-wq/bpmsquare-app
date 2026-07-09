@@ -229,4 +229,6 @@ export const CASE_TYPE_LABEL: Record<string, string> = {
 export type TenantConfig = {
   entities: TenantEntity[];
   tax: TenantTaxConfig;
+  // Which quote types are shown in the New Quotation picker. Omitted key = visible.
+  quote_type_visibility?: Partial<Record<QuoteTypeId, boolean>>;
 };

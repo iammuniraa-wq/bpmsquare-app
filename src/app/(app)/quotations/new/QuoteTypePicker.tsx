@@ -18,7 +18,7 @@ function TypeIcon({ id, size = 26, color }: { id: string; size?: number; color: 
   }
 }
 
-export default function QuoteTypePicker() {
+export default function QuoteTypePicker({ enabledTypes }: { enabledTypes?: string[] }) {
   const router = useRouter();
 
   return (
@@ -38,7 +38,8 @@ export default function QuoteTypePicker() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         {QUOTE_TYPES.map((qt) => {
-          const available = qt.available;
+          // If tenant has configured visibility, respect it; otherwise fall back to hardcoded available flag
+          const available = qt.available && (enabledTypes ? enabledTypes.includes(qt.id) : true);
           return (
             <button
               key={qt.id}

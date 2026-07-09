@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import type { AccentPreset } from "@/lib/settings";
-import { NAV, ROUTES } from "@/lib/constants";
+import { NAV, ROUTES, QUOTE_TYPES } from "@/lib/constants";
+import type { QuoteTypeId } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { useTenant } from "@/lib/tenant-context";
-import { Mail, MessageSquare, LinkIcon, Globe, Phone } from "@/components/Icons";
+import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
 
 const PILLAR_DOT: Record<string, string> = {
   blue: "#378ADD", purple: "#7f77dd", teal: "#1d9e75",
@@ -139,6 +140,43 @@ export default function SettingsPage() {
 
   const patch = (vals: Parameters<typeof update>[0]) => { update(vals); flashSaved(); };
 
+  // ── Quote type visibility ─────────────────────────────────────────────────
+  const [qtSaving, startQtSave] = useTransition();
+  const [qtVis, setQtVis] = useState<Partial<Record<QuoteTypeId, boolean>>>(() => {
+    const vis = (tenant?.config as { quote_type_visibility?: Partial<Record<QuoteTypeId, boolean>> } | undefined)?.quote_type_visibility ?? {};
+    return vis;
+  });
+
+  function isQtVisible(id: QuoteTypeId): boolean {
+    return id in qtVis ? qtVis[id] !== false : true;
+  }
+
+  function toggleQtType(id: QuoteTypeId) {
+    const next = { ...qtVis, [id]: !isQtVisible(id) };
+    setQtVis(next);
+    startQtSave(async () => {
+      await fetch("/api/settings/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quote_type_visibility: next }),
+      });
+      flashSaved();
+    });
+  }
+
+  function TypeIcon({ id }: { id: string }) {
+    const p = { size: 15, color: c.muted };
+    switch (id) {
+      case "quotation":    return <FileText {...p} />;
+      case "technical":    return <Wrench {...p} />;
+      case "budgetary":    return <BarChart2 {...p} />;
+      case "supply":       return <Package {...p} />;
+      case "amc":          return <CalendarCheck {...p} />;
+      case "installation": return <Zap {...p} />;
+      default:             return <FileText {...p} />;
+    }
+  }
+
   const toggleNavItem = (href: string) => {
     const hidden = settings.hiddenNavHrefs;
     patch({ hiddenNavHrefs: hidden.includes(href) ? hidden.filter((h) => h !== href) : [...hidden, href] });
@@ -187,7 +225,34 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      {/* ── 2. Appearance ── */}
+      {/* ── 2. Quote types ── */}
+      <Section title="Quote types" description="Show or hide offer types in the New Quotation picker. Types marked Coming Soon cannot be enabled yet.">
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {QUOTE_TYPES.map((qt, idx) => {
+            const visible = isQtVisible(qt.id as QuoteTypeId);
+            const canToggle = qt.available;
+            return (
+              <div key={qt.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderTop: idx > 0 ? `1px solid ${c.line}` : "none", opacity: canToggle ? (visible ? 1 : 0.45) : 0.3, transition: "opacity 0.15s" }}>
+                <TypeIcon id={qt.id} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{qt.label}</div>
+                  <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>{qt.description}</div>
+                </div>
+                {!canToggle && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: c.hint, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 4, padding: "2px 7px", letterSpacing: 0.3, textTransform: "uppercase" }}>
+                    Coming soon
+                  </span>
+                )}
+                {canToggle && (
+                  <Toggle on={visible} onChange={() => !qtSaving && toggleQtType(qt.id as QuoteTypeId)} accent={accent} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* ── 3. Appearance ── */}
       <Section title="Appearance">
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Accent colour</div>
@@ -213,7 +278,7 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      {/* ── 3. Workspace ── */}
+      {/* ── 4. Workspace ── */}
       <Section title="Workspace" description="Displayed in the sidebar header.">
         <div style={{ display: "flex", gap: 10 }}>
           <input value={wsName} onChange={(e) => setWsName(e.target.value)} placeholder="Workspace name" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${wsNameDirty ? accent : c.line}`, fontSize: 13, color: c.ink, outline: "none", transition: "border-color 0.15s" }} />
