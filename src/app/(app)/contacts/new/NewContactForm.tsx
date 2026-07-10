@@ -13,6 +13,7 @@ import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 interface CFDef {
   id: string; field_key: string; field_label: string;
   field_type: "text"|"number"|"date"|"select"|"checkbox"|"textarea";
+  field_section: string | null;
   options: string[] | null; is_required: boolean;
 }
 
@@ -84,6 +85,35 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
     }));
   }
 
+  function cfInputs(section: string) {
+    const sfs = cfDefs.filter((f) => f.field_section === section);
+    if (sfs.length === 0) return null;
+    return (
+      <>
+        {sfs.map((f) => (
+          <div key={f.id} style={fw}>
+            <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
+            {f.field_type === "select" && f.options ? (
+              <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
+                <option value="">— select —</option>
+                {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : f.field_type === "checkbox" ? (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, marginTop: 4 }}>
+                <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
+                {cfValues[f.field_key] ? "Yes" : "No"}
+              </label>
+            ) : f.field_type === "textarea" ? (
+              <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+            ) : (
+              <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+            )}
+          </div>
+        ))}
+      </>
+    );
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -132,10 +162,11 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
         <label style={label}>Birthday</label>
         <input style={input} type="date" value={form.birthday} onChange={set("birthday")} />
       </div>
-      <div style={{ marginBottom: 0 }}>
+      <div style={fw}>
         <label style={label}>LinkedIn URL</label>
         <input style={input} value={form.linkedin_url} onChange={set("linkedin_url")} placeholder="https://linkedin.com/in/..." />
       </div>
+      {cfInputs("Identity")}
     </>
   );
 
@@ -149,10 +180,11 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
         <label style={label}>Secondary phone</label>
         <input style={input} value={form.phone2} onChange={set("phone2")} placeholder="+91 98765 43211" />
       </div>
-      <div style={{ marginBottom: 0 }}>
+      <div style={fw}>
         <label style={label}>Third phone</label>
         <input style={input} value={form.phone3} onChange={set("phone3")} placeholder="+91 98765 43212" />
       </div>
+      {cfInputs("Phone numbers")}
     </>
   );
 
@@ -166,10 +198,11 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
         <label style={label}>Secondary email</label>
         <input style={input} type="email" value={form.email2} onChange={set("email2")} placeholder="rajesh.personal@gmail.com" />
       </div>
-      <div style={{ marginBottom: 0 }}>
+      <div style={fw}>
         <label style={label}>Website</label>
         <input style={input} value={form.website} onChange={set("website")} placeholder="https://linkedin.com/in/..." />
       </div>
+      {cfInputs("Email & web")}
     </>
   );
 
@@ -207,7 +240,7 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
           <input style={input} value={form.state} onChange={set("state")} placeholder="Karnataka" />
         </div>
       </div>
-      <div style={{ ...grid2, marginBottom: 0 }}>
+      <div style={{ ...grid2, ...fw }}>
         <div>
           <label style={label}>Postal code</label>
           <input style={input} value={form.postal_code} onChange={set("postal_code")} placeholder="560001" />
@@ -217,19 +250,23 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
           <input style={input} value={form.country} onChange={set("country")} placeholder="India" />
         </div>
       </div>
+      {cfInputs("Address")}
     </>
   );
 
   const notesField = (
-    <div style={{ marginBottom: 0 }}>
-      <label style={label}>Notes</label>
-      <textarea
-        style={{ ...input, minHeight: 80, resize: "vertical" }}
-        value={form.notes}
-        onChange={set("notes")}
-        placeholder="Any notes about this contact…"
-      />
-    </div>
+    <>
+      <div style={fw}>
+        <label style={label}>Notes</label>
+        <textarea
+          style={{ ...input, minHeight: 80, resize: "vertical" }}
+          value={form.notes}
+          onChange={set("notes")}
+          placeholder="Any notes about this contact…"
+        />
+      </div>
+      {cfInputs("Notes")}
+    </>
   );
 
   const submitRow = (
@@ -305,33 +342,6 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
               <p style={sectionTitle}>Notes</p>
               {notesField}
             </div>
-            {cfDefs.length > 0 && (
-              <div style={cardStyle}>
-                <p style={sectionTitle}>Custom fields</p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  {cfDefs.map((f) => (
-                    <div key={f.id}>
-                      <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
-                      {f.field_type === "select" && f.options ? (
-                        <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
-                          <option value="">— select —</option>
-                          {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : f.field_type === "checkbox" ? (
-                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, height: 38 }}>
-                          <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
-                          {cfValues[f.field_key] ? "Yes" : "No"}
-                        </label>
-                      ) : f.field_type === "textarea" ? (
-                        <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-                      ) : (
-                        <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
             {errorBox}
             {submitRow}
           </div>
@@ -344,30 +354,6 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
           <MobileSection title="Email & web">{emailFields}</MobileSection>
           <MobileSection title="Address">{addressFields}</MobileSection>
           <MobileSection title="Notes">{notesField}</MobileSection>
-          {cfDefs.length > 0 && (
-            <MobileSection title="Custom fields">
-              {cfDefs.map((f) => (
-                <div key={f.id} style={fw}>
-                  <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
-                  {f.field_type === "select" && f.options ? (
-                    <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
-                      <option value="">— select —</option>
-                      {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : f.field_type === "checkbox" ? (
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink }}>
-                      <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
-                      {cfValues[f.field_key] ? "Yes" : "No"}
-                    </label>
-                  ) : f.field_type === "textarea" ? (
-                    <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-                  ) : (
-                    <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-                  )}
-                </div>
-              ))}
-            </MobileSection>
-          )}
           {errorBox}
           {submitRow}
         </div>

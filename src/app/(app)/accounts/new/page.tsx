@@ -12,6 +12,7 @@ import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 interface CFDef {
   id: string; field_key: string; field_label: string;
   field_type: "text"|"number"|"date"|"select"|"checkbox"|"textarea";
+  field_section: string | null;
   options: string[] | null; is_required: boolean;
 }
 
@@ -75,6 +76,36 @@ export default function NewAccountPage() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  // Renders custom field inputs for a given section name.
+  function cfInputs(section: string) {
+    const sfs = cfDefs.filter((f) => f.field_section === section);
+    if (sfs.length === 0) return null;
+    return (
+      <>
+        {sfs.map((f) => (
+          <div key={f.id} style={fw}>
+            <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
+            {f.field_type === "select" && f.options ? (
+              <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
+                <option value="">— select —</option>
+                {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : f.field_type === "checkbox" ? (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, marginTop: 4 }}>
+                <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
+                {cfValues[f.field_key] ? "Yes" : "No"}
+              </label>
+            ) : f.field_type === "textarea" ? (
+              <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+            ) : (
+              <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+            )}
+          </div>
+        ))}
+      </>
+    );
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -99,12 +130,13 @@ export default function NewAccountPage() {
         <label style={label}>Company name *</label>
         <input style={input} value={form.name} onChange={set("name")} required placeholder="e.g. Tata Steel Ltd" />
       </div>
-      <div style={{ ...fw, marginBottom: 0 }}>
+      <div style={fw}>
         <label style={label}>Account type *</label>
         <select style={input} value={form.type} onChange={set("type")}>
           {ACCOUNT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
       </div>
+      {cfInputs("Identity")}
     </>
   );
 
@@ -128,7 +160,7 @@ export default function NewAccountPage() {
           <input style={input} value={form.state} onChange={set("state")} placeholder="e.g. Karnataka" />
         </div>
       </div>
-      <div style={{ ...grid2, marginBottom: 0 }}>
+      <div style={{ ...grid2, ...fw }}>
         <div>
           <label style={label}>Postal code</label>
           <input style={input} value={form.postal_code} onChange={set("postal_code")} placeholder="560001" />
@@ -138,6 +170,7 @@ export default function NewAccountPage() {
           <input style={input} value={form.country} onChange={set("country")} placeholder="India" />
         </div>
       </div>
+      {cfInputs("Address")}
     </>
   );
 
@@ -163,10 +196,11 @@ export default function NewAccountPage() {
           <input style={input} type="email" value={form.email2} onChange={set("email2")} placeholder="info@company.com" />
         </div>
       </div>
-      <div style={{ marginBottom: 0 }}>
+      <div style={fw}>
         <label style={label}>Website</label>
         <input style={input} value={form.website} onChange={set("website")} placeholder="https://company.com" />
       </div>
+      {cfInputs("Communication")}
     </>
   );
 
@@ -186,10 +220,11 @@ export default function NewAccountPage() {
           <input style={input} value={form.annual_revenue} onChange={set("annual_revenue")} placeholder="e.g. ₹5 Cr" />
         </div>
       </div>
-      <div style={{ marginBottom: 0 }}>
+      <div style={fw}>
         <label style={label}>GSTIN</label>
         <input style={input} value={form.gstin} onChange={set("gstin")} placeholder="27AABCV1234F1Z5" />
       </div>
+      {cfInputs("Business")}
     </>
   );
 
@@ -204,11 +239,12 @@ export default function NewAccountPage() {
           placeholder="Any notes about this account…"
         />
       </div>
-      <div style={{ marginBottom: 0 }}>
+      <div style={fw}>
         <label style={label}>Referred by account ID</label>
         <input style={input} value={form.referred_by_account_id} onChange={set("referred_by_account_id")} placeholder="UUID of OEM account" />
         <p style={{ fontSize: 11, color: c.hint, margin: "5px 0 0" }}>Set when type is End Customer and an OEM referred them</p>
       </div>
+      {cfInputs("Notes")}
     </>
   );
 
@@ -254,33 +290,6 @@ export default function NewAccountPage() {
               <h3 style={sectionHead}>Notes &amp; Referral</h3>
               {notesSection}
             </div>
-            {cfDefs.length > 0 && (
-              <div style={cardStyle}>
-                <h3 style={sectionHead}>Custom fields</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  {cfDefs.map((f) => (
-                    <div key={f.id}>
-                      <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
-                      {f.field_type === "select" && f.options ? (
-                        <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
-                          <option value="">— select —</option>
-                          {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : f.field_type === "checkbox" ? (
-                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, height: 38 }}>
-                          <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
-                          {cfValues[f.field_key] ? "Yes" : "No"}
-                        </label>
-                      ) : f.field_type === "textarea" ? (
-                        <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-                      ) : (
-                        <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
             {error && <ErrorBox msg={error} />}
             <Actions pending={pending} cancelHref={ROUTES.accounts} label="Create Account" />
           </div>
@@ -293,30 +302,6 @@ export default function NewAccountPage() {
           <MobileSection title="Communication">{communicationSection}</MobileSection>
           <MobileSection title="Business">{businessSection}</MobileSection>
           <MobileSection title="Notes & Referral">{notesSection}</MobileSection>
-          {cfDefs.length > 0 && (
-            <MobileSection title="Custom fields">
-              {cfDefs.map((f) => (
-                <div key={f.id} style={fw}>
-                  <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
-                  {f.field_type === "select" && f.options ? (
-                    <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
-                      <option value="">— select —</option>
-                      {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : f.field_type === "checkbox" ? (
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink }}>
-                      <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
-                      {cfValues[f.field_key] ? "Yes" : "No"}
-                    </label>
-                  ) : f.field_type === "textarea" ? (
-                    <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-                  ) : (
-                    <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-                  )}
-                </div>
-              ))}
-            </MobileSection>
-          )}
           {error && <ErrorBox msg={error} />}
           <Actions pending={pending} cancelHref={ROUTES.accounts} label="Create Account" />
         </div>

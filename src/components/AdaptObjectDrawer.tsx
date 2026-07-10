@@ -91,6 +91,14 @@ export default function AdaptObjectDrawer({ objectType, objectLabel, isAdmin }: 
     setSaveErr("");
     const label = newLabel.trim();
     if (!label) { setSaveErr("Label is required"); return; }
+
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    const fieldKey = `cf_${slug}`;
+    if (fields.some((f) => f.field_key === fieldKey)) {
+      setSaveErr(`A field named "${label}" already exists for this object.`);
+      return;
+    }
+
     if (newType === "select") {
       const opts = newOptions.split(",").map((s) => s.trim()).filter(Boolean);
       if (opts.length < 2) { setSaveErr("Dropdown needs at least 2 comma-separated options"); return; }
