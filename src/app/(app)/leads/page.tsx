@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
 import { listLeadsLive } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
+import { ROUTES } from "@/lib/constants";
 
 type LeadStatus = "new" | "inspecting" | "quoted" | "won" | "lost";
 type LeadSource = "oem_referral" | "amc" | "direct";
@@ -30,31 +32,55 @@ const td: React.CSSProperties = {
   fontSize: 12.5, verticalAlign: "middle",
 };
 
-export default async function LeadsPage() {
+const ALL_STATUSES: LeadStatus[] = ["new", "inspecting", "quoted", "won", "lost"];
+
+export default async function LeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   await requireFeature("leads");
+  const { status: statusFilter } = await searchParams;
   const leads = await listLeadsLive();
 
-  const byStatus = (["new", "inspecting", "quoted", "won", "lost"] as LeadStatus[]).map((s) => ({
+  const byStatus = ALL_STATUSES.map((s) => ({
     status: s,
     count: leads.filter((l) => l.status === s).length,
   }));
 
+  const filtered = statusFilter
+    ? leads.filter((l) => l.status === statusFilter)
+    : leads;
+
   return (
     <>
-      <PageHeader title="Leads" subtitle={`${leads.length} total · Marketing & enquiries`} />
+      <PageHeader title="Leads" subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as LeadStatus] ?? statusFilter}` : ""} of ${leads.length} total · Marketing & enquiries`} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
         {byStatus.map(({ status, count }) => (
-          <div key={status} style={{ ...cardStyle, textAlign: "center" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
-              {STATUS_LABEL[status]}
+          <Link key={status} href={statusFilter === status ? ROUTES.leads : `${ROUTES.leads}?status=${status}`} style={{ textDecoration: "none" }}>
+            <div style={{
+              ...cardStyle, textAlign: "center",
+              borderColor: statusFilter === status ? pillar[STATUS_TONE[status]].base : undefined,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+                {STATUS_LABEL[status]}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: pillar[STATUS_TONE[status]].base }}>{count}</div>
             </div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: pillar[STATUS_TONE[status]].base }}>{count}</div>
-          </div>
+          </Link>
         ))}
       </div>
 
-      {leads.length === 0 ? (
+      {statusFilter && (
+        <div style={{ marginBottom: 12 }}>
+          <Link href={ROUTES.leads} style={{ fontSize: 12, color: c.hint, textDecoration: "none" }}>
+            ← Show all leads
+          </Link>
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
         <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>
           No leads yet. Add your first enquiry to start tracking.
         </div>
@@ -71,7 +97,7 @@ export default async function LeadsPage() {
               </tr>
             </thead>
             <tbody>
-              {leads.map((lead) => (
+              {filtered.map((lead) => (
                 <tr key={lead.id}>
                   <td style={{ ...td, fontWeight: 600 }}>{lead.title ?? "—"}</td>
                   <td style={td}>{lead.account_name ?? "—"}</td>

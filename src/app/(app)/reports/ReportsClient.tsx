@@ -35,40 +35,6 @@ const th: React.CSSProperties = {
 
 // ── Chart Components ──────────────────────────────────────────────────────────
 
-/** SVG Donut — stroke-dasharray segments starting at 12 o'clock */
-function DonutChart({
-  segments, size = 160, r = 54, sw = 22,
-}: {
-  segments: Array<{ label: string; value: number; color: string }>;
-  size?: number; r?: number; sw?: number;
-}) {
-  const cx = size / 2, cy = size / 2;
-  const circ = 2 * Math.PI * r;
-  const total = segments.reduce((s, x) => s + x.value, 0);
-  if (!total) return null;
-
-  let cumDash = 0;
-  return (
-    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ display: "block" }}>
-      <g transform={`rotate(-90 ${cx} ${cy})`}>
-        {segments.map((seg, i) => {
-          const dash   = (seg.value / total) * circ;
-          const offset = circ - cumDash;
-          cumDash += dash;
-          return (
-            <circle key={i} cx={cx} cy={cy} r={r} fill="none"
-              stroke={seg.color} strokeWidth={sw}
-              strokeDasharray={`${dash} ${circ - dash}`}
-              strokeDashoffset={offset}
-            />
-          );
-        })}
-      </g>
-      <text x={cx} y={cy - 6}  textAnchor="middle" fontSize={22} fontWeight={700} fill={c.ink}>{total}</text>
-      <text x={cx} y={cy + 14} textAnchor="middle" fontSize={10} fill={c.hint}>total</text>
-    </svg>
-  );
-}
 
 /** SVG Area / line chart */
 function AreaChart({
@@ -120,43 +86,12 @@ function AreaChart({
   );
 }
 
-/** CSS horizontal bar chart */
-function HBarChart({
-  rows, colorFn,
-}: {
-  rows: Array<{ label: string; value: number; sub?: string }>;
-  colorFn?: (i: number) => string;
-}) {
-  const max = Math.max(...rows.map((r) => r.value), 1);
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {rows.map((row, i) => {
-        const pct   = Math.max(4, (row.value / max) * 100);
-        const color = colorFn ? colorFn(i) : CHART_COLORS[i % CHART_COLORS.length];
-        return (
-          <div key={row.label}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ fontSize: 12, color: c.ink }}>{row.label}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color }}>{row.sub ?? row.value}</span>
-            </div>
-            <div style={{ height: 8, background: c.line, borderRadius: 4, overflow: "hidden" }}>
-              <div style={{
-                width: `${pct}%`, height: "100%", background: color,
-                borderRadius: 4, transition: "width .3s",
-              }} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 /** CSS vertical bar chart */
 function VBarChart({
   rows, colorFn,
 }: {
-  rows: Array<{ label: string; value: number }>;
+  rows: Array<{ label: string; value: number; href?: string }>;
   colorFn?: (i: number) => string;
 }) {
   const max = Math.max(...rows.map((r) => r.value), 1);
@@ -166,12 +101,20 @@ function VBarChart({
       {rows.map((row, i) => {
         const barH  = Math.max(6, (row.value / max) * H);
         const color = colorFn ? colorFn(i) : CHART_COLORS[i % CHART_COLORS.length];
-        return (
-          <div key={row.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+        const inner = (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: row.href ? "pointer" : "default" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color }}>{row.value}</span>
-            <div style={{ width: "100%", height: barH, background: color, borderRadius: "4px 4px 0 0" }} />
+            <div style={{ width: "100%", height: barH, background: color, borderRadius: "4px 4px 0 0", transition: "opacity .15s" }}
+              onMouseEnter={(e) => { if (row.href) (e.currentTarget as HTMLDivElement).style.opacity = "0.75"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = "1"; }}
+            />
             <span style={{ fontSize: 10, color: c.hint, textAlign: "center", lineHeight: 1.2 }}>{row.label}</span>
           </div>
+        );
+        return row.href ? (
+          <Link key={row.label} href={row.href} style={{ flex: 1, textDecoration: "none" }}>{inner}</Link>
+        ) : (
+          <div key={row.label} style={{ flex: 1 }}>{inner}</div>
         );
       })}
     </div>
@@ -179,24 +122,32 @@ function VBarChart({
 }
 
 /** CSS funnel chart */
-function FunnelChart({ stages }: { stages: Array<{ stage: string; count: number }> }) {
+function FunnelChart({ stages }: { stages: Array<{ stage: string; count: number; href?: string }> }) {
   const max = stages[0]?.count || 1;
   const colors = [pillar.blue.base, pillar.purple.base, pillar.teal.base, pillar.green.base];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {stages.map((s, i) => {
         const pct = Math.max(25, Math.round((s.count / max) * 100));
+        const bar = (
+          <div style={{
+            width: `${pct}%`, height: 34, borderRadius: 6,
+            background: colors[i % colors.length],
+            display: "flex", alignItems: "center",
+            justifyContent: "space-between", padding: "0 12px", boxSizing: "border-box",
+            cursor: s.href ? "pointer" : "default",
+            transition: "opacity .15s",
+          }}
+            onMouseEnter={(e) => { if (s.href) (e.currentTarget as HTMLDivElement).style.opacity = "0.8"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = "1"; }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{s.stage}</span>
+            <span style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>{s.count}</span>
+          </div>
+        );
         return (
           <div key={s.stage} style={{ display: "flex", justifyContent: "center" }}>
-            <div style={{
-              width: `${pct}%`, height: 34, borderRadius: 6,
-              background: colors[i % colors.length],
-              display: "flex", alignItems: "center",
-              justifyContent: "space-between", padding: "0 12px", boxSizing: "border-box",
-            }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{s.stage}</span>
-              <span style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>{s.count}</span>
-            </div>
+            {s.href ? <Link href={s.href} style={{ width: `${pct}%`, textDecoration: "none" }}>{bar}</Link> : bar}
           </div>
         );
       })}
@@ -229,38 +180,133 @@ function GaugeChart({
 }
 
 /** Chart card wrapper */
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+function ChartCard({ title, children, href }: { title: string; children: React.ReactNode; href?: string }) {
   return (
     <div style={{ ...cardStyle }}>
       <div style={{
         fontSize: 12, fontWeight: 600, color: c.muted,
         letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 16,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         {title}
+        {href && (
+          <Link href={href} style={{ fontSize: 11, fontWeight: 500, color: c.accent, textDecoration: "none", letterSpacing: 0 }}>
+            View all →
+          </Link>
+        )}
       </div>
       {children}
     </div>
   );
 }
 
-/** Donut legend */
-function DonutLegend({ items }: { items: Array<{ label: string; value: number; color: string }> }) {
+/** Clickable donut segment overlay — renders transparent <a> arcs over the SVG */
+function DonutChartNavigable({
+  segments, size = 160, r = 54, sw = 22,
+}: {
+  segments: Array<{ label: string; value: number; color: string; href?: string }>;
+  size?: number; r?: number; sw?: number;
+}) {
+  const cx = size / 2, cy = size / 2;
+  const circ = 2 * Math.PI * r;
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  if (!total) return null;
+
+  let cumDash = 0;
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ display: "block" }}>
+      <g transform={`rotate(-90 ${cx} ${cy})`}>
+        {segments.map((seg, i) => {
+          const dash   = (seg.value / total) * circ;
+          const offset = circ - cumDash;
+          cumDash += dash;
+          const el = (
+            <circle key={i} cx={cx} cy={cy} r={r} fill="none"
+              stroke={seg.color} strokeWidth={sw}
+              strokeDasharray={`${dash} ${circ - dash}`}
+              strokeDashoffset={offset}
+              style={{ cursor: seg.href ? "pointer" : "default", opacity: 1, transition: "opacity .15s" }}
+              onMouseEnter={(e) => { if (seg.href) (e.currentTarget as SVGCircleElement).style.opacity = "0.75"; }}
+              onMouseLeave={(e) => { (e.currentTarget as SVGCircleElement).style.opacity = "1"; }}
+            />
+          );
+          return seg.href ? (
+            <a key={i} href={seg.href}>{el}</a>
+          ) : el;
+        })}
+      </g>
+      <text x={cx} y={cy - 6}  textAnchor="middle" fontSize={22} fontWeight={700} fill={c.ink}>{total}</text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fontSize={10} fill={c.hint}>total</text>
+    </svg>
+  );
+}
+
+/** Navigable legend — each row is a link */
+function DonutLegendNav({ items }: { items: Array<{ label: string; value: number; color: string; href?: string }> }) {
   const total = items.reduce((s, x) => s + x.value, 0);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {items.map((item) => (
-        <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: 2, background: item.color, flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: c.ink, flex: 1 }}>{item.label}</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: c.ink }}>{item.value}</span>
-          <span style={{ fontSize: 11, color: c.hint }}>
-            {total > 0 ? `${Math.round((item.value / total) * 100)}%` : "—"}
-          </span>
-        </div>
-      ))}
+      {items.map((item) => {
+        const inner = (
+          <>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: item.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: c.ink, flex: 1 }}>{item.label}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: c.ink }}>{item.value}</span>
+            <span style={{ fontSize: 11, color: c.hint }}>
+              {total > 0 ? `${Math.round((item.value / total) * 100)}%` : "—"}
+            </span>
+          </>
+        );
+        return item.href ? (
+          <Link key={item.label} href={item.href} style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+            {inner}
+          </Link>
+        ) : (
+          <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {inner}
+          </div>
+        );
+      })}
     </div>
   );
 }
+
+/** Navigable horizontal bar chart */
+function HBarChartNav({
+  rows, colorFn,
+}: {
+  rows: Array<{ label: string; value: number; sub?: string; href?: string }>;
+  colorFn?: (i: number) => string;
+}) {
+  const max = Math.max(...rows.map((r) => r.value), 1);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {rows.map((row, i) => {
+        const pct   = Math.max(4, (row.value / max) * 100);
+        const color = colorFn ? colorFn(i) : CHART_COLORS[i % CHART_COLORS.length];
+        const content = (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 12, color: row.href ? c.accent : c.ink }}>{row.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color }}>{row.sub ?? row.value}</span>
+            </div>
+            <div style={{ height: 8, background: c.line, borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 4, transition: "width .3s" }} />
+            </div>
+          </>
+        );
+        return row.href ? (
+          <Link key={row.label} href={row.href} style={{ textDecoration: "none", display: "block" }}>
+            {content}
+          </Link>
+        ) : (
+          <div key={row.label}>{content}</div>
+        );
+      })}
+    </div>
+  );
+}
+
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -314,12 +360,14 @@ export default function ReportsClient({
     URL.revokeObjectURL(url);
   };
 
-  // Derived chart data
+  // Derived chart data — with navigation hrefs
   const accountDonutSegs = a.accountsByType.map((x, i) => ({
     label: x.label, value: x.count, color: CHART_COLORS[i],
+    href: `${ROUTES.accounts}?type=${x.type}`,
   }));
   const assetDonutSegs = a.assetsByKind.map((x, i) => ({
     label: x.label, value: x.count, color: CHART_COLORS[i],
+    href: `${ROUTES.assets}?kind=${x.kind}`,
   }));
   const quoteTrendPoints = a.quoteTrend.map((p) => ({
     label: p.dateLabel, value: p.cumulative,
@@ -329,48 +377,60 @@ export default function ReportsClient({
     field: "amber", finance: "green",
   };
 
+  const kpiTiles: Array<{ label: string; value: number; color: string; href: string }> = [
+    { label: "Accounts",    value: a.totals.accounts,        color: pillar.blue.fg,   href: ROUTES.accounts },
+    { label: "Contacts",    value: a.totals.contacts,        color: c.ink,            href: ROUTES.contacts },
+    { label: "Assets",      value: a.totals.customerAssets,  color: pillar.teal.fg,   href: ROUTES.assets },
+    { label: "Open cases",  value: a.totals.openCases,       color: pillar.amber.fg,  href: `${ROUTES.cases}?filter=open` },
+    { label: "Work orders", value: a.totals.workOrders,      color: pillar.purple.fg, href: ROUTES.workOrders },
+    { label: "Contracts",   value: a.totals.activeContracts, color: pillar.green.fg,  href: ROUTES.amc },
+    { label: "Leads",       value: a.totals.leads,           color: c.ink,            href: ROUTES.leads },
+    { label: "Technicians", value: a.totals.technicians,     color: pillar.blue.fg,   href: ROUTES.technicians },
+  ];
+
   return (
     <>
-      {/* ── Command strip ── */}
+      {/* ── KPI tiles ── */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
         gap: 10, marginBottom: 20,
       }}>
-        {([
-          { label: "Accounts",    value: a.totals.accounts,        color: pillar.blue.fg   },
-          { label: "Contacts",    value: a.totals.contacts,        color: c.ink            },
-          { label: "Assets",      value: a.totals.customerAssets,  color: pillar.teal.fg   },
-          { label: "Open cases",  value: a.totals.openCases,       color: pillar.amber.fg  },
-          { label: "Work orders", value: a.totals.workOrders,      color: pillar.purple.fg },
-          { label: "Contracts",   value: a.totals.activeContracts, color: pillar.green.fg  },
-          { label: "Leads",       value: a.totals.leads,           color: c.ink            },
-          { label: "Technicians", value: a.totals.technicians,     color: pillar.blue.fg   },
-        ] as { label: string; value: number; color: string }[]).map((s) => (
-          <div key={s.label} style={{
-            background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
-            padding: "12px 14px",
-          }}>
-            <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: ".04em" }}>
-              {s.label}
+        {kpiTiles.map((s) => (
+          <Link key={s.label} href={s.href} style={{ textDecoration: "none" }}>
+            <div style={{
+              background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
+              padding: "12px 14px", cursor: "pointer", transition: "border-color .15s",
+            }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = c.accent)}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = c.line)}
+            >
+              <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: ".04em" }}>
+                {s.label}
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: s.color, marginTop: 4 }}>{s.value}</div>
             </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: s.color, marginTop: 4 }}>{s.value}</div>
-          </div>
+          </Link>
         ))}
       </div>
 
       {/* ── Row 1: Accounts donut · Lead funnel · Assets donut ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14, marginBottom: 14 }}>
 
-        <ChartCard title="Accounts by type">
+        <ChartCard title="Accounts by type" href={ROUTES.accounts}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-            <DonutChart segments={accountDonutSegs} />
-            <DonutLegend items={accountDonutSegs} />
+            <DonutChartNavigable segments={accountDonutSegs} />
+            <DonutLegendNav items={accountDonutSegs} />
           </div>
         </ChartCard>
 
-        <ChartCard title="Lead pipeline funnel">
-          <FunnelChart stages={a.leadFunnel} />
+        <ChartCard title="Lead pipeline funnel" href={ROUTES.leads}>
+          <FunnelChart stages={a.leadFunnel.map((s, i) => ({
+            ...s,
+            href: i === 0 ? ROUTES.leads
+                : i === 3 ? `${ROUTES.leads}?status=won`
+                : `${ROUTES.leads}?status=${i === 1 ? "inspecting" : "quoted"}`,
+          }))} />
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 14 }}>
             {a.leadFunnel.slice(1).map((s, i) => {
               const prev = a.leadFunnel[i].count;
@@ -384,18 +444,18 @@ export default function ReportsClient({
           </div>
         </ChartCard>
 
-        <ChartCard title="Assets by kind">
+        <ChartCard title="Assets by kind" href={ROUTES.assets}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-            <DonutChart segments={assetDonutSegs} />
+            <DonutChartNavigable segments={assetDonutSegs} />
             <div>
-              <DonutLegend items={assetDonutSegs} />
+              <DonutLegendNav items={assetDonutSegs} />
               <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${c.line}` }}>
                 <div style={{ fontSize: 11, color: c.hint, marginBottom: 6 }}>Loaner stock</div>
                 <div style={{ display: "flex", gap: 16 }}>
-                  <div>
+                  <Link href={`${ROUTES.assets}?kind=loaner`} style={{ textDecoration: "none" }}>
                     <div style={{ fontSize: 18, fontWeight: 700, color: pillar.teal.fg }}>{a.loanerStock.available}</div>
                     <div style={{ fontSize: 10, color: c.hint }}>available</div>
-                  </div>
+                  </Link>
                   <div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: pillar.amber.fg }}>{a.loanerStock.onLoan}</div>
                     <div style={{ fontSize: 10, color: c.hint }}>on loan</div>
@@ -410,21 +470,24 @@ export default function ReportsClient({
       {/* ── Row 2: Area chart · Case status bars ── */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
 
-        <ChartCard title="Cumulative quote value">
+        <ChartCard title="Cumulative quote value" href={ROUTES.quotations}>
           <AreaChart points={quoteTrendPoints} color={pillar.blue.base} />
           <div style={{ display: "flex", gap: 20, marginTop: 12, flexWrap: "wrap" }}>
             {a.quotesByStatus.map((s, i) => (
-              <div key={s.status}>
+              <Link key={s.status} href={`${ROUTES.quotations}?status=${s.status}`} style={{ textDecoration: "none" }}>
                 <div style={{ fontSize: 10, color: c.hint, textTransform: "capitalize" }}>{s.label}</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: CHART_COLORS[i] }}>{inr(s.value)}</div>
-              </div>
+              </Link>
             ))}
           </div>
         </ChartCard>
 
-        <ChartCard title="Service case status">
-          <HBarChart
-            rows={a.casesByStatus.map((x) => ({ label: x.label, value: x.count }))}
+        <ChartCard title="Service case status" href={ROUTES.cases}>
+          <HBarChartNav
+            rows={a.casesByStatus.map((x) => ({
+              label: x.label, value: x.count,
+              href: `${ROUTES.cases}?filter=${x.status === "in_repair" ? "in_repair" : x.status === "closed" || x.status === "buyback" || x.status === "scrapped" ? "closed" : "open"}`,
+            }))}
           />
         </ChartCard>
       </div>
@@ -432,14 +495,14 @@ export default function ReportsClient({
       {/* ── Row 3: Work orders vbar · Technician gauge · Revenue hbar ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
 
-        <ChartCard title="Work orders by status">
+        <ChartCard title="Work orders by status" href={ROUTES.workOrders}>
           <VBarChart
-            rows={a.workOrdersByStatus.map((x) => ({ label: x.label, value: x.count }))}
+            rows={a.workOrdersByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.workOrders}?status=${x.status}` }))}
             colorFn={(i) => [pillar.amber.base, pillar.blue.base, pillar.teal.base][i]}
           />
         </ChartCard>
 
-        <ChartCard title="Technician availability">
+        <ChartCard title="Technician availability" href={ROUTES.technicians}>
           <GaugeChart
             value={a.techniciansByStatus.find((t) => t.status === "active")?.count ?? 0}
             max={a.totals.technicians}
@@ -448,49 +511,41 @@ export default function ReportsClient({
           />
           <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 8 }}>
             {a.techniciansByStatus.map((t) => (
-              <div key={t.status} style={{ textAlign: "center" }}>
+              <Link key={t.status} href={`${ROUTES.technicians}?status=${t.status}`} style={{ textDecoration: "none", textAlign: "center" }}>
                 <div style={{
                   fontSize: 18, fontWeight: 700,
                   color: t.status === "active"   ? pillar.teal.fg
                        : t.status === "on_leave" ? pillar.amber.fg : c.muted,
                 }}>{t.count}</div>
                 <div style={{ fontSize: 10, color: c.hint }}>{t.label}</div>
-              </div>
+              </Link>
             ))}
           </div>
         </ChartCard>
 
-        <ChartCard title="Revenue overview">
-          <HBarChart
+        <ChartCard title="Revenue overview" href={ROUTES.invoices}>
+          <HBarChartNav
             rows={[
-              {
-                label: "AMC contracts",
-                value: a.contractStats.totalValue,
-                sub:   inr(a.contractStats.totalValue),
-              },
-              {
-                label: "Quotes pipeline",
-                value: a.quotesByStatus.reduce((s, x) => s + x.value, 0),
-                sub:   inr(a.quotesByStatus.reduce((s, x) => s + x.value, 0)),
-              },
+              { label: "AMC contracts",  value: a.contractStats.totalValue, sub: inr(a.contractStats.totalValue), href: ROUTES.amc },
+              { label: "Quotes pipeline", value: a.quotesByStatus.reduce((s, x) => s + x.value, 0), sub: inr(a.quotesByStatus.reduce((s, x) => s + x.value, 0)), href: ROUTES.quotations },
               ...a.invoicesByStatus.map((inv) => ({
                 label: `Invoices (${inv.label})`,
-                value: inv.value || 1, // avoid 0-width bars
+                value: inv.value || 1,
                 sub:   `${inv.count} · ${inr(inv.value)}`,
+                href:  `${ROUTES.invoices}?status=${inv.status}`,
               })),
             ]}
             colorFn={(i) => [pillar.green.base, pillar.blue.base, pillar.purple.base, pillar.teal.base][i]}
           />
-          <div style={{ marginTop: 14, borderTop: `1px solid ${c.line}`, paddingTop: 10,
-            display: "flex", gap: 20 }}>
-            <div>
+          <div style={{ marginTop: 14, borderTop: `1px solid ${c.line}`, paddingTop: 10, display: "flex", gap: 20 }}>
+            <Link href={ROUTES.amc} style={{ textDecoration: "none" }}>
               <div style={{ fontSize: 10, color: c.hint }}>Active contracts</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: pillar.green.fg }}>{a.contractStats.activeCount}</div>
-            </div>
-            <div>
+            </Link>
+            <Link href={ROUTES.amc} style={{ textDecoration: "none" }}>
               <div style={{ fontSize: 10, color: c.hint }}>Total AMC value</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: pillar.green.fg }}>{inr(a.contractStats.totalValue)}</div>
-            </div>
+            </Link>
           </div>
         </ChartCard>
       </div>
@@ -524,16 +579,17 @@ export default function ReportsClient({
         </ChartCard>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <ChartCard title="Invoices by status">
-            <HBarChart
+          <ChartCard title="Invoices by status" href={ROUTES.invoices}>
+            <HBarChartNav
               rows={a.invoicesByStatus.map((x) => ({
                 label: x.label, value: x.count, sub: `${x.count} · ${inr(x.value)}`,
+                href: `${ROUTES.invoices}?status=${x.status}`,
               }))}
               colorFn={(i) => [pillar.purple.base, pillar.blue.base, pillar.teal.base][i]}
             />
           </ChartCard>
 
-          <ChartCard title="Loaner availability">
+          <ChartCard title="Loaner availability" href={ROUTES.assets}>
             <GaugeChart
               value={a.loanerStock.available}
               max={a.loanerStock.total}

@@ -25,8 +25,19 @@ const KIND_TONE: Record<string, PillarKey> = {
   motor: "blue", transformer: "purple", pump: "teal", generator: "amber", panel: "green",
 };
 
-export default async function AssetsPage() {
-  const { customerAssets, loanerStock } = await listAssetsLive();
+const ALL_KINDS = ["motor", "transformer", "pump", "generator", "panel"] as const;
+
+export default async function AssetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ kind?: string }>;
+}) {
+  const { kind: kindFilter } = await searchParams;
+  const { customerAssets: allCustomerAssets, loanerStock } = await listAssetsLive();
+
+  const customerAssets = kindFilter && kindFilter !== "loaner"
+    ? allCustomerAssets.filter((r) => r.asset.kind === kindFilter)
+    : allCustomerAssets;
 
   const available = loanerStock.filter((r) => r.asset.loaner_status === "available").length;
   const onLoan    = loanerStock.filter((r) => r.asset.loaner_status === "on_loan").length;
@@ -35,7 +46,7 @@ export default async function AssetsPage() {
     <>
       <PageHeader
         title="Assets"
-        subtitle={`${customerAssets.length} customer assets · ${loanerStock.length} loaner units (${available} available)`}
+        subtitle={`${customerAssets.length}${kindFilter && kindFilter !== "loaner" ? ` ${KIND_LABEL[kindFilter] ?? kindFilter}` : ""} of ${allCustomerAssets.length} customer assets · ${loanerStock.length} loaner units (${available} available)`}
         action={
           <Link
             href={ROUTES.assetNew}
@@ -49,8 +60,36 @@ export default async function AssetsPage() {
         }
       />
 
+      {/* Kind filter pills */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+        <Link href={ROUTES.assets} style={{
+          padding: "5px 12px", borderRadius: 6, fontSize: 12.5, fontWeight: 600,
+          background: !kindFilter ? c.accent : c.panel2,
+          color: !kindFilter ? "#fff" : c.muted,
+          textDecoration: "none", border: `1px solid ${!kindFilter ? c.accent : c.line}`,
+        }}>All</Link>
+        {ALL_KINDS.map((k) => {
+          const active = kindFilter === k;
+          const tone = pillar[KIND_TONE[k]];
+          return (
+            <Link key={k} href={active ? ROUTES.assets : `${ROUTES.assets}?kind=${k}`} style={{
+              padding: "5px 12px", borderRadius: 6, fontSize: 12.5, fontWeight: 600,
+              background: active ? tone.base : c.panel2,
+              color: active ? "#fff" : c.muted,
+              textDecoration: "none", border: `1px solid ${active ? tone.base : c.line}`,
+            }}>{KIND_LABEL[k]}</Link>
+          );
+        })}
+        <Link href={kindFilter === "loaner" ? ROUTES.assets : `${ROUTES.assets}?kind=loaner`} style={{
+          padding: "5px 12px", borderRadius: 6, fontSize: 12.5, fontWeight: 600,
+          background: kindFilter === "loaner" ? pillar.teal.base : c.panel2,
+          color: kindFilter === "loaner" ? "#fff" : c.muted,
+          textDecoration: "none", border: `1px solid ${kindFilter === "loaner" ? pillar.teal.base : c.line}`,
+        }}>Loaner stock</Link>
+      </div>
+
       {/* Loaner Stock */}
-      <section style={{ ...cardStyle, marginBottom: 14 }}>
+      <section style={{ ...cardStyle, marginBottom: 14, display: kindFilter && kindFilter !== "loaner" ? "none" : undefined }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
           <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: c.ink }}>Loaner Stock</h2>
           <span style={{ fontSize: 12, background: pillar.amber.bg, color: pillar.amber.base, borderRadius: 5, padding: "2px 8px", fontWeight: 600 }}>

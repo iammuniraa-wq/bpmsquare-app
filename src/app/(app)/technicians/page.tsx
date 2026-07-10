@@ -26,10 +26,16 @@ function Avatar({ name, tone }: { name: string; tone: PillarKey }) {
   );
 }
 
-export default async function TechniciansPage() {
-  const techs = await listTechnicians();
-  const activeCt   = techs.filter((t) => t.technician.status === "active").length;
-  const onLeaveCt  = techs.filter((t) => t.technician.status === "on_leave").length;
+export default async function TechniciansPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  const { status: statusFilter } = await searchParams;
+  const allTechs = await listTechnicians();
+  const techs = statusFilter ? allTechs.filter((t) => t.technician.status === statusFilter) : allTechs;
+  const activeCt   = allTechs.filter((t) => t.technician.status === "active").length;
+  const onLeaveCt  = allTechs.filter((t) => t.technician.status === "on_leave").length;
   const totalSlots = techs
     .filter((t) => t.technician.status === "active")
     .reduce((s, t) => s + t.technician.max_visits_per_day, 0);
