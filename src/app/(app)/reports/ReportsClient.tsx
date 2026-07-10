@@ -632,7 +632,7 @@ export default function ReportsClient({
               </Link>
             ))}
           </div>
-        </ChartCard>
+        </ChartCard>}
 
         {isVisible("revenue_overview") && <ChartCard title="Revenue overview" href={ROUTES.invoices}>
           <HBarChartNav
