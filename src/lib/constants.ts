@@ -254,14 +254,18 @@ export type AnalyticsMetricId =
   | "technician_availability" | "revenue_overview"
   | "invoices_by_status" | "loaner_availability" | "recent_activity";
 
+// Dashboard layout block — covers native cards and analytics widgets.
+// id is a NativeDashBlockId or AnalyticsMetricId string.
+export type DashLayoutItem = { id: string; hidden?: boolean };
+
 // TenantConfig — full shape of tenants.config JSONB column.
 export type TenantConfig = {
   entities: TenantEntity[];
   tax: TenantTaxConfig;
   // Which quote types are shown in the New Quotation picker. Omitted key = visible.
   quote_type_visibility?: Partial<Record<QuoteTypeId, boolean>>;
-  // Analytics metrics the tenant has explicitly hidden. Omitted = visible.
+  // Analytics metrics the tenant has explicitly hidden on the Analytics page.
   analytics_hidden?: AnalyticsMetricId[];
-  // Analytics metrics pinned to the dashboard. Omitted = none.
-  dashboard_widgets?: AnalyticsMetricId[];
+  // Ordered dashboard layout (native cards + pinned analytics widgets).
+  dashboard_layout?: DashLayoutItem[];
 };

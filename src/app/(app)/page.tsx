@@ -15,7 +15,7 @@ export default async function DashboardPage() {
       recentActivity={recentActivity}
       analytics={analytics}
       features={tenant?.features ?? ({} as never)}
-      pinnedWidgets={tenant?.config?.dashboard_widgets ?? []}
+      dashLayout={tenant?.config?.dashboard_layout ?? []}
       isAdmin={role === "admin"}
     />
   );
