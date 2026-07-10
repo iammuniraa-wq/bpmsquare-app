@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c, pillar } from "@/lib/theme";
@@ -233,8 +233,13 @@ interface Props {
 export default function DashboardWidgets({ analytics, pinnedWidgets, features, isAdmin }: Props) {
   const router = useRouter();
   const [adaptOpen, setAdaptOpen] = useState(false);
-  const [pinned, setPinned] = useState<Set<AnalyticsMetricId>>(new Set(pinnedWidgets));
+  // order is the source of truth for both which widgets are pinned and their sequence
+  const [order, setOrder] = useState<AnalyticsMetricId[]>(pinnedWidgets);
   const [saving, startSave] = useTransition();
+
+  // drag state
+  const dragIndex = useRef<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   // Only show metrics the tenant has access to
   const available = (Object.keys(METRIC_META) as AnalyticsMetricId[]).filter((id) => {
@@ -242,27 +247,59 @@ export default function DashboardWidgets({ analytics, pinnedWidgets, features, i
     return !feat || features[feat];
   });
 
+  const pinnedSet = new Set(order);
+
   function togglePin(id: AnalyticsMetricId) {
-    setPinned((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setOrder((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   }
 
-  function save() {
+  function persist(nextOrder: AnalyticsMetricId[]) {
     startSave(async () => {
       await fetch("/api/settings/entities", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dashboard_widgets: [...pinned] }),
+        body: JSON.stringify({ dashboard_widgets: nextOrder }),
       });
-      setAdaptOpen(false);
       router.refresh();
     });
   }
 
-  const pinnedList = available.filter((id) => pinned.has(id));
+  function saveAdapt() {
+    persist(order);
+    setAdaptOpen(false);
+  }
+
+  // ── Drag handlers ─────────────────────────────────────────────────────────
+
+  function onDragStart(i: number) {
+    dragIndex.current = i;
+  }
+
+  function onDragOver(e: React.DragEvent, i: number) {
+    e.preventDefault();
+    setOverIndex(i);
+  }
+
+  function onDrop(i: number) {
+    const from = dragIndex.current;
+    if (from === null || from === i) { setOverIndex(null); return; }
+    const next = [...order];
+    const [moved] = next.splice(from, 1);
+    next.splice(i, 0, moved);
+    dragIndex.current = null;
+    setOverIndex(null);
+    setOrder(next);
+    persist(next);
+  }
+
+  function onDragEnd() {
+    dragIndex.current = null;
+    setOverIndex(null);
+  }
+
+  const pinnedList = order.filter((id) => available.includes(id));
 
   return (
     <div style={{ marginTop: 20 }}>
@@ -296,21 +333,24 @@ export default function DashboardWidgets({ analytics, pinnedWidgets, features, i
       {/* Adapt panel */}
       {adaptOpen && (
         <div style={{ ...cardStyle, padding: 16, marginBottom: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: c.ink, marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: c.ink, marginBottom: 4 }}>
             Choose widgets to pin to your dashboard
+          </div>
+          <div style={{ fontSize: 11, color: c.hint, marginBottom: 12 }}>
+            Drag the ⠿ handle on any widget below to reorder.
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 8, marginBottom: 16 }}>
             {available.map((id) => (
               <label key={id} style={{
                 display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
                 padding: "7px 10px", borderRadius: 7,
-                background: pinned.has(id) ? c.accentbg : c.panel2,
-                border: `1px solid ${pinned.has(id) ? c.accent : c.line}`,
-                fontSize: 12, color: c.ink, fontWeight: pinned.has(id) ? 600 : 400,
+                background: pinnedSet.has(id) ? c.accentbg : c.panel2,
+                border: `1px solid ${pinnedSet.has(id) ? c.accent : c.line}`,
+                fontSize: 12, color: c.ink, fontWeight: pinnedSet.has(id) ? 600 : 400,
               }}>
                 <input
                   type="checkbox"
-                  checked={pinned.has(id)}
+                  checked={pinnedSet.has(id)}
                   onChange={() => togglePin(id)}
                   style={{ accentColor: c.accent, width: 13, height: 13, flexShrink: 0 }}
                 />
@@ -320,7 +360,7 @@ export default function DashboardWidgets({ analytics, pinnedWidgets, features, i
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={save}
+              onClick={saveAdapt}
               disabled={saving}
               style={{
                 fontSize: 12, fontWeight: 600, color: "#fff", background: c.accent,
@@ -331,7 +371,7 @@ export default function DashboardWidgets({ analytics, pinnedWidgets, features, i
               {saving ? "Saving…" : "Save"}
             </button>
             <button
-              onClick={() => { setPinned(new Set(pinnedWidgets)); setAdaptOpen(false); }}
+              onClick={() => { setOrder(pinnedWidgets); setAdaptOpen(false); }}
               style={{
                 fontSize: 12, color: c.muted, background: "transparent",
                 border: `1px solid ${c.line}`, borderRadius: 7, padding: "7px 14px", cursor: "pointer",
@@ -343,14 +383,42 @@ export default function DashboardWidgets({ analytics, pinnedWidgets, features, i
         </div>
       )}
 
-      {/* Pinned widget grid */}
+      {/* Pinned widget grid — draggable */}
       {pinnedList.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
-          {pinnedList.map((id) => (
-            <div key={id}>{renderWidget(id, analytics)}</div>
+          {pinnedList.map((id, i) => (
+            <div
+              key={id}
+              draggable
+              onDragStart={() => onDragStart(i)}
+              onDragOver={(e) => onDragOver(e, i)}
+              onDrop={() => onDrop(i)}
+              onDragEnd={onDragEnd}
+              style={{
+                opacity: dragIndex.current === i ? 0.4 : 1,
+                outline: overIndex === i && dragIndex.current !== i ? `2px dashed ${c.accent}` : "none",
+                outlineOffset: 2,
+                borderRadius: 10,
+                transition: "opacity 0.15s, outline 0.1s",
+              }}
+            >
+              {/* Drag handle row */}
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "flex-end",
+                paddingBottom: 4, cursor: "grab", userSelect: "none",
+              }}>
+                <span style={{ fontSize: 14, color: c.hint, lineHeight: 1 }} title="Drag to reorder">⠿</span>
+              </div>
+              {renderWidget(id, analytics)}
+            </div>
           ))}
         </div>
       )}
+
+      <style>{`
+        [draggable="true"] { cursor: grab; }
+        [draggable="true"]:active { cursor: grabbing; }
+      `}</style>
     </div>
   );
 }
