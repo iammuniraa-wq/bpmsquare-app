@@ -262,4 +262,6 @@ export type TenantConfig = {
   quote_type_visibility?: Partial<Record<QuoteTypeId, boolean>>;
   // Analytics metrics the tenant has explicitly hidden. Omitted = visible.
   analytics_hidden?: AnalyticsMetricId[];
+  // Analytics metrics pinned to the dashboard. Omitted = none.
+  dashboard_widgets?: AnalyticsMetricId[];
 };

@@ -5,7 +5,10 @@ import type { ServiceCase, Account, WorkOrder, Activity as ActivityRec } from "@
 import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
+import type { AnalyticsMetricId, TenantFeatures } from "@/lib/constants";
 import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Wrench } from "@/components/Icons";
+import type { AnalyticsData } from "@/lib/data/labels";
+import DashboardWidgets from "@/components/DashboardWidgets";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -23,6 +26,10 @@ interface Props {
   readyCases: AttentionRow[];
   workOrderRows: WorkOrderRow[];
   recentActivity: ActivityRow[];
+  analytics: AnalyticsData;
+  features: TenantFeatures;
+  pinnedWidgets: AnalyticsMetricId[];
+  isAdmin: boolean;
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -70,7 +77,7 @@ const ACT_PILLAR: Record<string, { base: string; bg: string }> = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function DashboardLayout({ kpis, attention, readyCases, workOrderRows, recentActivity }: Props) {
+export default function DashboardLayout({ kpis, attention, readyCases, workOrderRows, recentActivity, analytics, features, pinnedWidgets, isAdmin }: Props) {
   const today = todayISO();
   const todaysWorkOrders = workOrderRows.filter((r) => r.workOrder.scheduled_for === today);
 
@@ -348,6 +355,13 @@ export default function DashboardLayout({ kpis, attention, readyCases, workOrder
           </section>
         </div>
       </div>
+
+      <DashboardWidgets
+        analytics={analytics}
+        pinnedWidgets={pinnedWidgets}
+        features={features}
+        isAdmin={isAdmin}
+      />
 
       <style>{`
         .dash-row:hover { background: ${c.panel2} !important; }
