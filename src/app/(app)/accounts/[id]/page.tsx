@@ -7,7 +7,7 @@ import {
   QUOTE_STATUS_LABEL,
 } from "@/lib/data";
 import { getAccountHubLive } from "@/lib/data/live";
-import { getTenant, getUserRole } from "@/lib/tenant";
+import { getUserRole } from "@/lib/tenant";
 import type { Activity, Account } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -149,9 +149,8 @@ export default async function AccountHubPage({
   const { tab: rawTab } = await searchParams;
   const activeTab: Tab = (TABS.find((t) => t.id === rawTab)?.id) ?? "overview";
 
-  const [hub, tenant, role] = await Promise.all([getAccountHubLive(id), getTenant(), getUserRole()]);
+  const [hub, role] = await Promise.all([getAccountHubLive(id), getUserRole()]);
   if (!hub) notFound();
-  const customFields = tenant?.config?.custom_fields?.account ?? [];
 
   const { account, referredBy } = hub;
 
@@ -208,7 +207,6 @@ export default async function AccountHubPage({
             <AdaptObjectDrawer
               objectType="account"
               objectLabel="Account"
-              customFields={customFields}
               isAdmin={role === "admin"}
             />
           </div>

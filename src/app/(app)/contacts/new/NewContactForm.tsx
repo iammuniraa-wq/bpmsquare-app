@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -8,6 +8,13 @@ import { ROUTES } from "@/lib/constants";
 import Link from "next/link";
 import type { Account } from "@/lib/types";
 import MobileSection from "@/components/MobileSection";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
+
+interface CFDef {
+  id: string; field_key: string; field_label: string;
+  field_type: "text"|"number"|"date"|"select"|"checkbox"|"textarea";
+  options: string[] | null; is_required: boolean;
+}
 
 const label: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -25,10 +32,19 @@ const sectionTitle: React.CSSProperties = {
   textTransform: "uppercase", letterSpacing: 0.6, margin: "0 0 12px",
 };
 
-export default function NewContactForm({ accounts, defaultAccountId }: { accounts: Account[]; defaultAccountId?: string }) {
+export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: { accounts: Account[]; defaultAccountId?: string; isAdmin?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [cfDefs, setCfDefs] = useState<CFDef[]>([]);
+  const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
+
+  useEffect(() => {
+    fetch("/api/settings/custom-fields?object=contact")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setCfDefs(data); })
+      .catch(() => {});
+  }, []);
 
   const [form, setForm] = useState({
     account_id: defaultAccountId || accounts[0]?.id || "",
@@ -69,7 +85,7 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
       const res = await fetch("/api/contacts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, custom_data: Object.keys(cfValues).length > 0 ? cfValues : undefined }),
       });
       const json = await res.json();
       if (res.ok) {
@@ -247,9 +263,12 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
         </Link>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Contact</h1>
-        <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Add a person linked to an account</p>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Contact</h1>
+          <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Add a person linked to an account</p>
+        </div>
+        <AdaptObjectDrawer objectType="contact" objectLabel="Contact" isAdmin={isAdmin ?? true} />
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -278,6 +297,33 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
               <p style={sectionTitle}>Notes</p>
               {notesField}
             </div>
+            {cfDefs.length > 0 && (
+              <div style={cardStyle}>
+                <p style={sectionTitle}>Custom fields</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {cfDefs.map((f) => (
+                    <div key={f.id}>
+                      <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
+                      {f.field_type === "select" && f.options ? (
+                        <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
+                          <option value="">— select —</option>
+                          {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : f.field_type === "checkbox" ? (
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, height: 38 }}>
+                          <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
+                          {cfValues[f.field_key] ? "Yes" : "No"}
+                        </label>
+                      ) : f.field_type === "textarea" ? (
+                        <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+                      ) : (
+                        <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {errorBox}
             {submitRow}
           </div>
@@ -290,6 +336,30 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
           <MobileSection title="Email & web">{emailFields}</MobileSection>
           <MobileSection title="Address">{addressFields}</MobileSection>
           <MobileSection title="Notes">{notesField}</MobileSection>
+          {cfDefs.length > 0 && (
+            <MobileSection title="Custom fields">
+              {cfDefs.map((f) => (
+                <div key={f.id} style={fw}>
+                  <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
+                  {f.field_type === "select" && f.options ? (
+                    <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
+                      <option value="">— select —</option>
+                      {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : f.field_type === "checkbox" ? (
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink }}>
+                      <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
+                      {cfValues[f.field_key] ? "Yes" : "No"}
+                    </label>
+                  ) : f.field_type === "textarea" ? (
+                    <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+                  ) : (
+                    <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+                  )}
+                </div>
+              ))}
+            </MobileSection>
+          )}
           {errorBox}
           {submitRow}
         </div>

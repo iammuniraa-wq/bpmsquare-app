@@ -1,12 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import MobileSection from "@/components/MobileSection";
 import { ROUTES } from "@/lib/constants";
 import Link from "next/link";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
+
+interface CFDef {
+  id: string; field_key: string; field_label: string;
+  field_type: "text"|"number"|"date"|"select"|"checkbox"|"textarea";
+  options: string[] | null; is_required: boolean;
+}
 
 const ACCOUNT_TYPES = [
   { value: "prospect",     label: "Prospect" },
@@ -32,6 +39,15 @@ export default function NewAccountPage() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [cfDefs, setCfDefs] = useState<CFDef[]>([]);
+  const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
+
+  useEffect(() => {
+    fetch("/api/settings/custom-fields?object=account")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setCfDefs(data); })
+      .catch(() => {});
+  }, []);
 
   const [form, setForm] = useState({
     // Identity
@@ -58,7 +74,7 @@ export default function NewAccountPage() {
       const res = await fetch("/api/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, custom_data: Object.keys(cfValues).length > 0 ? cfValues : undefined }),
       });
       const json = await res.json();
       if (res.ok) {
@@ -196,9 +212,12 @@ export default function NewAccountPage() {
         </Link>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Account</h1>
-        <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Add a customer, prospect, OEM or end customer</p>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Account</h1>
+          <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Add a customer, prospect, OEM or end customer</p>
+        </div>
+        <AdaptObjectDrawer objectType="account" objectLabel="Account" isAdmin={true} />
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -227,6 +246,33 @@ export default function NewAccountPage() {
               <h3 style={sectionHead}>Notes &amp; Referral</h3>
               {notesSection}
             </div>
+            {cfDefs.length > 0 && (
+              <div style={cardStyle}>
+                <h3 style={sectionHead}>Custom fields</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {cfDefs.map((f) => (
+                    <div key={f.id}>
+                      <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
+                      {f.field_type === "select" && f.options ? (
+                        <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
+                          <option value="">— select —</option>
+                          {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : f.field_type === "checkbox" ? (
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, height: 38 }}>
+                          <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
+                          {cfValues[f.field_key] ? "Yes" : "No"}
+                        </label>
+                      ) : f.field_type === "textarea" ? (
+                        <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+                      ) : (
+                        <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {error && <ErrorBox msg={error} />}
             <Actions pending={pending} cancelHref={ROUTES.accounts} label="Create Account" />
           </div>
@@ -239,6 +285,30 @@ export default function NewAccountPage() {
           <MobileSection title="Communication">{communicationSection}</MobileSection>
           <MobileSection title="Business">{businessSection}</MobileSection>
           <MobileSection title="Notes & Referral">{notesSection}</MobileSection>
+          {cfDefs.length > 0 && (
+            <MobileSection title="Custom fields">
+              {cfDefs.map((f) => (
+                <div key={f.id} style={fw}>
+                  <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
+                  {f.field_type === "select" && f.options ? (
+                    <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
+                      <option value="">— select —</option>
+                      {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : f.field_type === "checkbox" ? (
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink }}>
+                      <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
+                      {cfValues[f.field_key] ? "Yes" : "No"}
+                    </label>
+                  ) : f.field_type === "textarea" ? (
+                    <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+                  ) : (
+                    <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+                  )}
+                </div>
+              ))}
+            </MobileSection>
+          )}
           {error && <ErrorBox msg={error} />}
           <Actions pending={pending} cancelHref={ROUTES.accounts} label="Create Account" />
         </div>

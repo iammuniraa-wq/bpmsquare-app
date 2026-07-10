@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getContactLive } from "@/lib/data/live";
-import { getTenant, getUserRole } from "@/lib/tenant";
+import { getUserRole } from "@/lib/tenant";
 import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -11,6 +11,7 @@ import TabTitle from "@/components/TabTitle";
 import { Phone, Mail, MapPin } from "@/components/Icons";
 import ContactEditPanel from "./ContactEditPanel";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
+import CustomFieldsSection from "@/components/CustomFieldsSection";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -30,10 +31,9 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [data, tenant, role] = await Promise.all([getContactLive(id), getTenant(), getUserRole()]);
+  const [data, role] = await Promise.all([getContactLive(id), getUserRole()]);
   if (!data) notFound();
   const { contact, account, cases } = data;
-  const customFields = tenant?.config?.custom_fields?.contact ?? [];
 
   const openCases = cases.filter((c) => !["closed", "buyback", "scrapped"].includes(c.status));
 
@@ -85,11 +85,18 @@ export default async function ContactDetailPage({
           <AdaptObjectDrawer
             objectType="contact"
             objectLabel="Contact"
-            customFields={customFields}
             isAdmin={role === "admin"}
           />
         </div>
       </div>
+
+      {/* Custom fields */}
+      <CustomFieldsSection
+        objectType="contact"
+        recordId={contact.id}
+        customData={(contact as Record<string, unknown>).custom_data as Record<string, unknown> | null}
+        patchUrl={`/api/contacts/${contact.id}`}
+      />
 
       {/* Cases */}
       {cases.length > 0 && (

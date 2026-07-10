@@ -1,4 +1,5 @@
 import { listAccountsLive } from "@/lib/data/live";
+import { getUserRole } from "@/lib/tenant";
 import NewContactForm from "./NewContactForm";
 
 export default async function NewContactPage({
@@ -7,7 +8,7 @@ export default async function NewContactPage({
   searchParams: Promise<{ account_id?: string }>;
 }) {
   const { account_id } = await searchParams;
-  const accountData = await listAccountsLive();
+  const [accountData, role] = await Promise.all([listAccountsLive(), getUserRole()]);
   const accounts = accountData.map(({ account }) => account);
-  return <NewContactForm accounts={accounts} defaultAccountId={account_id ?? ""} />;
+  return <NewContactForm accounts={accounts} defaultAccountId={account_id ?? ""} isAdmin={role === "admin"} />;
 }
