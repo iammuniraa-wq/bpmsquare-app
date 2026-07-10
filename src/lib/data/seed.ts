@@ -87,33 +87,45 @@ export const visitLogs: VisitLog[] = [
   },
 ];
 
+const nullAccountFields = {
+  address_line1: null, address_line2: null, state: null, postal_code: null, country: null,
+  phone2: null, email2: null, website: null, industry: null, employee_count: null,
+  annual_revenue: null, gstin: null, notes: null, custom_data: null,
+};
+
 export const accounts: Account[] = [
   // OEM / vendor partners — top of the funnel.
-  { id: "acc_crompton",   name: "Crompton Greaves",        type: "oem", city: "Mumbai",   phone: "+91 22 5550 1100", email: "service@cromptongreaves.com", referred_by_account_id: null, created_at: "2026-01-12" },
-  { id: "acc_marathon",   name: "Marathon Electric",       type: "oem", city: "Faridabad", phone: "+91 129 555 2200", email: "amc@marathon-electric.in",   referred_by_account_id: null, created_at: "2026-02-03" },
-  { id: "acc_rotomotive", name: "Rotomotive Power Drives",  type: "oem", city: "Anand",    phone: "+91 269 255 3300", email: "support@rotomotive.com",    referred_by_account_id: null, created_at: "2026-02-20" },
+  { ...nullAccountFields, id: "acc_crompton",   name: "Crompton Greaves",        type: "oem", city: "Mumbai",   phone: "+91 22 5550 1100", email: "service@cromptongreaves.com", referred_by_account_id: null, created_at: "2026-01-12" },
+  { ...nullAccountFields, id: "acc_marathon",   name: "Marathon Electric",       type: "oem", city: "Faridabad", phone: "+91 129 555 2200", email: "amc@marathon-electric.in",   referred_by_account_id: null, created_at: "2026-02-03" },
+  { ...nullAccountFields, id: "acc_rotomotive", name: "Rotomotive Power Drives",  type: "oem", city: "Anand",    phone: "+91 269 255 3300", email: "support@rotomotive.com",    referred_by_account_id: null, created_at: "2026-02-20" },
 
   // Direct customers — walk-in / B2B, full margin.
-  { id: "acc_krishna",   name: "Krishna Textiles",       type: "direct", city: "Hosapete", phone: "+91 8394 220 145", email: "works@krishnatextiles.in", referred_by_account_id: null, created_at: "2026-03-01" },
-  { id: "acc_hpsteel",   name: "Hosapete Steel",         type: "direct", city: "Hosapete", phone: "+91 8394 220 700", email: "maint@hosapetesteel.com",  referred_by_account_id: null, created_at: "2026-03-18" },
+  { ...nullAccountFields, id: "acc_krishna",   name: "Krishna Textiles",       type: "direct", city: "Hosapete", phone: "+91 8394 220 145", email: "works@krishnatextiles.in", referred_by_account_id: null, created_at: "2026-03-01" },
+  { ...nullAccountFields, id: "acc_hpsteel",   name: "Hosapete Steel",         type: "direct", city: "Hosapete", phone: "+91 8394 220 700", email: "maint@hosapetesteel.com",  referred_by_account_id: null, created_at: "2026-03-18" },
 
   // End-customers serviced under an OEM referral / AMC.
-  { id: "acc_sahyadri",  name: "Sahyadri Hospital",      type: "end_customer", city: "Hubli",   phone: "+91 836 555 8080", email: "facilities@sahyadri.org", referred_by_account_id: "acc_crompton",   created_at: "2026-04-02" },
-  { id: "acc_bharat",    name: "Bharat Forge",           type: "end_customer", city: "Pune",    phone: "+91 20 5555 9090", email: "plant@bharatforge.com",   referred_by_account_id: "acc_marathon",   created_at: "2026-04-15" },
-  { id: "acc_tata",      name: "Tata Motors",            type: "end_customer", city: "Dharwad", phone: "+91 836 555 7070", email: "upkeep@tatamotors.com",   referred_by_account_id: "acc_rotomotive", created_at: "2026-05-06" },
+  { ...nullAccountFields, id: "acc_sahyadri",  name: "Sahyadri Hospital",      type: "end_customer", city: "Hubli",   phone: "+91 836 555 8080", email: "facilities@sahyadri.org", referred_by_account_id: "acc_crompton",   created_at: "2026-04-02" },
+  { ...nullAccountFields, id: "acc_bharat",    name: "Bharat Forge",           type: "end_customer", city: "Pune",    phone: "+91 20 5555 9090", email: "plant@bharatforge.com",   referred_by_account_id: "acc_marathon",   created_at: "2026-04-15" },
+  { ...nullAccountFields, id: "acc_tata",      name: "Tata Motors",            type: "end_customer", city: "Dharwad", phone: "+91 836 555 7070", email: "upkeep@tatamotors.com",   referred_by_account_id: "acc_rotomotive", created_at: "2026-05-06" },
 
   // Prospects — being pursued, no active work yet.
-  { id: "acc_rail",  name: "South Western Railway Stores", type: "prospect", city: "Hubballi", phone: "+91 836 555 4455", email: "stores@swr.in",      referred_by_account_id: null, created_at: "2026-06-01" },
-  { id: "acc_sugar", name: "Renuka Sugar Works",           type: "prospect", city: "Belgaum",  phone: "+91 831 555 7788", email: "maint@renuka.co.in", referred_by_account_id: null, created_at: "2026-06-10" },
+  { ...nullAccountFields, id: "acc_rail",  name: "South Western Railway Stores", type: "prospect", city: "Hubballi", phone: "+91 836 555 4455", email: "stores@swr.in",      referred_by_account_id: null, created_at: "2026-06-01" },
+  { ...nullAccountFields, id: "acc_sugar", name: "Renuka Sugar Works",           type: "prospect", city: "Belgaum",  phone: "+91 831 555 7788", email: "maint@renuka.co.in", referred_by_account_id: null, created_at: "2026-06-10" },
 ];
 
+const nullContactFields = {
+  department: null, phone2: null, phone3: null, email2: null, website: null,
+  linkedin_url: null, birthday: null, address_line1: null, address_line2: null,
+  city: null, state: null, postal_code: null, country: null, notes: null, custom_data: null,
+};
+
 export const contacts: Contact[] = [
-  { id: "con_krishna_1",  account_id: "acc_krishna",  name: "Mahesh Rao",     role: "Maintenance Head", phone: "+91 98860 11223", email: "mahesh@krishnatextiles.in" },
-  { id: "con_sahyadri_1", account_id: "acc_sahyadri", name: "Dr. Nalini",     role: "Facilities Lead",  phone: "+91 99000 44556", email: "nalini@sahyadri.org" },
-  { id: "con_bharat_1",   account_id: "acc_bharat",   name: "Sunil Kulkarni", role: "Plant Engineer",   phone: "+91 90110 77889", email: "sunil@bharatforge.com" },
-  { id: "con_crompton_1", account_id: "acc_crompton", name: "Anita Desai",    role: "Service Manager",  phone: "+91 98200 33445", email: "anita@cromptongreaves.com" },
-  { id: "con_rail_1",     account_id: "acc_rail",     name: "K. Venkatesh",   role: "Chief Engineer",   phone: "+91 98441 22334", email: "venkatesh@swr.in" },
-  { id: "con_sugar_1",    account_id: "acc_sugar",    name: "Priya Nair",     role: "Maintenance Manager", phone: "+91 94491 55667", email: "priya@renuka.co.in" },
+  { ...nullContactFields, id: "con_krishna_1",  account_id: "acc_krishna",  name: "Mahesh Rao",     role: "Maintenance Head", phone: "+91 98860 11223", email: "mahesh@krishnatextiles.in" },
+  { ...nullContactFields, id: "con_sahyadri_1", account_id: "acc_sahyadri", name: "Dr. Nalini",     role: "Facilities Lead",  phone: "+91 99000 44556", email: "nalini@sahyadri.org" },
+  { ...nullContactFields, id: "con_bharat_1",   account_id: "acc_bharat",   name: "Sunil Kulkarni", role: "Plant Engineer",   phone: "+91 90110 77889", email: "sunil@bharatforge.com" },
+  { ...nullContactFields, id: "con_crompton_1", account_id: "acc_crompton", name: "Anita Desai",    role: "Service Manager",  phone: "+91 98200 33445", email: "anita@cromptongreaves.com" },
+  { ...nullContactFields, id: "con_rail_1",     account_id: "acc_rail",     name: "K. Venkatesh",   role: "Chief Engineer",   phone: "+91 98441 22334", email: "venkatesh@swr.in" },
+  { ...nullContactFields, id: "con_sugar_1",    account_id: "acc_sugar",    name: "Priya Nair",     role: "Maintenance Manager", phone: "+91 94491 55667", email: "priya@renuka.co.in" },
 ];
 
 export const sites: Site[] = [

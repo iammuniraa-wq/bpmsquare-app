@@ -15,7 +15,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No rows provided" }, { status: 400 });
   }
 
-  // Build account name → id map for this tenant
   const { data: accounts } = await supabase
     .from("accounts")
     .select("id, name")
@@ -40,13 +39,31 @@ export async function POST(request: NextRequest) {
       return;
     }
 
+    // Collect cf_* keys into custom_data
+    const custom_data: Record<string, string> = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (k.startsWith("cf_") && v?.trim()) custom_data[k.slice(3)] = v.trim();
+    }
+
     toInsert.push({
       tenant_id:  tenantId,
       account_id: accountId,
       name,
-      role:  row.role?.trim()  || null,
-      phone: row.phone?.trim() || null,
-      email: row.email?.trim() || null,
+      role:         row.role?.trim()         || null,
+      department:   row.department?.trim()   || null,
+      phone:        row.phone?.trim()        || null,
+      phone2:       row.phone2?.trim()       || null,
+      email:        row.email?.trim()        || null,
+      email2:       row.email2?.trim()       || null,
+      linkedin_url: row.linkedin_url?.trim() || null,
+      address_line1: row.address_line1?.trim() || null,
+      address_line2: row.address_line2?.trim() || null,
+      city:         row.city?.trim()         || null,
+      state:        row.state?.trim()        || null,
+      postal_code:  row.postal_code?.trim()  || null,
+      country:      row.country?.trim()      || null,
+      notes:        row.notes?.trim()        || null,
+      ...(Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     });
   });
 

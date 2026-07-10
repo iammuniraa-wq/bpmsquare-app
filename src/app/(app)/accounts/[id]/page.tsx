@@ -7,6 +7,7 @@ import {
   QUOTE_STATUS_LABEL,
 } from "@/lib/data";
 import { getAccountHubLive } from "@/lib/data/live";
+import { getTenant, getUserRole } from "@/lib/tenant";
 import type { Activity, Account } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -16,6 +17,7 @@ import TabTitle from "@/components/TabTitle";
 import CustomFieldsSection from "@/components/CustomFieldsSection";
 import { MapPin, Phone, Mail, Gear } from "@/components/Icons";
 import AccountEditPanel from "./AccountEditPanel";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
 
@@ -158,8 +160,9 @@ export default async function AccountHubPage({
   const { tab: rawTab } = await searchParams;
   const activeTab: Tab = (TABS.find((t) => t.id === rawTab)?.id) ?? "overview";
 
-  const hub = await getAccountHubLive(id);
+  const [hub, tenant, role] = await Promise.all([getAccountHubLive(id), getTenant(), getUserRole()]);
   if (!hub) notFound();
+  const customFields = tenant?.config?.custom_fields?.account ?? [];
 
   const { account, referredBy } = hub;
 
@@ -213,7 +216,15 @@ export default async function AccountHubPage({
             </div>
           </div>
 
-          <AccountEditPanel account={account} />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <AccountEditPanel account={account} />
+            <AdaptObjectDrawer
+              objectType="account"
+              objectLabel="Account"
+              customFields={customFields}
+              isAdmin={role === "admin"}
+            />
+          </div>
         </div>
       </div>
 

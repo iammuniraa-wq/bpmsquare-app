@@ -13,7 +13,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ["name", "type", "city", "phone", "email", "referred_by_account_id", "custom_data"];
+  const allowed = [
+    "name", "type",
+    "address_line1", "address_line2", "city", "state", "postal_code", "country",
+    "phone", "phone2", "email", "email2", "website",
+    "industry", "employee_count", "annual_revenue", "gstin", "notes",
+    "referred_by_account_id", "custom_data",
+  ];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
 

@@ -258,6 +258,15 @@ export type AnalyticsMetricId =
 // id is a NativeDashBlockId or AnalyticsMetricId string.
 export type DashLayoutItem = { id: string; hidden?: boolean };
 
+// CustomFieldDef — one custom field definition for any object type.
+// Stored in tenants.config.custom_fields[objectType][].
+export type CustomFieldDef = {
+  key: string;       // unique key, e.g. "territory" — value stored as custom_data[key]
+  label: string;     // display label, e.g. "Territory"
+  type: "text" | "number" | "date" | "select" | "boolean";
+  options?: string[]; // only for type = "select"
+};
+
 // TenantConfig — full shape of tenants.config JSONB column.
 export type TenantConfig = {
   entities: TenantEntity[];
@@ -268,4 +277,6 @@ export type TenantConfig = {
   analytics_hidden?: AnalyticsMetricId[];
   // Ordered dashboard layout (native cards + pinned analytics widgets).
   dashboard_layout?: DashLayoutItem[];
+  // Custom field definitions per object type (e.g. "account", "contact", "asset").
+  custom_fields?: Record<string, CustomFieldDef[]>;
 };

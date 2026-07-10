@@ -17,7 +17,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No rows provided" }, { status: 400 });
   }
 
-  // Fetch existing account names to detect duplicates
   const { data: existing } = await supabase
     .from("accounts")
     .select("name")
@@ -37,15 +36,32 @@ export async function POST(request: NextRequest) {
       ? row.type.trim()
       : "prospect";
 
+    // Collect any cf_* keys into custom_data
+    const custom_data: Record<string, string> = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (k.startsWith("cf_") && v?.trim()) custom_data[k.slice(3)] = v.trim();
+    }
+
     toInsert.push({
       tenant_id: tenantId,
-      name,
-      type,
-      city:  row.city?.trim()  || null,
-      phone: row.phone?.trim() || null,
-      email: row.email?.trim() || null,
-      gstin: row.gstin?.trim() || null,
-      notes: row.notes?.trim() || null,
+      name, type,
+      address_line1: row.address_line1?.trim() || null,
+      address_line2: row.address_line2?.trim() || null,
+      city:          row.city?.trim()          || null,
+      state:         row.state?.trim()         || null,
+      postal_code:   row.postal_code?.trim()   || null,
+      country:       row.country?.trim()       || null,
+      phone:         row.phone?.trim()         || null,
+      phone2:        row.phone2?.trim()        || null,
+      email:         row.email?.trim()         || null,
+      email2:        row.email2?.trim()        || null,
+      website:       row.website?.trim()       || null,
+      industry:      row.industry?.trim()      || null,
+      employee_count: row.employee_count?.trim() || null,
+      annual_revenue: row.annual_revenue?.trim() || null,
+      gstin:         row.gstin?.trim()         || null,
+      notes:         row.notes?.trim()         || null,
+      ...(Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     });
     existingNames.add(name.toLowerCase());
   });

@@ -24,7 +24,9 @@ const input: React.CSSProperties = {
   border: `1px solid ${c.line}`, borderRadius: 8,
   background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
 };
-const fw: React.CSSProperties = { marginBottom: 16 };
+const fw: React.CSSProperties = { marginBottom: 14 };
+const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
+const sectionHead: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 14px" };
 
 export default function NewAccountPage() {
   const router = useRouter();
@@ -32,12 +34,21 @@ export default function NewAccountPage() {
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
-    name: "", type: "prospect", city: "", phone: "", email: "",
-    referred_by_account_id: "",
+    // Identity
+    name: "", type: "prospect",
+    // Address
+    address_line1: "", address_line2: "",
+    city: "", state: "", postal_code: "", country: "",
+    // Communication
+    phone: "", phone2: "", email: "", email2: "", website: "",
+    // Business
+    industry: "", employee_count: "", annual_revenue: "", gstin: "",
+    // Notes + referral
+    notes: "", referred_by_account_id: "",
   });
 
   const set = (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
   function handleSubmit(e: React.FormEvent) {
@@ -58,45 +69,122 @@ export default function NewAccountPage() {
     });
   }
 
-  const companyFields = (
+  const identitySection = (
     <>
       <div style={fw}>
         <label style={label}>Company name *</label>
         <input style={input} value={form.name} onChange={set("name")} required placeholder="e.g. Tata Steel Ltd" />
       </div>
-      <div style={fw}>
+      <div style={{ ...fw, marginBottom: 0 }}>
         <label style={label}>Account type *</label>
         <select style={input} value={form.type} onChange={set("type")}>
           {ACCOUNT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
       </div>
-      <div style={{ ...fw, marginBottom: 0 }}>
-        <label style={label}>City</label>
-        <input style={input} value={form.city} onChange={set("city")} placeholder="e.g. Bengaluru" />
-      </div>
     </>
   );
 
-  const contactFields = (
+  const addressSection = (
     <>
       <div style={fw}>
-        <label style={label}>Phone</label>
-        <input style={input} value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
+        <label style={label}>Address line 1</label>
+        <input style={input} value={form.address_line1} onChange={set("address_line1")} placeholder="Street / building / plot" />
       </div>
-      <div style={{ ...fw, marginBottom: 0 }}>
-        <label style={label}>Email</label>
-        <input style={input} type="email" value={form.email} onChange={set("email")} placeholder="accounts@company.com" />
+      <div style={fw}>
+        <label style={label}>Address line 2</label>
+        <input style={input} value={form.address_line2} onChange={set("address_line2")} placeholder="Area / landmark" />
+      </div>
+      <div style={{ ...grid2, ...fw }}>
+        <div>
+          <label style={label}>City</label>
+          <input style={input} value={form.city} onChange={set("city")} placeholder="e.g. Bengaluru" />
+        </div>
+        <div>
+          <label style={label}>State</label>
+          <input style={input} value={form.state} onChange={set("state")} placeholder="e.g. Karnataka" />
+        </div>
+      </div>
+      <div style={{ ...grid2, marginBottom: 0 }}>
+        <div>
+          <label style={label}>Postal code</label>
+          <input style={input} value={form.postal_code} onChange={set("postal_code")} placeholder="560001" />
+        </div>
+        <div>
+          <label style={label}>Country</label>
+          <input style={input} value={form.country} onChange={set("country")} placeholder="India" />
+        </div>
       </div>
     </>
   );
 
-  const referralField = (
+  const communicationSection = (
     <>
-      <div style={{ ...fw, marginBottom: 8 }}>
+      <div style={{ ...grid2, ...fw }}>
+        <div>
+          <label style={label}>Primary phone</label>
+          <input style={input} value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
+        </div>
+        <div>
+          <label style={label}>Secondary phone</label>
+          <input style={input} value={form.phone2} onChange={set("phone2")} placeholder="+91 98765 43211" />
+        </div>
+      </div>
+      <div style={{ ...grid2, ...fw }}>
+        <div>
+          <label style={label}>Primary email</label>
+          <input style={input} type="email" value={form.email} onChange={set("email")} placeholder="accounts@company.com" />
+        </div>
+        <div>
+          <label style={label}>Secondary email</label>
+          <input style={input} type="email" value={form.email2} onChange={set("email2")} placeholder="info@company.com" />
+        </div>
+      </div>
+      <div style={{ marginBottom: 0 }}>
+        <label style={label}>Website</label>
+        <input style={input} value={form.website} onChange={set("website")} placeholder="https://company.com" />
+      </div>
+    </>
+  );
+
+  const businessSection = (
+    <>
+      <div style={fw}>
+        <label style={label}>Industry</label>
+        <input style={input} value={form.industry} onChange={set("industry")} placeholder="e.g. Textile Manufacturing" />
+      </div>
+      <div style={{ ...grid2, ...fw }}>
+        <div>
+          <label style={label}>Employees</label>
+          <input style={input} value={form.employee_count} onChange={set("employee_count")} placeholder="e.g. 250" />
+        </div>
+        <div>
+          <label style={label}>Annual revenue</label>
+          <input style={input} value={form.annual_revenue} onChange={set("annual_revenue")} placeholder="e.g. ₹5 Cr" />
+        </div>
+      </div>
+      <div style={{ marginBottom: 0 }}>
+        <label style={label}>GSTIN</label>
+        <input style={input} value={form.gstin} onChange={set("gstin")} placeholder="27AABCV1234F1Z5" />
+      </div>
+    </>
+  );
+
+  const notesSection = (
+    <>
+      <div style={fw}>
+        <label style={label}>Notes</label>
+        <textarea
+          style={{ ...input, minHeight: 80, resize: "vertical" }}
+          value={form.notes}
+          onChange={set("notes")}
+          placeholder="Any notes about this account…"
+        />
+      </div>
+      <div style={{ marginBottom: 0 }}>
         <label style={label}>Referred by account ID</label>
         <input style={input} value={form.referred_by_account_id} onChange={set("referred_by_account_id")} placeholder="UUID of OEM account" />
+        <p style={{ fontSize: 11, color: c.hint, margin: "5px 0 0" }}>Set when type is End Customer and an OEM referred them</p>
       </div>
-      <p style={{ fontSize: 11, color: c.hint, margin: 0 }}>Set when type is End Customer and an OEM referred them</p>
     </>
   );
 
@@ -114,37 +202,43 @@ export default function NewAccountPage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* ── Desktop layout ── */}
-        <div className="mob-hide" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16, alignItems: "start" }}>
-          <div style={cardStyle}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 16px" }}>Company details</h3>
-            {companyFields}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* ── Desktop ── */}
+        <div className="mob-hide" style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 16px" }}>Contact info</h3>
-              {contactFields}
+              <h3 style={sectionHead}>Identity</h3>
+              {identitySection}
             </div>
             <div style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 12px" }}>Referral (optional)</h3>
-              {referralField}
+              <h3 style={sectionHead}>Address</h3>
+              {addressSection}
+            </div>
+            <div style={cardStyle}>
+              <h3 style={sectionHead}>Communication</h3>
+              {communicationSection}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={cardStyle}>
+              <h3 style={sectionHead}>Business</h3>
+              {businessSection}
+            </div>
+            <div style={cardStyle}>
+              <h3 style={sectionHead}>Notes &amp; Referral</h3>
+              {notesSection}
             </div>
             {error && <ErrorBox msg={error} />}
             <Actions pending={pending} cancelHref={ROUTES.accounts} label="Create Account" />
           </div>
         </div>
 
-        {/* ── Mobile layout ── */}
+        {/* ── Mobile ── */}
         <div className="mob-show" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <MobileSection title="Company details" defaultOpen>
-            {companyFields}
-          </MobileSection>
-          <MobileSection title="Contact info">
-            {contactFields}
-          </MobileSection>
-          <MobileSection title="Referral (optional)">
-            {referralField}
-          </MobileSection>
+          <MobileSection title="Identity" defaultOpen>{identitySection}</MobileSection>
+          <MobileSection title="Address">{addressSection}</MobileSection>
+          <MobileSection title="Communication">{communicationSection}</MobileSection>
+          <MobileSection title="Business">{businessSection}</MobileSection>
+          <MobileSection title="Notes & Referral">{notesSection}</MobileSection>
           {error && <ErrorBox msg={error} />}
           <Actions pending={pending} cancelHref={ROUTES.accounts} label="Create Account" />
         </div>

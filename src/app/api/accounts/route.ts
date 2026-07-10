@@ -12,7 +12,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("accounts")
-    .select("id, name")
+    .select("id, name, type, city, state, country, phone, email, address_line1, address_line2, postal_code")
     .eq("tenant_id", tenantId)
     .order("name", { ascending: true });
 
@@ -30,7 +30,13 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { name, type, city, phone, email, referred_by_account_id } = body;
+  const {
+    name, type,
+    address_line1, address_line2, city, state, postal_code, country,
+    phone, phone2, email, email2, website,
+    industry, employee_count, annual_revenue, gstin, notes,
+    referred_by_account_id,
+  } = body;
 
   if (!name || !type) {
     return NextResponse.json({ error: "name and type are required" }, { status: 400 });
@@ -38,7 +44,27 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from("accounts")
-    .insert({ tenant_id: tenantId, name, type, city: city || null, phone: phone || null, email: email || null, referred_by_account_id: referred_by_account_id || null })
+    .insert({
+      tenant_id: tenantId,
+      name, type,
+      address_line1: address_line1 || null,
+      address_line2: address_line2 || null,
+      city: city || null,
+      state: state || null,
+      postal_code: postal_code || null,
+      country: country || null,
+      phone: phone || null,
+      phone2: phone2 || null,
+      email: email || null,
+      email2: email2 || null,
+      website: website || null,
+      industry: industry || null,
+      employee_count: employee_count || null,
+      annual_revenue: annual_revenue || null,
+      gstin: gstin || null,
+      notes: notes || null,
+      referred_by_account_id: referred_by_account_id || null,
+    })
     .select("id, name")
     .single();
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useTransition } from "react";
 import { c } from "@/lib/theme";
+import type { CustomFieldDef } from "@/lib/constants";
 
 // ── Object definitions ────────────────────────────────────────────────────────
 
@@ -23,18 +24,29 @@ const OBJECTS: {
     icon: "▣",
     description: "Companies and organisations — the central hub everything else links to",
     columns: [
-      { key: "name",   label: "name",   required: true,  hint: "Full company name" },
-      { key: "type",   label: "type",   required: true,  hint: "prospect | oem | direct | end_customer" },
-      { key: "city",   label: "city",   required: false, hint: "City / location" },
-      { key: "phone",  label: "phone",  required: false, hint: "Primary phone" },
-      { key: "email",  label: "email",  required: false, hint: "Primary email" },
-      { key: "gstin",  label: "gstin",  required: false, hint: "GST number" },
-      { key: "notes",  label: "notes",  required: false, hint: "Any extra notes" },
+      { key: "name",           label: "name",           required: true,  hint: "Full company name" },
+      { key: "type",           label: "type",           required: true,  hint: "prospect | oem | direct | end_customer" },
+      { key: "address_line1",  label: "address_line1",  required: false, hint: "Street / building / plot" },
+      { key: "address_line2",  label: "address_line2",  required: false, hint: "Area / landmark" },
+      { key: "city",           label: "city",           required: false, hint: "City" },
+      { key: "state",          label: "state",          required: false, hint: "State / province" },
+      { key: "postal_code",    label: "postal_code",    required: false, hint: "PIN / ZIP code" },
+      { key: "country",        label: "country",        required: false, hint: "Country (default India)" },
+      { key: "phone",          label: "phone",          required: false, hint: "Primary phone" },
+      { key: "phone2",         label: "phone2",         required: false, hint: "Secondary phone" },
+      { key: "email",          label: "email",          required: false, hint: "Primary email" },
+      { key: "email2",         label: "email2",         required: false, hint: "Secondary email" },
+      { key: "website",        label: "website",        required: false, hint: "Website URL" },
+      { key: "industry",       label: "industry",       required: false, hint: "Industry / sector" },
+      { key: "employee_count", label: "employee_count", required: false, hint: "Number of employees" },
+      { key: "annual_revenue", label: "annual_revenue", required: false, hint: "Annual revenue e.g. ₹5 Cr" },
+      { key: "gstin",          label: "gstin",          required: false, hint: "GST number" },
+      { key: "notes",          label: "notes",          required: false, hint: "Any extra notes" },
     ],
     sampleRows: [
-      ["Vikas Pioneers India Pvt Ltd", "direct", "Mumbai", "+91 98200 00001", "vikas@example.com", "27AABCV1234F1Z5", "Key account since 2019"],
-      ["Bharat Textiles Ltd", "oem", "Ahmedabad", "+91 97300 00002", "purchase@bharattex.com", "24AABCB5678G1Z3", ""],
-      ["Kohinoor Spinning Mills", "end_customer", "Nagpur", "+91 91200 00003", "", "", "End customer under Bharat Textiles"],
+      ["Vikas Pioneers India Pvt Ltd", "direct", "Plot 12, MIDC Phase 2", "Andheri East", "Mumbai", "Maharashtra", "400093", "India", "+91 98200 00001", "", "vikas@example.com", "", "https://vikaspioneer.com", "Textile Manufacturing", "500", "₹25 Cr", "27AABCV1234F1Z5", "Key account since 2019"],
+      ["Bharat Textiles Ltd", "oem", "", "", "Ahmedabad", "Gujarat", "380001", "India", "+91 97300 00002", "", "purchase@bharattex.com", "", "", "Textiles", "250", "", "24AABCB5678G1Z3", ""],
+      ["Kohinoor Spinning Mills", "end_customer", "", "", "Nagpur", "Maharashtra", "", "India", "+91 91200 00003", "", "", "", "", "", "", "", "", "End customer under Bharat Textiles"],
     ],
   },
   {
@@ -43,16 +55,27 @@ const OBJECTS: {
     icon: "◉",
     description: "People at accounts — linked by account name (must match exactly)",
     columns: [
-      { key: "account_name", label: "account_name", required: true,  hint: "Must match an existing or imported account name exactly" },
-      { key: "name",         label: "name",         required: true,  hint: "Full name" },
-      { key: "role",         label: "role",         required: false, hint: "Job title / role e.g. Purchase Manager" },
-      { key: "phone",        label: "phone",        required: false, hint: "Direct phone" },
-      { key: "email",        label: "email",        required: false, hint: "Work email" },
+      { key: "account_name",  label: "account_name",  required: true,  hint: "Must match an existing or imported account name exactly" },
+      { key: "name",          label: "name",          required: true,  hint: "Full name" },
+      { key: "role",          label: "role",          required: false, hint: "Job title / role e.g. Purchase Manager" },
+      { key: "department",    label: "department",    required: false, hint: "Department e.g. Maintenance" },
+      { key: "phone",         label: "phone",         required: false, hint: "Primary phone" },
+      { key: "phone2",        label: "phone2",        required: false, hint: "Secondary phone" },
+      { key: "email",         label: "email",         required: false, hint: "Primary email" },
+      { key: "email2",        label: "email2",        required: false, hint: "Secondary email" },
+      { key: "linkedin_url",  label: "linkedin_url",  required: false, hint: "LinkedIn profile URL" },
+      { key: "address_line1", label: "address_line1", required: false, hint: "Street / building (personal address)" },
+      { key: "address_line2", label: "address_line2", required: false, hint: "Area / landmark" },
+      { key: "city",          label: "city",          required: false, hint: "City" },
+      { key: "state",         label: "state",         required: false, hint: "State / province" },
+      { key: "postal_code",   label: "postal_code",   required: false, hint: "PIN / ZIP" },
+      { key: "country",       label: "country",       required: false, hint: "Country" },
+      { key: "notes",         label: "notes",         required: false, hint: "Any notes" },
     ],
     sampleRows: [
-      ["Vikas Pioneers India Pvt Ltd", "Rajesh Sharma", "General Manager", "+91 98200 11111", "rajesh@vikaspioneer.com"],
-      ["Vikas Pioneers India Pvt Ltd", "Priya Iyer", "Purchase Manager", "+91 98200 22222", "priya@vikaspioneer.com"],
-      ["Bharat Textiles Ltd", "Anand Mehta", "Maintenance Head", "+91 97300 33333", "anand@bharattex.com"],
+      ["Vikas Pioneers India Pvt Ltd", "Rajesh Sharma", "General Manager", "Operations", "+91 98200 11111", "", "rajesh@vikaspioneer.com", "", "", "", "", "", "", "", "", ""],
+      ["Vikas Pioneers India Pvt Ltd", "Priya Iyer", "Purchase Manager", "Procurement", "+91 98200 22222", "", "priya@vikaspioneer.com", "", "https://linkedin.com/in/priya-iyer", "", "", "", "", "", "", ""],
+      ["Bharat Textiles Ltd", "Anand Mehta", "Maintenance Head", "Engineering", "+91 97300 33333", "", "anand@bharattex.com", "", "", "", "", "", "", "", "", ""],
     ],
   },
   {
@@ -513,9 +536,26 @@ function ImporterPanel({ obj }: { obj: typeof OBJECTS[0] }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function DataWorkbenchClient() {
+function customFieldsToCols(defs: CustomFieldDef[]): ColDef[] {
+  return defs.map((d) => ({
+    key: `cf_${d.key}`,
+    label: `cf_${d.key}`,
+    required: false,
+    hint: `Custom: ${d.label}${d.type === "select" && d.options ? ` (${d.options.join(" | ")})` : ""}`,
+  }));
+}
+
+export default function DataWorkbenchClient({ customFieldsByObject = {} }: { customFieldsByObject?: Record<string, CustomFieldDef[]> }) {
   const [activeId, setActiveId] = useState<ObjectId>("accounts");
-  const activeObj = OBJECTS.find((o) => o.id === activeId)!;
+
+  // Merge custom field columns into the active object definition
+  const OBJECTS_WITH_CF = OBJECTS.map((obj) => {
+    const cfDefs = customFieldsByObject[obj.id === "accounts" ? "account" : obj.id === "contacts" ? "contact" : obj.id] ?? [];
+    if (cfDefs.length === 0) return obj;
+    return { ...obj, columns: [...obj.columns, ...customFieldsToCols(cfDefs)] };
+  });
+
+  const activeObj = OBJECTS_WITH_CF.find((o) => o.id === activeId)!;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 16, alignItems: "start" }}>
@@ -525,7 +565,7 @@ export default function DataWorkbenchClient() {
         <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, padding: "4px 10px 8px" }}>
           Import objects
         </div>
-        {OBJECTS.map((obj) => {
+        {OBJECTS_WITH_CF.map((obj) => {
           const active = obj.id === activeId;
           return (
             <button

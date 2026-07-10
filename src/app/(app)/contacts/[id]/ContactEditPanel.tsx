@@ -17,8 +17,21 @@ const lbl: React.CSSProperties = {
 };
 const fw: React.CSSProperties = { marginBottom: 12 };
 const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 };
+const secHead: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, margin: "16px 0 8px", paddingTop: 12, borderTop: `1px solid ${c.line}` };
 
-export default function ContactEditPanel({ contact }: { contact: Contact }) {
+interface Props {
+  contact: Contact;
+  accountAddress?: {
+    address_line1: string | null;
+    address_line2: string | null;
+    city: string | null;
+    state: string | null;
+    postal_code: string | null;
+    country: string | null;
+  } | null;
+}
+
+export default function ContactEditPanel({ contact, accountAddress }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -26,14 +39,42 @@ export default function ContactEditPanel({ contact }: { contact: Contact }) {
   const [saved, setSaved] = useState(false);
 
   const [form, setForm] = useState({
-    name:  contact.name,
-    role:  contact.role  ?? "",
-    phone: contact.phone ?? "",
-    email: contact.email ?? "",
+    name:         contact.name,
+    role:         contact.role         ?? "",
+    department:   contact.department   ?? "",
+    phone:        contact.phone        ?? "",
+    phone2:       contact.phone2       ?? "",
+    phone3:       contact.phone3       ?? "",
+    email:        contact.email        ?? "",
+    email2:       contact.email2       ?? "",
+    website:      contact.website      ?? "",
+    linkedin_url: contact.linkedin_url ?? "",
+    birthday:     contact.birthday     ?? "",
+    address_line1: contact.address_line1 ?? "",
+    address_line2: contact.address_line2 ?? "",
+    city:          contact.city          ?? "",
+    state:         contact.state         ?? "",
+    postal_code:   contact.postal_code   ?? "",
+    country:       contact.country       ?? "",
+    notes:         contact.notes         ?? "",
   });
 
   const set = (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  function copyFromAccount() {
+    if (!accountAddress) return;
+    setForm((f) => ({
+      ...f,
+      address_line1: accountAddress.address_line1 ?? "",
+      address_line2: accountAddress.address_line2 ?? "",
+      city:          accountAddress.city          ?? "",
+      state:         accountAddress.state         ?? "",
+      postal_code:   accountAddress.postal_code   ?? "",
+      country:       accountAddress.country       ?? "",
+    }));
+  }
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -72,6 +113,8 @@ export default function ContactEditPanel({ contact }: { contact: Contact }) {
       <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>
         Edit contact
       </div>
+
+      {/* Identity */}
       <div style={fw}>
         <label style={lbl}>Name *</label>
         <input style={inp} value={form.name} onChange={set("name")} required />
@@ -82,13 +125,110 @@ export default function ContactEditPanel({ contact }: { contact: Contact }) {
           <input style={inp} value={form.role} onChange={set("role")} placeholder="e.g. Maintenance Head" />
         </div>
         <div>
-          <label style={lbl}>Phone</label>
-          <input style={inp} value={form.phone} onChange={set("phone")} placeholder="e.g. 98450 12345" />
+          <label style={lbl}>Department</label>
+          <input style={inp} value={form.department} onChange={set("department")} placeholder="e.g. Engineering" />
+        </div>
+      </div>
+      <div style={grid2}>
+        <div>
+          <label style={lbl}>Birthday</label>
+          <input style={inp} type="date" value={form.birthday} onChange={set("birthday")} />
+        </div>
+        <div>
+          <label style={lbl}>LinkedIn</label>
+          <input style={inp} value={form.linkedin_url} onChange={set("linkedin_url")} placeholder="linkedin.com/in/..." />
+        </div>
+      </div>
+
+      {/* Phones */}
+      <div style={secHead}>Phones</div>
+      <div style={grid2}>
+        <div>
+          <label style={lbl}>Primary</label>
+          <input style={inp} value={form.phone} onChange={set("phone")} placeholder="+91 98450 12345" />
+        </div>
+        <div>
+          <label style={lbl}>Secondary</label>
+          <input style={inp} value={form.phone2} onChange={set("phone2")} placeholder="+91 98450 12346" />
         </div>
       </div>
       <div style={fw}>
-        <label style={lbl}>Email</label>
-        <input style={inp} type="email" value={form.email} onChange={set("email")} placeholder="name@company.com" />
+        <label style={lbl}>Third</label>
+        <input style={inp} value={form.phone3} onChange={set("phone3")} placeholder="+91 98450 12347" />
+      </div>
+
+      {/* Emails */}
+      <div style={secHead}>Email &amp; web</div>
+      <div style={grid2}>
+        <div>
+          <label style={lbl}>Primary email</label>
+          <input style={inp} type="email" value={form.email} onChange={set("email")} placeholder="name@company.com" />
+        </div>
+        <div>
+          <label style={lbl}>Secondary email</label>
+          <input style={inp} type="email" value={form.email2} onChange={set("email2")} placeholder="personal@gmail.com" />
+        </div>
+      </div>
+      <div style={fw}>
+        <label style={lbl}>Website</label>
+        <input style={inp} value={form.website} onChange={set("website")} placeholder="https://company.com" />
+      </div>
+
+      {/* Address */}
+      <div style={{ ...secHead, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span>Address</span>
+        {accountAddress && (
+          <button
+            type="button"
+            onClick={copyFromAccount}
+            style={{
+              fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 5,
+              border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent,
+              cursor: "pointer", textTransform: "none", letterSpacing: 0,
+            }}
+          >
+            ↙ Copy from account
+          </button>
+        )}
+      </div>
+      <div style={fw}>
+        <label style={lbl}>Address line 1</label>
+        <input style={inp} value={form.address_line1} onChange={set("address_line1")} placeholder="Street / building" />
+      </div>
+      <div style={fw}>
+        <label style={lbl}>Address line 2</label>
+        <input style={inp} value={form.address_line2} onChange={set("address_line2")} placeholder="Area / landmark" />
+      </div>
+      <div style={grid2}>
+        <div>
+          <label style={lbl}>City</label>
+          <input style={inp} value={form.city} onChange={set("city")} />
+        </div>
+        <div>
+          <label style={lbl}>State</label>
+          <input style={inp} value={form.state} onChange={set("state")} />
+        </div>
+      </div>
+      <div style={grid2}>
+        <div>
+          <label style={lbl}>Postal code</label>
+          <input style={inp} value={form.postal_code} onChange={set("postal_code")} />
+        </div>
+        <div>
+          <label style={lbl}>Country</label>
+          <input style={inp} value={form.country} onChange={set("country")} />
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div style={secHead}>Notes</div>
+      <div style={fw}>
+        <textarea
+          style={{ ...inp, minHeight: 70, resize: "vertical" }}
+          value={form.notes}
+          onChange={set("notes")}
+          placeholder="Any notes about this contact…"
+        />
       </div>
 
       {error && (

@@ -11,7 +11,13 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { account_id, name, role, phone, email } = body;
+  const {
+    account_id, name, role, department,
+    phone, phone2, phone3, email, email2,
+    website, linkedin_url, birthday,
+    address_line1, address_line2, city, state, postal_code, country,
+    notes,
+  } = body;
 
   if (!name || !account_id) {
     return NextResponse.json({ error: "name and account_id are required" }, { status: 400 });
@@ -31,11 +37,24 @@ export async function POST(request: NextRequest) {
     .from("contacts")
     .insert({
       tenant_id: tenantId,
-      account_id,
-      name,
+      account_id, name,
       role: role || null,
+      department: department || null,
       phone: phone || null,
+      phone2: phone2 || null,
+      phone3: phone3 || null,
       email: email || null,
+      email2: email2 || null,
+      website: website || null,
+      linkedin_url: linkedin_url || null,
+      birthday: birthday || null,
+      address_line1: address_line1 || null,
+      address_line2: address_line2 || null,
+      city: city || null,
+      state: state || null,
+      postal_code: postal_code || null,
+      country: country || null,
+      notes: notes || null,
     })
     .select("id, name")
     .single();

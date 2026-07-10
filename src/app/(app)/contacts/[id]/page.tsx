@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getContactLive } from "@/lib/data/live";
+import { getTenant, getUserRole } from "@/lib/tenant";
 import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -9,6 +10,7 @@ import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import { Phone, Mail, MapPin } from "@/components/Icons";
 import ContactEditPanel from "./ContactEditPanel";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -28,9 +30,10 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data = await getContactLive(id);
+  const [data, tenant, role] = await Promise.all([getContactLive(id), getTenant(), getUserRole()]);
   if (!data) notFound();
   const { contact, account, cases } = data;
+  const customFields = tenant?.config?.custom_fields?.contact ?? [];
 
   const openCases = cases.filter((c) => !["closed", "buyback", "scrapped"].includes(c.status));
 
@@ -77,8 +80,14 @@ export default async function ContactDetailPage({
           </div>
         )}
 
-        <div style={{ marginTop: account ? 10 : 12 }}>
-          <ContactEditPanel contact={contact} />
+        <div style={{ marginTop: account ? 10 : 12, display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <ContactEditPanel contact={contact} accountAddress={account ?? null} />
+          <AdaptObjectDrawer
+            objectType="contact"
+            objectLabel="Contact"
+            customFields={customFields}
+            isAdmin={role === "admin"}
+          />
         </div>
       </div>
 

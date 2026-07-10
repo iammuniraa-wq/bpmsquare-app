@@ -7,12 +7,29 @@ export type Account = {
   id: string;
   name: string;
   type: AccountType;
+  // Address
+  address_line1: string | null;
+  address_line2: string | null;
   city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+  // Communication
   phone: string | null;
+  phone2: string | null;
   email: string | null;
+  email2: string | null;
+  website: string | null;
+  // Business
+  industry: string | null;
+  employee_count: string | null;
+  annual_revenue: string | null;
+  gstin: string | null;
+  notes: string | null;
   // The OEM that referred this account (when type = end_customer).
   referred_by_account_id: string | null;
   created_at: string;
+  custom_data: Record<string, unknown> | null;
 };
 
 export type Contact = {
@@ -20,8 +37,24 @@ export type Contact = {
   account_id: string;
   name: string;
   role: string | null;
+  department: string | null;
   phone: string | null;
+  phone2: string | null;
+  phone3: string | null;
   email: string | null;
+  email2: string | null;
+  website: string | null;
+  linkedin_url: string | null;
+  birthday: string | null;
+  // Contact's own address (may differ from account address)
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+  notes: string | null;
+  custom_data: Record<string, unknown> | null;
 };
 
 export type Site = {

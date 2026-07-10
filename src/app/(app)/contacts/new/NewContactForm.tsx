@@ -18,7 +18,8 @@ const input: React.CSSProperties = {
   border: `1px solid ${c.line}`, borderRadius: 8,
   background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
 };
-const fieldWrap: React.CSSProperties = { marginBottom: 14 };
+const fw: React.CSSProperties = { marginBottom: 14 };
+const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
 const sectionTitle: React.CSSProperties = {
   fontSize: 11, fontWeight: 700, color: c.hint,
   textTransform: "uppercase", letterSpacing: 0.6, margin: "0 0 12px",
@@ -31,23 +32,44 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
 
   const [form, setForm] = useState({
     account_id: defaultAccountId || accounts[0]?.id || "",
-    name: "", role: "",
-    phone: "",
-    email: "",
+    name: "", role: "", department: "",
+    phone: "", phone2: "", phone3: "",
+    email: "", email2: "",
+    website: "", linkedin_url: "", birthday: "",
+    address_line1: "", address_line2: "",
+    city: "", state: "", postal_code: "", country: "",
+    notes: "",
+    _copyFromAccount: false,
   });
 
   const set = (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  function copyAddressFromAccount() {
+    const acct = accounts.find((a) => a.id === form.account_id);
+    if (!acct) return;
+    setForm((f) => ({
+      ...f,
+      address_line1: acct.address_line1 ?? "",
+      address_line2: acct.address_line2 ?? "",
+      city:          acct.city          ?? "",
+      state:         acct.state         ?? "",
+      postal_code:   acct.postal_code   ?? "",
+      country:       acct.country       ?? "",
+    }));
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { _copyFromAccount, ...payload } = form;
     startTransition(async () => {
       const res = await fetch("/api/contacts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (res.ok) {
@@ -60,11 +82,11 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
 
   const identityFields = (
     <>
-      <div style={fieldWrap}>
+      <div style={fw}>
         <label style={label}>Full name *</label>
         <input style={input} value={form.name} onChange={set("name")} required placeholder="e.g. Rajesh Kumar" />
       </div>
-      <div style={fieldWrap}>
+      <div style={fw}>
         <label style={label}>Account *</label>
         <select style={input} value={form.account_id} onChange={set("account_id")} required>
           {accounts.map((a) => (
@@ -72,27 +94,118 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
           ))}
         </select>
       </div>
-      <div style={{ ...fieldWrap, marginBottom: 0 }}>
-        <label style={label}>Role / designation</label>
-        <input style={input} value={form.role} onChange={set("role")} placeholder="e.g. Purchase Manager" />
+      <div style={{ ...grid2, ...fw }}>
+        <div>
+          <label style={label}>Role / designation</label>
+          <input style={input} value={form.role} onChange={set("role")} placeholder="e.g. Purchase Manager" />
+        </div>
+        <div>
+          <label style={label}>Department</label>
+          <input style={input} value={form.department} onChange={set("department")} placeholder="e.g. Maintenance" />
+        </div>
+      </div>
+      <div style={fw}>
+        <label style={label}>Birthday</label>
+        <input style={input} type="date" value={form.birthday} onChange={set("birthday")} />
+      </div>
+      <div style={{ marginBottom: 0 }}>
+        <label style={label}>LinkedIn URL</label>
+        <input style={input} value={form.linkedin_url} onChange={set("linkedin_url")} placeholder="https://linkedin.com/in/..." />
       </div>
     </>
   );
 
   const phoneFields = (
-    <div style={{ ...fieldWrap, marginBottom: 0 }}>
-      <label style={label}>Primary phone</label>
-      <input style={input} value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
-    </div>
+    <>
+      <div style={fw}>
+        <label style={label}>Primary phone</label>
+        <input style={input} value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
+      </div>
+      <div style={fw}>
+        <label style={label}>Secondary phone</label>
+        <input style={input} value={form.phone2} onChange={set("phone2")} placeholder="+91 98765 43211" />
+      </div>
+      <div style={{ marginBottom: 0 }}>
+        <label style={label}>Third phone</label>
+        <input style={input} value={form.phone3} onChange={set("phone3")} placeholder="+91 98765 43212" />
+      </div>
+    </>
   );
 
   const emailFields = (
     <>
-      <div style={fieldWrap}>
+      <div style={fw}>
         <label style={label}>Primary email</label>
         <input style={input} type="email" value={form.email} onChange={set("email")} placeholder="rajesh@company.com" />
       </div>
+      <div style={fw}>
+        <label style={label}>Secondary email</label>
+        <input style={input} type="email" value={form.email2} onChange={set("email2")} placeholder="rajesh.personal@gmail.com" />
+      </div>
+      <div style={{ marginBottom: 0 }}>
+        <label style={label}>Website</label>
+        <input style={input} value={form.website} onChange={set("website")} placeholder="https://linkedin.com/in/..." />
+      </div>
     </>
+  );
+
+  const addressFields = (
+    <>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <span style={{ fontSize: 11, color: c.hint }}>Contact&apos;s personal or delivery address</span>
+        <button
+          type="button"
+          onClick={copyAddressFromAccount}
+          style={{
+            fontSize: 11.5, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
+            border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent,
+            cursor: "pointer",
+          }}
+        >
+          ↙ Copy from account
+        </button>
+      </div>
+      <div style={fw}>
+        <label style={label}>Address line 1</label>
+        <input style={input} value={form.address_line1} onChange={set("address_line1")} placeholder="Street / building / flat" />
+      </div>
+      <div style={fw}>
+        <label style={label}>Address line 2</label>
+        <input style={input} value={form.address_line2} onChange={set("address_line2")} placeholder="Area / landmark" />
+      </div>
+      <div style={{ ...grid2, ...fw }}>
+        <div>
+          <label style={label}>City</label>
+          <input style={input} value={form.city} onChange={set("city")} placeholder="Bengaluru" />
+        </div>
+        <div>
+          <label style={label}>State</label>
+          <input style={input} value={form.state} onChange={set("state")} placeholder="Karnataka" />
+        </div>
+      </div>
+      <div style={{ ...grid2, marginBottom: 0 }}>
+        <div>
+          <label style={label}>Postal code</label>
+          <input style={input} value={form.postal_code} onChange={set("postal_code")} placeholder="560001" />
+        </div>
+        <div>
+          <label style={label}>Country</label>
+          <input style={input} value={form.country} onChange={set("country")} placeholder="India" />
+        </div>
+      </div>
+    </>
+  );
+
+  const notesField = (
+    <div style={{ marginBottom: 0 }}>
+      <label style={label}>Notes</label>
+      <textarea
+        style={{ ...input, minHeight: 80, resize: "vertical" }}
+        value={form.notes}
+        onChange={set("notes")}
+        placeholder="Any notes about this contact…"
+      />
+    </div>
   );
 
   const submitRow = (
@@ -142,22 +255,28 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
       <form onSubmit={handleSubmit}>
         {/* ── Desktop ── */}
         <div className="mob-hide" style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }}>
-          {/* Left col */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={cardStyle}>
               <p style={sectionTitle}>Identity</p>
               {identityFields}
             </div>
             <div style={cardStyle}>
+              <p style={sectionTitle}>Address</p>
+              {addressFields}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={cardStyle}>
               <p style={sectionTitle}>Phone numbers</p>
               {phoneFields}
             </div>
-          </div>
-          {/* Right col */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={cardStyle}>
-              <p style={sectionTitle}>Email addresses</p>
+              <p style={sectionTitle}>Email &amp; web</p>
               {emailFields}
+            </div>
+            <div style={cardStyle}>
+              <p style={sectionTitle}>Notes</p>
+              {notesField}
             </div>
             {errorBox}
             {submitRow}
@@ -166,15 +285,11 @@ export default function NewContactForm({ accounts, defaultAccountId }: { account
 
         {/* ── Mobile ── */}
         <div className="mob-show" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <MobileSection title="Identity" defaultOpen>
-            {identityFields}
-          </MobileSection>
-          <MobileSection title="Phone numbers">
-            {phoneFields}
-          </MobileSection>
-          <MobileSection title="Email addresses">
-            {emailFields}
-          </MobileSection>
+          <MobileSection title="Identity" defaultOpen>{identityFields}</MobileSection>
+          <MobileSection title="Phone numbers">{phoneFields}</MobileSection>
+          <MobileSection title="Email & web">{emailFields}</MobileSection>
+          <MobileSection title="Address">{addressFields}</MobileSection>
+          <MobileSection title="Notes">{notesField}</MobileSection>
           {errorBox}
           {submitRow}
         </div>
