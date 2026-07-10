@@ -329,7 +329,7 @@ create table text_fragments (
   id          uuid primary key default gen_random_uuid(),
   tenant_id   uuid not null references tenants(id) on delete cascade,
   label       text not null,
-  category    text not null check (category in ('line_item','notes','terms')),
+  category    text not null check (category in ('line_item','notes','terms','sow')),
   text        text not null
 );
 

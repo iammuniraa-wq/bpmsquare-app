@@ -318,7 +318,7 @@ export type PricingItem = {
   notes: string | null;
 };
 
-export type FragmentCategory = "line_item" | "notes" | "terms";
+export type FragmentCategory = "line_item" | "notes" | "terms" | "sow";
 
 export type TextFragment = {
   id: string;

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     entity_id, lines, selected_option_id, meta,
     name, contact_id, po_number, po_amount,
     discount_type, discount_pct, discount_fixed, asset_ids,
-    case_id,
+    case_id, custom_data,
   } = body;
 
   if (!account_id) {
@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       revision: 1,
       selected_option_id: selected_option_id ?? null,
       meta: meta ?? null,
+      custom_data: custom_data ?? null,
     })
     .select("id, ref")
     .single();
@@ -91,9 +92,11 @@ export async function POST(request: NextRequest) {
           rate,
           discount_pct: disc,
           amount: qty * rate * (1 - disc / 100),
-          group_id:    l.group_id    ?? null,
-          group_label: l.group_label ?? null,
-          group_type:  l.group_type  ?? null,
+          sl_no:             l.sl_no             ?? null,
+          group_id:          l.group_id          ?? null,
+          group_label:       l.group_label       ?? null,
+          group_type:        l.group_type        ?? null,
+          group_description: l.group_description ?? null,
         };
       });
     if (lineRows.length > 0) {

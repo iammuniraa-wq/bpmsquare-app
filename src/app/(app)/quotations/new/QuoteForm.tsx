@@ -10,6 +10,7 @@ import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/data/labels";
 import type { Account, Asset, Contact, PricingItem, TextFragment, PricingCategory } from "@/lib/types";
 import { Gear, Zap, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -56,10 +57,27 @@ const KIND_TONE: Record<Asset["kind"], PillarKey> = {
   motor: "blue", transformer: "amber", pump: "teal", generator: "green", panel: "purple",
 };
 
-type LineItem = { id: string; description: string; uom: string; qty: string; rate: string; discount: string; group_id?: string | null; group_label?: string | null };
-type GroupRow = { kind: "group"; id: string; label: string; items: LineItem[]; group_type: "additive" | "alternative" };
-type LineRow  = { kind: "line" } & LineItem;
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type LineItem = {
+  id: string; sl_no: string; description: string; uom: string;
+  qty: string; rate: string; discount: string;
+  group_id?: string | null; group_label?: string | null;
+};
+type GroupRow = {
+  kind: "group"; id: string; label: string; group_description: string;
+  items: LineItem[]; group_type: "additive" | "alternative";
+};
+type LineRow = { kind: "line" } & LineItem;
 type Row = LineRow | GroupRow;
+
+type SowEntry = { id: string; text: string };
+
+interface CFDef {
+  id: string; field_key: string; field_label: string;
+  field_type: "text" | "number" | "date" | "select" | "checkbox" | "textarea";
+  field_section: string | null; options: string[] | null; is_required: boolean;
+}
 
 const DRAFT_KEY = "vvcrm_quote_draft";
 
@@ -90,14 +108,14 @@ type Props = {
   offerType: import("@/lib/types").QuoteOfferType;
   tenantEntities: TenantEntity[];
   tenantTax: TenantTaxConfig;
+  isAdmin?: boolean;
 };
 
-export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, textFragments, offerType, tenantEntities, tenantTax }: Props) {
+export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, textFragments, offerType, tenantEntities, isAdmin }: Props) {
   const isTechnical = offerType === "technical";
   const today        = new Date().toISOString().slice(0, 10);
   const defaultValid = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
 
-  // Local assets — starts from server-loaded list, new ones appended without page reload
   const [localAssets, setLocalAssets] = useState<Asset[]>(initialAssets);
 
   // Account & contact
@@ -118,9 +136,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
   // Line items & groups
   const [rows, setRows] = useState<Row[]>([
-    { kind: "line", id: "1", description: "", uom: "", qty: "1", rate: "0", discount: "" },
+    { kind: "line", id: "1", sl_no: "1", description: "", uom: "", qty: "1", rate: "0", discount: "" },
   ]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set());
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
 
   // Discount
@@ -128,15 +146,35 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [discountPct, setDiscountPct]     = useState("0");
   const [discountFixed, setDiscountFixed] = useState("0");
 
-  // Entity & scope of work
+  // Entity & SOWs
   const [entityId, setEntityId] = useState(() => tenantEntities.find((e) => e.is_default)?.id ?? "");
-  const [scopeOfWork, setScopeOfWork] = useState("");
+  const [sows, setSows] = useState<SowEntry[]>([{ id: "1", text: "" }]);
+  const [sowFragTarget, setSowFragTarget] = useState<string | null>(null); // SOW entry id
 
   // Notes & terms
   const [notes, setNotes] = useState("");
   const [terms, setTerms] = useState("");
 
-  // Create-asset drawer (opened from within the form — no page navigation)
+  // Custom fields for quotes
+  const [cfDefs, setCfDefs] = useState<CFDef[]>([]);
+  const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
+
+  function fetchCFDefs() {
+    fetch("/api/settings/custom-fields?object=quote")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setCfDefs(data); })
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    fetchCFDefs();
+    const handler = () => fetchCFDefs();
+    window.addEventListener("bpm:cf-changed", handler);
+    return () => window.removeEventListener("bpm:cf-changed", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Create-asset drawer
   const [createAssetOpen, setCreateAssetOpen] = useState(false);
   const [newAsset, setNewAsset] = useState({ name: "", kind: "motor" as Asset["kind"], make: "", model: "", serial: "", rating: "", notes: "" });
   const [createAssetPending, startCreateAsset] = useTransition();
@@ -156,7 +194,6 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       });
       const json = await res.json();
       if (!res.ok) { setCreateAssetError(json.error ?? "Failed to create asset"); return; }
-      // Append to local list and auto-select it
       const created: Asset = { id: json.id, account_id: accountId || null, ...newAsset, is_loaner: false, loaner_status: null };
       setLocalAssets((p) => [...p, created]);
       setSelectedAssetIds((p) => [...p, json.id]);
@@ -203,9 +240,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
   const [savedRef, setSavedRef] = useState<string | null>(null);
 
-  // Restore draft or pre-fill from copy-quote on first mount
+  // Restore draft or pre-fill from copy-quote
   useEffect(() => {
-    // Copy-quote takes priority over draft
     const copyRaw = sessionStorage.getItem("vvcrm_copy_quote");
     if (copyRaw) {
       sessionStorage.removeItem("vvcrm_copy_quote");
@@ -216,14 +252,18 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         if (copy.quoteName)   setQuoteName(copy.quoteName);
         if (copy.notes)       setNotes(copy.notes);
         if (copy.terms)       setTerms(copy.terms);
-        if (copy.scopeOfWork) setScopeOfWork(copy.scopeOfWork);
-        if (Array.isArray(copy.rows) && copy.rows.length > 0) setRows(copy.rows);
+        if (Array.isArray(copy.sows) && copy.sows.length > 0) setSows(copy.sows);
+        else if (copy.scopeOfWork) setSows([{ id: "1", text: copy.scopeOfWork }]);
+        if (Array.isArray(copy.rows) && copy.rows.length > 0)
+          setRows(copy.rows.map((r: Row) => r.kind === "group"
+            ? { ...r, group_description: (r as GroupRow).group_description ?? "", group_type: (r as GroupRow).group_type ?? "additive" }
+            : { ...r, sl_no: (r as LineItem).sl_no ?? "" }
+          ));
         else if (Array.isArray(copy.lines) && copy.lines.length > 0)
-          setRows(copy.lines.map((l: LineItem) => ({ kind: "line" as const, ...l })));
-      } catch { /* malformed — ignore */ }
+          setRows(copy.lines.map((l: LineItem, i: number) => ({ kind: "line" as const, ...l, sl_no: l.sl_no ?? String(i + 1) })));
+      } catch { /* malformed */ }
       return;
     }
-    // Restore auto-saved draft
     const draft = loadDraft();
     if (!draft) return;
     if (draft.accountId)    setAccountId(draft.accountId);
@@ -240,29 +280,34 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     if (draft.discountPct)  setDiscountPct(draft.discountPct);
     if (draft.discountFixed) setDiscountFixed(draft.discountFixed);
     if (draft.entityId)    setEntityId(draft.entityId);
-    if (draft.scopeOfWork) setScopeOfWork(draft.scopeOfWork);
+    // SOW backward-compat: old drafts have scopeOfWork string
+    if (Array.isArray(draft.sows) && draft.sows.length > 0) setSows(draft.sows);
+    else if (draft.scopeOfWork) setSows([{ id: "1", text: draft.scopeOfWork }]);
     if (Array.isArray(draft.rows) && draft.rows.length > 0)
-      setRows(draft.rows.map((r: Row) => r.kind === "group" ? { ...r, group_type: r.group_type ?? "additive" } : r));
+      setRows(draft.rows.map((r: Row) => r.kind === "group"
+        ? { ...r, group_description: (r as GroupRow).group_description ?? "", group_type: (r as GroupRow).group_type ?? "additive" }
+        : { ...r, sl_no: (r as LineItem).sl_no ?? "" }
+      ));
     else if (Array.isArray(draft.lines) && draft.lines.length > 0)
-      setRows(draft.lines.map((l: LineItem) => ({ kind: "line" as const, ...l })));
+      setRows(draft.lines.map((l: LineItem, i: number) => ({ kind: "line" as const, ...l, sl_no: l.sl_no ?? String(i + 1) })));
     if (draft.selectedAltId !== undefined) setSelectedAltId(draft.selectedAltId);
     if (Array.isArray(draft.selectedAssetIds) && draft.selectedAssetIds.length > 0) setSelectedAssetIds(draft.selectedAssetIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-save draft on every change
+  // Auto-save draft
   useEffect(() => {
     saveDraft({
       accountId, contactId, quoteName, quoteDate, validUntil,
       poNumber, poAmount, owner, notes, terms,
       discountType, discountPct, discountFixed,
-      entityId, scopeOfWork,
+      entityId, sows,
       rows, selectedAssetIds, selectedAltId,
     });
   }, [accountId, contactId, quoteName, quoteDate, validUntil,
       poNumber, poAmount, owner, notes, terms,
       discountType, discountPct, discountFixed,
-      entityId, scopeOfWork,
+      entityId, sows,
       rows, selectedAssetIds, selectedAltId]);
 
   const accountContacts = contacts.filter((ct) => ct.account_id === accountId);
@@ -272,7 +317,6 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     .map((id) => localAssets.find((a) => a.id === id))
     .filter((a): a is Asset => !!a);
 
-  // For total: standalone lines + additive groups + only the selected alternative group
   const altGroups = rows.filter((r): r is GroupRow => r.kind === "group" && r.group_type === "alternative");
   const effectiveAltId = selectedAltId ?? altGroups[0]?.id ?? null;
   const allLineItems: LineItem[] = rows.flatMap((r) => {
@@ -284,32 +328,46 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     const qty  = parseFloat(l.qty) || 0;
     const rate = parseFloat(l.rate) || 0;
     const disc = Math.max(0, Math.min(100, parseFloat(l.discount) || 0));
-    const amount = qty * rate * (1 - disc / 100);
-    return { ...l, qty, rate, disc, amount };
+    return { ...l, qty, rate, disc, amount: qty * rate * (1 - disc / 100) };
   });
   const subtotal = parsedLines.reduce((s, l) => s + l.amount, 0);
   const discPct    = Math.max(0, Math.min(100, parseFloat(discountPct) || 0));
   const discAmount = discountType === "pct"
     ? Math.round(subtotal * discPct / 100)
     : Math.min(Math.round(parseFloat(discountFixed) || 0), subtotal);
-  const total  = subtotal - discAmount;
-  const poVal  = parseFloat(poAmount) || 0;
+  const total = subtotal - discAmount;
+  const poVal = parseFloat(poAmount) || 0;
 
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
   // ── Row / line / group handlers ─────────────────────────────────────────────
-  const newLineItem = (): LineItem => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, description: "", uom: "", qty: "1", rate: "0", discount: "" });
 
-  const addLine  = () => setRows((p) => [...p, { kind: "line", ...newLineItem() }]);
-  const addGroup = () => setRows((p) => [...p, { kind: "group", id: `${Date.now()}`, label: "Group", group_type: "additive", items: [newLineItem()] }]);
+  const newLineItem = (sl_no = ""): LineItem => ({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    sl_no, description: "", uom: "", qty: "1", rate: "0", discount: "",
+  });
+
+  const addLine = () => setRows((p) => {
+    const sl_no = String(p.length + 1);
+    return [...p, { kind: "line", ...newLineItem(sl_no) }];
+  });
+
+  const addGroup = () => setRows((p) => {
+    const pos = p.length + 1;
+    return [...p, { kind: "group", id: `${Date.now()}`, label: "Group", group_description: "", group_type: "additive", items: [newLineItem(`${pos}.1`)] }];
+  });
+
   const addAlternative = () => {
     const gid = `${Date.now()}`;
-    setRows((p) => [...p, { kind: "group", id: gid, label: "Option A", group_type: "alternative", items: [newLineItem()] }]);
+    setRows((p) => {
+      const pos = p.length + 1;
+      return [...p, { kind: "group", id: gid, label: "Option A", group_description: "", group_type: "alternative", items: [newLineItem(`${pos}.1`)] }];
+    });
     setSelectedAltId((prev) => prev ?? gid);
   };
 
   const removeRow = (rowId: string) => {
-    setRows((p) => { const n = p.filter((r) => r.id !== rowId); return n.length ? n : [{ kind: "line", ...newLineItem() }]; });
+    setRows((p) => { const n = p.filter((r) => r.id !== rowId); return n.length ? n : [{ kind: "line", ...newLineItem("1") }]; });
     setSelectedIds((p) => { const n = new Set(p); n.delete(rowId); return n; });
   };
 
@@ -320,14 +378,24 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       return r;
     }));
 
-  const addLineToGroup    = (gid: string) => setRows((p) => p.map((r) => r.kind === "group" && r.id === gid ? { ...r, items: [...r.items, newLineItem()] } : r));
+  const addLineToGroup = (gid: string) => setRows((p) => {
+    const gIdx = p.findIndex((r) => r.id === gid);
+    const pos = gIdx + 1;
+    return p.map((r) => r.kind === "group" && r.id === gid
+      ? { ...r, items: [...r.items, newLineItem(`${pos}.${r.items.length + 1}`)] }
+      : r
+    );
+  });
+
   const removeLineFromGroup = (gid: string, lid: string) => setRows((p) => p.map((r) => {
     if (r.kind !== "group" || r.id !== gid) return r;
     const items = r.items.filter((i) => i.id !== lid);
     return { ...r, items: items.length ? items : [newLineItem()] };
   }));
-  const updateGroupLabel  = (gid: string, label: string) => setRows((p) => p.map((r) => r.kind === "group" && r.id === gid ? { ...r, label } : r));
-  const ungroup           = (gid: string) => setRows((p) => p.flatMap((r) => r.kind === "group" && r.id === gid ? r.items.map((i): Row => ({ kind: "line", ...i })) : [r]));
+
+  const updateGroupLabel       = (gid: string, label: string) => setRows((p) => p.map((r) => r.kind === "group" && r.id === gid ? { ...r, label } : r));
+  const updateGroupDescription = (gid: string, group_description: string) => setRows((p) => p.map((r) => r.kind === "group" && r.id === gid ? { ...r, group_description } : r));
+  const ungroup                = (gid: string) => setRows((p) => p.flatMap((r) => r.kind === "group" && r.id === gid ? r.items.map((i): Row => ({ kind: "line", ...i })) : [r]));
 
   const toggleSelect = (lid: string) => setSelectedIds((p) => { const n = new Set(p); n.has(lid) ? n.delete(lid) : n.add(lid); return n; });
 
@@ -340,10 +408,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     rows.forEach((r, i) => {
       if (r.kind === "line" && selectedIds.has(r.id)) {
         if (insertAt === -1) insertAt = i - groupItems.length;
-        groupItems.push({ id: r.id, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount: r.discount });
+        groupItems.push({ id: r.id, sl_no: r.sl_no, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount: r.discount });
       } else { rest.push(r); }
     });
-    const group: GroupRow = { kind: "group", id: gid, label: "Group", group_type: "additive", items: groupItems };
+    const group: GroupRow = { kind: "group", id: gid, label: "Group", group_description: "", group_type: "additive", items: groupItems };
     rest.splice(Math.max(0, insertAt), 0, group);
     setRows(rest);
     setSelectedIds(new Set());
@@ -351,6 +419,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
   const toggleAsset = (id: string) =>
     setSelectedAssetIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
+
+  // SOW handlers
+  const addSow = () => setSows((p) => [...p, { id: `${Date.now()}`, text: "" }]);
+  const removeSow = (id: string) => setSows((p) => { const n = p.filter((s) => s.id !== id); return n.length ? n : [{ id: "1", text: "" }]; });
+  const updateSow = (id: string, text: string) => setSows((p) => p.map((s) => s.id === id ? { ...s, text } : s));
 
   // Catalog
   const openCatalog = (lineId: string) => { setCatalogTarget(lineId); setCatalogCat(""); setCatalogOpen(true); };
@@ -360,18 +433,28 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   };
   const filteredCatalog = catalogCat ? pricingItems.filter((p) => p.category === catalogCat) : pricingItems;
 
-  // Fragments
+  // Fragments (notes / terms)
   const insertFragment = (frag: TextFragment) => {
     if (fragTarget === "notes") setNotes((p) => p ? p + "\n\n" + frag.text : frag.text);
     if (fragTarget === "terms") setTerms((p) => p ? p + "\n\n" + frag.text : frag.text);
     setFragTarget(null);
   };
+  // SOW fragment insert
+  const insertSowFragment = (frag: TextFragment) => {
+    if (sowFragTarget) updateSow(sowFragTarget, sows.find(s => s.id === sowFragTarget)?.text
+      ? (sows.find(s => s.id === sowFragTarget)!.text + "\n\n" + frag.text)
+      : frag.text
+    );
+    setSowFragTarget(null);
+  };
   const noteFrags  = textFragments.filter((f) => f.category === "notes");
   const termsFrags = textFragments.filter((f) => f.category === "terms");
+  const sowFrags   = textFragments.filter((f) => f.category === "sow");
 
   function handleSave() {
     setSaveError("");
     startSave(async () => {
+      const scope_of_work = sows.map((s) => s.text).filter(Boolean).join("\n\n---\n\n") || null;
       const res = await fetch("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -382,7 +465,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           valid_until:     validUntil || null,
           notes,
           terms,
-          scope_of_work:   scopeOfWork,
+          scope_of_work,
           entity_id:       entityId || null,
           name:            quoteName || null,
           contact_id:      contactId || null,
@@ -394,10 +477,15 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           asset_ids:       selectedAssetIds,
           selected_option_id: effectiveAltId,
           case_id: caseSource?.caseId ?? null,
-          lines: rows.flatMap((r): { description: string; uom: string; qty: string; rate: string; discount_pct: number; group_id: string | null; group_label: string | null; group_type: string | null }[] =>
+          custom_data: Object.keys(cfValues).length > 0 ? cfValues : undefined,
+          lines: rows.flatMap((r): {
+            sl_no: string | null; description: string; uom: string; qty: string; rate: string;
+            discount_pct: number; group_id: string | null; group_label: string | null;
+            group_type: string | null; group_description: string | null;
+          }[] =>
             r.kind === "line"
-              ? [{ description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null }]
-              : r.items.map((i) => ({ description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type }))
+              ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null }]
+              : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null }))
           ),
         }),
       });
@@ -428,6 +516,23 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     );
   }
 
+  // ── Column template helpers ───────────────────────────────────────────────
+  // Standalone line: checkbox | sl_no | description | uom | qty | [rate | disc | amount] | delete
+  const standaloneCols = isTechnical
+    ? "20px 52px 1fr 72px 60px 32px"
+    : "20px 52px 1fr 72px 60px 100px 68px 100px 32px";
+  const standaloneHeaders = isTechnical
+    ? ["", "Sl No", "Description", "UOM", "Qty", ""]
+    : ["", "Sl No", "Description", "UOM", "Qty", "Rate (₹)", "Disc %", "Amount", ""];
+
+  // Group item line: sl_no | description | uom | qty | [rate | disc | amount] | delete
+  const groupItemCols = isTechnical
+    ? "52px 1fr 72px 60px 32px"
+    : "52px 1fr 72px 60px 100px 68px 100px 32px";
+  const groupItemHeaders = isTechnical
+    ? ["Sl No", "Description", "UOM", "Qty", ""]
+    : ["Sl No", "Description", "UOM", "Qty", "Rate (₹)", "Disc %", "Amount", ""];
+
   // ── Main form ─────────────────────────────────────────────────────────────
   return (
     <>
@@ -435,51 +540,30 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         <Link href={ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>← Quotations</Link>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: hasDraft ? 10 : 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: hasDraft ? 10 : 20, justifyContent: "space-between" }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New {OFFER_TYPE_LABEL[offerType] ?? "Quotation"}</h1>
           <div style={{ fontSize: 12.5, color: c.muted, marginTop: 3, fontFamily: "monospace" }}>New draft</div>
         </div>
+        <AdaptObjectDrawer objectType="quote" objectLabel="Quotation" isAdmin={isAdmin ?? false} />
       </div>
 
       {/* Case carry-over banner */}
       {caseSource && !carryoverDismissed && (
-        <div style={{
-          marginBottom: 14, background: "#eef4ff", border: "1px solid #bfdbfe",
-          borderLeft: "3px solid #378ADD", borderRadius: 8, padding: "12px 16px",
-        }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: "#1e3a5f", marginBottom: 6 }}>
-            Creating quotation from case {caseSource.caseRef}
-          </div>
-          <div style={{ fontSize: 12, color: "#3a5a80", marginBottom: 10 }}>
-            Carry over inspection findings to the quotation notes, and pre-select the account?
-          </div>
+        <div style={{ marginBottom: 14, background: "#eef4ff", border: "1px solid #bfdbfe", borderLeft: "3px solid #378ADD", borderRadius: 8, padding: "12px 16px" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: "#1e3a5f", marginBottom: 6 }}>Creating quotation from case {caseSource.caseRef}</div>
+          <div style={{ fontSize: 12, color: "#3a5a80", marginBottom: 10 }}>Carry over inspection findings to the quotation notes, and pre-select the account?</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" onClick={applyCarryover}
-              style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#378ADD", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>
-              Yes, carry over
-            </button>
-            <button type="button" onClick={() => setCarryoverDismissed(true)}
-              style={{ fontSize: 12, fontWeight: 500, color: "#3a5a80", background: "none", border: "1px solid #bfdbfe", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>
-              Start fresh
-            </button>
+            <button type="button" onClick={applyCarryover} style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#378ADD", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>Yes, carry over</button>
+            <button type="button" onClick={() => setCarryoverDismissed(true)} style={{ fontSize: 12, fontWeight: 500, color: "#3a5a80", background: "none", border: "1px solid #bfdbfe", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>Start fresh</button>
           </div>
         </div>
       )}
 
       {hasDraft && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 10, marginBottom: 16,
-          background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8,
-          padding: "8px 14px", fontSize: 12.5,
-        }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 14px", fontSize: 12.5 }}>
           <span style={{ color: "#92400e" }}>⟳ Draft restored — your unsaved work has been recovered.</span>
-          <button
-            onClick={() => { clearDraft(); setHasDraft(false); window.location.reload(); }}
-            style={{ marginLeft: "auto", fontSize: 11.5, color: "#b45309", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
-          >
-            Discard draft
-          </button>
+          <button onClick={() => { clearDraft(); setHasDraft(false); window.location.reload(); }} style={{ marginLeft: "auto", fontSize: 11.5, color: "#b45309", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Discard draft</button>
         </div>
       )}
 
@@ -494,11 +578,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             <div className="fg2">
               <div>
                 <span style={lbl}>Account *</span>
-                <select
-                  style={selStyle}
-                  value={accountId}
-                  onChange={(e) => { setAccountId(e.target.value); setContactId(""); setSelectedAssetIds([]); }}
-                >
+                <select style={selStyle} value={accountId} onChange={(e) => { setAccountId(e.target.value); setContactId(""); setSelectedAssetIds([]); }}>
                   <option value="">Select account…</option>
                   {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
@@ -562,27 +642,66 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   <span style={lbl}>Issuing entity</span>
                   <select style={selStyle} value={entityId} onChange={(e) => setEntityId(e.target.value)}>
                     <option value="">— Select entity —</option>
-                    {tenantEntities.map((e) => (
-                      <option key={e.id} value={e.id}>{e.name}{e.is_default ? " (default)" : ""}</option>
-                    ))}
+                    {tenantEntities.map((e) => <option key={e.id} value={e.id}>{e.name}{e.is_default ? " (default)" : ""}</option>)}
                   </select>
                 </div>
               )}
             </div>
           </section>
 
-          {/* Scope of work */}
+          {/* Scope of work — multiple SOWs */}
           <section style={cardStyle}>
-            <h3 style={sectionTitle}>Scope of work</h3>
-            <textarea
-              style={{ ...inp, minHeight: 88, resize: "vertical", lineHeight: 1.6 }}
-              value={scopeOfWork}
-              onChange={(e) => setScopeOfWork(e.target.value)}
-              placeholder="Describe the scope of work, deliverables, and any inclusions / exclusions…"
-            />
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+              <h3 style={{ ...sectionTitle, margin: 0 }}>Scope of work</h3>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={addSow}
+                  style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
+                >
+                  + Add SOW
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {sows.map((sow, idx) => (
+                <div key={sow.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: "10px 12px", background: c.panel2 }}>
+                  <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      SOW {idx + 1}
+                    </span>
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => { setSowFragTarget(sow.id); }}
+                        style={{ fontSize: 11.5, color: c.accent, background: "none", border: `1px solid ${c.accent}40`, borderRadius: 5, padding: "3px 10px", cursor: "pointer", fontWeight: 600 }}
+                      >
+                        ↗ Link SOW template
+                      </button>
+                      {sows.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeSow(sow.id)}
+                          style={{ fontSize: 11.5, color: "#dc2626", background: "none", border: "1px solid #fecaca", borderRadius: 5, padding: "3px 8px", cursor: "pointer" }}
+                        >
+                          − Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <textarea
+                    style={{ ...inp, minHeight: 80, resize: "vertical", lineHeight: 1.6, background: c.panel }}
+                    value={sow.text}
+                    onChange={(e) => updateSow(sow.id, e.target.value)}
+                    placeholder={`Describe scope of work${sows.length > 1 ? ` ${idx + 1}` : ""}…`}
+                  />
+                </div>
+              ))}
+            </div>
           </section>
 
-          {/* ── Linked assets ─────────────────────────────────────────────── */}
+          {/* Linked assets */}
           <section style={cardStyle}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: selectedAssets.length > 0 ? 12 : 0 }}>
               <div>
@@ -595,74 +714,38 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               </div>
               <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
                 {accountId && accountAssets.length === 0 && (
-                  <button
-                    onClick={() => setCreateAssetOpen(true)}
-                    style={{ fontSize: 11.5, color: c.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 500, padding: 0 }}
-                  >
-                    + Create asset first
-                  </button>
+                  <button onClick={() => setCreateAssetOpen(true)} style={{ fontSize: 11.5, color: c.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 500, padding: 0 }}>+ Create asset first</button>
                 )}
                 <button
                   onClick={() => setAssetPickerOpen(true)}
                   disabled={!accountId || accountAssets.length === 0}
-                  style={{
-                    fontSize: 12, fontWeight: 600, borderRadius: 6, padding: "6px 14px", border: "none", cursor: !accountId || accountAssets.length === 0 ? "not-allowed" : "pointer",
-                    background: !accountId || accountAssets.length === 0 ? c.panel2 : c.accentbg,
-                    color: !accountId || accountAssets.length === 0 ? c.hint : c.accent,
-                  }}
+                  style={{ fontSize: 12, fontWeight: 600, borderRadius: 6, padding: "6px 14px", border: "none", cursor: !accountId || accountAssets.length === 0 ? "not-allowed" : "pointer", background: !accountId || accountAssets.length === 0 ? c.panel2 : c.accentbg, color: !accountId || accountAssets.length === 0 ? c.hint : c.accent }}
                 >
                   {selectedAssets.length > 0 ? "Edit selection" : "+ Link asset"}
                 </button>
               </div>
             </div>
 
-            {/* No account selected */}
-            {!accountId && (
-              <div style={{ padding: "20px 0", textAlign: "center", color: c.hint, fontSize: 13 }}>
-                Select an account to link its assets
-              </div>
-            )}
-
-            {/* Account selected but no assets */}
+            {!accountId && <div style={{ padding: "20px 0", textAlign: "center", color: c.hint, fontSize: 13 }}>Select an account to link its assets</div>}
             {accountId && accountAssets.length === 0 && (
               <div style={{ padding: "18px 0", textAlign: "center" }}>
                 <div style={{ fontSize: 13, color: c.muted, marginBottom: 8 }}>No assets registered for this account yet.</div>
-                <button
-                  onClick={() => setCreateAssetOpen(true)}
-                  style={{ fontSize: 13, color: c.accent, fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                >
-                  + Create one now
-                </button>
+                <button onClick={() => setCreateAssetOpen(true)} style={{ fontSize: 13, color: c.accent, fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Create one now</button>
               </div>
             )}
-
-            {/* Selected asset cards */}
             {selectedAssets.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {selectedAssets.map((asset) => (
-                  <div
-                    key={asset.id}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 12,
-                      padding: "10px 14px", borderRadius: 8,
-                      background: c.panel2, border: `1px solid ${c.line}`,
-                    }}
-                  >
-                    {/* Kind badge */}
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 9, flexShrink: 0,
-                      background: pillar[KIND_TONE[asset.kind]].bg,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
+                  <div key={asset.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 8, background: c.panel2, border: `1px solid ${c.line}` }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, background: pillar[KIND_TONE[asset.kind]].bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <KindIcon kind={asset.kind} size={16} color={pillar[KIND_TONE[asset.kind]].fg} />
                     </div>
-                    {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{asset.name}</span>
                         <Pill label={KIND_LABEL[asset.kind]} tone={KIND_TONE[asset.kind]} />
                       </div>
-                      <div style={{ fontSize: 12, color: c.muted, marginBottom: 2 }}>
+                      <div style={{ fontSize: 12, color: c.muted }}>
                         {asset.make && <span>{asset.make}</span>}
                         {asset.make && asset.model && <span style={{ margin: "0 5px", color: c.hint }}>·</span>}
                         {asset.model && <span style={{ fontWeight: 500 }}>{asset.model}</span>}
@@ -672,60 +755,36 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         {asset.serial && asset.rating && <span style={{ margin: "0 5px" }}>·</span>}
                         {asset.rating && <span>{asset.rating}</span>}
                       </div>
-                      {asset.notes && (
-                        <div style={{ fontSize: 10.5, color: c.hint, marginTop: 3, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {asset.notes}
-                        </div>
-                      )}
                     </div>
-                    {/* Remove */}
-                    <button
-                      onClick={() => toggleAsset(asset.id)}
-                      style={{ background: "none", border: "none", color: c.hint, fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}
-                      title="Unlink asset"
-                    >×</button>
+                    <button onClick={() => toggleAsset(asset.id)} style={{ background: "none", border: "none", color: c.hint, fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }} title="Unlink">×</button>
                   </div>
                 ))}
               </div>
             )}
-
-            {/* Empty state when account has assets but none selected */}
             {accountId && accountAssets.length > 0 && selectedAssets.length === 0 && (
-              <div style={{ padding: "16px 0", textAlign: "center", color: c.hint, fontSize: 13 }}>
-                No assets linked yet — click <strong>+ Link asset</strong> to choose
-              </div>
+              <div style={{ padding: "16px 0", textAlign: "center", color: c.hint, fontSize: 13 }}>No assets linked yet — click <strong>+ Link asset</strong></div>
             )}
           </section>
 
-          {/* Line items */}
+          {/* ── Line items (Particulars) ────────────────────────────────── */}
           <section style={cardStyle}>
-            {/* Toolbar */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-              <h3 style={{ ...sectionTitle, margin: 0 }}>Line items</h3>
+              <h3 style={{ ...sectionTitle, margin: 0 }}>Particulars</h3>
               <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
                 {selectedIds.size >= 2 && (
                   <button onClick={groupSelected} style={{ fontSize: 12, fontWeight: 600, color: "#0c447c", background: "#e6f1fb", border: "1px solid #c5dbf5", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
                     ▦ Group selected ({selectedIds.size})
                   </button>
                 )}
-                <button onClick={addAlternative} style={{ fontSize: 12, fontWeight: 600, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
-                  ⊕ Add option
-                </button>
-                <button onClick={addGroup} style={{ fontSize: 12, fontWeight: 600, color: c.muted, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
-                  + Add group
-                </button>
-                <button onClick={addLine} style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
-                  + Add line
-                </button>
+                <button onClick={addAlternative} style={{ fontSize: 12, fontWeight: 600, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>⊕ Add option</button>
+                <button onClick={addGroup} style={{ fontSize: 12, fontWeight: 600, color: c.muted, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ Add group</button>
+                <button onClick={addLine} style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ Add line</button>
               </div>
             </div>
 
-            {/* Column headers — only shown above standalone lines */}
-            <div style={{ display: "grid", gridTemplateColumns: isTechnical ? "20px 1fr 72px 60px 32px" : "20px 1fr 72px 60px 100px 68px 100px 32px", gap: 8, marginBottom: 6 }}>
-              {(isTechnical
-                ? ["", "Description", "UOM", "Qty", ""]
-                : ["", "Description", "UOM", "Qty", "Rate (₹)", "Disc %", "Amount", ""]
-              ).map((h, i) => (
+            {/* Column headers */}
+            <div style={{ display: "grid", gridTemplateColumns: standaloneCols, gap: 8, marginBottom: 6 }}>
+              {standaloneHeaders.map((h, i) => (
                 <div key={i} style={{ fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</div>
               ))}
             </div>
@@ -739,10 +798,17 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   const amount = qty * rate * (1 - disc / 100);
                   const sel    = selectedIds.has(row.id);
                   return (
-                    <div key={row.id} style={{ display: "grid", gridTemplateColumns: isTechnical ? "20px 1fr 72px 60px 32px" : "20px 1fr 72px 60px 100px 68px 100px 32px", gap: 8, alignItems: "start", borderBottom: `1px solid ${c.line}`, background: sel ? c.accentbg : "transparent", borderRadius: sel ? 6 : 0, padding: sel ? "4px 6px 8px" : "0 0 8px" }}>
+                    <div key={row.id} style={{ display: "grid", gridTemplateColumns: standaloneCols, gap: 8, alignItems: "start", borderBottom: `1px solid ${c.line}`, background: sel ? c.accentbg : "transparent", borderRadius: sel ? 6 : 0, padding: sel ? "4px 6px 8px" : "0 0 8px" }}>
                       <div style={{ paddingTop: 10 }}>
                         <input type="checkbox" checked={sel} onChange={() => toggleSelect(row.id)} style={{ width: 13, height: 13, accentColor: c.accent, cursor: "pointer" }} />
                       </div>
+                      {/* Sl No */}
+                      <input
+                        style={{ ...inp, textAlign: "center", fontFamily: "monospace", fontSize: 12, padding: "8px 4px" }}
+                        value={row.sl_no}
+                        onChange={(e) => updateLine(row.id, "sl_no", e.target.value)}
+                        placeholder="1"
+                      />
                       <div>
                         <textarea style={{ ...inp, resize: "vertical", minHeight: 58, lineHeight: 1.5 }} value={row.description} onChange={(e) => updateLine(row.id, "description", e.target.value)} placeholder="Describe the service or item…" />
                         <button onClick={() => openCatalog(row.id)} style={{ marginTop: 4, fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ From catalog</button>
@@ -768,10 +834,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 // Group row
                 const isAlt = row.group_type === "alternative";
                 const isSelectedAlt = isAlt && row.id === effectiveAltId;
-                const groupColor = isAlt ? "#d97706" : c.accent;
-                const groupBg    = isAlt ? "#fffbeb" : `${c.accent}06`;
+                const groupColor  = isAlt ? "#d97706" : c.accent;
+                const groupBg     = isAlt ? "#fffbeb" : `${c.accent}06`;
                 const groupBorder = isAlt ? "#fde68a" : `${c.accent}40`;
-                const groupTotal = row.items.reduce((s, i) => {
+                const groupTotal  = row.items.reduce((s, i) => {
                   const qty  = parseFloat(i.qty) || 0;
                   const rate = parseFloat(i.rate) || 0;
                   const disc = Math.max(0, Math.min(100, parseFloat(i.discount) || 0));
@@ -779,39 +845,40 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 }, 0);
                 return (
                   <div key={row.id} style={{ border: `1px solid ${groupBorder}`, borderLeft: `3px solid ${groupColor}`, borderRadius: 8, background: groupBg, padding: "10px 12px", marginBottom: 2, opacity: isAlt && !isSelectedAlt ? 0.6 : 1 }}>
-                    {/* Group header */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    {/* Group header row */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                       <span style={{ fontSize: 12, color: groupColor }}>{isAlt ? "⊕" : "▦"}</span>
                       {isAlt && (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" }}>
-                          OPTION
-                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" }}>OPTION</span>
                       )}
                       <input
                         value={row.label}
                         onChange={(e) => updateGroupLabel(row.id, e.target.value)}
-                        style={{ flex: 1, fontSize: 13, fontWeight: 600, border: "none", background: "transparent", color: c.ink, outline: "none", borderBottom: `1px dashed ${c.line}`, padding: "2px 0" }}
-                        placeholder={isAlt ? "Option name (e.g. Option A)…" : "Group name…"}
+                        style={{ flex: 1, fontSize: 13, fontWeight: 700, border: "none", background: "transparent", color: c.ink, outline: "none", borderBottom: `1px dashed ${c.line}`, padding: "2px 0" }}
+                        placeholder={isAlt ? "Option name…" : "Group name (e.g. Group A)…"}
                       />
                       {isAlt && (
-                        isSelectedAlt ? (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", background: "#d1fae5", border: "1px solid #6ee7b7", borderRadius: 5, padding: "2px 8px", whiteSpace: "nowrap" }}>✓ Selected</span>
-                        ) : (
-                          <button onClick={() => setSelectedAltId(row.id)} style={{ fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 5, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>
-                            Select this option
-                          </button>
-                        )
+                        isSelectedAlt
+                          ? <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", background: "#d1fae5", border: "1px solid #6ee7b7", borderRadius: 5, padding: "2px 8px", whiteSpace: "nowrap" }}>✓ Selected</span>
+                          : <button onClick={() => setSelectedAltId(row.id)} style={{ fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 5, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>Select this option</button>
                       )}
                       <button onClick={() => ungroup(row.id)} style={{ fontSize: 11, color: c.muted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", whiteSpace: "nowrap" }}>Ungroup</button>
                       <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", lineHeight: 1 }} title="Delete group">×</button>
                     </div>
 
-                    {/* Column headers inside group */}
-                    <div style={{ display: "grid", gridTemplateColumns: isTechnical ? "1fr 72px 60px 32px" : "1fr 72px 60px 100px 68px 100px 32px", gap: 8, marginBottom: 4, paddingLeft: 4 }}>
-                      {(isTechnical
-                        ? ["Description", "UOM", "Qty", ""]
-                        : ["Description", "UOM", "Qty", "Rate (₹)", "Disc %", "Amount", ""]
-                      ).map((h, i) => (
+                    {/* Group description */}
+                    <div style={{ marginBottom: 10 }}>
+                      <input
+                        value={row.group_description}
+                        onChange={(e) => updateGroupDescription(row.id, e.target.value)}
+                        style={{ ...inp, fontSize: 12.5, background: "transparent", borderColor: row.group_description ? c.line : `${c.line}60` }}
+                        placeholder="Group description (e.g. Motor Stator Winding)…"
+                      />
+                    </div>
+
+                    {/* Group item column headers */}
+                    <div style={{ display: "grid", gridTemplateColumns: groupItemCols, gap: 8, marginBottom: 4, paddingLeft: 4 }}>
+                      {groupItemHeaders.map((h, i) => (
                         <div key={i} style={{ fontSize: 10, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</div>
                       ))}
                     </div>
@@ -824,7 +891,14 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         const disc   = Math.max(0, Math.min(100, parseFloat(item.discount) || 0));
                         const amount = qty * rate * (1 - disc / 100);
                         return (
-                          <div key={item.id} style={{ display: "grid", gridTemplateColumns: isTechnical ? "1fr 72px 60px 32px" : "1fr 72px 60px 100px 68px 100px 32px", gap: 8, alignItems: "start", paddingBottom: 6, borderBottom: `1px solid ${c.accent}20` }}>
+                          <div key={item.id} style={{ display: "grid", gridTemplateColumns: groupItemCols, gap: 8, alignItems: "start", paddingBottom: 6, borderBottom: `1px solid ${c.accent}20` }}>
+                            {/* Sl No */}
+                            <input
+                              style={{ ...inp, textAlign: "center", fontFamily: "monospace", fontSize: 12, padding: "6px 4px" }}
+                              value={item.sl_no}
+                              onChange={(e) => updateLine(item.id, "sl_no", e.target.value)}
+                              placeholder="1.1"
+                            />
                             <div>
                               <textarea style={{ ...inp, resize: "vertical", minHeight: 48, lineHeight: 1.5, fontSize: 12.5 }} value={item.description} onChange={(e) => updateLine(item.id, "description", e.target.value)} placeholder="Line description…" />
                               <button onClick={() => openCatalog(item.id)} style={{ marginTop: 3, fontSize: 10.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ Catalog</button>
@@ -851,7 +925,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     {/* Group footer */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, paddingTop: 6 }}>
                       <button onClick={() => addLineToGroup(row.id)} style={{ fontSize: 11.5, color: groupColor, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Add line</button>
-                      {!isTechnical && <span style={{ fontSize: 12, color: c.muted }}>{isAlt ? "Option total" : "Group total"}: <strong style={{ color: c.ink, marginLeft: 4 }}>{fmt(groupTotal)}</strong></span>}
+                      {!isTechnical && (
+                        <span style={{ fontSize: 12, color: c.muted }}>
+                          {isAlt ? "Option total" : "Group total"}:{" "}
+                          <strong style={{ color: c.ink, marginLeft: 4 }}>{fmt(groupTotal)}</strong>
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -865,7 +944,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <h3 style={{ ...sectionTitle, margin: 0 }}>Notes</h3>
               <button onClick={() => setFragTarget("notes")} style={{ marginLeft: "auto", fontSize: 11.5, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>+ Insert template</button>
             </div>
-            <textarea style={{ ...inp, minHeight: 88, resize: "vertical", lineHeight: 1.6 }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes for the customer (payment terms, special conditions, delivery notes)…" />
+            <textarea style={{ ...inp, minHeight: 88, resize: "vertical", lineHeight: 1.6 }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes for the customer…" />
           </section>
 
           {/* Terms */}
@@ -876,65 +955,148 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             </div>
             <textarea style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Standard terms and conditions…" />
           </section>
+
+          {/* Custom fields */}
+          {cfDefs.length > 0 && (
+            <section style={cardStyle}>
+              <h3 style={sectionTitle}>Custom fields</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {cfDefs.map((f) => (
+                  <div key={f.id}>
+                    <label style={lbl}>{f.field_label}{f.is_required ? " *" : ""}</label>
+                    {f.field_type === "select" && f.options ? (
+                      <select style={selStyle} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
+                        <option value="">— select —</option>
+                        {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : f.field_type === "checkbox" ? (
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, height: 38 }}>
+                        <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15, accentColor: c.accent }} />
+                        {cfValues[f.field_key] ? "Yes" : "No"}
+                      </label>
+                    ) : f.field_type === "textarea" ? (
+                      <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+                    ) : (
+                      <input style={inp} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* ── RIGHT ────────────────────────────────────────────────────────── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12, position: "sticky", top: 20 }}>
 
-          {/* Summary — hidden for technical offers */}
-          {!isTechnical && <section style={cardStyle}>
-            <h3 style={sectionTitle}>Summary</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-              {parsedLines.map((l, i) => l.amount > 0 && (
-                <div key={l.id} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", fontSize: 12, borderTop: `1px solid ${c.line}`, color: c.muted }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{l.description || `Line ${i + 1}`}</span>
-                  <span style={{ flexShrink: 0, marginLeft: 8 }}>{fmt(l.amount)}</span>
-                </div>
-              ))}
-            </div>
+          {/* Summary — hierarchical breakdown */}
+          {!isTechnical && (
+            <section style={cardStyle}>
+              <h3 style={sectionTitle}>Summary</h3>
 
-            <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 10, paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: c.muted }}>
-                <span>Subtotal</span>
-                <span style={{ fontWeight: 600, color: c.ink }}>{fmt(subtotal)}</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {rows.map((row) => {
+                  if (row.kind === "line") {
+                    const qty  = parseFloat(row.qty) || 0;
+                    const rate = parseFloat(row.rate) || 0;
+                    const disc = Math.max(0, Math.min(100, parseFloat(row.discount) || 0));
+                    const amount = qty * rate * (1 - disc / 100);
+                    if (amount === 0 && !row.description) return null;
+                    return (
+                      <div key={row.id} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", fontSize: 12, borderTop: `1px solid ${c.line}`, color: c.muted }}>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>
+                          {row.sl_no && <span style={{ fontFamily: "monospace", fontSize: 10.5, marginRight: 5, color: c.hint }}>{row.sl_no}</span>}
+                          {row.description || "—"}
+                        </span>
+                        <span style={{ flexShrink: 0, marginLeft: 8 }}>{amount > 0 ? fmt(amount) : "—"}</span>
+                      </div>
+                    );
+                  }
+
+                  // Group row in summary
+                  if (row.group_type === "alternative" && row.id !== effectiveAltId) return null;
+                  const groupTotal = row.items.reduce((s, i) => {
+                    const qty  = parseFloat(i.qty) || 0;
+                    const rate = parseFloat(i.rate) || 0;
+                    const disc = Math.max(0, Math.min(100, parseFloat(i.discount) || 0));
+                    return s + qty * rate * (1 - disc / 100);
+                  }, 0);
+                  return (
+                    <div key={row.id} style={{ borderTop: `1px solid ${c.line}` }}>
+                      {/* Group header in summary */}
+                      <div style={{ padding: "6px 0 3px", fontSize: 11, fontWeight: 700, color: c.accent, display: "flex", alignItems: "baseline", gap: 6 }}>
+                        <span>{row.label}</span>
+                        {row.group_description && <span style={{ fontSize: 10, fontWeight: 400, color: c.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>— {row.group_description}</span>}
+                      </div>
+                      {/* Group items indented */}
+                      {row.items.map((item) => {
+                        const qty  = parseFloat(item.qty) || 0;
+                        const rate = parseFloat(item.rate) || 0;
+                        const disc = Math.max(0, Math.min(100, parseFloat(item.discount) || 0));
+                        const amount = qty * rate * (1 - disc / 100);
+                        return (
+                          <div key={item.id} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0 3px 10px", fontSize: 11.5, color: c.muted }}>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 140 }}>
+                              {item.sl_no && <span style={{ fontFamily: "monospace", fontSize: 10, marginRight: 4, color: c.hint }}>{item.sl_no}</span>}
+                              {item.description || "—"}
+                            </span>
+                            <span style={{ flexShrink: 0, marginLeft: 6 }}>{amount > 0 ? fmt(amount) : "—"}</span>
+                          </div>
+                        );
+                      })}
+                      {/* Group total */}
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0 6px 10px", fontSize: 11.5, borderBottom: `1px dashed ${c.line}` }}>
+                        <span style={{ color: c.hint, fontStyle: "italic" }}>{row.group_type === "alternative" ? "Option" : "Group"} total</span>
+                        <span style={{ fontWeight: 700, color: c.ink }}>{fmt(groupTotal)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Discount */}
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, color: c.muted }}>Discount</span>
-                  <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: `1px solid ${c.line}` }}>
-                    {(["pct", "fixed"] as const).map((t) => (
-                      <button key={t} onClick={() => setDiscountType(t)} style={{ padding: "3px 11px", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: discountType === t ? c.accent : c.panel2, color: discountType === t ? "#fff" : c.muted }}>
-                        {t === "pct" ? "%" : "₹"}
-                      </button>
-                    ))}
+              <div style={{ borderTop: `2px solid ${c.line}`, marginTop: 10, paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: c.muted }}>
+                  <span>Subtotal</span>
+                  <span style={{ fontWeight: 600, color: c.ink }}>{fmt(subtotal)}</span>
+                </div>
+
+                {/* Discount */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, color: c.muted }}>Discount</span>
+                    <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: `1px solid ${c.line}` }}>
+                      {(["pct", "fixed"] as const).map((t) => (
+                        <button key={t} onClick={() => setDiscountType(t)} style={{ padding: "3px 11px", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: discountType === t ? c.accent : c.panel2, color: discountType === t ? "#fff" : c.muted }}>
+                          {t === "pct" ? "%" : "₹"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                    {discountType === "pct" ? (
+                      <>
+                        <input type="number" min="0" max="100" step="0.5" value={discountPct} onChange={(e) => setDiscountPct(e.target.value)} style={{ width: 52, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }} />
+                        <span style={{ fontSize: 11, color: c.hint }}>%</span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: 11, color: c.hint }}>₹</span>
+                        <input type="number" min="0" step="100" value={discountFixed} onChange={(e) => setDiscountFixed(e.target.value)} style={{ width: 84, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }} />
+                      </>
+                    )}
+                    <span style={{ fontWeight: 600, color: discAmount > 0 ? pillar.red.fg : c.muted, minWidth: 60, textAlign: "right" }}>
+                      {discAmount > 0 ? `− ${fmt(discAmount)}` : "—"}
+                    </span>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
-                  {discountType === "pct" ? (
-                    <>
-                      <input type="number" min="0" max="100" step="0.5" value={discountPct} onChange={(e) => setDiscountPct(e.target.value)} style={{ width: 52, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }} />
-                      <span style={{ fontSize: 11, color: c.hint }}>%</span>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ fontSize: 11, color: c.hint }}>₹</span>
-                      <input type="number" min="0" step="100" value={discountFixed} onChange={(e) => setDiscountFixed(e.target.value)} style={{ width: 84, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }} />
-                    </>
-                  )}
-                  <span style={{ fontWeight: 600, color: discAmount > 0 ? pillar.red.fg : c.muted, minWidth: 60, textAlign: "right" }}>
-                    {discAmount > 0 ? `− ${fmt(discAmount)}` : "—"}
-                  </span>
+
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: pillar.green.bg, borderRadius: 9, marginTop: 2 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: pillar.green.fg }}>Total</span>
+                  <span style={{ fontSize: 17, fontWeight: 800, color: pillar.green.fg }}>{fmt(total)}</span>
                 </div>
               </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: pillar.green.bg, borderRadius: 9, marginTop: 2 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: pillar.green.fg }}>Total</span>
-                <span style={{ fontSize: 17, fontWeight: 800, color: pillar.green.fg }}>{fmt(total)}</span>
-              </div>
-            </div>
-          </section>}
+            </section>
+          )}
 
           {/* PO status */}
           {(poNumber || poAmount) && (
@@ -961,9 +1123,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           {/* Linked assets summary */}
           {selectedAssets.length > 0 && (
             <section style={{ ...cardStyle, padding: "12px 14px" }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-                Assets · {selectedAssets.length}
-              </div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Assets · {selectedAssets.length}</div>
               {selectedAssets.map((asset, idx) => (
                 <div key={asset.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: idx > 0 ? `1px solid ${c.line}` : "none" }}>
                   <KindIcon kind={asset.kind} size={14} />
@@ -974,14 +1134,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         {[asset.make, asset.model].filter(Boolean).join(" · ")}
                       </div>
                     )}
-                    {asset.serial && <div style={{ fontSize: 10.5, color: c.hint, fontFamily: "monospace" }}>{asset.serial}</div>}
                   </div>
                 </div>
               ))}
             </section>
           )}
 
-          {/* Owner */}
           <div style={{ fontSize: 11, color: c.hint, textAlign: "center" }}>
             Created by <span style={{ color: c.muted, fontWeight: 600 }}>{owner || "—"}</span>
           </div>
@@ -1004,102 +1162,50 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         </div>
       </div>
 
-      {/* ── Asset picker panel ────────────────────────────────────────────── */}
+      {/* ── Asset picker panel ─────────────────────────────────────────────── */}
       {assetPickerOpen && (
         <>
           <div onClick={() => setAssetPickerOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
           <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
-            {/* Header */}
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Link assets</div>
-                <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>
-                  {selectedAccount?.name} · {accountAssets.length} asset{accountAssets.length !== 1 ? "s" : ""}
-                </div>
+                <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{selectedAccount?.name} · {accountAssets.length} asset{accountAssets.length !== 1 ? "s" : ""}</div>
               </div>
               <button onClick={() => setAssetPickerOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
-
-            {/* Asset list */}
             <div style={{ flex: 1, overflowY: "auto" }}>
               {accountAssets.map((asset) => {
                 const selected = selectedAssetIds.includes(asset.id);
                 return (
-                  <button
-                    key={asset.id}
-                    onClick={() => toggleAsset(asset.id)}
-                    style={{
-                      width: "100%", textAlign: "left", padding: "14px 20px",
-                      background: selected ? c.accentbg : "none",
-                      border: "none", borderBottom: `1px solid ${c.line}`,
-                      cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
-                    }}
+                  <button key={asset.id} onClick={() => toggleAsset(asset.id)} style={{ width: "100%", textAlign: "left", padding: "14px 20px", background: selected ? c.accentbg : "none", border: "none", borderBottom: `1px solid ${c.line}`, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}
                     onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = c.panel2; }}
                     onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "none"; }}
                   >
-                    {/* Checkbox */}
-                    <div style={{
-                      width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                      border: `2px solid ${selected ? c.accent : c.line}`,
-                      background: selected ? c.accent : "transparent",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11, color: "#fff", fontWeight: 700,
-                    }}>
-                      {selected ? "✓" : ""}
-                    </div>
-                    {/* Kind icon */}
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                      background: pillar[KIND_TONE[asset.kind]].bg,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
+                    <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${selected ? c.accent : c.line}`, background: selected ? c.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 700 }}>{selected ? "✓" : ""}</div>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: pillar[KIND_TONE[asset.kind]].bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <KindIcon kind={asset.kind} size={16} color={pillar[KIND_TONE[asset.kind]].fg} />
                     </div>
-                    {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{asset.name}</span>
                         <Pill label={KIND_LABEL[asset.kind]} tone={KIND_TONE[asset.kind]} />
                       </div>
-                      <div style={{ fontSize: 12, color: c.muted, marginBottom: 2 }}>
+                      <div style={{ fontSize: 12, color: c.muted }}>
                         {asset.make && <span>{asset.make}</span>}
                         {asset.make && asset.model && <span style={{ margin: "0 5px", color: c.hint }}>·</span>}
                         {asset.model && <span style={{ fontWeight: 500 }}>{asset.model}</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: c.hint }}>
-                        {asset.serial && <span style={{ fontFamily: "monospace" }}>{asset.serial}</span>}
-                        {asset.serial && asset.rating && <span style={{ margin: "0 5px" }}>·</span>}
-                        {asset.rating && <span>{asset.rating}</span>}
-                      </div>
-                      {asset.notes && (
-                        <div style={{ fontSize: 10.5, color: c.hint, marginTop: 3, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {asset.notes}
-                        </div>
-                      )}
                     </div>
                   </button>
                 );
               })}
             </div>
-
-            {/* Footer */}
             <div style={{ padding: "14px 20px", borderTop: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: c.muted }}>
-                {selectedAssetIds.length} selected
-              </span>
+              <span style={{ fontSize: 12, color: c.muted }}>{selectedAssetIds.length} selected</span>
               <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => { setAssetPickerOpen(false); setCreateAssetOpen(true); }}
-                  style={{ fontSize: 12, color: c.accent, background: "none", padding: "7px 14px", border: `1px solid ${c.accent}`, borderRadius: 7, fontWeight: 500, cursor: "pointer" }}
-                >
-                  + Create new asset
-                </button>
-                <button
-                  onClick={() => setAssetPickerOpen(false)}
-                  style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: c.accent, border: "none", borderRadius: 7, padding: "7px 18px", cursor: "pointer" }}
-                >
-                  Done
-                </button>
+                <button onClick={() => { setAssetPickerOpen(false); setCreateAssetOpen(true); }} style={{ fontSize: 12, color: c.accent, background: "none", padding: "7px 14px", border: `1px solid ${c.accent}`, borderRadius: 7, fontWeight: 500, cursor: "pointer" }}>+ Create new asset</button>
+                <button onClick={() => setAssetPickerOpen(false)} style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: c.accent, border: "none", borderRadius: 7, padding: "7px 18px", cursor: "pointer" }}>Done</button>
               </div>
             </div>
           </div>
@@ -1158,13 +1264,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>New asset</div>
-                <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>
-                  {selectedAccount ? `Linked to ${selectedAccount.name}` : "No account selected"}
-                </div>
+                <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{selectedAccount ? `Linked to ${selectedAccount.name}` : "No account selected"}</div>
               </div>
               <button onClick={() => setCreateAssetOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
-
             <form onSubmit={handleCreateAsset} style={{ flex: 1, overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
                 <label style={lbl}>Asset name *</label>
@@ -1183,50 +1286,24 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>Model</label>
-                  <input style={inp} value={newAsset.model} onChange={setNA("model")} placeholder="e.g. ND315S-2" />
-                </div>
-                <div>
-                  <label style={lbl}>Serial no.</label>
-                  <input style={inp} value={newAsset.serial} onChange={setNA("serial")} placeholder="e.g. CG-75-2291" />
-                </div>
+                <div><label style={lbl}>Model</label><input style={inp} value={newAsset.model} onChange={setNA("model")} placeholder="e.g. ND315S-2" /></div>
+                <div><label style={lbl}>Serial no.</label><input style={inp} value={newAsset.serial} onChange={setNA("serial")} placeholder="e.g. CG-75-2291" /></div>
               </div>
-              <div>
-                <label style={lbl}>Rating / specs</label>
-                <input style={inp} value={newAsset.rating} onChange={setNA("rating")} placeholder="e.g. 75 kW · 415V · 1480 rpm" />
-              </div>
-              <div>
-                <label style={lbl}>Notes / history</label>
-                <textarea style={{ ...inp, resize: "vertical", minHeight: 64 }} value={newAsset.notes} onChange={setNA("notes")} placeholder="e.g. Rewound once — June 2024." />
-              </div>
-
-              {createAssetError && (
-                <div style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", borderRadius: 7, padding: "8px 12px" }}>{createAssetError}</div>
-              )}
-
+              <div><label style={lbl}>Rating / specs</label><input style={inp} value={newAsset.rating} onChange={setNA("rating")} placeholder="e.g. 75 kW · 415V · 1480 rpm" /></div>
+              <div><label style={lbl}>Notes / history</label><textarea style={{ ...inp, resize: "vertical", minHeight: 64 }} value={newAsset.notes} onChange={setNA("notes")} placeholder="e.g. Rewound once — June 2024." /></div>
+              {createAssetError && <div style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", borderRadius: 7, padding: "8px 12px" }}>{createAssetError}</div>}
               <div style={{ display: "flex", gap: 8, paddingTop: 4 }}>
-                <button
-                  type="submit"
-                  disabled={createAssetPending}
-                  style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13, cursor: createAssetPending ? "wait" : "pointer" }}
-                >
+                <button type="submit" disabled={createAssetPending} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13, cursor: createAssetPending ? "wait" : "pointer" }}>
                   {createAssetPending ? "Creating…" : "Create & link asset"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setCreateAssetOpen(false)}
-                  style={{ padding: "10px 16px", borderRadius: 8, border: `1px solid ${c.line}`, background: "none", color: c.muted, fontSize: 13, cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
+                <button type="button" onClick={() => setCreateAssetOpen(false)} style={{ padding: "10px 16px", borderRadius: 8, border: `1px solid ${c.line}`, background: "none", color: c.muted, fontSize: 13, cursor: "pointer" }}>Cancel</button>
               </div>
             </form>
           </div>
         </>
       )}
 
-      {/* ── Fragment picker panel ────────────────────────────────────────── */}
+      {/* ── Notes / Terms fragment picker ────────────────────────────────── */}
       {fragTarget && (
         <>
           <div onClick={() => setFragTarget(null)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
@@ -1249,7 +1326,37 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           </div>
         </>
       )}
+
+      {/* ── SOW template picker ──────────────────────────────────────────── */}
+      {sowFragTarget && (
+        <>
+          <div onClick={() => setSowFragTarget(null)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 400, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>SOW templates</div>
+                <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>Click to insert into this SOW entry</div>
+              </div>
+              <button onClick={() => setSowFragTarget(null)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer" }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {sowFrags.length === 0 ? (
+                <div style={{ padding: "32px 24px", textAlign: "center" }}>
+                  <div style={{ fontSize: 13, color: c.muted, marginBottom: 8 }}>No SOW templates yet.</div>
+                  <div style={{ fontSize: 12, color: c.hint, lineHeight: 1.6 }}>
+                    Create SOW templates in <strong>Settings → Text templates</strong> with category <code>sow</code>.
+                  </div>
+                </div>
+              ) : sowFrags.map((frag) => (
+                <button key={frag.id} onClick={() => insertSowFragment(frag)} style={{ width: "100%", textAlign: "left", padding: "14px 20px", background: "none", border: "none", borderBottom: `1px solid ${c.line}`, cursor: "pointer" }} onMouseEnter={(e) => (e.currentTarget.style.background = c.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, marginBottom: 5 }}>{frag.label}</div>
+                  <div style={{ fontSize: 11.5, color: c.muted, lineHeight: 1.55, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{frag.text}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }
-
