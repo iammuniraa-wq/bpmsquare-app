@@ -232,10 +232,21 @@ export const CASE_TYPE_LABEL: Record<string, string> = {
   direct: "Direct",
 };
 
+// All metric IDs available in the Analytics page.
+export type AnalyticsMetricId =
+  | "accounts" | "contacts" | "assets" | "open_cases" | "work_orders"
+  | "contracts" | "leads" | "technicians"
+  | "accounts_by_type" | "lead_funnel" | "assets_by_kind"
+  | "quote_trend" | "case_status" | "work_order_status"
+  | "technician_availability" | "revenue_overview"
+  | "invoices_by_status" | "loaner_availability" | "recent_activity";
+
 // TenantConfig — full shape of tenants.config JSONB column.
 export type TenantConfig = {
   entities: TenantEntity[];
   tax: TenantTaxConfig;
   // Which quote types are shown in the New Quotation picker. Omitted key = visible.
   quote_type_visibility?: Partial<Record<QuoteTypeId, boolean>>;
+  // Analytics metrics the tenant has explicitly hidden. Omitted = visible.
+  analytics_hidden?: AnalyticsMetricId[];
 };

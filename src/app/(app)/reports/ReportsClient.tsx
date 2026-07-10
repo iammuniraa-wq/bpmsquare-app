@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
+import type { AnalyticsMetricId } from "@/lib/constants";
 import { QUOTE_STATUS_LABEL } from "@/lib/data/labels";
 import type { QuoteSummary, AnalyticsData } from "@/lib/data/labels";
 import type { Quote } from "@/lib/types";
+import type { TenantFeatures } from "@/lib/tenant";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -310,19 +313,74 @@ function HBarChartNav({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+// ── Metric metadata — label + which feature gates it ─────────────────────────
+const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures }> = {
+  accounts:               { label: "Accounts KPI" },
+  contacts:               { label: "Contacts KPI" },
+  assets:                 { label: "Assets KPI" },
+  open_cases:             { label: "Open Cases KPI" },
+  work_orders:            { label: "Work Orders KPI" },
+  contracts:              { label: "Contracts KPI",       feature: "amc" },
+  leads:                  { label: "Leads KPI",           feature: "leads" },
+  technicians:            { label: "Technicians KPI" },
+  accounts_by_type:       { label: "Accounts by type" },
+  lead_funnel:            { label: "Lead pipeline funnel", feature: "leads" },
+  assets_by_kind:         { label: "Assets by kind" },
+  quote_trend:            { label: "Quote value trend" },
+  case_status:            { label: "Case status bars" },
+  work_order_status:      { label: "Work orders by status" },
+  technician_availability:{ label: "Technician availability" },
+  revenue_overview:       { label: "Revenue overview",    feature: "invoices" },
+  invoices_by_status:     { label: "Invoices by status",  feature: "invoices" },
+  loaner_availability:    { label: "Loaner availability" },
+  recent_activity:        { label: "Recent activity" },
+};
+
 export default function ReportsClient({
   rows: initialRows,
   analytics: a,
+  features,
+  hiddenMetrics: initialHidden,
+  isAdmin,
 }: {
   rows: QuoteSummary[];
   analytics: AnalyticsData;
+  features: TenantFeatures;
+  hiddenMetrics: AnalyticsMetricId[];
+  isAdmin: boolean;
 }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [rows]            = useState<QuoteSummary[]>(initialRows);
   const [filterStatus, setFilterStatus]   = useState<Quote["status"] | "">("");
   const [filterAccount, setFilterAccount] = useState("");
   const [sortKey, setSortKey]             = useState<"date" | "total" | "ref">("date");
   const [sortDir, setSortDir]             = useState<"asc" | "desc">("desc");
   const [filtersOpen, setFiltersOpen]     = useState(false);
+  const [adaptOpen, setAdaptOpen]         = useState(false);
+  const [hidden, setHidden]               = useState<Set<AnalyticsMetricId>>(new Set(initialHidden));
+  const [saving, setSaving]               = useState(false);
+
+  // A metric is visible if: (a) not feature-gated or feature is enabled, AND (b) not hidden by admin
+  function isVisible(id: AnalyticsMetricId): boolean {
+    const meta = METRIC_META[id];
+    if (meta.feature && !features[meta.feature]) return false;
+    return !hidden.has(id);
+  }
+
+  async function toggleHidden(id: AnalyticsMetricId) {
+    const next = new Set(hidden);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setHidden(next);
+    setSaving(true);
+    await fetch("/api/settings/entities", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ analytics_hidden: [...next] }),
+    });
+    setSaving(false);
+    startTransition(() => router.refresh());
+  }
 
   const STATUSES: Array<Quote["status"]> = ["draft", "sent", "approved", "rejected"];
 
@@ -377,26 +435,74 @@ export default function ReportsClient({
     field: "amber", finance: "green",
   };
 
-  const kpiTiles: Array<{ label: string; value: number; color: string; href: string }> = [
-    { label: "Accounts",    value: a.totals.accounts,        color: pillar.blue.fg,   href: ROUTES.accounts },
-    { label: "Contacts",    value: a.totals.contacts,        color: c.ink,            href: ROUTES.contacts },
-    { label: "Assets",      value: a.totals.customerAssets,  color: pillar.teal.fg,   href: ROUTES.assets },
-    { label: "Open cases",  value: a.totals.openCases,       color: pillar.amber.fg,  href: `${ROUTES.cases}?filter=open` },
-    { label: "Work orders", value: a.totals.workOrders,      color: pillar.purple.fg, href: ROUTES.workOrders },
-    { label: "Contracts",   value: a.totals.activeContracts, color: pillar.green.fg,  href: ROUTES.amc },
-    { label: "Leads",       value: a.totals.leads,           color: c.ink,            href: ROUTES.leads },
-    { label: "Technicians", value: a.totals.technicians,     color: pillar.blue.fg,   href: ROUTES.technicians },
+  const kpiTiles: Array<{ id: AnalyticsMetricId; label: string; value: number; color: string; href: string }> = [
+    { id: "accounts",    label: "Accounts",    value: a.totals.accounts,        color: pillar.blue.fg,   href: ROUTES.accounts },
+    { id: "contacts",    label: "Contacts",    value: a.totals.contacts,        color: c.ink,            href: ROUTES.contacts },
+    { id: "assets",      label: "Assets",      value: a.totals.customerAssets,  color: pillar.teal.fg,   href: ROUTES.assets },
+    { id: "open_cases",  label: "Open cases",  value: a.totals.openCases,       color: pillar.amber.fg,  href: `${ROUTES.cases}?filter=open` },
+    { id: "work_orders", label: "Work orders", value: a.totals.workOrders,      color: pillar.purple.fg, href: ROUTES.workOrders },
+    { id: "contracts",   label: "Contracts",   value: a.totals.activeContracts, color: pillar.green.fg,  href: ROUTES.amc },
+    { id: "leads",       label: "Leads",       value: a.totals.leads,           color: c.ink,            href: ROUTES.leads },
+    { id: "technicians", label: "Technicians", value: a.totals.technicians,     color: pillar.blue.fg,   href: ROUTES.technicians },
   ];
 
   return (
     <>
+      {/* ── Adapt panel ── */}
+      {isAdmin && (
+        <div style={{ marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={() => setAdaptOpen((o) => !o)}
+            style={{
+              fontSize: 12, padding: "5px 14px", borderRadius: 7, cursor: "pointer",
+              border: `1px solid ${c.line}`, background: adaptOpen ? c.accentbg : c.panel2,
+              color: adaptOpen ? c.accent : c.muted, fontWeight: 600,
+            }}
+          >
+            {adaptOpen ? "✕ Close" : "⚙ Adapt"}
+            {saving && <span style={{ marginLeft: 6, opacity: 0.6 }}>saving…</span>}
+          </button>
+        </div>
+      )}
+
+      {adaptOpen && isAdmin && (
+        <div style={{
+          ...cardStyle, marginBottom: 20,
+          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8,
+        }}>
+          <div style={{ gridColumn: "1 / -1", fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>
+            Show / hide metrics
+          </div>
+          {(Object.entries(METRIC_META) as [AnalyticsMetricId, typeof METRIC_META[AnalyticsMetricId]][]).map(([id, meta]) => {
+            const featureOff = meta.feature && !features[meta.feature];
+            const isHidden   = hidden.has(id);
+            return (
+              <label key={id} style={{
+                display: "flex", alignItems: "center", gap: 8, cursor: featureOff ? "not-allowed" : "pointer",
+                opacity: featureOff ? 0.4 : 1,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={!isHidden && !featureOff}
+                  disabled={!!featureOff}
+                  onChange={() => !featureOff && toggleHidden(id)}
+                  style={{ accentColor: c.accent, width: 14, height: 14 }}
+                />
+                <span style={{ fontSize: 12.5, color: c.ink }}>{meta.label}</span>
+                {featureOff && <span style={{ fontSize: 11, color: c.hint }}>(feature off)</span>}
+              </label>
+            );
+          })}
+        </div>
+      )}
+
       {/* ── KPI tiles ── */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
         gap: 10, marginBottom: 20,
       }}>
-        {kpiTiles.map((s) => (
+        {kpiTiles.filter((s) => isVisible(s.id as AnalyticsMetricId)).map((s) => (
           <Link key={s.label} href={s.href} style={{ textDecoration: "none" }}>
             <div style={{
               background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
@@ -415,16 +521,17 @@ export default function ReportsClient({
       </div>
 
       {/* ── Row 1: Accounts donut · Lead funnel · Assets donut ── */}
+      {(isVisible("accounts_by_type") || isVisible("lead_funnel") || isVisible("assets_by_kind")) && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14, marginBottom: 14 }}>
 
-        <ChartCard title="Accounts by type" href={ROUTES.accounts}>
+        {isVisible("accounts_by_type") && <ChartCard title="Accounts by type" href={ROUTES.accounts}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <DonutChartNavigable segments={accountDonutSegs} />
             <DonutLegendNav items={accountDonutSegs} />
           </div>
-        </ChartCard>
+        </ChartCard>}
 
-        <ChartCard title="Lead pipeline funnel" href={ROUTES.leads}>
+        {isVisible("lead_funnel") && <ChartCard title="Lead pipeline funnel" href={ROUTES.leads}>
           <FunnelChart stages={a.leadFunnel.map((s, i) => ({
             ...s,
             href: i === 0 ? ROUTES.leads
@@ -442,9 +549,9 @@ export default function ReportsClient({
               );
             })}
           </div>
-        </ChartCard>
+        </ChartCard>}
 
-        <ChartCard title="Assets by kind" href={ROUTES.assets}>
+        {isVisible("assets_by_kind") && <ChartCard title="Assets by kind" href={ROUTES.assets}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <DonutChartNavigable segments={assetDonutSegs} />
             <div>
@@ -464,13 +571,15 @@ export default function ReportsClient({
               </div>
             </div>
           </div>
-        </ChartCard>
+        </ChartCard>}
       </div>
+      )}
 
       {/* ── Row 2: Area chart · Case status bars ── */}
+      {(isVisible("quote_trend") || isVisible("case_status")) && (
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
 
-        <ChartCard title="Cumulative quote value" href={ROUTES.quotations}>
+        {isVisible("quote_trend") && <ChartCard title="Cumulative quote value" href={ROUTES.quotations}>
           <AreaChart points={quoteTrendPoints} color={pillar.blue.base} />
           <div style={{ display: "flex", gap: 20, marginTop: 12, flexWrap: "wrap" }}>
             {a.quotesByStatus.map((s, i) => (
@@ -480,29 +589,31 @@ export default function ReportsClient({
               </Link>
             ))}
           </div>
-        </ChartCard>
+        </ChartCard>}
 
-        <ChartCard title="Service case status" href={ROUTES.cases}>
+        {isVisible("case_status") && <ChartCard title="Service case status" href={ROUTES.cases}>
           <HBarChartNav
             rows={a.casesByStatus.map((x) => ({
               label: x.label, value: x.count,
               href: `${ROUTES.cases}?filter=${x.status === "in_repair" ? "in_repair" : x.status === "closed" || x.status === "buyback" || x.status === "scrapped" ? "closed" : "open"}`,
             }))}
           />
-        </ChartCard>
+        </ChartCard>}
       </div>
+      )}
 
       {/* ── Row 3: Work orders vbar · Technician gauge · Revenue hbar ── */}
+      {(isVisible("work_order_status") || isVisible("technician_availability") || isVisible("revenue_overview")) && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
 
-        <ChartCard title="Work orders by status" href={ROUTES.workOrders}>
+        {isVisible("work_order_status") && <ChartCard title="Work orders by status" href={ROUTES.workOrders}>
           <VBarChart
             rows={a.workOrdersByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.workOrders}?status=${x.status}` }))}
             colorFn={(i) => [pillar.amber.base, pillar.blue.base, pillar.teal.base][i]}
           />
-        </ChartCard>
+        </ChartCard>}
 
-        <ChartCard title="Technician availability" href={ROUTES.technicians}>
+        {isVisible("technician_availability") && <ChartCard title="Technician availability" href={ROUTES.technicians}>
           <GaugeChart
             value={a.techniciansByStatus.find((t) => t.status === "active")?.count ?? 0}
             max={a.totals.technicians}
@@ -523,7 +634,7 @@ export default function ReportsClient({
           </div>
         </ChartCard>
 
-        <ChartCard title="Revenue overview" href={ROUTES.invoices}>
+        {isVisible("revenue_overview") && <ChartCard title="Revenue overview" href={ROUTES.invoices}>
           <HBarChartNav
             rows={[
               { label: "AMC contracts",  value: a.contractStats.totalValue, sub: inr(a.contractStats.totalValue), href: ROUTES.amc },
@@ -547,13 +658,15 @@ export default function ReportsClient({
               <div style={{ fontSize: 14, fontWeight: 700, color: pillar.green.fg }}>{inr(a.contractStats.totalValue)}</div>
             </Link>
           </div>
-        </ChartCard>
+        </ChartCard>}
       </div>
+      )}
 
       {/* ── Row 4: Activity feed · Invoices + Loaner gauge ── */}
+      {(isVisible("recent_activity") || isVisible("invoices_by_status") || isVisible("loaner_availability")) && (
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 20 }}>
 
-        <ChartCard title="Recent activity">
+        {isVisible("recent_activity") && <ChartCard title="Recent activity">
           {a.recentActivity.map((act, i) => {
             const pk = (pillarTone[act.pillar] ?? "blue") as PillarKey;
             return (
@@ -576,10 +689,10 @@ export default function ReportsClient({
               </div>
             );
           })}
-        </ChartCard>
+        </ChartCard>}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <ChartCard title="Invoices by status" href={ROUTES.invoices}>
+          {isVisible("invoices_by_status") && <ChartCard title="Invoices by status" href={ROUTES.invoices}>
             <HBarChartNav
               rows={a.invoicesByStatus.map((x) => ({
                 label: x.label, value: x.count, sub: `${x.count} · ${inr(x.value)}`,
@@ -587,18 +700,19 @@ export default function ReportsClient({
               }))}
               colorFn={(i) => [pillar.purple.base, pillar.blue.base, pillar.teal.base][i]}
             />
-          </ChartCard>
+          </ChartCard>}
 
-          <ChartCard title="Loaner availability" href={ROUTES.assets}>
+          {isVisible("loaner_availability") && <ChartCard title="Loaner availability" href={ROUTES.assets}>
             <GaugeChart
               value={a.loanerStock.available}
               max={a.loanerStock.total}
               color={pillar.blue.base}
               label="available"
             />
-          </ChartCard>
+          </ChartCard>}
         </div>
       </div>
+      )}
 
       {/* ── Quote table ── */}
       <div style={{ ...cardStyle }}>
