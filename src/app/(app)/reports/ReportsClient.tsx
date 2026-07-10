@@ -11,7 +11,7 @@ import type { AnalyticsMetricId } from "@/lib/constants";
 import { QUOTE_STATUS_LABEL } from "@/lib/data/labels";
 import type { QuoteSummary, AnalyticsData } from "@/lib/data/labels";
 import type { Quote } from "@/lib/types";
-import type { TenantFeatures } from "@/lib/tenant";
+import type { TenantFeatures } from "@/lib/constants";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

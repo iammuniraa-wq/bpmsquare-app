@@ -232,6 +232,19 @@ export const CASE_TYPE_LABEL: Record<string, string> = {
   direct: "Direct",
 };
 
+// TenantFeatures — which optional modules are enabled for this tenant.
+// Defined here (not tenant.ts) so client components can import the type safely.
+export type TenantFeatures = {
+  leads: boolean;
+  pipeline: boolean;
+  amc: boolean;
+  dispatch: boolean;
+  invoices: boolean;
+  partners: boolean;
+  ai_assistant: boolean;
+  db_export: boolean;
+};
+
 // All metric IDs available in the Analytics page.
 export type AnalyticsMetricId =
   | "accounts" | "contacts" | "assets" | "open_cases" | "work_orders"

@@ -3,16 +3,7 @@ import { redirect } from "next/navigation";
 import { createAdminSupabase, getAuthUser } from "./supabase-server";
 import type { TenantConfig } from "./constants";
 
-export type TenantFeatures = {
-  leads: boolean;
-  pipeline: boolean;
-  amc: boolean;
-  dispatch: boolean;
-  invoices: boolean;
-  partners: boolean;
-  ai_assistant: boolean;
-  db_export: boolean;
-};
+export type { TenantFeatures } from "./constants";
 
 export type CompanyInfo = {
   // Core identity
