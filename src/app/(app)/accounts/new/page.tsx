@@ -42,11 +42,19 @@ export default function NewAccountPage() {
   const [cfDefs, setCfDefs] = useState<CFDef[]>([]);
   const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
 
-  useEffect(() => {
+  function fetchCFDefs() {
     fetch("/api/settings/custom-fields?object=account")
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setCfDefs(data); })
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    fetchCFDefs();
+    const handler = () => fetchCFDefs();
+    window.addEventListener("bpm:cf-changed", handler);
+    return () => window.removeEventListener("bpm:cf-changed", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [form, setForm] = useState({

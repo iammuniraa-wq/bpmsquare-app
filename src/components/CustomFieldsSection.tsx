@@ -65,6 +65,16 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
 
   useEffect(() => { fetchFields(); }, [fetchFields]);
 
+  // Re-fetch when another component (e.g. AdaptObjectDrawer) adds or removes a field.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ objectType: string }>).detail;
+      if (!detail?.objectType || detail.objectType === objectType) fetchFields();
+    };
+    window.addEventListener("bpm:cf-changed", handler);
+    return () => window.removeEventListener("bpm:cf-changed", handler);
+  }, [objectType, fetchFields]);
+
   const handleDragEnd = async () => {
     if (!dragId.current || !dragOver.current || dragId.current === dragOver.current) {
       setDragActive(null); dragId.current = null; dragOver.current = null; return;

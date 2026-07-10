@@ -64,6 +64,8 @@ export async function POST(request: NextRequest) {
     .eq("tenant_id", tenantId)
     .eq("object_type", object_type);
 
+  const { field_section } = body;
+
   const { data, error } = await supabase
     .from("custom_fields")
     .insert({
@@ -72,6 +74,7 @@ export async function POST(request: NextRequest) {
       field_key,
       field_label,
       field_type,
+      field_section: field_section ?? null,
       options: options ?? null,
       is_required: is_required ?? false,
       position: count ?? 0,
