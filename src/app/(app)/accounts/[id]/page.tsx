@@ -136,17 +136,6 @@ function EmptyRow({ label, href, linkLabel }: { label: string; href: string; lin
   );
 }
 
-// Stat chip used in the header strip
-function StatChip({ value, label, tone }: { value: string | number; label: string; tone?: PillarKey }) {
-  const color = tone ? pillar[tone].base : c.accent;
-  return (
-    <div style={{ textAlign: "center", padding: "0 20px", borderRight: `1px solid ${c.line}` }}>
-      <div style={{ fontSize: 20, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 11.5, color: c.hint, marginTop: 4 }}>{label}</div>
-    </div>
-  );
-}
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default async function AccountHubPage({
@@ -166,11 +155,9 @@ export default async function AccountHubPage({
 
   const { account, referredBy } = hub;
 
-  const openCases       = hub.cases.filter((sc) => !["closed", "buyback", "scrapped"].includes(sc.status));
-  const closedCases     = hub.cases.filter((sc) =>  ["closed", "buyback", "scrapped"].includes(sc.status));
-  const quotationTotal  = hub.quotes.reduce((s, q) => s + q.total, 0);
-  const activeContracts = hub.contracts.filter((c) => c.status === "active").length;
-  const activeWOs       = hub.workOrders.filter((wo) => ["in_progress", "scheduled"].includes(wo.status)).length;
+  const openCases      = hub.cases.filter((sc) => !["closed", "buyback", "scrapped"].includes(sc.status));
+  const closedCases    = hub.cases.filter((sc) =>  ["closed", "buyback", "scrapped"].includes(sc.status));
+  const quotationTotal = hub.quotes.reduce((s, q) => s + q.total, 0);
 
   const tabHref = (t: Tab) => `${ROUTES.account(id)}?tab=${t}`;
 
@@ -225,22 +212,6 @@ export default async function AccountHubPage({
               isAdmin={role === "admin"}
             />
           </div>
-        </div>
-      </div>
-
-      {/* ── Stats strip ───────────────────────────────────────────────────── */}
-      <div style={{
-        ...cardStyle, marginBottom: 14, padding: "14px 22px",
-        display: "flex", gap: 0, flexWrap: "wrap",
-      }}>
-        <StatChip value={openCases.length}    label="Open cases"        tone={openCases.length > 0 ? "amber" : undefined} />
-        <StatChip value={hub.contacts.length} label="Contacts"          />
-        <StatChip value={hub.assets.length}   label="Assets"            />
-        <StatChip value={activeContracts}     label="Active contracts"  tone={activeContracts > 0 ? "teal" : undefined} />
-        <StatChip value={activeWOs}           label="Active work orders" tone={activeWOs > 0 ? "blue" : undefined} />
-        <div style={{ textAlign: "center", padding: "0 20px" }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1 }}>{quotationTotal > 0 ? fmtINR(quotationTotal) : "—"}</div>
-          <div style={{ fontSize: 11.5, color: c.hint, marginTop: 4 }}>Pipeline value</div>
         </div>
       </div>
 
