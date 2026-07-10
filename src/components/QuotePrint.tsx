@@ -1,6 +1,7 @@
 "use client";
 
 import type { Quote, QuoteLine, QuoteRevision, Account, Contact, Site } from "@/lib/types";
+// QuoteLine is used via inline cast for group_description field added in migration 0012
 import type { CompanyInfo } from "@/lib/tenant";
 import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
 import { MapPin, Mail, Phone, Globe, MessageSquare } from "@/components/Icons";
@@ -177,37 +178,25 @@ export default function QuotePrint({
           {/* Divider */}
           <div style={{ borderTop: "1px solid rgba(255,255,255,.15)", margin: "14px 0 10px" }} />
 
-          {/* Contact grid — only renders rows that have data */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10.5, color: "#8aa0b8", lineHeight: 1.75 }}>
-            {co.address && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <MapPin size={10} color="#8aa0b8" /> {co.address}
-              </span>
-            )}
+            {/* Contact strip — horizontal like the PDF sample */}
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 10.5, color: "#8aa0b8", marginTop: 2, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,.1)" }}>
             {(co.email || co.email2) && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Mail size={10} color="#8aa0b8" /> {co.email}{co.email2 ? ` · ${co.email2}` : ""}
+                <Mail size={10} color="#8aa0b8" />
+                {co.email}{co.email2 ? <span style={{ color: "#5a7494" }}> | {co.email2}</span> : ""}
               </span>
             )}
-            {co.phone && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Phone size={10} color="#8aa0b8" /> {co.phone}
-              </span>
-            )}
-            {co.phones.map((p, i) => (
-              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Phone size={10} color="#8aa0b8" /> {p.label}: {p.number}
-              </span>
-            ))}
             {co.web && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 <Globe size={10} color="#8aa0b8" /> {co.web}
               </span>
             )}
-            <div style={{ display: "flex", gap: 20, marginTop: 2 }}>
-              {co.gstin && <span style={{ color: brand.amber }}>GSTIN: {co.gstin}</span>}
-              {co.iso && <span style={{ color: brand.amber }}>{co.iso} Certified</span>}
-            </div>
+            {co.gstin && (
+              <span style={{ color: brand.amber, fontWeight: 600 }}>GST: {co.gstin}</span>
+            )}
+            {co.iso && (
+              <span style={{ color: brand.amber }}>{co.iso}</span>
+            )}
           </div>
         </div>
 
@@ -252,6 +241,19 @@ export default function QuotePrint({
           </div>
         </div>
 
+        {/* Subject & salutation */}
+        {quote.name && (
+          <div style={{ padding: "12px 28px", borderBottom: `1px solid ${brand.line}` }}>
+            <div style={{ fontSize: 13, marginBottom: 6 }}>
+              <strong>Subject:</strong> {quote.name}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>Dear Sir,</div>
+            <div style={{ fontSize: 12.5, color: "#5f6b7a", marginTop: 4, lineHeight: 1.6 }}>
+              With reference to the above subject, we are herewith submitting our quotation for the above said work.
+            </div>
+          </div>
+        )}
+
         {/* Scope of work */}
         {quote.scope_of_work ? (
           <div style={{ padding: "12px 28px 14px", borderBottom: `1px solid ${brand.line}` }}>
@@ -281,7 +283,9 @@ export default function QuotePrint({
             {(() => {
               const out: React.ReactNode[] = [];
               const seenGroups = new Set<string>();
-              let lineNum = 1;
+              // Track per-group and standalone counters for fallback sl_no display
+              let standaloneNum = 0;
+              const groupItemCount: Record<string, number> = {};
               const colSpan = isTechnical ? 4 : 6;
 
               for (const line of lines) {
@@ -294,20 +298,24 @@ export default function QuotePrint({
 
                   if (!seenGroups.has(line.group_id)) {
                     seenGroups.add(line.group_id);
+                    standaloneNum++;
+                    groupItemCount[line.group_id] = 0;
+                    const groupDesc = (line as QuoteLine & { group_description?: string }).group_description;
                     out.push(
                       <tr key={`gh-${line.group_id}`} style={{ background: headerBg }}>
                         <td colSpan={colSpan} style={{ padding: "7px 28px", fontWeight: 700, fontSize: 11.5, color: headerColor, letterSpacing: 0.3 }}>
-                          {isAlt ? (isSelected ? "✓ " : "✗ ") : "▦ "}
-                          {line.group_label ?? (isAlt ? "Option" : "Group")}
+                          <span>{isAlt ? (isSelected ? "✓ " : "✗ ") : ""}{line.group_label ?? (isAlt ? "Option" : "Group")}</span>
+                          {groupDesc && <span style={{ fontWeight: 400, color: isAlt ? "#92400e" : "#3a6fa8", marginLeft: 8, fontSize: 11 }}>— {groupDesc}</span>}
                           {isAlt && !isSelected && <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 8 }}>(not selected)</span>}
                         </td>
                       </tr>
                     );
                   }
-                  const n = lineNum++;
+                  groupItemCount[line.group_id] = (groupItemCount[line.group_id] ?? 0) + 1;
+                  const slNo = line.sl_no || `${standaloneNum}.${groupItemCount[line.group_id]}`;
                   out.push(
                     <tr key={line.id} style={{ opacity: rowOpacity }}>
-                      <td style={{ padding: "7px 12px 7px 40px", color: "#8a96a5", fontSize: 11 }}>{n}</td>
+                      <td style={{ padding: "7px 12px 7px 40px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{slNo}</td>
                       <td style={{ padding: "7px 12px 7px 8px", fontSize: 12.5 }}>{line.description}</td>
                       <td style={{ padding: "7px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{line.uom ?? ""}</td>
                       <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
@@ -317,11 +325,12 @@ export default function QuotePrint({
                     </tr>
                   );
                 } else {
-                  const n = lineNum++;
-                  const i = n - 1;
+                  standaloneNum++;
+                  const slNo = line.sl_no || String(standaloneNum);
+                  const i = standaloneNum - 1;
                   out.push(
                     <tr key={line.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff" }}>
-                      <td style={{ padding: "9px 12px 9px 28px", color: "#8a96a5", fontSize: 11 }}>{n}</td>
+                      <td style={{ padding: "9px 12px 9px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{slNo}</td>
                       <td style={{ padding: "9px 12px", fontSize: 12.5 }}>{line.description}</td>
                       <td style={{ padding: "9px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{line.uom ?? ""}</td>
                       <td style={{ padding: "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
@@ -417,17 +426,40 @@ export default function QuotePrint({
           </div>
         </div>
 
-        {/* Footer */}
-        <div style={{ background: brand.dark, borderTop: `2px solid ${co.logo_bg}`, padding: "10px 28px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10.5 }}>
+        {/* Footer — mirrors the PDF sample: address row · phones grid · tagline */}
+        <div style={{ background: brand.dark, borderTop: `2px solid ${co.logo_bg}` }}>
+          {/* Address row */}
+          {co.address && (
+            <div style={{ padding: "8px 28px 4px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: "#8aa0b8" }}>
+              <MapPin size={10} color="#8aa0b8" style={{ flexShrink: 0 }} />
+              <span>{co.address}</span>
+              {co.gstin && <span style={{ marginLeft: "auto", color: brand.amber, fontWeight: 600 }}>GSTIN: {co.gstin}</span>}
+            </div>
+          )}
+          {/* Phones grid row */}
+          {co.phones.length > 0 && (
+            <div style={{ padding: "6px 28px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", flexWrap: "wrap", gap: "4px 28px", fontSize: 10.5 }}>
+              {co.phones.map((p, i) => (
+                <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ color: "#8aa0b8" }}>{p.label}</span>
+                  <span style={{ color: "#b0c4d8", fontWeight: 600 }}> — {p.number}</span>
+                </span>
+              ))}
+              {co.phone && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ color: "#8aa0b8" }}>Phone</span>
+                  <span style={{ color: "#b0c4d8", fontWeight: 600 }}> — {co.phone}</span>
+                </span>
+              )}
+            </div>
+          )}
+          {/* Tagline + ref row */}
+          <div style={{ padding: "7px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10.5 }}>
             {co.footer_tagline
-              ? <span style={{ color: brand.amber, fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline}</span>
-              : <span />
+              ? <span style={{ color: brand.amber, fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
+              : <span style={{ color: "#5a7494" }}>{co.name}</span>
             }
-            <span style={{ color: "#8aa0b8" }}>{quote.ref} · Rev. {quote.revision} · {fmtDate(new Date().toISOString())}</span>
-          </div>
-          <div style={{ color: "#5a7494", fontSize: 10, marginTop: 4, textAlign: "center" }}>
-            {[co.name, co.gstin ? `GSTIN: ${co.gstin}` : "", co.web].filter(Boolean).join(" · ")}
+            <span style={{ color: "#5a7494" }}>{quote.ref} · Rev. {quote.revision}</span>
           </div>
         </div>
 

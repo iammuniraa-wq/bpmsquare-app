@@ -54,6 +54,186 @@ function Field({ label, value, onChange, placeholder, mono, type = "text" }: {
   );
 }
 
+// ── LogoUpload ────────────────────────────────────────────────────────────────
+
+function LogoUpload({ currentUrl, onUploaded, label = "Logo", size = 64 }: {
+  currentUrl: string; onUploaded: (url: string) => void;
+  label?: string; size?: number;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErr(""); setUploading(true);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const json = await res.json();
+      if (!res.ok) { setErr(json.error ?? "Upload failed"); return; }
+      onUploaded(json.url);
+    } catch {
+      setErr("Upload failed");
+    } finally {
+      setUploading(false);
+      if (ref.current) ref.current.value = "";
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={lbl}>{label}</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Preview */}
+        <div style={{ width: size, height: size, flexShrink: 0, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel2, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+          {currentUrl
+            ? <img src={currentUrl} alt={label} style={{ width: "100%", height: "100%", objectFit: "contain", padding: 4 }} />
+            : <span style={{ fontSize: 11, color: c.hint }}>No logo</span>
+          }
+        </div>
+        <div style={{ flex: 1 }}>
+          <input ref={ref} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style={{ display: "none" }} onChange={handleFile} />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => ref.current?.click()}
+              disabled={uploading}
+              style={{ fontSize: 12, fontWeight: 600, padding: "6px 14px", borderRadius: 7, border: `1px solid ${c.accent}`, color: c.accent, background: "#fff", cursor: uploading ? "wait" : "pointer" }}
+            >
+              {uploading ? "Uploading…" : currentUrl ? "Replace" : "Upload image"}
+            </button>
+            {currentUrl && (
+              <button
+                type="button"
+                onClick={() => onUploaded("")}
+                style={{ fontSize: 12, padding: "6px 12px", borderRadius: 7, border: `1px solid ${c.line}`, color: "#b91c1c", background: "#fff", cursor: "pointer" }}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>PNG, JPG, WebP or SVG · max 2 MB</div>
+          {err && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>{err}</div>}
+          {/* Also allow direct URL paste */}
+          <input
+            style={{ ...inp, fontSize: 12, marginTop: 8 }}
+            value={currentUrl}
+            onChange={(e) => onUploaded(e.target.value)}
+            placeholder="…or paste an image URL"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PartnerLogos ──────────────────────────────────────────────────────────────
+
+type Partner = { name: string; logo_url?: string };
+
+function PartnerLogos({ partners, onChange }: {
+  partners: Partner[];
+  onChange: (p: Partner[]) => void;
+}) {
+  const addPartner = () => onChange([...partners, { name: "", logo_url: "" }]);
+  const removePartner = (i: number) => { const arr = [...partners]; arr.splice(i, 1); onChange(arr); };
+  const updatePartner = (i: number, patch: Partial<Partner>) => {
+    const arr = [...partners];
+    arr[i] = { ...arr[i], ...patch };
+    onChange(arr);
+  };
+
+  const fileRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [uploading, setUploading] = useState<number | null>(null);
+  const [errs, setErrs] = useState<Record<number, string>>({});
+
+  async function handlePartnerFile(idx: number, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrs((p) => ({ ...p, [idx]: "" }));
+    setUploading(idx);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const json = await res.json();
+      if (!res.ok) { setErrs((p) => ({ ...p, [idx]: json.error ?? "Upload failed" })); return; }
+      updatePartner(idx, { logo_url: json.url });
+    } catch {
+      setErrs((p) => ({ ...p, [idx]: "Upload failed" }));
+    } finally {
+      setUploading(null);
+      const ref = fileRefs.current[idx];
+      if (ref) ref.value = "";
+    }
+  }
+
+  return (
+    <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 14, marginTop: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>Authorised channel partner logos</div>
+          <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Shown in the top-right of the quote letterhead (e.g. ABB, WEG, Siemens)</div>
+        </div>
+        <button onClick={addPartner} style={{ fontSize: 12, color: c.accent, background: "none", border: `1px solid ${c.accent}`, borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap" }}>
+          + Add partner
+        </button>
+      </div>
+
+      {partners.length === 0 && (
+        <div style={{ fontSize: 12.5, color: c.hint, padding: "12px 0" }}>No partner logos added yet.</div>
+      )}
+
+      {partners.map((partner, i) => (
+        <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12, padding: "12px", border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel2 }}>
+          {/* Logo preview + upload */}
+          <div>
+            <div style={{ width: 56, height: 36, border: `1px solid ${c.line}`, borderRadius: 6, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: 6 }}>
+              {partner.logo_url
+                ? <img src={partner.logo_url} alt={partner.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", padding: 2 }} />
+                : <span style={{ fontSize: 9, color: c.hint }}>No logo</span>
+              }
+            </div>
+            <input
+              ref={(el) => { fileRefs.current[i] = el; }}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              style={{ display: "none" }}
+              onChange={(e) => handlePartnerFile(i, e)}
+            />
+            <button
+              type="button"
+              onClick={() => fileRefs.current[i]?.click()}
+              disabled={uploading === i}
+              style={{ fontSize: 10.5, fontWeight: 600, padding: "4px 8px", borderRadius: 5, border: `1px solid ${c.accent}`, color: c.accent, background: "#fff", cursor: uploading === i ? "wait" : "pointer", whiteSpace: "nowrap" }}
+            >
+              {uploading === i ? "…" : partner.logo_url ? "Replace" : "Upload"}
+            </button>
+            {errs[i] && <div style={{ fontSize: 10, color: "#dc2626", marginTop: 3, maxWidth: 70 }}>{errs[i]}</div>}
+          </div>
+
+          {/* Fields */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ marginBottom: 8 }}>
+              <label style={lbl}>Brand name</label>
+              <input style={inp} value={partner.name} onChange={(e) => updatePartner(i, { name: e.target.value })} placeholder="e.g. ABB, WEG, Siemens" />
+            </div>
+            <div>
+              <label style={lbl}>Logo URL (or upload above)</label>
+              <input style={{ ...inp, fontSize: 12 }} value={partner.logo_url ?? ""} onChange={(e) => updatePartner(i, { logo_url: e.target.value })} placeholder="https://…/logo.png" />
+            </div>
+          </div>
+
+          <button onClick={() => removePartner(i)} style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 6, color: "#b91c1c", fontSize: 16, cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 16 }}>×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── EntityCard ────────────────────────────────────────────────────────────────
 
 function EntityCard({ entity, accent, onChange, onRemove, onSetDefault, isDefault }: {
@@ -124,7 +304,7 @@ function PhoneRow({ phone, onChange, onRemove }: {
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 32px", gap: 8, marginBottom: 8, alignItems: "end" }}>
       <div>
         <label style={lbl}>Label</label>
-        <input style={inp} value={phone.label} onChange={(e) => onChange({ ...phone, label: e.target.value })} placeholder="e.g. Mobile / Office" />
+        <input style={inp} value={phone.label} onChange={(e) => onChange({ ...phone, label: e.target.value })} placeholder="e.g. Mobile / Dir & Tech" />
       </div>
       <div>
         <label style={lbl}>Number</label>
@@ -194,6 +374,9 @@ export default function EntitiesClient() {
   const removePhone = (i: number) =>
     setCo((prev) => { const arr = [...(prev.phones ?? [])]; arr.splice(i, 1); return { ...prev, phones: arr }; });
 
+  const partners = co.partners ?? [];
+  const setPartners = (p: { name: string; logo_url?: string }[]) => setCo((prev) => ({ ...prev, partners: p }));
+
   if (loading) return <div style={{ padding: 24, color: c.muted, fontSize: 13 }}>Loading…</div>;
 
   return (
@@ -234,20 +417,28 @@ export default function EntitiesClient() {
         <Field label="Address" value={co.address ?? ""} onChange={setCoProp("address")} placeholder="Street, City, State, PIN" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
           <Field label="Email" value={co.email ?? ""} onChange={setCoProp("email")} placeholder="info@company.com" />
-          <Field label="Website" value={co.web ?? ""} onChange={setCoProp("web")} placeholder="www.company.com" />
+          <Field label="Email 2 (optional)" value={co.email2 ?? ""} onChange={setCoProp("email2")} placeholder="sales@company.com" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+          <Field label="Website" value={co.web ?? ""} onChange={setCoProp("web")} placeholder="www.company.com" />
           <Field label="GSTIN / Tax ID" value={co.gstin ?? ""} onChange={setCoProp("gstin")} placeholder="29AXXXXX0000X0XX" mono />
-          <Field label="ISO / certification" value={co.iso ?? ""} onChange={setCoProp("iso")} placeholder="e.g. ISO 9001:2015" />
         </div>
-        <Field label="Footer tagline" value={co.footer_tagline ?? ""} onChange={setCoProp("footer_tagline")} placeholder="e.g. Committed to quality and timely delivery" />
-        <Field label="Scope of work / undertaking" value={co.undertaking ?? ""} onChange={setCoProp("undertaking")} placeholder="e.g. Rewindings, repairs, overhauling of all types of motors" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+          <Field label="ISO / certification" value={co.iso ?? ""} onChange={setCoProp("iso")} placeholder="e.g. ISO 9001:2015" />
+          <Field label="Footer tagline" value={co.footer_tagline ?? ""} onChange={setCoProp("footer_tagline")} placeholder="e.g. Assuring our best services as always!" />
+        </div>
+        <Field label="Scope of work / undertaking (header strip)" value={co.undertaking ?? ""} onChange={setCoProp("undertaking")} placeholder="e.g. Rewinding of LT | HT Large Motors, Transformers & Hydro Gensets" />
 
-        {/* Logo */}
+        {/* Company logo upload */}
         <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 14, marginTop: 4 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Logo</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
-            <Field label="Logo image URL" value={co.logo_url ?? ""} onChange={setCoProp("logo_url")} placeholder="https://…/logo.png" />
+          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 12 }}>Company logo</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px", alignItems: "start" }}>
+            <LogoUpload
+              label="Logo image"
+              currentUrl={co.logo_url ?? ""}
+              onUploaded={setCoProp("logo_url")}
+              size={72}
+            />
             <div style={{ marginBottom: 12 }}>
               <label style={lbl}>Logo background colour</label>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -255,21 +446,18 @@ export default function EntitiesClient() {
                   style={{ width: 40, height: 37, padding: 2, borderRadius: 7, border: `1px solid ${c.line}`, cursor: "pointer" }} />
                 <input style={{ ...inp, flex: 1 }} value={co.logo_bg ?? "#378ADD"} onChange={(e) => setCoProp("logo_bg")(e.target.value)} placeholder="#378ADD" />
               </div>
-              <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>Used when no logo image is set — auto-initials are shown on this background.</div>
+              <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>Used when no logo is uploaded — auto-initials shown on this background.</div>
             </div>
           </div>
-          {co.logo_url && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: c.muted, marginBottom: 6 }}>Preview</div>
-              <img src={co.logo_url} alt="Logo" style={{ height: 54, maxWidth: 200, objectFit: "contain", border: `1px solid ${c.line}`, borderRadius: 8, padding: 6 }} />
-            </div>
-          )}
         </div>
 
-        {/* Phones */}
+        {/* Phone numbers */}
         <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 14, marginTop: 4 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>Phone numbers</div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>Phone numbers</div>
+              <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Shown in the PDF footer as labelled columns (e.g. Dir & Tech · Commercial · Work)</div>
+            </div>
             <button onClick={addPhone} style={{ fontSize: 12, color: accent, background: "none", border: `1px solid ${accent}`, borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontWeight: 500 }}>
               + Add phone
             </button>
@@ -281,6 +469,9 @@ export default function EntitiesClient() {
             <PhoneRow key={i} phone={p} onChange={(v) => updatePhone(i, v)} onRemove={() => removePhone(i)} />
           ))}
         </div>
+
+        {/* Partner logos */}
+        <PartnerLogos partners={partners} onChange={setPartners} />
       </section>
 
       {/* ── Legal entities ── */}
