@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     address_line1, address_line2, city, state, postal_code, country,
     phone, phone2, email, email2, website,
     industry, employee_count, annual_revenue, gstin, notes,
-    referred_by_account_id,
+    referred_by_account_id, custom_data,
   } = body;
 
   if (!name || !type) {
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       gstin: gstin || null,
       notes: notes || null,
       referred_by_account_id: referred_by_account_id || null,
+      ...(custom_data && Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     })
     .select("id, name")
     .single();

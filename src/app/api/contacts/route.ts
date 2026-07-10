@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     phone, phone2, phone3, email, email2,
     website, linkedin_url, birthday,
     address_line1, address_line2, city, state, postal_code, country,
-    notes,
+    notes, custom_data,
   } = body;
 
   if (!name || !account_id) {
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
       postal_code: postal_code || null,
       country: country || null,
       notes: notes || null,
+      ...(custom_data && Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     })
     .select("id, name")
     .single();

@@ -2,20 +2,25 @@ import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import DataWorkbenchClient from "./DataWorkbenchClient";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { createAdminSupabase } from "@/lib/supabase-server";
+import { headers } from "next/headers";
 
 export default async function DataWorkbenchPage() {
-  const { tenantId } = await requireTenantUser();
-  const admin = createAdminSupabase();
+  await requireTenantUser();
 
-  const { data: cfRows } = await admin
-    .from("custom_fields")
-    .select("object_type, field_key, field_label, field_type")
-    .eq("tenant_id", tenantId)
-    .order("position");
+  const hdrs = await headers();
+  const cookie = hdrs.get("cookie") ?? "";
+  const host = hdrs.get("host") ?? "localhost:3000";
+  const proto = host.startsWith("localhost") ? "http" : "https";
+
+  const res = await fetch(`${proto}://${host}/api/settings/custom-fields`, {
+    headers: { cookie },
+    cache: "no-store",
+  });
+  const cfRows: { object_type: string; field_key: string; field_label: string; field_type: string }[] =
+    res.ok ? await res.json() : [];
 
   const customFieldsByObject: Record<string, { key: string; label: string; type: "text"|"number"|"date"|"select"|"boolean" }[]> = {};
-  for (const row of cfRows ?? []) {
+  for (const row of cfRows) {
     const mapped = row.field_type === "checkbox" ? "boolean"
       : row.field_type === "textarea" ? "text"
       : (row.field_type as "text"|"number"|"date"|"select"|"boolean");
