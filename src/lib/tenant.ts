@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createAdminSupabase, getAuthUser } from "./supabase-server";
-import type { TenantConfig } from "./constants";
+import type { TenantConfig, TenantFeatures } from "./constants";
 
 export type { TenantFeatures } from "./constants";
 
