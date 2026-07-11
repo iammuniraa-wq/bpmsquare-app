@@ -446,37 +446,6 @@ export default function QuotePrint({
           </div>
         )}
 
-        {/* Revision history */}
-        {revisions.length > 0 && (
-          <div style={{ margin: "0 28px 16px" }}>
-            <SectionLabel>Revision history</SectionLabel>
-            <table style={{ borderRadius: 6, overflow: "hidden", border: `1px solid ${brand.line}` }}>
-              <thead>
-                <tr style={{ background: brand.bg2 }}>
-                  <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, color: "#5f6b7a", fontWeight: 600, width: 60 }}>Rev</th>
-                  <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, color: "#5f6b7a", fontWeight: 600, width: 110 }}>Date</th>
-                  <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, color: "#5f6b7a", fontWeight: 600 }}>Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {revisions.map((r) => (
-                  <tr key={r.id} style={{ borderTop: `1px solid ${brand.line}`, background: r.rev === quote.revision ? "#fffdf5" : "#fff" }}>
-                    <td style={{ padding: "8px 12px", fontSize: 12 }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                        Rev. {r.rev}
-                        {r.rev === quote.revision && (
-                          <span style={{ fontSize: 9, background: brand.amber, color: brand.dark, padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>current</span>
-                        )}
-                      </span>
-                    </td>
-                    <td style={{ padding: "8px 12px", fontSize: 12, color: "#5f6b7a" }}>{fmtDate(r.date)}</td>
-                    <td style={{ padding: "8px 12px", fontSize: 12 }}>{r.description}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
 
         {/* Signature block */}
         <div style={{ margin: "8px 28px 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
