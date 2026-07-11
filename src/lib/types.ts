@@ -119,6 +119,7 @@ export type Quote = {
   entity_id?: string | null;
   name?: string | null;
   contact_id?: string | null;
+  pr_no?: string | null;
   po_number?: string | null;
   po_amount?: number | null;
   discount_type?: "pct" | "fixed";

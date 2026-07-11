@@ -85,8 +85,12 @@ export default function QuotePrint({
   const subtotal = lines
     .filter((l) => !l.group_id || l.group_type !== "alternative" || l.group_id === selectedAltId)
     .reduce((s, l) => s + l.amount, 0);
-  const tax = Math.round(subtotal * co.tax_rate / 100);
-  const grandTotal = subtotal + tax;
+  const discountAmt =
+    quote.discount_type === "pct"   ? Math.round(subtotal * (quote.discount_pct ?? 0) / 100) :
+    quote.discount_type === "fixed" ? (quote.discount_fixed ?? 0) : 0;
+  const afterDiscount = subtotal - discountAmt;
+  const tax = Math.round(afterDiscount * co.tax_rate / 100);
+  const grandTotal = afterDiscount + tax;
 
   const logoIni = initials(co.name || "?");
 
@@ -200,12 +204,10 @@ export default function QuotePrint({
           </div>
         </div>
 
-        {/* Meta row */}
-        <div style={{ background: brand.bg2, padding: "12px 28px", display: "flex", gap: 32, borderBottom: `1px solid ${brand.line}` }}>
-          <Meta label="Date" value={fmtDate(quote.created_at)} />
-          <Meta label="Valid until" value={quote.valid_until ? fmtDate(quote.valid_until) : "—"} />
-          <Meta label="Status" value={STATUS_LABEL[quote.status]} />
-          <Meta label="Revision" value={`Rev. ${quote.revision}`} />
+        {/* Ref / Date row */}
+        <div style={{ padding: "10px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${brand.line}`, background: "#fff" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600 }}>Ref No: <span style={{ fontFamily: "monospace", fontWeight: 400 }}>{quote.ref}</span></span>
+          <span style={{ fontSize: 12.5 }}>Date: <strong>{fmtDate(quote.created_at)}</strong>{quote.valid_until ? <span style={{ marginLeft: 24, color: "#5f6b7a" }}>Valid until: {fmtDate(quote.valid_until)}</span> : ""}</span>
         </div>
 
         {/* Bill To / Attention */}
@@ -218,6 +220,7 @@ export default function QuotePrint({
                 {account.city && <div style={{ color: "#5f6b7a", marginTop: 2 }}>{account.city}</div>}
                 {account.phone && <div style={{ color: "#5f6b7a", fontSize: 12 }}>{account.phone}</div>}
                 {account.email && <div style={{ color: "#5f6b7a", fontSize: 12 }}>{account.email}</div>}
+                {quote.pr_no && <div style={{ color: "#5f6b7a", fontSize: 12, marginTop: 4 }}>PR No.: <strong style={{ color: "#1c2733" }}>{quote.pr_no}</strong></div>}
               </>
             ) : <div style={{ color: "#8a96a5" }}>—</div>}
           </div>
@@ -254,18 +257,6 @@ export default function QuotePrint({
           </div>
         )}
 
-        {/* Scope of work */}
-        {quote.scope_of_work ? (
-          <div style={{ padding: "12px 28px 14px", borderBottom: `1px solid ${brand.line}` }}>
-            <SectionLabel>Scope of work</SectionLabel>
-            <div style={{ color: "#5f6b7a", fontSize: 12.5, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{quote.scope_of_work}</div>
-          </div>
-        ) : (
-          <div style={{ padding: "12px 28px 0", borderBottom: `1px solid ${brand.line}` }}>
-            <SectionLabel>Scope of work</SectionLabel>
-          </div>
-        )}
-
         {/* Line items */}
         <table>
           <thead>
@@ -283,12 +274,23 @@ export default function QuotePrint({
             {(() => {
               const out: React.ReactNode[] = [];
               const seenGroups = new Set<string>();
-              // Track per-group and standalone counters for fallback sl_no display
               let standaloneNum = 0;
               const groupItemCount: Record<string, number> = {};
               const colSpan = isTechnical ? 4 : 6;
 
-              for (const line of lines) {
+              // Pre-compute per-group totals for subtotal rows
+              const groupTotals: Record<string, number> = {};
+              for (const l of lines) {
+                if (l.group_id) groupTotals[l.group_id] = (groupTotals[l.group_id] ?? 0) + l.amount;
+              }
+
+              // Track which groups we've already emitted a subtotal for
+              const closedGroups = new Set<string>();
+
+              for (let idx = 0; idx < lines.length; idx++) {
+                const line = lines[idx];
+                const nextLine = lines[idx + 1];
+
                 if (line.group_id) {
                   const isAlt = line.group_type === "alternative";
                   const isSelected = !isAlt || line.group_id === selectedAltId;
@@ -300,7 +302,7 @@ export default function QuotePrint({
                     seenGroups.add(line.group_id);
                     standaloneNum++;
                     groupItemCount[line.group_id] = 0;
-                    const groupDesc = (line as QuoteLine & { group_description?: string }).group_description;
+                    const groupDesc = line.group_description;
                     out.push(
                       <tr key={`gh-${line.group_id}`} style={{ background: headerBg }}>
                         <td colSpan={colSpan} style={{ padding: "7px 28px", fontWeight: 700, fontSize: 11.5, color: headerColor, letterSpacing: 0.3 }}>
@@ -324,6 +326,22 @@ export default function QuotePrint({
                       {isTechnical && <td />}
                     </tr>
                   );
+
+                  // Emit group subtotal when this is the last line in the group
+                  const isLastInGroup = !nextLine || nextLine.group_id !== line.group_id;
+                  if (isLastInGroup && !closedGroups.has(line.group_id) && !isTechnical) {
+                    closedGroups.add(line.group_id);
+                    out.push(
+                      <tr key={`gt-${line.group_id}`} style={{ background: headerBg }}>
+                        <td colSpan={colSpan - 1} style={{ padding: "6px 12px 6px 28px", textAlign: "right", fontSize: 11.5, fontWeight: 600, color: headerColor }}>
+                          {line.group_label ?? "Group"} Total
+                        </td>
+                        <td style={{ padding: "6px 28px 6px 12px", textAlign: "right", fontSize: 12.5, fontWeight: 700, color: headerColor }}>
+                          {inr(groupTotals[line.group_id] ?? 0)}
+                        </td>
+                      </tr>
+                    );
+                  }
                 } else {
                   standaloneNum++;
                   const slNo = line.sl_no || String(standaloneNum);
@@ -349,9 +367,19 @@ export default function QuotePrint({
         {/* Totals — hidden for technical offers */}
         {!isTechnical && (
           <div style={{ borderTop: `1px solid ${brand.line}`, padding: "12px 28px", display: "flex", justifyContent: "flex-end" }}>
-            <table style={{ width: 280 }}>
+            <table style={{ width: 300 }}>
               <tbody>
                 <TotalRow label="Subtotal" value={inr(subtotal)} />
+                {discountAmt > 0 && (
+                  <TotalRow
+                    label={quote.discount_type === "pct"
+                      ? `Discount @ ${quote.discount_pct}%`
+                      : "Discount"}
+                    value={`− ${inr(discountAmt)}`}
+                    muted
+                  />
+                )}
+                {discountAmt > 0 && <TotalRow label="Net cost after discount" value={inr(afterDiscount)} />}
                 <TotalRow label={`${co.tax_label} @ ${co.tax_rate}%`} value={inr(tax)} muted />
                 <tr>
                   <td colSpan={2} style={{ paddingTop: 6 }}>
@@ -363,6 +391,21 @@ export default function QuotePrint({
                 </tr>
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Closing sentence */}
+        <div style={{ padding: "10px 28px 14px", borderTop: `1px solid ${brand.line}` }}>
+          <div style={{ fontSize: 12.5, color: "#5f6b7a", fontStyle: "italic" }}>
+            We kindly request you to give us an opportunity to serve your organization.
+          </div>
+        </div>
+
+        {/* Scope of work — after totals, per reference layout */}
+        {quote.scope_of_work && (
+          <div style={{ padding: "12px 28px 14px", borderTop: `1px solid ${brand.line}` }}>
+            <SectionLabel>Scope of work</SectionLabel>
+            <div style={{ color: "#5f6b7a", fontSize: 12.5, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{quote.scope_of_work}</div>
           </div>
         )}
 

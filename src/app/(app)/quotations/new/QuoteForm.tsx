@@ -126,6 +126,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [quoteName, setQuoteName]   = useState("");
   const [quoteDate, setQuoteDate]   = useState(today);
   const [validUntil, setValidUntil] = useState(defaultValid);
+  const [prNo, setPrNo]             = useState("");
   const [poNumber, setPoNumber]     = useState("");
   const [poAmount, setPoAmount]     = useState("");
   const [owner, setOwner]           = useState("VP — Admin");
@@ -271,8 +272,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     if (draft.quoteName)    setQuoteName(draft.quoteName);
     if (draft.quoteDate)    setQuoteDate(draft.quoteDate);
     if (draft.validUntil)   setValidUntil(draft.validUntil);
+    if (draft.prNo)         setPrNo(draft.prNo);
+    if (draft.prNo)         setPrNo(draft.prNo);
     if (draft.poNumber)     setPoNumber(draft.poNumber);
     if (draft.poAmount)     setPoAmount(draft.poAmount);
+
     if (draft.owner)        setOwner(draft.owner);
     if (draft.notes)        setNotes(draft.notes);
     if (draft.terms)        setTerms(draft.terms);
@@ -299,13 +303,13 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   useEffect(() => {
     saveDraft({
       accountId, contactId, quoteName, quoteDate, validUntil,
-      poNumber, poAmount, owner, notes, terms,
+      prNo, poNumber, poAmount, owner, notes, terms,
       discountType, discountPct, discountFixed,
       entityId, sows,
       rows, selectedAssetIds, selectedAltId,
     });
   }, [accountId, contactId, quoteName, quoteDate, validUntil,
-      poNumber, poAmount, owner, notes, terms,
+      prNo, poNumber, poAmount, owner, notes, terms,
       discountType, discountPct, discountFixed,
       entityId, sows,
       rows, selectedAssetIds, selectedAltId]);
@@ -469,6 +473,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           entity_id:       entityId || null,
           name:            quoteName || null,
           contact_id:      contactId || null,
+          pr_no:           prNo || null,
           po_number:       poNumber || null,
           po_amount:       poAmount || null,
           discount_type:   discountType,
@@ -629,9 +634,15 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               </div>
               <div className="fg2">
                 <div>
+                  <span style={lbl}>Customer PR no.</span>
+                  <input style={inp} value={prNo} onChange={(e) => setPrNo(e.target.value)} placeholder="PR-2026-XXXX" />
+                </div>
+                <div>
                   <span style={lbl}>Customer PO no.</span>
                   <input style={inp} value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="PO-2026-XXXX" />
                 </div>
+              </div>
+              <div className="fg2">
                 <div>
                   <span style={lbl}>PO amount (₹)</span>
                   <input style={inp} type="number" min="0" step="1000" value={poAmount} onChange={(e) => setPoAmount(e.target.value)} placeholder="0" />
