@@ -8,15 +8,16 @@ import Pill from "@/components/Pill";
 import type { PillarKey } from "@/lib/theme";
 
 const CAT_LABEL: Record<FragmentCategory, string> = {
-  line_item: "Line item descriptions", notes: "Note templates", terms: "Terms & conditions",
+  line_item: "Line item descriptions", notes: "Note templates", terms: "Terms & conditions", sow: "Scope of work",
 };
 const CAT_TONE: Record<FragmentCategory, PillarKey> = {
-  line_item: "blue", notes: "teal", terms: "amber",
+  line_item: "blue", notes: "teal", terms: "amber", sow: "purple",
 };
 const CAT_DESC: Record<FragmentCategory, string> = {
   line_item: "Pre-written scope descriptions for quotation line items",
   notes:     "Reusable notes — copper clauses, warranty, transport, special conditions",
   terms:     "Standard T&C presets — payment terms, AMC, emergency callout",
+  sow:       "Scope of work templates — link to SOW entries on quotations",
 };
 const CATEGORIES: FragmentCategory[] = ["line_item", "notes", "terms"];
 
