@@ -337,7 +337,7 @@ export default function QuotePrint({
                   groupItemCount[line.group_id] = (groupItemCount[line.group_id] ?? 0) + 1;
                   const slNo = line.sl_no || `${standaloneNum}.${groupItemCount[line.group_id]}`;
                   out.push(
-                    <tr key={line.id} style={{ opacity: rowOpacity }}>
+                    <tr key={line.id} style={{ opacity: rowOpacity, breakInside: "avoid" }}>
                       <td style={{ padding: "7px 12px 7px 40px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{slNo}</td>
                       <td style={{ padding: "7px 12px 7px 8px", fontSize: 12.5 }}>{line.description}</td>
                       <td style={{ padding: "7px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{line.uom ?? ""}</td>
@@ -368,7 +368,7 @@ export default function QuotePrint({
                   const slNo = line.sl_no || String(standaloneNum);
                   const i = standaloneNum - 1;
                   out.push(
-                    <tr key={line.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff" }}>
+                    <tr key={line.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff", breakInside: "avoid" }}>
                       <td style={{ padding: "9px 12px 9px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{slNo}</td>
                       <td style={{ padding: "9px 12px", fontSize: 12.5 }}>{line.description}</td>
                       <td style={{ padding: "9px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{line.uom ?? ""}</td>
@@ -424,7 +424,7 @@ export default function QuotePrint({
 
         {/* Scope of work — after totals, per reference layout */}
         {quote.scope_of_work && (
-          <div style={{ padding: "12px 28px 14px", borderTop: `1px solid ${brand.line}` }}>
+          <div style={{ padding: "12px 28px 14px", borderTop: `1px solid ${brand.line}`, breakInside: "avoid" }}>
             <SectionLabel>Scope of work</SectionLabel>
             <div style={{ color: "#5f6b7a", fontSize: 12.5, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{quote.scope_of_work}</div>
           </div>
@@ -432,7 +432,7 @@ export default function QuotePrint({
 
         {/* Notes */}
         {quote.notes && (
-          <div style={{ margin: "0 28px 16px", background: brand.bg2, borderRadius: 6, padding: "12px 14px", borderLeft: `3px solid ${brand.blue}` }}>
+          <div style={{ margin: "0 28px 16px", background: brand.bg2, borderRadius: 6, padding: "12px 14px", borderLeft: `3px solid ${brand.blue}`, breakInside: "avoid" }}>
             <SectionLabel>Notes</SectionLabel>
             <div style={{ color: "#5f6b7a", fontSize: 12, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{quote.notes}</div>
           </div>
@@ -440,7 +440,7 @@ export default function QuotePrint({
 
         {/* Terms & Conditions */}
         {quote.terms && (
-          <div style={{ margin: "0 28px 16px", background: brand.bg2, borderRadius: 6, padding: "12px 14px", borderLeft: `3px solid ${brand.amber}` }}>
+          <div style={{ margin: "0 28px 16px", background: brand.bg2, borderRadius: 6, padding: "12px 14px", borderLeft: `3px solid ${brand.amber}`, breakInside: "avoid" }}>
             <SectionLabel>Terms &amp; Conditions</SectionLabel>
             <div style={{ color: "#5f6b7a", fontSize: 12, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{quote.terms}</div>
           </div>
@@ -448,7 +448,7 @@ export default function QuotePrint({
 
 
         {/* Signature block */}
-        <div style={{ margin: "8px 28px 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+        <div style={{ margin: "8px 28px 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, breakInside: "avoid", breakBefore: "avoid" }}>
           <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "16px 14px" }}>
             <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 36 }}>For {co.name}</div>
             <div style={{ borderTop: `1px solid ${brand.dark}`, paddingTop: 6, fontSize: 11, color: "#5f6b7a" }}>Authorised Signatory</div>
