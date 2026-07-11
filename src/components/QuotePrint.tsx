@@ -128,78 +128,99 @@ export default function QuotePrint({
       {/* A4 Document */}
       <div className="doc">
 
-        {/* Header — letterhead */}
-        <div style={{ background: brand.dark, padding: "20px 28px 16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
+        {/* ── WHITE LETTERHEAD HEADER ── */}
+        <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}` }}>
 
-            {/* Left: logo + company identity */}
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flex: 1 }}>
-              {/* Logo: image or auto-generated initials */}
+          {/* Row 1: ISO / accreditation (left) | GST (right) */}
+          <div style={{ padding: "6px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #dde2e8" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {co.iso && (
+                <span style={{ fontSize: 9, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 6px", borderRadius: 2, letterSpacing: 0.4 }}>
+                  {co.iso}
+                </span>
+              )}
+            </div>
+            {co.gstin && (
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: "#1a2733" }}>GST No. {co.gstin}</span>
+            )}
+          </div>
+
+          {/* Row 2: Logo + Company name + tagline | Doc title */}
+          <div style={{ padding: "14px 22px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
+
+            {/* Left: logo + name + tagline */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               {co.logo_url ? (
-                <img src={co.logo_url} alt={co.name} style={{ width: 54, height: 54, objectFit: "contain", flexShrink: 0, borderRadius: 6, background: "#fff", padding: 3 }} />
+                <img src={co.logo_url} alt={co.name} style={{ height: 72, maxWidth: 90, objectFit: "contain", flexShrink: 0 }} />
               ) : (
-                <div style={{ width: 54, height: 54, borderRadius: "50%", flexShrink: 0, background: co.logo_bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800, color: "#fff", letterSpacing: 1 }}>
+                <div style={{ width: 72, height: 72, borderRadius: 10, flexShrink: 0, background: co.logo_bg || brand.dark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, fontWeight: 900, color: "#fff" }}>
                   {logoIni}
                 </div>
               )}
               <div>
-                <div style={{ color: "#fff", fontWeight: 800, fontSize: 16, letterSpacing: 0.6, textTransform: "uppercase" }}>{co.name}</div>
-                {co.tagline && <div style={{ color: brand.amber, fontSize: 11.5, fontWeight: 600, marginTop: 3 }}>{co.tagline}</div>}
-                {co.undertaking && (
-                  <div style={{ color: "#8aa0b8", fontSize: 10, marginTop: 5, lineHeight: 1.55 }}>
-                    We undertake: {co.undertaking}
+                <div style={{ fontSize: 21, fontWeight: 900, color: "#B91C1C", letterSpacing: 0.4, textTransform: "uppercase", lineHeight: 1.15 }}>
+                  {co.name}
+                </div>
+                {co.tagline && (
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#1a4fa0", fontStyle: "italic", marginTop: 5 }}>
+                    {co.tagline}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Right: offer type title + ref + partners */}
+            {/* Right: document type + ref */}
             <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div style={{ color: "#fff", fontSize: 24, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>
+              <div style={{ fontSize: 17, fontWeight: 800, color: brand.dark, letterSpacing: 2, textTransform: "uppercase" }}>
                 {OFFER_TITLE[quote.type] ?? "Quotation"}
               </div>
-              <div style={{ color: brand.amber, fontSize: 13, fontWeight: 600, marginTop: 3, fontFamily: "monospace" }}>{quote.ref}</div>
-              <div style={{ display: "inline-block", background: brand.amber, color: brand.dark, fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 4, marginTop: 5 }}>
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#5f6b7a", marginTop: 3 }}>{quote.ref}</div>
+              <div style={{ display: "inline-block", background: brand.amber, color: brand.dark, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 3, marginTop: 4 }}>
                 Rev. {quote.revision}
               </div>
-              {co.partners.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ color: brand.amber, fontWeight: 600, fontSize: 9.5, marginBottom: 5 }}>Authorised Channel Partner</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "flex-end" }}>
-                    {co.partners.map((p, i) => (
-                      p.logo_url ? (
-                        <img key={i} src={p.logo_url} alt={p.name} title={p.name} style={{ height: 22, maxWidth: 52, objectFit: "contain", background: "#fff", borderRadius: 3, padding: "1px 4px" }} />
-                      ) : (
-                        <span key={i} style={{ fontSize: 9.5, color: "#7a9ab8", background: "rgba(255,255,255,.08)", borderRadius: 3, padding: "2px 6px" }}>{p.name}</span>
-                      )
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Divider */}
-          <div style={{ borderTop: "1px solid rgba(255,255,255,.15)", margin: "14px 0 10px" }} />
+          {/* Row 3: Authorised Channel Partner pill + partner logos */}
+          {co.partners.length > 0 && (
+            <>
+              <div style={{ borderTop: "1px solid #dde2e8", margin: "0 22px" }} />
+              <div style={{ padding: "7px 22px 3px", textAlign: "center" }}>
+                <span style={{ display: "inline-block", border: "1px solid #555", borderRadius: 20, padding: "2px 16px", fontSize: 9.5, fontWeight: 700, color: "#333", letterSpacing: 0.6 }}>
+                  Authorised Channel Partner
+                </span>
+              </div>
+              <div style={{ padding: "6px 22px 12px", display: "flex", justifyContent: "center", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+                {co.partners.map((p, i) => (
+                  p.logo_url ? (
+                    <img key={i} src={p.logo_url} alt={p.name} title={p.name} style={{ height: 32, maxWidth: 88, objectFit: "contain" }} />
+                  ) : (
+                    <span key={i} style={{ fontSize: 11, fontWeight: 800, color: "#111", letterSpacing: 0.1 }}>{p.name}</span>
+                  )
+                ))}
+              </div>
+            </>
+          )}
 
-            {/* Contact strip — horizontal like the PDF sample */}
-          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 10.5, color: "#8aa0b8", marginTop: 2, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,.1)" }}>
+          {/* Row 4: Undertaking strip */}
+          {co.undertaking && (
+            <div style={{ borderTop: "1px solid #dde2e8", padding: "5px 22px", textAlign: "center", fontSize: 9.5, color: "#444", background: "#f8f9fb" }}>
+              We Undertake: {co.undertaking}
+            </div>
+          )}
+
+          {/* Row 5: Email | Web contact strip */}
+          <div style={{ borderTop: "1px solid #dde2e8", padding: "5px 22px", display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap", fontSize: 10, color: "#555", background: "#f4f5f7" }}>
             {(co.email || co.email2) && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Mail size={10} color="#8aa0b8" />
-                {co.email}{co.email2 ? <span style={{ color: "#5a7494" }}> | {co.email2}</span> : ""}
+                <Mail size={10} color="#888" />
+                {co.email}{co.email2 ? <span style={{ color: "#888" }}> | {co.email2}</span> : ""}
               </span>
             )}
             {co.web && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Globe size={10} color="#8aa0b8" /> {co.web}
+                <Globe size={10} color="#888" /> {co.web}
               </span>
-            )}
-            {co.gstin && (
-              <span style={{ color: brand.amber, fontWeight: 600 }}>GST: {co.gstin}</span>
-            )}
-            {co.iso && (
-              <span style={{ color: brand.amber }}>{co.iso}</span>
             )}
           </div>
         </div>
