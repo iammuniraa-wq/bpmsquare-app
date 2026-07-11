@@ -37,7 +37,7 @@ function MobileTopBar() {
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
           <Logo size={26} />
           <span style={{ color: "#e2e7ee", fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em" }}>
-            VeveyCRM
+            BPMSquare
           </span>
         </div>
 

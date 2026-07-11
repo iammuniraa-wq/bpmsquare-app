@@ -42,6 +42,11 @@ a { color: inherit; text-decoration: none; }
   .mob-show     { display: flex !important; }
   .mob-truncate { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 100%; }
   .contact-actions { display: none !important; }
+  /* Dashboard: collapse auto-fill grids and sidebar */
+  .dash-outer   { grid-template-columns: 1fr !important; }
+  .auto-grid    { grid-template-columns: 1fr !important; }
+  /* Utility: hide elements that only make sense on desktop */
+  .desk-only    { display: none !important; }
 }
 
 @media (min-width: 781px) {

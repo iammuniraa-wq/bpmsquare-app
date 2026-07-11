@@ -559,7 +559,7 @@ export default function DashboardLayout({ kpis, attention, readyCases, workOrder
           </div>
           <Link href={ROUTES.workOrders} style={{ fontSize: 11.5, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All →</Link>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+        <div className="auto-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
           {workOrderRows.slice(0, 8).map(({ workOrder: wo, account, tech }) => (
             <Link key={wo.id} href={ROUTES.workOrder(wo.id)} className="dash-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRight: `1px solid ${c.line}`, borderBottom: `1px solid ${c.line}`, textDecoration: "none" }}>
               <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, flexShrink: 0, minHeight: 28, background: wo.status === "in_progress" ? pillar.amber.base : pillar.teal.base }} />
@@ -591,7 +591,7 @@ export default function DashboardLayout({ kpis, attention, readyCases, workOrder
           </div>
           <Link href={ROUTES.accounts} style={{ fontSize: 11.5, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All accounts →</Link>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+        <div className="auto-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
           {recentActivity.map(({ activity, account }) => {
             const p = ACT_PILLAR[activity.pillar] ?? ACT_PILLAR.service;
             return (
@@ -670,11 +670,12 @@ export default function DashboardLayout({ kpis, attention, readyCases, workOrder
       <div style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 11, color: c.hint, fontWeight: 500, marginBottom: 3 }}>{todayStr()}</div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1.2 }}>{greet()}, Vikas Pioneers</h1>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1.2 }}>{greet()}</h1>
         </div>
         {isAdmin && (
           <button
             onClick={() => setAdaptOpen(true)}
+            className="desk-only"
             style={{
               fontSize: 11.5, fontWeight: 600, color: c.accent,
               background: "transparent", border: `1px solid ${c.accent}`,
