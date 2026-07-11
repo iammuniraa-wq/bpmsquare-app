@@ -150,6 +150,8 @@ export type QuoteLine = {
   group_id?: string | null;
   group_label?: string | null;
   group_type?: string | null;
+  sl_no?: string | null;
+  group_description?: string | null;
 };
 
 export type WorkOrderStatus =
