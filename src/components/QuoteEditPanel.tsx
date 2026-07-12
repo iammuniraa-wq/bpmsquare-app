@@ -184,11 +184,23 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           valid_until: validUntil, notes, terms, scope_of_work: scopeOfWork,
-          lines: flatLines, selected_option_id: effectiveAltId, status,
+          lines: flatLines, selected_option_id: effectiveAltId,
         }),
       });
-      if (res.ok) { setOpenEditor(false); onSaved?.(status); router.refresh(); }
-      else { const j = await res.json(); setError(j.error ?? "Failed to save"); }
+      if (!res.ok) { const j = await res.json(); setError(j.error ?? "Failed to save"); return; }
+
+      if (status !== quote.status) {
+        const patchRes = await fetch(`/api/quotes/${quote.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        if (!patchRes.ok) { const j = await patchRes.json(); setError(j.error ?? "Failed to update status"); return; }
+      }
+
+      setOpenEditor(false);
+      onSaved?.(status);
+      router.refresh();
     });
   }
 
