@@ -3,15 +3,20 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
-import type { Quote, QuoteLine } from "@/lib/types";
+import type { Quote, QuoteLine, PricingCategory } from "@/lib/types";
 import { ROUTES, UOM_OPTIONS, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { Pencil } from "@/components/Icons";
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
+const CAT_LABEL: Record<PricingCategory, string> = {
+  labour: "Labour", material: "Materials", testing: "Testing", transport: "Transport",
+};
+
 type LineItem = {
   id: string; sl_no: string; description: string; uom: string;
   qty: string; rate: string; discount_pct: string;
+  category: PricingCategory | ""; deduction: string;
 };
 type GroupRow = {
   kind: "group"; id: string; label: string; group_description: string;
@@ -37,10 +42,15 @@ function lineAmount(l: LineItem): number {
   return qty * rate * (1 - disc / 100);
 }
 
+function lineDeduction(l: LineItem): number {
+  return l.category === "material" ? Math.max(0, parseFloat(l.deduction) || 0) : 0;
+}
+
 function newLineItem(sl_no = ""): LineItem {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     sl_no, description: "", uom: "", qty: "1", rate: "0", discount_pct: "0",
+    category: "", deduction: "0",
   };
 }
 
@@ -52,6 +62,7 @@ function linesToRows(lines: QuoteLine[]): Row[] {
     const item: LineItem = {
       id: l.id, sl_no: l.sl_no ?? "", description: l.description, uom: l.uom ?? "",
       qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct ?? 0),
+      category: (l.category as PricingCategory) ?? "", deduction: String(l.deduction ?? 0),
     };
     if (l.group_id) {
       let idx = groupIndex.get(l.group_id);
@@ -73,8 +84,8 @@ function linesToRows(lines: QuoteLine[]): Row[] {
   return rows.length ? rows : [{ kind: "line", ...newLineItem("1") }];
 }
 
-const lineCols = "44px 1fr 60px 44px 62px 42px 66px 24px";
-const lineHeaders = ["Sl No", "Description", "UOM", "Qty", "Rate", "Disc%", "Amount", ""];
+const lineCols = "44px 1fr 60px 66px 44px 62px 42px 68px 66px 24px";
+const lineHeaders = ["Sl No", "Description", "UOM", "Category", "Qty", "Rate", "Disc%", "Deduction", "Amount", ""];
 
 export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_QUOTE_STATUSES, onSaved }: { quote: Quote; lines: QuoteLine[]; quoteStatuses?: QuoteStatusDef[]; onSaved?: (newStatus: string) => void }) {
   const router = useRouter();
@@ -115,7 +126,8 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
     if (r.group_type === "additive") return r.items;
     return r.id === effectiveAltId ? r.items : [];
   });
-  const total = allLineItems.reduce((s, l) => s + lineAmount(l), 0);
+  const totalDeductions = allLineItems.reduce((s, l) => s + lineDeduction(l), 0);
+  const total = allLineItems.reduce((s, l) => s + lineAmount(l), 0) - totalDeductions;
 
   const updateLine = (lineId: string, field: keyof LineItem, val: string) =>
     setRows((p) => p.map((r) => {
@@ -168,18 +180,21 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
         sl_no: string | null; description: string; uom: string | null; qty: string; rate: string;
         discount_pct: string; group_id: string | null; group_label: string | null;
         group_type: string | null; group_description: string | null;
+        category: string | null; deduction: number;
       }[] =>
         r.kind === "line"
           ? [{
               sl_no: r.sl_no || null, description: r.description, uom: r.uom || null,
               qty: r.qty, rate: r.rate, discount_pct: r.discount_pct,
               group_id: null, group_label: null, group_type: null, group_description: null,
+              category: r.category || null, deduction: lineDeduction(r),
             }]
           : r.items.map((i) => ({
               sl_no: i.sl_no || null, description: i.description, uom: i.uom || null,
               qty: i.qty, rate: i.rate, discount_pct: i.discount_pct,
               group_id: r.id, group_label: r.label, group_type: r.group_type,
               group_description: r.group_description || null,
+              category: i.category || null, deduction: lineDeduction(i),
             }))
       );
       const res = await fetch(`/api/quotes/${quote.id}/edit`, {
@@ -333,9 +348,17 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
                             <option value="">—</option>
                             {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
                           </select>
+                          <select style={{ ...inp, cursor: "pointer" }} value={row.category} onChange={(e) => updateLine(row.id, "category", e.target.value as PricingCategory | "")}>
+                            <option value="">—</option>
+                            {(Object.keys(CAT_LABEL) as PricingCategory[]).map((cat) => <option key={cat} value={cat}>{CAT_LABEL[cat]}</option>)}
+                          </select>
                           <input style={{ ...inp, textAlign: "center" }} type="number" min={0} value={row.qty} onChange={(e) => updateLine(row.id, "qty", e.target.value)} />
                           <input style={{ ...inp, textAlign: "right" }} type="number" min={0} value={row.rate} onChange={(e) => updateLine(row.id, "rate", e.target.value)} />
                           <input style={{ ...inp, textAlign: "right" }} type="number" min={0} max={100} value={row.discount_pct} onChange={(e) => updateLine(row.id, "discount_pct", e.target.value)} />
+                          {row.category === "material"
+                            ? <input style={{ ...inp, textAlign: "right", color: "#b91c1c" }} type="number" min={0} value={row.deduction} onChange={(e) => updateLine(row.id, "deduction", e.target.value)} placeholder="0" title="Salvage / deduction, subtracted once from the grand total" />
+                            : <div />
+                          }
                           <span style={{ fontSize: 12.5, textAlign: "right", fontWeight: 600, color: c.ink }}>{inr(lineAmount(row))}</span>
                           <button type="button" onClick={() => removeRow(row.id)} title="Remove" style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
                         </div>
@@ -391,9 +414,17 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
                               <option value="">—</option>
                               {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
                             </select>
+                            <select style={{ ...inp, cursor: "pointer" }} value={item.category} onChange={(e) => updateLine(item.id, "category", e.target.value as PricingCategory | "")}>
+                              <option value="">—</option>
+                              {(Object.keys(CAT_LABEL) as PricingCategory[]).map((cat) => <option key={cat} value={cat}>{CAT_LABEL[cat]}</option>)}
+                            </select>
                             <input style={{ ...inp, textAlign: "center" }} type="number" min={0} value={item.qty} onChange={(e) => updateLine(item.id, "qty", e.target.value)} />
                             <input style={{ ...inp, textAlign: "right" }} type="number" min={0} value={item.rate} onChange={(e) => updateLine(item.id, "rate", e.target.value)} />
                             <input style={{ ...inp, textAlign: "right" }} type="number" min={0} max={100} value={item.discount_pct} onChange={(e) => updateLine(item.id, "discount_pct", e.target.value)} />
+                            {item.category === "material"
+                              ? <input style={{ ...inp, textAlign: "right", color: "#b91c1c" }} type="number" min={0} value={item.deduction} onChange={(e) => updateLine(item.id, "deduction", e.target.value)} placeholder="0" title="Salvage / deduction, subtracted once from the grand total" />
+                              : <div />
+                            }
                             <span style={{ fontSize: 12, textAlign: "right", fontWeight: 600, color: c.ink }}>{inr(lineAmount(item))}</span>
                             <button type="button" onClick={() => removeLineFromGroup(row.id, item.id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 15, lineHeight: 1 }} title="Remove line">×</button>
                           </div>
@@ -436,6 +467,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
             <div style={{ padding: "14px 24px", borderTop: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0, background: c.panel, maxWidth: 1100, width: "100%", margin: "0 auto", boxSizing: "border-box", flexWrap: "wrap" }}>
               <div style={{ fontSize: 12.5, color: c.muted }}>
                 Subtotal <strong style={{ color: c.ink, fontSize: 14, marginLeft: 6 }}>{inr(total)}</strong>
+                {totalDeductions > 0 && <span style={{ marginLeft: 8, fontSize: 11, color: "#b91c1c" }}>(incl. −{inr(totalDeductions)} deduction)</span>}
                 <span style={{ marginLeft: 8, fontSize: 11, color: c.hint }}>+ GST on view</span>
               </div>
               {error && (

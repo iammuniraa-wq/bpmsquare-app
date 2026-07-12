@@ -36,6 +36,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           const qty  = Math.max(0, parseFloat(l.qty) || 0);
           const rate = Math.max(0, parseFloat(l.rate) || 0);
           const disc = Math.max(0, Math.min(100, parseFloat(l.discount_pct) || 0));
+          const category = l.category || null;
+          const deduction = category === "material" ? Math.max(0, parseFloat(l.deduction) || 0) : 0;
           return {
             tenant_id: tenantId,
             quote_id: id,
@@ -50,6 +52,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             group_label:       l.group_label       ?? null,
             group_type:        l.group_type        ?? null,
             group_description: l.group_description ?? null,
+            category,
+            deduction,
           };
         })
     : [];
@@ -57,14 +61,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // selected_option_id marks which "alternative" (Option A/B) group counts toward the total;
   // items in other alternative groups are kept (so the option can be switched later) but excluded here.
   const effectiveAltId: string | null = selected_option_id !== undefined ? selected_option_id : (quote.selected_option_id ?? null);
-  const subtotal = cleanLines
-    .filter((l) => !l.group_id || l.group_type !== "alternative" || l.group_id === effectiveAltId)
-    .reduce((s, l) => s + l.amount, 0);
+  const effectiveLines = cleanLines.filter((l) => !l.group_id || l.group_type !== "alternative" || l.group_id === effectiveAltId);
+  const subtotal = effectiveLines.reduce((s, l) => s + l.amount, 0);
+  const totalDeductions = effectiveLines.reduce((s, l) => s + l.deduction, 0);
   const discPct = Math.max(0, Math.min(100, parseFloat(String(quote.discount_pct)) || 0));
   const discAmount = quote.discount_type === "fixed"
     ? Math.min(Math.round(parseFloat(String(quote.discount_fixed)) || 0), subtotal)
     : Math.round(subtotal * discPct / 100);
-  const total = subtotal - discAmount;
+  const total = subtotal - discAmount - totalDeductions;
 
   // Update header
   const headerPatch: Record<string, unknown> = {

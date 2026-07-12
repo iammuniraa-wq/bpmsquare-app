@@ -153,6 +153,8 @@ export type QuoteLine = {
   group_type?: string | null;
   sl_no?: string | null;
   group_description?: string | null;
+  category?: PricingCategory | null;
+  deduction?: number;
 };
 
 export type WorkOrderStatus =

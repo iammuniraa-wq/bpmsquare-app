@@ -98,6 +98,8 @@ export async function POST(request: NextRequest) {
           group_label:       l.group_label       ?? null,
           group_type:        l.group_type        ?? null,
           group_description: l.group_description ?? null,
+          category:          l.category          ?? null,
+          deduction:         l.category === "material" ? Math.max(0, parseFloat(l.deduction) || 0) : 0,
         };
       });
     if (lineRows.length > 0) {

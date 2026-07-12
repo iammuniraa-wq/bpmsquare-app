@@ -95,13 +95,15 @@ export default function QuotePrint({
   };
 
   const selectedAltId = quote.selected_option_id ?? null;
-  const subtotal = lines
-    .filter((l) => !l.group_id || l.group_type !== "alternative" || l.group_id === selectedAltId)
-    .reduce((s, l) => s + l.amount, 0);
+  const effectiveLines = lines.filter((l) => !l.group_id || l.group_type !== "alternative" || l.group_id === selectedAltId);
+  const subtotal = effectiveLines.reduce((s, l) => s + l.amount, 0);
+  const totalDeductions = effectiveLines
+    .filter((l) => l.category === "material")
+    .reduce((s, l) => s + (l.deduction ?? 0), 0);
   const discountAmt =
     quote.discount_type === "pct"   ? Math.round(subtotal * (quote.discount_pct ?? 0) / 100) :
     quote.discount_type === "fixed" ? (quote.discount_fixed ?? 0) : 0;
-  const afterDiscount = subtotal - discountAmt;
+  const afterDiscount = subtotal - discountAmt - totalDeductions;
   const tax = Math.round(afterDiscount * co.tax_rate / 100);
   const grandTotal = afterDiscount + tax;
 
@@ -450,7 +452,8 @@ export default function QuotePrint({
                     muted
                   />
                 )}
-                {discountAmt > 0 && <TotalRow label="Net cost after discount" value={inr(afterDiscount)} />}
+                {totalDeductions > 0 && <TotalRow label="Deductions (salvage)" value={`− ${inr(totalDeductions)}`} muted />}
+                {(discountAmt > 0 || totalDeductions > 0) && <TotalRow label="Net cost" value={inr(afterDiscount)} />}
                 <TotalRow label={`${co.tax_label} @ ${co.tax_rate}%`} value={inr(tax)} muted />
                 <tr>
                   <td colSpan={2} style={{ paddingTop: 6 }}>

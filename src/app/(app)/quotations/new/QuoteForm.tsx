@@ -62,6 +62,7 @@ const KIND_TONE: Record<Asset["kind"], PillarKey> = {
 type LineItem = {
   id: string; sl_no: string; description: string; uom: string;
   qty: string; rate: string; discount: string;
+  category: PricingCategory | ""; deduction: string;
   group_id?: string | null; group_label?: string | null;
 };
 type GroupRow = {
@@ -137,7 +138,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
   // Line items & groups
   const [rows, setRows] = useState<Row[]>([
-    { kind: "line", id: "1", sl_no: "1", description: "", uom: "", qty: "1", rate: "0", discount: "" },
+    { kind: "line", id: "1", sl_no: "1", description: "", uom: "", qty: "1", rate: "0", discount: "", category: "", deduction: "0" },
   ]);
   const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set());
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
@@ -258,7 +259,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         if (Array.isArray(copy.rows) && copy.rows.length > 0)
           setRows(copy.rows.map((r: Row) => r.kind === "group"
             ? { ...r, group_description: (r as GroupRow).group_description ?? "", group_type: (r as GroupRow).group_type ?? "additive" }
-            : { ...r, sl_no: (r as LineItem).sl_no ?? "" }
+            : { ...r, sl_no: (r as LineItem).sl_no ?? "", category: (r as LineItem).category ?? "", deduction: (r as LineItem).deduction ?? "0" }
           ));
         else if (Array.isArray(copy.lines) && copy.lines.length > 0)
           setRows(copy.lines.map((l: LineItem, i: number) => ({ kind: "line" as const, ...l, sl_no: l.sl_no ?? String(i + 1) })));
@@ -332,14 +333,16 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     const qty  = parseFloat(l.qty) || 0;
     const rate = parseFloat(l.rate) || 0;
     const disc = Math.max(0, Math.min(100, parseFloat(l.discount) || 0));
-    return { ...l, qty, rate, disc, amount: qty * rate * (1 - disc / 100) };
+    const ded  = l.category === "material" ? Math.max(0, parseFloat(l.deduction) || 0) : 0;
+    return { ...l, qty, rate, disc, ded, amount: qty * rate * (1 - disc / 100) };
   });
   const subtotal = parsedLines.reduce((s, l) => s + l.amount, 0);
+  const totalDeductions = parsedLines.reduce((s, l) => s + l.ded, 0);
   const discPct    = Math.max(0, Math.min(100, parseFloat(discountPct) || 0));
   const discAmount = discountType === "pct"
     ? Math.round(subtotal * discPct / 100)
     : Math.min(Math.round(parseFloat(discountFixed) || 0), subtotal);
-  const total = subtotal - discAmount;
+  const total = subtotal - discAmount - totalDeductions;
   const poVal = parseFloat(poAmount) || 0;
 
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -349,6 +352,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const newLineItem = (sl_no = ""): LineItem => ({
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     sl_no, description: "", uom: "", qty: "1", rate: "0", discount: "",
+    category: "", deduction: "0",
   });
 
   const addLine = () => setRows((p) => {
@@ -412,7 +416,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     rows.forEach((r, i) => {
       if (r.kind === "line" && selectedIds.has(r.id)) {
         if (insertAt === -1) insertAt = i - groupItems.length;
-        groupItems.push({ id: r.id, sl_no: r.sl_no, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount: r.discount });
+        groupItems.push({ id: r.id, sl_no: r.sl_no, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount: r.discount, category: r.category, deduction: r.deduction });
       } else { rest.push(r); }
     });
     const group: GroupRow = { kind: "group", id: gid, label: "Group", group_description: "", group_type: "additive", items: groupItems };
@@ -487,10 +491,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             sl_no: string | null; description: string; uom: string; qty: string; rate: string;
             discount_pct: number; group_id: string | null; group_label: string | null;
             group_type: string | null; group_description: string | null;
+            category: PricingCategory | null; deduction: number;
           }[] =>
             r.kind === "line"
-              ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null }]
-              : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null }))
+              ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null, category: r.category || null, deduction: r.category === "material" ? Math.max(0, parseFloat(r.deduction) || 0) : 0 }]
+              : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null, category: i.category || null, deduction: i.category === "material" ? Math.max(0, parseFloat(i.deduction) || 0) : 0 }))
           ),
         }),
       });
@@ -522,21 +527,21 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   }
 
   // ── Column template helpers ───────────────────────────────────────────────
-  // Standalone line: checkbox | sl_no | description | uom | qty | [rate | disc | amount] | delete
+  // Standalone line: checkbox | sl_no | description | uom | category | qty | [rate | disc | deduction | amount] | delete
   const standaloneCols = isTechnical
-    ? "20px 52px 1fr 72px 60px 32px"
-    : "20px 52px 1fr 72px 60px 100px 68px 100px 32px";
+    ? "20px 52px 1fr 72px 70px 60px 32px"
+    : "20px 52px 1fr 72px 70px 60px 100px 68px 74px 100px 32px";
   const standaloneHeaders = isTechnical
-    ? ["", "Sl No", "Description", "UOM", "Qty", ""]
-    : ["", "Sl No", "Description", "UOM", "Qty", "Rate (₹)", "Disc %", "Amount", ""];
+    ? ["", "Sl No", "Description", "UOM", "Category", "Qty", ""]
+    : ["", "Sl No", "Description", "UOM", "Category", "Qty", "Rate (₹)", "Disc %", "Deduction (₹)", "Amount", ""];
 
-  // Group item line: sl_no | description | uom | qty | [rate | disc | amount] | delete
+  // Group item line: sl_no | description | uom | category | qty | [rate | disc | deduction | amount] | delete
   const groupItemCols = isTechnical
-    ? "52px 1fr 72px 60px 32px"
-    : "52px 1fr 72px 60px 100px 68px 100px 32px";
+    ? "52px 1fr 72px 70px 60px 32px"
+    : "52px 1fr 72px 70px 60px 100px 68px 74px 100px 32px";
   const groupItemHeaders = isTechnical
-    ? ["Sl No", "Description", "UOM", "Qty", ""]
-    : ["Sl No", "Description", "UOM", "Qty", "Rate (₹)", "Disc %", "Amount", ""];
+    ? ["Sl No", "Description", "UOM", "Category", "Qty", ""]
+    : ["Sl No", "Description", "UOM", "Category", "Qty", "Rate (₹)", "Disc %", "Deduction (₹)", "Amount", ""];
 
   // ── Main form ─────────────────────────────────────────────────────────────
   return (
@@ -828,9 +833,18 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         <option value="">—</option>
                         {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
                       </select>
+                      <select style={{ ...selStyle, fontSize: 12 }} value={row.category} onChange={(e) => updateLine(row.id, "category", e.target.value as PricingCategory | "")}>
+                        <option value="">—</option>
+                        {(Object.keys(CAT_LABEL) as PricingCategory[]).map((cat) => <option key={cat} value={cat}>{CAT_LABEL[cat]}</option>)}
+                      </select>
                       <input style={{ ...inp, textAlign: "center" }} type="number" min="0" step="1" value={row.qty} onChange={(e) => updateLine(row.id, "qty", e.target.value)} />
                       {!isTechnical && <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={row.rate} onChange={(e) => updateLine(row.id, "rate", e.target.value)} />}
                       {!isTechnical && <input style={{ ...inp, textAlign: "right", color: disc > 0 ? "#d97706" : c.muted }} type="number" min="0" max="100" step="0.5" value={row.discount} onChange={(e) => updateLine(row.id, "discount", e.target.value)} placeholder="0" />}
+                      {!isTechnical && (
+                        row.category === "material"
+                          ? <input style={{ ...inp, textAlign: "right", color: "#b91c1c" }} type="number" min="0" step="10" value={row.deduction} onChange={(e) => updateLine(row.id, "deduction", e.target.value)} placeholder="0" title="Salvage / deduction credited back, subtracted once from the grand total" />
+                          : <div />
+                      )}
                       {!isTechnical && (
                         <div style={{ textAlign: "right", paddingTop: 8 }}>
                           <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{fmt(amount)}</div>
@@ -918,9 +932,18 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                               <option value="">—</option>
                               {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
                             </select>
+                            <select style={{ ...selStyle, fontSize: 12 }} value={item.category} onChange={(e) => updateLine(item.id, "category", e.target.value as PricingCategory | "")}>
+                              <option value="">—</option>
+                              {(Object.keys(CAT_LABEL) as PricingCategory[]).map((cat) => <option key={cat} value={cat}>{CAT_LABEL[cat]}</option>)}
+                            </select>
                             <input style={{ ...inp, textAlign: "center", fontSize: 12.5 }} type="number" min="0" step="1" value={item.qty} onChange={(e) => updateLine(item.id, "qty", e.target.value)} />
                             {!isTechnical && <input style={{ ...inp, textAlign: "right", fontSize: 12.5 }} type="number" min="0" step="100" value={item.rate} onChange={(e) => updateLine(item.id, "rate", e.target.value)} />}
                             {!isTechnical && <input style={{ ...inp, textAlign: "right", fontSize: 12.5, color: disc > 0 ? "#d97706" : c.muted }} type="number" min="0" max="100" step="0.5" value={item.discount} onChange={(e) => updateLine(item.id, "discount", e.target.value)} placeholder="0" />}
+                            {!isTechnical && (
+                              item.category === "material"
+                                ? <input style={{ ...inp, textAlign: "right", fontSize: 12.5, color: "#b91c1c" }} type="number" min="0" step="10" value={item.deduction} onChange={(e) => updateLine(item.id, "deduction", e.target.value)} placeholder="0" title="Salvage / deduction credited back, subtracted once from the grand total" />
+                                : <div />
+                            )}
                             {!isTechnical && (
                               <div style={{ textAlign: "right", paddingTop: 8 }}>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{fmt(amount)}</div>
@@ -1100,6 +1123,13 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     </span>
                   </div>
                 </div>
+
+                {totalDeductions > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: c.muted }}>
+                    <span>Deductions <span style={{ fontSize: 11, color: c.hint }}>(salvage)</span></span>
+                    <span style={{ fontWeight: 600, color: pillar.red.fg }}>− {fmt(totalDeductions)}</span>
+                  </div>
+                )}
 
                 <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: pillar.green.bg, borderRadius: 9, marginTop: 2 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: pillar.green.fg }}>Total</span>
