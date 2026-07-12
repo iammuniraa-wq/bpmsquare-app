@@ -610,7 +610,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
         <StatusChanger quoteId={quote.id} currentStatus={currentStatus} statuses={quoteStatuses} onChanged={setCurrentStatus} />
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {!adaptMode && <QuoteEditPanel quote={quote} lines={lines} quoteStatuses={quoteStatuses} />}
+          {!adaptMode && <QuoteEditPanel quote={quote} lines={lines} quoteStatuses={quoteStatuses} onSaved={setCurrentStatus} />}
           {!adaptMode && (
             <button
               onClick={() => setAdaptMode(true)}

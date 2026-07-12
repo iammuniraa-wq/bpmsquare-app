@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { Quote, QuoteLine } from "@/lib/types";
@@ -76,7 +76,7 @@ function linesToRows(lines: QuoteLine[]): Row[] {
 const lineCols = "44px 1fr 60px 44px 62px 42px 66px 24px";
 const lineHeaders = ["Sl No", "Description", "UOM", "Qty", "Rate", "Disc%", "Amount", ""];
 
-export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_QUOTE_STATUSES }: { quote: Quote; lines: QuoteLine[]; quoteStatuses?: QuoteStatusDef[] }) {
+export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_QUOTE_STATUSES, onSaved }: { quote: Quote; lines: QuoteLine[]; quoteStatuses?: QuoteStatusDef[]; onSaved?: (newStatus: string) => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -91,6 +91,20 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
   const [scopeOfWork, setScopeOfWork] = useState(quote.scope_of_work ?? "");
   const [rows, setRows] = useState<Row[]>(() => linesToRows(lines));
   const [selectedAltId, setSelectedAltId] = useState<string | null>(quote.selected_option_id ?? null);
+
+  // Sync form fields from the latest quote prop every time the modal opens
+  useEffect(() => {
+    if (openEditor) {
+      setStatus(quote.status);
+      setValidUntil(quote.valid_until ?? "");
+      setNotes(quote.notes ?? "");
+      setTerms(quote.terms ?? "");
+      setScopeOfWork(quote.scope_of_work ?? "");
+      setRows(linesToRows(lines));
+      setSelectedAltId(quote.selected_option_id ?? null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openEditor]);
 
   const altGroups = rows.filter((r): r is GroupRow => r.kind === "group" && r.group_type === "alternative");
   const effectiveAltId = selectedAltId ?? altGroups[0]?.id ?? null;
@@ -173,7 +187,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
           lines: flatLines, selected_option_id: effectiveAltId, status,
         }),
       });
-      if (res.ok) { setOpenEditor(false); router.refresh(); }
+      if (res.ok) { setOpenEditor(false); onSaved?.(status); router.refresh(); }
       else { const j = await res.json(); setError(j.error ?? "Failed to save"); }
     });
   }
