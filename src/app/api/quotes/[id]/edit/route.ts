@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 
 // Full edit of a DRAFT quote: header fields + line items (replaced wholesale).
 // Server enforces draft-only; sent/approved quotes must use /revise instead.
@@ -77,7 +77,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   };
   if (status !== undefined) headerPatch.status = status;
 
-  const { error: uErr } = await supabase
+  const admin = createAdminSupabase();
+
+  const { error: uErr } = await admin
     .from("quotes")
     .update(headerPatch)
     .eq("id", id)
@@ -86,7 +88,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
 
   // Replace lines wholesale
-  const { error: dErr } = await supabase
+  const { error: dErr } = await admin
     .from("quote_lines")
     .delete()
     .eq("quote_id", id)
@@ -95,7 +97,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
   if (cleanLines.length > 0) {
-    const { error: iErr } = await supabase.from("quote_lines").insert(cleanLines);
+    const { error: iErr } = await admin.from("quote_lines").insert(cleanLines);
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
   }
 

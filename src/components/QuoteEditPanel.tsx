@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { Quote, QuoteLine } from "@/lib/types";
@@ -78,7 +78,8 @@ const lineHeaders = ["Sl No", "Description", "UOM", "Qty", "Rate", "Disc%", "Amo
 
 export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_QUOTE_STATUSES, onSaved }: { quote: Quote; lines: QuoteLine[]; quoteStatuses?: QuoteStatusDef[]; onSaved?: (newStatus: string) => void }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const currentDef = quoteStatuses.find((s) => s.value === quote.status);
   const isEditable = !currentDef?.is_terminal;
@@ -158,9 +159,11 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
   const ungroup = (gid: string) =>
     setRows((rs) => rs.flatMap((r) => r.kind === "group" && r.id === gid ? r.items.map((i): Row => ({ kind: "line", ...i })) : [r]));
 
-  function saveDraft() {
+  async function saveDraft() {
     setError("");
-    startTransition(async () => {
+    setSaved(false);
+    setSaving(true);
+    try {
       const flatLines = rows.flatMap((r): {
         sl_no: string | null; description: string; uom: string | null; qty: string; rate: string;
         discount_pct: string; group_id: string | null; group_label: string | null;
@@ -187,7 +190,13 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
           lines: flatLines, selected_option_id: effectiveAltId,
         }),
       });
-      if (!res.ok) { const j = await res.json(); setError(j.error ?? "Failed to save"); return; }
+      if (!res.ok) {
+        const text = await res.text();
+        let msg = "Failed to save";
+        try { msg = JSON.parse(text).error ?? msg; } catch { msg = text.slice(0, 200) || msg; }
+        setError(msg);
+        return;
+      }
 
       if (status !== quote.status) {
         const patchRes = await fetch(`/api/quotes/${quote.id}`, {
@@ -195,22 +204,38 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status }),
         });
-        if (!patchRes.ok) { const j = await patchRes.json(); setError(j.error ?? "Failed to update status"); return; }
+        if (!patchRes.ok) {
+          const text = await patchRes.text();
+          let msg = "Failed to update status";
+          try { msg = JSON.parse(text).error ?? msg; } catch { msg = text.slice(0, 200) || msg; }
+          setError(msg);
+          return;
+        }
       }
 
-      setOpenEditor(false);
       onSaved?.(status);
+      setSaved(true);
       router.refresh();
-    });
+      setTimeout(() => { setOpenEditor(false); setSaved(false); }, 800);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unexpected error");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function createVersion() {
+  async function createVersion() {
     setError("");
-    startTransition(async () => {
+    setSaving(true);
+    try {
       const res = await fetch(`/api/quotes/${quote.id}/revise`, { method: "POST" });
       if (res.ok) { const j = await res.json(); router.push(ROUTES.quotation(j.id)); }
-      else { const j = await res.json(); setError(j.error ?? "Failed to create version"); }
-    });
+      else { const text = await res.text(); let msg = "Failed to create version"; try { msg = JSON.parse(text).error ?? msg; } catch { msg = text.slice(0, 200) || msg; } setError(msg); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unexpected error");
+    } finally {
+      setSaving(false);
+    }
   }
 
   // ── Terminal status: create-new-version action ────────────────────────────────
@@ -220,7 +245,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
         <button
           type="button"
           onClick={createVersion}
-          disabled={pending}
+          disabled={saving}
           title="This quote is locked. Create an editable copy as a new revision."
           style={{
             display: "inline-flex", alignItems: "center", gap: 5, background: c.panel2, color: c.muted,
@@ -228,7 +253,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
             fontSize: 12.5, fontWeight: 600, cursor: "pointer",
           }}
         >
-          <Pencil size={13} color={c.muted} /> {pending ? "Creating…" : "Create new version"}
+          <Pencil size={13} color={c.muted} /> {saving ? "Creating…" : "Create new version"}
         </button>
         {error && <span style={{ fontSize: 12, color: "#dc2626", marginLeft: 8 }}>{error}</span>}
       </>
@@ -414,8 +439,8 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
                 <span style={{ marginLeft: 8, fontSize: 11, color: c.hint }}>+ GST on view</span>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" onClick={() => setOpenEditor(false)} disabled={pending} style={{ padding: "8px 14px", borderRadius: 7, border: `1px solid ${c.line}`, background: "none", color: c.muted, fontWeight: 500, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-                <button type="button" onClick={saveDraft} disabled={pending} style={{ padding: "8px 20px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{pending ? "Saving…" : "Save changes"}</button>
+                <button type="button" onClick={() => setOpenEditor(false)} disabled={saving} style={{ padding: "8px 14px", borderRadius: 7, border: `1px solid ${c.line}`, background: "none", color: c.muted, fontWeight: 500, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+                <button type="button" onClick={saveDraft} disabled={saving} style={{ padding: "8px 20px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{saved ? "✓ Saved!" : saving ? "Saving…" : "Save changes"}</button>
               </div>
             </div>
           </div>
