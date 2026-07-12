@@ -176,7 +176,7 @@ export const OFFER_TYPE_LABEL: Record<string, string> = {
   repair:     "Repair Quotation",
 };
 
-export const UOM_OPTIONS = ["Nos", "Job", "Set", "Mtr", "Kg", "Ltr", "Box", "Pair", "Lot"] as const;
+export const UOM_OPTIONS = ["Nos", "Job", "Set", "Mtr", "Kg", "Ltr", "Box", "Pair", "Lot", "LSM", "Ton"] as const;
 
 export const MOBILE_BREAKPOINT = 780;
 

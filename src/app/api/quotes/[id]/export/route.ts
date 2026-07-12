@@ -22,19 +22,30 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { data: quote } = await supabase
     .from("quotes")
-    .select("ref, name, type, status, total, valid_until, notes, terms, scope_of_work, created_at")
+    .select("ref, name, type, status, total, valid_until, notes, terms, scope_of_work, created_at, account_id, contact_id, po_number, pr_no, asset_ids, accounts(name)")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .single();
 
   if (!quote) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { data: lines } = await supabase
-    .from("quote_lines")
-    .select("description, uom, qty, rate, discount_pct, amount, group_label")
-    .eq("quote_id", id)
-    .eq("tenant_id", tenantId)
-    .order("id");
+  const [{ data: lines }, { data: contact }, { data: assets }] = await Promise.all([
+    supabase
+      .from("quote_lines")
+      .select("description, uom, qty, rate, discount_pct, amount, group_label")
+      .eq("quote_id", id)
+      .eq("tenant_id", tenantId)
+      .order("sl_no"),
+    quote.contact_id
+      ? supabase.from("contacts").select("name").eq("id", quote.contact_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    Array.isArray(quote.asset_ids) && quote.asset_ids.length > 0
+      ? supabase.from("assets").select("name, make, model, rating, serial").in("id", quote.asset_ids)
+      : Promise.resolve({ data: null }),
+  ]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const account = (Array.isArray((quote as any).accounts) ? (quote as any).accounts[0] : (quote as any).accounts) as { name: string } | null;
 
   const rows: string[] = [];
 
@@ -45,7 +56,20 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   rows.push(`Status,${esc(quote.status)}`);
   rows.push(`Date,${esc(quote.created_at?.slice(0, 10))}`);
   rows.push(`Valid Until,${esc(quote.valid_until?.slice(0, 10))}`);
+  rows.push(`Account,${esc(account?.name)}`);
+  rows.push(`Contact,${esc(contact?.name)}`);
+  rows.push(`PO Number,${esc(quote.po_number)}`);
+  rows.push(`PR No.,${esc(quote.pr_no)}`);
   rows.push(``);
+
+  if (assets && assets.length > 0) {
+    rows.push(`Motor / Asset Details`);
+    rows.push(`Name,Make,Model,Rating,Serial`);
+    assets.forEach((a) => {
+      rows.push([esc(a.name), esc(a.make), esc(a.model), esc(a.rating), esc(a.serial)].join(","));
+    });
+    rows.push(``);
+  }
 
   if (quote.scope_of_work) {
     rows.push(`Scope of Work,${esc(quote.scope_of_work)}`);

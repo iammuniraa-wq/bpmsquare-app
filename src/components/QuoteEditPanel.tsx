@@ -11,12 +11,15 @@ const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDi
 
 type Row = {
   description: string;
+  uom: string | null;
   qty: string;
   rate: string;
   discount_pct: string;
+  sl_no: string | null;
   group_id: string | null;
   group_label: string | null;
   group_type: string | null;
+  group_description: string | null;
 };
 
 const inp: React.CSSProperties = {
@@ -50,12 +53,15 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
   const [rows, setRows] = useState<Row[]>(
     lines.map((l) => ({
       description: l.description,
+      uom: l.uom ?? null,
       qty: String(l.qty),
       rate: String(l.rate),
       discount_pct: String(l.discount_pct ?? 0),
+      sl_no: l.sl_no ?? null,
       group_id: l.group_id ?? null,
       group_label: l.group_label ?? null,
       group_type: l.group_type ?? null,
+      group_description: l.group_description ?? null,
     }))
   );
 
@@ -65,7 +71,7 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
 
   const addRow = () =>
-    setRows((rs) => [...rs, { description: "", qty: "1", rate: "0", discount_pct: "0", group_id: null, group_label: null, group_type: null }]);
+    setRows((rs) => [...rs, { description: "", uom: null, qty: "1", rate: "0", discount_pct: "0", sl_no: null, group_id: null, group_label: null, group_type: null, group_description: null }]);
 
   const removeRow = (i: number) => setRows((rs) => rs.filter((_, j) => j !== i));
 

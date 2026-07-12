@@ -18,7 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: quote, error: qErr } = await supabase
     .from("quotes")
-    .select("id, status")
+    .select("id, status, discount_type, discount_pct, discount_fixed")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .single();
@@ -43,18 +43,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             tenant_id: tenantId,
             quote_id: id,
             description: String(l.description).slice(0, 500),
+            uom: l.uom || null,
             qty,
             rate,
             discount_pct: disc,
             amount: qty * rate * (1 - disc / 100),
-            group_id:    l.group_id    ?? null,
-            group_label: l.group_label ?? null,
-            group_type:  l.group_type  ?? null,
+            sl_no:             l.sl_no             ?? null,
+            group_id:          l.group_id          ?? null,
+            group_label:       l.group_label       ?? null,
+            group_type:        l.group_type        ?? null,
+            group_description: l.group_description ?? null,
           };
         })
     : [];
 
-  const total = cleanLines.reduce((s, l) => s + l.amount, 0);
+  const subtotal = cleanLines.reduce((s, l) => s + l.amount, 0);
+  const discPct = Math.max(0, Math.min(100, parseFloat(String(quote.discount_pct)) || 0));
+  const discAmount = quote.discount_type === "fixed"
+    ? Math.min(Math.round(parseFloat(String(quote.discount_fixed)) || 0), subtotal)
+    : Math.round(subtotal * discPct / 100);
+  const total = subtotal - discAmount;
 
   // Update header
   const { error: uErr } = await supabase

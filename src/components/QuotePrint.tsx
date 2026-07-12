@@ -387,7 +387,7 @@ export default function QuotePrint({
 
         {/* Totals — hidden for technical offers */}
         {!isTechnical && (
-          <div style={{ borderTop: `1px solid ${brand.line}`, padding: "12px 28px", display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ borderTop: `1px solid ${brand.line}`, padding: "12px 28px", display: "flex", justifyContent: "flex-end", breakInside: "avoid", breakBefore: "avoid" }}>
             <table style={{ width: 300 }}>
               <tbody>
                 <TotalRow label="Subtotal" value={inr(subtotal)} />
@@ -460,7 +460,7 @@ export default function QuotePrint({
         </div>
 
         {/* Footer — mirrors the PDF sample: address row · phones grid · tagline */}
-        <div style={{ background: brand.dark, borderTop: `2px solid ${co.logo_bg}` }}>
+        <div style={{ background: brand.dark, borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid" }}>
           {/* Address row */}
           {co.address && (
             <div style={{ padding: "8px 28px 4px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: "#8aa0b8" }}>

@@ -444,7 +444,7 @@ export async function getQuoteLive(id: string) {
     { data: workOrders },
   ] = await Promise.all([
     supabase.from("quotes").select("*, accounts(*)").eq("id", id).maybeSingle(),
-    supabase.from("quote_lines").select("*").eq("quote_id", id).order("id"),
+    supabase.from("quote_lines").select("*").eq("quote_id", id).order("sl_no"),
     supabase.from("quote_revisions").select("*").eq("quote_id", id).order("rev"),
     supabase.from("work_orders").select("*").eq("auth_kind", "quote").eq("auth_id", id),
   ]);
