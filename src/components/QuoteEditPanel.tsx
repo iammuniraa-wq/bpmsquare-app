@@ -4,23 +4,21 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { Quote, QuoteLine } from "@/lib/types";
-import { ROUTES } from "@/lib/constants";
+import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
 import { Pencil } from "@/components/Icons";
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
-type Row = {
-  description: string;
-  uom: string | null;
-  qty: string;
-  rate: string;
-  discount_pct: string;
-  sl_no: string | null;
-  group_id: string | null;
-  group_label: string | null;
-  group_type: string | null;
-  group_description: string | null;
+type LineItem = {
+  id: string; sl_no: string; description: string; uom: string;
+  qty: string; rate: string; discount_pct: string;
 };
+type GroupRow = {
+  kind: "group"; id: string; label: string; group_description: string;
+  group_type: "additive" | "alternative"; items: LineItem[];
+};
+type LineRow = { kind: "line" } & LineItem;
+type Row = LineRow | GroupRow;
 
 const inp: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", padding: "7px 9px", fontSize: 12.5,
@@ -32,12 +30,51 @@ const lbl: React.CSSProperties = {
   textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4,
 };
 
-function lineAmount(r: Row): number {
-  const qty  = Math.max(0, parseFloat(r.qty) || 0);
-  const rate = Math.max(0, parseFloat(r.rate) || 0);
-  const disc = Math.max(0, Math.min(100, parseFloat(r.discount_pct) || 0));
+function lineAmount(l: LineItem): number {
+  const qty  = Math.max(0, parseFloat(l.qty) || 0);
+  const rate = Math.max(0, parseFloat(l.rate) || 0);
+  const disc = Math.max(0, Math.min(100, parseFloat(l.discount_pct) || 0));
   return qty * rate * (1 - disc / 100);
 }
+
+function newLineItem(sl_no = ""): LineItem {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    sl_no, description: "", uom: "", qty: "1", rate: "0", discount_pct: "0",
+  };
+}
+
+// Reconstruct grouped rows from the flat QuoteLine[] as stored in the DB.
+function linesToRows(lines: QuoteLine[]): Row[] {
+  const rows: Row[] = [];
+  const groupIndex = new Map<string, number>();
+  for (const l of lines) {
+    const item: LineItem = {
+      id: l.id, sl_no: l.sl_no ?? "", description: l.description, uom: l.uom ?? "",
+      qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct ?? 0),
+    };
+    if (l.group_id) {
+      let idx = groupIndex.get(l.group_id);
+      if (idx === undefined) {
+        idx = rows.length;
+        groupIndex.set(l.group_id, idx);
+        rows.push({
+          kind: "group", id: l.group_id, label: l.group_label ?? "Group",
+          group_description: l.group_description ?? "",
+          group_type: l.group_type === "alternative" ? "alternative" : "additive",
+          items: [],
+        });
+      }
+      (rows[idx] as GroupRow).items.push(item);
+    } else {
+      rows.push({ kind: "line", ...item });
+    }
+  }
+  return rows.length ? rows : [{ kind: "line", ...newLineItem("1") }];
+}
+
+const lineCols = "44px 1fr 60px 44px 62px 42px 66px 24px";
+const lineHeaders = ["Sl No", "Description", "UOM", "Qty", "Rate", "Disc%", "Amount", ""];
 
 export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: QuoteLine[] }) {
   const router = useRouter();
@@ -50,38 +87,89 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
   const [notes, setNotes] = useState(quote.notes ?? "");
   const [terms, setTerms] = useState(quote.terms ?? "");
   const [scopeOfWork, setScopeOfWork] = useState(quote.scope_of_work ?? "");
-  const [rows, setRows] = useState<Row[]>(
-    lines.map((l) => ({
-      description: l.description,
-      uom: l.uom ?? null,
-      qty: String(l.qty),
-      rate: String(l.rate),
-      discount_pct: String(l.discount_pct ?? 0),
-      sl_no: l.sl_no ?? null,
-      group_id: l.group_id ?? null,
-      group_label: l.group_label ?? null,
-      group_type: l.group_type ?? null,
-      group_description: l.group_description ?? null,
-    }))
-  );
+  const [rows, setRows] = useState<Row[]>(() => linesToRows(lines));
+  const [selectedAltId, setSelectedAltId] = useState<string | null>(quote.selected_option_id ?? null);
 
-  const total = rows.reduce((s, r) => s + lineAmount(r), 0);
+  const altGroups = rows.filter((r): r is GroupRow => r.kind === "group" && r.group_type === "alternative");
+  const effectiveAltId = selectedAltId ?? altGroups[0]?.id ?? null;
 
-  const setRow = (i: number, k: keyof Row, v: string) =>
-    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const allLineItems: LineItem[] = rows.flatMap((r) => {
+    if (r.kind === "line") return [r];
+    if (r.group_type === "additive") return r.items;
+    return r.id === effectiveAltId ? r.items : [];
+  });
+  const total = allLineItems.reduce((s, l) => s + lineAmount(l), 0);
+
+  const updateLine = (lineId: string, field: keyof LineItem, val: string) =>
+    setRows((p) => p.map((r) => {
+      if (r.kind === "line" && r.id === lineId) return { ...r, [field]: val };
+      if (r.kind === "group") return { ...r, items: r.items.map((i) => i.id === lineId ? { ...i, [field]: val } : i) };
+      return r;
+    }));
 
   const addRow = () =>
-    setRows((rs) => [...rs, { description: "", uom: null, qty: "1", rate: "0", discount_pct: "0", sl_no: null, group_id: null, group_label: null, group_type: null, group_description: null }]);
+    setRows((rs) => [...rs, { kind: "line", ...newLineItem(String(rs.length + 1)) }]);
 
-  const removeRow = (i: number) => setRows((rs) => rs.filter((_, j) => j !== i));
+  const addGroup = () =>
+    setRows((rs) => [...rs, { kind: "group", id: `${Date.now()}`, label: "Group", group_description: "", group_type: "additive", items: [newLineItem(`${rs.length + 1}.1`)] }]);
+
+  const addAlternative = () => {
+    const gid = `${Date.now()}`;
+    setRows((rs) => [...rs, { kind: "group", id: gid, label: `Option ${String.fromCharCode(65 + altGroups.length)}`, group_description: "", group_type: "alternative", items: [newLineItem(`${rs.length + 1}.1`)] }]);
+    setSelectedAltId((prev) => prev ?? gid);
+  };
+
+  const removeRow = (rowId: string) =>
+    setRows((rs) => { const n = rs.filter((r) => r.id !== rowId); return n.length ? n : [{ kind: "line", ...newLineItem("1") }]; });
+
+  const addLineToGroup = (gid: string) =>
+    setRows((rs) => rs.map((r) => r.kind === "group" && r.id === gid
+      ? { ...r, items: [...r.items, newLineItem(`${r.items.length + 1}`)] }
+      : r
+    ));
+
+  const removeLineFromGroup = (gid: string, lid: string) =>
+    setRows((rs) => rs.map((r) => {
+      if (r.kind !== "group" || r.id !== gid) return r;
+      const items = r.items.filter((i) => i.id !== lid);
+      return { ...r, items: items.length ? items : [newLineItem()] };
+    }));
+
+  const updateGroupLabel = (gid: string, label: string) =>
+    setRows((rs) => rs.map((r) => r.kind === "group" && r.id === gid ? { ...r, label } : r));
+  const updateGroupDescription = (gid: string, group_description: string) =>
+    setRows((rs) => rs.map((r) => r.kind === "group" && r.id === gid ? { ...r, group_description } : r));
+  const ungroup = (gid: string) =>
+    setRows((rs) => rs.flatMap((r) => r.kind === "group" && r.id === gid ? r.items.map((i): Row => ({ kind: "line", ...i })) : [r]));
 
   function saveDraft() {
     setError("");
     startTransition(async () => {
+      const flatLines = rows.flatMap((r): {
+        sl_no: string | null; description: string; uom: string | null; qty: string; rate: string;
+        discount_pct: string; group_id: string | null; group_label: string | null;
+        group_type: string | null; group_description: string | null;
+      }[] =>
+        r.kind === "line"
+          ? [{
+              sl_no: r.sl_no || null, description: r.description, uom: r.uom || null,
+              qty: r.qty, rate: r.rate, discount_pct: r.discount_pct,
+              group_id: null, group_label: null, group_type: null, group_description: null,
+            }]
+          : r.items.map((i) => ({
+              sl_no: i.sl_no || null, description: i.description, uom: i.uom || null,
+              qty: i.qty, rate: i.rate, discount_pct: i.discount_pct,
+              group_id: r.id, group_label: r.label, group_type: r.group_type,
+              group_description: r.group_description || null,
+            }))
+      );
       const res = await fetch(`/api/quotes/${quote.id}/edit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ valid_until: validUntil, notes, terms, scope_of_work: scopeOfWork, lines: rows }),
+        body: JSON.stringify({
+          valid_until: validUntil, notes, terms, scope_of_work: scopeOfWork,
+          lines: flatLines, selected_option_id: effectiveAltId,
+        }),
       });
       if (res.ok) { setOpenEditor(false); router.refresh(); }
       else { const j = await res.json(); setError(j.error ?? "Failed to save"); }
@@ -146,7 +234,7 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: c.panel, borderRadius: 14, width: "100%", maxWidth: 760,
+              background: c.panel, borderRadius: 14, width: "100%", maxWidth: 860,
               boxShadow: "0 20px 60px rgba(0,0,0,.35)", overflow: "hidden",
             }}
           >
@@ -158,7 +246,7 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
               <button onClick={() => setOpenEditor(false)} style={{ background: "none", border: "none", fontSize: 20, color: c.hint, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
 
-            <div style={{ padding: "16px 20px", maxHeight: "60vh", overflowY: "auto" }}>
+            <div style={{ padding: "16px 20px", maxHeight: "65vh", overflowY: "auto" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
                 <div>
                   <label style={lbl}>Valid until</label>
@@ -166,25 +254,107 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
                 </div>
               </div>
 
-              <label style={lbl}>Line items</label>
-              <div style={{ border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden", marginBottom: 8 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 58px 78px 54px 78px 28px", gap: 6, padding: "8px 10px", background: c.panel2, fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.3 }}>
-                  <span>Description</span><span>Qty</span><span>Rate</span><span>Disc%</span><span style={{ textAlign: "right" }}>Amount</span><span />
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                <label style={{ ...lbl, marginBottom: 0 }}>Line items</label>
+                <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                  <button type="button" onClick={addAlternative} style={{ fontSize: 11.5, fontWeight: 600, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>⊕ Add option</button>
+                  <button type="button" onClick={addGroup} style={{ fontSize: 11.5, fontWeight: 600, color: c.muted, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>+ Add group</button>
+                  <button type="button" onClick={addRow} style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>+ Add line</button>
                 </div>
-                {rows.map((r, i) => (
-                  <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 58px 78px 54px 78px 28px", gap: 6, padding: "7px 10px", borderTop: `1px solid ${c.line}`, alignItems: "center" }}>
-                    <input style={inp} value={r.description} onChange={(e) => setRow(i, "description", e.target.value)} placeholder="Work / part…" />
-                    <input style={inp} type="number" min={0} value={r.qty} onChange={(e) => setRow(i, "qty", e.target.value)} />
-                    <input style={inp} type="number" min={0} value={r.rate} onChange={(e) => setRow(i, "rate", e.target.value)} />
-                    <input style={inp} type="number" min={0} max={100} value={r.discount_pct} onChange={(e) => setRow(i, "discount_pct", e.target.value)} />
-                    <span style={{ fontSize: 12.5, textAlign: "right", fontWeight: 600, color: c.ink }}>{inr(lineAmount(r))}</span>
-                    <button type="button" onClick={() => removeRow(i)} title="Remove" style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
-                  </div>
-                ))}
               </div>
-              <button type="button" onClick={addRow} style={{ background: "none", border: `1px dashed ${c.line}`, color: c.accent, borderRadius: 7, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 16 }}>
-                + Add line
-              </button>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
+                {rows.map((row) => {
+                  if (row.kind === "line") {
+                    return (
+                      <div key={row.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: lineCols, gap: 6, padding: "8px 10px", background: c.panel2, fontSize: 10, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.3 }}>
+                          {lineHeaders.map((h, hi) => <span key={hi}>{h}</span>)}
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: lineCols, gap: 6, padding: "7px 10px", alignItems: "center" }}>
+                          <input style={{ ...inp, textAlign: "center", fontFamily: "monospace", padding: "6px 4px" }} value={row.sl_no} onChange={(e) => updateLine(row.id, "sl_no", e.target.value)} placeholder="1" />
+                          <input style={inp} value={row.description} onChange={(e) => updateLine(row.id, "description", e.target.value)} placeholder="Work / part…" />
+                          <select style={{ ...inp, cursor: "pointer" }} value={row.uom} onChange={(e) => updateLine(row.id, "uom", e.target.value)}>
+                            <option value="">—</option>
+                            {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                          <input style={{ ...inp, textAlign: "center" }} type="number" min={0} value={row.qty} onChange={(e) => updateLine(row.id, "qty", e.target.value)} />
+                          <input style={{ ...inp, textAlign: "right" }} type="number" min={0} value={row.rate} onChange={(e) => updateLine(row.id, "rate", e.target.value)} />
+                          <input style={{ ...inp, textAlign: "right" }} type="number" min={0} max={100} value={row.discount_pct} onChange={(e) => updateLine(row.id, "discount_pct", e.target.value)} />
+                          <span style={{ fontSize: 12.5, textAlign: "right", fontWeight: 600, color: c.ink }}>{inr(lineAmount(row))}</span>
+                          <button type="button" onClick={() => removeRow(row.id)} title="Remove" style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Group row (additive group or alternative option)
+                  const isAlt = row.group_type === "alternative";
+                  const isSelectedAlt = isAlt && row.id === effectiveAltId;
+                  const groupColor  = isAlt ? "#92400e" : c.accent;
+                  const groupBg     = isAlt ? (isSelectedAlt ? "#fffbeb" : "#fafafa") : `${c.accent}08`;
+                  const groupBorder = isAlt ? "#fde68a" : `${c.accent}40`;
+                  const groupTotal  = row.items.reduce((s, item) => s + lineAmount(item), 0);
+                  return (
+                    <div key={row.id} style={{ border: `1px solid ${groupBorder}`, borderLeft: `3px solid ${groupColor}`, borderRadius: 8, background: groupBg, padding: "10px 12px", opacity: isAlt && !isSelectedAlt ? 0.65 : 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 12, color: groupColor }}>{isAlt ? "⊕" : "▦"}</span>
+                        {isAlt && <span style={{ fontSize: 10, fontWeight: 700, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" }}>OPTION</span>}
+                        <input
+                          value={row.label}
+                          onChange={(e) => updateGroupLabel(row.id, e.target.value)}
+                          style={{ flex: 1, minWidth: 100, fontSize: 13, fontWeight: 700, border: "none", background: "transparent", color: c.ink, outline: "none", borderBottom: `1px dashed ${c.line}`, padding: "2px 0" }}
+                          placeholder={isAlt ? "Option name…" : "Group name…"}
+                        />
+                        {isAlt && (
+                          isSelectedAlt
+                            ? <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", background: "#d1fae5", border: "1px solid #6ee7b7", borderRadius: 5, padding: "2px 8px", whiteSpace: "nowrap" }}>✓ Selected</span>
+                            : <button type="button" onClick={() => setSelectedAltId(row.id)} style={{ fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 5, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>Select this option</button>
+                        )}
+                        <button type="button" onClick={() => ungroup(row.id)} style={{ fontSize: 11, color: c.muted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", whiteSpace: "nowrap" }}>Ungroup</button>
+                        <button type="button" onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 16, cursor: "pointer", lineHeight: 1 }} title="Delete group">×</button>
+                      </div>
+
+                      <div style={{ marginBottom: 8 }}>
+                        <input
+                          value={row.group_description}
+                          onChange={(e) => updateGroupDescription(row.id, e.target.value)}
+                          style={{ ...inp, fontSize: 12, background: "transparent" }}
+                          placeholder="Group description…"
+                        />
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: lineCols, gap: 6, marginBottom: 4, paddingLeft: 2 }}>
+                        {lineHeaders.map((h, hi) => <span key={hi} style={{ fontSize: 9.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: 0.3 }}>{h}</span>)}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {row.items.map((item) => (
+                          <div key={item.id} style={{ display: "grid", gridTemplateColumns: lineCols, gap: 6, alignItems: "center", paddingBottom: 6, borderBottom: `1px solid ${c.accent}20` }}>
+                            <input style={{ ...inp, textAlign: "center", fontFamily: "monospace", padding: "6px 4px" }} value={item.sl_no} onChange={(e) => updateLine(item.id, "sl_no", e.target.value)} placeholder="1.1" />
+                            <input style={inp} value={item.description} onChange={(e) => updateLine(item.id, "description", e.target.value)} placeholder="Line description…" />
+                            <select style={{ ...inp, cursor: "pointer" }} value={item.uom} onChange={(e) => updateLine(item.id, "uom", e.target.value)}>
+                              <option value="">—</option>
+                              {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+                            </select>
+                            <input style={{ ...inp, textAlign: "center" }} type="number" min={0} value={item.qty} onChange={(e) => updateLine(item.id, "qty", e.target.value)} />
+                            <input style={{ ...inp, textAlign: "right" }} type="number" min={0} value={item.rate} onChange={(e) => updateLine(item.id, "rate", e.target.value)} />
+                            <input style={{ ...inp, textAlign: "right" }} type="number" min={0} max={100} value={item.discount_pct} onChange={(e) => updateLine(item.id, "discount_pct", e.target.value)} />
+                            <span style={{ fontSize: 12, textAlign: "right", fontWeight: 600, color: c.ink }}>{inr(lineAmount(item))}</span>
+                            <button type="button" onClick={() => removeLineFromGroup(row.id, item.id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 15, lineHeight: 1 }} title="Remove line">×</button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+                        <button type="button" onClick={() => addLineToGroup(row.id)} style={{ fontSize: 11.5, color: groupColor, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Add line</button>
+                        <span style={{ fontSize: 12, color: c.muted }}>
+                          {isAlt ? "Option total" : "Group total"}: <strong style={{ color: c.ink, marginLeft: 4 }}>{inr(groupTotal)}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
               <div style={{ marginBottom: 10 }}>
                 <label style={lbl}>Scope of work</label>

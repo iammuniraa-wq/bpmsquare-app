@@ -129,10 +129,10 @@ export default function QuotePrint({
       <div className="doc">
 
         {/* ── WHITE LETTERHEAD HEADER ── */}
-        <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}` }}>
+        <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid" }}>
 
           {/* Row 1: ISO / accreditation (left) | GST (right) */}
-          <div style={{ padding: "6px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #dde2e8" }}>
+          <div style={{ padding: "4px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #dde2e8" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {co.iso && (
                 <span style={{ fontSize: 9, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 6px", borderRadius: 2, letterSpacing: 0.4 }}>
@@ -146,23 +146,23 @@ export default function QuotePrint({
           </div>
 
           {/* Row 2: Logo + Company name + tagline | Doc title */}
-          <div style={{ padding: "14px 22px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
+          <div style={{ padding: "10px 22px 9px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
 
             {/* Left: logo + name + tagline */}
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               {co.logo_url ? (
-                <img src={co.logo_url} alt={co.name} style={{ height: 72, maxWidth: 90, objectFit: "contain", flexShrink: 0 }} />
+                <img src={co.logo_url} alt={co.name} style={{ height: 60, maxWidth: 80, objectFit: "contain", flexShrink: 0 }} />
               ) : (
-                <div style={{ width: 72, height: 72, borderRadius: 10, flexShrink: 0, background: co.logo_bg || brand.dark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, fontWeight: 900, color: "#fff" }}>
+                <div style={{ width: 60, height: 60, borderRadius: 10, flexShrink: 0, background: co.logo_bg || brand.dark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 900, color: "#fff" }}>
                   {logoIni}
                 </div>
               )}
               <div>
-                <div style={{ fontSize: 21, fontWeight: 900, color: "#B91C1C", letterSpacing: 0.4, textTransform: "uppercase", lineHeight: 1.15 }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: "#B91C1C", letterSpacing: 0.4, textTransform: "uppercase", lineHeight: 1.15 }}>
                   {co.name}
                 </div>
                 {co.tagline && (
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#1a4fa0", fontStyle: "italic", marginTop: 5 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: "#1a4fa0", fontStyle: "italic", marginTop: 3 }}>
                     {co.tagline}
                   </div>
                 )}
@@ -185,12 +185,12 @@ export default function QuotePrint({
           {co.partners.length > 0 && (
             <>
               <div style={{ borderTop: "1px solid #dde2e8", margin: "0 22px" }} />
-              <div style={{ padding: "7px 22px 3px", textAlign: "center" }}>
+              <div style={{ padding: "5px 22px 2px", textAlign: "center" }}>
                 <span style={{ display: "inline-block", border: "1px solid #555", borderRadius: 20, padding: "2px 16px", fontSize: 9.5, fontWeight: 700, color: "#333", letterSpacing: 0.6 }}>
                   Authorised Channel Partner
                 </span>
               </div>
-              <div style={{ padding: "6px 22px 12px", display: "flex", justifyContent: "center", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+              <div style={{ padding: "5px 22px 9px", display: "flex", justifyContent: "center", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
                 {co.partners.map((p, i) => (
                   p.logo_url ? (
                     <img key={i} src={p.logo_url} alt={p.name} title={p.name} style={{ height: 32, maxWidth: 88, objectFit: "contain" }} />
@@ -204,13 +204,13 @@ export default function QuotePrint({
 
           {/* Row 4: Undertaking strip */}
           {co.undertaking && (
-            <div style={{ borderTop: "1px solid #dde2e8", padding: "5px 22px", textAlign: "center", fontSize: 9.5, color: "#444", background: "#f8f9fb" }}>
+            <div style={{ borderTop: "1px solid #dde2e8", padding: "4px 22px", textAlign: "center", fontSize: 9.5, color: "#444", background: "#f8f9fb" }}>
               We Undertake: {co.undertaking}
             </div>
           )}
 
           {/* Row 5: Email | Web contact strip */}
-          <div style={{ borderTop: "1px solid #dde2e8", padding: "5px 22px", display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap", fontSize: 10, color: "#555", background: "#f4f5f7" }}>
+          <div style={{ borderTop: "1px solid #dde2e8", padding: "4px 22px", display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap", fontSize: 10, color: "#555", background: "#f4f5f7" }}>
             {(co.email || co.email2) && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 <Mail size={10} color="#888" />
@@ -226,14 +226,14 @@ export default function QuotePrint({
         </div>
 
         {/* Ref / Date row */}
-        <div style={{ padding: "10px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${brand.line}`, background: "#fff" }}>
+        <div style={{ padding: "7px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${brand.line}`, background: "#fff", breakInside: "avoid" }}>
           <span style={{ fontSize: 12.5, fontWeight: 600 }}>Ref No: <span style={{ fontFamily: "monospace", fontWeight: 400 }}>{quote.ref}</span></span>
           <span style={{ fontSize: 12.5 }}>Date: <strong>{fmtDate(quote.created_at)}</strong>{quote.valid_until ? <span style={{ marginLeft: 24, color: "#5f6b7a" }}>Valid until: {fmtDate(quote.valid_until)}</span> : ""}</span>
         </div>
 
         {/* Bill To / Attention */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, borderBottom: `1px solid ${brand.line}` }}>
-          <div style={{ padding: "16px 28px", borderRight: `1px solid ${brand.line}` }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, borderBottom: `1px solid ${brand.line}`, breakInside: "avoid" }}>
+          <div style={{ padding: "11px 28px", borderRight: `1px solid ${brand.line}` }}>
             <SectionLabel>Bill to</SectionLabel>
             {account ? (
               <>
@@ -245,7 +245,7 @@ export default function QuotePrint({
               </>
             ) : <div style={{ color: "#8a96a5" }}>—</div>}
           </div>
-          <div style={{ padding: "16px 28px" }}>
+          <div style={{ padding: "11px 28px" }}>
             <SectionLabel>Attention</SectionLabel>
             {contact ? (
               <>
@@ -256,7 +256,7 @@ export default function QuotePrint({
               </>
             ) : <div style={{ color: "#8a96a5" }}>—</div>}
             {site && (
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${brand.line}` }}>
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${brand.line}` }}>
                 <SectionLabel>Site</SectionLabel>
                 <div style={{ fontWeight: 500 }}>{site.label}</div>
                 {site.address && <div style={{ color: "#5f6b7a", fontSize: 12 }}>{site.address}</div>}
@@ -267,12 +267,12 @@ export default function QuotePrint({
 
         {/* Subject & salutation */}
         {quote.name && (
-          <div style={{ padding: "12px 28px", borderBottom: `1px solid ${brand.line}` }}>
-            <div style={{ fontSize: 13, marginBottom: 6 }}>
+          <div style={{ padding: "9px 28px", borderBottom: `1px solid ${brand.line}`, breakInside: "avoid" }}>
+            <div style={{ fontSize: 13, marginBottom: 4 }}>
               <strong>Subject:</strong> {quote.name}
             </div>
             <div style={{ fontSize: 13, fontWeight: 700 }}>Dear Sir,</div>
-            <div style={{ fontSize: 12.5, color: "#5f6b7a", marginTop: 4, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 12.5, color: "#5f6b7a", marginTop: 3, lineHeight: 1.5 }}>
               With reference to the above subject, we are herewith submitting our quotation for the above said work.
             </div>
           </div>
@@ -282,13 +282,13 @@ export default function QuotePrint({
         <table>
           <thead>
             <tr style={{ background: "#e6f1fb" }}>
-              <th style={{ padding: "9px 28px 9px 28px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600, width: 32 }}>#</th>
-              <th style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600 }}>Description</th>
-              <th style={{ padding: "9px 12px", textAlign: "center", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>UOM</th>
-              <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Qty</th>
-              {!isTechnical && <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Rate (₹)</th>}
-              {!isTechnical && <th style={{ padding: "9px 28px 9px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Amount (₹)</th>}
-              {isTechnical && <th style={{ padding: "9px 28px 9px 12px" }} />}
+              <th style={{ padding: "7px 28px 7px 28px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600, width: 32 }}>#</th>
+              <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600 }}>Description</th>
+              <th style={{ padding: "7px 12px", textAlign: "center", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>UOM</th>
+              <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Qty</th>
+              {!isTechnical && <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Rate (₹)</th>}
+              {!isTechnical && <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Amount (₹)</th>}
+              {isTechnical && <th style={{ padding: "7px 28px 7px 12px" }} />}
             </tr>
           </thead>
           <tbody>
@@ -326,7 +326,7 @@ export default function QuotePrint({
                     const groupDesc = line.group_description;
                     out.push(
                       <tr key={`gh-${line.group_id}`} style={{ background: headerBg }}>
-                        <td colSpan={colSpan} style={{ padding: "7px 28px", fontWeight: 700, fontSize: 11.5, color: headerColor, letterSpacing: 0.3 }}>
+                        <td colSpan={colSpan} style={{ padding: "6px 28px", fontWeight: 700, fontSize: 11.5, color: headerColor, letterSpacing: 0.3 }}>
                           <span>{isAlt ? (isSelected ? "✓ " : "✗ ") : ""}{line.group_label ?? (isAlt ? "Option" : "Group")}</span>
                           {groupDesc && <span style={{ fontWeight: 400, color: isAlt ? "#92400e" : "#3a6fa8", marginLeft: 8, fontSize: 11 }}>— {groupDesc}</span>}
                           {isAlt && !isSelected && <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 8 }}>(not selected)</span>}
@@ -338,12 +338,12 @@ export default function QuotePrint({
                   const slNo = line.sl_no || `${standaloneNum}.${groupItemCount[line.group_id]}`;
                   out.push(
                     <tr key={line.id} style={{ opacity: rowOpacity, breakInside: "avoid" }}>
-                      <td style={{ padding: "7px 12px 7px 40px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{slNo}</td>
-                      <td style={{ padding: "7px 12px 7px 8px", fontSize: 12.5 }}>{line.description}</td>
-                      <td style={{ padding: "7px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{line.uom ?? ""}</td>
-                      <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
-                      {!isTechnical && <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString("en-IN")}</td>}
-                      {!isTechnical && <td style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(line.amount)}</td>}
+                      <td style={{ padding: "6px 12px 6px 40px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{slNo}</td>
+                      <td style={{ padding: "6px 12px 6px 8px", fontSize: 12.5 }}>{line.description}</td>
+                      <td style={{ padding: "6px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{line.uom ?? ""}</td>
+                      <td style={{ padding: "6px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
+                      {!isTechnical && <td style={{ padding: "6px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString("en-IN")}</td>}
+                      {!isTechnical && <td style={{ padding: "6px 28px 6px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(line.amount)}</td>}
                       {isTechnical && <td />}
                     </tr>
                   );
@@ -353,11 +353,11 @@ export default function QuotePrint({
                   if (isLastInGroup && !closedGroups.has(line.group_id) && !isTechnical) {
                     closedGroups.add(line.group_id);
                     out.push(
-                      <tr key={`gt-${line.group_id}`} style={{ background: headerBg }}>
-                        <td colSpan={colSpan - 1} style={{ padding: "6px 12px 6px 28px", textAlign: "right", fontSize: 11.5, fontWeight: 600, color: headerColor }}>
+                      <tr key={`gt-${line.group_id}`} style={{ background: headerBg, breakInside: "avoid" }}>
+                        <td colSpan={colSpan - 1} style={{ padding: "5px 12px 5px 28px", textAlign: "right", fontSize: 11.5, fontWeight: 600, color: headerColor }}>
                           {line.group_label ?? "Group"} Total
                         </td>
-                        <td style={{ padding: "6px 28px 6px 12px", textAlign: "right", fontSize: 12.5, fontWeight: 700, color: headerColor }}>
+                        <td style={{ padding: "5px 28px 5px 12px", textAlign: "right", fontSize: 12.5, fontWeight: 700, color: headerColor }}>
                           {inr(groupTotals[line.group_id] ?? 0)}
                         </td>
                       </tr>
@@ -369,13 +369,13 @@ export default function QuotePrint({
                   const i = standaloneNum - 1;
                   out.push(
                     <tr key={line.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff", breakInside: "avoid" }}>
-                      <td style={{ padding: "9px 12px 9px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{slNo}</td>
-                      <td style={{ padding: "9px 12px", fontSize: 12.5 }}>{line.description}</td>
-                      <td style={{ padding: "9px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{line.uom ?? ""}</td>
-                      <td style={{ padding: "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
-                      {!isTechnical && <td style={{ padding: "9px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString("en-IN")}</td>}
-                      {!isTechnical && <td style={{ padding: "9px 28px 9px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(line.amount)}</td>}
-                      {isTechnical && <td style={{ padding: "9px 28px" }} />}
+                      <td style={{ padding: "7px 12px 7px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{slNo}</td>
+                      <td style={{ padding: "7px 12px", fontSize: 12.5 }}>{line.description}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{line.uom ?? ""}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
+                      {!isTechnical && <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString("en-IN")}</td>}
+                      {!isTechnical && <td style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(line.amount)}</td>}
+                      {isTechnical && <td style={{ padding: "7px 28px" }} />}
                     </tr>
                   );
                 }
@@ -387,7 +387,7 @@ export default function QuotePrint({
 
         {/* Totals — hidden for technical offers */}
         {!isTechnical && (
-          <div style={{ borderTop: `1px solid ${brand.line}`, padding: "12px 28px", display: "flex", justifyContent: "flex-end", breakInside: "avoid", breakBefore: "avoid" }}>
+          <div style={{ borderTop: `1px solid ${brand.line}`, padding: "9px 28px", display: "flex", justifyContent: "flex-end", breakInside: "avoid", breakBefore: "avoid" }}>
             <table style={{ width: 300 }}>
               <tbody>
                 <TotalRow label="Subtotal" value={inr(subtotal)} />
@@ -416,7 +416,7 @@ export default function QuotePrint({
         )}
 
         {/* Closing sentence */}
-        <div style={{ padding: "10px 28px 14px", borderTop: `1px solid ${brand.line}` }}>
+        <div style={{ padding: "8px 28px 10px", borderTop: `1px solid ${brand.line}`, breakInside: "avoid" }}>
           <div style={{ fontSize: 12.5, color: "#5f6b7a", fontStyle: "italic" }}>
             We kindly request you to give us an opportunity to serve your organization.
           </div>
@@ -424,37 +424,37 @@ export default function QuotePrint({
 
         {/* Scope of work — after totals, per reference layout */}
         {quote.scope_of_work && (
-          <div style={{ padding: "12px 28px 14px", borderTop: `1px solid ${brand.line}`, breakInside: "avoid" }}>
+          <div style={{ padding: "9px 28px 10px", borderTop: `1px solid ${brand.line}`, breakInside: "avoid" }}>
             <SectionLabel>Scope of work</SectionLabel>
-            <div style={{ color: "#5f6b7a", fontSize: 12.5, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{quote.scope_of_work}</div>
+            <div style={{ color: "#5f6b7a", fontSize: 12.5, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{quote.scope_of_work}</div>
           </div>
         )}
 
         {/* Notes */}
         {quote.notes && (
-          <div style={{ margin: "0 28px 16px", background: brand.bg2, borderRadius: 6, padding: "12px 14px", borderLeft: `3px solid ${brand.blue}`, breakInside: "avoid" }}>
+          <div style={{ margin: "0 28px 12px", background: brand.bg2, borderRadius: 6, padding: "9px 14px", borderLeft: `3px solid ${brand.blue}`, breakInside: "avoid" }}>
             <SectionLabel>Notes</SectionLabel>
-            <div style={{ color: "#5f6b7a", fontSize: 12, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{quote.notes}</div>
+            <div style={{ color: "#5f6b7a", fontSize: 12, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{quote.notes}</div>
           </div>
         )}
 
         {/* Terms & Conditions */}
         {quote.terms && (
-          <div style={{ margin: "0 28px 16px", background: brand.bg2, borderRadius: 6, padding: "12px 14px", borderLeft: `3px solid ${brand.amber}`, breakInside: "avoid" }}>
+          <div style={{ margin: "0 28px 12px", background: brand.bg2, borderRadius: 6, padding: "9px 14px", borderLeft: `3px solid ${brand.amber}`, breakInside: "avoid" }}>
             <SectionLabel>Terms &amp; Conditions</SectionLabel>
-            <div style={{ color: "#5f6b7a", fontSize: 12, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{quote.terms}</div>
+            <div style={{ color: "#5f6b7a", fontSize: 12, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{quote.terms}</div>
           </div>
         )}
 
 
         {/* Signature block */}
-        <div style={{ margin: "8px 28px 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, breakInside: "avoid", breakBefore: "avoid" }}>
-          <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "16px 14px" }}>
-            <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 36 }}>For {co.name}</div>
+        <div style={{ margin: "6px 28px 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, breakInside: "avoid", breakBefore: "avoid" }}>
+          <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 28 }}>For {co.name}</div>
             <div style={{ borderTop: `1px solid ${brand.dark}`, paddingTop: 6, fontSize: 11, color: "#5f6b7a" }}>Authorised Signatory</div>
           </div>
-          <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "16px 14px" }}>
-            <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 36 }}>Customer acceptance — {account?.name ?? ""}</div>
+          <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 28 }}>Customer acceptance — {account?.name ?? ""}</div>
             <div style={{ borderTop: `1px solid ${brand.line}`, paddingTop: 6, fontSize: 11, color: "#5f6b7a" }}>Name, Designation &amp; Stamp</div>
           </div>
         </div>
@@ -463,7 +463,7 @@ export default function QuotePrint({
         <div style={{ background: brand.dark, borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid" }}>
           {/* Address row */}
           {co.address && (
-            <div style={{ padding: "8px 28px 4px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: "#8aa0b8" }}>
+            <div style={{ padding: "6px 28px 3px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: "#8aa0b8" }}>
               <MapPin size={10} color="#8aa0b8" style={{ flexShrink: 0 }} />
               <span>{co.address}</span>
               {co.gstin && <span style={{ marginLeft: "auto", color: brand.amber, fontWeight: 600 }}>GSTIN: {co.gstin}</span>}
@@ -471,7 +471,7 @@ export default function QuotePrint({
           )}
           {/* Phones grid row */}
           {co.phones.length > 0 && (
-            <div style={{ padding: "6px 28px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", flexWrap: "wrap", gap: "4px 28px", fontSize: 10.5 }}>
+            <div style={{ padding: "5px 28px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", flexWrap: "wrap", gap: "4px 28px", fontSize: 10.5 }}>
               {co.phones.map((p, i) => (
                 <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   <span style={{ color: "#8aa0b8" }}>{p.label}</span>
@@ -487,7 +487,7 @@ export default function QuotePrint({
             </div>
           )}
           {/* Tagline + ref row */}
-          <div style={{ padding: "7px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10.5 }}>
+          <div style={{ padding: "6px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10.5 }}>
             {co.footer_tagline
               ? <span style={{ color: brand.amber, fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
               : <span style={{ color: "#5a7494" }}>{co.name}</span>

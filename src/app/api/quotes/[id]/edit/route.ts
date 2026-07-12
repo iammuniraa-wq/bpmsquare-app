@@ -14,11 +14,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const body = await request.json();
-  const { valid_until, notes, terms, scope_of_work, lines } = body;
+  const { valid_until, notes, terms, scope_of_work, lines, selected_option_id } = body;
 
   const { data: quote, error: qErr } = await supabase
     .from("quotes")
-    .select("id, status, discount_type, discount_pct, discount_fixed")
+    .select("id, status, discount_type, discount_pct, discount_fixed, selected_option_id")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .single();
@@ -57,7 +57,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })
     : [];
 
-  const subtotal = cleanLines.reduce((s, l) => s + l.amount, 0);
+  // selected_option_id marks which "alternative" (Option A/B) group counts toward the total;
+  // items in other alternative groups are kept (so the option can be switched later) but excluded here.
+  const effectiveAltId: string | null = selected_option_id !== undefined ? selected_option_id : (quote.selected_option_id ?? null);
+  const subtotal = cleanLines
+    .filter((l) => !l.group_id || l.group_type !== "alternative" || l.group_id === effectiveAltId)
+    .reduce((s, l) => s + l.amount, 0);
   const discPct = Math.max(0, Math.min(100, parseFloat(String(quote.discount_pct)) || 0));
   const discAmount = quote.discount_type === "fixed"
     ? Math.min(Math.round(parseFloat(String(quote.discount_fixed)) || 0), subtotal)
@@ -72,6 +77,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       notes: notes ?? null,
       terms: terms ?? null,
       scope_of_work: scope_of_work ?? null,
+      selected_option_id: effectiveAltId,
       total,
     })
     .eq("id", id)
