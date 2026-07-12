@@ -627,9 +627,9 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           </span>
           <Link
             href={`/api/quotes/${quote.id}/export`}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0faf5", color: "#1d7a4a", borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 500, textDecoration: "none" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: c.panel2, color: c.ink, border: `1px solid ${c.line}`, borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 500, textDecoration: "none" }}
           >
-            ↓ Export CSV
+            ↓ Download CSV
           </Link>
           <Link
             href={ROUTES.quotationPrint(quote.id)}
