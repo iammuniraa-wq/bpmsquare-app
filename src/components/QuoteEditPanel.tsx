@@ -224,29 +224,23 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
 
       {openEditor && (
         <div
-          onClick={() => !pending && setOpenEditor(false)}
           style={{
-            position: "fixed", inset: 0, background: "rgba(10,20,35,.55)", zIndex: 200,
-            display: "flex", alignItems: "flex-start", justifyContent: "center",
-            padding: "40px 16px", overflowY: "auto",
+            position: "fixed", inset: 0, background: c.panel, zIndex: 200,
+            display: "flex", flexDirection: "column", overflow: "hidden",
           }}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: c.panel, borderRadius: 14, width: "100%", maxWidth: 860,
-              boxShadow: "0 20px 60px rgba(0,0,0,.35)", overflow: "hidden",
-            }}
+            style={{ display: "contents" }}
           >
-            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ padding: "14px 24px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, background: c.panel }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>Edit quotation</div>
                 <div style={{ fontSize: 12, color: c.hint, fontFamily: "monospace" }}>{quote.ref}</div>
               </div>
-              <button onClick={() => setOpenEditor(false)} style={{ background: "none", border: "none", fontSize: 20, color: c.hint, cursor: "pointer", lineHeight: 1 }}>×</button>
+              <button onClick={() => setOpenEditor(false)} style={{ background: "none", border: "none", fontSize: 22, color: c.hint, cursor: "pointer", lineHeight: 1, padding: "4px 8px" }}>×</button>
             </div>
 
-            <div style={{ padding: "16px 20px", maxHeight: "65vh", overflowY: "auto" }}>
+            <div style={{ flex: 1, padding: "20px 24px", overflowY: "auto", maxWidth: 1100, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
                 <div>
                   <label style={lbl}>Valid until</label>
@@ -378,7 +372,7 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
               )}
             </div>
 
-            <div style={{ padding: "14px 20px", borderTop: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ padding: "14px 24px", borderTop: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0, background: c.panel, maxWidth: 1100, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
               <div style={{ fontSize: 12.5, color: c.muted }}>
                 Subtotal <strong style={{ color: c.ink, fontSize: 14, marginLeft: 6 }}>{inr(total)}</strong>
                 <span style={{ marginLeft: 8, fontSize: 11, color: c.hint }}>+ GST on view</span>
