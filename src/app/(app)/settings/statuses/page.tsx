@@ -19,16 +19,17 @@ export default async function StatusesPage() {
     .eq("id", tenantId!)
     .single();
 
-  const statuses: QuoteStatusDef[] | null =
-    (data?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? null;
+  const cfg = data?.config as { quote_statuses?: QuoteStatusDef[]; asset_print_fields?: string[] } | null;
+  const statuses: QuoteStatusDef[] | null = cfg?.quote_statuses ?? null;
+  const assetPrintFields: string[] = cfg?.asset_print_fields ?? [];
 
   return (
     <>
       <PageHeader
         title="Quote statuses"
-        subtitle="Configure the pipeline stages for your quotations"
+        subtitle="Configure pipeline stages and equipment print fields"
       />
-      <StatusesClient initial={statuses} />
+      <StatusesClient initial={statuses} initialAssetFields={assetPrintFields} />
     </>
   );
 }

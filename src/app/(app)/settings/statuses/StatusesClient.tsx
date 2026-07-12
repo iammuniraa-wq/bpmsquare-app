@@ -42,11 +42,40 @@ const PILL_COLORS = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function StatusesClient({ initial }: { initial: QuoteStatusDef[] | null }) {
+const ALL_ASSET_FIELDS: { value: string; label: string; example: string }[] = [
+  { value: "name",   label: "Equipment name",  example: "75 kW Induction Motor" },
+  { value: "kind",   label: "Type",             example: "Motor" },
+  { value: "make",   label: "Make / OEM",       example: "Crompton Greaves" },
+  { value: "model",  label: "Model / Frame",    example: "ND315S-2" },
+  { value: "rating", label: "Rating",           example: "75 kW · 415V · 1480 rpm" },
+  { value: "serial", label: "Serial no.",       example: "CG-75-2291" },
+  { value: "notes",  label: "Remarks",          example: "Stator rewound 2023" },
+];
+
+export default function StatusesClient({ initial, initialAssetFields }: { initial: QuoteStatusDef[] | null; initialAssetFields: string[] }) {
   const [statuses, setStatuses] = useState<QuoteStatusDef[]>(initial ?? DEFAULT_QUOTE_STATUSES);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, flash] = useSavedFlash();
+
+  const [assetFields, setAssetFields] = useState<string[]>(initialAssetFields);
+  const [savingFields, setSavingFields] = useState(false);
+  const [savedFields, flashFields] = useSavedFlash();
+
+  function toggleAssetField(value: string) {
+    setAssetFields((p) => p.includes(value) ? p.filter((f) => f !== value) : [...p, value]);
+  }
+
+  async function saveAssetFields() {
+    setSavingFields(true);
+    const res = await fetch("/api/settings/asset-print-fields", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(assetFields),
+    });
+    setSavingFields(false);
+    if (res.ok) flashFields();
+  }
 
   function update(idx: number, patch: Partial<QuoteStatusDef>) {
     setStatuses((p) => p.map((s, i) => i === idx ? { ...s, ...patch } : s));
@@ -202,6 +231,45 @@ export default function StatusesClient({ initial }: { initial: QuoteStatusDef[] 
           {saving ? "Saving…" : "Save statuses"}
         </button>
         {saved && <span style={{ fontSize: 13, color: "#10b981", fontWeight: 600 }}>✓ Saved</span>}
+      </div>
+
+      {/* ── Asset fields on quote print ───────────────────────────────────── */}
+      <div style={{ marginTop: 36, marginBottom: 8, fontSize: 15, fontWeight: 700, color: c.ink }}>
+        Equipment details on quote print
+      </div>
+      <div style={{ ...cardStyle, padding: "20px 24px", marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: c.muted, marginBottom: 16, lineHeight: 1.6 }}>
+          Choose which equipment fields appear in the <strong>Equipment Details</strong> section on the printed quote.
+          The section is hidden when no fields are selected.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px" }}>
+          {ALL_ASSET_FIELDS.map((f) => (
+            <label key={f.value} style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: "8px 10px", borderRadius: 8, border: `1px solid ${assetFields.includes(f.value) ? c.accent : c.line}`, background: assetFields.includes(f.value) ? `${c.accent}0d` : c.panel }}>
+              <input
+                type="checkbox"
+                checked={assetFields.includes(f.value)}
+                onChange={() => toggleAssetField(f.value)}
+                style={{ marginTop: 2, cursor: "pointer", accentColor: c.accent }}
+              />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{f.label}</div>
+                <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>e.g. {f.example}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 32 }}>
+        <button
+          type="button"
+          onClick={saveAssetFields}
+          disabled={savingFields}
+          style={{ padding: "9px 22px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+        >
+          {savingFields ? "Saving…" : "Save equipment fields"}
+        </button>
+        {savedFields && <span style={{ fontSize: 13, color: "#10b981", fontWeight: 600 }}>✓ Saved</span>}
       </div>
     </div>
   );

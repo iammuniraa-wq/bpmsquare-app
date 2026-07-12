@@ -1,6 +1,6 @@
 "use client";
 
-import type { Quote, QuoteLine, QuoteRevision, Account, Contact, Site } from "@/lib/types";
+import type { Quote, QuoteLine, QuoteRevision, Account, Contact, Site, Asset } from "@/lib/types";
 // QuoteLine is used via inline cast for group_description field added in migration 0012
 import type { CompanyInfo } from "@/lib/tenant";
 import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
@@ -18,6 +18,16 @@ const OFFER_TITLE: Record<string, string> = {
   repair: "Repair Quotation",
 };
 
+const ASSET_FIELD_LABELS: Record<string, string> = {
+  name:   "Equipment name",
+  kind:   "Type",
+  make:   "Make / OEM",
+  model:  "Model / Frame",
+  rating: "Rating",
+  serial: "Serial no.",
+  notes:  "Remarks",
+};
+
 type Props = {
   quote: Quote;
   account: Account | null;
@@ -29,6 +39,8 @@ type Props = {
   logoUrl?: string | null;
   tenantEntities?: TenantEntity[];
   tenantTax?: TenantTaxConfig;
+  assets?: Asset[];
+  assetPrintFields?: string[];
 };
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
@@ -49,6 +61,7 @@ function initials(name: string): string {
 export default function QuotePrint({
   quote, account, contact, site, lines, revisions,
   companyInfo = {}, logoUrl, tenantEntities = [], tenantTax,
+  assets = [], assetPrintFields = [],
 }: Props) {
   const isTechnical = quote.type === "technical";
 
@@ -275,6 +288,43 @@ export default function QuotePrint({
             <div style={{ fontSize: 12.5, color: "#5f6b7a", marginTop: 3, lineHeight: 1.5 }}>
               With reference to the above subject, we are herewith submitting our quotation for the above said work.
             </div>
+          </div>
+        )}
+
+        {/* Equipment Details — shown when assets are linked and tenant has chosen fields */}
+        {assets.length > 0 && assetPrintFields.length > 0 && (
+          <div style={{ margin: "0 0", borderBottom: `1px solid ${brand.line}`, breakInside: "avoid" }}>
+            <div style={{ padding: "7px 28px 4px", background: "#e6f1fb" }}>
+              <SectionLabel>Equipment details</SectionLabel>
+            </div>
+            {assets.map((asset, ai) => (
+              <div key={asset.id} style={{
+                padding: "10px 28px",
+                borderTop: ai > 0 ? `1px solid ${brand.line}` : undefined,
+              }}>
+                {assets.length > 1 && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: brand.blue, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Equipment {ai + 1}
+                  </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px 24px" }}>
+                  {assetPrintFields.map((field) => {
+                    const val = (asset as Record<string, unknown>)[field];
+                    if (!val) return null;
+                    return (
+                      <div key={field}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#8a96a5", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
+                          {ASSET_FIELD_LABELS[field] ?? field}
+                        </div>
+                        <div style={{ fontSize: 12.5, fontWeight: field === "name" ? 600 : 400, color: "#1a2533" }}>
+                          {String(val)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

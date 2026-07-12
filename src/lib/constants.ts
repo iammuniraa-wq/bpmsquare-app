@@ -298,4 +298,6 @@ export type TenantConfig = {
   custom_fields?: Record<string, CustomFieldDef[]>;
   // Configurable quote pipeline statuses. Falls back to DEFAULT_QUOTE_STATUSES if absent.
   quote_statuses?: QuoteStatusDef[];
+  // Which asset fields to print on the quote. Empty/absent = hide the section.
+  asset_print_fields?: string[];
 };

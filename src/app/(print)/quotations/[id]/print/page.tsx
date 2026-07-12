@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getQuote } from "@/lib/data";
 import { getTenant } from "@/lib/tenant";
+import type { Asset } from "@/lib/types";
 import QuotePrint from "@/components/QuotePrint";
 
 export default async function QuotePrintPage({ params }: { params: Promise<{ id: string }> }) {
@@ -9,6 +10,10 @@ export default async function QuotePrintPage({ params }: { params: Promise<{ id:
   if (!data) notFound();
 
   const { quote, account, contact, site, lines, revisions } = data;
+  const assets: Asset[] = (data as { assets?: Asset[] }).assets ?? [];
+  const assetPrintFields: string[] =
+    (tenant?.config as { asset_print_fields?: string[] })?.asset_print_fields ?? [];
+
   return (
     <QuotePrint
       quote={quote}
@@ -21,6 +26,8 @@ export default async function QuotePrintPage({ params }: { params: Promise<{ id:
       logoUrl={tenant?.logo_url ?? null}
       tenantEntities={tenant?.config?.entities ?? []}
       tenantTax={tenant?.config?.tax ?? { label: "GST", rate: 18, inclusive: false }}
+      assets={assets}
+      assetPrintFields={assetPrintFields}
     />
   );
 }

@@ -469,6 +469,15 @@ export async function getQuoteLive(id: string) {
     authorized_by: { kind: wo.auth_kind as "quote" | "contract", id: wo.auth_id as string },
   })) as WorkOrder[];
 
+  // Fetch linked assets if the quote has asset_ids
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assetIds: string[] = (quote as any).asset_ids ?? [];
+  let assets: Asset[] = [];
+  if (assetIds.length > 0) {
+    const { data: assetRows } = await supabase.from("assets").select("*").in("id", assetIds);
+    assets = (assetRows ?? []) as Asset[];
+  }
+
   return {
     quote: quote as Quote,
     account: acc,
@@ -477,6 +486,7 @@ export async function getQuoteLive(id: string) {
     lines: (lines ?? []) as QuoteLine[],
     revisions: (revisions ?? []) as QuoteRevision[],
     workOrders: mappedWOs,
+    assets,
   };
 }
 
