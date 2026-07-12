@@ -3,19 +3,27 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { c, pillar, type PillarKey } from "@/lib/theme";
+import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import Pill from "@/components/Pill";
-import { ROUTES, OFFER_TYPE_LABEL } from "@/lib/constants";
-import { QUOTE_STATUS_LABEL } from "@/lib/data/labels";
+import { ROUTES, OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import type { QuoteSummary } from "@/lib/data/labels";
-import type { Quote } from "@/lib/types";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const statusTone: Record<Quote["status"], PillarKey> = {
-  draft: "blue", sent: "purple", approved: "teal", rejected: "red",
-};
+function StatusPill({ status, statuses }: { status: string; statuses: QuoteStatusDef[] }) {
+  const def = statuses.find((s) => s.value === status);
+  const color = def?.color ?? "#94a3b8";
+  const label = def?.label ?? status;
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 10px", borderRadius: 12,
+      fontSize: 11.5, fontWeight: 600,
+      background: `${color}22`, color, border: `1px solid ${color}55`,
+    }}>
+      {label}
+    </span>
+  );
+}
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
@@ -31,16 +39,14 @@ const td: React.CSSProperties = {
   fontSize: 12.5, verticalAlign: "middle",
 };
 
-const STATUSES: Array<Quote["status"]> = ["draft", "sent", "approved", "rejected"];
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function QuotationsList({ initialRows }: { initialRows: QuoteSummary[] }) {
+export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QUOTE_STATUSES }: { initialRows: QuoteSummary[]; quoteStatuses?: QuoteStatusDef[] }) {
   const router = useRouter();
 
   const [rows, setRows]               = useState<QuoteSummary[]>(initialRows);
   const [selected, setSelected]       = useState<Set<string>>(new Set());
-  const [filterStatus, setFilterStatus] = useState<Quote["status"] | "">("");
+  const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterAccount, setFilterAccount] = useState("");
   const [toast, setToast]             = useState<string | null>(null);
 
@@ -53,9 +59,11 @@ export default function QuotationsList({ initialRows }: { initialRows: QuoteSumm
     [rows, filterStatus, filterAccount]
   );
 
-  // Summary strip values
-  const totalApproved = rows.filter((r) => r.quote.status === "approved").reduce((s, r) => s + r.quote.total, 0);
-  const totalPipeline = rows.filter((r) => r.quote.status === "sent").reduce((s, r) => s + r.quote.total, 0);
+  // Summary strip values — use first terminal status as "approved", first non-initial non-terminal as "pipeline"
+  const terminalStatus  = quoteStatuses.find((s) => s.is_terminal && !s.value.includes("reject"))?.value ?? "approved";
+  const pipelineStatus  = quoteStatuses.find((s) => !s.is_initial && !s.is_terminal)?.value ?? "sent";
+  const totalApproved   = rows.filter((r) => r.quote.status === terminalStatus).reduce((s, r) => s + r.quote.total, 0);
+  const totalPipeline   = rows.filter((r) => r.quote.status === pipelineStatus).reduce((s, r) => s + r.quote.total, 0);
 
   // ── Selection helpers ──────────────────────────────────────────────────────
 
@@ -158,17 +166,17 @@ export default function QuotationsList({ initialRows }: { initialRows: QuoteSumm
           >
             All
           </button>
-          {STATUSES.map((s) => (
+          {quoteStatuses.map((s) => (
             <button
-              key={s}
-              onClick={() => setFilterStatus(filterStatus === s ? "" : s)}
+              key={s.value}
+              onClick={() => setFilterStatus(filterStatus === s.value ? "" : s.value)}
               style={{
                 fontSize: 12, padding: "5px 12px", borderRadius: 20, border: "none", cursor: "pointer", fontWeight: 600,
-                background: filterStatus === s ? pillar[statusTone[s]].base : c.panel2,
-                color:      filterStatus === s ? "#fff" : c.muted,
+                background: filterStatus === s.value ? s.color : c.panel2,
+                color:      filterStatus === s.value ? "#fff" : c.muted,
               }}
             >
-              {QUOTE_STATUS_LABEL[s]}
+              {s.label}
             </button>
           ))}
         </div>
@@ -263,7 +271,7 @@ export default function QuotationsList({ initialRows }: { initialRows: QuoteSumm
                       </Link>
                     </td>
                     <td style={td}>
-                      <Pill label={QUOTE_STATUS_LABEL[quote.status]} tone={statusTone[quote.status]} />
+                      <StatusPill status={quote.status} statuses={quoteStatuses} />
                     </td>
                     <td style={{ ...td, color: c.muted }}>{lineCount} items</td>
                     <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>{inr(quote.total)}</td>

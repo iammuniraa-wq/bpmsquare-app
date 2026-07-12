@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { listQuotes } from "@/lib/data";
+import { getTenant } from "@/lib/tenant";
 import PageHeader from "@/components/PageHeader";
-import { ROUTES } from "@/lib/constants";
+import { ROUTES, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import QuotationsList from "./QuotationsList";
 
 export default async function QuotationsPage() {
-  const rows = await listQuotes();
+  const [rows, tenant] = await Promise.all([listQuotes(), getTenant()]);
+  const quoteStatuses: QuoteStatusDef[] =
+    (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
   return (
     <>
       <PageHeader
@@ -25,7 +28,7 @@ export default async function QuotationsPage() {
           </Link>
         }
       />
-      <QuotationsList initialRows={rows} />
+      <QuotationsList initialRows={rows} quoteStatuses={quoteStatuses} />
     </>
   );
 }

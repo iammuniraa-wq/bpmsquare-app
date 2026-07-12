@@ -40,6 +40,7 @@ export const ROUTES = {
   settings: "/settings",
   settingsTeam: "/settings/team",
   settingsEntities: "/settings/entities",
+  settingsStatuses: "/settings/statuses",
   reports: "/reports",
   admin: "/admin",
   adminTenant: (id: string) => `/admin/tenants/${id}`,
@@ -267,6 +268,22 @@ export type CustomFieldDef = {
   options?: string[]; // only for type = "select"
 };
 
+export type QuoteStatusDef = {
+  value: string;      // stored in DB, e.g. "draft", "po_received"
+  label: string;      // displayed in UI
+  color: string;      // hex colour for the pill
+  is_initial?: boolean;  // shown as default on new quotes
+  is_terminal?: boolean; // quote locked (no edit) when in this status
+};
+
+// Default statuses used when tenant has not configured custom ones.
+export const DEFAULT_QUOTE_STATUSES: QuoteStatusDef[] = [
+  { value: "draft",       label: "Draft",       color: "#3b82f6", is_initial: true },
+  { value: "sent",        label: "Sent",        color: "#8b5cf6" },
+  { value: "approved",    label: "Approved",    color: "#10b981", is_terminal: true },
+  { value: "rejected",    label: "Rejected",    color: "#ef4444", is_terminal: true },
+];
+
 // TenantConfig — full shape of tenants.config JSONB column.
 export type TenantConfig = {
   entities: TenantEntity[];
@@ -279,4 +296,6 @@ export type TenantConfig = {
   dashboard_layout?: DashLayoutItem[];
   // Custom field definitions per object type (e.g. "account", "contact", "asset").
   custom_fields?: Record<string, CustomFieldDef[]>;
+  // Configurable quote pipeline statuses. Falls back to DEFAULT_QUOTE_STATUSES if absent.
+  quote_statuses?: QuoteStatusDef[];
 };

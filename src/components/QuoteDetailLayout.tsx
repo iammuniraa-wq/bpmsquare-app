@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import type { Quote, QuoteLine, Account, Contact, LayoutSection } from "@/lib/types";
-import type { TenantTaxConfig } from "@/lib/constants";
-import { OFFER_TYPE_LABEL } from "@/lib/constants";
+import type { TenantTaxConfig, QuoteStatusDef } from "@/lib/constants";
+import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -13,14 +13,96 @@ import { ROUTES } from "@/lib/constants";
 import { MessageSquare, CheckIcon } from "@/components/Icons";
 import QuoteEditPanel from "@/components/QuoteEditPanel";
 
-// ── Static label maps (safe for client — no server imports) ───────────────────
+// ── Status helpers ────────────────────────────────────────────────────────────
 
-const QUOTE_STATUS: Record<Quote["status"], string> = {
-  draft: "Draft", sent: "Sent", approved: "Approved", rejected: "Rejected",
-};
-const STATUS_TONE: Record<Quote["status"], "blue" | "purple" | "teal" | "red"> = {
-  draft: "blue", sent: "purple", approved: "teal", rejected: "red",
-};
+function statusDef(statuses: QuoteStatusDef[], value: string): QuoteStatusDef {
+  return statuses.find((s) => s.value === value) ?? { value, label: value, color: "#94a3b8" };
+}
+
+function StatusPill({ status, statuses }: { status: string; statuses: QuoteStatusDef[] }) {
+  const def = statusDef(statuses, status);
+  return (
+    <span style={{
+      display: "inline-block", padding: "3px 12px", borderRadius: 12,
+      fontSize: 12, fontWeight: 600,
+      background: `${def.color}22`, color: def.color, border: `1px solid ${def.color}55`,
+    }}>
+      {def.label}
+    </span>
+  );
+}
+
+function StatusChanger({ quoteId, currentStatus, statuses, onChanged }: {
+  quoteId: string; currentStatus: string; statuses: QuoteStatusDef[]; onChanged: (s: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const def = statusDef(statuses, currentStatus);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  async function change(value: string) {
+    if (value === currentStatus) { setOpen(false); return; }
+    setSaving(true);
+    const res = await fetch(`/api/quotes/${quoteId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: value }),
+    });
+    setSaving(false);
+    if (res.ok) { onChanged(value); setOpen(false); }
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        disabled={saving}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "3px 12px 3px 10px", borderRadius: 12,
+          fontSize: 12, fontWeight: 600, cursor: "pointer",
+          background: `${def.color}22`, color: def.color, border: `1px solid ${def.color}55`,
+        }}
+      >
+        {saving ? "…" : def.label} <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50,
+          background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
+          boxShadow: "0 8px 24px rgba(0,0,0,.15)", minWidth: 160, overflow: "hidden",
+        }}>
+          {statuses.map((s) => (
+            <button
+              key={s.value}
+              onClick={() => change(s.value)}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                width: "100%", padding: "9px 14px", border: "none", cursor: "pointer",
+                background: s.value === currentStatus ? `${s.color}15` : "transparent",
+                color: s.value === currentStatus ? s.color : c.ink,
+                fontSize: 13, fontWeight: s.value === currentStatus ? 700 : 400,
+                textAlign: "left",
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+              {s.label}
+              {s.value === currentStatus && <span style={{ marginLeft: "auto", fontSize: 11 }}>✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ACCT_LABEL: Record<string, string> = {
   prospect: "Prospect", oem: "OEM / Vendor",
   direct: "Direct customer", end_customer: "End-customer (under OEM)",
@@ -51,6 +133,7 @@ interface Props {
   lines: QuoteLine[];
   workOrders: WOItem[];
   tenantTax?: TenantTaxConfig;
+  quoteStatuses?: QuoteStatusDef[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -70,8 +153,9 @@ const td: React.CSSProperties = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax }: Props) {
+export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES }: Props) {
   const isTechnical = quote.type === "technical";
+  const [currentStatus, setCurrentStatus] = useState<string>(quote.status);
   const taxRate     = tenantTax?.rate ?? 18;
   const taxLabel    = tenantTax?.label ?? "GST";
   const subtotal    = lines.reduce((s, l) => s + l.amount, 0);
@@ -375,7 +459,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             <CoreField label="Quotation ref" value={<span style={{ fontSize: 16, fontWeight: 600, fontFamily: "monospace", color: c.ink }}>{quote.ref}</span>} />
             <CoreField label="Issued"       value={fmtDate(quote.created_at)} />
             <CoreField label="Valid until"  value={quote.valid_until ? fmtDate(quote.valid_until) : "—"} />
-            <CoreField label="Status"       value={<Pill label={QUOTE_STATUS[quote.status]} tone={STATUS_TONE[quote.status]} />} />
+            <CoreField label="Status"       value={<StatusPill status={currentStatus} statuses={quoteStatuses} />} />
             {renderCfCards(section, "inline")}
           </div>
         );
@@ -522,7 +606,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
       {/* Page action bar */}
       <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <Link href={ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>← All quotations</Link>
-        <Pill label={QUOTE_STATUS[quote.status]} tone={STATUS_TONE[quote.status]} />
+        <StatusChanger quoteId={quote.id} currentStatus={currentStatus} statuses={quoteStatuses} onChanged={setCurrentStatus} />
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {!adaptMode && <QuoteEditPanel quote={quote} lines={lines} />}
