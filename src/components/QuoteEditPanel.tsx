@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { Quote, QuoteLine } from "@/lib/types";
-import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
+import { ROUTES, UOM_OPTIONS, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { Pencil } from "@/components/Icons";
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
@@ -76,13 +76,15 @@ function linesToRows(lines: QuoteLine[]): Row[] {
 const lineCols = "44px 1fr 60px 44px 62px 42px 66px 24px";
 const lineHeaders = ["Sl No", "Description", "UOM", "Qty", "Rate", "Disc%", "Amount", ""];
 
-export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: QuoteLine[] }) {
+export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_QUOTE_STATUSES }: { quote: Quote; lines: QuoteLine[]; quoteStatuses?: QuoteStatusDef[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const isDraft = quote.status === "draft";
+  const currentDef = quoteStatuses.find((s) => s.value === quote.status);
+  const isEditable = !currentDef?.is_terminal;
 
   const [openEditor, setOpenEditor] = useState(false);
+  const [status, setStatus] = useState<string>(quote.status);
   const [validUntil, setValidUntil] = useState(quote.valid_until ?? "");
   const [notes, setNotes] = useState(quote.notes ?? "");
   const [terms, setTerms] = useState(quote.terms ?? "");
@@ -168,7 +170,7 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           valid_until: validUntil, notes, terms, scope_of_work: scopeOfWork,
-          lines: flatLines, selected_option_id: effectiveAltId,
+          lines: flatLines, selected_option_id: effectiveAltId, status,
         }),
       });
       if (res.ok) { setOpenEditor(false); router.refresh(); }
@@ -185,8 +187,8 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
     });
   }
 
-  // ── Non-draft: create-new-version action ──────────────────────────────────────
-  if (!isDraft) {
+  // ── Terminal status: create-new-version action ────────────────────────────────
+  if (!isEditable) {
     return (
       <>
         <button
@@ -242,6 +244,14 @@ export default function QuoteEditPanel({ quote, lines }: { quote: Quote; lines: 
 
             <div style={{ flex: 1, padding: "20px 24px", overflowY: "auto", maxWidth: 1100, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={lbl}>Status</label>
+                  <select style={{ ...inp, cursor: "pointer" }} value={status} onChange={(e) => setStatus(e.target.value)}>
+                    {quoteStatuses.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label style={lbl}>Valid until</label>
                   <input style={inp} type="date" value={validUntil ? validUntil.slice(0, 10) : ""} onChange={(e) => setValidUntil(e.target.value)} />

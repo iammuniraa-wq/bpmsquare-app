@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const body = await request.json();
-  const { valid_until, notes, terms, scope_of_work, lines, selected_option_id } = body;
+  const { valid_until, notes, terms, scope_of_work, lines, selected_option_id, status } = body;
 
   const { data: quote, error: qErr } = await supabase
     .from("quotes")
@@ -25,9 +25,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (qErr || !quote) {
     return NextResponse.json({ error: "Quote not found" }, { status: 404 });
-  }
-  if (quote.status !== "draft") {
-    return NextResponse.json({ error: "Only draft quotes can be edited. Create a new version instead." }, { status: 409 });
   }
 
   // Normalize incoming lines and compute total.
@@ -70,16 +67,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const total = subtotal - discAmount;
 
   // Update header
+  const headerPatch: Record<string, unknown> = {
+    valid_until: valid_until || null,
+    notes: notes ?? null,
+    terms: terms ?? null,
+    scope_of_work: scope_of_work ?? null,
+    selected_option_id: effectiveAltId,
+    total,
+  };
+  if (status !== undefined) headerPatch.status = status;
+
   const { error: uErr } = await supabase
     .from("quotes")
-    .update({
-      valid_until: valid_until || null,
-      notes: notes ?? null,
-      terms: terms ?? null,
-      scope_of_work: scope_of_work ?? null,
-      selected_option_id: effectiveAltId,
-      total,
-    })
+    .update(headerPatch)
     .eq("id", id)
     .eq("tenant_id", tenantId);
 
