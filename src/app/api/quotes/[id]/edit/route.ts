@@ -85,7 +85,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .eq("id", id)
     .eq("tenant_id", tenantId);
 
-  if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
+  if (uErr) { console.error("[edit] header update failed", uErr); return NextResponse.json({ error: uErr.message }, { status: 500 }); }
 
   // Replace lines wholesale
   const { error: dErr } = await admin

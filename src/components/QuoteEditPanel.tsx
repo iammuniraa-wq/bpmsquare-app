@@ -216,7 +216,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
       onSaved?.(status);
       setSaved(true);
       router.refresh();
-      setTimeout(() => { setOpenEditor(false); setSaved(false); }, 800);
+      setTimeout(() => { setOpenEditor(false); setSaved(false); }, 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unexpected error");
     } finally {
@@ -288,7 +288,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
             <div style={{ padding: "14px 24px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, background: c.panel }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>Edit quotation</div>
-                <div style={{ fontSize: 12, color: c.hint, fontFamily: "monospace" }}>{quote.ref}</div>
+                <div style={{ fontSize: 12, color: c.hint, fontFamily: "monospace" }}>{quote.ref} <span style={{ color: c.accent, fontSize: 10 }}>v4</span></div>
               </div>
               <button onClick={() => setOpenEditor(false)} style={{ background: "none", border: "none", fontSize: 22, color: c.hint, cursor: "pointer", lineHeight: 1, padding: "4px 8px" }}>×</button>
             </div>
@@ -433,14 +433,24 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
               )}
             </div>
 
-            <div style={{ padding: "14px 24px", borderTop: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0, background: c.panel, maxWidth: 1100, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+            <div style={{ padding: "14px 24px", borderTop: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0, background: c.panel, maxWidth: 1100, width: "100%", margin: "0 auto", boxSizing: "border-box", flexWrap: "wrap" }}>
               <div style={{ fontSize: 12.5, color: c.muted }}>
                 Subtotal <strong style={{ color: c.ink, fontSize: 14, marginLeft: 6 }}>{inr(total)}</strong>
                 <span style={{ marginLeft: 8, fontSize: 11, color: c.hint }}>+ GST on view</span>
               </div>
+              {error && (
+                <div style={{ flex: "1 1 100%", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "#dc2626", order: -1 }}>
+                  {error}
+                </div>
+              )}
+              {saved && (
+                <div style={{ flex: "1 1 100%", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "#16a34a", fontWeight: 600, order: -1 }}>
+                  ✓ Changes saved successfully
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8 }}>
                 <button type="button" onClick={() => setOpenEditor(false)} disabled={saving} style={{ padding: "8px 14px", borderRadius: 7, border: `1px solid ${c.line}`, background: "none", color: c.muted, fontWeight: 500, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-                <button type="button" onClick={saveDraft} disabled={saving} style={{ padding: "8px 20px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{saved ? "✓ Saved!" : saving ? "Saving…" : "Save changes"}</button>
+                <button type="button" onClick={saveDraft} disabled={saving} style={{ padding: "8px 20px", borderRadius: 7, border: "none", background: saved ? "#16a34a" : c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{saved ? "✓ Saved!" : saving ? "Saving…" : "Save changes"}</button>
               </div>
             </div>
           </div>

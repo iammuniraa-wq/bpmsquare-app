@@ -43,6 +43,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .select("*")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error("[quotes PATCH] update failed", error); return NextResponse.json({ error: error.message }, { status: 500 }); }
   return NextResponse.json(data);
 }
