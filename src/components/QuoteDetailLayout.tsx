@@ -179,6 +179,8 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const [cfDefs, setCfDefs]           = useState<CfDef[]>([]);
   const [adaptMode, setAdaptMode]     = useState(false);
   const [saving, setSaving]           = useState(false);
+  const [moreOpen, setMoreOpen]       = useState(false);
+  const moreRef                       = useRef<HTMLDivElement>(null);
 
   // Section drag
   const dragSectionId   = useRef<string | null>(null);
@@ -201,6 +203,13 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const [draftValue, setDraftValue] = useState<unknown>("");
   const [cfSaving, setCfSaving]   = useState(false);
   const [cfSaved, setCfSaved]     = useState(false);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const handler = (e: MouseEvent) => { if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [moreOpen]);
 
   // ── Load layout + cf definitions ────────────────────────────────────────────
   const loadCfDefs = useCallback(async () => {
@@ -609,36 +618,60 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
         <Link href={ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>← All quotations</Link>
         <StatusChanger quoteId={quote.id} currentStatus={currentStatus} statuses={quoteStatuses} onChanged={setCurrentStatus} />
 
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           {!adaptMode && <QuoteEditPanel quote={quote} lines={lines} quoteStatuses={quoteStatuses} onSaved={setCurrentStatus} />}
+
+          {/* More dropdown */}
           {!adaptMode && (
-            <button
-              onClick={() => setAdaptMode(true)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 5, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 500, cursor: "pointer" }}
-            >
-              ⊙ Adapt
-            </button>
+            <div ref={moreRef} style={{ position: "relative" }}>
+              <button
+                onClick={() => setMoreOpen((o) => !o)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, background: c.panel2, color: c.ink, border: `1px solid ${c.line}`, borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 500, cursor: "pointer" }}
+              >
+                More <span style={{ fontSize: 10, opacity: 0.6 }}>▾</span>
+              </button>
+              {moreOpen && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 100,
+                  background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
+                  boxShadow: "0 8px 24px rgba(0,0,0,.15)", minWidth: 200, overflow: "hidden",
+                }}>
+                  <Link
+                    href={ROUTES.quotationPrint(quote.id)}
+                    target="_blank"
+                    rel="noopener"
+                    onClick={() => setMoreOpen(false)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 16px", fontSize: 13, color: c.ink, textDecoration: "none", borderBottom: `1px solid ${c.line}` }}
+                  >
+                    <span style={{ fontSize: 15 }}>↓</span> Download PDF
+                  </Link>
+                  <Link
+                    href={`/api/quotes/${quote.id}/export`}
+                    onClick={() => setMoreOpen(false)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 16px", fontSize: 13, color: c.ink, textDecoration: "none", borderBottom: `1px solid ${c.line}` }}
+                  >
+                    <span style={{ fontSize: 15 }}>↓</span> Download CSV
+                  </Link>
+                  <button
+                    onClick={() => { setAdaptMode(true); setMoreOpen(false); }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 16px", fontSize: 13, color: c.ink, background: "none", border: "none", borderBottom: `1px solid ${c.line}`, cursor: "pointer", textAlign: "left" }}
+                  >
+                    <span style={{ fontSize: 15 }}>⊙</span> Adapt layout
+                  </button>
+                  <div style={{ padding: "11px 16px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", gap: 10, cursor: "not-allowed", opacity: 0.5 }}>
+                    <span style={{ fontSize: 13 }}>✉</span>
+                    <span style={{ fontSize: 13, color: c.ink }}>Email quote</span>
+                    <ComingSoon size="xs" />
+                  </div>
+                  <div style={{ padding: "11px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "not-allowed", opacity: 0.5 }}>
+                    <MessageSquare size={13} color={c.ink} />
+                    <span style={{ fontSize: 13, color: c.ink }}>WhatsApp</span>
+                    <ComingSoon size="xs" />
+                  </div>
+                </div>
+              )}
+            </div>
           )}
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: c.hint, fontSize: 12.5, cursor: "not-allowed" }}>
-            Email <ComingSoon size="xs" />
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: c.hint, fontSize: 12.5, cursor: "not-allowed" }}>
-            <MessageSquare size={13} color={c.hint} /> WhatsApp <ComingSoon size="xs" />
-          </span>
-          <Link
-            href={`/api/quotes/${quote.id}/export`}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: c.panel2, color: c.ink, border: `1px solid ${c.line}`, borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 500, textDecoration: "none" }}
-          >
-            ↓ Download CSV
-          </Link>
-          <Link
-            href={ROUTES.quotationPrint(quote.id)}
-            target="_blank"
-            rel="noopener"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: c.accent, color: "#fff", borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 500, textDecoration: "none" }}
-          >
-            ↓ Download PDF
-          </Link>
         </div>
       </div>
 
