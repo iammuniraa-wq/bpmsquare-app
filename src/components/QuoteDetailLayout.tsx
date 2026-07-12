@@ -619,11 +619,11 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
               ⊙ Adapt
             </button>
           )}
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f4f6f9", color: c.hint, borderRadius: 7, padding: "6px 12px", fontSize: 12.5, cursor: "not-allowed" }}>
-            Email quote <ComingSoon size="xs" />
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: c.hint, fontSize: 12.5, cursor: "not-allowed" }}>
+            Email <ComingSoon size="xs" />
           </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0faf5", color: "#3d7a5a", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, cursor: "not-allowed" }}>
-            <MessageSquare size={13} color="#3d7a5a" /> WhatsApp <ComingSoon size="xs" />
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: c.hint, fontSize: 12.5, cursor: "not-allowed" }}>
+            <MessageSquare size={13} color={c.hint} /> WhatsApp <ComingSoon size="xs" />
           </span>
           <Link
             href={`/api/quotes/${quote.id}/export`}
