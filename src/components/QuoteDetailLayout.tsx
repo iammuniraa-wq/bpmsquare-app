@@ -156,6 +156,7 @@ const td: React.CSSProperties = {
 export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES }: Props) {
   const isTechnical = quote.type === "technical";
   const [currentStatus, setCurrentStatus] = useState<string>(quote.status);
+  useEffect(() => { setCurrentStatus(quote.status); }, [quote.status]);
   const taxRate     = tenantTax?.rate ?? 18;
   const taxLabel    = tenantTax?.label ?? "GST";
   const subtotal    = lines.reduce((s, l) => s + l.amount, 0);
