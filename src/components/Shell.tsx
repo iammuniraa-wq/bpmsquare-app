@@ -123,7 +123,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <Sidebar />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <TabBar />
-          <main style={{ flex: 1, padding: "20px 24px", overflowX: "hidden", maxWidth: 1100 }}>
+          <main style={{ flex: 1, padding: "20px 24px", overflowX: "hidden" }}>
             {children}
           </main>
         </div>
