@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import type { Quote, QuoteLine, QuoteRevision, Account, Contact, Site, Asset } from "@/lib/types";
 // QuoteLine is used via inline cast for group_description field added in migration 0012
 import type { CompanyInfo } from "@/lib/tenant";
 import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
 import { MapPin, Mail, Phone, Globe, MessageSquare } from "@/components/Icons";
+import { VIKAS_SIGNATURE } from "@/lib/vikasSig";
 
 const STATUS_LABEL: Record<Quote["status"], string> = {
   draft: "Draft", sent: "Sent", approved: "Approved", rejected: "Rejected",
@@ -44,7 +45,7 @@ type Props = {
   assetPrintFields?: string[];
 };
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+const inr = (n: number) => "â‚¹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -127,7 +128,7 @@ export default function QuotePrint({
       {/* Screen-only toolbar */}
       <div className="no-print" style={{ background: brand.dark, padding: "10px 24px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 10, flexWrap: "wrap" }}>
         <button onClick={() => window.print()} style={{ background: brand.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-          ↓ Print / Save PDF
+          â†“ Print / Save PDF
         </button>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.07)", color: "#6b8099", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }}>
           Email quote
@@ -138,13 +139,13 @@ export default function QuotePrint({
           <span style={{ fontSize: 9, fontWeight: 700, color: "#f6b23c", background: "rgba(246,178,60,.15)", border: "1px solid rgba(246,178,60,.3)", borderRadius: 5, padding: "1px 5px", letterSpacing: 0.4 }}>SOON</span>
         </span>
         <button onClick={() => window.close()} style={{ background: "transparent", color: "#aebccd", border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>Close</button>
-        <span style={{ marginLeft: "auto", color: "#4a6278", fontSize: 11 }}>Save as PDF · use browser print dialog</span>
+        <span style={{ marginLeft: "auto", color: "#4a6278", fontSize: 11 }}>Save as PDF Â· use browser print dialog</span>
       </div>
 
       {/* A4 Document */}
       <div className="doc">
 
-        {/* ── WHITE LETTERHEAD HEADER ── */}
+        {/* â”€â”€ WHITE LETTERHEAD HEADER â”€â”€ */}
         <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid" }}>
 
           {/* Row 1: ISO / accreditation (left) | GST (right) */}
@@ -339,8 +340,8 @@ export default function QuotePrint({
               <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600 }}>Description</th>
               <th style={{ padding: "7px 12px", textAlign: "center", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>UOM</th>
               <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Qty</th>
-              {!isTechnical && <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Rate (₹)</th>}
-              {!isTechnical && <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Amount (₹)</th>}
+              {!isTechnical && <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Rate (â‚¹)</th>}
+              {!isTechnical && <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Amount (â‚¹)</th>}
               {isTechnical && <th style={{ padding: "7px 28px 7px 12px" }} />}
             </tr>
           </thead>
@@ -380,7 +381,7 @@ export default function QuotePrint({
                     out.push(
                       <tr key={`gh-${line.group_id}`} style={{ background: headerBg }}>
                         <td colSpan={colSpan} style={{ padding: "6px 28px", fontWeight: 700, fontSize: 11.5, color: headerColor, letterSpacing: 0.3 }}>
-                          <span>{isAlt ? (isSelected ? "✓ " : "✗ ") : ""}{line.group_label ?? (isAlt ? "Option" : "Group")}</span>
+                          <span>{isAlt ? (isSelected ? "âœ“ " : "âœ— ") : ""}{line.group_label ?? (isAlt ? "Option" : "Group")}</span>
                           {groupDesc && <span style={{ fontWeight: 400, color: isAlt ? "#92400e" : "#3a6fa8", marginLeft: 8, fontSize: 11 }}>— {groupDesc}</span>}
                           {isAlt && !isSelected && <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 8 }}>(not selected)</span>}
                         </td>
@@ -449,11 +450,11 @@ export default function QuotePrint({
                     label={quote.discount_type === "pct"
                       ? `Discount @ ${quote.discount_pct}%`
                       : "Discount"}
-                    value={`− ${inr(discountAmt)}`}
+                    value={`âˆ’ ${inr(discountAmt)}`}
                     muted
                   />
                 )}
-                {totalDeductions > 0 && <TotalRow label="Deductions (salvage)" value={`− ${inr(totalDeductions)}`} muted />}
+                {totalDeductions > 0 && <TotalRow label="Deductions (salvage)" value={`âˆ’ ${inr(totalDeductions)}`} muted />}
                 {(discountAmt > 0 || totalDeductions > 0) && <TotalRow label="Net cost" value={inr(afterDiscount)} />}
                 <TotalRow label={`${co.tax_label} @ ${co.tax_rate}%`} value={inr(tax)} muted />
                 <tr>
@@ -504,7 +505,16 @@ export default function QuotePrint({
         {/* Signature block */}
         <div style={{ margin: "6px 28px 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, breakInside: "avoid", breakBefore: "avoid" }}>
           <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
-            <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 28 }}>For {co.name}</div>
+            <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 6 }}>For {co.name}</div>
+            {account?.name?.toLowerCase().includes("vikas") ? (
+              <img
+                src={VIKAS_SIGNATURE}
+                alt=""
+                style={{ display: "block", height: 48, width: "auto", marginBottom: 6, objectFit: "contain", objectPosition: "left bottom" }}
+              />
+            ) : (
+              <div style={{ height: 48, marginBottom: 6 }} />
+            )}
             <div style={{ borderTop: `1px solid ${brand.dark}`, paddingTop: 6, fontSize: 11, color: "#5f6b7a" }}>Authorised Signatory</div>
           </div>
           <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
@@ -513,7 +523,7 @@ export default function QuotePrint({
           </div>
         </div>
 
-        {/* Footer — mirrors the PDF sample: address row · phones grid · tagline */}
+        {/* Footer — mirrors the PDF sample: address row Â· phones grid Â· tagline */}
         <div style={{ background: brand.dark, borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid" }}>
           {/* Address row */}
           {co.address && (
@@ -543,10 +553,10 @@ export default function QuotePrint({
           {/* Tagline + ref row */}
           <div style={{ padding: "6px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10.5 }}>
             {co.footer_tagline
-              ? <span style={{ color: brand.amber, fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
+              ? <span style={{ color: brand.amber, fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} â˜º</span>
               : <span style={{ color: "#5a7494" }}>{co.name}</span>
             }
-            <span style={{ color: "#5a7494" }}>{quote.ref} · Rev. {quote.revision}</span>
+            <span style={{ color: "#5a7494" }}>{quote.ref} Â· Rev. {quote.revision}</span>
           </div>
         </div>
 
@@ -580,3 +590,4 @@ function TotalRow({ label, value, muted }: { label: string; value: string; muted
     </tr>
   );
 }
+

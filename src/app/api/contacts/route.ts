@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { encrypt } from "@/lib/encryption";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -40,11 +41,11 @@ export async function POST(request: NextRequest) {
       account_id, name,
       role: role || null,
       department: department || null,
-      phone: phone || null,
-      phone2: phone2 || null,
-      phone3: phone3 || null,
-      email: email || null,
-      email2: email2 || null,
+      phone: encrypt(phone || null),
+      phone2: encrypt(phone2 || null),
+      phone3: encrypt(phone3 || null),
+      email: encrypt(email || null),
+      email2: encrypt(email2 || null),
       website: website || null,
       linkedin_url: linkedin_url || null,
       birthday: birthday || null,

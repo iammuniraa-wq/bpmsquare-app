@@ -1,6 +1,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { createServerSupabase, createAdminSupabase } from "@/lib/supabase-server";
+import { decryptAccount, decryptContact } from "@/lib/encryption";
 import type {
   Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder,
   Contract, Activity, QuoteLine, QuoteRevision, Technician, TechnicianLeave,
@@ -188,7 +189,8 @@ export async function listAccountsLive(): Promise<AccountSummary[]> {
   if (!user) return [];
   const { data: tu } = await createAdminSupabase().from("tenant_users").select("tenant_id").eq("user_id", user.id).maybeSingle();
   if (!tu?.tenant_id) return [];
-  return _listAccountsCached(tu.tenant_id as string);
+  const rows = await _listAccountsCached(tu.tenant_id as string);
+  return rows.map((s) => ({ ...s, account: decryptAccount(s.account) }));
 }
 
 export async function getAccountHubLive(id: string) {
@@ -236,9 +238,9 @@ export async function getAccountHubLive(id: string) {
   }));
 
   return {
-    account: account as Account,
+    account: decryptAccount(account as Account),
     referredBy: (referredByRow ?? null) as Pick<Account, "id" | "name"> | null,
-    contacts: (contacts ?? []) as Contact[],
+    contacts: ((contacts ?? []) as Contact[]).map(decryptContact),
     sites: [],
     assets: (assets ?? []) as Asset[],
     contracts: (contracts ?? []) as Contract[],
@@ -321,8 +323,8 @@ export async function listContactsLive(): Promise<ContactWithAccount[]> {
     .order("name");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((r: any) => ({
-    contact: r as Contact,
-    account: (Array.isArray(r.accounts) ? r.accounts[0] : r.accounts) as Account,
+    contact: decryptContact(r as Contact),
+    account: decryptAccount((Array.isArray(r.accounts) ? r.accounts[0] : r.accounts) as Account),
   }));
 }
 
@@ -347,8 +349,8 @@ export async function getContactLive(id: string) {
     .order("intake_at", { ascending: false });
 
   return {
-    contact: contact as Contact,
-    account,
+    contact: decryptContact(contact as Contact),
+    account: account ? decryptAccount(account) : null,
     cases: (cases ?? []) as Pick<ServiceCase, "id" | "ref" | "status" | "type" | "complaint" | "equipment_label" | "intake_at">[],
   };
 }
@@ -452,7 +454,8 @@ export async function getQuoteLive(id: string) {
   if (!quote) return null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const acc = (Array.isArray((quote as any).accounts) ? (quote as any).accounts[0] : (quote as any).accounts) as Account | null;
+  const accRaw = (Array.isArray((quote as any).accounts) ? (quote as any).accounts[0] : (quote as any).accounts) as Account | null;
+  const acc = accRaw ? decryptAccount(accRaw) : null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const storedContactId = (quote as any).contact_id as string | null | undefined;
@@ -461,7 +464,7 @@ export async function getQuoteLive(id: string) {
     : acc
       ? await supabase.from("contacts").select("*").eq("account_id", acc.id).limit(1).maybeSingle()
       : { data: null };
-  const contact = cd as Contact | null;
+  const contact = cd ? decryptContact(cd as Contact) : null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mappedWOs = (workOrders ?? []).map((wo: any) => ({
@@ -564,12 +567,12 @@ export async function getCaseLive(id: string) {
       ? supabase.from("assets").select("*").eq("id", sc.loaner_asset_id).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  const contact     = cd as Contact | null;
+  const contact     = cd ? decryptContact(cd as Contact) : null;
   const loanerAsset = la as Asset | null;
 
   return {
     serviceCase: serviceCase as ServiceCase,
-    account,
+    account: account ? decryptAccount(account) : null,
     contact,
     asset,
     technician,
@@ -884,8 +887,8 @@ export async function getQuoteFormDataLive() {
   const config = (tenantRow as any)?.config ?? {};
 
   return {
-    accounts:      (accounts      ?? []) as Account[],
-    contacts:      (contacts      ?? []) as Contact[],
+    accounts:      ((accounts  ?? []) as Account[]).map(decryptAccount),
+    contacts:      ((contacts  ?? []) as Contact[]).map(decryptContact),
     assets:        (assets        ?? []) as Asset[],
     pricingItems:  (pricingItems  ?? []) as PricingItem[],
     textFragments: (textFragments ?? []) as TextFragment[],

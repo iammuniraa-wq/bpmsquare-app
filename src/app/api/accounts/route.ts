@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { encrypt, decrypt } from "@/lib/encryption";
 
 export async function GET() {
   let supabase, tenantId;
@@ -17,7 +18,13 @@ export async function GET() {
     .order("name", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  const PII = ["phone", "email"] as const;
+  const decrypted = (data ?? []).map((row) => {
+    const r = { ...row } as Record<string, unknown>;
+    for (const f of PII) if (typeof r[f] === "string") r[f] = decrypt(r[f] as string);
+    return r;
+  });
+  return NextResponse.json(decrypted);
 }
 
 export async function POST(request: NextRequest) {
@@ -53,15 +60,15 @@ export async function POST(request: NextRequest) {
       state: state || null,
       postal_code: postal_code || null,
       country: country || null,
-      phone: phone || null,
-      phone2: phone2 || null,
-      email: email || null,
-      email2: email2 || null,
+      phone: encrypt(phone || null),
+      phone2: encrypt(phone2 || null),
+      email: encrypt(email || null),
+      email2: encrypt(email2 || null),
       website: website || null,
       industry: industry || null,
       employee_count: employee_count || null,
       annual_revenue: annual_revenue || null,
-      gstin: gstin || null,
+      gstin: encrypt(gstin || null),
       notes: notes || null,
       territory: territory || null,
       sales_org: sales_org || null,
