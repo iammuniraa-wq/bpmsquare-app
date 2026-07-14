@@ -24,6 +24,7 @@ const ASSET_FIELD_LABELS: Record<string, string> = {
   make:   "Make / OEM",
   model:  "Model / Frame",
   rating: "Rating",
+  rpm:    "RPM",
   serial: "Serial no.",
   notes:  "Remarks",
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Quote, QuoteLine, Account, Contact, LayoutSection } from "@/lib/types";
 import type { TenantTaxConfig, QuoteStatusDef } from "@/lib/constants";
@@ -154,6 +155,7 @@ const td: React.CSSProperties = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES }: Props) {
+  const router = useRouter();
   const isTechnical = quote.type === "technical";
   const [currentStatus, setCurrentStatus] = useState<string>(quote.status);
   useEffect(() => { setCurrentStatus(quote.status); }, [quote.status]);
@@ -180,6 +182,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const [adaptMode, setAdaptMode]     = useState(false);
   const [saving, setSaving]           = useState(false);
   const [moreOpen, setMoreOpen]       = useState(false);
+  const [copying, setCopying]         = useState(false);
   const moreRef                       = useRef<HTMLDivElement>(null);
 
   // Section drag
@@ -657,6 +660,18 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                     style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 16px", fontSize: 13, color: c.ink, background: "none", border: "none", borderBottom: `1px solid ${c.line}`, cursor: "pointer", textAlign: "left" }}
                   >
                     <span style={{ fontSize: 15 }}>⊙</span> Adapt layout
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setMoreOpen(false);
+                      setCopying(true);
+                      const res = await fetch(`/api/quotes/${quote.id}/copy`, { method: "POST" });
+                      setCopying(false);
+                      if (res.ok) { const j = await res.json(); router.push(ROUTES.quotation(j.id)); }
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 16px", fontSize: 13, color: c.ink, background: "none", border: "none", borderBottom: `1px solid ${c.line}`, cursor: "pointer", textAlign: "left" }}
+                  >
+                    <span style={{ fontSize: 15 }}>⎘</span> {copying ? "Copying…" : "Copy quote"}
                   </button>
                   <div style={{ padding: "11px 16px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", gap: 10, cursor: "not-allowed", opacity: 0.5 }}>
                     <span style={{ fontSize: 13 }}>✉</span>

@@ -76,7 +76,8 @@ export type Asset = {
   name: string;
   make: string | null;       // manufacturer, e.g. "Crompton Greaves"
   model: string | null;      // model / frame number, e.g. "ND315S-2"
-  rating: string | null;     // e.g. "75 kW · 415V · 1480 rpm"
+  rating: string | null;     // e.g. "75 kW · 415V"
+  rpm: string | null;        // e.g. "1480"
   serial: string | null;
   notes: string | null;      // service history or remarks
   is_loaner: boolean;

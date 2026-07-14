@@ -47,7 +47,8 @@ const ALL_ASSET_FIELDS: { value: string; label: string; example: string }[] = [
   { value: "kind",   label: "Type",             example: "Motor" },
   { value: "make",   label: "Make / OEM",       example: "Crompton Greaves" },
   { value: "model",  label: "Model / Frame",    example: "ND315S-2" },
-  { value: "rating", label: "Rating",           example: "75 kW · 415V · 1480 rpm" },
+  { value: "rating", label: "Rating",           example: "75 kW · 415V" },
+  { value: "rpm",    label: "RPM",              example: "1480" },
   { value: "serial", label: "Serial no.",       example: "CG-75-2291" },
   { value: "notes",  label: "Remarks",          example: "Stator rewound 2023" },
 ];

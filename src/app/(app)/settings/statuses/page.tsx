@@ -26,7 +26,7 @@ export default async function StatusesPage() {
   return (
     <>
       <PageHeader
-        title="Quote statuses"
+        title="Statuses & assets"
         subtitle="Configure pipeline stages and equipment print fields"
       />
       <StatusesClient initial={statuses} initialAssetFields={assetPrintFields} />

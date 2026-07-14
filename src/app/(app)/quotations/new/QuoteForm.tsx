@@ -226,7 +226,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       });
       const json = await res.json();
       if (!res.ok) { setCreateAssetError(json.error ?? "Failed to create asset"); return; }
-      const created: Asset = { id: json.id, account_id: accountId || null, ...newAsset, is_loaner: false, loaner_status: null };
+      const created: Asset = { id: json.id, account_id: accountId || null, ...newAsset, rpm: null, is_loaner: false, loaner_status: null };
       setLocalAssets((p) => [...p, created]);
       setSelectedAssetIds((p) => [...p, json.id]);
       setCreateAssetOpen(false);
