@@ -1,12 +1,32 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
+import { CheckIcon, XIcon } from "@/components/Icons";
 import type { QuoteSummary } from "@/lib/data/labels";
+
+// ── Column definitions ────────────────────────────────────────────────────────
+
+type ColId = "type" | "account" | "status" | "lines" | "total" | "date" | "valid_until" | "territory";
+
+type ColDef = { id: ColId; label: string; defaultOn: boolean; align?: "right" | "center" };
+
+const COLUMNS: ColDef[] = [
+  { id: "type",        label: "Type",        defaultOn: true  },
+  { id: "account",     label: "Account",     defaultOn: true  },
+  { id: "status",      label: "Status",      defaultOn: true  },
+  { id: "lines",       label: "Lines",       defaultOn: true,  align: "center" },
+  { id: "total",       label: "Total",       defaultOn: true,  align: "right"  },
+  { id: "date",        label: "Date",        defaultOn: true  },
+  { id: "valid_until", label: "Valid until", defaultOn: false },
+  { id: "territory",   label: "Territory",   defaultOn: false },
+];
+
+const LS_KEY = "bms_quotes_cols";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -44,11 +64,31 @@ const td: React.CSSProperties = {
 export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QUOTE_STATUSES }: { initialRows: QuoteSummary[]; quoteStatuses?: QuoteStatusDef[] }) {
   const router = useRouter();
 
-  const [rows, setRows]               = useState<QuoteSummary[]>(initialRows);
-  const [selected, setSelected]       = useState<Set<string>>(new Set());
+  const [rows, setRows]                 = useState<QuoteSummary[]>(initialRows);
+  const [selected, setSelected]         = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterAccount, setFilterAccount] = useState("");
-  const [toast, setToast]             = useState<string | null>(null);
+  const [toast, setToast]               = useState<string | null>(null);
+  const [adaptOpen, setAdaptOpen]       = useState(false);
+  const [visibleCols, setVisibleCols]   = useState<Set<ColId>>(
+    new Set(COLUMNS.filter((c) => c.defaultOn).map((c) => c.id))
+  );
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LS_KEY);
+      if (stored) setVisibleCols(new Set(JSON.parse(stored) as ColId[]));
+    } catch { /* ignore */ }
+  }, []);
+
+  function toggleCol(id: ColId) {
+    setVisibleCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(LS_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   // ── Filtering ──────────────────────────────────────────────────────────────
 
@@ -59,15 +99,15 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
     [rows, filterStatus, filterAccount]
   );
 
-  // Summary strip values — use first terminal status as "approved", first non-initial non-terminal as "pipeline"
-  const terminalStatus  = quoteStatuses.find((s) => s.is_terminal && !s.value.includes("reject"))?.value ?? "approved";
-  const pipelineStatus  = quoteStatuses.find((s) => !s.is_initial && !s.is_terminal)?.value ?? "sent";
-  const totalApproved   = rows.filter((r) => r.quote.status === terminalStatus).reduce((s, r) => s + r.quote.total, 0);
-  const totalPipeline   = rows.filter((r) => r.quote.status === pipelineStatus).reduce((s, r) => s + r.quote.total, 0);
+  // Summary strip values
+  const terminalStatus = quoteStatuses.find((s) => s.is_terminal && !s.value.includes("reject"))?.value ?? "approved";
+  const pipelineStatus = quoteStatuses.find((s) => !s.is_initial && !s.is_terminal)?.value ?? "sent";
+  const totalApproved  = rows.filter((r) => r.quote.status === terminalStatus).reduce((s, r) => s + r.quote.total, 0);
+  const totalPipeline  = rows.filter((r) => r.quote.status === pipelineStatus).reduce((s, r) => s + r.quote.total, 0);
 
   // ── Selection helpers ──────────────────────────────────────────────────────
 
-  const allSelected = filtered.length > 0 && filtered.every((r) => selected.has(r.quote.id));
+  const allSelected  = filtered.length > 0 && filtered.every((r) => selected.has(r.quote.id));
   const someSelected = filtered.some((r) => selected.has(r.quote.id));
 
   const toggleAll = () => {
@@ -132,6 +172,8 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   };
 
   const selectedCount = selected.size;
+  const vis = (id: ColId) => visibleCols.has(id);
+  const colCount = 1 + 1 + visibleCols.size; // checkbox + ref + visible
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -140,10 +182,10 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
       {/* Summary strip */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 14 }}>
         {[
-          { label: "Total quotes",      value: rows.length,                                                       color: c.ink },
-          { label: "Approved value",    value: inr(totalApproved),                                               color: pillar.teal.fg },
-          { label: "In pipeline",       value: inr(totalPipeline),                                               color: pillar.blue.fg },
-          { label: "Awaiting approval", value: rows.filter((r) => r.quote.status === "sent").length,             color: c.muted },
+          { label: "Total quotes",      value: rows.length,                                             color: c.ink },
+          { label: "Approved value",    value: inr(totalApproved),                                     color: pillar.teal.fg },
+          { label: "In pipeline",       value: inr(totalPipeline),                                     color: pillar.blue.fg },
+          { label: "Awaiting approval", value: rows.filter((r) => r.quote.status === "sent").length,   color: c.muted },
         ].map((s) => (
           <div key={s.label} style={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, padding: "12px 14px" }}>
             <div style={{ fontSize: 11, color: c.muted }}>{s.label}</div>
@@ -195,90 +237,166 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
       </div>
 
       {/* Table */}
-      <div style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={{ ...th, width: 36, textAlign: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
-                  onChange={toggleAll}
-                  style={{ cursor: "pointer", accentColor: c.accent }}
-                />
-              </th>
-              <th style={th}>Ref</th>
-              <th style={th}>Type</th>
-              <th style={th}>Account</th>
-              <th style={th}>Status</th>
-              <th style={th}>Lines</th>
-              <th style={{ ...th, textAlign: "right" }}>Total</th>
-              <th style={th}>Date</th>
-              <th style={th}>Valid until</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={9} style={{ ...td, textAlign: "center", padding: "32px 0", color: c.hint }}>
-                  No quotes match the current filters
-                </td>
-              </tr>
-            ) : (
-              filtered.map(({ quote, account, lineCount }) => {
-                const isSelected = selected.has(quote.id);
-                return (
-                  <tr
-                    key={quote.id}
-                    style={{ background: isSelected ? c.accentbg : "transparent", cursor: "pointer" }}
-                    onClick={(e) => {
-                      if ((e.target as HTMLElement).tagName === "INPUT") return;
-                      toggle(quote.id);
-                    }}
-                  >
-                    <td style={{ ...td, textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggle(quote.id)}
-                        style={{ cursor: "pointer", accentColor: c.accent }}
-                      />
-                    </td>
-                    <td style={td}>
-                      <Link
-                        href={ROUTES.quotation(quote.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ fontWeight: 600, color: c.accent, fontFamily: "monospace" }}
-                      >
-                        {quote.ref}
-                      </Link>
-                    </td>
-                    <td style={{ ...td, color: c.muted, fontSize: 12 }}>
-                      {OFFER_TYPE_LABEL[quote.type] ?? quote.type}
-                    </td>
-                    <td style={td}>
-                      <Link
-                        href={ROUTES.account(account.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ color: c.ink }}
-                      >
-                        {account.name}
-                      </Link>
-                    </td>
-                    <td style={td}>
-                      <StatusPill status={quote.status} statuses={quoteStatuses} />
-                    </td>
-                    <td style={{ ...td, color: c.muted }}>{lineCount} items</td>
-                    <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>{inr(quote.total)}</td>
-                    <td style={{ ...td, color: c.muted }}>{fmtDate(quote.created_at)}</td>
-                    <td style={{ ...td, color: c.muted }}>{quote.valid_until ? fmtDate(quote.valid_until) : "—"}</td>
-                  </tr>
-                );
-              })
+      <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+        {/* Toolbar */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "10px 14px", borderBottom: `1px solid ${c.line}`, background: c.panel2,
+        }}>
+          <span style={{ fontSize: 12, color: c.hint, fontWeight: 500 }}>
+            {filtered.length} quote{filtered.length !== 1 ? "s" : ""}
+          </span>
+
+          {/* Columns picker */}
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setAdaptOpen((v) => !v)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                background: adaptOpen ? c.accentbg : "none",
+                color: adaptOpen ? c.accent : c.muted,
+                border: `1px solid ${adaptOpen ? c.accent + "60" : c.line}`,
+                borderRadius: 6, padding: "5px 11px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              ⚙ Columns
+            </button>
+
+            {adaptOpen && (
+              <div style={{
+                position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50,
+                background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.10)", padding: "10px 0", minWidth: 180,
+              }}>
+                <div style={{ padding: "4px 14px 8px", fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>
+                  Show columns
+                </div>
+                {COLUMNS.map((col) => {
+                  const on = visibleCols.has(col.id);
+                  return (
+                    <button
+                      key={col.id}
+                      type="button"
+                      onClick={() => toggleCol(col.id)}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", gap: 10,
+                        padding: "7px 14px", background: "none", border: "none",
+                        cursor: "pointer", textAlign: "left",
+                      }}
+                    >
+                      <div style={{
+                        width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                        background: on ? c.accent : "none",
+                        border: `1.5px solid ${on ? c.accent : c.line}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {on && <CheckIcon size={10} color="#fff" />}
+                      </div>
+                      <span style={{ fontSize: 12.5, color: on ? c.ink : c.hint, fontWeight: on ? 600 : 400 }}>
+                        {col.label}
+                      </span>
+                    </button>
+                  );
+                })}
+                <div style={{ borderTop: `1px solid ${c.line}`, margin: "8px 0 4px" }} />
+                <button
+                  type="button"
+                  onClick={() => setAdaptOpen(false)}
+                  style={{
+                    width: "100%", padding: "6px 14px", background: "none", border: "none",
+                    cursor: "pointer", fontSize: 12, color: c.muted, textAlign: "left",
+                    display: "flex", alignItems: "center", gap: 6,
+                  }}
+                >
+                  <XIcon size={11} color={c.muted} /> Close
+                </button>
+              </div>
             )}
-          </tbody>
-        </table>
+          </div>
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ ...th, width: 36, textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                    onChange={toggleAll}
+                    style={{ cursor: "pointer", accentColor: c.accent }}
+                  />
+                </th>
+                <th style={th}>Ref</th>
+                {vis("type")        && <th style={th}>Type</th>}
+                {vis("account")     && <th style={th}>Account</th>}
+                {vis("status")      && <th style={th}>Status</th>}
+                {vis("lines")       && <th style={{ ...th, textAlign: "center" }}>Lines</th>}
+                {vis("total")       && <th style={{ ...th, textAlign: "right" }}>Total</th>}
+                {vis("date")        && <th style={th}>Date</th>}
+                {vis("valid_until") && <th style={th}>Valid until</th>}
+                {vis("territory")   && <th style={th}>Territory</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={colCount} style={{ ...td, textAlign: "center", padding: "32px 0", color: c.hint }}>
+                    No quotes match the current filters
+                  </td>
+                </tr>
+              ) : (
+                filtered.map(({ quote, account, lineCount }) => {
+                  const isSelected = selected.has(quote.id);
+                  return (
+                    <tr
+                      key={quote.id}
+                      style={{ background: isSelected ? c.accentbg : "transparent", cursor: "pointer" }}
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).tagName === "INPUT") return;
+                        toggle(quote.id);
+                      }}
+                    >
+                      <td style={{ ...td, textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggle(quote.id)}
+                          style={{ cursor: "pointer", accentColor: c.accent }}
+                        />
+                      </td>
+                      <td style={td}>
+                        <Link
+                          href={ROUTES.quotation(quote.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ fontWeight: 600, color: c.accent, fontFamily: "monospace" }}
+                        >
+                          {quote.ref}
+                        </Link>
+                      </td>
+                      {vis("type")    && <td style={{ ...td, color: c.muted, fontSize: 12 }}>{OFFER_TYPE_LABEL[quote.type] ?? quote.type}</td>}
+                      {vis("account") && (
+                        <td style={td}>
+                          <Link href={ROUTES.account(account.id)} onClick={(e) => e.stopPropagation()} style={{ color: c.ink }}>
+                            {account.name}
+                          </Link>
+                        </td>
+                      )}
+                      {vis("status")      && <td style={td}><StatusPill status={quote.status} statuses={quoteStatuses} /></td>}
+                      {vis("lines")       && <td style={{ ...td, textAlign: "center", color: c.muted }}>{lineCount} items</td>}
+                      {vis("total")       && <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>{inr(quote.total)}</td>}
+                      {vis("date")        && <td style={{ ...td, color: c.muted }}>{fmtDate(quote.created_at)}</td>}
+                      {vis("valid_until") && <td style={{ ...td, color: c.muted }}>{quote.valid_until ? fmtDate(quote.valid_until) : "—"}</td>}
+                      {vis("territory")   && <td style={{ ...td, color: c.muted }}>{quote.territory ?? "—"}</td>}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Floating action bar */}
@@ -294,7 +412,6 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
           </span>
           <div style={{ width: 1, height: 18, background: "#2e4257" }} />
 
-          {/* Copy — only when exactly 1 selected */}
           <button
             onClick={copyQuote}
             disabled={selectedCount !== 1}
@@ -308,7 +425,6 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
             ⎘ Copy quote
           </button>
 
-          {/* Delete */}
           <button
             onClick={deleteSelected}
             style={{
