@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { Contact } from "@/lib/types";
 import { Pencil, CheckIcon } from "@/components/Icons";
+import { useSalesConfig } from "@/lib/useSalesConfig";
 
 const inp: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", padding: "8px 11px", fontSize: 13,
@@ -33,6 +34,7 @@ interface Props {
 
 export default function ContactEditPanel({ contact, accountAddress }: Props) {
   const router = useRouter();
+  const salesCfg = useSalesConfig();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -227,11 +229,23 @@ export default function ContactEditPanel({ contact, accountAddress }: Props) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
           <label style={lbl}>Territory</label>
-          <input style={inp} value={form.territory} onChange={set("territory")} placeholder="e.g. West India" />
+          <select style={{ ...inp, cursor: "pointer" }} value={form.territory} onChange={(e) => setForm((f) => ({ ...f, territory: e.target.value }))}>
+            <option value="">— None —</option>
+            {salesCfg.territories.map((t) => <option key={t} value={t}>{t}</option>)}
+            {form.territory && !salesCfg.territories.includes(form.territory) && (
+              <option value={form.territory}>{form.territory}</option>
+            )}
+          </select>
         </div>
         <div>
           <label style={lbl}>Sales org</label>
-          <input style={inp} value={form.sales_org} onChange={set("sales_org")} placeholder="e.g. IN-West" />
+          <select style={{ ...inp, cursor: "pointer" }} value={form.sales_org} onChange={(e) => setForm((f) => ({ ...f, sales_org: e.target.value }))}>
+            <option value="">— None —</option>
+            {salesCfg.sales_orgs.map((s) => <option key={s} value={s}>{s}</option>)}
+            {form.sales_org && !salesCfg.sales_orgs.includes(form.sales_org) && (
+              <option value={form.sales_org}>{form.sales_org}</option>
+            )}
+          </select>
         </div>
       </div>
 

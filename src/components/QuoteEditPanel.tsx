@@ -6,6 +6,7 @@ import { c } from "@/lib/theme";
 import type { Quote, QuoteLine, PricingCategory } from "@/lib/types";
 import { ROUTES, UOM_OPTIONS, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { Pencil } from "@/components/Icons";
+import { useSalesConfig } from "@/lib/useSalesConfig";
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
@@ -89,6 +90,7 @@ const lineHeaders = ["Sl No", "Description", "UOM", "Category", "Qty", "Rate", "
 
 export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_QUOTE_STATUSES, onSaved }: { quote: Quote; lines: QuoteLine[]; quoteStatuses?: QuoteStatusDef[]; onSaved?: (newStatus: string) => void }) {
   const router = useRouter();
+  const salesCfg = useSalesConfig();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -450,11 +452,23 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
                 <div>
                   <label style={lbl}>Territory</label>
-                  <input style={inp} value={territory} onChange={(e) => setTerritory(e.target.value)} placeholder="e.g. West India" />
+                  <select style={{ ...inp, cursor: "pointer" }} value={territory} onChange={(e) => setTerritory(e.target.value)}>
+                    <option value="">— None —</option>
+                    {salesCfg.territories.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {territory && !salesCfg.territories.includes(territory) && (
+                      <option value={territory}>{territory}</option>
+                    )}
+                  </select>
                 </div>
                 <div>
                   <label style={lbl}>Sales org</label>
-                  <input style={inp} value={salesOrg} onChange={(e) => setSalesOrg(e.target.value)} placeholder="e.g. IN-West" />
+                  <select style={{ ...inp, cursor: "pointer" }} value={salesOrg} onChange={(e) => setSalesOrg(e.target.value)}>
+                    <option value="">— None —</option>
+                    {salesCfg.sales_orgs.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {salesOrg && !salesCfg.sales_orgs.includes(salesOrg) && (
+                      <option value={salesOrg}>{salesOrg}</option>
+                    )}
+                  </select>
                 </div>
               </div>
 

@@ -41,6 +41,7 @@ export const ROUTES = {
   settingsTeam: "/settings/team",
   settingsEntities: "/settings/entities",
   settingsStatuses: "/settings/statuses",
+  settingsSales: "/settings/sales",
   reports: "/reports",
   admin: "/admin",
   adminTenant: (id: string) => `/admin/tenants/${id}`,
