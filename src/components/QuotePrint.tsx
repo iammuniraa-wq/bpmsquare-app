@@ -128,7 +128,7 @@ export default function QuotePrint({
       {/* Screen-only toolbar */}
       <div className="no-print" style={{ background: brand.dark, padding: "10px 24px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 10, flexWrap: "wrap" }}>
         <button onClick={() => window.print()} style={{ background: brand.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-          â†“ Print / Save PDF
+          ↓ Print / Save PDF
         </button>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.07)", color: "#6b8099", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }}>
           Email quote
@@ -145,7 +145,7 @@ export default function QuotePrint({
       {/* A4 Document */}
       <div className="doc">
 
-        {/* â”€â”€ WHITE LETTERHEAD HEADER â”€â”€ */}
+        {/* ── WHITE LETTERHEAD HEADER ── */}
         <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid" }}>
 
           {/* Row 1: ISO / accreditation (left) | GST (right) */}
@@ -381,7 +381,7 @@ export default function QuotePrint({
                     out.push(
                       <tr key={`gh-${line.group_id}`} style={{ background: headerBg }}>
                         <td colSpan={colSpan} style={{ padding: "6px 28px", fontWeight: 700, fontSize: 11.5, color: headerColor, letterSpacing: 0.3 }}>
-                          <span>{isAlt ? (isSelected ? "âœ“ " : "âœ— ") : ""}{line.group_label ?? (isAlt ? "Option" : "Group")}</span>
+                          <span>{isAlt ? (isSelected ? "✓ " : "✗ ") : ""}{line.group_label ?? (isAlt ? "Option" : "Group")}</span>
                           {groupDesc && <span style={{ fontWeight: 400, color: isAlt ? "#92400e" : "#3a6fa8", marginLeft: 8, fontSize: 11 }}>— {groupDesc}</span>}
                           {isAlt && !isSelected && <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 8 }}>(not selected)</span>}
                         </td>
@@ -450,11 +450,11 @@ export default function QuotePrint({
                     label={quote.discount_type === "pct"
                       ? `Discount @ ${quote.discount_pct}%`
                       : "Discount"}
-                    value={`âˆ’ ${inr(discountAmt)}`}
+                    value={`− ${inr(discountAmt)}`}
                     muted
                   />
                 )}
-                {totalDeductions > 0 && <TotalRow label="Deductions (salvage)" value={`âˆ’ ${inr(totalDeductions)}`} muted />}
+                {totalDeductions > 0 && <TotalRow label="Deductions (salvage)" value={`− ${inr(totalDeductions)}`} muted />}
                 {(discountAmt > 0 || totalDeductions > 0) && <TotalRow label="Net cost" value={inr(afterDiscount)} />}
                 <TotalRow label={`${co.tax_label} @ ${co.tax_rate}%`} value={inr(tax)} muted />
                 <tr>
@@ -553,7 +553,7 @@ export default function QuotePrint({
           {/* Tagline + ref row */}
           <div style={{ padding: "6px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10.5 }}>
             {co.footer_tagline
-              ? <span style={{ color: brand.amber, fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} â˜º</span>
+              ? <span style={{ color: brand.amber, fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
               : <span style={{ color: "#5a7494" }}>{co.name}</span>
             }
             <span style={{ color: "#5a7494" }}>{quote.ref} Â· Rev. {quote.revision}</span>
