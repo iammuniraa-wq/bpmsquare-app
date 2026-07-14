@@ -11,6 +11,7 @@ const ALL_TABS = [
   { label: "Entities",      href: ROUTES.settingsEntities,   adminOnly: true  },
   { label: "Statuses & assets", href: ROUTES.settingsStatuses, adminOnly: true  },
   { label: "Sales config",  href: ROUTES.settingsSales,      adminOnly: true  },
+  { label: "Deleted records", href: ROUTES.settingsDeletionLog, adminOnly: true  },
   { label: "Pricing",       href: ROUTES.configPricing,      adminOnly: false },
   { label: "Templates",     href: ROUTES.configTemplates,    adminOnly: false },
   { label: "Custom fields", href: ROUTES.configCustomFields, adminOnly: false },
