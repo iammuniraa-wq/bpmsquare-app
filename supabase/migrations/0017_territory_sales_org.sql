@@ -9,5 +9,5 @@ ALTER TABLE contacts ADD COLUMN IF NOT EXISTS sales_org  text;
 ALTER TABLE quotes   ADD COLUMN IF NOT EXISTS territory  text;
 ALTER TABLE quotes   ADD COLUMN IF NOT EXISTS sales_org  text;
 
-ALTER TABLE cases    ADD COLUMN IF NOT EXISTS territory  text;
-ALTER TABLE cases    ADD COLUMN IF NOT EXISTS sales_org  text;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS territory  text;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS sales_org  text;
