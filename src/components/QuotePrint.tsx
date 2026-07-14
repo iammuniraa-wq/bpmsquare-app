@@ -139,7 +139,7 @@ export default function QuotePrint({
           <span style={{ fontSize: 9, fontWeight: 700, color: "#f6b23c", background: "rgba(246,178,60,.15)", border: "1px solid rgba(246,178,60,.3)", borderRadius: 5, padding: "1px 5px", letterSpacing: 0.4 }}>SOON</span>
         </span>
         <button onClick={() => window.close()} style={{ background: "transparent", color: "#aebccd", border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>Close</button>
-        <span style={{ marginLeft: "auto", color: "#4a6278", fontSize: 11 }}>Save as PDF Â· use browser print dialog</span>
+        <span style={{ marginLeft: "auto", color: "#4a6278", fontSize: 11 }}>Save as PDF · use browser print dialog</span>
       </div>
 
       {/* A4 Document */}
@@ -523,7 +523,7 @@ export default function QuotePrint({
           </div>
         </div>
 
-        {/* Footer — mirrors the PDF sample: address row Â· phones grid Â· tagline */}
+        {/* Footer — mirrors the PDF sample: address row · phones grid · tagline */}
         <div style={{ background: brand.dark, borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid" }}>
           {/* Address row */}
           {co.address && (
@@ -556,7 +556,7 @@ export default function QuotePrint({
               ? <span style={{ color: brand.amber, fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
               : <span style={{ color: "#5a7494" }}>{co.name}</span>
             }
-            <span style={{ color: "#5a7494" }}>{quote.ref} Â· Rev. {quote.revision}</span>
+            <span style={{ color: "#5a7494" }}>{quote.ref} · Rev. {quote.revision}</span>
           </div>
         </div>
 
