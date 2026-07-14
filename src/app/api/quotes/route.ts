@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   // Verify account belongs to this tenant
   const { data: acct } = await supabase
     .from("accounts")
-    .select("id")
+    .select("id, territory, sales_org")
     .eq("id", account_id)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -70,6 +70,8 @@ export async function POST(request: NextRequest) {
       selected_option_id: selected_option_id ?? null,
       meta: meta ?? null,
       custom_data: custom_data ?? null,
+      territory: acct!.territory || null,
+      sales_org: acct!.sales_org || null,
     })
     .select("id, ref")
     .single();

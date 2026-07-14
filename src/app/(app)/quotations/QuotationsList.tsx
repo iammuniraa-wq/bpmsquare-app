@@ -48,6 +48,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   const [selected, setSelected]       = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterAccount, setFilterAccount] = useState("");
+  const [filterTerritory, setFilterTerritory] = useState("");
   const [toast, setToast]             = useState<string | null>(null);
 
   // ── Filtering ──────────────────────────────────────────────────────────────
@@ -55,8 +56,9 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   const filtered = useMemo(() =>
     rows
       .filter((r) => !filterStatus || r.quote.status === filterStatus)
-      .filter((r) => !filterAccount || r.account.name.toLowerCase().includes(filterAccount.toLowerCase())),
-    [rows, filterStatus, filterAccount]
+      .filter((r) => !filterAccount || r.account.name.toLowerCase().includes(filterAccount.toLowerCase()))
+      .filter((r) => !filterTerritory || (r.quote.territory ?? "").toLowerCase().includes(filterTerritory.toLowerCase())),
+    [rows, filterStatus, filterAccount, filterTerritory]
   );
 
   // Summary strip values — use first terminal status as "approved", first non-initial non-terminal as "pipeline"
@@ -190,6 +192,18 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
             border: `1px solid ${c.line}`, borderRadius: 8, padding: "6px 12px",
             fontSize: 13, color: c.ink, background: c.panel, fontFamily: "inherit",
             outline: "none", width: 200,
+          }}
+        />
+
+        {/* Territory search */}
+        <input
+          value={filterTerritory}
+          onChange={(e) => setFilterTerritory(e.target.value)}
+          placeholder="Territory…"
+          style={{
+            border: `1px solid ${c.line}`, borderRadius: 8, padding: "6px 12px",
+            fontSize: 13, color: c.ink, background: c.panel, fontFamily: "inherit",
+            outline: "none", width: 160,
           }}
         />
 

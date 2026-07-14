@@ -20,6 +20,9 @@ export type Account = {
   email: string | null;
   email2: string | null;
   website: string | null;
+  // Sales
+  territory: string | null;
+  sales_org: string | null;
   // Business
   industry: string | null;
   employee_count: string | null;
@@ -53,6 +56,8 @@ export type Contact = {
   state: string | null;
   postal_code: string | null;
   country: string | null;
+  territory: string | null;
+  sales_org: string | null;
   notes: string | null;
   custom_data: Record<string, unknown> | null;
 };
@@ -128,6 +133,8 @@ export type Quote = {
   asset_ids?: string[];
   revision: number;
   selected_option_id?: string | null;
+  territory?: string | null;
+  sales_org?: string | null;
 };
 
 // One row per revision of a quote — tracks what changed between versions.
@@ -296,6 +303,8 @@ export type ServiceCase = {
   parent_case_id: string | null;  // set when this is a sub-case of another case
   disposition: "repair" | "buyback" | "scrap" | null;
   notes: string | null;
+  territory: string | null;
+  sales_org: string | null;
 };
 
 // ── Page layout builder ───────────────────────────────────────────────────────

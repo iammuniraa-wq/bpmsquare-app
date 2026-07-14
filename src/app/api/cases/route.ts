@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   // Verify account belongs to this tenant
   const { data: acct } = await supabase
-    .from("accounts").select("id").eq("id", account_id).eq("tenant_id", tenantId).maybeSingle();
+    .from("accounts").select("id, territory, sales_org").eq("id", account_id).eq("tenant_id", tenantId).maybeSingle();
   if (!acct) return NextResponse.json({ error: "Account not found" }, { status: 404 });
 
   // Generate ref: CS-YYYY-XXXX (sequential within tenant)
@@ -48,6 +48,8 @@ export async function POST(request: NextRequest) {
       assigned_to: assigned_to || null,
       intake_at: new Date().toISOString(),
       has_loaner: false,
+      territory: acct.territory || null,
+      sales_org: acct.sales_org || null,
     })
     .select("id, ref")
     .single();

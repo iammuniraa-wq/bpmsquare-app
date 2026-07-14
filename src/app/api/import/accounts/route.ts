@@ -59,6 +59,8 @@ export async function POST(request: NextRequest) {
       industry:      row.industry?.trim()      || null,
       employee_count: row.employee_count?.trim() || null,
       annual_revenue: row.annual_revenue?.trim() || null,
+      territory:     row.territory?.trim()     || null,
+      sales_org:     row.sales_org?.trim()     || null,
       gstin:         row.gstin?.trim()         || null,
       notes:         row.notes?.trim()         || null,
       ...(Object.keys(custom_data).length > 0 ? { custom_data } : {}),

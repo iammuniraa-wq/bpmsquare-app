@@ -101,6 +101,8 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
   const [notes, setNotes] = useState(quote.notes ?? "");
   const [terms, setTerms] = useState(quote.terms ?? "");
   const [scopeOfWork, setScopeOfWork] = useState(quote.scope_of_work ?? "");
+  const [territory, setTerritory] = useState(quote.territory ?? "");
+  const [salesOrg, setSalesOrg] = useState(quote.sales_org ?? "");
   const [rows, setRows] = useState<Row[]>(() => linesToRows(lines));
   const [selectedAltId, setSelectedAltId] = useState<string | null>(quote.selected_option_id ?? null);
 
@@ -112,6 +114,8 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
       setNotes(quote.notes ?? "");
       setTerms(quote.terms ?? "");
       setScopeOfWork(quote.scope_of_work ?? "");
+      setTerritory(quote.territory ?? "");
+      setSalesOrg(quote.sales_org ?? "");
       setRows(linesToRows(lines));
       setSelectedAltId(quote.selected_option_id ?? null);
     }
@@ -202,6 +206,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           valid_until: validUntil, notes, terms, scope_of_work: scopeOfWork,
+          territory, sales_org: salesOrg,
           lines: flatLines, selected_option_id: effectiveAltId,
         }),
       });
@@ -440,6 +445,17 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
                     </div>
                   );
                 })}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                <div>
+                  <label style={lbl}>Territory</label>
+                  <input style={inp} value={territory} onChange={(e) => setTerritory(e.target.value)} placeholder="e.g. West India" />
+                </div>
+                <div>
+                  <label style={lbl}>Sales org</label>
+                  <input style={inp} value={salesOrg} onChange={(e) => setSalesOrg(e.target.value)} placeholder="e.g. IN-West" />
+                </div>
               </div>
 
               <div style={{ marginBottom: 10 }}>

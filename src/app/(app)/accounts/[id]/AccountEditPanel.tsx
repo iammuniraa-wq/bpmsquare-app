@@ -49,6 +49,9 @@ export default function AccountEditPanel({ account }: { account: Account }) {
     email:   account.email   ?? "",
     email2:  account.email2  ?? "",
     website: account.website ?? "",
+    // Sales
+    territory: account.territory ?? "",
+    sales_org: account.sales_org ?? "",
     // Business
     industry:       account.industry       ?? "",
     employee_count: account.employee_count ?? "",
@@ -167,6 +170,19 @@ export default function AccountEditPanel({ account }: { account: Account }) {
       <div style={fw}>
         <label style={lbl}>Website</label>
         <input style={inp} value={form.website} onChange={set("website")} placeholder="https://company.com" />
+      </div>
+
+      {/* Sales */}
+      <div style={secHead}>Sales</div>
+      <div style={grid2}>
+        <div>
+          <label style={lbl}>Territory</label>
+          <input style={inp} value={form.territory} onChange={set("territory")} placeholder="e.g. West India" />
+        </div>
+        <div>
+          <label style={lbl}>Sales org</label>
+          <input style={inp} value={form.sales_org} onChange={set("sales_org")} placeholder="e.g. IN-West" />
+        </div>
       </div>
 
       {/* Business */}

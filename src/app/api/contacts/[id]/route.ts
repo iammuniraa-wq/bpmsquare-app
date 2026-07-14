@@ -18,7 +18,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     "phone", "phone2", "phone3", "email", "email2",
     "website", "linkedin_url", "birthday",
     "address_line1", "address_line2", "city", "state", "postal_code", "country",
-    "notes", "custom_data",
+    "notes", "territory", "sales_org", "custom_data",
   ];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];

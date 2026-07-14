@@ -40,6 +40,8 @@ const OBJECTS: {
       { key: "industry",       label: "industry",       required: false, hint: "Industry / sector" },
       { key: "employee_count", label: "employee_count", required: false, hint: "Number of employees" },
       { key: "annual_revenue", label: "annual_revenue", required: false, hint: "Annual revenue e.g. ₹5 Cr" },
+      { key: "territory",       label: "territory",       required: false, hint: "Sales territory e.g. West India" },
+      { key: "sales_org",       label: "sales_org",       required: false, hint: "Sales org code e.g. IN-West" },
       { key: "gstin",          label: "gstin",          required: false, hint: "GST number" },
       { key: "notes",          label: "notes",          required: false, hint: "Any extra notes" },
     ],
@@ -70,6 +72,8 @@ const OBJECTS: {
       { key: "state",         label: "state",         required: false, hint: "State / province" },
       { key: "postal_code",   label: "postal_code",   required: false, hint: "PIN / ZIP" },
       { key: "country",       label: "country",       required: false, hint: "Country" },
+      { key: "territory",     label: "territory",     required: false, hint: "Sales territory e.g. West India" },
+      { key: "sales_org",     label: "sales_org",     required: false, hint: "Sales org code e.g. IN-West" },
       { key: "notes",         label: "notes",         required: false, hint: "Any notes" },
     ],
     sampleRows: [

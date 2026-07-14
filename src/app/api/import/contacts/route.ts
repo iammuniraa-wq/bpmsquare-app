@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
       state:        row.state?.trim()        || null,
       postal_code:  row.postal_code?.trim()  || null,
       country:      row.country?.trim()      || null,
+      territory:    row.territory?.trim()    || null,
+      sales_org:    row.sales_org?.trim()    || null,
       notes:        row.notes?.trim()        || null,
       ...(Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     });

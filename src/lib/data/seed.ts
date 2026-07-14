@@ -91,6 +91,7 @@ const nullAccountFields = {
   address_line1: null, address_line2: null, state: null, postal_code: null, country: null,
   phone2: null, email2: null, website: null, industry: null, employee_count: null,
   annual_revenue: null, gstin: null, notes: null, custom_data: null,
+  territory: null, sales_org: null,
 };
 
 export const accounts: Account[] = [
@@ -117,6 +118,7 @@ const nullContactFields = {
   department: null, phone2: null, phone3: null, email2: null, website: null,
   linkedin_url: null, birthday: null, address_line1: null, address_line2: null,
   city: null, state: null, postal_code: null, country: null, notes: null, custom_data: null,
+  territory: null, sales_org: null,
 };
 
 export const contacts: Contact[] = [
@@ -326,6 +328,7 @@ export const serviceCases: ServiceCase[] = [
     parent_case_id: null,
     disposition: "repair",
     notes: "Customer needs motor back by 25 Jun — spinning line B is down. Priority job.",
+    territory: null, sales_org: null,
   },
   {
     id: "case_hpsteel",
@@ -346,6 +349,7 @@ export const serviceCases: ServiceCase[] = [
     parent_case_id: null,
     disposition: null,
     notes: "HV motor — handle with care. 690V class. Ensure HV test cert on completion.",
+    territory: null, sales_org: null,
   },
   {
     id: "case_bharat",
@@ -366,6 +370,7 @@ export const serviceCases: ServiceCase[] = [
     parent_case_id: null,
     disposition: null,
     notes: "AMC case under Marathon contract AMC-MR-2026-02. Loaner VP-LNR-001 dispatched to Bharat Forge Pune — coordinate return on delivery.",
+    territory: null, sales_org: null,
   },
   {
     // Sub-case discovered during inspection of case_bharat
@@ -387,6 +392,7 @@ export const serviceCases: ServiceCase[] = [
     parent_case_id: "case_bharat",
     disposition: null,
     notes: "Discovered during Phase B IR check. May need partial rewind if further tests confirm degradation. Raise separate quote if not AMC-covered.",
+    territory: null, sales_org: null,
   },
 ];
 

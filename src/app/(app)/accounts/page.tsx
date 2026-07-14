@@ -17,15 +17,16 @@ const ALL_TYPES: Account["type"][] = ["prospect", "oem", "direct", "end_customer
 export default async function AccountsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; territory?: string }>;
 }) {
-  const { q, type: typeFilter } = await searchParams;
+  const { q, type: typeFilter, territory: territoryFilter } = await searchParams;
   const allRows = await listAccountsLive();
 
   const rows = allRows.filter(({ account }) => {
     const matchQ = !q || account.name.toLowerCase().includes(q.toLowerCase());
     const matchType = !typeFilter || account.type === typeFilter;
-    return matchQ && matchType;
+    const matchTerritory = !territoryFilter || (account.territory ?? "").toLowerCase().includes(territoryFilter.toLowerCase());
+    return matchQ && matchType && matchTerritory;
   });
 
   return (
@@ -85,7 +86,18 @@ export default async function AccountsPage({
             );
           })}
         </div>
-        {(q || typeFilter) && (
+        <input
+          name="territory"
+          defaultValue={territoryFilter}
+          placeholder="Territory…"
+          autoComplete="off"
+          style={{
+            flex: "0 0 140px", padding: "7px 12px", borderRadius: 7,
+            border: `1px solid ${c.line}`, fontSize: 13, color: c.ink,
+            background: "#fff", outline: "none",
+          }}
+        />
+        {(q || typeFilter || territoryFilter) && (
           <Link href={ROUTES.accounts} style={{ fontSize: 12, color: c.hint, textDecoration: "none", whiteSpace: "nowrap" }}>
             Clear ✕
           </Link>

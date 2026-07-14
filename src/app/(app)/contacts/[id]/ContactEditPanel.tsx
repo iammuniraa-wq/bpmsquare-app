@@ -56,6 +56,8 @@ export default function ContactEditPanel({ contact, accountAddress }: Props) {
     state:         contact.state         ?? "",
     postal_code:   contact.postal_code   ?? "",
     country:       contact.country       ?? "",
+    territory:     contact.territory     ?? "",
+    sales_org:     contact.sales_org     ?? "",
     notes:         contact.notes         ?? "",
   });
 
@@ -221,6 +223,18 @@ export default function ContactEditPanel({ contact, accountAddress }: Props) {
       </div>
 
       {/* Notes */}
+      <div style={secHead}>Sales</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={lbl}>Territory</label>
+          <input style={inp} value={form.territory} onChange={set("territory")} placeholder="e.g. West India" />
+        </div>
+        <div>
+          <label style={lbl}>Sales org</label>
+          <input style={inp} value={form.sales_org} onChange={set("sales_org")} placeholder="e.g. IN-West" />
+        </div>
+      </div>
+
       <div style={secHead}>Notes</div>
       <div style={fw}>
         <textarea

@@ -18,6 +18,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     "address_line1", "address_line2", "city", "state", "postal_code", "country",
     "phone", "phone2", "email", "email2", "website",
     "industry", "employee_count", "annual_revenue", "gstin", "notes",
+    "territory", "sales_org",
     "referred_by_account_id", "custom_data",
   ];
   const patch: Record<string, unknown> = {};
