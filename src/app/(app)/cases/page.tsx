@@ -2,11 +2,10 @@ import Link from "next/link";
 import { listCases } from "@/lib/data";
 import type { ServiceCase } from "@/lib/types";
 import { c, pillar } from "@/lib/theme";
-import type { PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import { ROUTES } from "@/lib/constants";
 import CasesTable from "@/components/CasesTable";
+import BreakdownBar from "@/components/BreakdownBar";
 
 const OPEN_STATUSES: ServiceCase["status"][] = [
   "intake","inspection","report_sent","report_approved",
@@ -26,9 +25,9 @@ const FILTERS: { id: FilterKey; label: string }[] = [
 export default async function CasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; filter?: string; territory?: string }>;
+  searchParams: Promise<{ q?: string; filter?: string }>;
 }) {
-  const { q, filter: rawFilter, territory: territoryFilter } = await searchParams;
+  const { q, filter: rawFilter } = await searchParams;
   const filter = (FILTERS.find((f) => f.id === rawFilter)?.id) ?? "open";
 
   const allCases = await listCases();
@@ -46,7 +45,6 @@ export default async function CasesPage({
     : allCases;
 
   const rows = byFilter.filter(({ serviceCase: sc, account }) => {
-    if (territoryFilter && !(sc.territory ?? "").toLowerCase().includes(territoryFilter.toLowerCase())) return false;
     if (!q) return true;
     const term = q.toLowerCase();
     return (
@@ -57,8 +55,8 @@ export default async function CasesPage({
     );
   });
 
-  const filterHref = (f: FilterKey) =>
-    `${ROUTES.cases}?filter=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}${territoryFilter ? `&territory=${encodeURIComponent(territoryFilter)}` : ""}`;
+  const href = (f: FilterKey) =>
+    `${ROUTES.cases}?filter=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
 
   return (
     <>
@@ -78,14 +76,14 @@ export default async function CasesPage({
         }
       />
 
-      {/* ── Stats strip — doubles as the filter nav ───────────────────────── */}
-      <div style={{ ...cardStyle, padding: "14px 20px", marginBottom: 14, display: "flex", gap: 0 }}>
-        <StatChip value={open.length}     label="Open"              tone="blue"  active={filter === "open"}      href={filterHref("open")} />
-        <StatChip value={inRepair.length} label="In repair"         tone="teal"  active={filter === "in_repair"} href={filterHref("in_repair")} />
-        <StatChip value={awaiting.length} label="Awaiting approval" tone="amber" active={filter === "awaiting"}  href={filterHref("awaiting")} />
-        <StatChip value={closed.length}   label="Closed"            tone="green" active={filter === "closed"}    href={filterHref("closed")} />
-        <StatChip value={allCases.length} label="All cases"                      active={filter === "all"}       href={filterHref("all")} />
-      </div>
+      {/* ── Breakdown bar — clickable metrics ────────────────────────────── */}
+      <BreakdownBar items={[
+        { label: "Open",      count: open.length,     color: pillar.blue.base,  href: href("open"),      active: filter === "open" },
+        { label: "In repair", count: inRepair.length, color: pillar.teal.base,  href: href("in_repair"), active: filter === "in_repair" },
+        { label: "Awaiting",  count: awaiting.length, color: pillar.amber.base, href: href("awaiting"),  active: filter === "awaiting" },
+        { label: "Closed",    count: closed.length,   color: pillar.green.base, href: href("closed"),    active: filter === "closed" },
+        { label: "All",       count: allCases.length, color: c.muted,           href: href("all"),       active: filter === "all" },
+      ]} />
 
       {/* ── Search ───────────────────────────────────────────────────────── */}
       <form method="GET" style={{ marginBottom: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -101,18 +99,7 @@ export default async function CasesPage({
             background: "#fff", outline: "none",
           }}
         />
-        <input
-          name="territory"
-          defaultValue={territoryFilter}
-          placeholder="Territory…"
-          autoComplete="off"
-          style={{
-            flex: "0 0 140px", padding: "8px 12px", borderRadius: 7,
-            border: `1px solid ${c.line}`, fontSize: 13, color: c.ink,
-            background: "#fff", outline: "none",
-          }}
-        />
-        {(q || territoryFilter) && (
+        {q && (
           <Link href={`${ROUTES.cases}?filter=${filter}`} style={{ fontSize: 12, color: c.hint, textDecoration: "none" }}>
             Clear ✕
           </Link>
@@ -122,25 +109,5 @@ export default async function CasesPage({
       {/* ── Table with adapt mode ────────────────────────────────────────── */}
       <CasesTable rows={rows} q={q} filter={filter} />
     </>
-  );
-}
-
-// ── Stat chip — clickable, shows active state ─────────────────────────────────
-
-function StatChip({ value, label, tone, active, href }: {
-  value: number; label: string; tone?: PillarKey; active: boolean; href: string;
-}) {
-  const color = tone ? pillar[tone].base : c.muted;
-  return (
-    <Link href={href} style={{
-      textAlign: "center", padding: "0 24px",
-      borderRight: `1px solid ${c.line}`,
-      textDecoration: "none",
-      borderBottom: active ? `2.5px solid ${color}` : "2.5px solid transparent",
-      paddingBottom: active ? 0 : 2,
-    }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: active ? color : c.ink, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 11.5, color: active ? color : c.hint, marginTop: 4 }}>{label}</div>
-    </Link>
   );
 }

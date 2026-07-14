@@ -5,6 +5,7 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ViewToggle from "@/components/ViewToggle";
+import BreakdownBar from "@/components/BreakdownBar";
 import { ROUTES } from "@/lib/constants";
 import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
@@ -42,47 +43,24 @@ export default async function WorkOrdersPage({
 
   const all = await listWorkOrders();
   const cnt = (s: WorkOrderStatus) => all.filter((r) => r.workOrder.status === s).length;
-  const active = cnt("in_progress"), scheduled = cnt("scheduled"), done = cnt("completed") + cnt("invoiced");
   const rows = statusFilter ? all.filter((r) => r.workOrder.status === statusFilter) : all;
-
-  const tabStyle = (active: boolean): React.CSSProperties => ({
-    fontSize: 12.5, fontWeight: active ? 600 : 400,
-    color: active ? c.accent : c.muted,
-    background: active ? c.accentbg : "transparent",
-    borderRadius: 6, padding: "5px 11px",
-    textDecoration: "none", whiteSpace: "nowrap",
-  });
 
   return (
     <>
       <PageHeader
         title="Work Orders"
-        subtitle={`${all.length} total · ${active} in progress · ${scheduled} scheduled`}
+        subtitle={`${all.length} total · ${cnt("in_progress")} in progress · ${cnt("scheduled")} scheduled`}
         action={<ViewToggle />}
       />
 
-      {/* KPI strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 14 }} className="hub-grid">
-        {[
-          { label: "In Progress", n: active,    tone: pillar.amber },
-          { label: "Scheduled",   n: scheduled, tone: pillar.blue  },
-          { label: "Completed",   n: done,      tone: pillar.green },
-        ].map(({ label, n, tone }) => (
-          <div key={label} style={{ ...cardStyle, textAlign: "center", padding: "14px 10px" }}>
-            <div style={{ fontSize: 26, fontWeight: 700, color: n > 0 ? tone.base : c.hint }}>{n}</div>
-            <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2, fontWeight: 500 }}>{label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filter tabs — preserve view param */}
-      <div style={{ ...cardStyle, padding: "7px 10px", marginBottom: 10, display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
-        <Link href={`${ROUTES.workOrders}${view ? `?view=${view}` : ""}`}                           style={tabStyle(!statusFilter)}>All ({all.length})</Link>
-        <Link href={`${ROUTES.workOrders}?status=scheduled${vp}`}    style={tabStyle(statusFilter === "scheduled")}>Scheduled ({cnt("scheduled")})</Link>
-        <Link href={`${ROUTES.workOrders}?status=in_progress${vp}`}  style={tabStyle(statusFilter === "in_progress")}>In Progress ({cnt("in_progress")})</Link>
-        <Link href={`${ROUTES.workOrders}?status=completed${vp}`}    style={tabStyle(statusFilter === "completed")}>Completed ({cnt("completed")})</Link>
-        <Link href={`${ROUTES.workOrders}?status=invoiced${vp}`}     style={tabStyle(statusFilter === "invoiced")}>Invoiced ({cnt("invoiced")})</Link>
-      </div>
+      {/* ── Breakdown bar — clickable status chart ─────────────────────── */}
+      <BreakdownBar items={[
+        { label: "Scheduled",   count: cnt("scheduled"),   color: pillar.blue.base,  href: `${ROUTES.workOrders}?status=scheduled${vp}`,   active: statusFilter === "scheduled"   },
+        { label: "In Progress", count: cnt("in_progress"), color: pillar.amber.base, href: `${ROUTES.workOrders}?status=in_progress${vp}`, active: statusFilter === "in_progress" },
+        { label: "Completed",   count: cnt("completed"),   color: pillar.green.base, href: `${ROUTES.workOrders}?status=completed${vp}`,   active: statusFilter === "completed"   },
+        { label: "Invoiced",    count: cnt("invoiced"),    color: pillar.teal.base,  href: `${ROUTES.workOrders}?status=invoiced${vp}`,    active: statusFilter === "invoiced"    },
+        { label: "All",         count: all.length,         color: c.muted,           href: `${ROUTES.workOrders}${vp ? "?" + vp.slice(1) : ""}`, active: !statusFilter },
+      ]} />
 
       {rows.length === 0 ? (
         <p style={{ color: c.muted, fontSize: 13 }}>No work orders match this filter.</p>

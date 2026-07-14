@@ -48,7 +48,6 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   const [selected, setSelected]       = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterAccount, setFilterAccount] = useState("");
-  const [filterTerritory, setFilterTerritory] = useState("");
   const [toast, setToast]             = useState<string | null>(null);
 
   // ── Filtering ──────────────────────────────────────────────────────────────
@@ -56,9 +55,8 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   const filtered = useMemo(() =>
     rows
       .filter((r) => !filterStatus || r.quote.status === filterStatus)
-      .filter((r) => !filterAccount || r.account.name.toLowerCase().includes(filterAccount.toLowerCase()))
-      .filter((r) => !filterTerritory || (r.quote.territory ?? "").toLowerCase().includes(filterTerritory.toLowerCase())),
-    [rows, filterStatus, filterAccount, filterTerritory]
+      .filter((r) => !filterAccount || r.account.name.toLowerCase().includes(filterAccount.toLowerCase())),
+    [rows, filterStatus, filterAccount]
   );
 
   // Summary strip values — use first terminal status as "approved", first non-initial non-terminal as "pipeline"
@@ -155,57 +153,41 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
       </div>
 
       {/* Filter bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        {/* Status chips */}
-        <div style={{ display: "flex", gap: 6 }}>
-          <button
-            onClick={() => setFilterStatus("")}
-            style={{
-              fontSize: 12, padding: "5px 12px", borderRadius: 20, border: "none", cursor: "pointer", fontWeight: 600,
-              background: filterStatus === "" ? c.accent : c.panel2,
-              color:      filterStatus === "" ? "#fff" : c.muted,
-            }}
-          >
-            All
-          </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          style={{
+            padding: "7px 10px", borderRadius: 7, border: `1px solid ${c.line}`,
+            fontSize: 13, color: filterStatus ? c.ink : c.hint,
+            background: c.panel, fontFamily: "inherit", outline: "none", cursor: "pointer",
+          }}
+        >
+          <option value="">All statuses</option>
           {quoteStatuses.map((s) => (
-            <button
-              key={s.value}
-              onClick={() => setFilterStatus(filterStatus === s.value ? "" : s.value)}
-              style={{
-                fontSize: 12, padding: "5px 12px", borderRadius: 20, border: "none", cursor: "pointer", fontWeight: 600,
-                background: filterStatus === s.value ? s.color : c.panel2,
-                color:      filterStatus === s.value ? "#fff" : c.muted,
-              }}
-            >
-              {s.label}
-            </button>
+            <option key={s.value} value={s.value}>{s.label}</option>
           ))}
-        </div>
+        </select>
 
-        {/* Account search */}
         <input
           value={filterAccount}
           onChange={(e) => setFilterAccount(e.target.value)}
           placeholder="Search account…"
           style={{
-            border: `1px solid ${c.line}`, borderRadius: 8, padding: "6px 12px",
+            border: `1px solid ${c.line}`, borderRadius: 7, padding: "7px 12px",
             fontSize: 13, color: c.ink, background: c.panel, fontFamily: "inherit",
             outline: "none", width: 200,
           }}
         />
 
-        {/* Territory search */}
-        <input
-          value={filterTerritory}
-          onChange={(e) => setFilterTerritory(e.target.value)}
-          placeholder="Territory…"
-          style={{
-            border: `1px solid ${c.line}`, borderRadius: 8, padding: "6px 12px",
-            fontSize: 13, color: c.ink, background: c.panel, fontFamily: "inherit",
-            outline: "none", width: 160,
-          }}
-        />
+        {(filterStatus || filterAccount) && (
+          <button
+            onClick={() => { setFilterStatus(""); setFilterAccount(""); }}
+            style={{ fontSize: 12, color: c.hint, background: "none", border: "none", cursor: "pointer" }}
+          >
+            Clear ✕
+          </button>
+        )}
 
         <div style={{ marginLeft: "auto", fontSize: 12, color: c.hint }}>
           {filtered.length} of {rows.length} quotes

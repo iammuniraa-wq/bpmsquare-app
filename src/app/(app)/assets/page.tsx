@@ -60,33 +60,38 @@ export default async function AssetsPage({
         }
       />
 
-      {/* Kind filter pills */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-        <Link href={ROUTES.assets} style={{
-          padding: "5px 12px", borderRadius: 6, fontSize: 12.5, fontWeight: 600,
-          background: !kindFilter ? c.accent : c.panel2,
-          color: !kindFilter ? "#fff" : c.muted,
-          textDecoration: "none", border: `1px solid ${!kindFilter ? c.accent : c.line}`,
-        }}>All</Link>
-        {ALL_KINDS.map((k) => {
-          const active = kindFilter === k;
-          const tone = pillar[KIND_TONE[k]];
-          return (
-            <Link key={k} href={active ? ROUTES.assets : `${ROUTES.assets}?kind=${k}`} style={{
-              padding: "5px 12px", borderRadius: 6, fontSize: 12.5, fontWeight: 600,
-              background: active ? tone.base : c.panel2,
-              color: active ? "#fff" : c.muted,
-              textDecoration: "none", border: `1px solid ${active ? tone.base : c.line}`,
-            }}>{KIND_LABEL[k]}</Link>
-          );
-        })}
-        <Link href={kindFilter === "loaner" ? ROUTES.assets : `${ROUTES.assets}?kind=loaner`} style={{
-          padding: "5px 12px", borderRadius: 6, fontSize: 12.5, fontWeight: 600,
-          background: kindFilter === "loaner" ? pillar.teal.base : c.panel2,
-          color: kindFilter === "loaner" ? "#fff" : c.muted,
-          textDecoration: "none", border: `1px solid ${kindFilter === "loaner" ? pillar.teal.base : c.line}`,
-        }}>Loaner stock</Link>
-      </div>
+      {/* Kind filter — dropdown */}
+      <form method="GET" style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
+        <select
+          name="kind"
+          defaultValue={kindFilter ?? ""}
+          style={{
+            padding: "7px 10px", borderRadius: 7,
+            border: `1px solid ${c.line}`, fontSize: 13, color: kindFilter ? c.ink : c.hint,
+            background: "#fff", outline: "none", cursor: "pointer",
+          }}
+        >
+          <option value="">All types</option>
+          {ALL_KINDS.map((k) => (
+            <option key={k} value={k}>{KIND_LABEL[k]}</option>
+          ))}
+          <option value="loaner">Loaner stock</option>
+        </select>
+        <button
+          type="submit"
+          style={{
+            padding: "7px 14px", borderRadius: 7, border: "none",
+            background: c.accent, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}
+        >
+          Filter
+        </button>
+        {kindFilter && (
+          <Link href={ROUTES.assets} style={{ fontSize: 12, color: c.hint, textDecoration: "none" }}>
+            Clear ✕
+          </Link>
+        )}
+      </form>
 
       {/* Loaner Stock */}
       <section style={{ ...cardStyle, marginBottom: 14, display: kindFilter && kindFilter !== "loaner" ? "none" : undefined }}>
