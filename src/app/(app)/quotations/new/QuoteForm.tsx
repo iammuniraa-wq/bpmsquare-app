@@ -176,6 +176,36 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Renders custom fields that belong to a given section, inline within that section.
+  function cfInputs(section: string) {
+    const sfs = cfDefs.filter((f) => f.field_section === section);
+    if (sfs.length === 0) return null;
+    return (
+      <>
+        {sfs.map((f) => (
+          <div key={f.id}>
+            <span style={lbl}>{f.field_label}{f.is_required ? " *" : ""}</span>
+            {f.field_type === "select" && f.options ? (
+              <select style={selStyle} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
+                <option value="">— select —</option>
+                {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : f.field_type === "checkbox" ? (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, height: 38 }}>
+                <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15, accentColor: c.accent }} />
+                {cfValues[f.field_key] ? "Yes" : "No"}
+              </label>
+            ) : f.field_type === "textarea" ? (
+              <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+            ) : (
+              <input style={inp} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+            )}
+          </div>
+        ))}
+      </>
+    );
+  }
+
   // Create-asset drawer
   const [createAssetOpen, setCreateAssetOpen] = useState(false);
   const [newAsset, setNewAsset] = useState({ name: "", kind: "motor" as Asset["kind"], make: "", model: "", serial: "", rating: "", notes: "" });
@@ -607,6 +637,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 </select>
               </div>
             </div>
+            {cfInputs("Account & Contact")}
           </section>
 
           {/* Quote details */}
@@ -662,6 +693,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   </select>
                 </div>
               )}
+              {cfInputs("Quote details")}
             </div>
           </section>
 
@@ -715,6 +747,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 </div>
               ))}
             </div>
+            {cfInputs("Scope of work")}
           </section>
 
           {/* Linked assets */}
@@ -979,6 +1012,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <button onClick={() => setFragTarget("notes")} style={{ marginLeft: "auto", fontSize: 11.5, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>+ Insert template</button>
             </div>
             <textarea style={{ ...inp, minHeight: 88, resize: "vertical", lineHeight: 1.6 }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes for the customer…" />
+            {cfInputs("Notes")}
           </section>
 
           {/* Terms */}
@@ -988,36 +1022,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <button onClick={() => setFragTarget("terms")} style={{ marginLeft: "auto", fontSize: 11.5, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>+ Use preset</button>
             </div>
             <textarea style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Standard terms and conditions…" />
+            {cfInputs("Terms & Conditions")}
           </section>
-
-          {/* Custom fields */}
-          {cfDefs.length > 0 && (
-            <section style={cardStyle}>
-              <h3 style={sectionTitle}>Custom fields</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                {cfDefs.map((f) => (
-                  <div key={f.id}>
-                    <label style={lbl}>{f.field_label}{f.is_required ? " *" : ""}</label>
-                    {f.field_type === "select" && f.options ? (
-                      <select style={selStyle} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
-                        <option value="">— select —</option>
-                        {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    ) : f.field_type === "checkbox" ? (
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, height: 38 }}>
-                        <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15, accentColor: c.accent }} />
-                        {cfValues[f.field_key] ? "Yes" : "No"}
-                      </label>
-                    ) : f.field_type === "textarea" ? (
-                      <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-                    ) : (
-                      <input style={inp} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
         </div>
 
         {/* ── RIGHT ────────────────────────────────────────────────────────── */}
