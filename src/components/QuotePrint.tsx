@@ -45,7 +45,7 @@ type Props = {
   assetPrintFields?: string[];
 };
 
-const inr = (n: number) => "â‚¹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -340,8 +340,8 @@ export default function QuotePrint({
               <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600 }}>Description</th>
               <th style={{ padding: "7px 12px", textAlign: "center", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>UOM</th>
               <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Qty</th>
-              {!isTechnical && <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Rate (â‚¹)</th>}
-              {!isTechnical && <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Amount (â‚¹)</th>}
+              {!isTechnical && <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Rate (₹)</th>}
+              {!isTechnical && <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Amount (₹)</th>}
               {isTechnical && <th style={{ padding: "7px 28px 7px 12px" }} />}
             </tr>
           </thead>
@@ -506,7 +506,7 @@ export default function QuotePrint({
         <div style={{ margin: "6px 28px 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, breakInside: "avoid", breakBefore: "avoid" }}>
           <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
             <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 6 }}>For {co.name}</div>
-            {account?.name?.toLowerCase().includes("vikas") ? (
+            {co.name?.toLowerCase().includes("vikas") ? (
               <img
                 src={VIKAS_SIGNATURE}
                 alt=""
