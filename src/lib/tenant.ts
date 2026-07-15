@@ -61,25 +61,27 @@ export const getTenant = cache(async (): Promise<Tenant | null> => {
   const user = await getAuthUser();
   if (!user) return null;
 
+  // Platform admins: the tenant mapped to the current hostname always wins over
+  // any personal tenant_users row, so visiting a tenant's custom_domain shows
+  // THAT tenant even if the admin also happens to belong to a different one
+  // (e.g. the internal demo tenant). Only applies on a mapped dedicated domain.
+  const hostFallbackId = await resolveTenantIdForPlatformAdmin();
+  if (hostFallbackId) {
+    const { data: hostTenant } = await createAdminSupabase()
+      .from("tenants")
+      .select(TENANT_COLUMNS)
+      .eq("id", hostFallbackId)
+      .maybeSingle();
+    if (hostTenant) return hostTenant as unknown as Tenant;
+  }
+
   const { data } = await createAdminSupabase()
     .from("tenant_users")
     .select(`tenants(${TENANT_COLUMNS})`)
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (data?.tenants) return data.tenants as unknown as Tenant;
-
-  // Platform admins with no tenant membership: resolve by the current
-  // dedicated-domain hostname (see resolveTenantIdForPlatformAdmin).
-  const fallbackId = await resolveTenantIdForPlatformAdmin();
-  if (!fallbackId) return null;
-
-  const { data: hostTenant } = await createAdminSupabase()
-    .from("tenants")
-    .select(TENANT_COLUMNS)
-    .eq("id", fallbackId)
-    .maybeSingle();
-  return (hostTenant as unknown as Tenant) ?? null;
+  return (data?.tenants as unknown as Tenant) ?? null;
 });
 
 /**
@@ -127,14 +129,15 @@ export const getUserRole = cache(async (): Promise<"admin" | "member" | null> =>
   const user = await getAuthUser();
   if (!user) return null;
 
+  // Same hostname-wins priority as getTenant() — a platform admin on a mapped
+  // custom domain is always "admin" there, regardless of their own tenant_users role.
+  if (await resolveTenantIdForPlatformAdmin()) return "admin";
+
   const { data } = await createAdminSupabase()
     .from("tenant_users")
     .select("role")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (data?.role) return data.role as "admin" | "member";
-
-  // Platform admins viewing a tenant via hostname fallback (no tenant_users row) get full access.
-  return (await resolveTenantIdForPlatformAdmin()) ? "admin" : null;
+  return (data?.role as "admin" | "member") ?? null;
 });

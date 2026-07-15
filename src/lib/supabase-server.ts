@@ -92,6 +92,13 @@ export async function requireTenantUser(): Promise<{
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw { status: 401, message: "Unauthorized" };
 
+  // Platform admins: the tenant mapped to the current hostname always wins over
+  // any personal tenant_users row (mirrors getTenant()'s priority in lib/tenant.ts).
+  const fallbackTenantId = await resolveTenantIdForPlatformAdmin();
+  if (fallbackTenantId) {
+    return { supabase, tenantId: fallbackTenantId, userId: user.id, role: "admin" };
+  }
+
   // Use service role to look up tenant — bypasses RLS for this internal join
   const { data: tu } = await createAdminSupabase()
     .from("tenant_users")
@@ -106,11 +113,6 @@ export async function requireTenantUser(): Promise<{
       userId: user.id,
       role: (tu.role as "admin" | "member") ?? "member",
     };
-  }
-
-  const fallbackTenantId = await resolveTenantIdForPlatformAdmin();
-  if (fallbackTenantId) {
-    return { supabase, tenantId: fallbackTenantId, userId: user.id, role: "admin" };
   }
 
   throw { status: 403, message: "No tenant membership" };
