@@ -7,7 +7,7 @@ import { c } from "@/lib/theme";
 
 type Props = {
   tenant: Tenant;
-  users: { id: string; role: string; created_at: string; user_id: string }[];
+  users: { id: string; role: string; created_at: string; user_id: string; email: string | null; confirmed: boolean }[];
 };
 
 const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: boolean }[] = [
@@ -41,10 +41,30 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [features, setFeatures]       = useState<TenantFeatures>({ ...tenant.features });
   const [saved, setSaved]             = useState(false);
   const [error, setError]             = useState("");
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resendResult, setResendResult] = useState<Record<string, string>>({});
 
   function toggleFeature(key: keyof TenantFeatures) {
     setFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
     setSaved(false);
+  }
+
+  async function resendInvite(userId: string, email: string) {
+    setResendingId(userId);
+    setResendResult((prev) => ({ ...prev, [userId]: "" }));
+    try {
+      const res = await fetch(`/api/admin/tenants/${tenant.id}/resend-invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const json = await res.json().catch(() => ({}));
+      setResendResult((prev) => ({ ...prev, [userId]: res.ok ? "Invite resent ✓" : (json.error ?? "Failed to resend") }));
+    } catch {
+      setResendResult((prev) => ({ ...prev, [userId]: "Failed to resend" }));
+    } finally {
+      setResendingId(null);
+    }
   }
 
   async function save() {
@@ -184,18 +204,50 @@ export default function TenantEditor({ tenant, users }: Props) {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {users.map((u) => (
               <div key={u.id} style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
+                display: "flex", flexDirection: "column", gap: 4,
                 padding: "8px 12px", background: "#f9fafb", borderRadius: 8,
                 fontSize: 12,
               }}>
-                <span style={{ color: "#6b7280", fontFamily: "monospace" }}>{u.user_id.slice(0, 16)}…</span>
-                <span style={{
-                  background: u.role === "admin" ? "#dbeafe" : "#f1f5f9",
-                  color: u.role === "admin" ? "#1e40af" : "#475569",
-                  borderRadius: 10, padding: "2px 8px", fontWeight: 600,
-                }}>
-                  {u.role}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {u.email ?? `${u.user_id.slice(0, 16)}…`}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    <span style={{
+                      background: u.confirmed ? "#f0fdf4" : "#fffbeb",
+                      color: u.confirmed ? "#166534" : "#92400e",
+                      borderRadius: 10, padding: "2px 8px", fontWeight: 600,
+                    }}>
+                      {u.confirmed ? "Active" : "Pending"}
+                    </span>
+                    <span style={{
+                      background: u.role === "admin" ? "#dbeafe" : "#f1f5f9",
+                      color: u.role === "admin" ? "#1e40af" : "#475569",
+                      borderRadius: 10, padding: "2px 8px", fontWeight: 600,
+                    }}>
+                      {u.role}
+                    </span>
+                    {!u.confirmed && u.email && (
+                      <button
+                        type="button"
+                        disabled={resendingId === u.user_id}
+                        onClick={() => resendInvite(u.user_id, u.email!)}
+                        style={{
+                          background: "none", border: `1px solid ${c.accent}`, color: c.accent,
+                          borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600,
+                          cursor: resendingId === u.user_id ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {resendingId === u.user_id ? "Sending…" : "Resend invite"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {resendResult[u.user_id] && (
+                  <span style={{ fontSize: 11, color: resendResult[u.user_id].includes("✓") ? "#16a34a" : "#dc2626" }}>
+                    {resendResult[u.user_id]}
+                  </span>
+                )}
               </div>
             ))}
           </div>

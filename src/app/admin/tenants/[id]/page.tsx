@@ -14,11 +14,23 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
   if (!tenant) redirect("/admin");
 
-  const { data: users } = await createAdminSupabase()
+  const admin = createAdminSupabase();
+  const { data: rows } = await admin
     .from("tenant_users")
     .select("id, role, created_at, user_id")
     .eq("tenant_id", id)
     .order("created_at");
 
-  return <TenantEditor tenant={tenant as Tenant} users={users ?? []} />;
+  const users = await Promise.all(
+    (rows ?? []).map(async (row) => {
+      const { data } = await admin.auth.admin.getUserById(row.user_id);
+      return {
+        ...row,
+        email: data.user?.email ?? null,
+        confirmed: !!data.user?.confirmed_at,
+      };
+    })
+  );
+
+  return <TenantEditor tenant={tenant as Tenant} users={users} />;
 }
