@@ -75,10 +75,15 @@ export const getTenant = cache(async (): Promise<Tenant | null> => {
     if (hostTenant) return hostTenant as unknown as Tenant;
   }
 
+  // Ordered + limited to 1 rather than a plain maybeSingle(): a platform admin
+  // can have more than one tenant_users row now (one per tenant visited via its
+  // custom domain). The oldest row is this user's "home" tenant on PRIMARY_HOST.
   const { data } = await createAdminSupabase()
     .from("tenant_users")
     .select(`tenants(${TENANT_COLUMNS})`)
     .eq("user_id", user.id)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   return (data?.tenants as unknown as Tenant) ?? null;
@@ -137,6 +142,8 @@ export const getUserRole = cache(async (): Promise<"admin" | "member" | null> =>
     .from("tenant_users")
     .select("role")
     .eq("user_id", user.id)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   return (data?.role as "admin" | "member") ?? null;

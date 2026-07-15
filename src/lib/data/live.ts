@@ -1,6 +1,6 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
-import { createServerSupabase, createAdminSupabase } from "@/lib/supabase-server";
+import { createAdminSupabase, resolveViewerTenantId, getAuthUser } from "@/lib/supabase-server";
 import { decryptAccount, decryptContact } from "@/lib/encryption";
 import type {
   Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder,
@@ -8,15 +8,32 @@ import type {
   VisitLog, PricingItem, TextFragment, CaseStatus, CasePhoto, InspectionReport,
 } from "@/lib/types";
 
+/**
+ * Every read helper below scopes to this tenant explicitly (service-role client
+ * + .eq("tenant_id", ...)) rather than relying on RLS/the session JWT's baked-in
+ * tenant_id claim. That claim is set once at login and has no concept of which
+ * tenant's dedicated domain the request is actually for, so it can't support a
+ * platform admin viewing different tenants across different custom domains
+ * (see resolveViewerTenantId / resolveTenantIdForPlatformAdmin in supabase-server.ts).
+ * Returns null if the viewer isn't signed in or has no resolvable tenant.
+ */
+async function currentTenantId(): Promise<string | null> {
+  const user = await getAuthUser();
+  if (!user) return null;
+  return resolveViewerTenantId(user.id);
+}
+
 // ── Invoices ──────────────────────────────────────────────────────────────────
 
 export type InvoiceRow = Invoice & { account_name: string };
 
 export async function listInvoices(): Promise<InvoiceRow[]> {
-  const supabase = await createServerSupabase();
-  const { data } = await supabase
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase()
     .from("invoices")
     .select("*, accounts(name)")
+    .eq("tenant_id", tenantId)
     .order("issued_at", { ascending: false });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((r: any) => ({
@@ -30,10 +47,12 @@ export async function listInvoices(): Promise<InvoiceRow[]> {
 export type LeadRow = Lead & { account_name: string };
 
 export async function listLeadsLive(): Promise<LeadRow[]> {
-  const supabase = await createServerSupabase();
-  const { data } = await supabase
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase()
     .from("leads")
     .select("*, accounts(name)")
+    .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((r: any) => ({
@@ -55,10 +74,12 @@ export type ContractRow = {
 };
 
 export async function listContracts(): Promise<ContractRow[]> {
-  const supabase = await createServerSupabase();
-  const { data } = await supabase
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase()
     .from("contracts")
     .select("id, ref, status, start_date, end_date, value, accounts(name)")
+    .eq("tenant_id", tenantId)
     .order("end_date", { ascending: true });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((r: any) => ({
@@ -86,10 +107,12 @@ export type DispatchRow = {
 };
 
 export async function listDispatch(): Promise<DispatchRow[]> {
-  const supabase = await createServerSupabase();
-  const { data } = await supabase
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase()
     .from("work_orders")
     .select("id, ref, status, scheduled_for, description, accounts(name), technicians(name), service_cases(ref)")
+    .eq("tenant_id", tenantId)
     .in("status", ["scheduled", "in_progress"])
     .order("scheduled_for", { ascending: true });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -184,22 +207,22 @@ const _listAccountsCached = unstable_cache(
 );
 
 export async function listAccountsLive(): Promise<AccountSummary[]> {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
-  const { data: tu } = await createAdminSupabase().from("tenant_users").select("tenant_id").eq("user_id", user.id).maybeSingle();
-  if (!tu?.tenant_id) return [];
-  const rows = await _listAccountsCached(tu.tenant_id as string);
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const rows = await _listAccountsCached(tenantId);
   return rows.map((s) => ({ ...s, account: decryptAccount(s.account) }));
 }
 
 export async function getAccountHubLive(id: string) {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
 
   const { data: account } = await supabase
     .from("accounts")
     .select("*")
     .eq("id", id)
+    .eq("tenant_id", tenantId)
     .maybeSingle();
 
   if (!account) return null;
@@ -264,11 +287,13 @@ export type AssetRow = {
 };
 
 export async function listAssetsLive(): Promise<{ customerAssets: AssetRow[]; loanerStock: AssetRow[] }> {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) return { customerAssets: [], loanerStock: [] };
+  const supabase = createAdminSupabase();
 
   const [{ data: assets }, { data: cases }] = await Promise.all([
-    supabase.from("assets").select("*").order("name", { ascending: true }),
-    supabase.from("service_cases").select("id, ref, asset_id, loaner_asset_id, account_id, status"),
+    supabase.from("assets").select("*").eq("tenant_id", tenantId).order("name", { ascending: true }),
+    supabase.from("service_cases").select("id, ref, asset_id, loaner_asset_id, account_id, status").eq("tenant_id", tenantId),
   ]);
 
   const allAssets = (assets ?? []) as Asset[];
@@ -316,10 +341,12 @@ export type ContactWithAccount = {
 };
 
 export async function listContactsLive(): Promise<ContactWithAccount[]> {
-  const supabase = await createServerSupabase();
-  const { data } = await supabase
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase()
     .from("contacts")
     .select("*, accounts(*)")
+    .eq("tenant_id", tenantId)
     .order("name");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((r: any) => ({
@@ -331,11 +358,14 @@ export async function listContactsLive(): Promise<ContactWithAccount[]> {
 // ── Contact detail ───────────────────────────────────────────────────────────
 
 export async function getContactLive(id: string) {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
   const { data: contact } = await supabase
     .from("contacts")
     .select("*, accounts(*)")
     .eq("id", id)
+    .eq("tenant_id", tenantId)
     .maybeSingle();
   if (!contact) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -358,11 +388,14 @@ export async function getContactLive(id: string) {
 // ── Asset detail ──────────────────────────────────────────────────────────────
 
 export async function getAssetLive(id: string) {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
   const { data: asset } = await supabase
     .from("assets")
     .select("*, accounts(*)")
     .eq("id", id)
+    .eq("tenant_id", tenantId)
     .maybeSingle();
   if (!asset) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -429,28 +462,30 @@ const _listQuotesCached = unstable_cache(
 );
 
 export async function listQuotesLive(): Promise<QuoteSummary[]> {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
-  const { data: tu } = await createAdminSupabase().from("tenant_users").select("tenant_id").eq("user_id", user.id).maybeSingle();
-  if (!tu?.tenant_id) return [];
-  return _listQuotesCached(tu.tenant_id as string);
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  return _listQuotesCached(tenantId);
 }
 
 export async function getQuoteLive(id: string) {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
   const [
     { data: quote },
     { data: lines },
     { data: revisions },
     { data: workOrders },
   ] = await Promise.all([
-    supabase.from("quotes").select("*, accounts(*)").eq("id", id).maybeSingle(),
+    supabase.from("quotes").select("*, accounts(*)").eq("id", id).eq("tenant_id", tenantId).maybeSingle(),
     supabase.from("quote_lines").select("*").eq("quote_id", id).order("sl_no"),
     supabase.from("quote_revisions").select("*").eq("quote_id", id).order("rev"),
     supabase.from("work_orders").select("*").eq("auth_kind", "quote").eq("auth_id", id),
   ]);
 
+  // Bail before returning anything derived from the sibling queries above --
+  // they aren't tenant-filtered themselves, but nothing is exposed unless the
+  // primary quote row (which IS tenant-checked) actually matched.
   if (!quote) return null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -522,16 +557,15 @@ const _listCasesCached = unstable_cache(
 );
 
 export async function listCasesLive(): Promise<CaseSummary[]> {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
-  const { data: tu } = await createAdminSupabase().from("tenant_users").select("tenant_id").eq("user_id", user.id).maybeSingle();
-  if (!tu?.tenant_id) return [];
-  return _listCasesCached(tu.tenant_id as string);
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  return _listCasesCached(tenantId);
 }
 
 export async function getCaseLive(id: string) {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
 
   // Note: service_cases has two FKs to assets (asset_id + loaner_asset_id).
   // Use explicit alias "asset:asset_id(*)" to avoid PostgREST ambiguity error.
@@ -541,12 +575,14 @@ export async function getCaseLive(id: string) {
     { data: inspectionReport },
     { data: subCases },
   ] = await Promise.all([
-    supabase.from("service_cases").select("*, accounts(*), technicians(*), asset:asset_id(*), contracts(*), quotes(*)").eq("id", id).maybeSingle(),
+    supabase.from("service_cases").select("*, accounts(*), technicians(*), asset:asset_id(*), contracts(*), quotes(*)").eq("id", id).eq("tenant_id", tenantId).maybeSingle(),
     supabase.from("case_photos").select("*").eq("case_id", id).order("taken_at"),
     supabase.from("inspection_reports").select("*").eq("case_id", id).maybeSingle(),
     supabase.from("service_cases").select("*").eq("parent_case_id", id),
   ]);
 
+  // Bail before returning anything derived from the sibling queries above --
+  // same reasoning as getQuoteLive().
   if (!serviceCase) return null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -598,15 +634,18 @@ export type WorkOrderRow = {
 };
 
 export async function listWorkOrdersLive(): Promise<WorkOrderRow[]> {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const supabase = createAdminSupabase();
 
   const [{ data: wos }, { data: quotes }, { data: contracts }] = await Promise.all([
     supabase
       .from("work_orders")
       .select("*, accounts(*), assets(id, name, kind, rating, serial), technicians(*), service_cases(id, ref, status)")
+      .eq("tenant_id", tenantId)
       .order("scheduled_for", { ascending: true }),
-    supabase.from("quotes").select("id, ref"),
-    supabase.from("contracts").select("id, ref"),
+    supabase.from("quotes").select("id, ref").eq("tenant_id", tenantId),
+    supabase.from("contracts").select("id, ref").eq("tenant_id", tenantId),
   ]);
 
   const quoteRefById    = new Map((quotes    ?? []).map((q) => [q.id, q.ref as string]));
@@ -631,17 +670,22 @@ export async function listWorkOrdersLive(): Promise<WorkOrderRow[]> {
 }
 
 export async function getWorkOrderLive(id: string) {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
 
   const [{ data: wo }, { data: visitLogs }] = await Promise.all([
     supabase
       .from("work_orders")
       .select("*, accounts(*), assets(*), technicians(*), service_cases(*)")
       .eq("id", id)
+      .eq("tenant_id", tenantId)
       .maybeSingle(),
     supabase.from("visit_logs").select("*").eq("work_order_id", id).order("visit_date"),
   ]);
 
+  // Bail before returning anything derived from visitLogs above -- same
+  // reasoning as getQuoteLive()/getCaseLive().
   if (!wo) return null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -692,7 +736,9 @@ export type TechnicianCard = {
 };
 
 export async function listTechniciansLive(): Promise<TechnicianCard[]> {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const supabase = createAdminSupabase();
   const today = new Date().toISOString().slice(0, 10);
   const thisMonth = today.slice(0, 7);
 
@@ -702,10 +748,10 @@ export async function listTechniciansLive(): Promise<TechnicianCard[]> {
     { data: leaves },
     { data: visits },
   ] = await Promise.all([
-    supabase.from("technicians").select("*").order("name"),
-    supabase.from("work_orders").select("*").gte("scheduled_for", today).lte("scheduled_for", today),
-    supabase.from("technician_leaves").select("*").lte("from_date", today).gte("to_date", today),
-    supabase.from("visit_logs").select("*").gte("visit_date", thisMonth + "-01"),
+    supabase.from("technicians").select("*").eq("tenant_id", tenantId).order("name"),
+    supabase.from("work_orders").select("*").eq("tenant_id", tenantId).gte("scheduled_for", today).lte("scheduled_for", today),
+    supabase.from("technician_leaves").select("*").eq("tenant_id", tenantId).lte("from_date", today).gte("to_date", today),
+    supabase.from("visit_logs").select("*").eq("tenant_id", tenantId).gte("visit_date", thisMonth + "-01"),
   ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -746,7 +792,9 @@ export type CalendarDay = {
 };
 
 export async function getTechnicianDetailLive(techId: string, yearMonth: string) {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
 
   const [year, month] = yearMonth.split("-").map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -759,12 +807,14 @@ export async function getTechnicianDetailLive(techId: string, yearMonth: string)
     { data: allWOs },
     { data: allVisits },
   ] = await Promise.all([
-    supabase.from("technicians").select("*").eq("id", techId).maybeSingle(),
+    supabase.from("technicians").select("*").eq("id", techId).eq("tenant_id", tenantId).maybeSingle(),
     supabase.from("technician_leaves").select("*").eq("technician_id", techId),
     supabase.from("work_orders").select("*, accounts(name)").eq("technician_id", techId),
     supabase.from("visit_logs").select("*, accounts(name)").eq("technician_id", techId),
   ]);
 
+  // Bail before returning anything derived from the sibling queries above --
+  // same reasoning as getQuoteLive()/getCaseLive().
   if (!tech) return null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -846,24 +896,29 @@ export async function getTechnicianDetailLive(techId: string, yearMonth: string)
 // ── Pricing & Text Fragments ──────────────────────────────────────────────────
 
 export async function listPricingItemsLive(): Promise<PricingItem[]> {
-  const supabase = await createServerSupabase();
-  const { data } = await supabase.from("pricing_items").select("*").order("category").order("description");
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase().from("pricing_items").select("*").eq("tenant_id", tenantId).order("category").order("description");
   return (data ?? []) as PricingItem[];
 }
 
 export async function listTextFragmentsLive(): Promise<TextFragment[]> {
-  const supabase = await createServerSupabase();
-  const { data } = await supabase.from("text_fragments").select("*").order("category").order("label");
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase().from("text_fragments").select("*").eq("tenant_id", tenantId).order("category").order("label");
   return (data ?? []) as TextFragment[];
 }
 
 export async function getQuoteFormDataLive() {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) {
+    return {
+      accounts: [], contacts: [], assets: [], pricingItems: [], textFragments: [],
+      tenantEntities: [] as import("@/lib/constants").TenantEntity[],
+      tenantTax: { label: "GST", rate: 18, inclusive: false },
+    };
+  }
   const admin = createAdminSupabase();
-
-  // Resolve tenant_id from current user's JWT
-  const { data: { user } } = await supabase.auth.getUser();
-  const tenantId = user?.app_metadata?.tenant_id as string | undefined;
 
   const [
     { data: accounts },
@@ -873,14 +928,12 @@ export async function getQuoteFormDataLive() {
     { data: textFragments },
     { data: tenantRow },
   ] = await Promise.all([
-    supabase.from("accounts").select("*").order("name"),
-    supabase.from("contacts").select("*").order("name"),
-    supabase.from("assets").select("*").not("account_id", "is", null).order("name"),
-    supabase.from("pricing_items").select("*").order("category").order("description"),
-    supabase.from("text_fragments").select("*").order("category").order("label"),
-    tenantId
-      ? admin.from("tenants").select("config").eq("id", tenantId).single()
-      : Promise.resolve({ data: null }),
+    admin.from("accounts").select("*").eq("tenant_id", tenantId).order("name"),
+    admin.from("contacts").select("*").eq("tenant_id", tenantId).order("name"),
+    admin.from("assets").select("*").eq("tenant_id", tenantId).not("account_id", "is", null).order("name"),
+    admin.from("pricing_items").select("*").eq("tenant_id", tenantId).order("category").order("description"),
+    admin.from("text_fragments").select("*").eq("tenant_id", tenantId).order("category").order("label"),
+    admin.from("tenants").select("config").eq("id", tenantId).single(),
   ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -905,7 +958,14 @@ const OPEN_CASE_STATUSES: CaseStatus[] = [
 ];
 
 export async function getDashboardSummaryLive() {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) {
+    return {
+      kpis: { openCases: 0, inRepair: 0, awaitingApproval: 0, activeContracts: 0, openQuoteValue: 0, activeWorkOrders: 0 },
+      attention: [], readyCases: [], workOrderRows: [], recentActivity: [],
+    };
+  }
+  const supabase = createAdminSupabase();
 
   const [
     { data: cases },
@@ -914,11 +974,11 @@ export async function getDashboardSummaryLive() {
     { data: workOrders },
     { data: activities },
   ] = await Promise.all([
-    supabase.from("service_cases").select("id, status, account_id, ref, intake_at, equipment_label").order("intake_at", { ascending: true }),
-    supabase.from("contracts").select("id, status"),
-    supabase.from("quotes").select("id, status, total"),
-    supabase.from("work_orders").select("*, accounts(name), technicians(name)").in("status", ["in_progress", "scheduled"]).order("scheduled_for"),
-    supabase.from("activities").select("*, accounts(name)").order("at", { ascending: false }).limit(5),
+    supabase.from("service_cases").select("id, status, account_id, ref, intake_at, equipment_label").eq("tenant_id", tenantId).order("intake_at", { ascending: true }),
+    supabase.from("contracts").select("id, status").eq("tenant_id", tenantId),
+    supabase.from("quotes").select("id, status, total").eq("tenant_id", tenantId),
+    supabase.from("work_orders").select("*, accounts(name), technicians(name)").eq("tenant_id", tenantId).in("status", ["in_progress", "scheduled"]).order("scheduled_for"),
+    supabase.from("activities").select("*, accounts(name)").eq("tenant_id", tenantId).order("at", { ascending: false }).limit(5),
   ]);
 
   const allCases = (cases ?? []) as ServiceCase[];
@@ -940,7 +1000,7 @@ export async function getDashboardSummaryLive() {
     allCases.filter((sc) => PRIORITY_STATUSES.includes(sc.status)).map((sc) => sc.account_id)
   )];
   const { data: priorityAccounts } = priorityAccountIds.length
-    ? await supabase.from("accounts").select("id, name").in("id", priorityAccountIds)
+    ? await supabase.from("accounts").select("id, name").eq("tenant_id", tenantId).in("id", priorityAccountIds)
     : { data: [] };
   const acctMap = new Map((priorityAccounts ?? []).map((a) => [a.id, a as Account]));
 
@@ -996,7 +1056,19 @@ const CASE_STATUS_LABEL_MAP: Record<string, string> = {
 };
 
 export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
-  const supabase = await createServerSupabase();
+  const tenantId = await currentTenantId();
+  if (!tenantId) {
+    return {
+      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0 },
+      accountsByType: [], leadFunnel: [], assetsByKind: [],
+      loanerStock: { available: 0, onLoan: 0, total: 0 },
+      quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
+      techniciansByStatus: [], invoicesByStatus: [],
+      contractStats: { activeCount: 0, totalValue: 0 },
+      recentActivity: [],
+    };
+  }
+  const supabase = createAdminSupabase();
 
   const [
     { data: accounts }, { data: contacts }, { data: assets },
@@ -1004,17 +1076,17 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     { data: leads }, { data: technicians }, { data: quotes },
     { data: invoices }, { data: activities },
   ] = await Promise.all([
-    supabase.from("accounts").select("id, type"),
-    supabase.from("contacts").select("id"),
-    supabase.from("assets").select("id, kind, is_loaner, loaner_status"),
-    supabase.from("service_cases").select("id, status"),
-    supabase.from("work_orders").select("id, status"),
-    supabase.from("contracts").select("id, status, value"),
-    supabase.from("leads").select("id, status"),
-    supabase.from("technicians").select("id, status"),
-    supabase.from("quotes").select("id, status, total, created_at").order("created_at"),
-    supabase.from("invoices").select("id, status, total"),
-    supabase.from("activities").select("*, accounts(name)").order("at", { ascending: false }).limit(6),
+    supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
+    supabase.from("contacts").select("id").eq("tenant_id", tenantId),
+    supabase.from("assets").select("id, kind, is_loaner, loaner_status").eq("tenant_id", tenantId),
+    supabase.from("service_cases").select("id, status").eq("tenant_id", tenantId),
+    supabase.from("work_orders").select("id, status").eq("tenant_id", tenantId),
+    supabase.from("contracts").select("id, status, value").eq("tenant_id", tenantId),
+    supabase.from("leads").select("id, status").eq("tenant_id", tenantId),
+    supabase.from("technicians").select("id, status").eq("tenant_id", tenantId),
+    supabase.from("quotes").select("id, status, total, created_at").eq("tenant_id", tenantId).order("created_at"),
+    supabase.from("invoices").select("id, status, total").eq("tenant_id", tenantId),
+    supabase.from("activities").select("*, accounts(name)").eq("tenant_id", tenantId).order("at", { ascending: false }).limit(6),
   ]);
 
   const allAccounts    = (accounts    ?? []) as Array<{ id: string; type: string }>;
