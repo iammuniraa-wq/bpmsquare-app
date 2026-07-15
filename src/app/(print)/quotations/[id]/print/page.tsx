@@ -3,6 +3,7 @@ import { getQuote } from "@/lib/data";
 import { getTenant } from "@/lib/tenant";
 import type { Asset } from "@/lib/types";
 import QuotePrint from "@/components/QuotePrint";
+import { getExtension } from "@/extensions/registry";
 
 export default async function QuotePrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,6 +14,9 @@ export default async function QuotePrintPage({ params }: { params: Promise<{ id:
   const assets: Asset[] = (data as { assets?: Asset[] }).assets ?? [];
   const assetPrintFields: string[] =
     (tenant?.config as { asset_print_fields?: string[] })?.asset_print_fields ?? [];
+
+  const ext = await getExtension(tenant?.slug);
+  const ctx = { companyName: tenant?.name ?? "", accountName: account?.name ?? null };
 
   return (
     <QuotePrint
@@ -28,6 +32,10 @@ export default async function QuotePrintPage({ params }: { params: Promise<{ id:
       tenantTax={tenant?.config?.tax ?? { label: "GST", rate: 18, inclusive: false }}
       assets={assets}
       assetPrintFields={assetPrintFields}
+      ext={{
+        quoteSignatureSlot: ext.quoteSignatureSlot?.(ctx) ?? null,
+        quoteExtraSection: ext.quoteExtraSection?.(ctx) ?? null,
+      }}
     />
   );
 }

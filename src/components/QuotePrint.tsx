@@ -1,11 +1,11 @@
 ﻿"use client";
 
+import type { ReactNode } from "react";
 import type { Quote, QuoteLine, QuoteRevision, Account, Contact, Site, Asset } from "@/lib/types";
 // QuoteLine is used via inline cast for group_description field added in migration 0012
 import type { CompanyInfo } from "@/lib/tenant";
 import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
 import { MapPin, Mail, Phone, Globe, MessageSquare } from "@/components/Icons";
-import { VIKAS_SIGNATURE } from "@/lib/vikasSig";
 
 const STATUS_LABEL: Record<Quote["status"], string> = {
   draft: "Draft", sent: "Sent", approved: "Approved", rejected: "Rejected",
@@ -43,6 +43,11 @@ type Props = {
   tenantTax?: TenantTaxConfig;
   assets?: Asset[];
   assetPrintFields?: string[];
+  /** Extension slots — resolved server-side via loadExtension(tenant.slug) */
+  ext?: {
+    quoteSignatureSlot?: ReactNode;
+    quoteExtraSection?: ReactNode;
+  };
 };
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
@@ -64,6 +69,7 @@ export default function QuotePrint({
   quote, account, contact, site, lines, revisions,
   companyInfo = {}, logoUrl, tenantEntities = [], tenantTax,
   assets = [], assetPrintFields = [],
+  ext = {},
 }: Props) {
   const isTechnical = quote.type === "technical";
 
@@ -506,15 +512,7 @@ export default function QuotePrint({
         <div style={{ margin: "6px 28px 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, breakInside: "avoid", breakBefore: "avoid" }}>
           <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
             <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 6 }}>For {co.name}</div>
-            {co.name?.toLowerCase().includes("vikas") ? (
-              <img
-                src={VIKAS_SIGNATURE}
-                alt=""
-                style={{ display: "block", height: 48, width: "auto", marginBottom: 6, objectFit: "contain", objectPosition: "left bottom" }}
-              />
-            ) : (
-              <div style={{ height: 48, marginBottom: 6 }} />
-            )}
+            {ext.quoteSignatureSlot ?? <div style={{ height: 48, marginBottom: 6 }} />}
             <div style={{ borderTop: `1px solid ${brand.dark}`, paddingTop: 6, fontSize: 11, color: "#5f6b7a" }}>Authorised Signatory</div>
           </div>
           <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
@@ -522,6 +520,8 @@ export default function QuotePrint({
             <div style={{ borderTop: `1px solid ${brand.line}`, paddingTop: 6, fontSize: 11, color: "#5f6b7a" }}>Name, Designation &amp; Stamp</div>
           </div>
         </div>
+
+        {ext.quoteExtraSection ?? null}
 
         {/* Footer — mirrors the PDF sample: address row · phones grid · tagline */}
         <div style={{ background: brand.dark, borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid" }}>
