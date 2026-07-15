@@ -24,6 +24,47 @@ export function createAdminSupabase() {
   );
 }
 
+/**
+ * Finds an existing auth user by email, or creates a new one -- either via a
+ * branded Supabase invite email (default) or with a directly-set password
+ * (email_confirm: true, usable immediately, no email/SMTP dependency).
+ * Shared by every "add a person to a tenant" route (settings/team,
+ * admin/tenants create + invite) so the existing-email handling and the
+ * set-password option stay consistent across all of them.
+ */
+export async function findOrCreateUserForInvite(
+  admin: ReturnType<typeof createAdminSupabase>,
+  email: string,
+  opts: { password?: string; inviteData?: Record<string, unknown>; redirectTo?: string }
+): Promise<{ userId: string; isNew: boolean } | { error: string }> {
+  const { data: existing } = await admin.auth.admin.listUsers();
+  const existingUser = existing?.users?.find((u) => u.email === email);
+  if (existingUser) return { userId: existingUser.id, isNew: false };
+
+  if (opts.password) {
+    const { data: created, error } = await admin.auth.admin.createUser({
+      email,
+      password: opts.password,
+      email_confirm: true,
+      user_metadata: opts.inviteData ?? {},
+    });
+    if (error || !created?.user) return { error: error?.message ?? "Failed to create user" };
+    return { userId: created.user.id, isNew: true };
+  }
+
+  const { data: invited, error } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: opts.inviteData ?? {},
+    redirectTo: opts.redirectTo,
+  });
+  if (error || !invited?.user) {
+    const message = error?.message.toLowerCase().includes("already been registered")
+      ? "This email already has an account."
+      : (error?.message ?? "Failed to invite");
+    return { error: message };
+  }
+  return { userId: invited.user.id, isNew: true };
+}
+
 /** True if the current authenticated user is a platform admin (whitelisted in platform_admins). */
 export async function isPlatformAdmin(): Promise<boolean> {
   const user = await getAuthUser();

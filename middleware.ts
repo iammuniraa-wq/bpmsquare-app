@@ -9,6 +9,7 @@ export async function middleware(request: NextRequest) {
   // Public paths — never intercept
   if (
     pathname.startsWith("/login") ||
+    pathname.startsWith("/reset-password") ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
@@ -81,12 +82,15 @@ export async function middleware(request: NextRequest) {
 
       let tenantMatches = true;
       if (!isPlatformAdminUser) {
+        // Check directly for a row on THIS tenant, not "the" tenant_users row --
+        // a user can belong to more than one tenant now (see invite routes).
         const { data: membership } = await admin
           .from("tenant_users")
-          .select("tenant_id")
+          .select("id")
           .eq("user_id", user.id)
+          .eq("tenant_id", hostTenant.id)
           .maybeSingle();
-        tenantMatches = membership?.tenant_id === hostTenant.id;
+        tenantMatches = !!membership;
       }
 
       if (!isPlatformAdminUser && !tenantMatches) {

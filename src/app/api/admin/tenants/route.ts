@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isPlatformAdmin } from "@/lib/tenant";
-import { createAdminSupabase } from "@/lib/supabase-server";
+import { createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-server";
 import { PRIMARY_HOST } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
-  const { name, slug, accent_color, logo_url, plan, features, admin_email, custom_domain } = body;
+  const { name, slug, accent_color, logo_url, plan, features, admin_email, admin_password, custom_domain } = body;
 
   if (!name || !slug) {
     return NextResponse.json({ error: "name and slug are required" }, { status: 400 });
@@ -33,18 +33,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error }, { status: 400 });
   }
 
-  // Invite the admin user if email provided
+  // Add the admin user if email provided -- links an existing account directly,
+  // or creates one (with the given password, or via a branded invite email).
   if (admin_email) {
     const host = custom_domain || PRIMARY_HOST;
-    const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(admin_email, {
-      data: { tenant_id: tenant.id, tenant_name: name },
+    const result = await findOrCreateUserForInvite(admin, admin_email, {
+      password: admin_password || undefined,
+      inviteData: { tenant_id: tenant.id, tenant_name: name },
       redirectTo: `https://${host}/auth/callback`,
     });
-
-    if (!inviteErr && invited?.user) {
+    if (!("error" in result)) {
       await admin.from("tenant_users").insert({
         tenant_id: tenant.id,
-        user_id: invited.user.id,
+        user_id: result.userId,
         role: "admin",
       });
     }

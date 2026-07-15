@@ -38,6 +38,7 @@ export default function NewTenantForm() {
   const [logoUrl, setLogoUrl]         = useState("");
   const [plan, setPlan]               = useState<"free" | "pro" | "enterprise">("free");
   const [adminEmail, setAdminEmail]   = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [features, setFeatures]       = useState<TenantFeatures>({ ...DEFAULT_FEATURES });
   const [error, setError]             = useState("");
 
@@ -60,6 +61,7 @@ export default function NewTenantForm() {
           name, slug, accent_color: accentColor,
           logo_url: logoUrl || null, plan, features,
           admin_email: adminEmail || null,
+          admin_password: adminPassword || null,
           custom_domain: customDomain || null,
         }),
       });
@@ -164,7 +166,7 @@ export default function NewTenantForm() {
           </div>
           <div>
             <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>
-              Admin email <span style={{ color: "#9ca3af" }}>(sends invite)</span>
+              Admin email <span style={{ color: "#9ca3af" }}>(sends invite, or links an existing account)</span>
             </label>
             <input
               type="email"
@@ -174,6 +176,18 @@ export default function NewTenantForm() {
               onChange={(e) => setAdminEmail(e.target.value)}
             />
           </div>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>
+            Initial password <span style={{ color: "#9ca3af" }}>(optional — leave blank to email an invite instead)</span>
+          </label>
+          <input
+            type="text"
+            style={{ ...inputStyle, maxWidth: 320 }}
+            value={adminPassword}
+            placeholder="Set a password the admin can log in with immediately"
+            onChange={(e) => setAdminPassword(e.target.value)}
+          />
         </div>
       </section>
 

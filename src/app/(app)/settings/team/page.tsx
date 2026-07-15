@@ -53,6 +53,7 @@ export default function TeamPage() {
   const [error, setError] = useState("");
 
   const [inviteEmail, setInviteEmail] = useState("");
+  const [invitePassword, setInvitePassword] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
@@ -82,7 +83,7 @@ export default function TeamPage() {
     const res = await fetch("/api/settings/team", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      body: JSON.stringify({ email: inviteEmail, password: invitePassword || undefined, role: inviteRole }),
     });
     const json = await res.json().catch(() => ({}));
     setInviting(false);
@@ -91,7 +92,8 @@ export default function TeamPage() {
       return;
     }
     setInviteEmail("");
-    setInviteSuccess("Invite sent!");
+    setInvitePassword("");
+    setInviteSuccess(json.passwordSet ? "Account created with that password!" : "Invite sent!");
     if (successTimer.current) clearTimeout(successTimer.current);
     successTimer.current = setTimeout(() => setInviteSuccess(""), 3000);
     load();
@@ -163,9 +165,27 @@ export default function TeamPage() {
               cursor: inviting ? "not-allowed" : "pointer",
             }}
           >
-            {inviting ? "Sending…" : "Send invite"}
+            {inviting ? "Adding…" : "Send invite"}
           </button>
         </form>
+
+        <div style={{ marginTop: 8 }}>
+          <input
+            type="text"
+            value={invitePassword}
+            onChange={(e) => setInvitePassword(e.target.value)}
+            placeholder="Initial password (optional — leave blank to email an invite)"
+            style={{
+              width: "100%", maxWidth: 320,
+              height: 36, padding: "0 12px",
+              border: `1px solid ${c.line}`, borderRadius: 8,
+              fontSize: 12.5, color: c.ink, outline: "none",
+            }}
+          />
+          <div style={{ fontSize: 11, color: c.muted, marginTop: 4 }}>
+            If they already have an account, they're added to this workspace directly (password ignored).
+          </div>
+        </div>
 
         {inviteError && (
           <div style={{ marginTop: 10, fontSize: 12, color: "#dc2626", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 12px" }}>

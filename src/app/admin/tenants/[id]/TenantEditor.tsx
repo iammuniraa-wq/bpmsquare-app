@@ -43,10 +43,11 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [error, setError]             = useState("");
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resendResult, setResendResult] = useState<Record<string, string>>({});
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole]   = useState<"admin" | "member">("admin");
-  const [inviting, setInviting]       = useState(false);
-  const [inviteMsg, setInviteMsg]     = useState("");
+  const [inviteEmail, setInviteEmail]       = useState("");
+  const [invitePassword, setInvitePassword] = useState("");
+  const [inviteRole, setInviteRole]         = useState<"admin" | "member">("admin");
+  const [inviting, setInviting]             = useState(false);
+  const [inviteMsg, setInviteMsg]           = useState("");
 
   function toggleFeature(key: keyof TenantFeatures) {
     setFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -79,12 +80,13 @@ export default function TenantEditor({ tenant, users }: Props) {
       const res = await fetch(`/api/admin/tenants/${tenant.id}/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+        body: JSON.stringify({ email: inviteEmail.trim(), password: invitePassword.trim() || undefined, role: inviteRole }),
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
-        setInviteMsg("Invite sent ✓");
+        setInviteMsg(json.passwordSet ? "Account created with that password ✓" : "Invite sent ✓");
         setInviteEmail("");
+        setInvitePassword("");
         router.refresh();
       } else {
         setInviteMsg(json.error ?? "Failed to invite");
@@ -231,7 +233,7 @@ export default function TenantEditor({ tenant, users }: Props) {
         </h2>
 
         {/* Invite a member */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
           <input
             style={{ ...inputStyle, flex: 1 }}
             type="email"
@@ -258,8 +260,20 @@ export default function TenantEditor({ tenant, users }: Props) {
               cursor: inviting || !inviteEmail.trim() ? "not-allowed" : "pointer",
             }}
           >
-            {inviting ? "Inviting…" : "Invite"}
+            {inviting ? "Adding…" : "Invite"}
           </button>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <input
+            style={{ ...inputStyle, maxWidth: 320 }}
+            type="text"
+            placeholder="Initial password (optional — leave blank to email an invite)"
+            value={invitePassword}
+            onChange={(e) => setInvitePassword(e.target.value)}
+          />
+          <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
+            If an existing user's email is entered, they're linked to this tenant directly (password ignored).
+          </div>
         </div>
         {inviteMsg && (
           <div style={{ fontSize: 12, marginBottom: 14, color: inviteMsg.includes("✓") ? "#16a34a" : "#dc2626" }}>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
-import { createAdminSupabase } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-server";
+import { PRIMARY_HOST } from "@/lib/constants";
 
 // GET /api/settings/team — list members with email + name
 export async function GET() {
@@ -40,7 +40,10 @@ export async function GET() {
   }
 }
 
-// POST /api/settings/team — invite a new member by email
+// POST /api/settings/team — add a member by email, either via a branded invite
+// email (default) or with an admin-set initial password (pass `password` to
+// skip the email entirely). If the email already has an account anywhere,
+// it's linked to this tenant directly instead of erroring.
 export async function POST(req: Request) {
   try {
     const { tenantId, role } = await requireTenantUser();
@@ -48,37 +51,34 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const email: string = (body.email ?? "").trim().toLowerCase();
+    const password: string | undefined = body.password || undefined;
     const memberRole: "admin" | "member" = body.role === "admin" ? "admin" : "member";
 
     if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
 
     const admin = createAdminSupabase();
 
-    // Check if user already exists by email
-    const { data: existing } = await admin.auth.admin.listUsers();
-    const existingUser = existing?.users?.find((u) => u.email === email);
+    const { data: tenant } = await admin.from("tenants").select("name, custom_domain").eq("id", tenantId).maybeSingle();
+    const host = tenant?.custom_domain || PRIMARY_HOST;
 
-    let userId: string;
+    const result = await findOrCreateUserForInvite(admin, email, {
+      password,
+      inviteData: { tenant_id: tenantId, tenant_name: tenant?.name },
+      redirectTo: `https://${host}/auth/callback`,
+    });
+    if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+    const { userId, isNew } = result;
 
-    if (existingUser) {
-      userId = existingUser.id;
-
-      // Check not already in this tenant
+    if (!isNew) {
       const { data: alreadyMember } = await admin
         .from("tenant_users")
-        .select("user_id")
+        .select("id")
         .eq("tenant_id", tenantId)
         .eq("user_id", userId)
         .maybeSingle();
-
       if (alreadyMember) {
         return NextResponse.json({ error: "User is already a team member" }, { status: 409 });
       }
-    } else {
-      // Send Supabase invite email — creates auth user
-      const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email);
-      if (inviteErr) return NextResponse.json({ error: inviteErr.message }, { status: 500 });
-      userId = invited.user.id;
     }
 
     // Insert tenant_users row
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
 
     if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
-    return NextResponse.json({ ok: true, user_id: userId });
+    return NextResponse.json({ ok: true, user_id: userId, passwordSet: !!password && isNew });
   } catch (e: unknown) {
     const err = e as { status?: number; message?: string };
     return NextResponse.json({ error: err.message ?? "Error" }, { status: err.status ?? 500 });
