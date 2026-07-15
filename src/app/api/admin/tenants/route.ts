@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isPlatformAdmin } from "@/lib/tenant";
 import { createAdminSupabase } from "@/lib/supabase-server";
+import { PRIMARY_HOST } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   const isAdmin = await isPlatformAdmin();
@@ -34,8 +35,10 @@ export async function POST(request: NextRequest) {
 
   // Invite the admin user if email provided
   if (admin_email) {
+    const host = custom_domain || PRIMARY_HOST;
     const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(admin_email, {
-      data: { tenant_id: tenant.id },
+      data: { tenant_id: tenant.id, tenant_name: name },
+      redirectTo: `https://${host}/auth/callback`,
     });
 
     if (!inviteErr && invited?.user) {
