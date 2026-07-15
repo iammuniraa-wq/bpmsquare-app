@@ -81,21 +81,21 @@ export const NAV: NavGroup[] = [
       { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue" },
       { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue" },
       { label: "Contacts",  href: ROUTES.contacts,  icon: "◉", pillar: "blue" },
-      { label: "Cases",     href: ROUTES.cases,     icon: "☎", pillar: "teal", badge: 3 },
+      { label: "Cases",     href: ROUTES.cases,     icon: "☎", pillar: "teal" },
       { label: "Pipeline",  href: ROUTES.pipeline,  icon: "▦", pillar: "blue", featureKey: "pipeline" },
     ],
   },
   {
     group: "MARKETING",
     items: [
-      { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", badge: 12, featureKey: "leads" },
+      { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads" },
       { label: "Partners", href: ROUTES.partners, icon: "⌂", pillar: "purple", featureKey: "partners" },
     ],
   },
   {
     group: "SALES",
     items: [
-      { label: "Quotations",     href: ROUTES.quotations,    icon: "₹", pillar: "blue", badge: 8 },
+      { label: "Quotations",     href: ROUTES.quotations,    icon: "₹", pillar: "blue" },
     ],
   },
   {

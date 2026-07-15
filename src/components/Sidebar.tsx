@@ -9,7 +9,7 @@ import { g } from "@/lib/theme";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear } from "@/components/Icons";
-import { useTenant } from "@/lib/tenant-context";
+import { useTenant, useNavBadges } from "@/lib/tenant-context";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -267,6 +267,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { settings } = useSettings();
   const tenant = useTenant();
+  const badges = useNavBadges();
 
   const features  = tenant?.features as Record<string, boolean> | undefined;
   const accent    = tenant?.accent_color ?? ACCENT_PRESETS[settings.accentPreset].color;
@@ -275,8 +276,10 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const [navState, setNavState] = useState<NavState>(() => defaultNavState(features));
   useEffect(() => { setNavState(loadNavState(features)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-
-  const allMap  = new Map(flattenNav(features).map((i) => [i.href, i]));
+  // Live per-tenant counts override the static placeholder badge values from NAV.
+  const allMap = new Map<string, FlatItem>(
+    flattenNav(features).map((i) => [i.href, { ...i, badge: badges[i.href] } as FlatItem])
+  );
   const hidden  = new Set(settings.hiddenNavHrefs);
 
   const favItems  = navState.favs

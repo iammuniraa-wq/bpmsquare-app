@@ -3,6 +3,7 @@ import Shell from "@/components/Shell";
 import { getTenant, getUserRole, isPlatformAdmin } from "@/lib/tenant";
 import { TenantProvider } from "@/lib/tenant-context";
 import { getAuthUser } from "@/lib/supabase-server";
+import { getNavBadgeCountsLive } from "@/lib/data/live";
 import { LinkIcon } from "@/components/Icons";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -11,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Not logged in at all
   if (!user) redirect("/login");
 
-  const [tenant, userRole] = await Promise.all([getTenant(), getUserRole()]);
+  const [tenant, userRole, badges] = await Promise.all([getTenant(), getUserRole(), getNavBadgeCountsLive()]);
 
   // Platform admins can use the app even without a tenant assignment
   if (!tenant) {
@@ -53,7 +54,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <TenantProvider tenant={tenant} userRole={userRole}>
+    <TenantProvider tenant={tenant} userRole={userRole} badges={badges}>
       <style>{`:root { --tenant-accent: ${tenant.accent_color}; }`}</style>
       <Shell>{children}</Shell>
     </TenantProvider>
