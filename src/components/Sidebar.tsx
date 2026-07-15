@@ -9,7 +9,7 @@ import { g } from "@/lib/theme";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear } from "@/components/Icons";
-import { useTenant, useNavBadges } from "@/lib/tenant-context";
+import { useTenant } from "@/lib/tenant-context";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -170,14 +170,6 @@ function DraggableSection({
                 {item.icon}
               </span>
               <span style={{ flex: 1 }}>{item.label}</span>
-              {item.badge != null && (
-                <span style={{
-                  fontSize: 10, background: "rgba(255,255,255,.13)", color: "#dce6f1",
-                  borderRadius: 10, padding: "1px 7px", flexShrink: 0,
-                }}>
-                  {item.badge}
-                </span>
-              )}
               {(isFavSection || showHover) && (
                 <span
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFav(item.href); }}
@@ -267,7 +259,6 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { settings } = useSettings();
   const tenant = useTenant();
-  const badges = useNavBadges();
 
   const features  = tenant?.features as Record<string, boolean> | undefined;
   const accent    = tenant?.accent_color ?? ACCENT_PRESETS[settings.accentPreset].color;
@@ -276,10 +267,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const [navState, setNavState] = useState<NavState>(() => defaultNavState(features));
   useEffect(() => { setNavState(loadNavState(features)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Live per-tenant counts override the static placeholder badge values from NAV.
-  const allMap = new Map<string, FlatItem>(
-    flattenNav(features).map((i) => [i.href, { ...i, badge: badges[i.href] } as FlatItem])
-  );
+  const allMap  = new Map(flattenNav(features).map((i) => [i.href, i]));
   const hidden  = new Set(settings.hiddenNavHrefs);
 
   const favItems  = navState.favs

@@ -957,31 +957,6 @@ const OPEN_CASE_STATUSES: CaseStatus[] = [
   "quote_sent","quote_approved","in_repair","qa","ready",
 ];
 
-// ── Nav badges ────────────────────────────────────────────────────────────────
-// Live per-tenant counts for the sidebar's Cases/Leads/Quotations badges.
-// Keyed by ROUTES href so Sidebar.tsx can look them up directly.
-
-export async function getNavBadgeCountsLive(): Promise<Record<string, number>> {
-  const tenantId = await currentTenantId();
-  if (!tenantId) return {};
-  const supabase = createAdminSupabase();
-
-  const [openCases, newLeads, sentQuotes] = await Promise.all([
-    supabase.from("service_cases").select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId).in("status", OPEN_CASE_STATUSES),
-    supabase.from("leads").select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId).eq("status", "new"),
-    supabase.from("quotes").select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId).eq("status", "sent"),
-  ]);
-
-  const badges: Record<string, number> = {};
-  if (openCases.count)  badges["/cases"] = openCases.count;
-  if (newLeads.count)   badges["/leads"] = newLeads.count;
-  if (sentQuotes.count) badges["/quotations"] = sentQuotes.count;
-  return badges;
-}
-
 export async function getDashboardSummaryLive() {
   const tenantId = await currentTenantId();
   if (!tenantId) {
