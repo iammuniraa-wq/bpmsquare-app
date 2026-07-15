@@ -8,6 +8,10 @@ import type { PillarKey } from "./theme";
 // `tenants.custom_domain` in middleware.ts.
 export const PRIMARY_HOST = "app.bpmsquare.com";
 
+export function isPrimaryOrDevHost(host: string): boolean {
+  return host === PRIMARY_HOST || host === "localhost" || host === "127.0.0.1";
+}
+
 export const ROUTES = {
   login: "/login",
   pipeline: "/pipeline",

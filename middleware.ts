@@ -1,11 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { PRIMARY_HOST } from "@/lib/constants";
-
-function isPrimaryOrDevHost(host: string): boolean {
-  return host === PRIMARY_HOST || host === "localhost" || host === "127.0.0.1";
-}
+import { isPrimaryOrDevHost } from "@/lib/constants";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -76,6 +72,7 @@ export async function middleware(request: NextRequest) {
         await supabase.auth.signOut();
         const loginUrl = new URL("/login", request.url);
         loginUrl.searchParams.set("next", pathname);
+        loginUrl.searchParams.set("error", "wrong_workspace");
         const redirect = NextResponse.redirect(loginUrl);
         response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
         return redirect;

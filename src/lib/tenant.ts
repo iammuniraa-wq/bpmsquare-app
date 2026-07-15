@@ -74,6 +74,20 @@ export async function requireFeature(key: keyof TenantFeatures): Promise<void> {
   if (!tenant?.features?.[key]) redirect("/");
 }
 
+/**
+ * Public, unauthenticated lookup for branding a tenant's dedicated login page
+ * (name + logo only — nothing sensitive). Returns null when the host has no
+ * mapped tenant, so callers fall back to generic BPMSquare branding.
+ */
+export async function getTenantBrandingByHost(host: string): Promise<Pick<Tenant, "name" | "logo_url"> | null> {
+  const { data } = await createAdminSupabase()
+    .from("tenants")
+    .select("name, logo_url")
+    .eq("custom_domain", host)
+    .maybeSingle();
+  return data ?? null;
+}
+
 /** Admin: list all tenants. Uses service role. */
 export async function adminListTenants(): Promise<Tenant[]> {
   const { data } = await createAdminSupabase()

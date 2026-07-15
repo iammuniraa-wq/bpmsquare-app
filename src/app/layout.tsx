@@ -1,13 +1,22 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import ThemeApplier from "@/components/ThemeApplier";
+import { isPrimaryOrDevHost } from "@/lib/constants";
+import { getTenantBrandingByHost } from "@/lib/tenant";
 
-export const metadata: Metadata = {
-  title: "BPMSquare",
-  description: "CRM + Field Service for electromechanical repair & service businesses.",
-  manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "BPMSquare" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const host = (await headers()).get("host")?.split(":")[0] ?? "";
+  const branding = isPrimaryOrDevHost(host) ? null : await getTenantBrandingByHost(host);
+  const title = branding?.name ?? "BPMSquare";
+
+  return {
+    title,
+    description: "CRM + Field Service for electromechanical repair & service businesses.",
+    manifest: "/manifest.json",
+    appleWebApp: { capable: true, statusBarStyle: "black-translucent", title },
+  };
+}
 
 export default function RootLayout({
   children,
