@@ -30,17 +30,35 @@ export default function ResetPasswordPage() {
   const [done, setDone]         = useState(false);
   const [ready, setReady]       = useState(false);
   const [expired, setExpired]   = useState(false);
+  const [debugInfo, setDebugInfo] = useState("");
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
+    const url = new URL(window.location.href);
+    const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+
+    // Supabase appends error/error_code/error_description (query or hash) when
+    // the link itself was rejected before ever reaching our code -- e.g. the
+    // token was already used, expired, or consumed by an email link-scanner
+    // that pre-fetched it. Surface this instead of guessing.
+    const linkError = url.searchParams.get("error_description") || hashParams.get("error_description")
+      || url.searchParams.get("error_code") || hashParams.get("error_code");
+    if (linkError) {
+      console.error("Reset link rejected by Supabase:", decodeURIComponent(linkError));
+      setDebugInfo(decodeURIComponent(linkError));
+      setExpired(true);
+      return;
+    }
 
     // PKCE flow: Supabase's recovery link lands here as ?code=... (this is the
     // actual format Supabase now sends). Nothing auto-exchanges this -- it has
     // to be done explicitly, unlike the older #access_token= hash flow below.
-    const code = new URL(window.location.href).searchParams.get("code");
+    const code = url.searchParams.get("code");
     if (code) {
       supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
         if (error) {
+          console.error("exchangeCodeForSession failed:", error.message);
+          setDebugInfo(error.message);
           setExpired(true);
         } else {
           setReady(true);
@@ -137,6 +155,11 @@ export default function ResetPasswordPage() {
               color: "#dc2626", marginBottom: 16,
             }}>
               This reset link has expired or is invalid.
+              {debugInfo && (
+                <div style={{ fontSize: 11, color: "#991b1b", marginTop: 6, fontWeight: 400 }}>
+                  ({debugInfo})
+                </div>
+              )}
             </div>
             <a href="/login" style={{
               fontSize: 13.5, fontWeight: 600, color: c.accent, textDecoration: "none",
