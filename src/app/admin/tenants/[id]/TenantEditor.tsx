@@ -43,6 +43,10 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [error, setError]             = useState("");
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resendResult, setResendResult] = useState<Record<string, string>>({});
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole]   = useState<"admin" | "member">("admin");
+  const [inviting, setInviting]       = useState(false);
+  const [inviteMsg, setInviteMsg]     = useState("");
 
   function toggleFeature(key: keyof TenantFeatures) {
     setFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -64,6 +68,31 @@ export default function TenantEditor({ tenant, users }: Props) {
       setResendResult((prev) => ({ ...prev, [userId]: "Failed to resend" }));
     } finally {
       setResendingId(null);
+    }
+  }
+
+  async function inviteMember() {
+    if (!inviteEmail.trim()) return;
+    setInviting(true);
+    setInviteMsg("");
+    try {
+      const res = await fetch(`/api/admin/tenants/${tenant.id}/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setInviteMsg("Invite sent ✓");
+        setInviteEmail("");
+        router.refresh();
+      } else {
+        setInviteMsg(json.error ?? "Failed to invite");
+      }
+    } catch {
+      setInviteMsg("Failed to invite");
+    } finally {
+      setInviting(false);
     }
   }
 
@@ -196,11 +225,49 @@ export default function TenantEditor({ tenant, users }: Props) {
       </section>
 
       {/* Users */}
-      {users.length > 0 && (
-        <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
-          <h2 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 600, color: "#374151" }}>
-            Users ({users.length})
-          </h2>
+      <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
+        <h2 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 600, color: "#374151" }}>
+          Users ({users.length})
+        </h2>
+
+        {/* Invite a member */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
+          <input
+            style={{ ...inputStyle, flex: 1 }}
+            type="email"
+            placeholder="email@company.com"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+          />
+          <select
+            style={{ ...inputStyle, width: 110 }}
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}
+          >
+            <option value="admin">Admin</option>
+            <option value="member">Member</option>
+          </select>
+          <button
+            type="button"
+            disabled={inviting || !inviteEmail.trim()}
+            onClick={inviteMember}
+            style={{
+              height: 38, padding: "0 16px", whiteSpace: "nowrap",
+              background: inviting ? "#93c5fd" : c.accent, color: "#fff",
+              border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500,
+              cursor: inviting || !inviteEmail.trim() ? "not-allowed" : "pointer",
+            }}
+          >
+            {inviting ? "Inviting…" : "Invite"}
+          </button>
+        </div>
+        {inviteMsg && (
+          <div style={{ fontSize: 12, marginBottom: 14, color: inviteMsg.includes("✓") ? "#16a34a" : "#dc2626" }}>
+            {inviteMsg}
+          </div>
+        )}
+
+        {users.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {users.map((u) => (
               <div key={u.id} style={{
@@ -251,8 +318,8 @@ export default function TenantEditor({ tenant, users }: Props) {
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* Export */}
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
