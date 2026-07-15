@@ -34,6 +34,22 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const supabase = createBrowserSupabase();
 
+    // PKCE flow: Supabase's recovery link lands here as ?code=... (this is the
+    // actual format Supabase now sends). Nothing auto-exchanges this -- it has
+    // to be done explicitly, unlike the older #access_token= hash flow below.
+    const code = new URL(window.location.href).searchParams.get("code");
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          setExpired(true);
+        } else {
+          setReady(true);
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      });
+      return;
+    }
+
     // First try: check if Supabase already exchanged the hash token
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
