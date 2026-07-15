@@ -45,6 +45,7 @@ export type Tenant = {
   features: TenantFeatures;
   company_info: CompanyInfo;
   config: TenantConfig;
+  custom_domain: string | null;
 };
 
 /**
@@ -57,7 +58,7 @@ export const getTenant = cache(async (): Promise<Tenant | null> => {
   if (!user) return null;
   const { data } = await createAdminSupabase()
     .from("tenant_users")
-    .select("tenants(id, slug, name, logo_url, accent_color, status, plan, features, company_info, config)")
+    .select("tenants(id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain)")
     .eq("user_id", user.id)
     .maybeSingle();
   return (data?.tenants as unknown as Tenant) ?? null;
@@ -77,7 +78,7 @@ export async function requireFeature(key: keyof TenantFeatures): Promise<void> {
 export async function adminListTenants(): Promise<Tenant[]> {
   const { data } = await createAdminSupabase()
     .from("tenants")
-    .select("id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, created_at")
+    .select("id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain, created_at")
     .order("created_at", { ascending: false });
   return (data as Tenant[]) ?? [];
 }
@@ -85,7 +86,7 @@ export async function adminListTenants(): Promise<Tenant[]> {
 /** Admin: update tenant features / status / plan. */
 export async function adminUpdateTenant(
   id: string,
-  patch: Partial<Pick<Tenant, "status" | "plan" | "features" | "name" | "logo_url" | "accent_color" | "company_info">>
+  patch: Partial<Pick<Tenant, "status" | "plan" | "features" | "name" | "logo_url" | "accent_color" | "company_info" | "custom_domain">>
 ) {
   return createAdminSupabase().from("tenants").update(patch).eq("id", id);
 }

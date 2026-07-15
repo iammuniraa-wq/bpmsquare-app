@@ -3,6 +3,11 @@
 
 import type { PillarKey } from "./theme";
 
+// The single shared app URL — every tenant without a `custom_domain` is reached here.
+// Hostnames other than this (and localhost, for dev) are resolved to a tenant via
+// `tenants.custom_domain` in middleware.ts.
+export const PRIMARY_HOST = "app.bpmsquare.com";
+
 export const ROUTES = {
   login: "/login",
   pipeline: "/pipeline",

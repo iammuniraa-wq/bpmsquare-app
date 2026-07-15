@@ -8,7 +8,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ["name", "slug", "accent_color", "logo_url", "status", "plan", "features", "company_info"];
+  const allowed = ["name", "slug", "accent_color", "logo_url", "status", "plan", "features", "company_info", "custom_domain"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) patch[key] = body[key];

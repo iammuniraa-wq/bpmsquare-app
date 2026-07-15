@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
-  const { name, slug, accent_color, logo_url, plan, features, admin_email } = body;
+  const { name, slug, accent_color, logo_url, plan, features, admin_email, custom_domain } = body;
 
   if (!name || !slug) {
     return NextResponse.json({ error: "name and slug are required" }, { status: 400 });
@@ -18,15 +18,18 @@ export async function POST(request: NextRequest) {
   // Create the tenant
   const { data: tenant, error: tenantErr } = await admin
     .from("tenants")
-    .insert({ name, slug, accent_color, logo_url, plan, features, status: "active" })
+    .insert({ name, slug, accent_color, logo_url, plan, features, custom_domain: custom_domain || null, status: "active" })
     .select("id")
     .single();
 
   if (tenantErr) {
-    return NextResponse.json(
-      { error: tenantErr.message.includes("unique") ? `Slug "${slug}" is already taken` : tenantErr.message },
-      { status: 400 }
-    );
+    let error = tenantErr.message;
+    if (tenantErr.message.includes("unique")) {
+      error = tenantErr.message.includes("custom_domain")
+        ? `Domain "${custom_domain}" is already in use by another tenant`
+        : `Slug "${slug}" is already taken`;
+    }
+    return NextResponse.json({ error }, { status: 400 });
   }
 
   // Invite the admin user if email provided

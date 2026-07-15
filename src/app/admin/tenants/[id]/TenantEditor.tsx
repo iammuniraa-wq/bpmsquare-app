@@ -33,6 +33,7 @@ export default function TenantEditor({ tenant, users }: Props) {
 
   const [name, setName]               = useState(tenant.name);
   const [slug, setSlug]               = useState(tenant.slug);
+  const [customDomain, setCustomDomain] = useState(tenant.custom_domain ?? "");
   const [accentColor, setAccentColor] = useState(tenant.accent_color);
   const [logoUrl, setLogoUrl]         = useState(tenant.logo_url ?? "");
   const [status, setStatus]           = useState(tenant.status);
@@ -53,7 +54,10 @@ export default function TenantEditor({ tenant, users }: Props) {
       const res = await fetch(`/api/admin/tenants/${tenant.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, slug, accent_color: accentColor, logo_url: logoUrl || null, status, plan, features }),
+        body: JSON.stringify({
+          name, slug, accent_color: accentColor, logo_url: logoUrl || null, status, plan, features,
+          custom_domain: customDomain || null,
+        }),
       });
       if (res.ok) {
         setSaved(true);
@@ -89,6 +93,17 @@ export default function TenantEditor({ tenant, users }: Props) {
             <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Slug (URL key)</label>
             <input style={inputStyle} value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
           </div>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>
+            Custom domain <span style={{ color: "#9ca3af" }}>(optional — dedicated URL for this tenant)</span>
+          </label>
+          <input
+            style={inputStyle}
+            value={customDomain}
+            placeholder="vikas.bpmsquare.com"
+            onChange={(e) => { setCustomDomain(e.target.value.trim().toLowerCase()); setSaved(false); }}
+          />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>

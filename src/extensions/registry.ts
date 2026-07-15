@@ -13,6 +13,7 @@ import base from "@/extensions/_base";
 // Static import map — required for Next.js bundler (no dynamic variable imports).
 const REGISTRY: Record<string, () => Promise<{ default: TenantExtension }>> = {
   vikas: () => import("@/extensions/vikas"),
+  "vikas-pioneers": () => import("@/extensions/vikas"),
 };
 
 let cache: Record<string, TenantExtension> = {};
