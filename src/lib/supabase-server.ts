@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { cache } from "react";
+import { isPrimaryOrDevHost } from "./constants";
 
 /**
  * True when Supabase env vars are present. The first build slice runs on seed
@@ -21,6 +22,57 @@ export function createAdminSupabase() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
+}
+
+/** True if the current authenticated user is a platform admin (whitelisted in platform_admins). */
+export async function isPlatformAdmin(): Promise<boolean> {
+  const user = await getAuthUser();
+  if (!user) return false;
+
+  const { data } = await createAdminSupabase()
+    .from("platform_admins")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (data) return true;
+
+  // Fallback: check email in case user_id not yet linked
+  const { data: byEmail } = await createAdminSupabase()
+    .from("platform_admins")
+    .select("id")
+    .eq("email", user.email ?? "")
+    .maybeSingle();
+
+  // Link user_id if found by email
+  if (byEmail) {
+    await createAdminSupabase()
+      .from("platform_admins")
+      .update({ user_id: user.id })
+      .eq("email", user.email ?? "");
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Platform admins have no tenant_users row by default. When one is browsing a
+ * tenant's dedicated custom domain, resolve straight to that tenant's id so
+ * support/ops accounts can access any tenant without a per-tenant invite.
+ * Returns null on the shared PRIMARY_HOST/localhost, or for non-admin users.
+ */
+export async function resolveTenantIdForPlatformAdmin(): Promise<string | null> {
+  const host = (await headers()).get("host")?.split(":")[0] ?? "";
+  if (isPrimaryOrDevHost(host)) return null;
+  if (!(await isPlatformAdmin())) return null;
+
+  const { data } = await createAdminSupabase()
+    .from("tenants")
+    .select("id")
+    .eq("custom_domain", host)
+    .maybeSingle();
+  return data?.id ?? null;
 }
 
 /**
@@ -47,14 +99,21 @@ export async function requireTenantUser(): Promise<{
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!tu?.tenant_id) throw { status: 403, message: "No tenant membership" };
+  if (tu?.tenant_id) {
+    return {
+      supabase,
+      tenantId: tu.tenant_id as string,
+      userId: user.id,
+      role: (tu.role as "admin" | "member") ?? "member",
+    };
+  }
 
-  return {
-    supabase,
-    tenantId: tu.tenant_id as string,
-    userId: user.id,
-    role: (tu.role as "admin" | "member") ?? "member",
-  };
+  const fallbackTenantId = await resolveTenantIdForPlatformAdmin();
+  if (fallbackTenantId) {
+    return { supabase, tenantId: fallbackTenantId, userId: user.id, role: "admin" };
+  }
+
+  throw { status: 403, message: "No tenant membership" };
 }
 
 /**

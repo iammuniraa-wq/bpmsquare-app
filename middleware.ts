@@ -61,13 +61,35 @@ export async function middleware(request: NextRequest) {
       .maybeSingle();
 
     if (hostTenant) {
-      const { data: membership } = await admin
-        .from("tenant_users")
-        .select("tenant_id")
+      // Platform admins get standing access to every tenant's dedicated domain,
+      // without needing a per-tenant tenant_users row or invite.
+      let isPlatformAdminUser = false;
+      const { data: adminByUserId } = await admin
+        .from("platform_admins")
+        .select("id")
         .eq("user_id", user.id)
         .maybeSingle();
+      isPlatformAdminUser = !!adminByUserId;
+      if (!isPlatformAdminUser) {
+        const { data: adminByEmail } = await admin
+          .from("platform_admins")
+          .select("id")
+          .eq("email", user.email ?? "")
+          .maybeSingle();
+        isPlatformAdminUser = !!adminByEmail;
+      }
 
-      if (membership?.tenant_id !== hostTenant.id) {
+      let tenantMatches = true;
+      if (!isPlatformAdminUser) {
+        const { data: membership } = await admin
+          .from("tenant_users")
+          .select("tenant_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        tenantMatches = membership?.tenant_id === hostTenant.id;
+      }
+
+      if (!isPlatformAdminUser && !tenantMatches) {
         // Session belongs to a different tenant than this domain resolves to — hard isolation.
         await supabase.auth.signOut();
         const loginUrl = new URL("/login", request.url);

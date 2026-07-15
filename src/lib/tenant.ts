@@ -1,7 +1,9 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { createAdminSupabase, getAuthUser } from "./supabase-server";
+import { createAdminSupabase, getAuthUser, resolveTenantIdForPlatformAdmin } from "./supabase-server";
 import type { TenantConfig, TenantFeatures } from "./constants";
+
+export { isPlatformAdmin } from "./supabase-server";
 
 export type { TenantFeatures } from "./constants";
 
@@ -53,15 +55,31 @@ export type Tenant = {
  * React cache() deduplicates within a single render (layout + requireFeature = 1 DB call).
  * Fresh per request — no Vercel Data Cache, so platform admin changes take effect immediately.
  */
+const TENANT_COLUMNS = "id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain";
+
 export const getTenant = cache(async (): Promise<Tenant | null> => {
   const user = await getAuthUser();
   if (!user) return null;
+
   const { data } = await createAdminSupabase()
     .from("tenant_users")
-    .select("tenants(id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain)")
+    .select(`tenants(${TENANT_COLUMNS})`)
     .eq("user_id", user.id)
     .maybeSingle();
-  return (data?.tenants as unknown as Tenant) ?? null;
+
+  if (data?.tenants) return data.tenants as unknown as Tenant;
+
+  // Platform admins with no tenant membership: resolve by the current
+  // dedicated-domain hostname (see resolveTenantIdForPlatformAdmin).
+  const fallbackId = await resolveTenantIdForPlatformAdmin();
+  if (!fallbackId) return null;
+
+  const { data: hostTenant } = await createAdminSupabase()
+    .from("tenants")
+    .select(TENANT_COLUMNS)
+    .eq("id", fallbackId)
+    .maybeSingle();
+  return (hostTenant as unknown as Tenant) ?? null;
 });
 
 /**
@@ -108,42 +126,15 @@ export async function adminUpdateTenant(
 export const getUserRole = cache(async (): Promise<"admin" | "member" | null> => {
   const user = await getAuthUser();
   if (!user) return null;
+
   const { data } = await createAdminSupabase()
     .from("tenant_users")
     .select("role")
     .eq("user_id", user.id)
     .maybeSingle();
-  return (data?.role as "admin" | "member") ?? null;
+
+  if (data?.role) return data.role as "admin" | "member";
+
+  // Platform admins viewing a tenant via hostname fallback (no tenant_users row) get full access.
+  return (await resolveTenantIdForPlatformAdmin()) ? "admin" : null;
 });
-
-/** Admin: check if the current user is a platform admin. */
-export async function isPlatformAdmin(): Promise<boolean> {
-  const user = await getAuthUser();
-  if (!user) return false;
-
-  const { data } = await createAdminSupabase()
-    .from("platform_admins")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (data) return true;
-
-  // Fallback: check email in case user_id not yet linked
-  const { data: byEmail } = await createAdminSupabase()
-    .from("platform_admins")
-    .select("id")
-    .eq("email", user.email ?? "")
-    .maybeSingle();
-
-  // Link user_id if found by email
-  if (byEmail) {
-    await createAdminSupabase()
-      .from("platform_admins")
-      .update({ user_id: user.id })
-      .eq("email", user.email ?? "");
-    return true;
-  }
-
-  return false;
-}
