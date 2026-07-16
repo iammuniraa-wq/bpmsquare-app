@@ -9,6 +9,7 @@ import Sidebar from "./Sidebar";
 import { TabsProvider } from "@/lib/tabs-context";
 import TabBar from "./TabBar";
 import { XIcon } from "@/components/Icons";
+import { useTenant } from "@/lib/tenant-context";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 // Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
@@ -17,6 +18,7 @@ import { XIcon } from "@/components/Icons";
 function MobileTopBar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const tenant = useTenant();
 
   // Close the drawer whenever the route changes.
   useEffect(() => { setOpen(false); }, [pathname]);
@@ -35,9 +37,17 @@ function MobileTopBar() {
       }}>
         {/* Brand */}
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <Logo size={26} />
+          {tenant?.logo_url ? (
+            <img
+              src={tenant.logo_url}
+              alt={tenant.name}
+              style={{ width: 26, height: 26, borderRadius: 6, objectFit: "contain", flexShrink: 0 }}
+            />
+          ) : (
+            <Logo size={26} />
+          )}
           <span style={{ color: "#e2e7ee", fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em" }}>
-            BPMSquare
+            {tenant?.name ?? "BPMSquare"}
           </span>
         </div>
 
