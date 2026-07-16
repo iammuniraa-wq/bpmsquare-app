@@ -65,7 +65,12 @@ function LoginFormInner({ branding }: { branding: Branding }) {
     const supabase = createBrowserSupabase();
     const { error: err } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
-      { redirectTo: `${window.location.origin}/reset-password` }
+      // Route through /auth/callback so the PKCE code gets exchanged server-side
+      // (Set-Cookie on the redirect response) instead of client-side in
+      // /reset-password's useEffect -- the client-side exchange was unreliable
+      // (Supabase kept reporting "code verifier not found in storage" even in
+      // the same browser/tab that initiated the request).
+      { redirectTo: `${window.location.origin}/auth/callback?next=/reset-password` }
     );
 
     setLoading(false);
