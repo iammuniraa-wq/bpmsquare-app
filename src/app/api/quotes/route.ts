@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { generateNextQuoteRef } from "@/lib/quoteRef";
+import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -35,48 +37,62 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
-  // Server-side sequential ref generation
-  const { count } = await supabase
-    .from("quotes")
-    .select("*", { count: "exact", head: true })
-    .eq("tenant_id", tenantId);
-  const seq = String((count ?? 0) + 1).padStart(4, "0");
-  const ref = `QT-${new Date().getFullYear()}-${seq}`;
+  // Server-side sequential ref generation — tenant's own Quote ID format, or the default.
+  const admin = createAdminSupabase();
+  const { data: tenantRow } = await admin.from("tenants").select("config").eq("id", tenantId).maybeSingle();
+  const quoteIdFormat: QuoteIdFormat = (tenantRow?.config as TenantConfig | null)?.quote_id_format ?? DEFAULT_QUOTE_ID_FORMAT;
 
-  const { data: quote, error: qErr } = await supabase
-    .from("quotes")
-    .insert({
-      tenant_id: tenantId,
-      account_id,
-      ref,
-      type: type ?? "quotation",
-      status: "draft",
-      total: total ?? 0,
-      valid_until: valid_until || null,
-      notes: notes || null,
-      terms: terms || null,
-      scope_of_work: scope_of_work || null,
-      entity_id: entity_id || null,
-      name: name || null,
-      contact_id: contact_id || null,
-      pr_no: pr_no || null,
-      po_number: po_number || null,
-      po_amount: po_amount ? parseFloat(po_amount) : null,
-      discount_type: discount_type ?? "pct",
-      discount_pct: parseFloat(discount_pct) || 0,
-      discount_fixed: parseFloat(discount_fixed) || 0,
-      asset_ids: Array.isArray(asset_ids) ? asset_ids : [],
-      revision: 1,
-      selected_option_id: selected_option_id ?? null,
-      meta: meta ?? null,
-      custom_data: custom_data ?? null,
-      territory: acct!.territory || null,
-      sales_org: acct!.sales_org || null,
-    })
-    .select("id, ref")
-    .single();
+  const baseInsert = {
+    tenant_id: tenantId,
+    account_id,
+    type: type ?? "quotation",
+    status: "draft",
+    total: total ?? 0,
+    valid_until: valid_until || null,
+    notes: notes || null,
+    terms: terms || null,
+    scope_of_work: scope_of_work || null,
+    entity_id: entity_id || null,
+    name: name || null,
+    contact_id: contact_id || null,
+    pr_no: pr_no || null,
+    po_number: po_number || null,
+    po_amount: po_amount ? parseFloat(po_amount) : null,
+    discount_type: discount_type ?? "pct",
+    discount_pct: parseFloat(discount_pct) || 0,
+    discount_fixed: parseFloat(discount_fixed) || 0,
+    asset_ids: Array.isArray(asset_ids) ? asset_ids : [],
+    revision: 1,
+    selected_option_id: selected_option_id ?? null,
+    meta: meta ?? null,
+    custom_data: custom_data ?? null,
+    territory: acct!.territory || null,
+    sales_org: acct!.sales_org || null,
+  };
 
-  if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 });
+  // Retry a few times on a (tenant_id, ref) collision -- narrow race window between
+  // computing the next sequence number and the insert actually landing.
+  let quote: { id: string; ref: string } | null = null;
+  let qErr: { message: string; code?: string } | null = null;
+  for (let attempt = 0; attempt < 3 && !quote; attempt++) {
+    const ref = await generateNextQuoteRef(supabase, tenantId, quoteIdFormat);
+    const result = await supabase
+      .from("quotes")
+      .insert({ ...baseInsert, ref })
+      .select("id, ref")
+      .single();
+    if (!result.error) {
+      quote = result.data;
+    } else if (result.error.code === "23505") {
+      qErr = result.error;
+      continue; // unique-constraint collision -- recompute and retry
+    } else {
+      qErr = result.error;
+      break;
+    }
+  }
+
+  if (!quote) return NextResponse.json({ error: qErr?.message ?? "Failed to create quote" }, { status: 500 });
 
   if (Array.isArray(lines) && lines.length > 0) {
     const lineRows = lines

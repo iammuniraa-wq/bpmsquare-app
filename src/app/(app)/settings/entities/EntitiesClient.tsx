@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import type { TenantEntity, TenantConfig, TenantTaxConfig } from "@/lib/constants";
+import type { TenantEntity, TenantConfig, TenantTaxConfig, QuoteIdFormat } from "@/lib/constants";
+import { DEFAULT_QUOTE_ID_FORMAT } from "@/lib/constants";
+import { formatQuoteRef } from "@/lib/quoteRefFormat";
 import type { CompanyInfo } from "@/lib/tenant";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -323,6 +325,7 @@ const DEFAULT_CO: CompanyInfo = {};
 export default function EntitiesClient() {
   const [entities, setEntities] = useState<TenantEntity[]>([]);
   const [tax, setTax] = useState<TenantTaxConfig>(DEFAULT_TAX);
+  const [quoteIdFormat, setQuoteIdFormat] = useState<QuoteIdFormat>(DEFAULT_QUOTE_ID_FORMAT);
   const [co, setCo] = useState<CompanyInfo>(DEFAULT_CO);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -342,6 +345,7 @@ export default function EntitiesClient() {
     ]).then(([cfg, coData]: [TenantConfig, CompanyInfo]) => {
       setEntities(cfg.entities ?? []);
       setTax({ ...DEFAULT_TAX, ...(cfg.tax ?? {}) });
+      setQuoteIdFormat({ ...DEFAULT_QUOTE_ID_FORMAT, ...(cfg.quote_id_format ?? {}) });
       setCo(coData ?? {});
     }).finally(() => setLoading(false));
   }, []);
@@ -352,7 +356,7 @@ export default function EntitiesClient() {
       fetch("/api/settings/entities", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entities, tax } as Partial<TenantConfig>),
+        body: JSON.stringify({ entities, tax, quote_id_format: quoteIdFormat } as Partial<TenantConfig>),
       }),
       fetch("/api/settings/company-info", {
         method: "PATCH",
@@ -539,6 +543,65 @@ export default function EntitiesClient() {
             <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
               {tax.inclusive ? "Line item rates already include tax — tax is not added on top." : "Tax is added on top of line item rates (exclusive)."}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Quote ID format ── */}
+      <section style={{ ...cardStyle, marginBottom: 14 }}>
+        <h2 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: c.ink }}>Quote ID format</h2>
+        <p style={{ margin: "0 0 16px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>
+          Controls the Quote ID assigned to new quotations. Supported tokens: <code style={{ fontFamily: "monospace" }}>{"{PREFIX}"}</code>{" "}
+          <code style={{ fontFamily: "monospace" }}>{"{YYYY}"}</code> <code style={{ fontFamily: "monospace" }}>{"{YY}"}</code>{" "}
+          <code style={{ fontFamily: "monospace" }}>{"{MM}"}</code> <code style={{ fontFamily: "monospace" }}>{"{SEQ}"}</code>
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+          <Field
+            label="Prefix"
+            value={quoteIdFormat.prefix}
+            onChange={(v) => setQuoteIdFormat((f) => ({ ...f, prefix: v }))}
+            placeholder="QT"
+          />
+          <Field
+            label="Template"
+            value={quoteIdFormat.template}
+            onChange={(v) => setQuoteIdFormat((f) => ({ ...f, template: v }))}
+            placeholder="{PREFIX}-{YYYY}-{SEQ}"
+            mono
+          />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={lbl}>Sequence digits</label>
+            <input
+              type="number" min={2} max={6}
+              value={quoteIdFormat.seq_digits}
+              onChange={(e) => setQuoteIdFormat((f) => ({ ...f, seq_digits: Math.min(6, Math.max(2, parseInt(e.target.value) || 4)) }))}
+              style={inp}
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={lbl}>Sequence resets</label>
+            <select
+              value={quoteIdFormat.reset}
+              onChange={(e) => setQuoteIdFormat((f) => ({ ...f, reset: e.target.value as QuoteIdFormat["reset"] }))}
+              style={inp}
+            >
+              <option value="yearly">Every year</option>
+              <option value="never">Never — keep counting</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ paddingTop: 12, borderTop: `1px solid ${c.line}` }}>
+          <label style={lbl}>Example</label>
+          <div style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 600, color: c.ink }}>
+            {formatQuoteRef(quoteIdFormat, new Date(), 1)}
+          </div>
+          <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>
+            Illustrative only — shows the first quote of the sequence, not the actual next Quote ID.
           </div>
         </div>
       </section>

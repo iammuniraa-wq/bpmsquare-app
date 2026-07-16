@@ -329,7 +329,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                     style={{ cursor: "pointer", accentColor: c.accent }}
                   />
                 </th>
-                <th style={th}>Ref</th>
+                <th style={th}>Quote ID</th>
                 {vis("type")        && <th style={th}>Type</th>}
                 {vis("account")     && <th style={th}>Account</th>}
                 {vis("status")      && <th style={th}>Status</th>}

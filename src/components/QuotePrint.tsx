@@ -250,7 +250,7 @@ export default function QuotePrint({
 
         {/* Ref / Date row */}
         <div style={{ padding: "7px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${brand.line}`, background: "#fff", breakInside: "avoid" }}>
-          <span style={{ fontSize: 12.5, fontWeight: 600 }}>Ref No: <span style={{ fontFamily: "monospace", fontWeight: 400 }}>{quote.ref}</span></span>
+          <span style={{ fontSize: 12.5, fontWeight: 600 }}>Quote ID: <span style={{ fontFamily: "monospace", fontWeight: 400 }}>{quote.ref}</span></span>
           <span style={{ fontSize: 12.5 }}>Date: <strong>{fmtDate(quote.created_at)}</strong>{quote.valid_until ? <span style={{ marginLeft: 24, color: "#5f6b7a" }}>Valid until: {fmtDate(quote.valid_until)}</span> : ""}</span>
         </div>
 

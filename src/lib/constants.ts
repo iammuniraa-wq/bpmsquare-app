@@ -311,4 +311,22 @@ export type TenantConfig = {
   quote_statuses?: QuoteStatusDef[];
   // Which asset fields to print on the quote. Empty/absent = hide the section.
   asset_print_fields?: string[];
+  // Quote ID (ref) naming convention. Falls back to DEFAULT_QUOTE_ID_FORMAT if absent.
+  quote_id_format?: QuoteIdFormat;
+};
+
+// QuoteIdFormat — per-tenant Quote ID naming convention.
+// Supported template tokens: {PREFIX} {YYYY} {YY} {MM} {SEQ}
+export type QuoteIdFormat = {
+  template: string;
+  prefix: string;
+  seq_digits: number;
+  reset: "yearly" | "never";
+};
+
+export const DEFAULT_QUOTE_ID_FORMAT: QuoteIdFormat = {
+  template: "{PREFIX}-{YYYY}-{SEQ}",
+  prefix: "QT",
+  seq_digits: 4,
+  reset: "yearly",
 };
