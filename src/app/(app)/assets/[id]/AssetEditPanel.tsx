@@ -28,11 +28,17 @@ const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 
 
 type Props = {
   asset: Asset;
+  /** Controlled mode: render just the form, no internal trigger button (e.g. when a
+   *  parent renders its own "Edit asset" toggle elsewhere, such as the page header). */
+  forceOpen?: boolean;
+  onSaved?: () => void;
+  onCancel?: () => void;
 };
 
-export default function AssetEditPanel({ asset }: Props) {
+export default function AssetEditPanel({ asset, forceOpen, onSaved, onCancel }: Props) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [openState, setOpen] = useState(false);
+  const open = forceOpen ?? openState;
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -65,6 +71,7 @@ export default function AssetEditPanel({ asset }: Props) {
         setSaved(true);
         setOpen(false);
         router.refresh();
+        onSaved?.();
       } else {
         const j = await res.json();
         setError(j.error ?? "Failed to save");
@@ -73,6 +80,7 @@ export default function AssetEditPanel({ asset }: Props) {
   }
 
   if (!open) {
+    if (forceOpen === false) return null; // parent owns the trigger button entirely
     return (
       <button
         type="button"
@@ -148,7 +156,7 @@ export default function AssetEditPanel({ asset }: Props) {
         }}>
           {pending ? "Saving…" : "Save changes"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} style={{
+        <button type="button" onClick={() => { setOpen(false); onCancel?.(); }} style={{
           padding: "7px 12px", borderRadius: 7, border: `1px solid ${c.line}`,
           background: "none", color: c.muted, fontWeight: 500, fontSize: 13, cursor: "pointer",
         }}>
