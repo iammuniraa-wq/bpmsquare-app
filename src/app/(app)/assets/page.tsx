@@ -127,7 +127,15 @@ export default async function AssetsPage({
                       <span style={{ fontSize: 10, color: c.hint, fontFamily: "monospace", marginLeft: "auto" }}>{asset.serial}</span>
                     )}
                   </div>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: c.ink, marginBottom: 3 }}>{asset.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
+                    <span style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{asset.name}</span>
+                    <Link
+                      href={ROUTES.asset(asset.id)}
+                      style={{ fontSize: 11, fontWeight: 600, color: tone.base, textDecoration: "none", flexShrink: 0, whiteSpace: "nowrap" }}
+                    >
+                      View →
+                    </Link>
+                  </div>
                   {asset.rating && (
                     <div style={{ fontSize: 11.5, color: c.muted, marginBottom: 8 }}>{asset.rating}</div>
                   )}
@@ -237,6 +245,17 @@ export default async function AssetsPage({
                     {openCaseCount} case{openCaseCount > 1 ? "s" : ""}
                   </Link>
                 )}
+
+                {/* View / edit */}
+                <Link
+                  href={ROUTES.asset(asset.id)}
+                  style={{
+                    fontSize: 11, fontWeight: 600, color: c.accent,
+                    textDecoration: "none", flexShrink: 0, whiteSpace: "nowrap",
+                  }}
+                >
+                  View →
+                </Link>
               </div>
             );
           })
