@@ -145,7 +145,7 @@ export const assets: Asset[] = [
     make: "Crompton Greaves",  model: "ND315S-2",
     rating: "75 kW · 415V",  rpm: "1480",  serial: "CG-75-2291",
     notes: "Rewound once — June 2024. Bearings last replaced Jan 2025.",
-    is_loaner: false, loaner_status: null,
+    is_loaner: false, loaner_status: null, custom_data: null,
   },
   {
     id: "ast_sahyadri_t1", account_id: "acc_sahyadri", kind: "transformer",
@@ -153,7 +153,7 @@ export const assets: Asset[] = [
     make: "Voltamp",           model: "ONAN-500-11/0.433",
     rating: "500 kVA · 11kV/433V",  rpm: null,  serial: "TX-500-0148",
     notes: "Oil tested under AMC — last test May 2026. BDV: 58 kV.",
-    is_loaner: false, loaner_status: null,
+    is_loaner: false, loaner_status: null, custom_data: null,
   },
   {
     id: "ast_bharat_m1",   account_id: "acc_bharat",   kind: "motor",
@@ -161,7 +161,7 @@ export const assets: Asset[] = [
     make: "Marathon Electric", model: "MG280MC-6",
     rating: "160 kW · 415V",  rpm: "990",   serial: "MR-160-7741",
     notes: "Bearings replaced March 2025. Vibration within spec as of last inspection.",
-    is_loaner: false, loaner_status: null,
+    is_loaner: false, loaner_status: null, custom_data: null,
   },
   {
     id: "ast_hpsteel_m1",  account_id: "acc_hpsteel",  kind: "motor",
@@ -169,7 +169,7 @@ export const assets: Asset[] = [
     make: "Rotomotive",        model: "GG355M-8",
     rating: "250 kW · 690V",  rpm: "740",   serial: "HP-250-3320",
     notes: "Covered under AMC (ctr_marathon). Noisy bearing reported June 2026.",
-    is_loaner: false, loaner_status: null,
+    is_loaner: false, loaner_status: null, custom_data: null,
   },
   {
     id: "ast_tata_p1",     account_id: "acc_tata",     kind: "pump",
@@ -177,7 +177,7 @@ export const assets: Asset[] = [
     make: "Kirloskar",         model: "KDS-316",
     rating: "37 kW · 415V",  rpm: "2950",   serial: "RM-37-5582",
     notes: null,
-    is_loaner: false, loaner_status: null,
+    is_loaner: false, loaner_status: null, custom_data: null,
   },
 
   // ── Company loaner stock (Vikas Pioneers — account_id null) ───────────────
@@ -187,7 +187,7 @@ export const assets: Asset[] = [
     make: "Crompton Greaves",  model: "ND250M-2",
     rating: "45 kW · 415V",  rpm: "1480",  serial: "VP-LNR-001",
     notes: null,
-    is_loaner: true, loaner_status: "on_loan",
+    is_loaner: true, loaner_status: "on_loan", custom_data: null,
   },
   {
     id: "lnr_motor_22k",   account_id: null, kind: "motor",
@@ -195,7 +195,7 @@ export const assets: Asset[] = [
     make: "Marathon Electric", model: "MG200LA-2",
     rating: "22 kW · 415V",  rpm: "1480",  serial: "VP-LNR-002",
     notes: null,
-    is_loaner: true, loaner_status: "available",
+    is_loaner: true, loaner_status: "available", custom_data: null,
   },
   {
     id: "lnr_pump_37k",    account_id: null, kind: "pump",
@@ -203,7 +203,7 @@ export const assets: Asset[] = [
     make: "Kirloskar",         model: "KDS-280",
     rating: "37 kW · 415V",  rpm: "2950",  serial: "VP-LNR-003",
     notes: null,
-    is_loaner: true, loaner_status: "available",
+    is_loaner: true, loaner_status: "available", custom_data: null,
   },
 ];
 

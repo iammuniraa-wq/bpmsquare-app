@@ -23,13 +23,21 @@ export default async function StatusesPage() {
   const statuses: QuoteStatusDef[] | null = cfg?.quote_statuses ?? null;
   const assetPrintFields: string[] = cfg?.asset_print_fields ?? [];
 
+  const { data: customFields } = await createAdminSupabase()
+    .from("custom_fields")
+    .select("field_key, field_label")
+    .eq("tenant_id", tenantId!)
+    .eq("object_type", "asset")
+    .order("position");
+  const assetCustomFields = (customFields ?? []).map((f) => ({ value: f.field_key, label: f.field_label }));
+
   return (
     <>
       <PageHeader
         title="Statuses & assets"
         subtitle="Configure pipeline stages and equipment print fields"
       />
-      <StatusesClient initial={statuses} initialAssetFields={assetPrintFields} />
+      <StatusesClient initial={statuses} initialAssetFields={assetPrintFields} assetCustomFields={assetCustomFields} />
     </>
   );
 }

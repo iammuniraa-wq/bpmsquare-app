@@ -19,7 +19,7 @@ const CAT_DESC: Record<FragmentCategory, string> = {
   terms:     "Standard T&C presets — payment terms, AMC, emergency callout",
   sow:       "Scope of work templates — link to SOW entries on quotations",
 };
-const CATEGORIES: FragmentCategory[] = ["line_item", "notes", "terms"];
+const CATEGORIES: FragmentCategory[] = ["line_item", "notes", "terms", "sow"];
 
 const inputSt: React.CSSProperties = {
   border: `1px solid ${c.line}`, borderRadius: 7,

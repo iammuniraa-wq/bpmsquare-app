@@ -82,6 +82,7 @@ export type Asset = {
   notes: string | null;      // service history or remarks
   is_loaner: boolean;
   loaner_status: "available" | "on_loan" | null; // null when not loaner stock
+  custom_data: Record<string, unknown> | null;
 };
 
 export type Contract = {
@@ -125,6 +126,7 @@ export type Quote = {
   entity_id?: string | null;
   name?: string | null;
   contact_id?: string | null;
+  ref_no?: string | null;
   pr_no?: string | null;
   po_number?: string | null;
   po_amount?: number | null;

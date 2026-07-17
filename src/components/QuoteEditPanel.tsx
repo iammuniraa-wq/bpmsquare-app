@@ -85,7 +85,7 @@ function linesToRows(lines: QuoteLine[]): Row[] {
   return rows.length ? rows : [{ kind: "line", ...newLineItem("1") }];
 }
 
-const lineCols = "44px 1fr 60px 66px 44px 62px 42px 68px 66px 24px";
+const lineCols = "44px 1fr 48px 52px 44px 62px 42px 56px 66px 24px";
 const lineHeaders = ["Sl No", "Description", "UOM", "Category", "Qty", "Rate", "Disc%", "Deduction", "Amount", ""];
 
 export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_QUOTE_STATUSES, onSaved }: { quote: Quote; lines: QuoteLine[]; quoteStatuses?: QuoteStatusDef[]; onSaved?: (newStatus: string) => void }) {

@@ -127,6 +127,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [quoteName, setQuoteName]   = useState("");
   const [quoteDate, setQuoteDate]   = useState(today);
   const [validUntil, setValidUntil] = useState(defaultValid);
+  const [refNo, setRefNo]           = useState("");
   const [prNo, setPrNo]             = useState("");
   const [poNumber, setPoNumber]     = useState("");
   const [poAmount, setPoAmount]     = useState("");
@@ -226,7 +227,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       });
       const json = await res.json();
       if (!res.ok) { setCreateAssetError(json.error ?? "Failed to create asset"); return; }
-      const created: Asset = { id: json.id, account_id: accountId || null, ...newAsset, rpm: null, is_loaner: false, loaner_status: null };
+      const created: Asset = { id: json.id, account_id: accountId || null, ...newAsset, rpm: null, is_loaner: false, loaner_status: null, custom_data: null };
       setLocalAssets((p) => [...p, created]);
       setSelectedAssetIds((p) => [...p, json.id]);
       setCreateAssetOpen(false);
@@ -303,7 +304,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     if (draft.quoteName)    setQuoteName(draft.quoteName);
     if (draft.quoteDate)    setQuoteDate(draft.quoteDate);
     if (draft.validUntil)   setValidUntil(draft.validUntil);
-    if (draft.prNo)         setPrNo(draft.prNo);
+    if (draft.refNo)        setRefNo(draft.refNo);
     if (draft.prNo)         setPrNo(draft.prNo);
     if (draft.poNumber)     setPoNumber(draft.poNumber);
     if (draft.poAmount)     setPoAmount(draft.poAmount);
@@ -334,13 +335,13 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   useEffect(() => {
     saveDraft({
       accountId, contactId, quoteName, quoteDate, validUntil,
-      prNo, poNumber, poAmount, owner, notes, terms,
+      refNo, prNo, poNumber, poAmount, owner, notes, terms,
       discountType, discountPct, discountFixed,
       entityId, sows,
       rows, selectedAssetIds, selectedAltId,
     });
   }, [accountId, contactId, quoteName, quoteDate, validUntil,
-      prNo, poNumber, poAmount, owner, notes, terms,
+      refNo, prNo, poNumber, poAmount, owner, notes, terms,
       discountType, discountPct, discountFixed,
       entityId, sows,
       rows, selectedAssetIds, selectedAltId]);
@@ -507,6 +508,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           entity_id:       entityId || null,
           name:            quoteName || null,
           contact_id:      contactId || null,
+          ref_no:          refNo || null,
           pr_no:           prNo || null,
           po_number:       poNumber || null,
           po_amount:       poAmount || null,
@@ -559,16 +561,16 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   // ── Column template helpers ───────────────────────────────────────────────
   // Standalone line: checkbox | sl_no | description | uom | category | qty | [rate | disc | deduction | amount] | delete
   const standaloneCols = isTechnical
-    ? "20px 52px 1fr 72px 70px 60px 32px"
-    : "20px 52px 1fr 72px 70px 60px 100px 68px 74px 100px 32px";
+    ? "20px 52px 1fr 58px 56px 50px 32px"
+    : "20px 52px 1fr 58px 56px 50px 100px 54px 60px 100px 32px";
   const standaloneHeaders = isTechnical
     ? ["", "Sl No", "Description", "UOM", "Category", "Qty", ""]
     : ["", "Sl No", "Description", "UOM", "Category", "Qty", "Rate (₹)", "Disc %", "Deduction (₹)", "Amount", ""];
 
   // Group item line: sl_no | description | uom | category | qty | [rate | disc | deduction | amount] | delete
   const groupItemCols = isTechnical
-    ? "52px 1fr 72px 70px 60px 32px"
-    : "52px 1fr 72px 70px 60px 100px 68px 74px 100px 32px";
+    ? "52px 1fr 58px 56px 50px 32px"
+    : "52px 1fr 58px 56px 50px 100px 54px 60px 100px 32px";
   const groupItemHeaders = isTechnical
     ? ["Sl No", "Description", "UOM", "Category", "Qty", ""]
     : ["Sl No", "Description", "UOM", "Category", "Qty", "Rate (₹)", "Disc %", "Deduction (₹)", "Amount", ""];
@@ -656,7 +658,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               </div>
               <div className="fg3">
                 <div>
-                  <span style={lbl}>Reference</span>
+                  <span style={lbl}>Quote ID</span>
                   <input style={{ ...inp, color: c.muted, background: c.panel2 }} value="" readOnly placeholder="Assigned on save" />
                 </div>
                 <div>
@@ -668,7 +670,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   <input style={inp} type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
                 </div>
               </div>
-              <div className="fg2">
+              <div className="fg3">
+                <div>
+                  <span style={lbl}>Ref no.</span>
+                  <input style={inp} value={refNo} onChange={(e) => setRefNo(e.target.value)} placeholder="Your own reference" />
+                </div>
                 <div>
                   <span style={lbl}>Customer PR no.</span>
                   <input style={inp} value={prNo} onChange={(e) => setPrNo(e.target.value)} placeholder="PR-2026-XXXX" />

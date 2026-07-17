@@ -53,11 +53,22 @@ const ALL_ASSET_FIELDS: { value: string; label: string; example: string }[] = [
   { value: "notes",  label: "Remarks",          example: "Stator rewound 2023" },
 ];
 
-export default function StatusesClient({ initial, initialAssetFields }: { initial: QuoteStatusDef[] | null; initialAssetFields: string[] }) {
+export default function StatusesClient({ initial, initialAssetFields, assetCustomFields = [] }: {
+  initial: QuoteStatusDef[] | null;
+  initialAssetFields: string[];
+  /** Tenant-defined custom fields for object_type "asset" (Settings -> Custom Fields), merged
+   *  into the picker alongside the fixed base Asset columns. */
+  assetCustomFields?: { value: string; label: string }[];
+}) {
   const [statuses, setStatuses] = useState<QuoteStatusDef[]>(initial ?? DEFAULT_QUOTE_STATUSES);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, flash] = useSavedFlash();
+
+  const allAssetFields = [
+    ...ALL_ASSET_FIELDS,
+    ...assetCustomFields.map((f) => ({ value: f.value, label: f.label, example: "" })),
+  ];
 
   const [assetFields, setAssetFields] = useState<string[]>(initialAssetFields);
   const [savingFields, setSavingFields] = useState(false);
@@ -244,7 +255,7 @@ export default function StatusesClient({ initial, initialAssetFields }: { initia
           The section is hidden when no fields are selected.
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px" }}>
-          {ALL_ASSET_FIELDS.map((f) => (
+          {allAssetFields.map((f) => (
             <label key={f.value} style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: "8px 10px", borderRadius: 8, border: `1px solid ${assetFields.includes(f.value) ? c.accent : c.line}`, background: assetFields.includes(f.value) ? `${c.accent}0d` : c.panel }}>
               <input
                 type="checkbox"
@@ -254,7 +265,7 @@ export default function StatusesClient({ initial, initialAssetFields }: { initia
               />
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{f.label}</div>
-                <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>e.g. {f.example}</div>
+                {f.example && <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>e.g. {f.example}</div>}
               </div>
             </label>
           ))}

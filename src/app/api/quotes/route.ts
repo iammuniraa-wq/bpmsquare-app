@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const {
     account_id, type, total, valid_until, notes, terms, scope_of_work,
     entity_id, lines, selected_option_id, meta,
-    name, contact_id, pr_no, po_number, po_amount,
+    name, contact_id, pr_no, po_number, po_amount, ref_no,
     discount_type, discount_pct, discount_fixed, asset_ids,
     case_id, custom_data,
   } = body;
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     pr_no: pr_no || null,
     po_number: po_number || null,
     po_amount: po_amount ? parseFloat(po_amount) : null,
+    ref_no: ref_no || null,
     discount_type: discount_type ?? "pct",
     discount_pct: parseFloat(discount_pct) || 0,
     discount_fixed: parseFloat(discount_fixed) || 0,
