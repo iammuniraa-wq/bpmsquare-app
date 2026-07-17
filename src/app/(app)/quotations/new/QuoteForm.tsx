@@ -64,7 +64,10 @@ type LineItem = {
   qty: string; rate: string; discount: string;
   category: PricingCategory | ""; deduction: string;
   group_id?: string | null; group_label?: string | null;
+  inventory_item_id?: string | null;
 };
+
+type InventoryOption = { id: string; sku: string | null; name: string; uom: string; unit_cost: number | null; qty_on_hand: number };
 type GroupRow = {
   kind: "group"; id: string; label: string; group_description: string;
   items: LineItem[]; group_type: "additive" | "alternative";
@@ -105,6 +108,7 @@ type Props = {
   contacts: Contact[];
   assets: Asset[];
   pricingItems: PricingItem[];
+  inventoryItems?: InventoryOption[];
   textFragments: TextFragment[];
   offerType: import("@/lib/types").QuoteOfferType;
   tenantEntities: TenantEntity[];
@@ -112,7 +116,7 @@ type Props = {
   isAdmin?: boolean;
 };
 
-export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, textFragments, offerType, tenantEntities, isAdmin }: Props) {
+export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], textFragments, offerType, tenantEntities, isAdmin }: Props) {
   const isTechnical = offerType === "technical";
   const today        = new Date().toISOString().slice(0, 10);
   const defaultValid = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
@@ -238,7 +242,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   // UI panels
   const [catalogOpen, setCatalogOpen]     = useState(false);
   const [catalogTarget, setCatalogTarget] = useState<string | null>(null);
-  const [catalogCat, setCatalogCat]       = useState<PricingCategory | "">("");
+  const [catalogCat, setCatalogCat]       = useState<PricingCategory | "" | "inventory">("");
   const [fragTarget, setFragTarget]       = useState<"notes" | "terms" | null>(null);
   const [savedId, setSavedId]             = useState<string | null>(null);
   const [saveError, setSaveError]         = useState("");
@@ -470,7 +474,24 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     if (catalogTarget) { updateLine(catalogTarget, "description", item.description); updateLine(catalogTarget, "rate", String(item.rate)); }
     setCatalogOpen(false); setCatalogTarget(null);
   };
-  const filteredCatalog = catalogCat ? pricingItems.filter((p) => p.category === catalogCat) : pricingItems;
+  const filteredCatalog = catalogCat && catalogCat !== "inventory" ? pricingItems.filter((p) => p.category === catalogCat) : pricingItems;
+  const insertInventoryItem = (item: InventoryOption) => {
+    const target = catalogTarget;
+    if (target) {
+      setRows((p) => p.map((r) => {
+        if (r.kind === "line" && r.id === target) {
+          return { ...r, description: item.sku ? `${item.name} (${item.sku})` : item.name, uom: item.uom, rate: item.unit_cost != null ? String(item.unit_cost) : r.rate, inventory_item_id: item.id };
+        }
+        if (r.kind === "group") {
+          return { ...r, items: r.items.map((i) => i.id === target
+            ? { ...i, description: item.sku ? `${item.name} (${item.sku})` : item.name, uom: item.uom, rate: item.unit_cost != null ? String(item.unit_cost) : i.rate, inventory_item_id: item.id }
+            : i) };
+        }
+        return r;
+      }));
+    }
+    setCatalogOpen(false); setCatalogTarget(null);
+  };
 
   // Fragments (notes / terms)
   const insertFragment = (frag: TextFragment) => {
@@ -523,11 +544,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             sl_no: string | null; description: string; uom: string; qty: string; rate: string;
             discount_pct: number; group_id: string | null; group_label: string | null;
             group_type: string | null; group_description: string | null;
-            category: PricingCategory | null; deduction: number;
+            category: PricingCategory | null; deduction: number; inventory_item_id: string | null;
           }[] =>
             r.kind === "line"
-              ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null, category: r.category || null, deduction: r.category === "material" ? Math.max(0, parseFloat(r.deduction) || 0) : 0 }]
-              : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null, category: i.category || null, deduction: i.category === "material" ? Math.max(0, parseFloat(i.deduction) || 0) : 0 }))
+              ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null, category: r.category || null, deduction: r.category === "material" ? Math.max(0, parseFloat(r.deduction) || 0) : 0, inventory_item_id: r.inventory_item_id ?? null }]
+              : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null, category: i.category || null, deduction: i.category === "material" ? Math.max(0, parseFloat(i.deduction) || 0) : 0, inventory_item_id: i.inventory_item_id ?? null }))
           ),
         }),
       });
@@ -1272,19 +1293,36 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 400, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center" }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Pricing catalog</div>
-                <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>Click an item to insert it into the line</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Catalog</div>
+                <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>Click a pricing item or inventory item to insert it into the line</div>
               </div>
               <button onClick={() => setCatalogOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
             <div style={{ display: "flex", gap: 6, padding: "12px 16px", borderBottom: `1px solid ${c.line}`, flexWrap: "wrap" }}>
-              {(["", "labour", "material", "testing", "transport"] as const).map((cat) => (
-                <button key={cat} onClick={() => setCatalogCat(cat as PricingCategory | "")} style={{ fontSize: 11.5, padding: "4px 10px", borderRadius: 20, border: "none", cursor: "pointer", fontWeight: 600, background: catalogCat === cat ? c.accent : c.panel2, color: catalogCat === cat ? "#fff" : c.muted }}>
-                  {cat === "" ? "All" : CAT_LABEL[cat as PricingCategory]}
+              {(["", "labour", "material", "testing", "transport", ...(inventoryItems.length > 0 ? ["inventory" as const] : [])] as const).map((cat) => (
+                <button key={cat} onClick={() => setCatalogCat(cat)} style={{ fontSize: 11.5, padding: "4px 10px", borderRadius: 20, border: "none", cursor: "pointer", fontWeight: 600, background: catalogCat === cat ? c.accent : c.panel2, color: catalogCat === cat ? "#fff" : c.muted }}>
+                  {cat === "" ? "All" : cat === "inventory" ? "Inventory" : CAT_LABEL[cat as PricingCategory]}
                 </button>
               ))}
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+              {catalogCat === "inventory" && (
+                <div>
+                  <div style={{ padding: "8px 20px 4px", fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.08em" }}>Inventory</div>
+                  {inventoryItems.length === 0 ? (
+                    <div style={{ padding: "10px 20px", fontSize: 12, color: c.hint }}>No inventory items yet.</div>
+                  ) : inventoryItems.map((item) => (
+                    <button key={item.id} onClick={() => insertInventoryItem(item)} style={{ width: "100%", textAlign: "left", padding: "10px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: `1px solid ${c.line}` }} onMouseEnter={(e) => (e.currentTarget.style.background = c.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
+                      <div style={{ fontSize: 12.5, color: c.ink, fontWeight: 500, lineHeight: 1.4 }}>{item.name}{item.sku ? ` (${item.sku})` : ""}</div>
+                      <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>{item.unit_cost != null ? `₹${item.unit_cost.toLocaleString("en-IN")}` : "—"}</span>
+                        <span style={{ fontSize: 11, color: c.hint }}>/ {item.uom}</span>
+                        <span style={{ fontSize: 11, color: c.hint }}>· {item.qty_on_hand} on hand</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
               {(["labour", "material", "testing", "transport"] as PricingCategory[]).filter((cat) => !catalogCat || catalogCat === cat).map((cat) => {
                 const items = filteredCatalog.filter((p) => p.category === cat);
                 if (items.length === 0) return null;

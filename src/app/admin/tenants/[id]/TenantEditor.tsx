@@ -17,6 +17,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "dispatch",     label: "Dispatch" },
   { key: "invoices",     label: "Invoices" },
   { key: "partners",     label: "Partners" },
+  { key: "purchasing",   label: "Inventory & Purchasing" },
   { key: "ai_assistant", label: "AI Assistant", premium: true },
   { key: "db_export",    label: "DB Export",    premium: true },
 ];
@@ -39,6 +40,7 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [status, setStatus]           = useState(tenant.status);
   const [plan, setPlan]               = useState(tenant.plan);
   const [features, setFeatures]       = useState<TenantFeatures>({ ...tenant.features });
+  const [apiKey, setApiKey]           = useState(tenant.api_key ?? "");
   const [saved, setSaved]             = useState(false);
   const [error, setError]             = useState("");
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -107,7 +109,7 @@ export default function TenantEditor({ tenant, users }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name, slug, accent_color: accentColor, logo_url: logoUrl || null, status, plan, features,
-          custom_domain: customDomain || null,
+          custom_domain: customDomain || null, api_key: apiKey || null,
         }),
       });
       if (res.ok) {
@@ -224,6 +226,36 @@ export default function TenantEditor({ tenant, users }: Props) {
             </label>
           ))}
         </div>
+      </section>
+
+      {/* External API key */}
+      <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
+        <h2 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600, color: "#374151" }}>External API key</h2>
+        <p style={{ margin: "0 0 14px", fontSize: 12, color: "#6b7280" }}>
+          Bearer token for this tenant's read-only <code>/api/v1</code> routes (inventory, purchase orders) — used by MCP tools and external integrations.
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            style={{ ...inputStyle, flex: 1, fontFamily: "monospace", fontSize: 12.5 }}
+            value={apiKey}
+            placeholder="No key generated yet"
+            readOnly
+          />
+          <button
+            type="button"
+            onClick={() => { setApiKey(crypto.randomUUID().replace(/-/g, "")); setSaved(false); }}
+            style={{
+              height: 38, padding: "0 16px", whiteSpace: "nowrap",
+              background: "#f1f5f9", color: "#374151",
+              border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer",
+            }}
+          >
+            Generate new key
+          </button>
+        </div>
+        <p style={{ margin: "8px 0 0", fontSize: 11, color: "#9ca3af" }}>
+          Generating a new key replaces the old one once saved — update any integration using the previous key.
+        </p>
       </section>
 
       {/* Users */}

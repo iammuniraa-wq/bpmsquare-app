@@ -19,7 +19,7 @@ interface CustomField {
 }
 
 interface Props {
-  objectType: "account" | "contact" | "case" | "quote" | "work_order" | "asset";
+  objectType: "account" | "contact" | "case" | "quote" | "work_order" | "asset" | "supplier" | "inventory" | "purchase_order";
   recordId: string;
   /** The current custom_data JSONB value from the parent record */
   customData?: Record<string, unknown> | null;

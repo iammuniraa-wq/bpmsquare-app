@@ -6,6 +6,7 @@ import type {
   Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder,
   Contract, Activity, QuoteLine, QuoteRevision, Technician, TechnicianLeave,
   VisitLog, PricingItem, TextFragment, CaseStatus, CasePhoto, InspectionReport,
+  Supplier, InventoryItem, PurchaseOrder, PurchaseOrderLine,
 } from "@/lib/types";
 
 /**
@@ -412,6 +413,121 @@ export async function getAssetLive(id: string) {
     asset: asset as Asset,
     account,
     cases: (cases ?? []) as Pick<ServiceCase, "id" | "ref" | "status" | "type" | "complaint" | "equipment_label" | "intake_at" | "closed_at">[],
+  };
+}
+
+// ── Inventory ─────────────────────────────────────────────────────────────────
+
+export type InventoryItemRow = { item: InventoryItem; supplier: Supplier | null };
+
+export async function listInventoryLive(): Promise<InventoryItemRow[]> {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const supabase = createAdminSupabase();
+  const { data: items } = await supabase
+    .from("inventory_items")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .order("name");
+
+  const allItems = (items ?? []) as InventoryItem[];
+  const supplierIds = [...new Set(allItems.map((i) => i.supplier_id).filter(Boolean) as string[])];
+  const { data: suppliers } = supplierIds.length
+    ? await supabase.from("suppliers").select("*").in("id", supplierIds)
+    : { data: [] };
+  const supplierById = new Map((suppliers ?? []).map((s) => [s.id, s as Supplier]));
+
+  return allItems.map((item) => ({
+    item,
+    supplier: item.supplier_id ? (supplierById.get(item.supplier_id) ?? null) : null,
+  }));
+}
+
+export async function getInventoryLive(id: string) {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
+  const { data: item } = await supabase
+    .from("inventory_items")
+    .select("*")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!item) return null;
+
+  const [{ data: supplier }, { data: transactions }] = await Promise.all([
+    (item as InventoryItem).supplier_id
+      ? supabase.from("suppliers").select("*").eq("id", (item as InventoryItem).supplier_id!).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("inventory_transactions")
+      .select("*")
+      .eq("inventory_item_id", id)
+      .order("created_at", { ascending: false })
+      .limit(50),
+  ]);
+
+  return {
+    item: item as InventoryItem,
+    supplier: supplier as Supplier | null,
+    transactions: transactions ?? [],
+  };
+}
+
+// ── Purchase Orders ──────────────────────────────────────────────────────────
+
+export type PurchaseOrderRow = { po: PurchaseOrder; supplier: Supplier | null };
+
+export async function listPurchaseOrdersLive(): Promise<PurchaseOrderRow[]> {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const supabase = createAdminSupabase();
+  const { data: pos } = await supabase
+    .from("purchase_orders")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false });
+
+  const allPos = (pos ?? []) as PurchaseOrder[];
+  const supplierIds = [...new Set(allPos.map((p) => p.supplier_id).filter(Boolean))];
+  const { data: suppliers } = supplierIds.length
+    ? await supabase.from("suppliers").select("*").in("id", supplierIds)
+    : { data: [] };
+  const supplierById = new Map((suppliers ?? []).map((s) => [s.id, s as Supplier]));
+
+  return allPos.map((po) => ({ po, supplier: supplierById.get(po.supplier_id) ?? null }));
+}
+
+export async function getPurchaseOrderLive(id: string) {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
+  const { data: po } = await supabase
+    .from("purchase_orders")
+    .select("*")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!po) return null;
+
+  const typedPo = po as PurchaseOrder;
+  const [{ data: lines }, { data: supplier }, { data: quote }, { data: serviceCase }] = await Promise.all([
+    supabase.from("purchase_order_lines").select("*").eq("po_id", id).order("sl_no"),
+    supabase.from("suppliers").select("*").eq("id", typedPo.supplier_id).maybeSingle(),
+    typedPo.quote_id
+      ? supabase.from("quotes").select("id, ref, account_id").eq("id", typedPo.quote_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    typedPo.case_id
+      ? supabase.from("service_cases").select("id, ref, account_id").eq("id", typedPo.case_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  return {
+    po: typedPo,
+    lines: (lines ?? []) as PurchaseOrderLine[],
+    supplier: supplier as Supplier | null,
+    quote: quote as Pick<Quote, "id" | "ref" | "account_id"> | null,
+    serviceCase: serviceCase as Pick<ServiceCase, "id" | "ref" | "account_id"> | null,
   };
 }
 
@@ -913,7 +1029,7 @@ export async function getQuoteFormDataLive() {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
-      accounts: [], contacts: [], assets: [], pricingItems: [], textFragments: [],
+      accounts: [], contacts: [], assets: [], pricingItems: [], inventoryItems: [], textFragments: [],
       tenantEntities: [] as import("@/lib/constants").TenantEntity[],
       tenantTax: { label: "GST", rate: 18, inclusive: false },
     };
@@ -925,6 +1041,7 @@ export async function getQuoteFormDataLive() {
     { data: contacts },
     { data: assets },
     { data: pricingItems },
+    { data: inventoryItems },
     { data: textFragments },
     { data: tenantRow },
   ] = await Promise.all([
@@ -932,6 +1049,7 @@ export async function getQuoteFormDataLive() {
     admin.from("contacts").select("*").eq("tenant_id", tenantId).order("name"),
     admin.from("assets").select("*").eq("tenant_id", tenantId).not("account_id", "is", null).order("name"),
     admin.from("pricing_items").select("*").eq("tenant_id", tenantId).order("category").order("description"),
+    admin.from("inventory_items").select("id, sku, name, uom, unit_cost, qty_on_hand").eq("tenant_id", tenantId).eq("status", "active").order("name"),
     admin.from("text_fragments").select("*").eq("tenant_id", tenantId).order("category").order("label"),
     admin.from("tenants").select("config").eq("id", tenantId).single(),
   ]);
@@ -944,6 +1062,7 @@ export async function getQuoteFormDataLive() {
     contacts:      ((contacts  ?? []) as Contact[]).map(decryptContact),
     assets:        (assets        ?? []) as Asset[],
     pricingItems:  (pricingItems  ?? []) as PricingItem[],
+    inventoryItems: inventoryItems ?? [],
     textFragments: (textFragments ?? []) as TextFragment[],
     tenantEntities: (config.entities ?? []) as import("@/lib/constants").TenantEntity[],
     tenantTax:      config.tax ?? { label: "GST", rate: 18, inclusive: false },

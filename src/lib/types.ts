@@ -165,6 +165,7 @@ export type QuoteLine = {
   group_description?: string | null;
   category?: PricingCategory | null;
   deduction?: number;
+  inventory_item_id?: string | null;
 };
 
 export type WorkOrderStatus =
@@ -378,5 +379,80 @@ export type Supplier = {
   gstin: string | null;
   notes: string | null;
   status: SupplierStatus;
+  custom_data: Record<string, unknown> | null;
   created_at: string;
+};
+
+// ── Inventory ─────────────────────────────────────────────────────────────────
+
+export type InventoryItemStatus = "active" | "inactive";
+
+export type InventoryItem = {
+  id: string;
+  tenant_id: string;
+  sku: string | null;
+  name: string;
+  description: string | null;
+  category: string | null;
+  uom: string;
+  supplier_id: string | null;
+  qty_on_hand: number;
+  reorder_level: number | null;
+  unit_cost: number | null;
+  status: InventoryItemStatus;
+  notes: string | null;
+  custom_data: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type InventoryTransactionType = "receipt" | "adjustment";
+
+export type InventoryTransaction = {
+  id: string;
+  tenant_id: string;
+  inventory_item_id: string;
+  type: InventoryTransactionType;
+  qty_delta: number;
+  balance_after: number;
+  reference_type: "purchase_order_line" | "manual" | null;
+  reference_id: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+// ── Purchase Orders ──────────────────────────────────────────────────────────
+
+export type PurchaseOrderStatus = "draft" | "sent" | "partially_received" | "received" | "cancelled";
+
+export type PurchaseOrder = {
+  id: string;
+  tenant_id: string;
+  ref: string;
+  supplier_id: string;
+  quote_id: string | null;
+  case_id: string | null;
+  status: PurchaseOrderStatus;
+  order_date: string | null;
+  expected_date: string | null;
+  notes: string | null;
+  terms: string | null;
+  total: number;
+  custom_data: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type PurchaseOrderLine = {
+  id: string;
+  tenant_id: string;
+  po_id: string;
+  inventory_item_id: string | null;
+  sl_no: number | null;
+  description: string;
+  uom: string | null;
+  qty_ordered: number;
+  qty_received: number;
+  rate: number;
+  amount: number;
 };

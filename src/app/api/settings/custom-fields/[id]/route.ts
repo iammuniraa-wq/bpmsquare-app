@@ -8,6 +8,9 @@ const OBJECT_TABLE: Record<string, string> = {
   quote:      "quotes",
   work_order: "work_orders",
   asset:      "assets",
+  supplier:       "suppliers",
+  inventory:      "inventory_items",
+  purchase_order: "purchase_orders",
 };
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

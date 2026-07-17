@@ -54,6 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             group_description: l.group_description ?? null,
             category,
             deduction,
+            inventory_item_id: l.inventory_item_id ?? null,
           };
         })
     : [];

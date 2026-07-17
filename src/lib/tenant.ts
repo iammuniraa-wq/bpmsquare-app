@@ -48,6 +48,7 @@ export type Tenant = {
   company_info: CompanyInfo;
   config: TenantConfig;
   custom_domain: string | null;
+  api_key: string | null;
 };
 
 /**
@@ -55,7 +56,7 @@ export type Tenant = {
  * React cache() deduplicates within a single render (layout + requireFeature = 1 DB call).
  * Fresh per request — no Vercel Data Cache, so platform admin changes take effect immediately.
  */
-const TENANT_COLUMNS = "id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain";
+const TENANT_COLUMNS = "id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain, api_key";
 
 export const getTenant = cache(async (): Promise<Tenant | null> => {
   const user = await getAuthUser();
@@ -117,7 +118,7 @@ export async function getTenantBrandingByHost(host: string): Promise<Pick<Tenant
 export async function adminListTenants(): Promise<Tenant[]> {
   const { data } = await createAdminSupabase()
     .from("tenants")
-    .select("id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain, created_at")
+    .select("id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain, api_key, created_at")
     .order("created_at", { ascending: false });
   return (data as Tenant[]) ?? [];
 }
@@ -125,7 +126,7 @@ export async function adminListTenants(): Promise<Tenant[]> {
 /** Admin: update tenant features / status / plan. */
 export async function adminUpdateTenant(
   id: string,
-  patch: Partial<Pick<Tenant, "status" | "plan" | "features" | "name" | "logo_url" | "accent_color" | "company_info" | "custom_domain">>
+  patch: Partial<Pick<Tenant, "status" | "plan" | "features" | "name" | "logo_url" | "accent_color" | "company_info" | "custom_domain" | "api_key">>
 ) {
   return createAdminSupabase().from("tenants").update(patch).eq("id", id);
 }

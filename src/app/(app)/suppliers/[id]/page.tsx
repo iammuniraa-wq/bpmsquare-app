@@ -8,6 +8,7 @@ import Pill from "@/components/Pill";
 import PageHeader from "@/components/PageHeader";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
+import CustomFieldsSection from "@/components/CustomFieldsSection";
 import SupplierEditPanel from "./SupplierEditPanel";
 
 const TYPE_LABEL: Record<Supplier["type"], string> = {
@@ -112,6 +113,13 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
               </>
             )}
           </section>
+
+          <CustomFieldsSection
+            objectType="supplier"
+            recordId={supplier.id}
+            customData={supplier.custom_data}
+            patchUrl={`/api/suppliers/${supplier.id}`}
+          />
 
         </div>
 

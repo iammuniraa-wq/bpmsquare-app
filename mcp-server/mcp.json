@@ -64,6 +64,61 @@
           "account_id": { "type": "string", "description": "Filter by account ID" }
         }
       }
+    },
+    {
+      "name": "list_inventory",
+      "description": "List inventory stock items with quantity on hand, reorder level, and preferred supplier. Optionally filter to low-stock items only.",
+      "method": "GET",
+      "path": "/api/v1/inventory",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "low_stock": { "type": "boolean", "description": "If true, only return items at or below their reorder level" }
+        }
+      }
+    },
+    {
+      "name": "get_inventory_item",
+      "description": "Get full detail for one inventory item, including custom fields.",
+      "method": "GET",
+      "path": "/api/v1/inventory/{id}",
+      "inputSchema": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "description": "Inventory item ID" }
+        }
+      }
+    },
+    {
+      "name": "list_purchase_orders",
+      "description": "List purchase orders raised to suppliers, optionally filtered by status or supplier.",
+      "method": "GET",
+      "path": "/api/v1/purchase-orders",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Filter by purchase order status",
+            "enum": ["draft","sent","partially_received","received","cancelled"]
+          },
+          "supplier_id": { "type": "string", "description": "Filter by supplier ID" }
+        }
+      }
+    },
+    {
+      "name": "get_purchase_order",
+      "description": "Get full purchase order detail including line items and receiving progress.",
+      "method": "GET",
+      "path": "/api/v1/purchase-orders/{id}",
+      "inputSchema": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "description": "Purchase order ID" }
+        }
+      }
     }
   ],
   "coming_soon_tools": [

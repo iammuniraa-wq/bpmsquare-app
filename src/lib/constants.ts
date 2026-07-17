@@ -58,6 +58,12 @@ export const ROUTES = {
   suppliers: "/suppliers",
   supplierNew: "/suppliers/new",
   supplier: (id: string) => `/suppliers/${id}`,
+  inventory: "/inventory",
+  inventoryNew: "/inventory/new",
+  inventoryItem: (id: string) => `/inventory/${id}`,
+  purchaseOrders: "/purchase-orders",
+  purchaseOrderNew: "/purchase-orders/new",
+  purchaseOrder: (id: string) => `/purchase-orders/${id}`,
   dataWorkbench: "/data-workbench",
 } as const;
 
@@ -117,6 +123,8 @@ export const NAV: NavGroup[] = [
     items: [
       { label: "Assets",     href: ROUTES.assets,     icon: "⚙", pillar: "green" },
       { label: "Suppliers",  href: ROUTES.suppliers,  icon: "◫", pillar: "green" },
+      { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing" },
+      { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "green", featureKey: "purchasing" },
       { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "green", featureKey: "invoices" },
       { label: "Analytics",  href: ROUTES.reports,    icon: "◫", pillar: "purple" },
     ],
@@ -255,6 +263,7 @@ export type TenantFeatures = {
   partners: boolean;
   ai_assistant: boolean;
   db_export: boolean;
+  purchasing: boolean;
 };
 
 // All metric IDs available in the Analytics page.

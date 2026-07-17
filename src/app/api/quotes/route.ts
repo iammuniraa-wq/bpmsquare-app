@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
           group_description: l.group_description ?? null,
           category:          l.category          ?? null,
           deduction:         l.category === "material" ? Math.max(0, parseFloat(l.deduction) || 0) : 0,
+          inventory_item_id: l.inventory_item_id  ?? null,
         };
       });
     if (lineRows.length > 0) {
