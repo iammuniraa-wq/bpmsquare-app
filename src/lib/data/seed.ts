@@ -291,9 +291,16 @@ export const workOrders: WorkOrder[] = [
   },
 ];
 
+const invoiceDefaults = {
+  tenant_id: "t_demo", contact_id: null, quote_id: null, case_id: null, contract_id: null,
+  entity_id: null, paid_amount: 0, due_date: null,
+  discount_type: "pct" as const, discount_pct: 0, discount_fixed: 0,
+  notes: null, terms: null, custom_data: null, created_by: null, created_at: "2026-06-13",
+};
+
 export const invoices: Invoice[] = [
-  { id: "inv_sahyadri", account_id: "acc_sahyadri", ref: "INV-2026-0211", work_order_id: "wo_sahyadri", status: "sent", total: 0,     issued_at: "2026-06-13" },
-  { id: "inv_krishna",  account_id: "acc_krishna",  ref: "INV-2026-0212", work_order_id: "wo_krishna",  status: "draft", total: 86500, issued_at: null },
+  { ...invoiceDefaults, id: "inv_sahyadri", account_id: "acc_sahyadri", ref: "INV-2026-0211", work_order_id: "wo_sahyadri", status: "sent", total: 0,     issued_at: "2026-06-13" },
+  { ...invoiceDefaults, id: "inv_krishna",  account_id: "acc_krishna",  ref: "INV-2026-0212", work_order_id: "wo_krishna",  status: "draft", total: 86500, issued_at: null },
 ];
 
 export const activities: Activity[] = [

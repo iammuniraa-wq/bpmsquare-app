@@ -190,14 +190,57 @@ export type WorkOrder = {
   notes: string | null;
 };
 
+export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue" | "cancelled";
+
 export type Invoice = {
   id: string;
+  tenant_id: string;
   account_id: string;
+  contact_id: string | null;
   ref: string;
   work_order_id: string | null;
-  status: "draft" | "sent" | "paid" | "overdue";
+  quote_id: string | null;
+  case_id: string | null;
+  contract_id: string | null;
+  entity_id: string | null;
+  status: InvoiceStatus;
   total: number;
+  paid_amount: number;
+  due_date: string | null;
+  discount_type: "pct" | "fixed";
+  discount_pct: number;
+  discount_fixed: number;
+  notes: string | null;
+  terms: string | null;
+  custom_data: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
   issued_at: string | null;
+};
+
+export type InvoiceLine = {
+  id: string;
+  tenant_id: string;
+  invoice_id: string;
+  sl_no: string | null;
+  description: string;
+  uom: string | null;
+  qty: number;
+  rate: number;
+  amount: number;
+};
+
+export type InvoicePayment = {
+  id: string;
+  tenant_id: string;
+  invoice_id: string;
+  amount: number;
+  paid_on: string;
+  method: string | null;
+  reference: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
 };
 
 export type TechnicianStatus = "active" | "on_leave" | "inactive";

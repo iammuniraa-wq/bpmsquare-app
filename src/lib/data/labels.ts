@@ -117,6 +117,8 @@ export type AnalyticsData = {
   workOrdersByStatus: Array<{ status: string; label: string; count: number }>;
   techniciansByStatus: Array<{ status: string; label: string; count: number }>;
   invoicesByStatus: Array<{ status: string; label: string; count: number; value: number }>;
+  invoiceTotals: { invoiced: number; paid: number; outstanding: number };
+  topAccountsByRevenue: Array<{ accountId: string; name: string; value: number }>;
   contractStats: { activeCount: number; totalValue: number };
   recentActivity: Array<{ text: string; at: string; pillar: Activity["pillar"]; accountName: string }>;
 };

@@ -8,7 +8,7 @@ import {
 } from "@/lib/data";
 import { getAccountHubLive } from "@/lib/data/live";
 import { getUserRole } from "@/lib/tenant";
-import type { Activity, Account } from "@/lib/types";
+import type { Activity, Account, InvoiceStatus } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -38,6 +38,12 @@ const WO_TONE: Record<string, PillarKey> = {
 const CONTRACT_TONE: Record<string, PillarKey> = {
   active: "teal", expired: "purple", draft: "blue",
 };
+const INVOICE_TONE: Record<InvoiceStatus, PillarKey> = {
+  draft: "blue", sent: "amber", partial: "purple", paid: "green", overdue: "red", cancelled: "red",
+};
+const INVOICE_LABEL: Record<InvoiceStatus, string> = {
+  draft: "Draft", sent: "Sent", partial: "Partial", paid: "Paid", overdue: "Overdue", cancelled: "Cancelled",
+};
 const ACT_TONE: Record<Activity["pillar"], PillarKey> = {
   marketing: "purple", sales: "blue", service: "teal", field: "amber", finance: "green",
 };
@@ -54,13 +60,14 @@ const fmtINR = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "cases" | "contacts" | "assets" | "quotations" | "activity";
+type Tab = "overview" | "cases" | "contacts" | "assets" | "quotations" | "invoices" | "activity";
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview",   label: "Overview"   },
   { id: "cases",      label: "Cases"      },
   { id: "contacts",   label: "Contacts"   },
   { id: "assets",     label: "Assets"     },
   { id: "quotations", label: "Quotations" },
+  { id: "invoices",   label: "Invoices"   },
   { id: "activity",   label: "Activity"   },
 ];
 
@@ -157,6 +164,7 @@ export default async function AccountHubPage({
   const openCases      = hub.cases.filter((sc) => !["closed", "buyback", "scrapped"].includes(sc.status));
   const closedCases    = hub.cases.filter((sc) =>  ["closed", "buyback", "scrapped"].includes(sc.status));
   const quotationTotal = hub.quotes.reduce((s, q) => s + q.total, 0);
+  const invoiceBalance  = hub.invoices.reduce((s, inv) => s + Math.max(0, inv.total - inv.paid_amount), 0);
 
   const tabHref = (t: Tab) => `${ROUTES.account(id)}?tab=${t}`;
 
@@ -221,6 +229,7 @@ export default async function AccountHubPage({
                        : t.id === "contacts"   ? hub.contacts.length
                        : t.id === "assets"     ? hub.assets.length
                        : t.id === "quotations" ? hub.quotes.length
+                       : t.id === "invoices"   ? hub.invoices.length
                        : undefined;
           return (
             <Link key={t.id} href={tabHref(t.id)} style={{
@@ -618,6 +627,59 @@ export default async function AccountHubPage({
                         : <span style={{ color: c.hint }}>—</span>}
                     </td>
                     <td style={td2}><OpenLink href={ROUTES.quotation(q.id)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* INVOICES TAB                                                        */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+
+      {activeTab === "invoices" && (
+        <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <SectionHead
+              label="Invoices"
+              count={hub.invoices.length}
+              action={<AddLink href={ROUTES.invoiceNew} label="New invoice" />}
+            />
+            {invoiceBalance > 0 && (
+              <div style={{ fontSize: 13, color: c.muted }}>
+                Outstanding: <strong style={{ color: "#a32d2d" }}>{fmtINR(invoiceBalance)}</strong>
+              </div>
+            )}
+          </div>
+          {hub.invoices.length === 0 ? (
+            <EmptyRow label="No invoices yet." href={ROUTES.invoiceNew} linkLabel="Create first invoice" />
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: c.panel2 }}>
+                  <th style={th2}>Ref</th>
+                  <th style={th2}>Status</th>
+                  <th style={th2}>Total</th>
+                  <th style={th2}>Balance due</th>
+                  <th style={th2}>Issued</th>
+                  <th style={th2}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {hub.invoices.map((inv, i) => (
+                  <tr key={inv.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : "#fff" }}>
+                    <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{inv.ref}</span></td>
+                    <td style={td2}><Pill label={INVOICE_LABEL[inv.status]} tone={INVOICE_TONE[inv.status]} /></td>
+                    <td style={td2}><span style={{ fontWeight: 600, color: c.ink }}>{fmtINR(inv.total)}</span></td>
+                    <td style={td2}>
+                      <span style={{ fontWeight: 600, color: inv.total - inv.paid_amount > 0 ? "#a32d2d" : c.hint }}>
+                        {fmtINR(Math.max(0, inv.total - inv.paid_amount))}
+                      </span>
+                    </td>
+                    <td style={{ ...td2, color: c.hint, fontSize: 12 }}>{inv.issued_at ? fmtDate(inv.issued_at) : "—"}</td>
+                    <td style={td2}><OpenLink href={ROUTES.invoice(inv.id)} /></td>
                   </tr>
                 ))}
               </tbody>

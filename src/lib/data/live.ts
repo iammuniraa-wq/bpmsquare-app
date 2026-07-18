@@ -6,7 +6,7 @@ import type {
   Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder,
   Contract, Activity, QuoteLine, QuoteRevision, Technician, TechnicianLeave,
   VisitLog, PricingItem, TextFragment, CaseStatus, CasePhoto, InspectionReport,
-  Supplier, InventoryItem, PurchaseOrder, PurchaseOrderLine,
+  Supplier, InventoryItem, PurchaseOrder, PurchaseOrderLine, InvoiceLine, InvoicePayment,
 } from "@/lib/types";
 
 /**
@@ -247,7 +247,7 @@ export async function getAccountHubLive(id: string) {
       .from("work_orders")
       .select("*, assets(name, kind, rating, serial), technicians(name)")
       .eq("account_id", id),
-    supabase.from("invoices").select("*").eq("account_id", id),
+    supabase.from("invoices").select("*").eq("account_id", id).eq("tenant_id", tenantId),
     account.referred_by_account_id
       ? supabase.from("accounts").select("id, name").eq("id", account.referred_by_account_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -592,11 +592,13 @@ export async function getQuoteLive(id: string) {
     { data: lines },
     { data: revisions },
     { data: workOrders },
+    { data: existingInvoiceRow },
   ] = await Promise.all([
     supabase.from("quotes").select("*, accounts(*)").eq("id", id).eq("tenant_id", tenantId).maybeSingle(),
     supabase.from("quote_lines").select("*").eq("quote_id", id).order("sl_no"),
     supabase.from("quote_revisions").select("*").eq("quote_id", id).order("rev"),
     supabase.from("work_orders").select("*").eq("auth_kind", "quote").eq("auth_id", id),
+    supabase.from("invoices").select("id, ref").eq("quote_id", id).eq("tenant_id", tenantId).maybeSingle(),
   ]);
 
   // Bail before returning anything derived from the sibling queries above --
@@ -641,6 +643,65 @@ export async function getQuoteLive(id: string) {
     revisions: (revisions ?? []) as QuoteRevision[],
     workOrders: mappedWOs,
     assets,
+    existingInvoice: existingInvoiceRow as { id: string; ref: string } | null,
+  };
+}
+
+// ── Invoices ──────────────────────────────────────────────────────────────────
+
+export async function getInvoiceLive(id: string) {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
+
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!invoice) return null;
+
+  const [
+    { data: lines },
+    { data: payments },
+    { data: accountRow },
+    { data: contactRow },
+    { data: quoteRow },
+    { data: workOrderRow },
+    { data: caseRow },
+    { data: contractRow },
+  ] = await Promise.all([
+    supabase.from("invoice_lines").select("*").eq("invoice_id", id).order("sl_no"),
+    supabase.from("invoice_payments").select("*").eq("invoice_id", id).order("paid_on", { ascending: false }),
+    supabase.from("accounts").select("*").eq("id", invoice.account_id).maybeSingle(),
+    invoice.contact_id
+      ? supabase.from("contacts").select("*").eq("id", invoice.contact_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    invoice.quote_id
+      ? supabase.from("quotes").select("id, ref").eq("id", invoice.quote_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    invoice.work_order_id
+      ? supabase.from("work_orders").select("id, ref").eq("id", invoice.work_order_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    invoice.case_id
+      ? supabase.from("service_cases").select("id, ref").eq("id", invoice.case_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    invoice.contract_id
+      ? supabase.from("contracts").select("id, ref").eq("id", invoice.contract_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  return {
+    invoice: invoice as Invoice,
+    lines: (lines ?? []) as InvoiceLine[],
+    payments: (payments ?? []) as InvoicePayment[],
+    account: accountRow ? decryptAccount(accountRow as Account) : null,
+    contact: contactRow ? decryptContact(contactRow as Contact) : null,
+    quote: quoteRow as Pick<Quote, "id" | "ref"> | null,
+    workOrder: workOrderRow as Pick<WorkOrder, "id" | "ref"> | null,
+    serviceCase: caseRow as Pick<ServiceCase, "id" | "ref"> | null,
+    contract: contractRow as Pick<Contract, "id" | "ref"> | null,
   };
 }
 
@@ -1081,10 +1142,11 @@ export async function getDashboardSummaryLive() {
   if (!tenantId) {
     return {
       kpis: { openCases: 0, inRepair: 0, awaitingApproval: 0, activeContracts: 0, openQuoteValue: 0, activeWorkOrders: 0 },
-      attention: [], readyCases: [], workOrderRows: [], recentActivity: [],
+      attention: [], readyCases: [], workOrderRows: [], recentActivity: [], overdueInvoices: [],
     };
   }
   const supabase = createAdminSupabase();
+  const today = new Date().toISOString().slice(0, 10);
 
   const [
     { data: cases },
@@ -1092,12 +1154,14 @@ export async function getDashboardSummaryLive() {
     { data: quotes },
     { data: workOrders },
     { data: activities },
+    { data: overdueInvoiceRows },
   ] = await Promise.all([
     supabase.from("service_cases").select("id, status, account_id, ref, intake_at, equipment_label").eq("tenant_id", tenantId).order("intake_at", { ascending: true }),
     supabase.from("contracts").select("id, status").eq("tenant_id", tenantId),
     supabase.from("quotes").select("id, status, total").eq("tenant_id", tenantId),
     supabase.from("work_orders").select("*, accounts(name), technicians(name)").eq("tenant_id", tenantId).in("status", ["in_progress", "scheduled"]).order("scheduled_for"),
     supabase.from("activities").select("*, accounts(name)").eq("tenant_id", tenantId).order("at", { ascending: false }).limit(5),
+    supabase.from("invoices").select("id, ref, due_date, total, paid_amount, accounts(name)").eq("tenant_id", tenantId).in("status", ["sent", "partial", "overdue"]).not("due_date", "is", null).lt("due_date", today),
   ]);
 
   const allCases = (cases ?? []) as ServiceCase[];
@@ -1144,7 +1208,17 @@ export async function getDashboardSummaryLive() {
     account: (Array.isArray(act.accounts) ? act.accounts[0] : act.accounts) as Account | null,
   }));
 
-  return { kpis, attention, readyCases, workOrderRows, recentActivity };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const overdueInvoices = (overdueInvoiceRows ?? []).map((inv: any) => ({
+    id: inv.id as string,
+    ref: inv.ref as string,
+    due_date: inv.due_date as string,
+    total: inv.total as number,
+    paid_amount: inv.paid_amount as number,
+    accountName: (Array.isArray(inv.accounts) ? inv.accounts[0]?.name : inv.accounts?.name) ?? "—",
+  }));
+
+  return { kpis, attention, readyCases, workOrderRows, recentActivity, overdueInvoices };
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
@@ -1164,6 +1238,8 @@ export type AnalyticsData = {
   workOrdersByStatus: Array<{ status: string; label: string; count: number }>;
   techniciansByStatus: Array<{ status: string; label: string; count: number }>;
   invoicesByStatus: Array<{ status: string; label: string; count: number; value: number }>;
+  invoiceTotals: { invoiced: number; paid: number; outstanding: number };
+  topAccountsByRevenue: Array<{ accountId: string; name: string; value: number }>;
   contractStats: { activeCount: number; totalValue: number };
   recentActivity: Array<{ text: string; at: string; pillar: Activity["pillar"]; accountName: string }>;
 };
@@ -1183,6 +1259,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
       techniciansByStatus: [], invoicesByStatus: [],
+      invoiceTotals: { invoiced: 0, paid: 0, outstanding: 0 },
+      topAccountsByRevenue: [],
       contractStats: { activeCount: 0, totalValue: 0 },
       recentActivity: [],
     };
@@ -1204,7 +1282,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     supabase.from("leads").select("id, status").eq("tenant_id", tenantId),
     supabase.from("technicians").select("id, status").eq("tenant_id", tenantId),
     supabase.from("quotes").select("id, status, total, created_at").eq("tenant_id", tenantId).order("created_at"),
-    supabase.from("invoices").select("id, status, total").eq("tenant_id", tenantId),
+    supabase.from("invoices").select("id, status, total, paid_amount, account_id, accounts(name)").eq("tenant_id", tenantId),
     supabase.from("activities").select("*, accounts(name)").eq("tenant_id", tenantId).order("at", { ascending: false }).limit(6),
   ]);
 
@@ -1216,7 +1294,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const allLeads       = (leads       ?? []) as Array<{ id: string; status: string }>;
   const allTechnicians = (technicians ?? []) as Array<{ id: string; status: string }>;
   const allQuotes      = (quotes      ?? []) as Array<{ id: string; status: string; total: number; created_at: string }>;
-  const allInvoices    = (invoices    ?? []) as Array<{ id: string; status: string; total: number }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allInvoices    = (invoices    ?? []) as any as Array<{ id: string; status: string; total: number; paid_amount: number; account_id: string; accounts: { name: string } | { name: string }[] | null }>;
 
   const totals = {
     accounts:        allAccounts.length,
@@ -1304,9 +1383,32 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     const s = invStatusCounts.get(inv.status) ?? { count: 0, value: 0 };
     invStatusCounts.set(inv.status, { count: s.count + 1, value: s.value + inv.total });
   });
-  const invoicesByStatus = ["draft","sent","paid"]
-    .map((status) => ({ status, label: status.charAt(0).toUpperCase() + status.slice(1), ...(invStatusCounts.get(status) ?? { count: 0, value: 0 }) }))
+  const INV_STATUS_LABEL: Record<string, string> = {
+    draft: "Draft", sent: "Sent", partial: "Partial", paid: "Paid", overdue: "Overdue", cancelled: "Cancelled",
+  };
+  const invoicesByStatus = ["draft","sent","partial","paid","overdue","cancelled"]
+    .map((status) => ({ status, label: INV_STATUS_LABEL[status] ?? status, ...(invStatusCounts.get(status) ?? { count: 0, value: 0 }) }))
     .filter((x) => x.count > 0);
+
+  // Real invoices only (excludes draft, which isn't billed yet, and cancelled, which never was).
+  const billedInvoices = allInvoices.filter((inv) => inv.status !== "draft" && inv.status !== "cancelled");
+  const invoiceTotals = billedInvoices.reduce(
+    (acc, inv) => ({ invoiced: acc.invoiced + inv.total, paid: acc.paid + (inv.paid_amount ?? 0), outstanding: 0 }),
+    { invoiced: 0, paid: 0, outstanding: 0 }
+  );
+  invoiceTotals.outstanding = Math.max(0, invoiceTotals.invoiced - invoiceTotals.paid);
+
+  const acctRevenue = new Map<string, { name: string; value: number }>();
+  billedInvoices.forEach((inv) => {
+    const acctName = (Array.isArray(inv.accounts) ? inv.accounts[0]?.name : inv.accounts?.name) ?? "—";
+    const cur = acctRevenue.get(inv.account_id) ?? { name: acctName, value: 0 };
+    cur.value += inv.total;
+    acctRevenue.set(inv.account_id, cur);
+  });
+  const topAccountsByRevenue = [...acctRevenue.entries()]
+    .map(([accountId, v]) => ({ accountId, ...v }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
 
   const activeContracts = allContracts.filter((c) => c.status === "active");
   const contractStats = {
@@ -1325,6 +1427,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   return {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
     quotesByStatus, quoteTrend, casesByStatus, workOrdersByStatus,
-    techniciansByStatus, invoicesByStatus, contractStats, recentActivity,
+    techniciansByStatus, invoicesByStatus, invoiceTotals, topAccountsByRevenue,
+    contractStats, recentActivity,
   };
 }

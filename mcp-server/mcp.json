@@ -119,6 +119,36 @@
           "id": { "type": "string", "description": "Purchase order ID" }
         }
       }
+    },
+    {
+      "name": "list_invoices",
+      "description": "List customer invoices with totals, paid amount and status. Optionally filter by status or account.",
+      "method": "GET",
+      "path": "/api/v1/invoices",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Filter by invoice status",
+            "enum": ["draft","sent","partial","paid","overdue","cancelled"]
+          },
+          "account_id": { "type": "string", "description": "Filter by account ID" }
+        }
+      }
+    },
+    {
+      "name": "get_invoice",
+      "description": "Get full invoice detail including line items, balance due and payment history.",
+      "method": "GET",
+      "path": "/api/v1/invoices/{id}",
+      "inputSchema": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "description": "Invoice ID" }
+        }
+      }
     }
   ],
   "coming_soon_tools": [

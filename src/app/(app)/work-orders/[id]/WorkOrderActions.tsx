@@ -29,7 +29,7 @@ export default function WorkOrderActions({ id, status }: { id: string; status: W
     startTransition(async () => {
       const res = await fetch(`/api/work-orders/${id}/invoice`, { method: "POST" });
       const json = await res.json();
-      if (res.ok) router.push(ROUTES.invoices);
+      if (res.ok) router.push(ROUTES.invoice(json.id));
       else setErr(json.error ?? "Could not raise invoice");
     });
   }

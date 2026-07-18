@@ -6,15 +6,15 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
-
-type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
+import type { InvoiceStatus } from "@/lib/types";
 
 const STATUS_TONE: Record<InvoiceStatus, PillarKey> = {
-  draft: "blue", sent: "amber", paid: "green", overdue: "red",
+  draft: "blue", sent: "amber", partial: "purple", paid: "green", overdue: "red", cancelled: "red",
 };
 const STATUS_LABEL: Record<InvoiceStatus, string> = {
-  draft: "Draft", sent: "Sent", paid: "Paid", overdue: "Overdue",
+  draft: "Draft", sent: "Sent", partial: "Partial", paid: "Paid", overdue: "Overdue", cancelled: "Cancelled",
 };
+const SUMMARY_STATUSES: InvoiceStatus[] = ["draft", "sent", "partial", "paid", "overdue"];
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -39,7 +39,7 @@ export default async function InvoicesPage({
   const { status: statusFilter } = await searchParams;
   const invoices = await listInvoices();
 
-  const summary = (["draft", "sent", "paid", "overdue"] as InvoiceStatus[]).map((s) => ({
+  const summary = SUMMARY_STATUSES.map((s) => ({
     status: s,
     count: invoices.filter((i) => i.status === s).length,
     total: invoices.filter((i) => i.status === s).reduce((acc, i) => acc + i.total, 0),
@@ -49,9 +49,24 @@ export default async function InvoicesPage({
 
   return (
     <>
-      <PageHeader title="Invoices" subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as InvoiceStatus] ?? statusFilter}` : ""} of ${invoices.length} total · Finance & billing`} />
+      <PageHeader
+        title="Invoices"
+        subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as InvoiceStatus] ?? statusFilter}` : ""} of ${invoices.length} total · Finance & billing`}
+        action={
+          <Link
+            href={ROUTES.invoiceNew}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: c.accent, color: "#fff", textDecoration: "none",
+            }}
+          >
+            + New Invoice
+          </Link>
+        }
+      />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: statusFilter ? 8 : 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: statusFilter ? 8 : 20 }}>
         {summary.map(({ status, count, total }) => (
           <Link key={status} href={statusFilter === status ? ROUTES.invoices : `${ROUTES.invoices}?status=${status}`} style={{ textDecoration: "none" }}>
             <div style={{ ...cardStyle, textAlign: "center", borderColor: statusFilter === status ? pillar[STATUS_TONE[status]].base : undefined }}>
@@ -73,7 +88,11 @@ export default async function InvoicesPage({
 
       {filtered.length === 0 ? (
         <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>
-          No invoices yet. Raise one from a completed work order.
+          No invoices yet.{" "}
+          <Link href={ROUTES.invoiceNew} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
+            + Create one
+          </Link>
+          , or raise one from a completed work order or an approved quote.
         </div>
       ) : (
         <div style={cardStyle}>
@@ -84,18 +103,21 @@ export default async function InvoicesPage({
                 <th style={th}>Account</th>
                 <th style={th}>Status</th>
                 <th style={th}>Total</th>
+                <th style={th}>Balance due</th>
                 <th style={th}>Issued</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((inv) => (
-                <tr key={inv.id}>
+                <tr key={inv.id} style={{ cursor: "pointer" }}>
                   <td style={td}>
-                    <span style={{ fontFamily: "monospace", fontSize: 12, color: c.accent, fontWeight: 600 }}>
+                    <Link href={ROUTES.invoice(inv.id)} style={{ fontFamily: "monospace", fontSize: 12, color: c.accent, fontWeight: 600, textDecoration: "none" }}>
                       {inv.ref}
-                    </span>
+                    </Link>
                   </td>
-                  <td style={td}>{inv.account_name}</td>
+                  <td style={td}>
+                    <Link href={ROUTES.invoice(inv.id)} style={{ color: "inherit", textDecoration: "none" }}>{inv.account_name}</Link>
+                  </td>
                   <td style={td}>
                     <Pill
                       label={STATUS_LABEL[inv.status as InvoiceStatus] ?? inv.status}
@@ -103,6 +125,9 @@ export default async function InvoicesPage({
                     />
                   </td>
                   <td style={{ ...td, fontWeight: 700 }}>{inr(inv.total)}</td>
+                  <td style={{ ...td, color: inv.total - inv.paid_amount > 0 ? "#a32d2d" : c.muted, fontWeight: inv.total - inv.paid_amount > 0 ? 600 : 400 }}>
+                    {inr(Math.max(0, inv.total - inv.paid_amount))}
+                  </td>
                   <td style={{ ...td, color: c.muted }}>{inv.issued_at ? fmtDate(inv.issued_at) : "—"}</td>
                 </tr>
               ))}

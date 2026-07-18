@@ -3,7 +3,7 @@ import { getTenant, getUserRole } from "@/lib/tenant";
 import DashboardLayout from "@/components/DashboardLayout";
 
 export default async function DashboardPage() {
-  const [{ kpis, attention, readyCases, workOrderRows, recentActivity }, analytics, tenant, role] =
+  const [{ kpis, attention, readyCases, workOrderRows, recentActivity, overdueInvoices }, analytics, tenant, role] =
     await Promise.all([getDashboardSummary(), getAnalyticsData(), getTenant(), getUserRole()]);
 
   return (
@@ -13,6 +13,7 @@ export default async function DashboardPage() {
       readyCases={readyCases}
       workOrderRows={workOrderRows}
       recentActivity={recentActivity}
+      overdueInvoices={overdueInvoices}
       analytics={analytics}
       features={tenant?.features ?? ({} as never)}
       dashLayout={tenant?.config?.dashboard_layout ?? []}

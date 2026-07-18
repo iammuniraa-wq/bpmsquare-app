@@ -8,7 +8,7 @@ import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
-import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Wrench } from "@/components/Icons";
+import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear } from "@/components/Icons";
 import type { AnalyticsData } from "@/lib/data/labels";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -20,6 +20,7 @@ type Kpis = {
 type AttentionRow  = { serviceCase: ServiceCase; account: Account | null };
 type WorkOrderRow  = { workOrder: WorkOrder; account: Account | null; tech: { name: string } | null };
 type ActivityRow   = { activity: ActivityRec; account: Account | null };
+type OverdueInvoiceRow = { id: string; ref: string; due_date: string; total: number; paid_amount: number; accountName: string };
 
 interface Props {
   kpis: Kpis;
@@ -27,6 +28,7 @@ interface Props {
   readyCases: AttentionRow[];
   workOrderRows: WorkOrderRow[];
   recentActivity: ActivityRow[];
+  overdueInvoices: OverdueInvoiceRow[];
   analytics: AnalyticsData;
   features: TenantFeatures;
   dashLayout: DashLayoutItem[];
@@ -35,14 +37,16 @@ interface Props {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SIDEBAR_IDS = new Set(["quick_create", "pipeline"]);
+const SIDEBAR_IDS = new Set(["quick_create"]);
 
 const NATIVE_META: Record<string, { label: string; sidebar?: boolean }> = {
-  priority_queue:  { label: "Priority queue" },
-  dispatch:        { label: "Active work orders" },
-  recent_activity: { label: "Recent activity" },
+  overview_strip:  { label: "Overview" },
+  revenue_card:    { label: "Revenue" },
+  invoice_budget:  { label: "Invoiced vs paid" },
+  overdue_tasks:   { label: "Overdue tasks" },
+  tech_workload:   { label: "Work orders by technician" },
+  top_accounts:    { label: "Top accounts by revenue" },
   quick_create:    { label: "Quick create", sidebar: true },
-  pipeline:        { label: "Pipeline", sidebar: true },
 };
 
 const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures }> = {
@@ -68,11 +72,13 @@ const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof
 };
 
 const DEFAULT_LAYOUT: DashLayoutItem[] = [
-  { id: "priority_queue" },
-  { id: "dispatch" },
-  { id: "recent_activity" },
+  { id: "overview_strip" },
+  { id: "revenue_card" },
+  { id: "invoice_budget" },
+  { id: "overdue_tasks" },
+  { id: "tech_workload" },
+  { id: "top_accounts" },
   { id: "quick_create" },
-  { id: "pipeline" },
 ];
 
 function resolveLayout(saved: DashLayoutItem[]): DashLayoutItem[] {
@@ -111,24 +117,6 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysSince = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
-
-// ── Priority config ───────────────────────────────────────────────────────────
-
-type PriorityKind = "call" | "ready" | "qa" | "dispatch";
-const PRIORITY_CONFIG: Record<PriorityKind, { label: string; color: string; bg: string; action: string; order: number }> = {
-  call:     { label: "Call customer", color: pillar.amber.base, bg: pillar.amber.bg, action: "Awaiting response",   order: 0 },
-  ready:    { label: "Notify pickup", color: pillar.green.base, bg: pillar.green.bg, action: "Equipment ready",     order: 1 },
-  qa:       { label: "Run QA",        color: pillar.blue.base,  bg: pillar.blue.bg,  action: "Needs quality check", order: 2 },
-  dispatch: { label: "Going out",     color: pillar.teal.base,  bg: pillar.teal.bg,  action: "Work order today",    order: 3 },
-};
-
-const ACT_PILLAR: Record<string, { base: string; bg: string }> = {
-  marketing: { base: "#7f77dd", bg: "#eeedfe" },
-  sales:     { base: "#378ADD", bg: "#e6f1fb" },
-  service:   { base: "#1d9e75", bg: "#e1f5ee" },
-  field:     { base: "#ba7517", bg: "#faeeda" },
-  finance:   { base: "#639922", bg: "#eaf3de" },
-};
 
 // ── Mini analytics chart primitives ──────────────────────────────────────────
 
@@ -191,6 +179,44 @@ function MiniDonut({ slices, size = 64 }: { slices: { label: string; value: numb
   );
 }
 
+function ProgressRing({ pct, color, size = 84, stroke = 9 }: { pct: number; color: string; size?: number; stroke?: number }) {
+  const clamped = Math.max(0, Math.min(100, pct));
+  const r = size / 2 - stroke / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference * (1 - clamped / 100);
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0, transform: "rotate(-90deg)" }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={c.line} strokeWidth={stroke} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+      />
+      <text
+        x={size / 2} y={size / 2} textAnchor="middle" dominantBaseline="central"
+        transform={`rotate(90 ${size / 2} ${size / 2})`}
+        style={{ fontSize: size * 0.24, fontWeight: 800, fill: c.ink }}
+      >
+        {Math.round(clamped)}%
+      </text>
+    </svg>
+  );
+}
+
+function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: number; color: string }[]; height?: number }) {
+  const max = Math.max(...bars.map((b) => b.value), 1);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 18, height }}>
+      {bars.map((b, i) => (
+        <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: c.ink }}>{inr(b.value)}</div>
+          <div style={{ width: "100%", maxWidth: 46, height: Math.max(4, (b.value / max) * (height - 34)), background: b.color, borderRadius: "5px 5px 2px 2px" }} />
+          <div style={{ fontSize: 10, color: c.hint, textAlign: "center" }}>{b.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function StatTile({ value, label, color, href }: { value: number | string; label: string; color: string; href: string }) {
   return (
     <Link href={href} style={{ textDecoration: "none", display: "block", flex: 1, textAlign: "center", padding: "10px 8px" }}>
@@ -246,20 +272,6 @@ function QCBtn({ href, label, icon, bg }: { href: string; label: string; icon: R
   return (
     <Link href={href} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 11px", borderRadius: 8, background: bg, border: `1px solid ${c.line}`, textDecoration: "none", fontSize: 12.5, color: c.ink, fontWeight: 600 }}>
       {icon}{label}
-    </Link>
-  );
-}
-
-function PipelineStat({ label, value, color, href, warn }: { label: string; value: number; color: string; href: string; warn?: boolean }) {
-  return (
-    <Link href={href} style={{ textDecoration: "none", display: "block", marginBottom: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: c.muted }}>{label}</span>
-        </div>
-        <span style={{ fontSize: 13.5, fontWeight: 700, color: warn ? color : c.ink }}>{value}</span>
-      </div>
     </Link>
   );
 }
@@ -438,10 +450,8 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function DashboardLayout({ kpis, attention, readyCases, workOrderRows, recentActivity, analytics, features, dashLayout, isAdmin }: Props) {
+export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin }: Props) {
   const router = useRouter();
-  const today = todayISO();
-  const todaysWorkOrders = workOrderRows.filter((r) => r.workOrder.scheduled_for === today);
   const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout));
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [saving, startSave] = useTransition();
@@ -458,156 +468,203 @@ export default function DashboardLayout({ kpis, attention, readyCases, workOrder
     });
   }
 
-  // Build priority queue
-  type PriorityItem =
-    | { kind: "call" | "ready" | "qa"; caseRow: AttentionRow; days: number }
-    | { kind: "dispatch"; woRow: WorkOrderRow };
-
-  const queue: PriorityItem[] = [
-    ...attention.map((r) => ({ kind: "call" as const, caseRow: r, days: r.serviceCase.intake_at ? daysSince(r.serviceCase.intake_at) : 0 })),
-    ...readyCases.filter((r) => r.serviceCase.status === "ready").map((r) => ({ kind: "ready" as const, caseRow: r, days: r.serviceCase.intake_at ? daysSince(r.serviceCase.intake_at) : 0 })),
-    ...readyCases.filter((r) => r.serviceCase.status === "qa").map((r) => ({ kind: "qa" as const, caseRow: r, days: r.serviceCase.intake_at ? daysSince(r.serviceCase.intake_at) : 0 })),
-    ...todaysWorkOrders.map((r) => ({ kind: "dispatch" as const, woRow: r })),
-  ].sort((a, b) => PRIORITY_CONFIG[a.kind].order - PRIORITY_CONFIG[b.kind].order);
-
-  const totalAction = attention.length + readyCases.filter((r) => r.serviceCase.status === "ready").length;
-
   // Split layout into main (left col) and sidebar (right col)
   const visibleBlocks = layout.filter((b) => !b.hidden);
   const mainBlocks = visibleBlocks.filter((b) => !SIDEBAR_IDS.has(b.id));
   const sidebarBlocks = visibleBlocks.filter((b) => SIDEBAR_IDS.has(b.id));
 
+  // ── Derived data for the new widgets ──────────────────────────────────────
+
+  const CASE_STAGE_TILES: { status: string; label: string; color: string }[] = [
+    { status: "intake",     label: "Intake",     color: pillar.blue.base },
+    { status: "inspection", label: "Inspection", color: pillar.teal.base },
+    { status: "in_repair",  label: "In repair",  color: pillar.amber.base },
+    { status: "ready",      label: "Ready",      color: pillar.green.base },
+  ];
+  const caseStatusCount = (status: string) => analytics.casesByStatus.find((s) => s.status === status)?.count ?? 0;
+  const totalCases = analytics.casesByStatus.reduce((s, x) => s + x.count, 0);
+  const resolvedCases = ["closed", "buyback", "scrapped"].reduce((s, st) => s + caseStatusCount(st), 0);
+  const resolutionRate = totalCases > 0 ? (resolvedCases / totalCases) * 100 : 0;
+
+  const revenueTarget = kpis.openQuoteValue;
+  const revenueValue = analytics.invoiceTotals.invoiced;
+  const revenuePct = revenueTarget > 0 ? Math.round((revenueValue / revenueTarget) * 100) : 0;
+
+  // Overdue items merged across cases, work orders and invoices
+  type OverdueItem = { id: string; task: string; account: string; deadline: string; days: number; href: string };
+  const overdueCases: OverdueItem[] = attention
+    .map((r) => ({ r, days: r.serviceCase.intake_at ? daysSince(r.serviceCase.intake_at) : 0 }))
+    .filter(({ days }) => days >= 3)
+    .map(({ r, days }) => ({
+      id: `case-${r.serviceCase.id}`,
+      task: `${r.serviceCase.ref} awaiting response`,
+      account: r.account?.name ?? "—",
+      deadline: r.serviceCase.intake_at!,
+      days,
+      href: ROUTES.case(r.serviceCase.id),
+    }));
+  const overdueWorkOrders: OverdueItem[] = workOrderRows
+    .filter((r) => r.workOrder.scheduled_for && r.workOrder.scheduled_for < todayISO())
+    .map((r) => ({
+      id: `wo-${r.workOrder.id}`,
+      task: `${r.workOrder.ref} — ${r.tech?.name ?? "unassigned"}`,
+      account: r.account?.name ?? "—",
+      deadline: r.workOrder.scheduled_for!,
+      days: daysSince(r.workOrder.scheduled_for!),
+      href: ROUTES.workOrder(r.workOrder.id),
+    }));
+  const overdueInvoiceItems: OverdueItem[] = overdueInvoices.map((inv) => ({
+    id: `inv-${inv.id}`,
+    task: `${inv.ref} — ${inr(Math.max(0, inv.total - inv.paid_amount))} due`,
+    account: inv.accountName,
+    deadline: inv.due_date,
+    days: daysSince(inv.due_date),
+    href: ROUTES.invoice(inv.id),
+  }));
+  const overdueItems = [...overdueCases, ...overdueWorkOrders, ...overdueInvoiceItems]
+    .sort((a, b) => b.days - a.days)
+    .slice(0, 8);
+
+  // Work orders by technician (from currently active work orders)
+  const techCounts = new Map<string, number>();
+  workOrderRows.forEach((r) => {
+    const name = r.tech?.name ?? "Unassigned";
+    techCounts.set(name, (techCounts.get(name) ?? 0) + 1);
+  });
+  const techWorkload = [...techCounts.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+
   // ── Block renderers ────────────────────────────────────────────────────────
 
-  function renderPriorityQueue() {
+  function renderOverviewStrip() {
     return (
-      <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px 12px", borderBottom: `1px solid ${c.line}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 26, height: 26, borderRadius: 7, background: totalAction > 0 ? pillar.amber.bg : pillar.green.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              {totalAction > 0 ? <AlertTriangle size={13} color={pillar.amber.base} /> : <CheckIcon size={13} color={pillar.green.base} />}
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Priority queue</div>
-              <div style={{ fontSize: 11, color: c.hint }}>{queue.length === 0 ? "Nothing needs action — all clear" : `${queue.length} item${queue.length !== 1 ? "s" : ""} need attention today`}</div>
-            </div>
-          </div>
-          <Link href={ROUTES.cases} style={{ fontSize: 11.5, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All cases →</Link>
+      <section style={{ ...cardStyle, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "4px 14px", borderRight: `1px solid ${c.line}` }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>Case resolution</div>
+          <ProgressRing pct={resolutionRate} color={pillar.blue.base} />
         </div>
-        {queue.length === 0 ? (
-          <div style={{ padding: "32px 20px", textAlign: "center" }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: pillar.green.bg, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
-              <CheckIcon size={18} color={pillar.green.base} />
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>All clear</div>
-            <div style={{ fontSize: 12, color: c.hint, marginTop: 3 }}>No cases awaiting action, no work orders today</div>
-          </div>
-        ) : queue.map((item, i) => {
-          const cfg = PRIORITY_CONFIG[item.kind];
-          const border = i === 0 ? "none" : `1px solid ${c.line}`;
-          if (item.kind === "dispatch") {
-            const { workOrder: wo, account, tech } = item.woRow;
-            return (
-              <Link key={wo.id} href={ROUTES.workOrder(wo.id)} className="dash-row" style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px", borderTop: border, textDecoration: "none" }}>
-                <div style={{ width: 4, alignSelf: "stretch", borderRadius: 2, flexShrink: 0, minHeight: 36, background: cfg.color }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                    <span style={{ fontFamily: "monospace", fontSize: 11.5, fontWeight: 700, color: c.ink }}>{wo.ref}</span>
-                    <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, color: cfg.color, background: cfg.bg, borderRadius: 4, padding: "1px 5px" }}>{cfg.label}</span>
-                  </div>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: c.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{account?.name ?? "—"}</div>
-                  <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>{tech?.name ?? "Unassigned"}{wo.scheduled_for ? " · " + fmtDate(wo.scheduled_for) : ""}</div>
-                </div>
-                <span style={{ fontSize: 11, color: c.accent, fontWeight: 600, flexShrink: 0 }}>View →</span>
-              </Link>
-            );
-          }
-          const { serviceCase: sc, account } = item.caseRow;
-          const isOld = item.days >= 3 && item.kind === "call";
-          return (
-            <Link key={sc.id} href={ROUTES.case(sc.id)} className="dash-row" style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px", borderTop: border, textDecoration: "none" }}>
-              <div style={{ width: 4, alignSelf: "stretch", borderRadius: 2, flexShrink: 0, minHeight: 36, background: isOld ? "#dc2626" : cfg.color }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                  <span style={{ fontFamily: "monospace", fontSize: 11.5, fontWeight: 700, color: c.accent }}>{sc.ref}</span>
-                  <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, color: isOld ? "#dc2626" : cfg.color, background: isOld ? "#fef2f2" : cfg.bg, borderRadius: 4, padding: "1px 5px" }}>{isOld ? `${item.days}d waiting` : cfg.label}</span>
-                </div>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: c.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{account?.name ?? "—"}</div>
-                <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>{cfg.action}{sc.equipment_label ? " · " + sc.equipment_label : ""}</div>
-              </div>
-              <span style={{ fontSize: 11, color: c.accent, fontWeight: 600, flexShrink: 0 }}>Open →</span>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 8, padding: "4px 14px", borderRight: `1px solid ${c.line}` }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>Case pipeline</div>
+          {CASE_STAGE_TILES.map((s) => (
+            <Link key={s.status} href={`${ROUTES.cases}?status=${s.status}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: c.muted }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+                {s.label}
+              </span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>{caseStatusCount(s.status)}</span>
             </Link>
-          );
-        })}
+          ))}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 6, padding: "4px 14px" }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>Open pipeline</div>
+          <Link href={ROUTES.quotations} style={{ fontSize: 22, fontWeight: 800, color: c.ink, textDecoration: "none" }}>{inr(kpis.openQuoteValue)}</Link>
+          <div style={{ fontSize: 10.5, color: c.hint }}>{kpis.awaitingApproval} awaiting response</div>
+        </div>
       </section>
     );
   }
 
-  function renderDispatch() {
-    if (workOrderRows.length === 0) return null;
+  function renderRevenueCard() {
+    return (
+      <section style={cardStyle}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Revenue</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 }}>
+          <span style={{ fontSize: 24, fontWeight: 800, color: c.ink }}>{inr(revenueValue)}</span>
+          {revenueTarget > 0 && <span style={{ fontSize: 12, color: c.hint }}>of {inr(revenueTarget)} pipeline</span>}
+        </div>
+        <div style={{ height: 8, background: c.line, borderRadius: 4, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${Math.min(100, revenuePct)}%`, background: revenuePct >= 100 ? pillar.green.base : pillar.blue.base, borderRadius: 4 }} />
+        </div>
+        <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{revenuePct}% of open pipeline invoiced</div>
+      </section>
+    );
+  }
+
+  function renderInvoiceBudget() {
+    const { invoiced, paid, outstanding } = analytics.invoiceTotals;
+    if (invoiced === 0) return null;
+    return (
+      <section style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>Invoiced vs paid</div>
+          <Link href={ROUTES.invoices} style={{ fontSize: 11, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All invoices →</Link>
+        </div>
+        <VBarTriplet bars={[
+          { label: "Invoiced", value: invoiced, color: pillar.blue.base },
+          { label: "Paid", value: paid, color: pillar.green.base },
+          { label: "Outstanding", value: outstanding, color: outstanding > 0 ? pillar.amber.base : c.line },
+        ]} />
+      </section>
+    );
+  }
+
+  function renderOverdueTasks() {
     return (
       <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px 10px", borderBottom: `1px solid ${c.line}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 24, height: 24, borderRadius: 6, background: pillar.teal.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Wrench size={12} color={pillar.teal.base} />
+            <div style={{ width: 24, height: 24, borderRadius: 6, background: overdueItems.length > 0 ? pillar.amber.bg : pillar.green.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {overdueItems.length > 0 ? <AlertTriangle size={12} color={pillar.amber.base} /> : <CheckIcon size={12} color={pillar.green.base} />}
             </div>
-            <div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Active work orders</div>
-              <div style={{ fontSize: 11, color: c.hint }}>{kpis.activeWorkOrders} scheduled or in progress</div>
-            </div>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Overdue tasks</span>
           </div>
-          <Link href={ROUTES.workOrders} style={{ fontSize: 11.5, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All →</Link>
         </div>
-        <div className="auto-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
-          {workOrderRows.slice(0, 8).map(({ workOrder: wo, account, tech }) => (
-            <Link key={wo.id} href={ROUTES.workOrder(wo.id)} className="dash-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRight: `1px solid ${c.line}`, borderBottom: `1px solid ${c.line}`, textDecoration: "none" }}>
-              <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, flexShrink: 0, minHeight: 28, background: wo.status === "in_progress" ? pillar.amber.base : pillar.teal.base }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 1 }}>
-                  <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: c.ink }}>{wo.ref}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: wo.status === "in_progress" ? pillar.amber.base : pillar.teal.base, background: wo.status === "in_progress" ? pillar.amber.bg : pillar.teal.bg, borderRadius: 3, padding: "1px 4px" }}>{wo.status === "in_progress" ? "In progress" : "Scheduled"}</span>
-                </div>
-                <div style={{ fontSize: 11.5, color: c.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{account?.name ?? "—"}</div>
-                <div style={{ fontSize: 10.5, color: c.hint }}>{tech?.name ?? "Unassigned"}{wo.scheduled_for ? " · " + fmtDate(wo.scheduled_for) : ""}</div>
-              </div>
-            </Link>
-          ))}
-        </div>
+        {overdueItems.length === 0 ? (
+          <div style={{ padding: "24px 16px", textAlign: "center", color: c.hint, fontSize: 12.5 }}>Nothing overdue — all caught up</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: c.panel2 }}>
+                <th style={{ textAlign: "left", padding: "7px 16px", fontSize: 10.5, color: c.hint, fontWeight: 700 }}>Overdue</th>
+                <th style={{ textAlign: "left", padding: "7px 12px", fontSize: 10.5, color: c.hint, fontWeight: 700 }}>Task</th>
+                <th style={{ textAlign: "left", padding: "7px 12px", fontSize: 10.5, color: c.hint, fontWeight: 700 }}>Deadline</th>
+                <th style={{ textAlign: "left", padding: "7px 16px", fontSize: 10.5, color: c.hint, fontWeight: 700 }}>Account</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overdueItems.map((item) => (
+                <tr key={item.id} className="dash-row" style={{ borderTop: `1px solid ${c.line}` }}>
+                  <td style={{ padding: "9px 16px" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#dc2626" }}>{item.days} day{item.days !== 1 ? "s" : ""}</span>
+                  </td>
+                  <td style={{ padding: "9px 12px" }}>
+                    <Link href={item.href} style={{ fontSize: 12.5, color: c.ink, textDecoration: "none", fontWeight: 500 }}>{item.task}</Link>
+                  </td>
+                  <td style={{ padding: "9px 12px", fontSize: 12, color: c.muted }}>{fmtDate(item.deadline)}</td>
+                  <td style={{ padding: "9px 16px", fontSize: 12, color: c.muted }}>{item.account}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     );
   }
 
-  function renderRecentActivity() {
-    if (recentActivity.length === 0) return null;
+  function renderTechWorkload() {
+    if (techWorkload.length === 0) return null;
     return (
-      <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "12px 16px 10px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 24, height: 24, borderRadius: 6, background: c.accentbg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Activity size={12} color={c.accent} />
-            </div>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Recent activity</span>
-          </div>
-          <Link href={ROUTES.accounts} style={{ fontSize: 11.5, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All accounts →</Link>
+      <section style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>Work orders by technician</div>
+          <Link href={ROUTES.technicians} style={{ fontSize: 11, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All →</Link>
         </div>
-        <div className="auto-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
-          {recentActivity.map(({ activity, account }) => {
-            const p = ACT_PILLAR[activity.pillar] ?? ACT_PILLAR.service;
-            return (
-              <div key={activity.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 16px", borderRight: `1px solid ${c.line}`, borderBottom: `1px solid ${c.line}` }}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: p.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, color: p.base }}>{activity.pillar.slice(0, 2).toUpperCase()}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: c.ink, lineHeight: 1.4 }}>{activity.text}</div>
-                  <div style={{ fontSize: 10.5, color: c.hint, marginTop: 3, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                    {account && <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none", fontWeight: 500 }}>{account.name}</Link>}
-                    <span>{fmtDate(activity.at)}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <MiniHBar rows={techWorkload} colorFn={() => pillar.amber.base} />
+      </section>
+    );
+  }
+
+  function renderTopAccounts() {
+    if (analytics.topAccountsByRevenue.length === 0) return null;
+    return (
+      <section style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>Top accounts by revenue</div>
+          <Link href={ROUTES.accounts} style={{ fontSize: 11, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All →</Link>
         </div>
+        <MiniHBar rows={analytics.topAccountsByRevenue.map((a) => ({ label: a.name, value: a.value, href: ROUTES.account(a.accountId) }))} colorFn={() => pillar.teal.base} />
       </section>
     );
   }
@@ -626,32 +683,17 @@ export default function DashboardLayout({ kpis, attention, readyCases, workOrder
     );
   }
 
-  function renderPipeline() {
-    return (
-      <section style={{ ...cardStyle, padding: "14px 14px 12px" }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Pipeline</div>
-        <PipelineStat label="Open cases"     value={kpis.openCases}        color={pillar.teal.base}  href={ROUTES.cases} />
-        <PipelineStat label="In repair"      value={kpis.inRepair}          color={pillar.blue.base}  href={ROUTES.cases} />
-        <PipelineStat label="Needs response" value={kpis.awaitingApproval} color={pillar.amber.base} href={ROUTES.cases} warn={kpis.awaitingApproval > 0} />
-        <PipelineStat label="AMC contracts"  value={kpis.activeContracts}  color={pillar.green.base} href={ROUTES.amc} />
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${c.line}` }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11.5, color: c.muted }}>Quote pipeline</span>
-            <Link href={ROUTES.quotations} style={{ fontSize: 13, fontWeight: 700, color: c.ink, textDecoration: "none" }}>{inr(kpis.openQuoteValue)}</Link>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   function renderMainBlock(block: DashLayoutItem) {
     if (isAnalyticsId(block.id)) {
       return <div key={block.id}>{renderWidget(block.id, analytics)}</div>;
     }
     switch (block.id) {
-      case "priority_queue":  return <div key={block.id}>{renderPriorityQueue()}</div>;
-      case "dispatch":        return <div key={block.id}>{renderDispatch()}</div>;
-      case "recent_activity": return <div key={block.id}>{renderRecentActivity()}</div>;
+      case "overview_strip": return <div key={block.id}>{renderOverviewStrip()}</div>;
+      case "revenue_card":   return <div key={block.id}>{renderRevenueCard()}</div>;
+      case "invoice_budget": return <div key={block.id}>{renderInvoiceBudget()}</div>;
+      case "overdue_tasks":  return <div key={block.id}>{renderOverdueTasks()}</div>;
+      case "tech_workload":  return <div key={block.id}>{renderTechWorkload()}</div>;
+      case "top_accounts":   return <div key={block.id}>{renderTopAccounts()}</div>;
       default: return null;
     }
   }
@@ -659,7 +701,6 @@ export default function DashboardLayout({ kpis, attention, readyCases, workOrder
   function renderSidebarBlock(block: DashLayoutItem) {
     switch (block.id) {
       case "quick_create": return <div key={block.id}>{renderQuickCreate()}</div>;
-      case "pipeline":     return <div key={block.id}>{renderPipeline()}</div>;
       default: return null;
     }
   }

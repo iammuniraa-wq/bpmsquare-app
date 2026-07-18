@@ -135,6 +135,7 @@ interface Props {
   workOrders: WOItem[];
   tenantTax?: TenantTaxConfig;
   quoteStatuses?: QuoteStatusDef[];
+  existingInvoice?: { id: string; ref: string } | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -154,7 +155,7 @@ const td: React.CSSProperties = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES }: Props) {
+export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES, existingInvoice = null }: Props) {
   const router = useRouter();
   const isTechnical = quote.type === "technical";
   const [currentStatus, setCurrentStatus] = useState<string>(quote.status);
@@ -183,6 +184,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const [saving, setSaving]           = useState(false);
   const [moreOpen, setMoreOpen]       = useState(false);
   const [copying, setCopying]         = useState(false);
+  const [converting, setConverting]   = useState(false);
   const moreRef                       = useRef<HTMLDivElement>(null);
 
   // Section drag
@@ -621,6 +623,30 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
       <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <Link href={ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>← All quotations</Link>
         <StatusChanger quoteId={quote.id} currentStatus={currentStatus} statuses={quoteStatuses} onChanged={setCurrentStatus} />
+
+        {currentStatus === "approved" && (
+          existingInvoice ? (
+            <Link
+              href={ROUTES.invoice(existingInvoice.id)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, background: c.accentbg, color: c.accent, borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, textDecoration: "none" }}
+            >
+              View invoice {existingInvoice.ref}
+            </Link>
+          ) : (
+            <button
+              onClick={async () => {
+                setConverting(true);
+                const res = await fetch(`/api/quotes/${quote.id}/convert-to-invoice`, { method: "POST" });
+                setConverting(false);
+                if (res.ok) { const j = await res.json(); router.push(ROUTES.invoice(j.id)); }
+              }}
+              disabled={converting}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1d9e75", color: "#fff", borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, border: "none", cursor: converting ? "wait" : "pointer" }}
+            >
+              {converting ? "Converting…" : "⊟ Convert to Invoice"}
+            </button>
+          )
+        )}
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           {!adaptMode && <QuoteEditPanel quote={quote} lines={lines} quoteStatuses={quoteStatuses} onSaved={setCurrentStatus} />}

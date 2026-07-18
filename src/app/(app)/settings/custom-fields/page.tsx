@@ -7,7 +7,7 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 
-type ObjectType = "account" | "contact" | "case" | "quote" | "work_order" | "asset" | "supplier" | "inventory" | "purchase_order";
+type ObjectType = "account" | "contact" | "case" | "quote" | "work_order" | "asset" | "supplier" | "inventory" | "purchase_order" | "invoice";
 type FieldType = "text" | "number" | "date" | "select" | "checkbox" | "textarea";
 
 interface CustomField {
@@ -31,6 +31,7 @@ const OBJECTS: { key: ObjectType; label: string; icon: string }[] = [
   { key: "supplier",       label: "Supplier",        icon: "◫" },
   { key: "inventory",      label: "Inventory",       icon: "▨" },
   { key: "purchase_order", label: "Purchase Order",  icon: "⇱" },
+  { key: "invoice",        label: "Invoice",         icon: "⊟" },
 ];
 
 const FIELD_TYPES: { key: FieldType; label: string }[] = [

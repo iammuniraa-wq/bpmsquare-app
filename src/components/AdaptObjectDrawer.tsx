@@ -31,6 +31,7 @@ const SECTIONS: Record<string, string[]> = {
   quote:      ["General"],
   work_order: ["General"],
   asset:      ["General"],
+  invoice:    ["General"],
 };
 
 const inp: React.CSSProperties = {
