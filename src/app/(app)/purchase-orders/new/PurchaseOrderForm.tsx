@@ -6,6 +6,7 @@ import Link from "next/link";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 
 type InventoryOption = { id: string; sku: string | null; name: string; uom: string; unit_cost: number | null };
 
@@ -113,9 +114,12 @@ export default function PurchaseOrderForm({
         </Link>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Purchase Order</h1>
-        <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Order stock from a supplier</p>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Purchase Order</h1>
+          <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Order stock from a supplier</p>
+        </div>
+        <AdaptObjectDrawer objectType="purchase_order" objectLabel="Purchase Order" isAdmin={true} />
       </div>
 
       <form onSubmit={handleSubmit}>

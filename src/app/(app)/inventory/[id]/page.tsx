@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getUserRole } from "@/lib/tenant";
 import { getInventoryLive } from "@/lib/data/live";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -35,7 +36,7 @@ function CtxLabel({ children }: { children: React.ReactNode }) {
 export default async function InventoryDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireFeature("purchasing");
   const { id } = await params;
-  const data = await getInventoryLive(id);
+  const [data, role] = await Promise.all([getInventoryLive(id), getUserRole()]);
   if (!data) notFound();
   const { item, supplier, transactions } = data;
 
@@ -54,6 +55,7 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
       <PageHeader
         title={item.name}
         subtitle={`${item.sku ? `SKU ${item.sku} · ` : ""}${item.category ?? "Uncategorised"}`}
+        action={<AdaptObjectDrawer objectType="inventory" objectLabel="Inventory Item" isAdmin={role === "admin"} />}
       />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, alignItems: "start", marginTop: 16 }}>

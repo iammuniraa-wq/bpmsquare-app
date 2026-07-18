@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getUserRole } from "@/lib/tenant";
 import { getPurchaseOrderLive } from "@/lib/data/live";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { c, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -43,7 +44,7 @@ function CtxLabel({ children }: { children: React.ReactNode }) {
 export default async function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireFeature("purchasing");
   const { id } = await params;
-  const data = await getPurchaseOrderLive(id);
+  const [data, role] = await Promise.all([getPurchaseOrderLive(id), getUserRole()]);
   if (!data) notFound();
   const { po, lines, supplier, quote, serviceCase } = data;
 
@@ -59,7 +60,11 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
         </Link>
       </div>
 
-      <PageHeader title={po.ref} subtitle={`Procurement · ${supplier?.name ?? ""}`} />
+      <PageHeader
+        title={po.ref}
+        subtitle={`Procurement · ${supplier?.name ?? ""}`}
+        action={<AdaptObjectDrawer objectType="purchase_order" objectLabel="Purchase Order" isAdmin={role === "admin"} />}
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, alignItems: "start", marginTop: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

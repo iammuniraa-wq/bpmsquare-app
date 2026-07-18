@@ -6,6 +6,7 @@ import Link from "next/link";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -56,9 +57,12 @@ export default function InventoryForm({ suppliers }: { suppliers: { id: string; 
         </Link>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Inventory Item</h1>
-        <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Add a stock item to track quantity on hand</p>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Inventory Item</h1>
+          <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Add a stock item to track quantity on hand</p>
+        </div>
+        <AdaptObjectDrawer objectType="inventory" objectLabel="Inventory Item" isAdmin={true} />
       </div>
 
       <form onSubmit={handleSubmit}>
