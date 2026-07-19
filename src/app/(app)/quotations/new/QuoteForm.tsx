@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES, UOM_OPTIONS, OFFER_TYPE_LABEL } from "@/lib/constants";
 import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/data/labels";
-import type { Account, Asset, Contact, PricingItem, TextFragment, PricingCategory } from "@/lib/types";
+import type { Account, Asset, Contact, PricingItem, TextFragment, PricingCategory, Quote, QuoteLine } from "@/lib/types";
 import { Gear, Zap, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 
@@ -103,6 +104,41 @@ const ASSET_KINDS: { value: Asset["kind"]; label: string }[] = [
   { value: "panel",       label: "Panel" },
 ];
 
+// Reconstruct grouped Row[] from the flat QuoteLine[] as stored in the DB — same
+// shape QuoteEditPanel.tsx uses, just mapped onto this form's LineItem (which
+// calls the discount field `discount`, not `discount_pct`).
+function editLinesToRows(lines: QuoteLine[]): Row[] {
+  const rows: Row[] = [];
+  const groupIndex = new Map<string, number>();
+  for (const l of lines) {
+    const item: LineItem = {
+      id: l.id, sl_no: l.sl_no ?? "", description: l.description, uom: l.uom ?? "",
+      qty: String(l.qty), rate: String(l.rate), discount: String(l.discount_pct ?? 0),
+      category: (l.category as PricingCategory) ?? "", deduction: String(l.deduction ?? 0),
+      inventory_item_id: l.inventory_item_id ?? null,
+    };
+    if (l.group_id) {
+      let idx = groupIndex.get(l.group_id);
+      if (idx === undefined) {
+        idx = rows.length;
+        groupIndex.set(l.group_id, idx);
+        rows.push({
+          kind: "group", id: l.group_id, label: l.group_label ?? "Group",
+          group_description: l.group_description ?? "",
+          group_type: l.group_type === "alternative" ? "alternative" : "additive",
+          items: [],
+        });
+      }
+      (rows[idx] as GroupRow).items.push(item);
+    } else {
+      rows.push({ kind: "line", ...item });
+    }
+  }
+  return rows.length ? rows : [{ kind: "line", id: "1", sl_no: "1", description: "", uom: "", qty: "1", rate: "0", discount: "", category: "", deduction: "0" }];
+}
+
+export type EditQuoteData = { quote: Quote & { custom_data?: Record<string, unknown> | null }; lines: QuoteLine[] };
+
 type Props = {
   accounts: Account[];
   contacts: Contact[];
@@ -114,9 +150,14 @@ type Props = {
   tenantEntities: TenantEntity[];
   tenantTax: TenantTaxConfig;
   isAdmin?: boolean;
+  /** When set, the form pre-fills from an existing quote and saves via PATCH-style
+   *  edit instead of creating a new one — the same page, just in edit mode. */
+  editQuote?: EditQuoteData;
 };
 
-export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], textFragments, offerType, tenantEntities, isAdmin }: Props) {
+export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], textFragments, offerType, tenantEntities, isAdmin, editQuote }: Props) {
+  const router = useRouter();
+  const eq = editQuote?.quote;
   const isTechnical = offerType === "technical";
   const today        = new Date().toISOString().slice(0, 10);
   const defaultValid = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
@@ -124,50 +165,54 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [localAssets, setLocalAssets] = useState<Asset[]>(initialAssets);
 
   // Account & contact
-  const [accountId, setAccountId] = useState("");
-  const [contactId, setContactId] = useState("");
+  const [accountId, setAccountId] = useState(eq?.account_id ?? "");
+  const [contactId, setContactId] = useState(eq?.contact_id ?? "");
 
   // Quote meta
-  const [quoteName, setQuoteName]   = useState("");
-  const [quoteDate, setQuoteDate]   = useState(today);
-  const [validUntil, setValidUntil] = useState(defaultValid);
-  const [refNo, setRefNo]           = useState("");
-  const [prNo, setPrNo]             = useState("");
-  const [poNumber, setPoNumber]     = useState("");
-  const [poAmount, setPoAmount]     = useState("");
+  const [quoteName, setQuoteName]   = useState(eq?.name ?? "");
+  const [quoteDate, setQuoteDate]   = useState(eq?.created_at ? eq.created_at.slice(0, 10) : today);
+  const [validUntil, setValidUntil] = useState(eq?.valid_until ? eq.valid_until.slice(0, 10) : defaultValid);
+  const [refNo, setRefNo]           = useState(eq?.ref_no ?? "");
+  const [prNo, setPrNo]             = useState(eq?.pr_no ?? "");
+  const [poNumber, setPoNumber]     = useState(eq?.po_number ?? "");
+  const [poAmount, setPoAmount]     = useState(eq?.po_amount != null ? String(eq.po_amount) : "");
   const [owner, setOwner]           = useState("VP — Admin");
 
   // Linked assets
-  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>(eq?.asset_ids ?? []);
   const [assetPickerOpen, setAssetPickerOpen]   = useState(false);
 
   // Line items & groups
-  const [rows, setRows] = useState<Row[]>([
+  const [rows, setRows] = useState<Row[]>(() => editQuote ? editLinesToRows(editQuote.lines) : [
     { kind: "line", id: "1", sl_no: "1", description: "", uom: "", qty: "1", rate: "0", discount: "", category: "", deduction: "0" },
   ]);
   const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set());
-  const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
+  const [selectedAltId, setSelectedAltId] = useState<string | null>(eq?.selected_option_id ?? null);
 
   // Discount
-  const [discountType, setDiscountType]   = useState<"pct" | "fixed">("pct");
-  const [discountPct, setDiscountPct]     = useState("0");
-  const [discountFixed, setDiscountFixed] = useState("0");
+  const [discountType, setDiscountType]   = useState<"pct" | "fixed">(eq?.discount_type ?? "pct");
+  const [discountPct, setDiscountPct]     = useState(eq?.discount_pct != null ? String(eq.discount_pct) : "0");
+  const [discountFixed, setDiscountFixed] = useState(eq?.discount_fixed != null ? String(eq.discount_fixed) : "0");
 
   // GST — optional; blank means no GST row anywhere (CR-010)
-  const [gstRate, setGstRate] = useState("");
+  const [gstRate, setGstRate] = useState(eq?.gst_rate != null ? String(eq.gst_rate) : "");
 
   // Entity & SOWs
-  const [entityId, setEntityId] = useState(() => tenantEntities.find((e) => e.is_default)?.id ?? "");
-  const [sows, setSows] = useState<SowEntry[]>([{ id: "1", text: "" }]);
+  const [entityId, setEntityId] = useState(() => eq?.entity_id ?? tenantEntities.find((e) => e.is_default)?.id ?? "");
+  const [sows, setSows] = useState<SowEntry[]>(() =>
+    eq?.scope_of_work
+      ? eq.scope_of_work.split("\n\n---\n\n").map((text, i) => ({ id: String(i + 1), text }))
+      : [{ id: "1", text: "" }]
+  );
   const [sowFragTarget, setSowFragTarget] = useState<string | null>(null); // SOW entry id
 
   // Notes & terms
-  const [notes, setNotes] = useState("");
-  const [terms, setTerms] = useState("");
+  const [notes, setNotes] = useState(eq?.notes ?? "");
+  const [terms, setTerms] = useState(eq?.terms ?? "");
 
   // Custom fields for quotes
   const [cfDefs, setCfDefs] = useState<CFDef[]>([]);
-  const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
+  const [cfValues, setCfValues] = useState<Record<string, unknown>>(eq?.custom_data ?? {});
 
   function fetchCFDefs() {
     fetch("/api/settings/custom-fields?object=quote")
@@ -258,6 +303,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [carryoverDismissed, setCarryoverDismissed] = useState(false);
 
   useEffect(() => {
+    if (editQuote) return; // editing an existing quote — no draft/case-carryover banners
     setHasDraft(!!sessionStorage.getItem(DRAFT_KEY));
     try {
       const raw = sessionStorage.getItem("vvcrm_quote_source");
@@ -266,6 +312,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         setCaseSource(JSON.parse(raw) as CaseSource);
       }
     } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function applyCarryover() {
@@ -283,6 +330,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
   // Restore draft or pre-fill from copy-quote
   useEffect(() => {
+    if (editQuote) return; // editing pre-fills from the real quote data, not sessionStorage
     const copyRaw = sessionStorage.getItem("vvcrm_copy_quote");
     if (copyRaw) {
       sessionStorage.removeItem("vvcrm_copy_quote");
@@ -340,8 +388,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-save draft
+  // Auto-save draft — skipped while editing an existing quote, so it never
+  // overwrites (or gets overwritten by) a separate in-progress "new quote" draft.
   useEffect(() => {
+    if (editQuote) return;
     saveDraft({
       accountId, contactId, quoteName, quoteDate, validUntil,
       refNo, prNo, poNumber, poAmount, owner, notes, terms,
@@ -522,7 +572,19 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     setSaveError("");
     startSave(async () => {
       const scope_of_work = sows.map((s) => s.text).filter(Boolean).join("\n\n---\n\n") || null;
-      const res = await fetch("/api/quotes", {
+      const linesPayload = rows.flatMap((r): {
+        sl_no: string | null; description: string; uom: string; qty: string; rate: string;
+        discount_pct: number; group_id: string | null; group_label: string | null;
+        group_type: string | null; group_description: string | null;
+        category: PricingCategory | null; deduction: number; inventory_item_id: string | null;
+      }[] =>
+        r.kind === "line"
+          ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null, category: r.category || null, deduction: r.category === "material" ? Math.max(0, parseFloat(r.deduction) || 0) : 0, inventory_item_id: r.inventory_item_id ?? null }]
+          : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null, category: i.category || null, deduction: i.category === "material" ? Math.max(0, parseFloat(i.deduction) || 0) : 0, inventory_item_id: i.inventory_item_id ?? null }))
+      );
+
+      const url = editQuote ? `/api/quotes/${editQuote.quote.id}/edit` : "/api/quotes";
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -548,20 +610,16 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           selected_option_id: effectiveAltId,
           case_id: caseSource?.caseId ?? null,
           custom_data: Object.keys(cfValues).length > 0 ? cfValues : undefined,
-          lines: rows.flatMap((r): {
-            sl_no: string | null; description: string; uom: string; qty: string; rate: string;
-            discount_pct: number; group_id: string | null; group_label: string | null;
-            group_type: string | null; group_description: string | null;
-            category: PricingCategory | null; deduction: number; inventory_item_id: string | null;
-          }[] =>
-            r.kind === "line"
-              ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null, category: r.category || null, deduction: r.category === "material" ? Math.max(0, parseFloat(r.deduction) || 0) : 0, inventory_item_id: r.inventory_item_id ?? null }]
-              : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null, category: i.category || null, deduction: i.category === "material" ? Math.max(0, parseFloat(i.deduction) || 0) : 0, inventory_item_id: i.inventory_item_id ?? null }))
-          ),
+          lines: linesPayload,
         }),
       });
       const json = await res.json();
       if (!res.ok) { setSaveError(json.error ?? "Save failed"); return; }
+
+      if (editQuote) {
+        router.push(ROUTES.quotation(editQuote.quote.id));
+        return;
+      }
       clearDraft();
       setSavedRef(json.ref);
       setSavedId(json.id);
@@ -608,13 +666,15 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   return (
     <>
       <div style={{ marginBottom: 10 }}>
-        <Link href={ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>← Quotations</Link>
+        <Link href={editQuote ? ROUTES.quotation(editQuote.quote.id) : ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
+          ← {editQuote ? editQuote.quote.ref : "Quotations"}
+        </Link>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: hasDraft ? 10 : 20, justifyContent: "space-between" }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New {OFFER_TYPE_LABEL[offerType] ?? "Quotation"}</h1>
-          <div style={{ fontSize: 12.5, color: c.muted, marginTop: 3, fontFamily: "monospace" }}>New draft</div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>{editQuote ? "Edit" : "New"} {OFFER_TYPE_LABEL[offerType] ?? "Quotation"}</h1>
+          <div style={{ fontSize: 12.5, color: c.muted, marginTop: 3, fontFamily: "monospace" }}>{editQuote ? editQuote.quote.ref : "New draft"}</div>
         </div>
         <AdaptObjectDrawer objectType="quote" objectLabel="Quotation" isAdmin={isAdmin ?? false} />
       </div>
@@ -688,7 +748,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <div className="fg3">
                 <div>
                   <span style={lbl}>Quote ID</span>
-                  <input style={{ ...inp, color: c.muted, background: c.panel2 }} value="" readOnly placeholder="Assigned on save" />
+                  <input style={{ ...inp, color: c.muted, background: c.panel2 }} value={editQuote?.quote.ref ?? ""} readOnly placeholder="Assigned on save" />
                 </div>
                 <div>
                   <span style={lbl}>Date</span>
@@ -1247,7 +1307,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {saveError && <div style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", borderRadius: 7, padding: "6px 10px" }}>{saveError}</div>}
               <button onClick={handleSave} disabled={!accountId || savePending} style={{ width: "100%", padding: "10px 0", borderRadius: 9, fontSize: 13.5, fontWeight: 700, background: accountId ? c.accent : c.line, color: accountId ? "#fff" : c.hint, border: "none", cursor: accountId && !savePending ? "pointer" : "not-allowed" }}>
-                {savePending ? "Saving…" : "Save as draft"}
+                {savePending ? "Saving…" : editQuote ? "Save changes" : "Save as draft"}
               </button>
               <button disabled style={{ width: "100%", padding: "9px 0", borderRadius: 9, fontSize: 13, fontWeight: 600, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "not-allowed", opacity: 0.7 }}>Send to customer · Coming soon</button>
             </div>

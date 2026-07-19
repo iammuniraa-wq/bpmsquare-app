@@ -652,7 +652,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
         )}
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          {!adaptMode && <QuoteEditPanel quote={quote} lines={lines} quoteStatuses={quoteStatuses} onSaved={setCurrentStatus} />}
+          {!adaptMode && <QuoteEditPanel quote={quote} quoteStatuses={quoteStatuses} />}
 
           {/* More dropdown */}
           {!adaptMode && (

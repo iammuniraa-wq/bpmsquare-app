@@ -20,6 +20,7 @@ export const ROUTES = {
   partners: "/partners",
   quotations: "/quotations",
   quotation: (id: string) => `/quotations/${id}`,
+  quotationEdit: (id: string) => `/quotations/${id}/edit`,
   quotationNew: "/quotations/new",
   quotationPrint: (id: string) => `/quotations/${id}/print`,
   configPricing: "/settings/pricing",

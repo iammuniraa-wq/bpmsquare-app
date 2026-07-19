@@ -14,7 +14,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const body = await request.json();
-  const { valid_until, notes, terms, scope_of_work, lines, selected_option_id, status, territory, sales_org, gst_rate, account_id, contact_id } = body;
+  const {
+    valid_until, notes, terms, scope_of_work, lines, selected_option_id, status,
+    territory, sales_org, gst_rate, account_id, contact_id,
+    name, entity_id, ref_no, pr_no, po_number, po_amount,
+    discount_type, discount_pct, discount_fixed, asset_ids, custom_data,
+  } = body;
 
   const { data: quote, error: qErr } = await supabase
     .from("quotes")
@@ -75,10 +80,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const effectiveLines = cleanLines.filter((l) => !l.group_id || l.group_type !== "alternative" || l.group_id === effectiveAltId);
   const subtotal = effectiveLines.reduce((s, l) => s + l.amount, 0);
   const totalDeductions = effectiveLines.reduce((s, l) => s + l.deduction, 0);
-  const discPct = Math.max(0, Math.min(100, parseFloat(String(quote.discount_pct)) || 0));
-  const discAmount = quote.discount_type === "fixed"
-    ? Math.min(Math.round(parseFloat(String(quote.discount_fixed)) || 0), subtotal)
-    : Math.round(subtotal * discPct / 100);
+
+  // Discount type/pct/fixed: use body values when the caller sends them (the full
+  // edit page does), otherwise fall back to what's already on the row (the modal
+  // editor never sent these, so its total must keep matching the existing discount).
+  const effectiveDiscountType = discount_type !== undefined ? discount_type : quote.discount_type;
+  const effectiveDiscountPct = Math.max(0, Math.min(100, parseFloat(String(
+    discount_pct !== undefined ? discount_pct : quote.discount_pct
+  )) || 0));
+  const effectiveDiscountFixed = Math.max(0, parseFloat(String(
+    discount_fixed !== undefined ? discount_fixed : quote.discount_fixed
+  )) || 0);
+  const discAmount = effectiveDiscountType === "fixed"
+    ? Math.min(Math.round(effectiveDiscountFixed), subtotal)
+    : Math.round(subtotal * effectiveDiscountPct / 100);
   const total = subtotal - discAmount - totalDeductions;
 
   // Update header
@@ -93,6 +108,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ...(gst_rate !== undefined ? { gst_rate: gst_rate !== null && gst_rate !== "" ? parseFloat(gst_rate) : null } : {}),
     ...(account_id !== undefined ? { account_id } : {}),
     ...(contact_id !== undefined ? { contact_id: contact_id || null } : {}),
+    ...(name !== undefined ? { name: name || null } : {}),
+    ...(entity_id !== undefined ? { entity_id: entity_id || null } : {}),
+    ...(ref_no !== undefined ? { ref_no: ref_no || null } : {}),
+    ...(pr_no !== undefined ? { pr_no: pr_no || null } : {}),
+    ...(po_number !== undefined ? { po_number: po_number || null } : {}),
+    ...(po_amount !== undefined ? { po_amount: po_amount ? parseFloat(po_amount) : null } : {}),
+    ...(discount_type !== undefined ? { discount_type: effectiveDiscountType } : {}),
+    ...(discount_pct !== undefined ? { discount_pct: effectiveDiscountPct } : {}),
+    ...(discount_fixed !== undefined ? { discount_fixed: effectiveDiscountFixed } : {}),
+    ...(Array.isArray(asset_ids) ? { asset_ids } : {}),
+    ...(custom_data !== undefined ? { custom_data: custom_data && Object.keys(custom_data).length > 0 ? custom_data : null } : {}),
     total,
   };
   if (status !== undefined) headerPatch.status = status;
