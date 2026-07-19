@@ -42,9 +42,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ["status", "priority", "description", "custom_data", "notes", "assigned_to", "complaint", "equipment_label", "territory", "sales_org"];
+  const allowed = ["status", "priority", "description", "custom_data", "notes", "assigned_to", "complaint", "symptom", "equipment_label", "asset_ids", "territory", "sales_org"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
+
+  // Keep the legacy single asset_id in sync with the new asset_ids array (primary = first).
+  if ("asset_ids" in body) {
+    const cleanAssetIds: string[] = Array.isArray(body.asset_ids) ? body.asset_ids.filter(Boolean) : [];
+    patch.asset_ids = cleanAssetIds;
+    patch.asset_id = cleanAssetIds[0] ?? null;
+  }
 
   const { data, error } = await supabase
     .from("service_cases")

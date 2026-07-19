@@ -338,8 +338,10 @@ export type ServiceCase = {
   type: CaseType;
   status: CaseStatus;
   asset_id: string | null;
+  asset_ids: string[];       // full list of linked assets; asset_id mirrors asset_ids[0] for backward compat
   equipment_label: string;   // human description, e.g. "Crompton 75 kW 3-Ph IM · CG-75-2291"
-  complaint: string;         // customer-reported symptom
+  complaint: string;         // customer-reported issue
+  symptom: string | null;    // additional symptom detail, separate from complaint
   assigned_to: string | null; // technician_id
   intake_at: string;
   closed_at: string | null;

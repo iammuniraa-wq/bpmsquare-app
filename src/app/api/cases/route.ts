@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { account_id, type, equipment_label, complaint, asset_id, assigned_to } = body;
+  const { account_id, type, equipment_label, complaint, symptom, asset_ids, assigned_to } = body;
+  const cleanAssetIds: string[] = Array.isArray(asset_ids) ? asset_ids.filter(Boolean) : [];
 
   if (!account_id || !type || !equipment_label || !complaint) {
     return NextResponse.json(
@@ -44,7 +45,9 @@ export async function POST(request: NextRequest) {
       status: "intake",
       equipment_label,
       complaint,
-      asset_id: asset_id || null,
+      symptom: symptom || null,
+      asset_id: cleanAssetIds[0] ?? null,
+      asset_ids: cleanAssetIds,
       assigned_to: assigned_to || null,
       intake_at: new Date().toISOString(),
       has_loaner: false,

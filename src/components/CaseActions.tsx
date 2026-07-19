@@ -25,6 +25,7 @@ type Props = {
   assignedTo: string | null;
   inspectionReport: InspectionReportProps;
   accountId: string;
+  assetIds: string[];
   intakePhotos: CasePhoto[];
   inspectionPhotos: CasePhoto[];
   intakeNotes: string | null;
@@ -150,7 +151,7 @@ function InspectionReportView({ report, onEdit }: { report: NonNullable<Inspecti
 
 export default function CaseActions({
   caseId, caseRef, currentStatus, notes, inspectionReport,
-  accountId, intakePhotos, inspectionPhotos, intakeNotes,
+  accountId, assetIds, intakePhotos, inspectionPhotos, intakeNotes,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -210,6 +211,7 @@ export default function CaseActions({
       sessionStorage.setItem("vvcrm_quote_source", JSON.stringify({
         caseId, caseRef,
         accountId,
+        assetIds,
         findings: inspectionReport?.findings ?? intakeNotes ?? "",
         recommendations: inspectionReport?.recommendations ?? "",
         estimatedCost: inspectionReport?.estimated_cost ?? null,
@@ -256,7 +258,6 @@ export default function CaseActions({
 
   if (currentStatus === "inspection") {
     const hasDraft = !!inspectionReport && !editing;
-    const canSend  = !!inspectionReport;
     return (
       <div>
         <IntakeReference notes={intakeNotes} photos={intakePhotos} />
@@ -299,16 +300,17 @@ export default function CaseActions({
           </div>
         )}
 
-        {canSend && (
-          <div style={{ ...actionRow, borderTop: "none", paddingTop: 0, marginTop: 4 }}>
+        <div style={{ ...actionRow, borderTop: "none", paddingTop: 0, marginTop: 4 }}>
+          <div>
             <button style={btnPrimary} onClick={() => postInspectionReport("send")} disabled={pending} type="button">
               {pending ? "…" : "Send report to customer →"}
             </button>
-            <button style={btnSecondary} onClick={goToNewQuotation} type="button">
-              Skip report — Create Quotation
-            </button>
+            <div style={{ fontSize: 10.5, color: c.hint, marginTop: 4 }}>Marks the report as sent — no email is actually delivered yet</div>
           </div>
-        )}
+          <button style={btnSecondary} onClick={goToNewQuotation} type="button">
+            Skip report — Create Quotation
+          </button>
+        </div>
       </div>
     );
   }

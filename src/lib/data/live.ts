@@ -771,14 +771,17 @@ export async function getCaseLive(id: string) {
   const quote      = (Array.isArray(r.quotes)      ? r.quotes[0]      : r.quotes)      as Quote | null;
   const sc         = serviceCase as ServiceCase;
 
-  // Fetch contact + loaner asset in parallel (second round-trip, but concurrent)
-  const [{ data: cd }, { data: la }] = await Promise.all([
+  // Fetch contact + loaner asset + full linked-assets list in parallel (second round-trip, but concurrent)
+  const [{ data: cd }, { data: la }, { data: linkedAssets }] = await Promise.all([
     account
       ? supabase.from("contacts").select("*").eq("account_id", account.id).limit(1).maybeSingle()
       : Promise.resolve({ data: null }),
     sc.loaner_asset_id
       ? supabase.from("assets").select("*").eq("id", sc.loaner_asset_id).maybeSingle()
       : Promise.resolve({ data: null }),
+    sc.asset_ids && sc.asset_ids.length > 0
+      ? supabase.from("assets").select("*").in("id", sc.asset_ids)
+      : Promise.resolve({ data: [] }),
   ]);
   const contact     = cd ? decryptContact(cd as Contact) : null;
   const loanerAsset = la as Asset | null;
@@ -788,6 +791,7 @@ export async function getCaseLive(id: string) {
     account: account ? decryptAccount(account) : null,
     contact,
     asset,
+    assets: (linkedAssets ?? []) as Asset[],
     technician,
     contract,
     quote,

@@ -75,7 +75,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const data = await getCase(id);
   if (!data) notFound();
 
-  const { serviceCase: sc, account, contact, asset, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases } = data;
+  const { serviceCase: sc, account, contact, assets, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases } = data;
 
   const currentGroupIdx = stageIndex(sc.status);
   const isExit = EXIT_STATUSES.includes(sc.status);
@@ -200,6 +200,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
               status: inspectionReport.status,
             } : null}
             accountId={sc.account_id}
+            assetIds={sc.asset_ids ?? []}
             intakePhotos={photosByStage.intake}
             inspectionPhotos={photosByStage.inspection}
             intakeNotes={sc.notes ?? null}
@@ -354,14 +355,23 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
               </>
             )}
 
-            {/* Asset link */}
-            {asset && (
+            {/* Assets */}
+            {assets.length > 0 && (
               <>
                 <div style={{ borderTop: `1px solid ${c.line}`, margin: "10px 0" }} />
-                <CtxLabel>Asset</CtxLabel>
-                <Link href={ROUTES.asset(asset.id)} style={{ fontSize: 12.5, fontWeight: 600, color: c.accent, textDecoration: "none" }}>
-                  {asset.name} →
-                </Link>
+                <CtxLabel>{assets.length > 1 ? `Assets (${assets.length})` : "Asset"}</CtxLabel>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {assets.map((a) => (
+                    <div key={a.id}>
+                      <Link href={ROUTES.asset(a.id)} style={{ fontSize: 12.5, fontWeight: 600, color: c.accent, textDecoration: "none" }}>
+                        {a.name} →
+                      </Link>
+                      <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>
+                        {[[a.make, a.model].filter(Boolean).join(" "), a.rating, a.serial].filter(Boolean).join(" · ")}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </>
             )}
           </section>
@@ -396,9 +406,12 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
             <CaseCoreEditPanel
               caseId={sc.id}
+              accountId={sc.account_id}
               equipmentLabel={sc.equipment_label}
               complaint={sc.complaint}
+              symptom={sc.symptom ?? null}
               notes={sc.notes ?? null}
+              assets={assets}
             />
           </div>
         </div>

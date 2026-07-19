@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const accountId = request.nextUrl.searchParams.get("account_id");
   let query = supabase
     .from("assets")
-    .select("id, name")
+    .select("id, name, make, model, rating, serial")
     .eq("tenant_id", tenantId)
     .eq("is_loaner", false)
     .order("name", { ascending: true });

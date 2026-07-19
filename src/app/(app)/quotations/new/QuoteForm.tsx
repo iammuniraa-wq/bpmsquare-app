@@ -250,7 +250,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [hasDraft, setHasDraft]           = useState(false);
 
   // Case carry-over
-  type CaseSource = { caseId: string; caseRef: string; accountId: string; findings: string; recommendations: string; estimatedCost: number | null };
+  type CaseSource = { caseId: string; caseRef: string; accountId: string; assetIds?: string[]; findings: string; recommendations: string; estimatedCost: number | null };
   const [caseSource, setCaseSource] = useState<CaseSource | null>(null);
   const [carryoverDismissed, setCarryoverDismissed] = useState(false);
 
@@ -268,6 +268,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   function applyCarryover() {
     if (!caseSource) return;
     setAccountId(caseSource.accountId);
+    setSelectedAssetIds(caseSource.assetIds ?? []);
     const parts: string[] = [];
     if (caseSource.findings) parts.push(`Findings:\n${caseSource.findings}`);
     if (caseSource.recommendations) parts.push(`Recommendations:\n${caseSource.recommendations}`);
