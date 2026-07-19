@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidateTag } from "next/cache";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { encrypt, decrypt, decryptContact } from "@/lib/encryption";
 
@@ -40,5 +41,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  revalidateTag("accounts", { expire: 0 });
   return NextResponse.json(decryptContact(data as import("@/lib/types").Contact));
 }

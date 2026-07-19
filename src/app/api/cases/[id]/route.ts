@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidateTag } from "next/cache";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +28,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     log.push({ id, ref: snap.ref, name: snap.equipment_label ?? null, status: snap.status, account_id: snap.account_id, created_at: snap.created_at, deleted_at: new Date().toISOString(), deleted_by: userId });
     await admin.from("tenants").update({ config: { ...cfg, deleted_cases: log } }).eq("id", tenantId);
   }
+  revalidateTag("accounts", { expire: 0 });
+  revalidateTag("cases", { expire: 0 });
   return new NextResponse(null, { status: 204 });
 }
 

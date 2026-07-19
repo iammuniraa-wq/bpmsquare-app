@@ -243,7 +243,7 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
                     );
                     if (col.id === "cases") return (
                       <td key="cases" style={{ ...td, textAlign: "center" }}>
-                        <CountBadge n={counts.quotes} />
+                        <CountBadge n={counts.cases} />
                       </td>
                     );
                     if (col.id === "assets") return (

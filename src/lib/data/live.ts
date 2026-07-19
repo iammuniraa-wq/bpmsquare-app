@@ -136,6 +136,7 @@ export type AccountSummary = {
   referredBy: Account | null;
   counts: {
     contacts: number;
+    cases: number;
     assets: number;
     contracts: number;
     quotes: number;
@@ -162,6 +163,7 @@ async function _listAccountsImpl(tenantId: string): Promise<AccountSummary[]> {
 
   const [
     { data: contacts },
+    { data: cases },
     { data: assets },
     { data: contracts },
     { data: quotes },
@@ -170,6 +172,7 @@ async function _listAccountsImpl(tenantId: string): Promise<AccountSummary[]> {
     { data: referredByAccounts },
   ] = await Promise.all([
     supabase.from("contacts").select("id, account_id").in("account_id", ids),
+    supabase.from("service_cases").select("id, account_id").in("account_id", ids),
     supabase.from("assets").select("id, account_id").in("account_id", ids),
     supabase.from("contracts").select("id, account_id").in("account_id", ids),
     supabase.from("quotes").select("id, account_id").in("account_id", ids),
@@ -192,6 +195,7 @@ async function _listAccountsImpl(tenantId: string): Promise<AccountSummary[]> {
       : null,
     counts: {
       contacts:   count(contacts   as { account_id: string }[], account.id),
+      cases:      count(cases      as { account_id: string }[], account.id),
       assets:     count(assets     as { account_id: string }[], account.id),
       contracts:  count(contracts  as { account_id: string }[], account.id),
       quotes:     count(quotes     as { account_id: string }[], account.id),

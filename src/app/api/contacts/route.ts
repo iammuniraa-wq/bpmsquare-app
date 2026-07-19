@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidateTag } from "next/cache";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { encrypt } from "@/lib/encryption";
 
@@ -62,5 +63,6 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  revalidateTag("accounts", { expire: 0 });
   return NextResponse.json(data, { status: 201 });
 }
