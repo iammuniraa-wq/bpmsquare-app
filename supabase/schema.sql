@@ -337,8 +337,17 @@ create table text_fragments (
 -- 3. ROW LEVEL SECURITY
 -- =============================================================================
 
--- Helper: returns the calling user's tenant_id from the JWT custom claim.
--- Set via Supabase Auth Hook (see note at bottom).
+-- LEGACY / UNUSED as of migration 0028 — do not use this in new policies.
+-- Originally read a `tenant_id` claim baked into the JWT once at login by a
+-- Postgres Auth Hook. That claim has zero awareness of which hostname/tenant
+-- a given request is actually for and goes stale the moment a user's
+-- tenant_users membership changes after login (e.g. a platform admin's row
+-- auto-created by resolveTenantIdForPlatformAdmin() on first visiting a new
+-- tenant's custom domain) — this caused real "new row violates row-level
+-- security policy" failures on writes. Every policy below now checks
+-- tenant_users membership live instead (see 0028_fix_rls_stale_jwt_tenant_claim.sql).
+-- Kept defined (unused) rather than dropped in case anything outside this
+-- repo's tracked migrations still references it.
 create or replace function auth_tenant_id()
 returns uuid language sql stable as $$
   select nullif(auth.jwt() ->> 'tenant_id', '')::uuid
@@ -389,7 +398,7 @@ create policy "tenants: admin full access"
 
 create policy "tenants: members read own"
   on tenants for select
-  using (id = auth_tenant_id());
+  using (id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 -- Tenant users: admins full; members read own tenant
 create policy "tenant_users: admin full"
@@ -398,92 +407,114 @@ create policy "tenant_users: admin full"
 
 create policy "tenant_users: members read own tenant"
   on tenant_users for select
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
--- Macro: all domain tables use the same tenant_id isolation pattern.
+-- Macro: all domain tables use the same tenant_id isolation pattern —
+-- a live tenant_users membership check (NOT the legacy JWT-claim
+-- auth_tenant_id(), see the comment above its definition).
 -- Members can CRUD rows belonging to their tenant only.
 -- Platform admins bypass via service role key (not via RLS — they use
 -- the Supabase service role in the /admin API routes).
 
 create policy "accounts: tenant isolation"
   on accounts for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "contacts: tenant isolation"
   on contacts for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "sites: tenant isolation"
   on sites for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "assets: tenant isolation"
   on assets for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "contracts: tenant isolation"
   on contracts for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "leads: tenant isolation"
   on leads for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "quotes: tenant isolation"
   on quotes for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "quote_revisions: tenant isolation"
   on quote_revisions for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "quote_lines: tenant isolation"
   on quote_lines for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "technicians: tenant isolation"
   on technicians for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "technician_leaves: tenant isolation"
   on technician_leaves for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "service_cases: tenant isolation"
   on service_cases for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "work_orders: tenant isolation"
   on work_orders for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "invoices: tenant isolation"
   on invoices for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "visit_logs: tenant isolation"
   on visit_logs for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "activities: tenant isolation"
   on activities for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "case_photos: tenant isolation"
   on case_photos for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "inspection_reports: tenant isolation"
   on inspection_reports for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "pricing_items: tenant isolation"
   on pricing_items for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 create policy "text_fragments: tenant isolation"
   on text_fragments for all
-  using (tenant_id = auth_tenant_id());
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 -- =============================================================================
 -- 4. INDEXES (performance on the FK columns most queried)
@@ -530,6 +561,11 @@ create trigger tenants_updated_at
 -- NOTES FOR NEXT STEPS
 -- =============================================================================
 -- A) Supabase Auth Hook — inject tenant_id into the JWT:
+--    LEGACY as of migration 0028 — no RLS policy reads this claim anymore
+--    (see auth_tenant_id()'s comment above). Safe to leave enabled in the
+--    Supabase Dashboard (harmless, just unused) or to disable under
+--    Auth → Hooks → "Custom Access Token Hook" — your call, not required
+--    either way for tenant isolation to work correctly.
 --    In Supabase Dashboard → Auth → Hooks → "Custom Access Token Hook"
 --    Point it at a Postgres function like:
 --
