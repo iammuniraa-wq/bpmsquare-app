@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { encrypt } from "@/lib/encryption";
 
 const VALID_TYPES = ["prospect", "oem", "direct", "end_customer"] as const;
 
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
 
   rows.forEach((row, i) => {
     const name = row.name?.trim();
-    if (!name) { errors.push({ row: i + 3, error: "name is required" }); return; }
+    if (!name) { errors.push({ row: i + 2, error: "name is required" }); return; }
     if (existingNames.has(name.toLowerCase())) { skipped++; return; }
 
     const type = VALID_TYPES.includes(row.type?.trim() as typeof VALID_TYPES[number])
@@ -51,18 +52,19 @@ export async function POST(request: NextRequest) {
       state:         row.state?.trim()         || null,
       postal_code:   row.postal_code?.trim()   || null,
       country:       row.country?.trim()       || null,
-      phone:         row.phone?.trim()         || null,
-      phone2:        row.phone2?.trim()        || null,
-      email:         row.email?.trim()         || null,
-      email2:        row.email2?.trim()        || null,
+      phone:         encrypt(row.phone?.trim()  || null),
+      phone2:        encrypt(row.phone2?.trim() || null),
+      email:         encrypt(row.email?.trim()  || null),
+      email2:        encrypt(row.email2?.trim() || null),
       website:       row.website?.trim()       || null,
       industry:      row.industry?.trim()      || null,
       employee_count: row.employee_count?.trim() || null,
       annual_revenue: row.annual_revenue?.trim() || null,
       territory:     row.territory?.trim()     || null,
       sales_org:     row.sales_org?.trim()     || null,
-      gstin:         row.gstin?.trim()         || null,
+      gstin:         encrypt(row.gstin?.trim()  || null),
       notes:         row.notes?.trim()         || null,
+      referred_by_account_id: row.referred_by_account_id?.trim() || null,
       ...(Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     });
     existingNames.add(name.toLowerCase());

@@ -9,7 +9,8 @@ const VALID_TYPES = ["quotation", "technical", "budgetary", "supply"] as const;
 //
 // Columns: quote_name, account_name, contact_name, type, date, valid_until,
 //          scope_of_work, notes, terms, po_number, po_amount,
-//          line_description, line_uom, line_qty, line_rate, line_discount_pct
+//          line_description, line_uom, line_qty, line_rate, line_discount_pct,
+//          ref_no, pr_no, discount_type, discount_pct, discount_fixed, gst_rate
 
 type CsvRow = Record<string, string>;
 
@@ -34,6 +35,13 @@ interface QuoteGroup {
   terms: string;
   po_number: string;
   po_amount: string;
+  ref_no: string;
+  pr_no: string;
+  discount_type: string;
+  discount_pct: string;
+  discount_fixed: string;
+  gst_rate: string;
+  custom_data: Record<string, string>;
   lines: LineItem[];
   firstRowNum: number;
 }
@@ -86,6 +94,12 @@ export async function POST(request: NextRequest) {
     if (!qname) return; // skip blank quote_name rows
 
     if (!groups.has(qname)) {
+      // Collect any cf_* keys (header-level custom fields, first row only)
+      const custom_data: Record<string, string> = {};
+      for (const [k, v] of Object.entries(row)) {
+        if (k.startsWith("cf_") && v?.trim()) custom_data[k.slice(3)] = v.trim();
+      }
+
       groups.set(qname, {
         quote_name:   qname,
         account_name: row.account_name?.trim() ?? "",
@@ -98,8 +112,15 @@ export async function POST(request: NextRequest) {
         terms:        row.terms?.trim() ?? "",
         po_number:    row.po_number?.trim() ?? "",
         po_amount:    row.po_amount?.trim() ?? "",
+        ref_no:       row.ref_no?.trim() ?? "",
+        pr_no:        row.pr_no?.trim() ?? "",
+        discount_type: row.discount_type?.trim() ?? "",
+        discount_pct: row.discount_pct?.trim() ?? "",
+        discount_fixed: row.discount_fixed?.trim() ?? "",
+        gst_rate:     row.gst_rate?.trim() ?? "",
+        custom_data,
         lines:        [],
-        firstRowNum:  i + 3,
+        firstRowNum:  i + 2,
       });
       groupOrder.push(qname);
     }
@@ -159,7 +180,16 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    const total = g.lines.reduce((s, l) => s + l.amount, 0);
+    const discountType = g.discount_type === "fixed" ? "fixed" : "pct";
+    const discountPct  = Math.max(0, Math.min(100, parseFloat(g.discount_pct) || 0));
+    const discountFixed = Math.max(0, parseFloat(g.discount_fixed) || 0);
+    const gstRate = g.gst_rate !== "" ? parseFloat(g.gst_rate) : null;
+
+    const discountAmt = discountType === "fixed" ? discountFixed : 0;
+    const linesSubtotal = g.lines.reduce((s, l) => s + l.amount, 0);
+    const total = discountType === "pct"
+      ? linesSubtotal * (1 - discountPct / 100)
+      : linesSubtotal - discountAmt;
     const ref   = `QT-${year}-${String(seq).padStart(4, "0")}`;
 
     const { data: quote, error: qErr } = await supabase
@@ -179,12 +209,16 @@ export async function POST(request: NextRequest) {
         terms:         g.terms || null,
         po_number:     g.po_number || null,
         po_amount:     g.po_amount ? parseFloat(g.po_amount) : null,
+        ref_no:        g.ref_no || null,
+        pr_no:         g.pr_no || null,
         entity_id:     defaultEntityId,
         revision:      1,
-        discount_type: "pct",
-        discount_pct:  0,
-        discount_fixed: 0,
+        discount_type: discountType,
+        discount_pct:  discountPct,
+        discount_fixed: discountFixed,
+        gst_rate:      gstRate,
         asset_ids:     [],
+        ...(Object.keys(g.custom_data).length > 0 ? { custom_data: g.custom_data } : {}),
       })
       .select("id, ref")
       .single();

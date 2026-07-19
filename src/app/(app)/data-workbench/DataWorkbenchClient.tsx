@@ -44,11 +44,11 @@ const OBJECTS: {
       { key: "sales_org",       label: "sales_org",       required: false, hint: "Sales org code e.g. IN-West" },
       { key: "gstin",          label: "gstin",          required: false, hint: "GST number" },
       { key: "notes",          label: "notes",          required: false, hint: "Any extra notes" },
+      { key: "referred_by_account_id", label: "referred_by_account_id", required: false, hint: "UUID of the OEM account that referred this one — only used when type is end_customer" },
     ],
     sampleRows: [
-      ["Vikas Pioneers India Pvt Ltd", "direct", "Plot 12, MIDC Phase 2", "Andheri East", "Mumbai", "Maharashtra", "400093", "India", "+91 98200 00001", "", "vikas@example.com", "", "https://vikaspioneer.com", "Textile Manufacturing", "500", "₹25 Cr", "27AABCV1234F1Z5", "Key account since 2019"],
-      ["Bharat Textiles Ltd", "oem", "", "", "Ahmedabad", "Gujarat", "380001", "India", "+91 97300 00002", "", "purchase@bharattex.com", "", "", "Textiles", "250", "", "24AABCB5678G1Z3", ""],
-      ["Kohinoor Spinning Mills", "end_customer", "", "", "Nagpur", "Maharashtra", "", "India", "+91 91200 00003", "", "", "", "", "", "", "", "", "End customer under Bharat Textiles"],
+      ["Vikas Pioneers India Pvt Ltd", "direct", "Plot 12, MIDC Phase 2", "Andheri East", "Mumbai", "Maharashtra", "400093", "India", "+91 98200 00001", "", "vikas@example.com", "", "https://vikaspioneer.com", "Textile Manufacturing", "500", "₹25 Cr", "", "", "27AABCV1234F1Z5", "Key account since 2019", ""],
+      ["Bharat Textiles Ltd", "oem", "", "", "Ahmedabad", "Gujarat", "380001", "India", "+91 97300 00002", "", "purchase@bharattex.com", "", "", "Textiles", "250", "", "", "", "24AABCB5678G1Z3", "", ""],
     ],
   },
   {
@@ -75,11 +75,13 @@ const OBJECTS: {
       { key: "territory",     label: "territory",     required: false, hint: "Sales territory e.g. West India" },
       { key: "sales_org",     label: "sales_org",     required: false, hint: "Sales org code e.g. IN-West" },
       { key: "notes",         label: "notes",         required: false, hint: "Any notes" },
+      { key: "phone3",        label: "phone3",        required: false, hint: "Third phone number" },
+      { key: "website",       label: "website",       required: false, hint: "Personal / secondary website or profile URL" },
+      { key: "birthday",      label: "birthday",      required: false, hint: "Birthday, YYYY-MM-DD" },
     ],
     sampleRows: [
-      ["Vikas Pioneers India Pvt Ltd", "Rajesh Sharma", "General Manager", "Operations", "+91 98200 11111", "", "rajesh@vikaspioneer.com", "", "", "", "", "", "", "", "", ""],
-      ["Vikas Pioneers India Pvt Ltd", "Priya Iyer", "Purchase Manager", "Procurement", "+91 98200 22222", "", "priya@vikaspioneer.com", "", "https://linkedin.com/in/priya-iyer", "", "", "", "", "", "", ""],
-      ["Bharat Textiles Ltd", "Anand Mehta", "Maintenance Head", "Engineering", "+91 97300 33333", "", "anand@bharattex.com", "", "", "", "", "", "", "", "", ""],
+      ["Vikas Pioneers India Pvt Ltd", "Rajesh Sharma", "General Manager", "Operations", "+91 98200 11111", "", "rajesh@vikaspioneer.com", "", "", "", "", "", "", "", "", "", "", "", ""],
+      ["Bharat Textiles Ltd", "Anand Mehta", "Maintenance Head", "Engineering", "+91 97300 33333", "", "anand@bharattex.com", "", "", "", "", "", "", "", "", "", "", "", ""],
     ],
   },
   {
@@ -88,7 +90,7 @@ const OBJECTS: {
     icon: "⚙",
     description: "Equipment and machinery linked to accounts",
     columns: [
-      { key: "account_name", label: "account_name", required: true,  hint: "Must match an existing account name exactly" },
+      { key: "account_name", label: "account_name", required: false, hint: "Must match an existing account name exactly — leave blank for company-owned / loaner stock with no customer" },
       { key: "name",         label: "name",         required: true,  hint: "Asset name / description" },
       { key: "kind",         label: "kind",         required: true,  hint: "motor | transformer | pump | generator | panel" },
       { key: "make",         label: "make",         required: false, hint: "Manufacturer / brand" },
@@ -96,11 +98,11 @@ const OBJECTS: {
       { key: "serial",       label: "serial",       required: false, hint: "Serial number" },
       { key: "rating",       label: "rating",       required: false, hint: "Rating / specs e.g. 75 kW · 415V" },
       { key: "notes",        label: "notes",        required: false, hint: "Service history or remarks" },
+      { key: "is_loaner",    label: "is_loaner",    required: false, hint: "true / false — is this a company loaner unit?" },
     ],
     sampleRows: [
-      ["Vikas Pioneers India Pvt Ltd", "Ring Frame Drive Motor #1", "motor", "Crompton Greaves", "ND315S-2", "CG-75-2291", "75 kW · 415V · 1480 rpm", "Rewound June 2024"],
-      ["Vikas Pioneers India Pvt Ltd", "Main Transformer", "transformer", "Siemens", "SG-500KVA", "SM-0042", "500 KVA · 11KV/415V", ""],
-      ["Bharat Textiles Ltd", "Cooling Tower Pump", "pump", "Kirloskar", "STAR-3T", "KP-9981", "3 HP · 415V", "Last serviced Jan 2025"],
+      ["Vikas Pioneers India Pvt Ltd", "Ring Frame Drive Motor #1", "motor", "Crompton Greaves", "ND315S-2", "CG-75-2291", "75 kW · 415V · 1480 rpm", "Rewound June 2024", "false"],
+      ["", "Loaner Motor Pool Unit #4", "motor", "Kirloskar", "KM-40S", "KP-LN-0004", "40 kW · 415V", "Workshop loaner pool", "true"],
     ],
   },
   {
@@ -125,15 +127,19 @@ const OBJECTS: {
       { key: "line_qty",          label: "line_qty",          required: false, hint: "Quantity — default 1 (every row)" },
       { key: "line_rate",         label: "line_rate",         required: false, hint: "Rate in INR (every row)" },
       { key: "line_discount_pct", label: "line_discount_pct", required: false, hint: "Discount % 0-100 (every row)" },
+      { key: "ref_no",            label: "ref_no",            required: false, hint: "Client-facing reference number, separate from the system Quote ID (first row only)" },
+      { key: "pr_no",             label: "pr_no",             required: false, hint: "Customer PR (purchase requisition) number (first row only)" },
+      { key: "discount_type",     label: "discount_type",     required: false, hint: "pct | fixed — header discount type (first row only)" },
+      { key: "discount_pct",      label: "discount_pct",      required: false, hint: "Header discount % 0-100, used when discount_type=pct (first row only)" },
+      { key: "discount_fixed",    label: "discount_fixed",    required: false, hint: "Header discount amount in INR, used when discount_type=fixed (first row only)" },
+      { key: "gst_rate",          label: "gst_rate",          required: false, hint: "GST % — leave blank to omit GST entirely (first row only)" },
     ],
     sampleRows: [
       // Quote 1 — three lines
-      ["AMC 2025 - Vikas Pioneers", "Vikas Pioneers India Pvt Ltd", "Rajesh Sharma", "quotation", "2025-01-15", "2025-02-15", "Annual maintenance of all motors in spinning section", "Payment within 30 days of invoice", "18% GST applicable. Prices valid for 30 days.", "PO-2025-001", "150000", "Motor rewinding - 75 kW ring frame drive", "Job", "1", "45000", "0"],
-      ["AMC 2025 - Vikas Pioneers", "", "", "", "", "", "", "", "", "", "", "Bearing replacement - SKF 6312", "Nos", "4", "2500", "0"],
-      ["AMC 2025 - Vikas Pioneers", "", "", "", "", "", "", "", "", "", "", "Testing and commissioning", "Job", "1", "8000", "5"],
-      // Quote 2 — two lines
-      ["Pump Supply - Bharat Textiles", "Bharat Textiles Ltd", "Anand Mehta", "supply", "2025-01-20", "2025-02-20", "Supply of centrifugal pumps for cooling tower", "", "Delivery within 4 weeks. GST extra.", "", "", "3 HP Centrifugal Pump - Kirloskar STAR-3T", "Nos", "2", "18000", "5"],
-      ["Pump Supply - Bharat Textiles", "", "", "", "", "", "", "", "", "", "", "Gate Valve 50mm - Cast Iron", "Nos", "4", "850", "0"],
+      ["AMC 2025 - Vikas Pioneers", "Vikas Pioneers India Pvt Ltd", "Rajesh Sharma", "quotation", "2025-01-15", "2025-02-15", "Annual maintenance of all motors in spinning section", "Payment within 30 days of invoice", "18% GST applicable. Prices valid for 30 days.", "PO-2025-001", "150000", "Motor rewinding - 75 kW ring frame drive", "Job", "1", "45000", "0", "REF-AMC-2025-01", "PR-4471", "pct", "0", "0", "18"],
+      ["AMC 2025 - Vikas Pioneers", "", "", "", "", "", "", "", "", "", "", "Bearing replacement - SKF 6312", "Nos", "4", "2500", "0", "", "", "", "", "", ""],
+      // Quote 2 — one line
+      ["Pump Supply - Bharat Textiles", "Bharat Textiles Ltd", "Anand Mehta", "supply", "2025-01-20", "2025-02-20", "Supply of centrifugal pumps for cooling tower", "", "Delivery within 4 weeks. GST extra.", "", "", "3 HP Centrifugal Pump - Kirloskar STAR-3T", "Nos", "2", "18000", "5", "", "", "", "", "", ""],
     ],
   },
   {
@@ -148,7 +154,6 @@ const OBJECTS: {
     ],
     sampleRows: [
       ["Arjun Patel",   "arjun@company.com",  "member"],
-      ["Sunita Rao",    "sunita@company.com",  "member"],
       ["Vikram Nair",   "vikram@company.com",  "admin"],
     ],
   },
@@ -168,9 +173,8 @@ function csvRow(cells: string[]): string {
 function buildTemplate(obj: typeof OBJECTS[0]): string {
   const BOM = "﻿";
   const header = csvRow(obj.columns.map((c) => c.key));
-  const hints  = csvRow(obj.columns.map((c) => (c.required ? `[REQUIRED] ${c.hint}` : c.hint)));
   const rows   = obj.sampleRows.map(csvRow);
-  return BOM + [header, hints, ...rows].join("\r\n");
+  return BOM + [header, ...rows].join("\r\n");
 }
 
 function parseCSV(text: string): string[][] {
@@ -232,17 +236,32 @@ const btnGhost: React.CSSProperties = {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function ColumnSpec({ columns }: { columns: ColDef[] }) {
+  const requiredCols = columns.filter((col) => col.required);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {columns.map((col) => (
-        <div key={col.key} style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <code style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: c.accent, minWidth: 130 }}>
-            {col.key}{col.required ? " *" : ""}
-          </code>
-          <span style={{ fontSize: 12, color: c.muted }}>{col.hint}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {requiredCols.length > 0 && (
+        <div style={{ background: "#fff7ed", border: "1px solid #fde4b8", borderRadius: 8, padding: "9px 12px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#9a5b13", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>
+            Mandatory fields
+          </div>
+          <div style={{ fontSize: 12.5, color: "#7c4a10" }}>
+            {requiredCols.map((col) => (
+              <code key={col.key} style={{ fontFamily: "monospace", fontWeight: 700, marginRight: 10 }}>{col.key}</code>
+            ))}
+          </div>
         </div>
-      ))}
-      <div style={{ marginTop: 4, fontSize: 11, color: c.hint }}>* Required field</div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {columns.map((col) => (
+          <div key={col.key} style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <code style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: col.required ? "#dc2626" : c.accent, minWidth: 150 }}>
+              {col.key}{col.required ? " *" : ""}
+            </code>
+            <span style={{ fontSize: 12, color: c.muted }}>{col.hint}</span>
+          </div>
+        ))}
+        <div style={{ marginTop: 4, fontSize: 11, color: c.hint }}>* Required field</div>
+      </div>
     </div>
   );
 }
@@ -325,9 +344,7 @@ function ImporterPanel({ obj }: { obj: typeof OBJECTS[0] }) {
         if (parsed.length < 2) { setParseErr("File appears empty or has no data rows."); return; }
 
         const headers = parsed[0].map((h) => h.toLowerCase().trim());
-        // Skip the hints row if it starts with "[REQUIRED]" or "[optional]"
-        const firstDataIdx = parsed[1]?.[0]?.startsWith("[") ? 2 : 1;
-        const dataRows = parsed.slice(firstDataIdx).filter((r) => r.some((c) => c.trim()));
+        const dataRows = parsed.slice(1).filter((r) => r.some((c) => c.trim()));
 
         const importRows: ImportRow[] = dataRows.map((row, i) => {
           const data: Record<string, string> = {};
@@ -363,7 +380,7 @@ function ImporterPanel({ obj }: { obj: typeof OBJECTS[0] }) {
             }
           }
 
-          return { rowNum: firstDataIdx + i + 1, data, errors, status: errors.length ? "error" : "pending" };
+          return { rowNum: i + 2, data, errors, status: errors.length ? "error" : "pending" };
         });
 
         setPreview(importRows);
@@ -421,7 +438,7 @@ function ImporterPanel({ obj }: { obj: typeof OBJECTS[0] }) {
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 4 }}>Download the template</div>
             <p style={{ fontSize: 12.5, color: c.muted, margin: "0 0 14px", lineHeight: 1.6 }}>
-              The template includes column headers, hints, and 3 sample rows. Fill in your data below the sample rows (or replace the samples). Save as <strong>.csv</strong> from Excel or Google Sheets.
+              The template has one header row (API field names) plus a couple of sample rows. Fill in your data below the samples (or replace them). Save as <strong>.csv</strong> from Excel or Google Sheets.
             </p>
             <ColumnSpec columns={obj.columns} />
             <div style={{ marginTop: 16 }}>
@@ -440,7 +457,7 @@ function ImporterPanel({ obj }: { obj: typeof OBJECTS[0] }) {
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 4 }}>Upload your filled CSV</div>
             <p style={{ fontSize: 12.5, color: c.muted, margin: "0 0 14px", lineHeight: 1.6 }}>
-              Drag and drop or click to choose your filled file. The first two rows (headers + hints) are ignored automatically.
+              Drag and drop or click to choose your filled file. The header row is detected automatically — just fill in data rows below it.
             </p>
 
             <div
@@ -549,12 +566,24 @@ function customFieldsToCols(defs: CustomFieldDef[]): ColDef[] {
   }));
 }
 
+// Data Workbench object ids are plural; custom_fields.object_type is singular
+// (and "users" has no custom-fields support at all — not in the object_type
+// CHECK constraint). Map explicitly rather than guessing from obj.id.
+const CF_OBJECT_TYPE: Record<ObjectId, string | null> = {
+  accounts: "account",
+  contacts: "contact",
+  assets:   "asset",
+  quotes:   "quote",
+  users:    null,
+};
+
 export default function DataWorkbenchClient({ customFieldsByObject = {} }: { customFieldsByObject?: Record<string, CustomFieldDef[]> }) {
   const [activeId, setActiveId] = useState<ObjectId>("accounts");
 
   // Merge custom field columns into the active object definition
   const OBJECTS_WITH_CF = OBJECTS.map((obj) => {
-    const cfDefs = customFieldsByObject[obj.id === "accounts" ? "account" : obj.id === "contacts" ? "contact" : obj.id] ?? [];
+    const objectType = CF_OBJECT_TYPE[obj.id];
+    const cfDefs = objectType ? (customFieldsByObject[objectType] ?? []) : [];
     if (cfDefs.length === 0) return obj;
     return { ...obj, columns: [...obj.columns, ...customFieldsToCols(cfDefs)] };
   });

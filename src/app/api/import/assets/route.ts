@@ -35,17 +35,28 @@ export async function POST(request: NextRequest) {
     const acctName = row.account_name?.trim();
     const kind     = row.kind?.trim();
 
-    if (!name)     { errors.push({ row: i + 3, error: "name is required" }); return; }
-    if (!acctName) { errors.push({ row: i + 3, error: "account_name is required" }); return; }
+    if (!name) { errors.push({ row: i + 2, error: "name is required" }); return; }
     if (!kind || !VALID_KINDS.includes(kind as typeof VALID_KINDS[number])) {
-      errors.push({ row: i + 3, error: `kind must be one of: ${VALID_KINDS.join(", ")}` });
+      errors.push({ row: i + 2, error: `kind must be one of: ${VALID_KINDS.join(", ")}` });
       return;
     }
 
-    const accountId = accountMap.get(acctName.toLowerCase());
-    if (!accountId) {
-      errors.push({ row: i + 3, error: `Account "${acctName}" not found — import accounts first` });
-      return;
+    // account_name is optional — blank means company-owned / loaner stock (no customer)
+    let accountId: string | null = null;
+    if (acctName) {
+      accountId = accountMap.get(acctName.toLowerCase()) ?? null;
+      if (!accountId) {
+        errors.push({ row: i + 2, error: `Account "${acctName}" not found — import accounts first` });
+        return;
+      }
+    }
+
+    const isLoaner = /^(true|yes|1)$/i.test(row.is_loaner?.trim() ?? "");
+
+    // Collect any cf_* keys into custom_data
+    const custom_data: Record<string, string> = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (k.startsWith("cf_") && v?.trim()) custom_data[k.slice(3)] = v.trim();
     }
 
     toInsert.push({
@@ -58,6 +69,9 @@ export async function POST(request: NextRequest) {
       serial: row.serial?.trim() || null,
       rating: row.rating?.trim() || null,
       notes:  row.notes?.trim()  || null,
+      is_loaner: isLoaner,
+      loaner_status: isLoaner ? "available" : null,
+      ...(Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     });
   });
 

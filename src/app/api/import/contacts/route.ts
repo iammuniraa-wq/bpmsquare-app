@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { encrypt } from "@/lib/encryption";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -30,12 +31,12 @@ export async function POST(request: NextRequest) {
   rows.forEach((row, i) => {
     const name = row.name?.trim();
     const acctName = row.account_name?.trim();
-    if (!name)     { errors.push({ row: i + 3, error: "name is required" }); return; }
-    if (!acctName) { errors.push({ row: i + 3, error: "account_name is required" }); return; }
+    if (!name)     { errors.push({ row: i + 2, error: "name is required" }); return; }
+    if (!acctName) { errors.push({ row: i + 2, error: "account_name is required" }); return; }
 
     const accountId = accountMap.get(acctName.toLowerCase());
     if (!accountId) {
-      errors.push({ row: i + 3, error: `Account "${acctName}" not found — import accounts first` });
+      errors.push({ row: i + 2, error: `Account "${acctName}" not found — import accounts first` });
       return;
     }
 
@@ -51,10 +52,13 @@ export async function POST(request: NextRequest) {
       name,
       role:         row.role?.trim()         || null,
       department:   row.department?.trim()   || null,
-      phone:        row.phone?.trim()        || null,
-      phone2:       row.phone2?.trim()       || null,
-      email:        row.email?.trim()        || null,
-      email2:       row.email2?.trim()       || null,
+      phone:        encrypt(row.phone?.trim()  || null),
+      phone2:       encrypt(row.phone2?.trim() || null),
+      phone3:       encrypt(row.phone3?.trim() || null),
+      email:        encrypt(row.email?.trim()  || null),
+      email2:       encrypt(row.email2?.trim() || null),
+      website:      row.website?.trim()      || null,
+      birthday:     row.birthday?.trim()     || null,
       linkedin_url: row.linkedin_url?.trim() || null,
       address_line1: row.address_line1?.trim() || null,
       address_line2: row.address_line2?.trim() || null,

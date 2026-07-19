@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
     const name  = row.name?.trim();
     const memberRole: "admin" | "member" = row.role?.trim() === "admin" ? "admin" : "member";
 
-    if (!email) { errors.push({ row: i + 3, error: "email is required" }); continue; }
-    if (!name)  { errors.push({ row: i + 3, error: "name is required" }); continue; }
+    if (!email) { errors.push({ row: i + 2, error: "email is required" }); continue; }
+    if (!name)  { errors.push({ row: i + 2, error: "name is required" }); continue; }
 
     // Check if user already exists in auth
     const { data: existingUser } = await admin.auth.admin.listUsers();
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
         data: { full_name: name },
       });
       if (inviteErr || !invited?.user) {
-        errors.push({ row: i + 3, error: inviteErr?.message ?? "Failed to invite" });
+        errors.push({ row: i + 2, error: inviteErr?.message ?? "Failed to invite" });
         continue;
       }
       userId = invited.user.id;
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     if (tuErr) {
       if (tuErr.code === "23505") { skipped++; continue; } // unique constraint = already a member
-      errors.push({ row: i + 3, error: tuErr.message });
+      errors.push({ row: i + 2, error: tuErr.message });
       continue;
     }
 
