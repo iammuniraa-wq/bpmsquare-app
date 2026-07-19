@@ -14,7 +14,7 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
-import CustomFieldsSection from "@/components/CustomFieldsSection";
+import ObjectDetailSections from "@/components/fields/ObjectDetailSections";
 import { MapPin, Phone, Mail, Gear } from "@/components/Icons";
 import AccountEditPanel from "./AccountEditPanel";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
@@ -114,18 +114,6 @@ function OpenLink({ href }: { href: string }) {
     }}>
       Open →
     </Link>
-  );
-}
-
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{
-      display: "flex", justifyContent: "space-between", alignItems: "flex-start",
-      gap: 10, padding: "8px 0", borderTop: `1px solid ${c.line}`, fontSize: 13,
-    }}>
-      <span style={{ color: c.hint, flexShrink: 0, fontSize: 12 }}>{label}</span>
-      <span style={{ textAlign: "right", color: c.ink, fontWeight: 500 }}>{children}</span>
-    </div>
   );
 }
 
@@ -264,39 +252,7 @@ export default async function AccountHubPage({
           {/* LEFT: Account details */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-            <section style={cardStyle}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
-                Account details
-              </div>
-              <DetailRow label="Type">
-                <Pill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />
-              </DetailRow>
-              {account.city  && <DetailRow label="City">{account.city}</DetailRow>}
-              {account.phone && (
-                <DetailRow label="Phone">
-                  <a href={`tel:${account.phone}`} style={{ color: c.accent, textDecoration: "none" }}>{account.phone}</a>
-                </DetailRow>
-              )}
-              {account.email && (
-                <DetailRow label="Email">
-                  <a href={`mailto:${account.email}`} style={{ color: c.accent, textDecoration: "none", wordBreak: "break-all" }}>{account.email}</a>
-                </DetailRow>
-              )}
-              {referredBy && (
-                <DetailRow label="Via OEM">
-                  <Link href={ROUTES.account(referredBy.id)} style={{ color: c.accent, textDecoration: "none" }}>{referredBy.name}</Link>
-                </DetailRow>
-              )}
-              <DetailRow label="Customer since">{fmtDate(account.created_at)}</DetailRow>
-              <div style={{ marginTop: 10 }}>
-                <CustomFieldsSection
-                  objectType="account"
-                  recordId={account.id}
-                  customData={(account as Record<string, unknown>).custom_data as Record<string, unknown> | null}
-                  patchUrl={`/api/accounts/${account.id}`}
-                />
-              </div>
-            </section>
+            <ObjectDetailSections objectType="account" record={account as unknown as Record<string, unknown>} />
 
             {/* Contacts sidebar */}
             <section style={cardStyle}>
