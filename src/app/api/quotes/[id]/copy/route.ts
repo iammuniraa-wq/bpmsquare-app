@@ -52,6 +52,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       discount_type:     original.discount_type ?? "pct",
       discount_pct:      original.discount_pct ?? 0,
       discount_fixed:    original.discount_fixed ?? 0,
+      gst_rate:          original.gst_rate ?? null,
       selected_option_id: null,
       meta:              original.meta ?? null,
       custom_data:       original.custom_data ?? null,

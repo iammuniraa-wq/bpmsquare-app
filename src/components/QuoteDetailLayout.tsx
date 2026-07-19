@@ -160,10 +160,13 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const isTechnical = quote.type === "technical";
   const [currentStatus, setCurrentStatus] = useState<string>(quote.status);
   useEffect(() => { setCurrentStatus(quote.status); }, [quote.status]);
-  const taxRate     = tenantTax?.rate ?? 18;
+  // CR-010: GST is optional per quote — no rate entered means no tax row at all
+  // (the "GST @ 18%" statement lives in Terms & Conditions text instead).
+  const hasGst      = quote.gst_rate !== null && quote.gst_rate !== undefined;
+  const taxRate     = quote.gst_rate ?? 0;
   const taxLabel    = tenantTax?.label ?? "GST";
   const subtotal    = lines.reduce((s, l) => s + l.amount, 0);
-  const gst         = Math.round(subtotal * taxRate / 100);
+  const gst         = hasGst ? Math.round(subtotal * taxRate / 100) : 0;
   const grandTotal  = subtotal + gst;
 
   // ── Revisions (sibling quotes sharing same base ref) ────────────────────────
@@ -511,7 +514,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             {!isTechnical && (
               <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", borderTop: `1px solid ${c.line}` }}>
                 <TotalRow label="Subtotal"                value={inr(subtotal)} />
-                <TotalRow label={`${taxLabel} @ ${taxRate}%`} value={inr(gst)} muted />
+                {hasGst && <TotalRow label={`${taxLabel} @ ${taxRate}%`} value={inr(gst)} muted />}
                 <div style={{ display: "flex", justifyContent: "space-between", width: 220, paddingTop: 8, borderTop: `2px solid ${c.ink}` }}>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>Grand total</span>
                   <span style={{ fontSize: 15, fontWeight: 600, color: c.accent }}>{inr(grandTotal)}</span>
@@ -856,7 +859,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
               <Detail label="Offer type" value={OFFER_TYPE_LABEL[quote.type] ?? quote.type} />
               {!isTechnical && <>
                 <Detail label="Subtotal"              value={inr(subtotal)} />
-                <Detail label={`${taxLabel} ${taxRate}%`} value={inr(gst)} />
+                {hasGst && <Detail label={`${taxLabel} ${taxRate}%`} value={inr(gst)} />}
                 <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${c.line}`, fontSize: 13, fontWeight: 600 }}>
                   <span>Total</span>
                   <span style={{ color: c.accent }}>{inr(grandTotal)}</span>

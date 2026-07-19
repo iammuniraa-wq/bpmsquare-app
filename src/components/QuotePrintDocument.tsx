@@ -95,9 +95,12 @@ export default function QuotePrintDocument({
       companyInfo.landline          ? { label: "Landline",     number: companyInfo.landline }          : null,
     ].filter((p): p is { label: string; number: string } => p !== null),
     tax_label: companyInfo.tax_label ?? tenantTax?.label ?? "GST",
-    tax_rate:  companyInfo.tax_rate  ?? tenantTax?.rate  ?? 18,
     email2: companyInfo.email2 ?? "",
   };
+
+  // CR-010: GST is optional per quote — no rate entered means no tax row at all
+  // (the "GST @ 18%" statement lives in Terms & Conditions text instead).
+  const hasGst = quote.gst_rate !== null && quote.gst_rate !== undefined;
 
   const selectedAltId = quote.selected_option_id ?? null;
   const effectiveLines = lines.filter((l) => !l.group_id || l.group_type !== "alternative" || l.group_id === selectedAltId);
@@ -109,7 +112,7 @@ export default function QuotePrintDocument({
     quote.discount_type === "pct"   ? Math.round(subtotal * (quote.discount_pct ?? 0) / 100) :
     quote.discount_type === "fixed" ? (quote.discount_fixed ?? 0) : 0;
   const afterDiscount = subtotal - discountAmt - totalDeductions;
-  const tax = Math.round(afterDiscount * co.tax_rate / 100);
+  const tax = hasGst ? Math.round(afterDiscount * (quote.gst_rate ?? 0) / 100) : 0;
   const grandTotal = afterDiscount + tax;
 
   const logoIni = initials(co.name || "?");
@@ -253,7 +256,7 @@ export default function QuotePrintDocument({
       {quote.name && (
         <div style={{ padding: "9px 28px", borderBottom: `1px solid ${brand.line}`, breakInside: "avoid" }}>
           <div style={{ fontSize: 13, marginBottom: 4 }}>
-            <strong>Subject:</strong> {quote.name}
+            <strong>Subject:</strong> Quotation for the Rewinding of {quote.name}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700 }}>Dear Sir,</div>
           <div style={{ fontSize: 12.5, color: "#5f6b7a", marginTop: 3, lineHeight: 1.5 }}>
@@ -424,7 +427,7 @@ export default function QuotePrintDocument({
               )}
               {totalDeductions > 0 && <TotalRow label="Deductions (salvage)" value={`− ${inr(totalDeductions)}`} muted />}
               {(discountAmt > 0 || totalDeductions > 0) && <TotalRow label="Net cost" value={inr(afterDiscount)} />}
-              <TotalRow label={`${co.tax_label} @ ${co.tax_rate}%`} value={inr(tax)} muted />
+              {hasGst && <TotalRow label={`${co.tax_label} @ ${quote.gst_rate}%`} value={inr(tax)} muted />}
               <tr>
                 <td colSpan={2} style={{ paddingTop: 6 }}>
                   <div style={{ background: brand.dark, color: "#fff", borderRadius: 6, padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

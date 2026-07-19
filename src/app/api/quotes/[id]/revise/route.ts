@@ -45,6 +45,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       revision: newRev,
       selected_option_id: original.selected_option_id ?? null,
       meta: original.meta ?? null,
+      gst_rate: original.gst_rate ?? null,
     })
     .select("id, ref")
     .single();

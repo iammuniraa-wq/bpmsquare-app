@@ -153,6 +153,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [discountPct, setDiscountPct]     = useState("0");
   const [discountFixed, setDiscountFixed] = useState("0");
 
+  // GST — optional; blank means no GST row anywhere (CR-010)
+  const [gstRate, setGstRate] = useState("");
+
   // Entity & SOWs
   const [entityId, setEntityId] = useState(() => tenantEntities.find((e) => e.is_default)?.id ?? "");
   const [sows, setSows] = useState<SowEntry[]>([{ id: "1", text: "" }]);
@@ -320,6 +323,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     if (draft.discountType) setDiscountType(draft.discountType);
     if (draft.discountPct)  setDiscountPct(draft.discountPct);
     if (draft.discountFixed) setDiscountFixed(draft.discountFixed);
+    if (draft.gstRate)      setGstRate(draft.gstRate);
     if (draft.entityId)    setEntityId(draft.entityId);
     // SOW backward-compat: old drafts have scopeOfWork string
     if (Array.isArray(draft.sows) && draft.sows.length > 0) setSows(draft.sows);
@@ -341,13 +345,13 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     saveDraft({
       accountId, contactId, quoteName, quoteDate, validUntil,
       refNo, prNo, poNumber, poAmount, owner, notes, terms,
-      discountType, discountPct, discountFixed,
+      discountType, discountPct, discountFixed, gstRate,
       entityId, sows,
       rows, selectedAssetIds, selectedAltId,
     });
   }, [accountId, contactId, quoteName, quoteDate, validUntil,
       refNo, prNo, poNumber, poAmount, owner, notes, terms,
-      discountType, discountPct, discountFixed,
+      discountType, discountPct, discountFixed, gstRate,
       entityId, sows,
       rows, selectedAssetIds, selectedAltId]);
 
@@ -379,6 +383,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     ? Math.round(subtotal * discPct / 100)
     : Math.min(Math.round(parseFloat(discountFixed) || 0), subtotal);
   const total = subtotal - discAmount - totalDeductions;
+  const gstAmount = gstRate !== "" ? Math.round(total * (parseFloat(gstRate) || 0) / 100) : 0;
+  const grandTotal = total + gstAmount;
   const poVal = parseFloat(poAmount) || 0;
 
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -537,6 +543,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           discount_type:   discountType,
           discount_pct:    discPct,
           discount_fixed:  discAmount,
+          gst_rate:        gstRate === "" ? null : gstRate,
           asset_ids:       selectedAssetIds,
           selected_option_id: effectiveAltId,
           case_id: caseSource?.caseId ?? null,
@@ -1165,9 +1172,24 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   </div>
                 )}
 
+                {/* GST — optional; blank omits it from Order Summary and PDF (CR-010) */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, color: c.muted }}>GST % <span style={{ fontSize: 11, color: c.hint }}>(optional)</span></span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input type="number" min="0" max="100" step="0.5" value={gstRate} onChange={(e) => setGstRate(e.target.value)} placeholder="e.g. 18" style={{ width: 60, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }} />
+                    <span style={{ fontSize: 11, color: c.hint }}>%</span>
+                  </div>
+                </div>
+                {gstRate !== "" && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: c.muted }}>
+                    <span>GST @ {gstRate}%</span>
+                    <span style={{ fontWeight: 600, color: c.ink }}>{fmt(gstAmount)}</span>
+                  </div>
+                )}
+
                 <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: pillar.green.bg, borderRadius: 9, marginTop: 2 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: pillar.green.fg }}>Total</span>
-                  <span style={{ fontSize: 17, fontWeight: 800, color: pillar.green.fg }}>{fmt(total)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: pillar.green.fg }}>{gstRate !== "" ? "Grand total" : "Total"}</span>
+                  <span style={{ fontSize: 17, fontWeight: 800, color: pillar.green.fg }}>{fmt(grandTotal)}</span>
                 </div>
               </div>
             </section>

@@ -105,6 +105,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
   const [scopeOfWork, setScopeOfWork] = useState(quote.scope_of_work ?? "");
   const [territory, setTerritory] = useState(quote.territory ?? "");
   const [salesOrg, setSalesOrg] = useState(quote.sales_org ?? "");
+  const [gstRate, setGstRate] = useState(quote.gst_rate != null ? String(quote.gst_rate) : "");
   const [rows, setRows] = useState<Row[]>(() => linesToRows(lines));
   const [selectedAltId, setSelectedAltId] = useState<string | null>(quote.selected_option_id ?? null);
 
@@ -208,7 +209,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           valid_until: validUntil, notes, terms, scope_of_work: scopeOfWork,
-          territory, sales_org: salesOrg,
+          territory, sales_org: salesOrg, gst_rate: gstRate === "" ? null : gstRate,
           lines: flatLines, selected_option_id: effectiveAltId,
         }),
       });
@@ -487,6 +488,11 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
                 <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Standard T&C…" />
               </div>
 
+              <div style={{ marginBottom: 10 }}>
+                <label style={lbl}>GST % <span style={{ fontWeight: 400, color: c.hint }}>(optional — leave blank to omit GST from the Order Summary and PDF)</span></label>
+                <input style={{ ...inp, width: 100 }} type="number" min={0} max={100} step="0.5" value={gstRate} onChange={(e) => setGstRate(e.target.value)} placeholder="e.g. 18" />
+              </div>
+
               {error && (
                 <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "#dc2626", marginTop: 10 }}>
                   {error}
@@ -498,7 +504,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
               <div style={{ fontSize: 12.5, color: c.muted }}>
                 Subtotal <strong style={{ color: c.ink, fontSize: 14, marginLeft: 6 }}>{inr(total)}</strong>
                 {totalDeductions > 0 && <span style={{ marginLeft: 8, fontSize: 11, color: "#b91c1c" }}>(incl. −{inr(totalDeductions)} deduction)</span>}
-                <span style={{ marginLeft: 8, fontSize: 11, color: c.hint }}>+ GST on view</span>
+                <span style={{ marginLeft: 8, fontSize: 11, color: c.hint }}>{gstRate !== "" ? `+ GST ${gstRate}% on view` : "no GST"}</span>
               </div>
               {error && (
                 <div style={{ flex: "1 1 100%", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "#dc2626", order: -1 }}>

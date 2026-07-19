@@ -133,6 +133,7 @@ export type Quote = {
   discount_type?: "pct" | "fixed";
   discount_pct?: number;
   discount_fixed?: number;
+  gst_rate?: number | null;
   asset_ids?: string[];
   revision: number;
   selected_option_id?: string | null;

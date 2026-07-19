@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const body = await request.json();
-  const { valid_until, notes, terms, scope_of_work, lines, selected_option_id, status, territory, sales_org } = body;
+  const { valid_until, notes, terms, scope_of_work, lines, selected_option_id, status, territory, sales_org, gst_rate } = body;
 
   const { data: quote, error: qErr } = await supabase
     .from("quotes")
@@ -80,6 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     selected_option_id: effectiveAltId,
     ...(territory !== undefined ? { territory: territory || null } : {}),
     ...(sales_org !== undefined ? { sales_org: sales_org || null } : {}),
+    ...(gst_rate !== undefined ? { gst_rate: gst_rate !== null && gst_rate !== "" ? parseFloat(gst_rate) : null } : {}),
     total,
   };
   if (status !== undefined) headerPatch.status = status;
