@@ -17,7 +17,6 @@ import TabTitle from "@/components/TabTitle";
 import ObjectDetailSections from "@/components/fields/ObjectDetailSections";
 import { MapPin, Phone, Mail, Gear } from "@/components/Icons";
 import AccountEditPanel from "./AccountEditPanel";
-import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
 
@@ -168,46 +167,35 @@ export default async function AccountHubPage({
       </div>
 
       {/* ── Account header ────────────────────────────────────────────────── */}
-      <div style={{ ...cardStyle, marginBottom: 2, padding: "20px 22px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: c.ink }}>{account.name}</h1>
-              <Pill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", fontSize: 13, color: c.muted }}>
-              {account.city && (
-                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <MapPin size={12} color={c.hint} /> {account.city}
-                </span>
-              )}
-              {account.phone && (
-                <a href={`tel:${account.phone}`} style={{ display: "flex", alignItems: "center", gap: 4, color: c.muted, textDecoration: "none" }}>
-                  <Phone size={12} color={c.hint} /> {account.phone}
-                </a>
-              )}
-              {account.email && (
-                <a href={`mailto:${account.email}`} style={{ display: "flex", alignItems: "center", gap: 4, color: c.muted, textDecoration: "none" }}>
-                  <Mail size={12} color={c.hint} /> {account.email}
-                </a>
-              )}
-              {referredBy && (
-                <span>via <Link href={ROUTES.account(referredBy.id)} style={{ color: c.accent, textDecoration: "none" }}>{referredBy.name}</Link></span>
-              )}
-              <span style={{ color: c.hint }}>Since {fmtDate(account.created_at)}</span>
-            </div>
+      <AccountEditPanel account={account} isAdmin={role === "admin"}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: c.ink }}>{account.name}</h1>
+            <Pill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />
           </div>
-
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <AccountEditPanel account={account} />
-            <AdaptObjectDrawer
-              objectType="account"
-              objectLabel="Account"
-              isAdmin={role === "admin"}
-            />
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", fontSize: 13, color: c.muted }}>
+            {account.city && (
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <MapPin size={12} color={c.hint} /> {account.city}
+              </span>
+            )}
+            {account.phone && (
+              <a href={`tel:${account.phone}`} style={{ display: "flex", alignItems: "center", gap: 4, color: c.muted, textDecoration: "none" }}>
+                <Phone size={12} color={c.hint} /> {account.phone}
+              </a>
+            )}
+            {account.email && (
+              <a href={`mailto:${account.email}`} style={{ display: "flex", alignItems: "center", gap: 4, color: c.muted, textDecoration: "none" }}>
+                <Mail size={12} color={c.hint} /> {account.email}
+              </a>
+            )}
+            {referredBy && (
+              <span>via <Link href={ROUTES.account(referredBy.id)} style={{ color: c.accent, textDecoration: "none" }}>{referredBy.name}</Link></span>
+            )}
+            <span style={{ color: c.hint }}>Since {fmtDate(account.created_at)}</span>
           </div>
         </div>
-      </div>
+      </AccountEditPanel>
 
       {/* ── Tab bar ───────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 0, marginBottom: 14, borderBottom: `1px solid ${c.line}`, overflowX: "auto" }}>

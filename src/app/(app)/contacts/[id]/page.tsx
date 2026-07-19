@@ -10,7 +10,6 @@ import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import { Phone, Mail, MapPin } from "@/components/Icons";
 import ContactEditPanel from "./ContactEditPanel";
-import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import ObjectDetailSections from "@/components/fields/ObjectDetailSections";
 
 const CASE_TONE: Record<string, PillarKey> = {
@@ -42,7 +41,7 @@ export default async function ContactDetailPage({
       <TabTitle title={contact.name} />
 
       {/* Header */}
-      <div style={{ ...cardStyle, marginBottom: 14 }}>
+      <ContactEditPanel contact={contact} isAdmin={role === "admin"} accountAddress={account ?? null}>
         <div style={{ marginBottom: 10 }}>
           <Link href={ROUTES.contacts} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
             ← All contacts
@@ -79,16 +78,7 @@ export default async function ContactDetailPage({
             {account.city && <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={11} color={c.hint} /> {account.city}</span>}
           </div>
         )}
-
-        <div style={{ marginTop: account ? 10 : 12, display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <ContactEditPanel contact={contact} accountAddress={account ?? null} />
-          <AdaptObjectDrawer
-            objectType="contact"
-            objectLabel="Contact"
-            isAdmin={role === "admin"}
-          />
-        </div>
-      </div>
+      </ContactEditPanel>
 
       <div style={{ marginBottom: 14 }}>
         <ObjectDetailSections objectType="contact" record={contact as unknown as Record<string, unknown>} />
