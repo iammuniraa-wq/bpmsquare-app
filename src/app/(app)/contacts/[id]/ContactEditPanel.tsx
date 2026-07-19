@@ -101,13 +101,13 @@ export default function ContactEditPanel({ contact, accountAddress }: Props) {
         type="button"
         onClick={() => { setOpen(true); setSaved(false); }}
         style={{
-          fontSize: 12, fontWeight: 600, color: c.muted,
-          background: "none", border: `1px solid ${c.line}`,
-          borderRadius: 6, padding: "5px 12px", cursor: "pointer",
+          fontSize: 12.5, fontWeight: 600, color: saved ? c.muted : c.accent,
+          background: saved ? "none" : c.accentbg, border: `1px solid ${saved ? c.line : c.accent + "40"}`,
+          borderRadius: 6, padding: "6px 14px", cursor: "pointer",
           display: "inline-flex", alignItems: "center", gap: 5,
         }}
       >
-        {saved ? <><CheckIcon size={12} color={c.muted} /> Saved</> : <><Pencil size={12} color={c.muted} /> Edit contact</>}
+        {saved ? <><CheckIcon size={12} color={c.muted} /> Saved</> : <><Pencil size={12} color={c.accent} /> Edit contact</>}
       </button>
     );
   }

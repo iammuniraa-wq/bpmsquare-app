@@ -25,6 +25,31 @@ const CASE_TONE: Record<string, PillarKey> = {
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// Plain date strings (no time component) are formatted without going through
+// Date(), which would otherwise shift the day depending on the viewer's timezone.
+const fmtPlainDate = (s: string) => {
+  const [y, m, d] = s.split("-");
+  return `${d} ${MONTHS[Number(m) - 1]} ${y}`;
+};
+
+function DetailRow({ label, value, href }: { label: string; value: string; href?: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
+        {label}
+      </div>
+      {href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: c.accent, textDecoration: "none", wordBreak: "break-word" }}>
+          {value}
+        </a>
+      ) : (
+        <div style={{ fontSize: 13, color: c.ink, wordBreak: "break-word" }}>{value}</div>
+      )}
+    </div>
+  );
+}
+
 export default async function ContactDetailPage({
   params,
 }: {
@@ -89,6 +114,44 @@ export default async function ContactDetailPage({
           />
         </div>
       </div>
+
+      {/* Details — every populated field, not just the header basics */}
+      {(contact.department || contact.birthday || contact.linkedin_url || contact.phone2 || contact.phone3 ||
+        contact.email2 || contact.website || contact.address_line1 || contact.city ||
+        contact.territory || contact.sales_org || contact.notes) && (
+        <section style={{ ...cardStyle, marginBottom: 14 }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>
+            Details
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px 20px" }}>
+            {contact.department && <DetailRow label="Department" value={contact.department} />}
+            {contact.birthday && <DetailRow label="Birthday" value={fmtPlainDate(contact.birthday)} />}
+            {contact.linkedin_url && <DetailRow label="LinkedIn" value={contact.linkedin_url} href={contact.linkedin_url} />}
+            {contact.phone2 && <DetailRow label="Secondary phone" value={contact.phone2} />}
+            {contact.phone3 && <DetailRow label="Third phone" value={contact.phone3} />}
+            {contact.email2 && <DetailRow label="Secondary email" value={contact.email2} href={`mailto:${contact.email2}`} />}
+            {contact.website && <DetailRow label="Website" value={contact.website} href={contact.website.startsWith("http") ? contact.website : `https://${contact.website}`} />}
+            {(contact.territory || contact.sales_org) && (
+              <DetailRow label="Territory / sales org" value={[contact.territory, contact.sales_org].filter(Boolean).join(" · ")} />
+            )}
+            {(contact.address_line1 || contact.city) && (
+              <DetailRow
+                label="Address"
+                value={[contact.address_line1, contact.address_line2, contact.city, contact.state, contact.postal_code, contact.country]
+                  .filter(Boolean).join(", ")}
+              />
+            )}
+          </div>
+          {contact.notes && (
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${c.line}` }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+                Notes
+              </div>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: c.ink }}>{contact.notes}</p>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Custom fields */}
       <CustomFieldsSection

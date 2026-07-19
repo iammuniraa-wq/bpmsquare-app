@@ -22,9 +22,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     "notes", "territory", "sales_org", "custom_data",
   ];
   const PII_FIELDS = new Set(["phone", "phone2", "phone3", "email", "email2"]);
+  const DATE_FIELDS = new Set(["birthday"]);
   const patch: Record<string, unknown> = {};
   for (const key of allowed) {
-    if (key in body) patch[key] = PII_FIELDS.has(key) ? encrypt(body[key] as string | null) : body[key];
+    if (key in body) {
+      const value = DATE_FIELDS.has(key) && body[key] === "" ? null : body[key];
+      patch[key] = PII_FIELDS.has(key) ? encrypt(value as string | null) : value;
+    }
   }
 
   const { data, error } = await supabase
