@@ -361,6 +361,21 @@ returns boolean language sql stable security definer as $$
   )
 $$;
 
+-- Helper: the calling user's tenant_id(s). SECURITY DEFINER so this query
+-- bypasses tenant_users' own RLS (runs as the function owner, who isn't
+-- subject to it) — required to avoid "infinite recursion detected in
+-- policy for relation tenant_users" (see 0029_fix_tenant_users_recursive_policy.sql).
+-- Every other table's "tenant isolation" policy subqueries tenant_users
+-- directly (not through this function) and that's fine — it only needed
+-- tenant_users' own SELECT policy to be non-recursive, which this fixes.
+create or replace function my_tenant_ids()
+returns setof uuid
+language sql stable security definer
+set search_path = public
+as $$
+  select tenant_id from tenant_users where user_id = auth.uid()
+$$;
+
 -- Enable RLS on every table
 alter table platform_admins    enable row level security;
 alter table tenants            enable row level security;
@@ -407,7 +422,7 @@ create policy "tenant_users: admin full"
 
 create policy "tenant_users: members read own tenant"
   on tenant_users for select
-  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
+  using (tenant_id in (select my_tenant_ids()));
 
 -- Macro: all domain tables use the same tenant_id isolation pattern —
 -- a live tenant_users membership check (NOT the legacy JWT-claim
