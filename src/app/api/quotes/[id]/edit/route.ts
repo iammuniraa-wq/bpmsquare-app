@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const body = await request.json();
-  const { valid_until, notes, terms, scope_of_work, lines, selected_option_id, status, territory, sales_org, gst_rate } = body;
+  const { valid_until, notes, terms, scope_of_work, lines, selected_option_id, status, territory, sales_org, gst_rate, account_id, contact_id } = body;
 
   const { data: quote, error: qErr } = await supabase
     .from("quotes")
@@ -25,6 +25,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (qErr || !quote) {
     return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+  }
+
+  if (account_id !== undefined) {
+    const { data: acct } = await supabase
+      .from("accounts")
+      .select("id")
+      .eq("id", account_id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (!acct) return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
   // Normalize incoming lines and compute total.
@@ -81,6 +91,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ...(territory !== undefined ? { territory: territory || null } : {}),
     ...(sales_org !== undefined ? { sales_org: sales_org || null } : {}),
     ...(gst_rate !== undefined ? { gst_rate: gst_rate !== null && gst_rate !== "" ? parseFloat(gst_rate) : null } : {}),
+    ...(account_id !== undefined ? { account_id } : {}),
+    ...(contact_id !== undefined ? { contact_id: contact_id || null } : {}),
     total,
   };
   if (status !== undefined) headerPatch.status = status;

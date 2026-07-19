@@ -3,6 +3,25 @@ import { revalidateTag } from "next/cache";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { encrypt } from "@/lib/encryption";
 
+export async function GET() {
+  let supabase, tenantId;
+  try {
+    ({ supabase, tenantId } = await requireTenantUser());
+  } catch (e: unknown) {
+    const err = e as { status: number; message: string };
+    return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+
+  const { data, error } = await supabase
+    .from("contacts")
+    .select("id, account_id, name, role")
+    .eq("tenant_id", tenantId)
+    .order("name", { ascending: true });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data ?? []);
+}
+
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
   try {

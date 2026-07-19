@@ -30,14 +30,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
       const chromium = (await import("@sparticuz/chromium")).default;
       const puppeteer = await import("puppeteer-core");
+      // @sparticuz/chromium ships a "headless shell" build -- it requires the
+      // "shell" headless mode specifically, not a plain boolean. Launching
+      // with `headless: true` (the old default) fails to start the browser
+      // process on this prebuilt binary, which is what was surfacing as a
+      // blanket "PDF generation failed" with no further detail.
       browser = await puppeteer.launch({
-        args: chromium.args,
+        args: await puppeteer.defaultArgs({ args: chromium.args, headless: "shell" }),
         executablePath: await chromium.executablePath(),
-        headless: true,
+        headless: "shell",
       });
     } else {
       const puppeteer = await import("puppeteer");
-      browser = await puppeteer.launch({ headless: true });
+      browser = await puppeteer.launch({ headless: "shell" });
     }
 
     const page = await browser.newPage();
@@ -62,7 +67,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   } catch (e: unknown) {
     console.error("[quotes/pdf] render failed", e);
-    return NextResponse.json({ error: "PDF generation failed" }, { status: 500 });
+    const detail = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: `PDF generation failed: ${detail}` }, { status: 500 });
   } finally {
     await browser?.close();
   }

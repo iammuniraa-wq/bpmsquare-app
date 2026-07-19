@@ -108,6 +108,10 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
   const [gstRate, setGstRate] = useState(quote.gst_rate != null ? String(quote.gst_rate) : "");
   const [rows, setRows] = useState<Row[]>(() => linesToRows(lines));
   const [selectedAltId, setSelectedAltId] = useState<string | null>(quote.selected_option_id ?? null);
+  const [accountId, setAccountId] = useState(quote.account_id);
+  const [contactId, setContactId] = useState(quote.contact_id ?? "");
+  const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
+  const [contacts, setContacts] = useState<{ id: string; account_id: string; name: string; role: string | null }[]>([]);
 
   // Sync form fields from the latest quote prop every time the modal opens
   useEffect(() => {
@@ -121,9 +125,15 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
       setSalesOrg(quote.sales_org ?? "");
       setRows(linesToRows(lines));
       setSelectedAltId(quote.selected_option_id ?? null);
+      setAccountId(quote.account_id);
+      setContactId(quote.contact_id ?? "");
+      fetch("/api/accounts").then((r) => r.json()).then((data) => { if (Array.isArray(data)) setAccounts(data); }).catch(() => {});
+      fetch("/api/contacts").then((r) => r.json()).then((data) => { if (Array.isArray(data)) setContacts(data); }).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openEditor]);
+
+  const accountContacts = contacts.filter((ct) => ct.account_id === accountId);
 
   const altGroups = rows.filter((r): r is GroupRow => r.kind === "group" && r.group_type === "alternative");
   const effectiveAltId = selectedAltId ?? altGroups[0]?.id ?? null;
@@ -210,6 +220,7 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
         body: JSON.stringify({
           valid_until: validUntil, notes, terms, scope_of_work: scopeOfWork,
           territory, sales_org: salesOrg, gst_rate: gstRate === "" ? null : gstRate,
+          account_id: accountId, contact_id: contactId || null,
           lines: flatLines, selected_option_id: effectiveAltId,
         }),
       });
@@ -319,6 +330,25 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
             <div style={{ flex: 1, padding: "20px 24px", overflowY: "auto", maxWidth: 1100, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
                 <div>
+                  <label style={lbl}>Account</label>
+                  <select style={{ ...inp, cursor: "pointer" }} value={accountId} onChange={(e) => {
+                    setAccountId(e.target.value);
+                    setContactId((cid) => contacts.find((ct) => ct.id === cid)?.account_id === e.target.value ? cid : "");
+                  }}>
+                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Contact</label>
+                  <select style={{ ...inp, cursor: "pointer" }} value={contactId} onChange={(e) => setContactId(e.target.value)}>
+                    <option value="">— None —</option>
+                    {accountContacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}{ct.role ? ` · ${ct.role}` : ""}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                <div>
                   <label style={lbl}>Status</label>
                   <select style={{ ...inp, cursor: "pointer" }} value={status} onChange={(e) => setStatus(e.target.value)}>
                     {quoteStatuses.map((s) => (
@@ -341,14 +371,18 @@ export default function QuoteEditPanel({ quote, lines, quoteStatuses = DEFAULT_Q
                 </div>
               </div>
 
+              {rows.some((r) => r.kind === "line") && (
+                <div style={{ display: "grid", gridTemplateColumns: lineCols, gap: 6, padding: "0 10px", marginBottom: 4 }}>
+                  {lineHeaders.map((h, hi) => (
+                    <span key={hi} style={{ fontSize: 10, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.3 }}>{h}</span>
+                  ))}
+                </div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
                 {rows.map((row) => {
                   if (row.kind === "line") {
                     return (
                       <div key={row.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: lineCols, gap: 6, padding: "8px 10px", background: c.panel2, fontSize: 10, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.3 }}>
-                          {lineHeaders.map((h, hi) => <span key={hi}>{h}</span>)}
-                        </div>
                         <div style={{ display: "grid", gridTemplateColumns: lineCols, gap: 6, padding: "7px 10px", alignItems: "center" }}>
                           <input style={{ ...inp, textAlign: "center", fontFamily: "monospace", padding: "6px 4px" }} value={row.sl_no} onChange={(e) => updateLine(row.id, "sl_no", e.target.value)} placeholder="1" />
                           <input style={inp} value={row.description} onChange={(e) => updateLine(row.id, "description", e.target.value)} placeholder="Work / part…" />
