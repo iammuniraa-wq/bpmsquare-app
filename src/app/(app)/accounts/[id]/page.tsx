@@ -15,7 +15,8 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
-import { MapPin, Phone, Mail, Gear } from "@/components/Icons";
+import QuickCreateDeck from "@/components/QuickCreateDeck";
+import { MapPin, Phone, Mail, Gear, Activity as ActivityIcon, Package, FileText } from "@/components/Icons";
 import AccountHeader from "./AccountHeader";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
@@ -148,8 +149,6 @@ export default async function AccountHubPage({
 
   const { account, referredBy } = hub;
 
-  const openCases      = hub.cases.filter((sc) => !["closed", "buyback", "scrapped"].includes(sc.status));
-  const closedCases    = hub.cases.filter((sc) =>  ["closed", "buyback", "scrapped"].includes(sc.status));
   const quotationTotal = hub.quotes.reduce((s, q) => s + q.total, 0);
   const invoiceBalance  = hub.invoices.reduce((s, inv) => s + Math.max(0, inv.total - inv.paid_amount), 0);
 
@@ -235,162 +234,20 @@ export default async function AccountHubPage({
       {/* ════════════════════════════════════════════════════════════════════ */}
 
       {activeTab === "overview" && (
-        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,300px) minmax(0,1fr)", gap: 14, alignItems: "start" }}>
+        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 14, alignItems: "start" }}>
 
-          {/* LEFT: Account details */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* LEFT: Account details only — everything else (cases, contacts,
+              assets, quotations, invoices) already has its own tab above. */}
+          <ObjectSections objectType="account" record={account as unknown as Record<string, unknown>} patchUrl={`/api/accounts/${account.id}`} />
 
-            <ObjectSections objectType="account" record={account as unknown as Record<string, unknown>} patchUrl={`/api/accounts/${account.id}`} />
-
-            {/* Contacts sidebar */}
-            <section style={cardStyle}>
-              <SectionHead
-                label="Contacts"
-                count={hub.contacts.length}
-                action={<AddLink href={`${ROUTES.contactNew}?account_id=${id}`} label="Add" />}
-              />
-              {hub.contacts.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: c.hint, padding: "8px 0" }}>No contacts yet</div>
-              ) : (
-                hub.contacts.slice(0, 5).map((ct, i) => (
-                  <div key={ct.id} style={{ paddingTop: 10, borderTop: `1px solid ${c.line}` }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{ct.name}</div>
-                        {ct.role && <div style={{ fontSize: 11.5, color: c.muted, marginTop: 1 }}>{ct.role}</div>}
-                      </div>
-                      <OpenLink href={ROUTES.contact(ct.id)} />
-                    </div>
-                    <div style={{ marginTop: 5, display: "flex", flexDirection: "column", gap: 3 }}>
-                      {ct.phone && (
-                        <a href={`tel:${ct.phone}`} style={{ fontSize: 12.5, color: c.accent, textDecoration: "none", display: "flex", alignItems: "center", gap: 5 }}>
-                          <Phone size={12} color={c.accent} /> {ct.phone}
-                        </a>
-                      )}
-                      {ct.email && (
-                        <a href={`mailto:${ct.email}`} style={{ fontSize: 12, color: c.muted, textDecoration: "none", display: "flex", alignItems: "center", gap: 5, wordBreak: "break-all" }}>
-                          <Mail size={12} color={c.hint} /> {ct.email}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-              {hub.contacts.length > 5 && (
-                <Link href={tabHref("contacts")} style={{ display: "block", textAlign: "center", marginTop: 12, fontSize: 12.5, color: c.accent, textDecoration: "none" }}>
-                  See all {hub.contacts.length} contacts →
-                </Link>
-              )}
-            </section>
-          </div>
-
-          {/* RIGHT: Open cases — the single most actionable view */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <section style={cardStyle}>
-              <SectionHead
-                label="Open cases"
-                count={openCases.length}
-                action={<AddLink href={`${ROUTES.caseNew}?account_id=${id}`} label="New case" />}
-              />
-
-              {openCases.length === 0 ? (
-                <EmptyRow label="No open cases for this account." href={`${ROUTES.caseNew}?account_id=${id}`} linkLabel="Create first case" />
-              ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-                      <th style={cth}>Ref</th>
-                      <th style={cth}>Equipment</th>
-                      <th style={cth}>Stage</th>
-                      <th style={cth}>Type</th>
-                      <th style={cth}>Intake</th>
-                      <th style={cth}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {openCases.map((sc) => (
-                      <tr key={sc.id} style={{ borderBottom: `1px solid ${c.line}` }}>
-                        <td style={ctd}>
-                          <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{sc.ref}</span>
-                        </td>
-                        <td style={ctd}>
-                          <div style={{ fontWeight: 500, fontSize: 13, color: c.ink }}>{sc.equipment_label || "—"}</div>
-                          {sc.complaint && (
-                            <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>
-                              {sc.complaint}
-                            </div>
-                          )}
-                        </td>
-                        <td style={ctd}><Pill label={CASE_STATUS_LABEL[sc.status]} tone={CASE_TONE[sc.status] ?? "blue"} /></td>
-                        <td style={ctd}><Pill label={CASE_TYPE_LABEL[sc.type]} tone="blue" /></td>
-                        <td style={{ ...ctd, color: c.hint, fontSize: 12 }}>{fmtDate(sc.intake_at)}</td>
-                        <td style={ctd}><OpenLink href={ROUTES.case(sc.id)} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              {closedCases.length > 0 && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${c.line}` }}>
-                  <Link href={tabHref("cases")} style={{ fontSize: 12.5, color: c.muted, textDecoration: "none" }}>
-                    + {closedCases.length} closed case{closedCases.length !== 1 ? "s" : ""} — view all →
-                  </Link>
-                </div>
-              )}
-            </section>
-
-            {/* Compact: Assets + recent quotes side by side */}
-            {(hub.assets.length > 0 || hub.quotes.length > 0) && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                {hub.assets.length > 0 && (
-                  <section style={cardStyle}>
-                    <SectionHead label="Assets" count={hub.assets.length} action={<AddLink href={`${ROUTES.assetNew}?account_id=${id}`} label="Add" />} />
-                    {hub.assets.slice(0, 4).map((a) => (
-                      <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: `1px solid ${c.line}` }}>
-                        <div style={{ width: 28, height: 28, borderRadius: 7, flexShrink: 0, background: pillar.green.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Gear size={13} color={pillar.green.fg} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12.5, fontWeight: 600, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
-                          <div style={{ fontSize: 11, color: c.hint, textTransform: "capitalize" }}>{a.kind}{a.make ? ` · ${a.make}` : ""}</div>
-                        </div>
-                        <OpenLink href={ROUTES.asset(a.id)} />
-                      </div>
-                    ))}
-                    {hub.assets.length > 4 && (
-                      <Link href={tabHref("assets")} style={{ display: "block", textAlign: "center", marginTop: 8, fontSize: 12, color: c.accent, textDecoration: "none" }}>
-                        See all {hub.assets.length} →
-                      </Link>
-                    )}
-                  </section>
-                )}
-
-                {hub.quotes.length > 0 && (
-                  <section style={cardStyle}>
-                    <SectionHead label="Quotations" count={hub.quotes.length} action={<AddLink href={ROUTES.quotationNew} label="New" />} />
-                    {hub.quotes.slice(0, 4).map((q) => (
-                      <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: `1px solid ${c.line}` }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12, color: c.ink }}>{q.ref}</span>
-                            <Pill label={QUOTE_STATUS_LABEL[q.status]} tone={QUOTE_TONE[q.status] ?? "blue"} />
-                          </div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: c.ink, marginTop: 2 }}>{fmtINR(q.total)}</div>
-                        </div>
-                        <OpenLink href={ROUTES.quotation(q.id)} />
-                      </div>
-                    ))}
-                    {hub.quotes.length > 4 && (
-                      <Link href={tabHref("quotations")} style={{ display: "block", textAlign: "center", marginTop: 8, fontSize: 12, color: c.accent, textDecoration: "none" }}>
-                        See all {hub.quotes.length} →
-                      </Link>
-                    )}
-                  </section>
-                )}
-              </div>
-            )}
-          </div>
+          {/* RIGHT: Quick create — jump straight into a related object */}
+          <QuickCreateDeck items={[
+            { href: `${ROUTES.caseNew}?account_id=${id}`,      label: "New case",       icon: <ActivityIcon size={13} color={pillar.teal.base} />, bg: pillar.teal.bg },
+            { href: `${ROUTES.contactNew}?account_id=${id}`,   label: "New contact",    icon: <Phone size={13} color={pillar.blue.base} />,     bg: pillar.blue.bg },
+            { href: `${ROUTES.assetNew}?account_id=${id}`,     label: "New asset",      icon: <Gear size={13} color={pillar.green.base} />,     bg: pillar.green.bg },
+            { href: ROUTES.quotationNew,                       label: "New quotation",  icon: <Package size={13} color={pillar.amber.base} />,  bg: pillar.amber.bg },
+            { href: ROUTES.invoiceNew,                         label: "New invoice",    icon: <FileText size={13} color={pillar.purple.base} />, bg: pillar.purple.bg },
+          ]} />
         </div>
       )}
 
@@ -669,15 +526,6 @@ export default async function AccountHubPage({
 }
 
 // ── Shared styles ──────────────────────────────────────────────────────────────
-
-// Case table inside overview
-const cth: React.CSSProperties = {
-  textAlign: "left", fontSize: 11, fontWeight: 700, color: c.hint,
-  textTransform: "uppercase", letterSpacing: 0.4, padding: "8px 12px",
-};
-const ctd: React.CSSProperties = {
-  padding: "10px 12px", fontSize: 13, verticalAlign: "middle",
-};
 
 // Full-width tab tables
 const th2: React.CSSProperties = {
