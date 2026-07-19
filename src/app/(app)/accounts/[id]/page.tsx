@@ -14,9 +14,9 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
-import ObjectDetailSections from "@/components/fields/ObjectDetailSections";
+import ObjectSections from "@/components/fields/ObjectSections";
 import { MapPin, Phone, Mail, Gear } from "@/components/Icons";
-import AccountEditPanel from "./AccountEditPanel";
+import AccountHeader from "./AccountHeader";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
 
@@ -167,7 +167,7 @@ export default async function AccountHubPage({
       </div>
 
       {/* ── Account header ────────────────────────────────────────────────── */}
-      <AccountEditPanel account={account} isAdmin={role === "admin"}>
+      <AccountHeader isAdmin={role === "admin"}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: c.ink }}>{account.name}</h1>
@@ -195,7 +195,7 @@ export default async function AccountHubPage({
             <span style={{ color: c.hint }}>Since {fmtDate(account.created_at)}</span>
           </div>
         </div>
-      </AccountEditPanel>
+      </AccountHeader>
 
       {/* ── Tab bar ───────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 0, marginBottom: 14, borderBottom: `1px solid ${c.line}`, overflowX: "auto" }}>
@@ -240,7 +240,7 @@ export default async function AccountHubPage({
           {/* LEFT: Account details */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-            <ObjectDetailSections objectType="account" record={account as unknown as Record<string, unknown>} />
+            <ObjectSections objectType="account" record={account as unknown as Record<string, unknown>} patchUrl={`/api/accounts/${account.id}`} />
 
             {/* Contacts sidebar */}
             <section style={cardStyle}>

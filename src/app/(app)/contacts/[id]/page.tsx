@@ -9,8 +9,8 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import { Phone, Mail, MapPin } from "@/components/Icons";
-import ContactEditPanel from "./ContactEditPanel";
-import ObjectDetailSections from "@/components/fields/ObjectDetailSections";
+import ContactHeader from "./ContactHeader";
+import ContactDetailSections from "./ContactDetailSections";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -41,7 +41,7 @@ export default async function ContactDetailPage({
       <TabTitle title={contact.name} />
 
       {/* Header */}
-      <ContactEditPanel contact={contact} isAdmin={role === "admin"} accountAddress={account ?? null}>
+      <ContactHeader isAdmin={role === "admin"}>
         <div style={{ marginBottom: 10 }}>
           <Link href={ROUTES.contacts} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
             ← All contacts
@@ -78,10 +78,10 @@ export default async function ContactDetailPage({
             {account.city && <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={11} color={c.hint} /> {account.city}</span>}
           </div>
         )}
-      </ContactEditPanel>
+      </ContactHeader>
 
       <div style={{ marginBottom: 14 }}>
-        <ObjectDetailSections objectType="contact" record={contact as unknown as Record<string, unknown>} />
+        <ContactDetailSections contact={contact} accountAddress={account ?? null} />
       </div>
 
       {/* Cases */}
