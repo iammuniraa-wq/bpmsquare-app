@@ -65,8 +65,18 @@ export async function findOrCreateUserForInvite(
   return { userId: invited.user.id, isNew: true };
 }
 
-/** True if the current authenticated user is a platform admin (whitelisted in platform_admins). */
-export async function isPlatformAdmin(): Promise<boolean> {
+/**
+ * True if the current authenticated user is a platform admin (whitelisted in
+ * platform_admins). cache()-wrapped -- this and resolveTenantIdForPlatformAdmin()
+ * are each called from 4+ independent places per request (root layout directly,
+ * plus indirectly via getTenant()/getUserRole()/requireTenantUser()/
+ * resolveViewerTenantId(), each of which is itself cached but calls this fresh
+ * every time since caching a function doesn't cache what it calls internally).
+ * Without this, a single page load was re-running this 1-2 query lookup chain
+ * 4-5+ times redundantly, on top of middleware.ts doing the equivalent check
+ * again from scratch before the request even reaches here.
+ */
+export const isPlatformAdmin = cache(async (): Promise<boolean> => {
   const user = await getAuthUser();
   if (!user) return false;
 
@@ -95,7 +105,7 @@ export async function isPlatformAdmin(): Promise<boolean> {
   }
 
   return false;
-}
+});
 
 /**
  * Platform admins have no tenant_users row by default. When one is browsing a
@@ -109,8 +119,12 @@ export async function isPlatformAdmin(): Promise<boolean> {
  * check tenant_users directly -- not on this function's return value -- so
  * without a real row, RLS would keep scoping every query to whichever tenant
  * this admin happens to already belong to, regardless of which domain they're on.
+ *
+ * cache()-wrapped -- see the comment on isPlatformAdmin() above for why this
+ * matters. Safe to dedupe within one request: hostname and auth don't change
+ * mid-request, and the upsert below is itself idempotent (ignoreDuplicates).
  */
-export async function resolveTenantIdForPlatformAdmin(): Promise<string | null> {
+export const resolveTenantIdForPlatformAdmin = cache(async (): Promise<string | null> => {
   const host = (await headers()).get("host")?.split(":")[0] ?? "";
   if (isPrimaryOrDevHost(host)) return null;
 
@@ -131,7 +145,7 @@ export async function resolveTenantIdForPlatformAdmin(): Promise<string | null> 
     .upsert({ tenant_id: tenant.id, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id", ignoreDuplicates: true });
 
   return tenant.id;
-}
+});
 
 /**
  * Resolve the current viewer's tenant_id for lib/data/live.ts read helpers that
@@ -168,7 +182,7 @@ export async function requireTenantUser(): Promise<{
   role: "admin" | "member";
 }> {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) throw { status: 401, message: "Unauthorized" };
 
   // Platform admins: the tenant mapped to the current hostname always wins over
