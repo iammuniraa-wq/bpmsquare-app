@@ -7,12 +7,12 @@ import {
   QUOTE_STATUS_LABEL,
 } from "@/lib/data";
 import { getAccountHubLive } from "@/lib/data/live";
-import { getUserRole } from "@/lib/tenant";
+import { getUserRole, getTenant } from "@/lib/tenant";
 import type { Activity, Account, InvoiceStatus } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
-import { ROUTES } from "@/lib/constants";
+import { ROUTES, type TenantFeatures } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
 import QuickCreateDeck from "@/components/QuickCreateDeck";
@@ -61,13 +61,16 @@ const fmtINR = (n: number) => "₹" + n.toLocaleString("en-IN");
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
 type Tab = "overview" | "cases" | "contacts" | "assets" | "quotations" | "invoices" | "activity";
-const TABS: { id: Tab; label: string }[] = [
+// featureKey mirrors Sidebar.tsx's NAV gating — a tab only shows if the
+// tenant has that module enabled (tenant.features), same source of truth
+// used everywhere else in the app.
+const TABS: { id: Tab; label: string; featureKey?: keyof TenantFeatures }[] = [
   { id: "overview",   label: "Overview"   },
   { id: "cases",      label: "Cases"      },
   { id: "contacts",   label: "Contacts"   },
   { id: "assets",     label: "Assets"     },
   { id: "quotations", label: "Quotations" },
-  { id: "invoices",   label: "Invoices"   },
+  { id: "invoices",   label: "Invoices",  featureKey: "invoices" },
   { id: "activity",   label: "Activity"   },
 ];
 
@@ -142,12 +145,14 @@ export default async function AccountHubPage({
 }) {
   const { id } = await params;
   const { tab: rawTab } = await searchParams;
-  const activeTab: Tab = (TABS.find((t) => t.id === rawTab)?.id) ?? "overview";
 
-  const [hub, role] = await Promise.all([getAccountHubLive(id), getUserRole()]);
+  const [hub, role, tenant] = await Promise.all([getAccountHubLive(id), getUserRole(), getTenant()]);
   if (!hub) notFound();
 
   const { account, referredBy } = hub;
+  const features = tenant?.features as TenantFeatures | undefined;
+  const visibleTabs = TABS.filter((t) => !t.featureKey || features?.[t.featureKey] === true);
+  const activeTab: Tab = (visibleTabs.find((t) => t.id === rawTab)?.id) ?? "overview";
 
   const quotationTotal = hub.quotes.reduce((s, q) => s + q.total, 0);
   const invoiceBalance  = hub.invoices.reduce((s, inv) => s + Math.max(0, inv.total - inv.paid_amount), 0);
@@ -198,7 +203,7 @@ export default async function AccountHubPage({
 
       {/* ── Tab bar ───────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 0, marginBottom: 14, borderBottom: `1px solid ${c.line}`, overflowX: "auto" }}>
-        {TABS.map((t) => {
+        {visibleTabs.map((t) => {
           const active = t.id === activeTab;
           const badge  = t.id === "cases"      ? hub.cases.length
                        : t.id === "contacts"   ? hub.contacts.length
@@ -246,7 +251,7 @@ export default async function AccountHubPage({
             { href: `${ROUTES.contactNew}?account_id=${id}`,   label: "New contact",    icon: <Phone size={13} color={pillar.blue.base} />,     bg: pillar.blue.bg },
             { href: `${ROUTES.assetNew}?account_id=${id}`,     label: "New asset",      icon: <Gear size={13} color={pillar.green.base} />,     bg: pillar.green.bg },
             { href: ROUTES.quotationNew,                       label: "New quotation",  icon: <Package size={13} color={pillar.amber.base} />,  bg: pillar.amber.bg },
-            { href: ROUTES.invoiceNew,                         label: "New invoice",    icon: <FileText size={13} color={pillar.purple.base} />, bg: pillar.purple.bg },
+            ...(features?.invoices ? [{ href: ROUTES.invoiceNew, label: "New invoice", icon: <FileText size={13} color={pillar.purple.base} />, bg: pillar.purple.bg }] : []),
           ]} />
         </div>
       )}
