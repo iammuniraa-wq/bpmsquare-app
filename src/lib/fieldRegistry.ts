@@ -2,7 +2,8 @@
 // re-exports server-only live.ts data functions, which would otherwise leak
 // into every client component that imports this registry).
 import { ACCOUNT_TYPE_LABEL, ASSET_KIND_LABEL, SUPPLIER_TYPE_LABEL, SUPPLIER_STATUS_LABEL } from "@/lib/data/labels";
-import type { AccountType, Asset, Supplier } from "@/lib/types";
+import { OFFER_TYPE_LABEL } from "@/lib/constants";
+import type { AccountType, Asset, Supplier, QuoteOfferType } from "@/lib/types";
 
 // ── Widget types ─────────────────────────────────────────────────────────────
 //
@@ -72,7 +73,7 @@ export type EffectiveField = {
   placeholder?: string;
 };
 
-export type PilotObjectType = "account" | "contact" | "asset" | "supplier";
+export type PilotObjectType = "account" | "contact" | "asset" | "supplier" | "quote";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -85,6 +86,14 @@ const SUPPLIER_TYPE_OPTIONS: { value: Supplier["type"]; label: string }[] =
 
 const SUPPLIER_STATUS_OPTIONS: { value: Supplier["status"]; label: string }[] =
   (Object.keys(SUPPLIER_STATUS_LABEL) as Supplier["status"][]).map((value) => ({ value, label: SUPPLIER_STATUS_LABEL[value] }));
+
+const QUOTE_TYPE_OPTIONS: { value: QuoteOfferType; label: string }[] =
+  (Object.keys(OFFER_TYPE_LABEL) as QuoteOfferType[]).map((value) => ({ value, label: OFFER_TYPE_LABEL[value] }));
+
+const DISCOUNT_TYPE_OPTIONS: { value: "pct" | "fixed"; label: string }[] = [
+  { value: "pct",   label: "Percentage" },
+  { value: "fixed", label: "Fixed amount" },
+];
 
 export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   account: {
@@ -204,6 +213,47 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "notes",  defaultLabel: "Notes",  widget: "textarea", defaultSection: "Notes" },
     ],
   },
+
+  quote: {
+    sections: ["Identity", "Reference", "Commercial", "Sales", "Notes"],
+    fields: [
+      // "ref" is already the page's H1 (PageHeader title) — kept here too,
+      // locked, so it's visible/renameable-label like every object's identity
+      // field, consistent with the rest of the registry.
+      { key: "ref",  defaultLabel: "Quote ID", widget: "text", defaultSection: "Identity", locked: true, editable: false },
+      { key: "name", defaultLabel: "Name",     widget: "text", defaultSection: "Identity" },
+      { key: "type", defaultLabel: "Type",     widget: "enum", defaultSection: "Identity", enumOptions: QUOTE_TYPE_OPTIONS },
+      { key: "valid_until", defaultLabel: "Valid until", widget: "date", defaultSection: "Identity" },
+
+      { key: "ref_no", defaultLabel: "Reference no.", widget: "text", defaultSection: "Reference" },
+      { key: "pr_no",  defaultLabel: "PR no.",         widget: "text", defaultSection: "Reference" },
+
+      { key: "po_number", defaultLabel: "PO number", widget: "text",   defaultSection: "Commercial" },
+      { key: "po_amount", defaultLabel: "PO amount",  widget: "number", defaultSection: "Commercial" },
+      // Discount/GST feed the quote's stored `total`, which only the full
+      // edit flow (/quotations/[id]/edit) recalculates. Read-only here so an
+      // inline edit can't leave `total` stale — same PATCH route also simply
+      // doesn't accept these fields.
+      { key: "discount_type",  defaultLabel: "Discount type",   widget: "enum",   defaultSection: "Commercial", enumOptions: DISCOUNT_TYPE_OPTIONS, editable: false },
+      { key: "discount_pct",   defaultLabel: "Discount %",      widget: "number", defaultSection: "Commercial", editable: false },
+      { key: "discount_fixed", defaultLabel: "Discount amount", widget: "number", defaultSection: "Commercial", editable: false },
+      { key: "gst_rate",       defaultLabel: "GST %",           widget: "number", defaultSection: "Commercial", editable: false },
+
+      { key: "territory", defaultLabel: "Territory", widget: "select", defaultSection: "Sales", selectSource: "territory" },
+      { key: "sales_org", defaultLabel: "Sales org",  widget: "select", defaultSection: "Sales", selectSource: "sales_org" },
+
+      { key: "scope_of_work", defaultLabel: "Scope of work", widget: "textarea", defaultSection: "Notes" },
+      { key: "notes",         defaultLabel: "Notes",          widget: "textarea", defaultSection: "Notes" },
+      { key: "terms",         defaultLabel: "Terms",          widget: "textarea", defaultSection: "Notes" },
+
+      { key: "created_at", defaultLabel: "Created", widget: "date", defaultSection: "Identity", locked: true, editable: false, hiddenByDefault: true },
+
+      // account_id / contact_id / entity_id (relationship pointers, already
+      // shown via dedicated sidebar cards + links) and status / total /
+      // revision / asset_ids / business_status / selected_option_id
+      // (dedicated UI or computed/internal) are deliberately excluded.
+    ],
+  },
 };
 
 /** Fields hidden unless the record's kind matches — see the Nameplate section above. */
@@ -232,7 +282,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 };
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {
-  return objectType === "account" || objectType === "contact" || objectType === "asset" || objectType === "supplier";
+  return objectType === "account" || objectType === "contact" || objectType === "asset" || objectType === "supplier" || objectType === "quote";
 }
 
 // ── Rule condition tree ──────────────────────────────────────────────────────

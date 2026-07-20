@@ -191,17 +191,100 @@ conflicts, no kind-conditional visibility need.
 
 ---
 
-## Phase 2 — line-item objects (blocked on Decision A)
+## Phase 2 — line-item objects
+
+**Decision A resolved by inspection, not by design meeting.** Line-item
+columns (`quote_lines`: description/uom/qty/rate/discount/amount) were
+never field-customizable in any system, old or new — the old per-section
+"Adapt" system only ever let a tenant group *custom fields* into sections,
+never touched native line columns. So there was nothing to lose: quote
+(and presumably invoice/purchase_order/inventory) get the registry
+treatment for their **header** fields only, exactly like every flat
+object. Line items stay out of scope until a real need appears.
 
 | Object | 1. Registry entry | 2. Pilot type | 3. field-config merges | 4. Adapt + rules | 5. ObjectSections | 6. Old wiring removed | 7. Overrides verified | 8. Rule verified | 9. No regressions | 10. Extension conflicts checked | **Status** |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| quote | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Blocked on Decision A |
-| invoice | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Blocked on Decision A |
-| purchase_order | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Blocked on Decision A |
-| inventory | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Blocked on Decision A |
+| quote | ✅ | ✅ | ✅ | ✅ (code, unverified in browser) | ✅ | ✅ | ⬜ manual check | ⬜ manual check | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
+| invoice | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
+| purchase_order | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
+| inventory | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
 
-Order: settle Decision A first, then quote → invoice → purchase_order → inventory
-(quote first — most complex, so its shape informs the other three).
+Order: quote → invoice → purchase_order → inventory (quote done first —
+most complex, so its shape informs the other three).
+
+### quote — what landed
+
+By far the biggest of the four objects done so far — not a gap-fill like
+asset/supplier, a **replacement of a real, working, independent system**.
+
+- **Found, not assumed:** `QuoteDetailLayout.tsx` (904 lines) had its own
+  complete per-section customization system — drag-to-reorder sections,
+  create custom sections, add custom fields per-section — persisted per
+  tenant to a real `page_layouts` table via `/api/layouts/[object]`. This
+  is what the user meant by "adapt on every section." No DB access to
+  verify emptiness myself — flagged the data-loss risk before removing
+  anything; user confirmed no tenant has actually used it.
+- **`src/components/QuoteDetailLayout.tsx`** — full rewrite. Removed:
+  ~20 state variables and 8 handler functions (`loadCfDefs`,
+  `handleSectionDragEnd`, `saveLayout`, `addSection`, `removeSection`,
+  `addFieldToSection`, `removeFieldFromSection`, `saveCfValue`,
+  `renderFieldInput`, `renderCfCards`, `renderSectionContent`), the
+  "Adapt mode" banner, the drag-handle section wrapper, the "Add section"
+  UI, and the "Adapt layout" item from the More menu. Replaced with one
+  `<ObjectSections>` + one `<AdaptObjectDrawer>` in the existing action
+  bar (next to the existing Edit/More controls — quote already has its
+  own action-bar convention, so Adapt went there rather than via
+  `PageHeader`'s `action` slot like supplier).
+  **Preserved untouched:** `StatusPill`/`StatusChanger` (richer than a
+  generic enum field — kept as its own dedicated UI, not folded into
+  ObjectSections), the line-items table + totals, the work-orders
+  section, revisions sidebar, account/contact sidebar cards, the
+  copy/convert/PDF/CSV actions.
+- **`src/lib/fieldRegistry.ts`** — `FIELD_REGISTRY.quote` added
+  (Identity / Reference / Commercial / Sales / Notes). `status`,
+  `account_id`, `contact_id`, `entity_id`, `total`, `revision`,
+  `asset_ids`, `business_status`, `selected_option_id` deliberately
+  excluded — each has dedicated UI elsewhere on the page, or is
+  computed/internal, not a field to rename/hide/reorder.
+- **Real correctness finding, not cosmetic:** `PATCH /api/quotes/[id]`
+  only ever accepted `status/notes/custom_data/ref_no`. Naively pointing
+  `ObjectSections` at the full header field set would have silently
+  dropped every other field on save. Traced why: `discount_type`,
+  `discount_pct`, `discount_fixed`, `gst_rate` feed the quote's *stored*
+  `total`, which only the full `/quotations/[id]/edit` flow recalculates
+  — an inline PATCH of those four would leave `total` stale. Expanded the
+  whitelist to include everything **except** those four (now genuinely
+  inline-editable: `name`, `type`, `valid_until`, `pr_no`, `po_number`,
+  `po_amount`, `territory`, `sales_org`, `scope_of_work`, `terms`, plus
+  the pre-existing `ref_no`/`notes`). The four total-affecting fields are
+  `editable: false` in the registry — visible, rename/hideable, not
+  inline-editable, edit-page-only, matching what's actually safe.
+- **`src/app/(app)/quotations/[id]/page.tsx`** — added `getUserRole()`,
+  passed `isAdmin` down.
+- **Fully removed, not just unwired:** `src/app/api/layouts/[object]/route.ts`
+  (whole route — defaults existed for `case`/`account`/`work_order`/
+  `dashboard` too, none of which ever consumed it), `LayoutSection` /
+  `PageLayout` types from `src/lib/types.ts`. Migration
+  `0034_drop_page_layouts.sql` written (`DROP TABLE IF EXISTS
+  page_layouts`) — **not applied**, same as every migration this
+  rollout: no DB access, needs to be run manually.
+- **Already consistent on the other page:** `QuoteForm.tsx` (the
+  new-quote / full-edit page at `/quotations/[id]/edit`) already used
+  `<AdaptObjectDrawer objectType="quote">` — nobody had ever wired it
+  into the detail page. Both now point at the exact same
+  `FIELD_REGISTRY.quote` config, so the Adapt experience is identical
+  from either entry point, no separate work needed there.
+- `tsc --noEmit` and `npm run build` both clean.
+
+### quote — still open
+
+- **Not verified in a browser** — same caveat as every object so far.
+  Specifically worth checking: the expanded PATCH whitelist actually
+  saves each newly-editable field correctly, and `total` genuinely stays
+  untouched when editing a field that isn't discount/GST.
+- **Migration not applied** — `page_layouts` still exists in the DB,
+  just unused by the app. Harmless until run, but should be run to
+  actually close this out.
 
 ---
 
