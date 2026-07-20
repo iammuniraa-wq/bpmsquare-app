@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { FIELD_REGISTRY, isPilotObjectType, type EffectiveField, type FieldRule } from "@/lib/fieldRegistry";
+import { DEFAULT_FIELD_RULES, FIELD_REGISTRY, isPilotObjectType, type EffectiveField, type FieldRule, type PilotObjectType } from "@/lib/fieldRegistry";
 
 type CustomFieldRow = {
   id: string;
@@ -107,5 +107,11 @@ export async function GET(request: NextRequest) {
     .map((label) => ({ label, fields: fields.filter((f) => f.section === label) }))
     .filter((s) => s.fields.length > 0);
 
-  return NextResponse.json({ sections, rules: (ruleRows ?? []) as FieldRule[] });
+  // Code-level defaults (e.g. "hide nameplate fields unless kind = motor") are
+  // universal across every tenant — merged in ahead of tenant-authored rules,
+  // which can still add their own on top.
+  const defaultRules = isPilotObjectType(objectType) ? DEFAULT_FIELD_RULES[objectType as PilotObjectType] ?? [] : [];
+  const rules = [...defaultRules, ...((ruleRows ?? []) as FieldRule[])];
+
+  return NextResponse.json({ sections, rules });
 }

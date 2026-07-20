@@ -1,7 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
-
-const VALID_KINDS = ["motor", "transformer", "pump", "generator", "panel"] as const;
+import { getObjectSpec } from "@/lib/import/schema";
+import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
+import {
+  collectCustomData,
+  fetchAllRows,
+  insertRows,
+  nameKey,
+  readImportBody,
+  summarise,
+  type PreparedRow,
+} from "@/lib/import/server";
+import type { RowOutcome } from "@/lib/import/types";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -12,75 +22,66 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
 
-  const { rows } = await request.json() as { rows: Record<string, string>[] };
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return NextResponse.json({ error: "No rows provided" }, { status: 400 });
-  }
+  const rows = readImportBody(await request.json());
+  if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
-  // Build account name → id map
-  const { data: accounts } = await supabase
-    .from("accounts")
-    .select("id, name")
-    .eq("tenant_id", tenantId);
-  const accountMap = new Map<string, string>(
-    (accounts ?? []).map((a: { id: string; name: string }) => [a.name.toLowerCase().trim(), a.id])
-  );
+  const spec = getObjectSpec("assets");
+  const accounts = await fetchAllRows<{ id: string; name: string }>(supabase, "accounts", "id, name", tenantId);
+  const accountByName = new Map(accounts.map((a) => [nameKey(a.name), a.id]));
 
-  const toInsert: object[] = [];
-  const errors: { row: number; error: string }[] = [];
-  let skipped = 0;
+  const prepared: PreparedRow[] = [];
+  const outcomes: RowOutcome[] = [];
 
-  rows.forEach((row, i) => {
-    const name     = row.name?.trim();
-    const acctName = row.account_name?.trim();
-    const kind     = row.kind?.trim();
-
-    if (!name) { errors.push({ row: i + 2, error: "name is required" }); return; }
-    if (!kind || !VALID_KINDS.includes(kind as typeof VALID_KINDS[number])) {
-      errors.push({ row: i + 2, error: `kind must be one of: ${VALID_KINDS.join(", ")}` });
-      return;
+  for (const { rowNum, values } of rows) {
+    const validated = validateRow(spec, values, rowNum);
+    if (hasBlockingIssue(validated)) {
+      outcomes.push({
+        rowNum,
+        status: "failed",
+        reason: validated.issues.filter((i) => i.severity === "error").map((i) => i.message).join("; "),
+      });
+      continue;
     }
 
-    // account_name is optional — blank means company-owned / loaner stock (no customer)
+    const v = validated.values;
+
+    // Blank account means company-owned loaner stock rather than a missing reference.
     let accountId: string | null = null;
-    if (acctName) {
-      accountId = accountMap.get(acctName.toLowerCase()) ?? null;
+    if (v.account_name) {
+      accountId = accountByName.get(nameKey(v.account_name)) ?? null;
       if (!accountId) {
-        errors.push({ row: i + 2, error: `Account "${acctName}" not found — import accounts first` });
-        return;
+        outcomes.push({
+          rowNum,
+          status: "failed",
+          reason: `Account "${v.account_name}" was not found — import accounts first, or leave the column blank for loaner stock`,
+        });
+        continue;
       }
     }
 
-    const isLoaner = /^(true|yes|1)$/i.test(row.is_loaner?.trim() ?? "");
+    const isLoaner = v.is_loaner === "true";
+    const custom = collectCustomData(values);
 
-    // Collect any cf_* keys into custom_data
-    const custom_data: Record<string, string> = {};
-    for (const [k, v] of Object.entries(row)) {
-      if (k.startsWith("cf_") && v?.trim()) custom_data[k.slice(3)] = v.trim();
-    }
-
-    toInsert.push({
-      tenant_id:  tenantId,
-      account_id: accountId,
-      name,
-      kind,
-      make:   row.make?.trim()   || null,
-      model:  row.model?.trim()  || null,
-      serial: row.serial?.trim() || null,
-      rating: row.rating?.trim() || null,
-      notes:  row.notes?.trim()  || null,
-      is_loaner: isLoaner,
-      loaner_status: isLoaner ? "available" : null,
-      ...(Object.keys(custom_data).length > 0 ? { custom_data } : {}),
+    prepared.push({
+      rowNum,
+      record: {
+        tenant_id: tenantId,
+        account_id: accountId,
+        name: v.name,
+        kind: v.kind,
+        make: v.make ?? null,
+        model: v.model ?? null,
+        serial: v.serial ?? null,
+        rating: v.rating ?? null,
+        rpm: v.rpm ?? null,
+        notes: v.notes ?? null,
+        is_loaner: isLoaner,
+        loaner_status: isLoaner ? "available" : null,
+        ...(custom ? { custom_data: custom } : {}),
+      },
     });
-  });
-
-  let inserted = 0;
-  if (toInsert.length > 0) {
-    const { error } = await supabase.from("assets").insert(toInsert);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    inserted = toInsert.length;
   }
 
-  return NextResponse.json({ inserted, skipped, errors });
+  if (prepared.length === 0) return NextResponse.json(summarise(outcomes));
+  return NextResponse.json(await insertRows(supabase, "assets", prepared, outcomes));
 }

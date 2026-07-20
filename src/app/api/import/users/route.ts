@@ -1,5 +1,30 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { getObjectSpec } from "@/lib/import/schema";
+import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
+import { describeDbError, readImportBody, summarise } from "@/lib/import/server";
+import type { RowOutcome } from "@/lib/import/types";
+
+type AdminClient = ReturnType<typeof createAdminSupabase>;
+
+const AUTH_PAGE_SIZE = 1000;
+
+/**
+ * listUsers paginates, so a single call misses anyone past the first page.
+ * Built once per request rather than per row.
+ */
+async function buildAuthEmailIndex(admin: AdminClient): Promise<Map<string, string>> {
+  const index = new Map<string, string>();
+  for (let page = 1; ; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: AUTH_PAGE_SIZE });
+    if (error || !data?.users?.length) break;
+    for (const user of data.users) {
+      if (user.email) index.set(user.email.toLowerCase(), user.id);
+    }
+    if (data.users.length < AUTH_PAGE_SIZE) break;
+  }
+  return index;
+}
 
 export async function POST(request: NextRequest) {
   let tenantId, role;
@@ -13,69 +38,77 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Only admins can invite users" }, { status: 403 });
   }
 
-  const { rows } = await request.json() as { rows: Record<string, string>[] };
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return NextResponse.json({ error: "No rows provided" }, { status: 400 });
-  }
+  const rows = readImportBody(await request.json());
+  if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
+  const spec = getObjectSpec("users");
   const admin = createAdminSupabase();
 
-  // Get existing tenant member emails to skip duplicates
-  const { data: existing } = await admin
+  const { data: members } = await admin
     .from("tenant_users")
     .select("user_id")
     .eq("tenant_id", tenantId);
-  const existingUserIds = new Set((existing ?? []).map((u: { user_id: string }) => u.user_id));
+  const memberIds = new Set((members ?? []).map((m: { user_id: string }) => m.user_id));
 
-  const errors: { row: number; error: string }[] = [];
-  let inserted = 0;
-  let skipped  = 0;
+  const authByEmail = await buildAuthEmailIndex(admin);
 
-  for (let i = 0; i < rows.length; i++) {
-    const row   = rows[i];
-    const email = row.email?.trim().toLowerCase();
-    const name  = row.name?.trim();
-    const memberRole: "admin" | "member" = row.role?.trim() === "admin" ? "admin" : "member";
+  const outcomes: RowOutcome[] = [];
+  const seenEmails = new Set<string>();
 
-    if (!email) { errors.push({ row: i + 2, error: "email is required" }); continue; }
-    if (!name)  { errors.push({ row: i + 2, error: "name is required" }); continue; }
+  for (const { rowNum, values } of rows) {
+    const validated = validateRow(spec, values, rowNum);
+    if (hasBlockingIssue(validated)) {
+      outcomes.push({
+        rowNum,
+        status: "failed",
+        reason: validated.issues.filter((i) => i.severity === "error").map((i) => i.message).join("; "),
+      });
+      continue;
+    }
 
-    // Check if user already exists in auth
-    const { data: existingUser } = await admin.auth.admin.listUsers();
-    const found = existingUser?.users?.find((u) => u.email?.toLowerCase() === email);
+    const { name, email, role: memberRole } = validated.values;
 
-    let userId: string;
+    if (seenEmails.has(email)) {
+      outcomes.push({ rowNum, status: "skipped", reason: `${email} appears more than once in this file` });
+      continue;
+    }
+    seenEmails.add(email);
 
-    if (found) {
-      userId = found.id;
-      // If already a member of this tenant, skip
-      if (existingUserIds.has(userId)) { skipped++; continue; }
-    } else {
-      // Invite new user
+    let userId = authByEmail.get(email);
+
+    if (userId && memberIds.has(userId)) {
+      outcomes.push({ rowNum, status: "skipped", reason: `${email} is already a member of this workspace` });
+      continue;
+    }
+
+    if (!userId) {
       const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
         data: { full_name: name },
       });
       if (inviteErr || !invited?.user) {
-        errors.push({ row: i + 2, error: inviteErr?.message ?? "Failed to invite" });
+        outcomes.push({ rowNum, status: "failed", reason: inviteErr?.message ?? "Could not send the invite" });
         continue;
       }
       userId = invited.user.id;
+      authByEmail.set(email, userId);
     }
 
-    // Add to tenant_users
-    const { error: tuErr } = await admin
+    const { error: linkErr } = await admin
       .from("tenant_users")
       .insert({ tenant_id: tenantId, user_id: userId, role: memberRole });
 
-    if (tuErr) {
-      if (tuErr.code === "23505") { skipped++; continue; } // unique constraint = already a member
-      errors.push({ row: i + 2, error: tuErr.message });
+    if (linkErr) {
+      if (linkErr.code === "23505") {
+        outcomes.push({ rowNum, status: "skipped", reason: `${email} is already a member of this workspace` });
+      } else {
+        outcomes.push({ rowNum, status: "failed", reason: describeDbError(linkErr) });
+      }
       continue;
     }
 
-    inserted++;
-    existingUserIds.add(userId);
+    memberIds.add(userId);
+    outcomes.push({ rowNum, status: "inserted" });
   }
 
-  return NextResponse.json({ inserted, skipped, errors });
+  return NextResponse.json(summarise(outcomes));
 }

@@ -1,6 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { encrypt } from "@/lib/encryption";
+import { getObjectSpec } from "@/lib/import/schema";
+import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
+import {
+  collectCustomData,
+  fetchAllRows,
+  insertRows,
+  nameKey,
+  readImportBody,
+  summarise,
+  type PreparedRow,
+} from "@/lib/import/server";
+import type { RowOutcome } from "@/lib/import/types";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -11,74 +23,70 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
 
-  const { rows } = await request.json() as { rows: Record<string, string>[] };
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return NextResponse.json({ error: "No rows provided" }, { status: 400 });
-  }
+  const rows = readImportBody(await request.json());
+  if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
-  const { data: accounts } = await supabase
-    .from("accounts")
-    .select("id, name")
-    .eq("tenant_id", tenantId);
-  const accountMap = new Map<string, string>(
-    (accounts ?? []).map((a: { id: string; name: string }) => [a.name.toLowerCase().trim(), a.id])
-  );
+  const spec = getObjectSpec("contacts");
+  const accounts = await fetchAllRows<{ id: string; name: string }>(supabase, "accounts", "id, name", tenantId);
+  const accountByName = new Map(accounts.map((a) => [nameKey(a.name), a.id]));
 
-  const toInsert: object[] = [];
-  const errors: { row: number; error: string }[] = [];
-  let skipped = 0;
+  const prepared: PreparedRow[] = [];
+  const outcomes: RowOutcome[] = [];
 
-  rows.forEach((row, i) => {
-    const name = row.name?.trim();
-    const acctName = row.account_name?.trim();
-    if (!name)     { errors.push({ row: i + 2, error: "name is required" }); return; }
-    if (!acctName) { errors.push({ row: i + 2, error: "account_name is required" }); return; }
+  for (const { rowNum, values } of rows) {
+    const validated = validateRow(spec, values, rowNum);
+    if (hasBlockingIssue(validated)) {
+      outcomes.push({
+        rowNum,
+        status: "failed",
+        reason: validated.issues.filter((i) => i.severity === "error").map((i) => i.message).join("; "),
+      });
+      continue;
+    }
 
-    const accountId = accountMap.get(acctName.toLowerCase());
+    const v = validated.values;
+    const accountId = accountByName.get(nameKey(v.account_name));
     if (!accountId) {
-      errors.push({ row: i + 2, error: `Account "${acctName}" not found — import accounts first` });
-      return;
+      outcomes.push({
+        rowNum,
+        status: "failed",
+        reason: `Account "${v.account_name}" was not found — import accounts first, or check the spelling`,
+      });
+      continue;
     }
 
-    // Collect cf_* keys into custom_data
-    const custom_data: Record<string, string> = {};
-    for (const [k, v] of Object.entries(row)) {
-      if (k.startsWith("cf_") && v?.trim()) custom_data[k.slice(3)] = v.trim();
-    }
+    const custom = collectCustomData(values);
 
-    toInsert.push({
-      tenant_id:  tenantId,
-      account_id: accountId,
-      name,
-      role:         row.role?.trim()         || null,
-      department:   row.department?.trim()   || null,
-      phone:        encrypt(row.phone?.trim()  || null),
-      phone2:       encrypt(row.phone2?.trim() || null),
-      phone3:       encrypt(row.phone3?.trim() || null),
-      email:        encrypt(row.email?.trim()  || null),
-      email2:       encrypt(row.email2?.trim() || null),
-      website:      row.website?.trim()      || null,
-      birthday:     row.birthday?.trim()     || null,
-      linkedin_url: row.linkedin_url?.trim() || null,
-      address_line1: row.address_line1?.trim() || null,
-      address_line2: row.address_line2?.trim() || null,
-      city:         row.city?.trim()         || null,
-      state:        row.state?.trim()        || null,
-      postal_code:  row.postal_code?.trim()  || null,
-      country:      row.country?.trim()      || null,
-      territory:    row.territory?.trim()    || null,
-      sales_org:    row.sales_org?.trim()    || null,
-      notes:        row.notes?.trim()        || null,
-      ...(Object.keys(custom_data).length > 0 ? { custom_data } : {}),
+    prepared.push({
+      rowNum,
+      record: {
+        tenant_id: tenantId,
+        account_id: accountId,
+        name: v.name,
+        role: v.role ?? null,
+        department: v.department ?? null,
+        phone: encrypt(v.phone ?? null),
+        phone2: encrypt(v.phone2 ?? null),
+        phone3: encrypt(v.phone3 ?? null),
+        email: encrypt(v.email ?? null),
+        email2: encrypt(v.email2 ?? null),
+        website: v.website ?? null,
+        birthday: v.birthday ?? null,
+        linkedin_url: v.linkedin_url ?? null,
+        address_line1: v.address_line1 ?? null,
+        address_line2: v.address_line2 ?? null,
+        city: v.city ?? null,
+        state: v.state ?? null,
+        postal_code: v.postal_code ?? null,
+        country: v.country ?? null,
+        territory: v.territory ?? null,
+        sales_org: v.sales_org ?? null,
+        notes: v.notes ?? null,
+        ...(custom ? { custom_data: custom } : {}),
+      },
     });
-  });
-
-  let inserted = 0;
-  if (toInsert.length > 0) {
-    const { error } = await supabase.from("contacts").insert(toInsert);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    inserted = toInsert.length;
   }
 
-  return NextResponse.json({ inserted, skipped, errors });
+  if (prepared.length === 0) return NextResponse.json(summarise(outcomes));
+  return NextResponse.json(await insertRows(supabase, "contacts", prepared, outcomes));
 }

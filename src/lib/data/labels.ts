@@ -186,3 +186,11 @@ export const PRICING_CATEGORY_LABEL: Record<PricingItem["category"], string> = {
   testing:   "Testing & Certification",
   transport: "Transport & Logistics",
 };
+
+export const ASSET_KIND_LABEL: Record<Asset["kind"], string> = {
+  motor:       "Motor",
+  transformer: "Transformer",
+  pump:        "Pump",
+  generator:   "Generator",
+  panel:       "Panel",
+};

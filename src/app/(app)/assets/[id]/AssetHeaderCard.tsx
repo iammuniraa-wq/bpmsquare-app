@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import type { Asset } from "@/lib/types";
-import AssetEditPanel from "./AssetEditPanel";
-import { Zap, Gear, Droplet, Battery, Monitor, Activity, Pencil } from "@/components/Icons";
+import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 
 function KindIcon({ kind, size = 22, color }: { kind: string; size?: number; color?: string }) {
   const p = { size, color: color ?? "currentColor" };
@@ -28,9 +26,10 @@ type Props = {
   openCasesCount: number;
 };
 
+// Static header shell: name/kind/spec summary alongside primary actions.
+// Editing the asset's own field values happens inline in the Details card
+// below (ObjectSections), not here — see AccountHeader for the same rule.
 export default function AssetHeaderCard({ asset, account, casesCount, openCasesCount }: Props) {
-  const [editing, setEditing] = useState(false);
-
   return (
     <div style={{ ...cardStyle, marginBottom: 14 }}>
       <div style={{ marginBottom: 10 }}>
@@ -66,19 +65,6 @@ export default function AssetHeaderCard({ asset, account, casesCount, openCasesC
 
         {/* Primary actions — always visible, top of card */}
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-          <button
-            type="button"
-            onClick={() => setEditing((v) => !v)}
-            style={{
-              fontSize: 12.5, fontWeight: 600, color: editing ? "#fff" : c.muted,
-              background: editing ? c.accent : "none",
-              border: `1px solid ${editing ? c.accent : c.line}`,
-              borderRadius: 7, padding: "7px 14px", cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 6,
-            }}
-          >
-            <Pencil size={13} /> {editing ? "Cancel" : "Edit asset"}
-          </button>
           {account && (
             <Link href={`${ROUTES.caseNew}?account_id=${account.id}`}
               style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: c.accent, borderRadius: 7, padding: "7px 14px", textDecoration: "none", flexShrink: 0 }}>
@@ -87,10 +73,6 @@ export default function AssetHeaderCard({ asset, account, casesCount, openCasesC
           )}
         </div>
       </div>
-
-      {editing && (
-        <AssetEditPanel asset={asset} forceOpen onSaved={() => setEditing(false)} onCancel={() => setEditing(false)} />
-      )}
 
       {/* Spec grid */}
       <div style={{

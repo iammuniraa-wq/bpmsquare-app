@@ -7,7 +7,7 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
-import CustomFieldsSection from "@/components/CustomFieldsSection";
+import ObjectSections from "@/components/fields/ObjectSections";
 import AssetHeaderCard from "./AssetHeaderCard";
 
 const CASE_TONE: Record<string, PillarKey> = {
@@ -42,10 +42,9 @@ export default async function AssetDetailPage({
       <AssetHeaderCard asset={asset} account={account} casesCount={cases.length} openCasesCount={openCases.length} />
 
       <div style={{ marginBottom: 14 }}>
-        <CustomFieldsSection
+        <ObjectSections
           objectType="asset"
-          recordId={asset.id}
-          customData={asset.custom_data}
+          record={asset as unknown as Record<string, unknown>}
           patchUrl={`/api/assets/${asset.id}`}
         />
       </div>

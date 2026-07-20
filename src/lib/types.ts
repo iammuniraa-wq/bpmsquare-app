@@ -78,6 +78,18 @@ export type Asset = {
   model: string | null;      // model / frame number, e.g. "ND315S-2"
   rating: string | null;     // e.g. "75 kW · 415V"
   rpm: string | null;        // e.g. "1480"
+  // Motor/generator nameplate fields — see supabase/migrations/0033_asset_nameplate_fields.sql
+  frame_type: string | null;
+  insulation_class: string | null;
+  connection: string | null;
+  duty: string | null;
+  ambient_temp: string | null;
+  output_kw: string | null;
+  stator_voltage: string | null;
+  stator_current: string | null;
+  excitation_voltage: string | null;
+  excitation_current: string | null;
+  frequency: string | null;
   serial: string | null;
   notes: string | null;      // service history or remarks
   is_loaner: boolean;

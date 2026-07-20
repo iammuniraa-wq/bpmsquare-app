@@ -13,12 +13,15 @@ import { VIKAS_SIGNATURE } from "@/lib/vikasSig";
 
 const vikas: TenantExtension = {
   extraCustomFields: (objectType) => {
+    // "make" and "rpm" removed — both now native FIELD_REGISTRY.asset columns
+    // (see FIELD_REGISTRY_ROLLOUT.md). "frame_size"/"insulation" are left as
+    // genuinely different shapes from the new "frame_type"/"insulation_class"
+    // native fields (select-with-options vs plain text) — not reconciled here,
+    // pending a decision on whether they're the same concept.
     if (objectType === "asset") return [
       { key: "kva_rating",    label: "KVA Rating",     type: "text" },
       { key: "voltage",       label: "Voltage (V)",    type: "text" },
-      { key: "rpm",           label: "RPM",            type: "number" },
       { key: "frame_size",    label: "Frame Size",     type: "text" },
-      { key: "make",          label: "Make / Brand",   type: "text" },
       { key: "poles",         label: "Poles",          type: "number" },
       { key: "insulation",    label: "Insulation Class", type: "select", options: ["A","B","E","F","H"] },
       { key: "ip_rating",     label: "IP Rating",      type: "text" },

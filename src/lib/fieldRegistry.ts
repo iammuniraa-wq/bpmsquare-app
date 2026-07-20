@@ -1,8 +1,8 @@
 // Import from the client-safe labels mirror, not "@/lib/data" (the barrel
 // re-exports server-only live.ts data functions, which would otherwise leak
 // into every client component that imports this registry).
-import { ACCOUNT_TYPE_LABEL } from "@/lib/data/labels";
-import type { AccountType } from "@/lib/types";
+import { ACCOUNT_TYPE_LABEL, ASSET_KIND_LABEL } from "@/lib/data/labels";
+import type { AccountType, Asset } from "@/lib/types";
 
 // ── Widget types ─────────────────────────────────────────────────────────────
 //
@@ -72,10 +72,13 @@ export type EffectiveField = {
   placeholder?: string;
 };
 
-export type PilotObjectType = "account" | "contact";
+export type PilotObjectType = "account" | "contact" | "asset";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
+
+const ASSET_KIND_OPTIONS: { value: Asset["kind"]; label: string }[] =
+  (Object.keys(ASSET_KIND_LABEL) as Asset["kind"][]).map((value) => ({ value, label: ASSET_KIND_LABEL[value] }));
 
 export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   account: {
@@ -142,10 +145,72 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
     ],
   },
+
+  asset: {
+    sections: ["Identity", "Specifications", "Nameplate", "Notes"],
+    fields: [
+      { key: "name", defaultLabel: "Name", widget: "text", defaultSection: "Identity", locked: true },
+      { key: "kind", defaultLabel: "Kind", widget: "enum", defaultSection: "Identity", enumOptions: ASSET_KIND_OPTIONS },
+
+      { key: "make", defaultLabel: "Make / Brand", widget: "text", defaultSection: "Specifications" },
+      { key: "model", defaultLabel: "Model", widget: "text", defaultSection: "Specifications" },
+      { key: "serial", defaultLabel: "Serial no.", widget: "text", defaultSection: "Specifications" },
+      { key: "rating", defaultLabel: "Rating / specs", widget: "text", defaultSection: "Specifications" },
+
+      // Motor/generator nameplate spec fields — core product, all tenants (see
+      // supabase/migrations/0033_asset_nameplate_fields.sql). Only relevant to
+      // rotating equipment, so DEFAULT_FIELD_RULES below hides them by default
+      // unless kind === "motor". A tenant can still show them for other kinds
+      // via their own field_rules, same as any other rule-driven field.
+      { key: "rpm", defaultLabel: "Speed (RPM)", widget: "text", defaultSection: "Nameplate" },
+      { key: "frame_type", defaultLabel: "Frame / Type", widget: "text", defaultSection: "Nameplate" },
+      { key: "insulation_class", defaultLabel: "Insulation class", widget: "text", defaultSection: "Nameplate" },
+      { key: "connection", defaultLabel: "Connection", widget: "text", defaultSection: "Nameplate" },
+      { key: "duty", defaultLabel: "Duty", widget: "text", defaultSection: "Nameplate" },
+      { key: "ambient_temp", defaultLabel: "Ambient temp.", widget: "text", defaultSection: "Nameplate" },
+      { key: "output_kw", defaultLabel: "Output (kW)", widget: "text", defaultSection: "Nameplate" },
+      { key: "stator_voltage", defaultLabel: "Stator voltage", widget: "text", defaultSection: "Nameplate" },
+      { key: "stator_current", defaultLabel: "Stator current", widget: "text", defaultSection: "Nameplate" },
+      { key: "excitation_voltage", defaultLabel: "Excitation voltage", widget: "text", defaultSection: "Nameplate" },
+      { key: "excitation_current", defaultLabel: "Excitation current", widget: "text", defaultSection: "Nameplate" },
+      { key: "frequency", defaultLabel: "Frequency", widget: "text", defaultSection: "Nameplate" },
+
+      { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
+
+      // account_id (parent link) and is_loaner/loaner_status (no live loan
+      // workflow sets loaner_status today — see FIELD_REGISTRY_ROLLOUT.md)
+      // are deliberately excluded, not just hidden.
+    ],
+  },
+};
+
+/** Fields hidden unless the record's kind matches — see the Nameplate section above. */
+const ASSET_NAMEPLATE_FIELD_KEYS = [
+  "rpm", "frame_type", "insulation_class", "connection", "duty", "ambient_temp",
+  "output_kw", "stator_voltage", "stator_current", "excitation_voltage",
+  "excitation_current", "frequency",
+] as const;
+
+/**
+ * Code-level default field_rules — universal across every tenant (current and
+ * future) because they're a source-code constant, not a tenant-scoped DB row.
+ * Merged into the rules array served by /api/settings/field-config, ahead of
+ * any tenant-authored field_rules (which can still override them).
+ */
+export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> = {
+  asset: ASSET_NAMEPLATE_FIELD_KEYS.map((key, i) => ({
+    id: `default:asset:${key}:motor_only`,
+    object_type: "asset",
+    target_field_key: key,
+    effect: "hide",
+    conditions: { type: "condition", field_key: "kind", operator: "not_equals", value: "motor" },
+    is_active: true,
+    position: 1000 + i, // after any tenant rule at the default position
+  })),
 };
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {
-  return objectType === "account" || objectType === "contact";
+  return objectType === "account" || objectType === "contact" || objectType === "asset";
 }
 
 // ── Rule condition tree ──────────────────────────────────────────────────────

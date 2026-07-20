@@ -1,8 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { encrypt } from "@/lib/encryption";
-
-const VALID_TYPES = ["prospect", "oem", "direct", "end_customer"] as const;
+import { getObjectSpec } from "@/lib/import/schema";
+import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
+import {
+  collectCustomData,
+  fetchAllRows,
+  insertRows,
+  nameKey,
+  readImportBody,
+  summarise,
+  type PreparedRow,
+} from "@/lib/import/server";
+import type { RowOutcome } from "@/lib/import/types";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -13,69 +23,93 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
 
-  const { rows } = await request.json() as { rows: Record<string, string>[] };
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return NextResponse.json({ error: "No rows provided" }, { status: 400 });
-  }
+  const rows = readImportBody(await request.json());
+  if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
-  const { data: existing } = await supabase
-    .from("accounts")
-    .select("name")
-    .eq("tenant_id", tenantId);
-  const existingNames = new Set((existing ?? []).map((a: { name: string }) => a.name.toLowerCase().trim()));
+  const spec = getObjectSpec("accounts");
+  const existing = await fetchAllRows<{ id: string; name: string }>(supabase, "accounts", "id, name", tenantId);
+  const byName = new Map(existing.map((a) => [nameKey(a.name), a.id]));
 
-  const toInsert: object[] = [];
-  const errors: { row: number; error: string }[] = [];
-  let skipped = 0;
+  const prepared: PreparedRow[] = [];
+  const outcomes: RowOutcome[] = [];
+  const claimedInFile = new Set<string>();
 
-  rows.forEach((row, i) => {
-    const name = row.name?.trim();
-    if (!name) { errors.push({ row: i + 2, error: "name is required" }); return; }
-    if (existingNames.has(name.toLowerCase())) { skipped++; return; }
-
-    const type = VALID_TYPES.includes(row.type?.trim() as typeof VALID_TYPES[number])
-      ? row.type.trim()
-      : "prospect";
-
-    // Collect any cf_* keys into custom_data
-    const custom_data: Record<string, string> = {};
-    for (const [k, v] of Object.entries(row)) {
-      if (k.startsWith("cf_") && v?.trim()) custom_data[k.slice(3)] = v.trim();
+  for (const { rowNum, values } of rows) {
+    const validated = validateRow(spec, values, rowNum);
+    if (hasBlockingIssue(validated)) {
+      outcomes.push({
+        rowNum,
+        status: "failed",
+        reason: validated.issues.filter((i) => i.severity === "error").map((i) => i.message).join("; "),
+      });
+      continue;
     }
 
-    toInsert.push({
-      tenant_id: tenantId,
-      name, type,
-      address_line1: row.address_line1?.trim() || null,
-      address_line2: row.address_line2?.trim() || null,
-      city:          row.city?.trim()          || null,
-      state:         row.state?.trim()         || null,
-      postal_code:   row.postal_code?.trim()   || null,
-      country:       row.country?.trim()       || null,
-      phone:         encrypt(row.phone?.trim()  || null),
-      phone2:        encrypt(row.phone2?.trim() || null),
-      email:         encrypt(row.email?.trim()  || null),
-      email2:        encrypt(row.email2?.trim() || null),
-      website:       row.website?.trim()       || null,
-      industry:      row.industry?.trim()      || null,
-      employee_count: row.employee_count?.trim() || null,
-      annual_revenue: row.annual_revenue?.trim() || null,
-      territory:     row.territory?.trim()     || null,
-      sales_org:     row.sales_org?.trim()     || null,
-      gstin:         encrypt(row.gstin?.trim()  || null),
-      notes:         row.notes?.trim()         || null,
-      referred_by_account_id: row.referred_by_account_id?.trim() || null,
-      ...(Object.keys(custom_data).length > 0 ? { custom_data } : {}),
-    });
-    existingNames.add(name.toLowerCase());
-  });
+    const v = validated.values;
+    const name = v.name;
+    const key = nameKey(name);
 
-  let inserted = 0;
-  if (toInsert.length > 0) {
-    const { error } = await supabase.from("accounts").insert(toInsert);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    inserted = toInsert.length;
+    if (byName.has(key)) {
+      outcomes.push({ rowNum, status: "skipped", reason: `"${name}" already exists` });
+      continue;
+    }
+    if (claimedInFile.has(key)) {
+      outcomes.push({ rowNum, status: "skipped", reason: `"${name}" appears more than once in this file` });
+      continue;
+    }
+
+    let referredBy: string | null = null;
+    if (v.referred_by_account_name) {
+      const referrerKey = nameKey(v.referred_by_account_name);
+      referredBy = byName.get(referrerKey) ?? null;
+      if (!referredBy) {
+        // Only accounts already in the database have an id to point at; one created
+        // earlier in this same file does not yet.
+        outcomes.push({
+          rowNum,
+          status: "failed",
+          reason: claimedInFile.has(referrerKey)
+            ? `Referring account "${v.referred_by_account_name}" is also new in this file — import it first, then re-import this row`
+            : `Referring account "${v.referred_by_account_name}" was not found — import it first`,
+        });
+        continue;
+      }
+    }
+
+    const custom = collectCustomData(values);
+
+    prepared.push({
+      rowNum,
+      record: {
+        tenant_id: tenantId,
+        name,
+        type: v.type,
+        address_line1: v.address_line1 ?? null,
+        address_line2: v.address_line2 ?? null,
+        city: v.city ?? null,
+        state: v.state ?? null,
+        postal_code: v.postal_code ?? null,
+        country: v.country ?? null,
+        phone: encrypt(v.phone ?? null),
+        phone2: encrypt(v.phone2 ?? null),
+        email: encrypt(v.email ?? null),
+        email2: encrypt(v.email2 ?? null),
+        website: v.website ?? null,
+        industry: v.industry ?? null,
+        employee_count: v.employee_count ?? null,
+        annual_revenue: v.annual_revenue ?? null,
+        territory: v.territory ?? null,
+        sales_org: v.sales_org ?? null,
+        gstin: encrypt(v.gstin ?? null),
+        notes: v.notes ?? null,
+        referred_by_account_id: referredBy,
+        ...(custom ? { custom_data: custom } : {}),
+      },
+    });
+
+    claimedInFile.add(key);
   }
 
-  return NextResponse.json({ inserted, skipped, errors });
+  if (prepared.length === 0) return NextResponse.json(summarise(outcomes));
+  return NextResponse.json(await insertRows(supabase, "accounts", prepared, outcomes));
 }
