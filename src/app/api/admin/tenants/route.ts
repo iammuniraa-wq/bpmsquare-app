@@ -14,6 +14,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "name and slug are required" }, { status: 400 });
   }
 
+  // app.bpmsquare.com (PRIMARY_HOST) is reserved for the demo tenant, so a real
+  // tenant with no custom domain would have nowhere for its users to sign in.
+  // Require one at creation time to keep the host-per-tenant model airtight.
+  if (!custom_domain || !String(custom_domain).trim()) {
+    return NextResponse.json(
+      { error: "A custom domain is required — it's the address this tenant's users sign in at (e.g. acme.bpmsquare.com)." },
+      { status: 400 },
+    );
+  }
+
   const admin = createAdminSupabase();
 
   // Create the tenant

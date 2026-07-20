@@ -55,6 +55,10 @@ export default function NewTenantForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (!customDomain.trim()) {
+      setError("A custom domain is required — it's the address this tenant's users sign in at (e.g. acme.bpmsquare.com).");
+      return;
+    }
     startTransition(async () => {
       const res = await fetch("/api/admin/tenants", {
         method: "POST",
@@ -116,12 +120,13 @@ export default function NewTenantForm() {
         </div>
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>
-            Custom domain <span style={{ color: "#9ca3af" }}>(optional — dedicated URL for this tenant)</span>
+            Custom domain <span style={{ color: "#9ca3af" }}>(required — the address this tenant&apos;s users sign in at)</span>
           </label>
           <input
             style={inputStyle}
             value={customDomain}
-            placeholder="vikas.bpmsquare.com"
+            placeholder="acme.bpmsquare.com"
+            required
             onChange={(e) => setCustomDomain(e.target.value.trim().toLowerCase())}
           />
         </div>

@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { isPrimaryOrDevHost } from "@/lib/constants";
+import { isPrimaryOrDevHost, PRIMARY_HOST } from "@/lib/constants";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -45,40 +45,72 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Hostname-based tenant isolation — only applies to dedicated tenant domains
-  // (e.g. vikas.bpmsquare.com). The shared PRIMARY_HOST and local dev pass through unchanged.
+  // Host-driven tenant isolation. The host decides which tenant; the user only
+  // decides access. localhost / 127.0.0.1 pass through untouched (local dev).
+  //   - PRIMARY_HOST (app.bpmsquare.com) = the demo sandbox tenant: only its
+  //     invited members (or platform admins) may enter.
+  //   - a custom_domain (vikas.bpmsquare.com) = that specific real tenant: only
+  //     its members (or platform admins) may enter.
+  // Non-members are signed out and bounced to /login?error=wrong_workspace in
+  // BOTH cases — a real-tenant login must not be able to silently operate on
+  // app.bpmsquare.com (that was the cross-tenant routing bug this closes).
   const host = (request.headers.get("host") ?? "").split(":")[0];
-  if (!isPrimaryOrDevHost(host)) {
+
+  const denyWrongWorkspace = async () => {
+    await supabase.auth.signOut();
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", pathname);
+    loginUrl.searchParams.set("error", "wrong_workspace");
+    const redirect = NextResponse.redirect(loginUrl);
+    response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
+  };
+
+  if (host === PRIMARY_HOST) {
     const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { data: hostTenant } = await admin
-      .from("tenants")
-      .select("id")
-      .eq("custom_domain", host)
-      .maybeSingle();
+    const [{ data: demoTenant }, { data: adminByUserId }, { data: adminByEmail }] = await Promise.all([
+      admin.from("tenants").select("id").eq("is_demo", true).maybeSingle(),
+      admin.from("platform_admins").select("id").eq("user_id", user.id).maybeSingle(),
+      admin.from("platform_admins").select("id").eq("email", user.email ?? "").maybeSingle(),
+    ]);
+
+    const isPlatformAdminUser = !!adminByUserId || !!adminByEmail;
+    if (!isPlatformAdminUser && demoTenant) {
+      const { data: membership } = await admin
+        .from("tenant_users")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("tenant_id", demoTenant.id)
+        .maybeSingle();
+      if (!membership) return denyWrongWorkspace();
+    }
+  } else if (!isPrimaryOrDevHost(host)) {
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    // These three are independent of each other -- run them together instead
+    // of one-after-another. On the common (non-admin) path this was always
+    // running all three anyway (the by-user_id lookup misses, forcing the
+    // by-email fallback), just sequentially; this cuts that wall-clock time
+    // roughly to one round trip instead of three.
+    const [{ data: hostTenant }, { data: adminByUserId }, { data: adminByEmail }] = await Promise.all([
+      admin.from("tenants").select("id").eq("custom_domain", host).maybeSingle(),
+      admin.from("platform_admins").select("id").eq("user_id", user.id).maybeSingle(),
+      admin.from("platform_admins").select("id").eq("email", user.email ?? "").maybeSingle(),
+    ]);
 
     if (hostTenant) {
       // Platform admins get standing access to every tenant's dedicated domain,
       // without needing a per-tenant tenant_users row or invite.
-      let isPlatformAdminUser = false;
-      const { data: adminByUserId } = await admin
-        .from("platform_admins")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      isPlatformAdminUser = !!adminByUserId;
-      if (!isPlatformAdminUser) {
-        const { data: adminByEmail } = await admin
-          .from("platform_admins")
-          .select("id")
-          .eq("email", user.email ?? "")
-          .maybeSingle();
-        isPlatformAdminUser = !!adminByEmail;
-      }
+      const isPlatformAdminUser = !!adminByUserId || !!adminByEmail;
 
       let tenantMatches = true;
       if (!isPlatformAdminUser) {
@@ -95,13 +127,7 @@ export async function middleware(request: NextRequest) {
 
       if (!isPlatformAdminUser && !tenantMatches) {
         // Session belongs to a different tenant than this domain resolves to — hard isolation.
-        await supabase.auth.signOut();
-        const loginUrl = new URL("/login", request.url);
-        loginUrl.searchParams.set("next", pathname);
-        loginUrl.searchParams.set("error", "wrong_workspace");
-        const redirect = NextResponse.redirect(loginUrl);
-        response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
-        return redirect;
+        return denyWrongWorkspace();
       }
     }
   }

@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { createAdminSupabase, getAuthUser, resolveTenantIdForPlatformAdmin } from "./supabase-server";
+import { createAdminSupabase, getAuthUser, resolveHostTenant } from "./supabase-server";
 import type { TenantConfig, TenantFeatures } from "./constants";
 
 export { isPlatformAdmin } from "./supabase-server";
@@ -49,6 +49,7 @@ export type Tenant = {
   config: TenantConfig;
   custom_domain: string | null;
   api_key: string | null;
+  is_demo: boolean;
 };
 
 /**
@@ -56,29 +57,26 @@ export type Tenant = {
  * React cache() deduplicates within a single render (layout + requireFeature = 1 DB call).
  * Fresh per request — no Vercel Data Cache, so platform admin changes take effect immediately.
  */
-const TENANT_COLUMNS = "id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain, api_key";
+const TENANT_COLUMNS = "id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain, api_key, is_demo";
 
 export const getTenant = cache(async (): Promise<Tenant | null> => {
   const user = await getAuthUser();
   if (!user) return null;
 
-  // Platform admins: the tenant mapped to the current hostname always wins over
-  // any personal tenant_users row, so visiting a tenant's custom_domain shows
-  // THAT tenant even if the admin also happens to belong to a different one
-  // (e.g. the internal demo tenant). Only applies on a mapped dedicated domain.
-  const hostFallbackId = await resolveTenantIdForPlatformAdmin();
-  if (hostFallbackId) {
+  // Host decides the tenant; the user only decides access (see resolveHostTenant).
+  const host = await resolveHostTenant();
+  if (host.kind === "resolved") {
     const { data: hostTenant } = await createAdminSupabase()
       .from("tenants")
       .select(TENANT_COLUMNS)
-      .eq("id", hostFallbackId)
+      .eq("id", host.tenantId)
       .maybeSingle();
-    if (hostTenant) return hostTenant as unknown as Tenant;
+    return (hostTenant as unknown as Tenant) ?? null;
   }
+  // Denied on a real deployed host — never fall back to another tenant.
+  if (host.kind === "denied") return null;
 
-  // Ordered + limited to 1 rather than a plain maybeSingle(): a platform admin
-  // can have more than one tenant_users row now (one per tenant visited via its
-  // custom domain). The oldest row is this user's "home" tenant on PRIMARY_HOST.
+  // localhost / dev only: fall back to the user's own oldest membership.
   const { data } = await createAdminSupabase()
     .from("tenant_users")
     .select(`tenants(${TENANT_COLUMNS})`)
@@ -118,7 +116,7 @@ export async function getTenantBrandingByHost(host: string): Promise<Pick<Tenant
 export async function adminListTenants(): Promise<Tenant[]> {
   const { data } = await createAdminSupabase()
     .from("tenants")
-    .select("id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain, api_key, created_at")
+    .select("id, slug, name, logo_url, accent_color, status, plan, features, company_info, config, custom_domain, api_key, is_demo, created_at")
     .order("created_at", { ascending: false });
   return (data as Tenant[]) ?? [];
 }
@@ -135,10 +133,13 @@ export const getUserRole = cache(async (): Promise<"admin" | "member" | null> =>
   const user = await getAuthUser();
   if (!user) return null;
 
-  // Same hostname-wins priority as getTenant() — a platform admin on a mapped
-  // custom domain is always "admin" there, regardless of their own tenant_users role.
-  if (await resolveTenantIdForPlatformAdmin()) return "admin";
+  // Same host-decides-tenant resolution as getTenant(): the role is the one for
+  // THIS host's tenant, not whatever tenant the user happens to belong to.
+  const host = await resolveHostTenant();
+  if (host.kind === "resolved") return host.role;
+  if (host.kind === "denied") return null;
 
+  // localhost / dev only: the user's own oldest membership role.
   const { data } = await createAdminSupabase()
     .from("tenant_users")
     .select("role")
