@@ -3,7 +3,7 @@
 
 import type {
   Account, Quote, ServiceCase, Technician, PricingItem, VisitLog,
-  WorkOrder, TechnicianLeave, Activity, Contact, Asset, QuoteLine, Invoice, Lead, Contract,
+  WorkOrder, TechnicianLeave, Activity, Contact, Asset, QuoteLine, Invoice, Lead, Contract, Supplier,
 } from "@/lib/types";
 
 // ── Re-exported base types (no server import chain) ───────────────────────────
@@ -193,4 +193,15 @@ export const ASSET_KIND_LABEL: Record<Asset["kind"], string> = {
   pump:        "Pump",
   generator:   "Generator",
   panel:       "Panel",
+};
+
+export const SUPPLIER_TYPE_LABEL: Record<Supplier["type"], string> = {
+  vendor:        "Vendor",
+  subcontractor: "Subcontractor",
+  both:          "Vendor & Sub",
+};
+
+export const SUPPLIER_STATUS_LABEL: Record<Supplier["status"], string> = {
+  active:   "Active",
+  inactive: "Inactive",
 };

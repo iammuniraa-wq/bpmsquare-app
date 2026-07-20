@@ -75,7 +75,7 @@ before Phase 2 starts:
 | Object | 1. Registry entry | 2. Pilot type | 3. field-config merges | 4. Adapt + rules | 5. ObjectSections | 6. Old wiring removed | 7. Overrides verified | 8. Rule verified | 9. No regressions | 10. Extension conflicts checked | **Status** |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | asset | ✅ | ✅ | ✅ | ✅ verified in prod | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Done |
-| supplier | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
+| supplier | ✅ | ✅ | ✅ | ✅ (code, unverified in browser) | ✅ | ✅ | ⬜ manual check | n/a — no rules yet | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
 | case | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
 | work_order | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
 
@@ -148,6 +148,46 @@ Order: asset → supplier → case → work_order.
 - **`frame_size`/`insulation` vs `frame_type`/`insulation_class`**: not
   reconciled — different shape (plain text vs. select-with-options), low
   priority, `extraCustomFields` is still dead code (never invoked).
+
+### supplier — what landed
+
+Simpler than asset: flat object, no bulk field addition, no extension
+conflicts, no kind-conditional visibility need.
+
+- **`src/lib/data/labels.ts`** — added `SUPPLIER_TYPE_LABEL`,
+  `SUPPLIER_STATUS_LABEL` (neither existed before; the page had its own
+  inline `TYPE_LABEL` duplicate, left in place — same as the asset-kind
+  duplicates, not touched).
+- **`src/lib/fieldRegistry.ts`** — `PilotObjectType` extended to include
+  `"supplier"`; `FIELD_REGISTRY.supplier` added (Identity / Contact /
+  Notes). No entry in `DEFAULT_FIELD_RULES` — nothing kind-conditional
+  here.
+- **`src/app/(app)/suppliers/[id]/page.tsx`** — the read-only "Contact
+  information" card plus the separate `<CustomFieldsSection>` call are
+  both replaced by one `<ObjectSections>`. `AdaptObjectDrawer` added via
+  `PageHeader`'s existing `action` prop (a slot account/contact/asset
+  don't use, since none of their pages route through a shared
+  `PageHeader` the same way).
+- **Genuine judgment call, not mechanical:** `SupplierEditPanel.tsx` had a
+  **Delete supplier** button — real behavior `ObjectSections` has no
+  equivalent for (account/contact never had a delete action to preserve,
+  so there was no precedent here). Renamed to `DeleteSupplierButton.tsx`
+  and stripped to just that — delete button + confirm + redirect, nothing
+  else. Old file deleted, single import site updated.
+- **Verified the PATCH route before treating this as done**, not just by
+  analogy: `/api/suppliers/[id]` already whitelists exactly
+  `name/type/city/phone/email/gstin/notes/status/custom_data` — the same
+  shape `ObjectSections` PATCHes. No API changes needed.
+- `tsc --noEmit` and `npm run build` both clean.
+
+### supplier — still open
+
+- **Not verified in a browser.** Same caveat as asset's first pass —
+  implemented per the same code path account/contact/asset already use,
+  but not clicked through manually. In particular: confirm the Adapt
+  drawer opens correctly from `PageHeader`'s `action` slot (new usage
+  pattern, not yet exercised elsewhere), and confirm delete still works
+  end-to-end after the rename.
 
 ---
 

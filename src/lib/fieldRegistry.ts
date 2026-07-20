@@ -1,8 +1,8 @@
 // Import from the client-safe labels mirror, not "@/lib/data" (the barrel
 // re-exports server-only live.ts data functions, which would otherwise leak
 // into every client component that imports this registry).
-import { ACCOUNT_TYPE_LABEL, ASSET_KIND_LABEL } from "@/lib/data/labels";
-import type { AccountType, Asset } from "@/lib/types";
+import { ACCOUNT_TYPE_LABEL, ASSET_KIND_LABEL, SUPPLIER_TYPE_LABEL, SUPPLIER_STATUS_LABEL } from "@/lib/data/labels";
+import type { AccountType, Asset, Supplier } from "@/lib/types";
 
 // ── Widget types ─────────────────────────────────────────────────────────────
 //
@@ -72,13 +72,19 @@ export type EffectiveField = {
   placeholder?: string;
 };
 
-export type PilotObjectType = "account" | "contact" | "asset";
+export type PilotObjectType = "account" | "contact" | "asset" | "supplier";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
 
 const ASSET_KIND_OPTIONS: { value: Asset["kind"]; label: string }[] =
   (Object.keys(ASSET_KIND_LABEL) as Asset["kind"][]).map((value) => ({ value, label: ASSET_KIND_LABEL[value] }));
+
+const SUPPLIER_TYPE_OPTIONS: { value: Supplier["type"]; label: string }[] =
+  (Object.keys(SUPPLIER_TYPE_LABEL) as Supplier["type"][]).map((value) => ({ value, label: SUPPLIER_TYPE_LABEL[value] }));
+
+const SUPPLIER_STATUS_OPTIONS: { value: Supplier["status"]; label: string }[] =
+  (Object.keys(SUPPLIER_STATUS_LABEL) as Supplier["status"][]).map((value) => ({ value, label: SUPPLIER_STATUS_LABEL[value] }));
 
 export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   account: {
@@ -182,6 +188,22 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       // are deliberately excluded, not just hidden.
     ],
   },
+
+  supplier: {
+    sections: ["Identity", "Contact", "Notes"],
+    fields: [
+      { key: "name",   defaultLabel: "Name",   widget: "text", defaultSection: "Identity", locked: true },
+      { key: "type",   defaultLabel: "Type",   widget: "enum", defaultSection: "Identity", enumOptions: SUPPLIER_TYPE_OPTIONS },
+      { key: "status", defaultLabel: "Status", widget: "enum", defaultSection: "Identity", enumOptions: SUPPLIER_STATUS_OPTIONS },
+
+      { key: "city",   defaultLabel: "City",   widget: "text",  defaultSection: "Contact" },
+      { key: "phone",  defaultLabel: "Phone",  widget: "tel",   defaultSection: "Contact" },
+      { key: "email",  defaultLabel: "Email",  widget: "email", defaultSection: "Contact" },
+      { key: "gstin",  defaultLabel: "GSTIN",  widget: "text",  defaultSection: "Contact" },
+
+      { key: "notes",  defaultLabel: "Notes",  widget: "textarea", defaultSection: "Notes" },
+    ],
+  },
 };
 
 /** Fields hidden unless the record's kind matches — see the Nameplate section above. */
@@ -210,7 +232,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 };
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {
-  return objectType === "account" || objectType === "contact" || objectType === "asset";
+  return objectType === "account" || objectType === "contact" || objectType === "asset" || objectType === "supplier";
 }
 
 // ── Rule condition tree ──────────────────────────────────────────────────────

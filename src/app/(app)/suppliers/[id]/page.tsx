@@ -8,8 +8,9 @@ import Pill from "@/components/Pill";
 import PageHeader from "@/components/PageHeader";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
-import CustomFieldsSection from "@/components/CustomFieldsSection";
-import SupplierEditPanel from "./SupplierEditPanel";
+import ObjectSections from "@/components/fields/ObjectSections";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
+import DeleteSupplierButton from "./DeleteSupplierButton";
 
 const TYPE_LABEL: Record<Supplier["type"], string> = {
   vendor: "Vendor", subcontractor: "Subcontractor", both: "Vendor & Sub",
@@ -36,7 +37,7 @@ function CtxLabel({ children }: { children: React.ReactNode }) {
 }
 
 export default async function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { supabase, tenantId } = await requireTenantUser();
+  const { supabase, tenantId, role } = await requireTenantUser();
   const { id } = await params;
 
   const { data } = await supabase
@@ -62,65 +63,18 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
       <PageHeader
         title={supplier.name}
         subtitle={`${TYPE_LABEL[supplier.type]}${supplier.city ? ` · ${supplier.city}` : ""}`}
+        action={<AdaptObjectDrawer objectType="supplier" objectLabel="Supplier" isAdmin={role === "admin"} />}
       />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, alignItems: "start", marginTop: 16 }}>
 
         {/* Main panel */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-          {/* Contact info */}
-          <section style={cardStyle}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: c.accent, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 14 }}>
-              Contact information
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div>
-                <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 3 }}>Phone</div>
-                <div style={{ fontSize: 13.5, color: supplier.phone ? c.ink : c.hint }}>
-                  {supplier.phone ?? "—"}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 3 }}>Email</div>
-                {supplier.email ? (
-                  <a href={`mailto:${supplier.email}`} style={{ fontSize: 13.5, color: c.accent, textDecoration: "none" }}>
-                    {supplier.email}
-                  </a>
-                ) : (
-                  <div style={{ fontSize: 13.5, color: c.hint }}>—</div>
-                )}
-              </div>
-              <div>
-                <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 3 }}>City</div>
-                <div style={{ fontSize: 13.5, color: supplier.city ? c.ink : c.hint }}>
-                  {supplier.city ?? "—"}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 3 }}>GSTIN</div>
-                <div style={{ fontSize: 13, color: supplier.gstin ? c.ink : c.hint, fontFamily: supplier.gstin ? "monospace" : "inherit" }}>
-                  {supplier.gstin ?? "—"}
-                </div>
-              </div>
-            </div>
-
-            {supplier.notes && (
-              <>
-                <div style={{ borderTop: `1px solid ${c.line}`, margin: "14px 0 12px" }} />
-                <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>Notes</div>
-                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{supplier.notes}</p>
-              </>
-            )}
-          </section>
-
-          <CustomFieldsSection
+          <ObjectSections
             objectType="supplier"
-            recordId={supplier.id}
-            customData={supplier.custom_data}
+            record={supplier as unknown as Record<string, unknown>}
             patchUrl={`/api/suppliers/${supplier.id}`}
           />
-
         </div>
 
         {/* Sidebar */}
@@ -134,7 +88,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             <CtxRow label="Date" value={fmtDate(supplier.created_at)} />
           </section>
 
-          <SupplierEditPanel supplier={supplier} />
+          <DeleteSupplierButton supplier={supplier} />
         </div>
       </div>
 
