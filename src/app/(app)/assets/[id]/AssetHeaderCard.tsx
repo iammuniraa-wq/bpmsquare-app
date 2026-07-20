@@ -5,6 +5,7 @@ import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import type { Asset } from "@/lib/types";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 
 function KindIcon({ kind, size = 22, color }: { kind: string; size?: number; color?: string }) {
@@ -24,12 +25,13 @@ type Props = {
   account: { id: string; name: string } | null;
   casesCount: number;
   openCasesCount: number;
+  isAdmin: boolean;
 };
 
 // Static header shell: name/kind/spec summary alongside primary actions.
 // Editing the asset's own field values happens inline in the Details card
 // below (ObjectSections), not here — see AccountHeader for the same rule.
-export default function AssetHeaderCard({ asset, account, casesCount, openCasesCount }: Props) {
+export default function AssetHeaderCard({ asset, account, casesCount, openCasesCount, isAdmin }: Props) {
   return (
     <div style={{ ...cardStyle, marginBottom: 14 }}>
       <div style={{ marginBottom: 10 }}>
@@ -64,7 +66,8 @@ export default function AssetHeaderCard({ asset, account, casesCount, openCasesC
         </div>
 
         {/* Primary actions — always visible, top of card */}
-        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+          <AdaptObjectDrawer objectType="asset" objectLabel="Asset" isAdmin={isAdmin} />
           {account && (
             <Link href={`${ROUTES.caseNew}?account_id=${account.id}`}
               style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: c.accent, borderRadius: 7, padding: "7px 14px", textDecoration: "none", flexShrink: 0 }}>

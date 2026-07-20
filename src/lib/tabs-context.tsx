@@ -58,11 +58,13 @@ function tabMeta(href: string): { title: string; icon: string; section: string }
   if (p.startsWith("/accounts/"))       return { title: shortId(p),            icon: "▣", section: "Account" };
   if (p === ROUTES.contacts)            return { title: "Contacts",            icon: "◉", section: "Workspace" };
   if (p.startsWith("/contacts/new"))    return { title: "New Contact",         icon: "◉", section: "Contacts" };
+  if (p.startsWith("/contacts/"))       return { title: shortId(p),            icon: "◉", section: "Contact" };
   if (p === ROUTES.assets)              return { title: "Assets",              icon: "◧", section: "Records" };
   if (p === ROUTES.suppliers)           return { title: "Suppliers",           icon: "◫", section: "Records" };
   if (p.startsWith("/suppliers/new"))   return { title: "New Supplier",        icon: "◫", section: "Suppliers" };
   if (p.startsWith("/suppliers/"))      return { title: shortId(p),            icon: "◫", section: "Supplier" };
   if (p.startsWith("/assets/new"))      return { title: "New Asset",           icon: "◧", section: "Assets" };
+  if (p.startsWith("/assets/"))         return { title: shortId(p),            icon: "◧", section: "Asset" };
   if (p === ROUTES.quotations)          return { title: "Quotations",          icon: "₹", section: "Sales" };
   if (p.startsWith("/quotations/new"))  return { title: "New Quote",           icon: "₹", section: "Quotations" };
   if (p.startsWith("/quotations/"))     return { title: shortId(p),            icon: "₹", section: "Quotation" };

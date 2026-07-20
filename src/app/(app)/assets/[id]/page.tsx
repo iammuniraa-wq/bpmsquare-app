@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAssetLive } from "@/lib/data/live";
+import { getUserRole } from "@/lib/tenant";
 import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -28,7 +29,7 @@ export default async function AssetDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data = await getAssetLive(id);
+  const [data, role] = await Promise.all([getAssetLive(id), getUserRole()]);
   if (!data) notFound();
   const { asset, account, cases } = data;
 
@@ -39,7 +40,7 @@ export default async function AssetDetailPage({
     <>
       <TabTitle title={asset.name} />
 
-      <AssetHeaderCard asset={asset} account={account} casesCount={cases.length} openCasesCount={openCases.length} />
+      <AssetHeaderCard asset={asset} account={account} casesCount={cases.length} openCasesCount={openCases.length} isAdmin={role === "admin"} />
 
       <div style={{ marginBottom: 14 }}>
         <ObjectSections
