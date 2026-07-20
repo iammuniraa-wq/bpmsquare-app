@@ -74,7 +74,7 @@ before Phase 2 starts:
 
 | Object | 1. Registry entry | 2. Pilot type | 3. field-config merges | 4. Adapt + rules | 5. ObjectSections | 6. Old wiring removed | 7. Overrides verified | 8. Rule verified | 9. No regressions | 10. Extension conflicts checked | **Status** |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| asset | ✅ | ✅ | ✅ | ✅ (code, untested in browser) | ✅ | ✅ | ⬜ manual check | ⬜ manual check | ✅ typecheck+build clean | ✅ | 🟡 Code complete, manual UI check pending |
+| asset | ✅ | ✅ | ✅ | ✅ verified in prod | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Done |
 | supplier | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
 | case | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
 | work_order | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
@@ -122,21 +122,32 @@ Order: asset → supplier → case → work_order.
   Asset construction updated to match. `tsc --noEmit` and `npm run build`
   both clean.
 
-### asset — still open
+### asset — post-verification fixes (found by user testing in prod)
+
+- **Adapt drawer was never rendered.** The data layer (registry entry,
+  pilot type, default rules) was wired but `AdaptObjectDrawer` itself was
+  never added to the page — added to `AssetHeaderCard`, mirroring
+  `AccountHeader`. Fixed in `2cc7f27`.
+- **Tab title showed the raw record UUID.** Pre-existing bug in
+  `tabs-context.tsx`'s `tabMeta()` — `/assets/new` and `/contacts/new` had
+  branches, but `/assets/[id]` and `/contacts/[id]` detail routes didn't,
+  so both fell through to the raw path segment as the initial tab title.
+  Added the missing branches. Fixed in `2cc7f27`.
+- **Nameplate fields exposed on Settings → Statuses & assets.** Two
+  hardcoded field-label lists (`StatusesClient.tsx`'s print-field picker,
+  `QuotePrintDocument.tsx`'s `ASSET_FIELD_LABELS`) predate the field
+  registry and weren't touched by it — added the 12 nameplate fields to
+  both so they're selectable for the quote print equipment section. Fixed
+  in `412f16f`.
+
+### asset — still open (non-blocking)
 
 - **Decision B** (is_loaner/loaner_status): left out of the registry as
   agreed — no live workflow sets `loaner_status: "on_loan"` anywhere outside
   seed data, so no editability was added for it.
 - **`frame_size`/`insulation` vs `frame_type`/`insulation_class`**: not
-  reconciled (see extension note above) — low priority, `extraCustomFields`
-  is still dead code (never invoked anywhere).
-- **Not verified in a browser** — no working localhost auth session this
-  session (dev magic-link redirects to production). Checklist items 7
-  (overrides) and 8 (rule fires correctly) are implemented per the same
-  code path account/contact already use, but not clicked through manually.
-  Do this before treating asset as fully ✅.
-- **Migration not applied** — see above. Nothing nameplate-related will
-  actually persist/display until it's run.
+  reconciled — different shape (plain text vs. select-with-options), low
+  priority, `extraCustomFields` is still dead code (never invoked).
 
 ---
 
