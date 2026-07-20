@@ -51,6 +51,19 @@ const ALL_ASSET_FIELDS: { value: string; label: string; example: string }[] = [
   { value: "rpm",    label: "RPM",              example: "1480" },
   { value: "serial", label: "Serial no.",       example: "CG-75-2291" },
   { value: "notes",  label: "Remarks",          example: "Stator rewound 2023" },
+
+  // Motor/generator nameplate fields — see FIELD_REGISTRY.asset (src/lib/fieldRegistry.ts).
+  { value: "frame_type",         label: "Frame / Type",         example: "4B 206-02H" },
+  { value: "insulation_class",   label: "Insulation class",     example: "F" },
+  { value: "connection",         label: "Connection",           example: "Star Connection" },
+  { value: "duty",               label: "Duty",                 example: "S1" },
+  { value: "ambient_temp",       label: "Ambient temp.",        example: "50°C" },
+  { value: "output_kw",          label: "Output (kW)",          example: "2200" },
+  { value: "stator_voltage",     label: "Stator voltage",       example: "11000" },
+  { value: "stator_current",     label: "Stator current",       example: "133" },
+  { value: "excitation_voltage", label: "Excitation voltage",   example: "54" },
+  { value: "excitation_current", label: "Excitation current",   example: "295" },
+  { value: "frequency",          label: "Frequency",            example: "50" },
 ];
 
 export default function StatusesClient({ initial, initialAssetFields, assetCustomFields = [] }: {

@@ -21,6 +21,19 @@ const ASSET_FIELD_LABELS: Record<string, string> = {
   rpm:    "RPM",
   serial: "Serial no.",
   notes:  "Remarks",
+
+  // Motor/generator nameplate fields — see FIELD_REGISTRY.asset (src/lib/fieldRegistry.ts).
+  frame_type:         "Frame / Type",
+  insulation_class:   "Insulation class",
+  connection:         "Connection",
+  duty:               "Duty",
+  ambient_temp:       "Ambient temp.",
+  output_kw:          "Output (kW)",
+  stator_voltage:     "Stator voltage",
+  stator_current:     "Stator current",
+  excitation_voltage: "Excitation voltage",
+  excitation_current: "Excitation current",
+  frequency:          "Frequency",
 };
 
 export type QuotePrintDocumentProps = {
