@@ -28,7 +28,13 @@ export default async function QuotePrintPage({ params }: { params: Promise<{ id:
     for (const f of customFields ?? []) assetCustomFieldLabels[f.field_key] = f.field_label;
   }
 
-  const ext = await getExtension(tenant?.slug);
+  let ext: Awaited<ReturnType<typeof getExtension>>;
+  try {
+    ext = await getExtension(tenant?.slug);
+  } catch (e: unknown) {
+    console.error("[quote print] extension load failed for slug", tenant?.slug, e);
+    ext = await getExtension(undefined); // fall back to the no-op base extension
+  }
   const ctx = { companyName: tenant?.name ?? "", accountName: account?.name ?? null };
 
   return (

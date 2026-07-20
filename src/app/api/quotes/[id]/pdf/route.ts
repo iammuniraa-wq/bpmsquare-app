@@ -52,6 +52,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Failed to render quote for PDF" }, { status: 502 });
     }
 
+    // "networkidle0" only guarantees network requests finished -- it does NOT
+    // guarantee images have finished decoding/painting yet. That gap was
+    // silently dropping every image (company logo, tenant signature) from
+    // the generated PDF, both a remote https:// logo and a local data: URI
+    // signature, with no error -- page.pdf() was snapshotting before either
+    // had actually painted. Explicitly wait for every <img> to load + decode
+    // (each with its own short timeout so one stuck image can't hang the
+    // whole request past maxDuration) before printing.
+    await page.evaluate(async () => {
+      const withTimeout = (p: Promise<unknown>, ms: number) =>
+        Promise.race([p, new Promise((resolve) => setTimeout(resolve, ms))]);
+      await Promise.all(
+        Array.from(document.images).map((img) => {
+          const ready = img.complete
+            ? Promise.resolve()
+            : new Promise<void>((resolve) => {
+                img.addEventListener("load", () => resolve(), { once: true });
+                img.addEventListener("error", () => resolve(), { once: true });
+              });
+          return withTimeout(ready.then(() => img.decode().catch(() => {})), 8000);
+        })
+      );
+    });
+
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,

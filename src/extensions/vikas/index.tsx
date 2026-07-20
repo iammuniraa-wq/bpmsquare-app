@@ -1,8 +1,12 @@
-"use client";
-
 /**
  * Vikas Pioneers India (P) Ltd — tenant extension.
  * All Vikas-specific logic lives here. Standard product is untouched.
+ *
+ * No "use client" here (unlike a stale earlier version of this file) — every
+ * hook is invoked directly from server-side code (loadExtension() is called
+ * from the quote print Server Component, never from a Client Component), and
+ * quoteSignatureSlot only returns a plain <img>, no hooks/handlers. _base/
+ * has no directive either; this file should match it exactly.
  */
 import type { TenantExtension } from "@/extensions/types";
 import { VIKAS_SIGNATURE } from "@/lib/vikasSig";
