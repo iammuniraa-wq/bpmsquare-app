@@ -46,6 +46,34 @@ export async function POST(request: NextRequest) {
   const { data: acct } = await supabase.from("accounts").select("id").eq("id", account_id).eq("tenant_id", tenantId).maybeSingle();
   if (!acct) return NextResponse.json({ error: "Account not found" }, { status: 404 });
 
+  // Every other foreign id comes straight from the request body -- verify each one
+  // actually belongs to this tenant before it's woven into the new invoice, same as
+  // the purchase-orders route already does for quote_id/case_id. Without this, a
+  // tenant-A caller could splice in a tenant-B quote/contact/case/contract id.
+  if (contact_id) {
+    const { data: contact } = await supabase.from("contacts").select("id").eq("id", contact_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!contact) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+  }
+  if (quote_id) {
+    const { data: quote } = await supabase.from("quotes").select("id").eq("id", quote_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!quote) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+  }
+  if (case_id) {
+    const { data: caseRow } = await supabase.from("service_cases").select("id").eq("id", case_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!caseRow) return NextResponse.json({ error: "Case not found" }, { status: 404 });
+  }
+  if (contract_id) {
+    const { data: contract } = await supabase.from("contracts").select("id").eq("id", contract_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!contract) return NextResponse.json({ error: "Contract not found" }, { status: 404 });
+  }
+  if (entity_id) {
+    const { data: tenantRow } = await supabase.from("tenants").select("config").eq("id", tenantId).single();
+    const entities = (tenantRow?.config as { entities?: { id: string }[] } | null)?.entities ?? [];
+    if (!entities.some((e) => e.id === entity_id)) {
+      return NextResponse.json({ error: "Entity not found" }, { status: 404 });
+    }
+  }
+
   const cleanLines = Array.isArray(lines)
     ? lines
         .filter((l) => l?.description?.trim())

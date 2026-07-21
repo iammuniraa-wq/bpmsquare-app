@@ -32,8 +32,8 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
 
   if (wo.auth_kind === "quote" && wo.auth_id) {
     const [{ data: quote }, { data: quoteLines }] = await Promise.all([
-      supabase.from("quotes").select("contact_id, entity_id").eq("id", wo.auth_id).maybeSingle(),
-      supabase.from("quote_lines").select("sl_no, description, uom, qty, rate, amount").eq("quote_id", wo.auth_id).order("sl_no"),
+      supabase.from("quotes").select("contact_id, entity_id").eq("id", wo.auth_id).eq("tenant_id", tenantId).maybeSingle(),
+      supabase.from("quote_lines").select("sl_no, description, uom, qty, rate, amount").eq("quote_id", wo.auth_id).eq("tenant_id", tenantId).order("sl_no"),
     ]);
     quoteId = wo.auth_id;
     contactId = quote?.contact_id ?? null;

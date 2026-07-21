@@ -68,8 +68,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
 
   const [{ count: poLineCount }, { count: quoteLineCount }] = await Promise.all([
-    supabase.from("purchase_order_lines").select("id", { count: "exact", head: true }).eq("inventory_item_id", id),
-    supabase.from("quote_lines").select("id", { count: "exact", head: true }).eq("inventory_item_id", id),
+    supabase.from("purchase_order_lines").select("id", { count: "exact", head: true }).eq("inventory_item_id", id).eq("tenant_id", tenantId),
+    supabase.from("quote_lines").select("id", { count: "exact", head: true }).eq("inventory_item_id", id).eq("tenant_id", tenantId),
   ]);
   if ((poLineCount ?? 0) > 0 || (quoteLineCount ?? 0) > 0) {
     return NextResponse.json({ error: "Cannot delete: this item is referenced by a purchase order or quote line." }, { status: 409 });

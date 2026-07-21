@@ -60,6 +60,14 @@ ext.extraCustomFields("asset")
 - Never use the Supabase service role key on the client side.
 - Tenant configuration (feature flags, custom fields, tax, layouts) lives in `tenants.features`
   and `tenants.config` (JSONB). Types are in `src/lib/constants.ts → TenantFeatures / TenantConfig`.
+- **Before writing or touching any query, mutation, new table, or cache that deals with
+  tenant-scoped data, work through `MULTI_TENANT_GUARDRAILS.md` first.** It's a concrete
+  checklist (not prose) written after a 2026-07-21 isolation audit — covers
+  `createAdminSupabase()` usage, unverified foreign ids from request bodies, RLS on new
+  tables, and cache keys. Tenant identity here is resolved per-request from the hostname,
+  not a client-side switch, so getting this wrong is silent until it isn't.
+
+@MULTI_TENANT_GUARDRAILS.md
 
 ---
 
