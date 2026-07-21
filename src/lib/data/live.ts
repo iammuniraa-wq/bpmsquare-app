@@ -616,27 +616,29 @@ export async function getQuoteLive(id: string) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const storedContactId = (quote as any).contact_id as string | null | undefined;
-  const { data: cd } = storedContactId
-    ? await supabase.from("contacts").select("*").eq("id", storedContactId).maybeSingle()
-    : acc
-      ? await supabase.from("contacts").select("*").eq("account_id", acc.id).limit(1).maybeSingle()
-      : { data: null };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assetIds: string[] = (quote as any).asset_ids ?? [];
+
+  // Both of these only depend on fields already resolved on `quote` above, not
+  // on each other -- batch them into one round trip instead of two sequential ones.
+  const [{ data: cd }, { data: assetRows }] = await Promise.all([
+    storedContactId
+      ? supabase.from("contacts").select("*").eq("id", storedContactId).maybeSingle()
+      : acc
+        ? supabase.from("contacts").select("*").eq("account_id", acc.id).limit(1).maybeSingle()
+        : Promise.resolve({ data: null }),
+    assetIds.length > 0
+      ? supabase.from("assets").select("*").in("id", assetIds)
+      : Promise.resolve({ data: [] }),
+  ]);
   const contact = cd ? decryptContact(cd as Contact) : null;
+  const assets = (assetRows ?? []) as Asset[];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mappedWOs = (workOrders ?? []).map((wo: any) => ({
     ...wo,
     authorized_by: { kind: wo.auth_kind as "quote" | "contract", id: wo.auth_id as string },
   })) as WorkOrder[];
-
-  // Fetch linked assets if the quote has asset_ids
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const assetIds: string[] = (quote as any).asset_ids ?? [];
-  let assets: Asset[] = [];
-  if (assetIds.length > 0) {
-    const { data: assetRows } = await supabase.from("assets").select("*").in("id", assetIds);
-    assets = (assetRows ?? []) as Asset[];
-  }
 
   return {
     quote: quote as Quote,

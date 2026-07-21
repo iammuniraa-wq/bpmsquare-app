@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminSupabase, getAuthUser, resolveHostTenant } from "./supabase-server";
 import type { TenantConfig, TenantFeatures } from "./constants";
@@ -102,15 +103,25 @@ export async function requireFeature(key: keyof TenantFeatures): Promise<void> {
  * Public, unauthenticated lookup for branding a tenant's dedicated login page
  * (name + logo only — nothing sensitive). Returns null when the host has no
  * mapped tenant, so callers fall back to generic BPMSquare branding.
+ *
+ * Called from the root layout's generateMetadata() on EVERY page load (it's
+ * how the tab title is set), so this was a live DB round trip blocking every
+ * single navigation just to render a title. `host` maps 1:1 to a tenant
+ * (custom_domain), so it's a safe unstable_cache key — no cross-tenant
+ * sharing risk, just a bounded staleness window if branding changes (5 min).
  */
-export async function getTenantBrandingByHost(host: string): Promise<Pick<Tenant, "name" | "logo_url"> | null> {
-  const { data } = await createAdminSupabase()
-    .from("tenants")
-    .select("name, logo_url")
-    .eq("custom_domain", host)
-    .maybeSingle();
-  return data ?? null;
-}
+export const getTenantBrandingByHost = unstable_cache(
+  async (host: string): Promise<Pick<Tenant, "name" | "logo_url"> | null> => {
+    const { data } = await createAdminSupabase()
+      .from("tenants")
+      .select("name, logo_url")
+      .eq("custom_domain", host)
+      .maybeSingle();
+    return data ?? null;
+  },
+  ["tenant-branding-by-host"],
+  { revalidate: 300 }
+);
 
 /** Admin: list all tenants. Uses service role. */
 export async function adminListTenants(): Promise<Tenant[]> {
