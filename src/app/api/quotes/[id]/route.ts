@@ -61,16 +61,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  // discount_type/discount_pct/discount_fixed/gst_rate are deliberately not
-  // patchable here -- they feed the stored `total`, which only the full edit
-  // flow (/quotations/[id]/edit) recalculates. Allowing them here would let
-  // an inline edit leave `total` stale.
-  const allowed = [
-    "status", "custom_data",
-    "name", "type", "valid_until", "ref_no", "pr_no",
-    "po_number", "po_amount", "territory", "sales_org",
-    "scope_of_work", "notes", "terms",
-  ];
+  const allowed = ["status", "notes", "custom_data", "ref_no"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
 

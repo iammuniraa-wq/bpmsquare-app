@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getQuote } from "@/lib/data";
-import { getTenant, getUserRole } from "@/lib/tenant";
+import { getTenant } from "@/lib/tenant";
 import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
@@ -12,7 +12,7 @@ export default async function QuotationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [data, tenant, role] = await Promise.all([getQuote(id), getTenant(), getUserRole()]);
+  const [data, tenant] = await Promise.all([getQuote(id), getTenant()]);
   if (!data) notFound();
 
   const { quote, account, contact, lines, workOrders, existingInvoice } = data;
@@ -37,7 +37,6 @@ export default async function QuotationDetailPage({
         tenantTax={tenantTax}
         quoteStatuses={quoteStatuses}
         existingInvoice={existingInvoice}
-        isAdmin={role === "admin"}
       />
     </>
   );

@@ -5,8 +5,8 @@ import {
   ACCOUNT_TYPE_LABEL, ASSET_KIND_LABEL, SUPPLIER_TYPE_LABEL, SUPPLIER_STATUS_LABEL,
   CASE_TYPE_LABEL, INVENTORY_ITEM_STATUS_LABEL,
 } from "@/lib/data/labels";
-import { OFFER_TYPE_LABEL, UOM_OPTIONS } from "@/lib/constants";
-import type { AccountType, Asset, Supplier, QuoteOfferType, ServiceCase, InventoryItem } from "@/lib/types";
+import { UOM_OPTIONS } from "@/lib/constants";
+import type { AccountType, Asset, Supplier, ServiceCase, InventoryItem } from "@/lib/types";
 
 // ── Widget types ─────────────────────────────────────────────────────────────
 //
@@ -77,7 +77,7 @@ export type EffectiveField = {
 };
 
 export type PilotObjectType =
-  | "account" | "contact" | "asset" | "supplier" | "quote"
+  | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "invoice" | "purchase_order" | "inventory";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
@@ -91,9 +91,6 @@ const SUPPLIER_TYPE_OPTIONS: { value: Supplier["type"]; label: string }[] =
 
 const SUPPLIER_STATUS_OPTIONS: { value: Supplier["status"]; label: string }[] =
   (Object.keys(SUPPLIER_STATUS_LABEL) as Supplier["status"][]).map((value) => ({ value, label: SUPPLIER_STATUS_LABEL[value] }));
-
-const QUOTE_TYPE_OPTIONS: { value: QuoteOfferType; label: string }[] =
-  (Object.keys(OFFER_TYPE_LABEL) as QuoteOfferType[]).map((value) => ({ value, label: OFFER_TYPE_LABEL[value] }));
 
 const DISCOUNT_TYPE_OPTIONS: { value: "pct" | "fixed"; label: string }[] = [
   { value: "pct",   label: "Percentage" },
@@ -233,53 +230,6 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
     ],
   },
 
-  quote: {
-    sections: ["Identity", "Reference", "Commercial", "Sales", "Notes"],
-    fields: [
-      // Default-visible order matches the old hardcoded detail-page row
-      // exactly: Quote ID, Ref no., Issued, Valid until. Everything below
-      // that wasn't shown on the detail page before (Name, Type, PR no.,
-      // PO number/amount, discount/GST, Territory, Sales org) is
-      // hiddenByDefault — still discoverable/reversible via Adapt, just not
-      // shown out of the box, same as before the ObjectSections rewrite.
-      //
-      // "ref" is already the page's H1 (PageHeader title) — kept here too,
-      // locked, so it's visible/renameable-label like every object's identity
-      // field, consistent with the rest of the registry.
-      { key: "ref",         defaultLabel: "Quote ID",     widget: "text", defaultSection: "Identity", locked: true, editable: false },
-      { key: "ref_no",      defaultLabel: "Reference no.", widget: "text", defaultSection: "Identity" },
-      { key: "created_at",  defaultLabel: "Issued",       widget: "date", defaultSection: "Identity", locked: true, editable: false },
-      { key: "valid_until", defaultLabel: "Valid until",  widget: "date", defaultSection: "Identity" },
-
-      { key: "name", defaultLabel: "Name", widget: "text", defaultSection: "Identity", hiddenByDefault: true },
-      { key: "type", defaultLabel: "Type", widget: "enum", defaultSection: "Identity", enumOptions: QUOTE_TYPE_OPTIONS, hiddenByDefault: true },
-      { key: "pr_no", defaultLabel: "PR no.", widget: "text", defaultSection: "Reference", hiddenByDefault: true },
-
-      { key: "po_number", defaultLabel: "PO number", widget: "text",   defaultSection: "Commercial", hiddenByDefault: true },
-      { key: "po_amount", defaultLabel: "PO amount",  widget: "number", defaultSection: "Commercial", hiddenByDefault: true },
-      // Discount/GST feed the quote's stored `total`, which only the full
-      // edit flow (/quotations/[id]/edit) recalculates. Read-only here so an
-      // inline edit can't leave `total` stale — same PATCH route also simply
-      // doesn't accept these fields.
-      { key: "discount_type",  defaultLabel: "Discount type",   widget: "enum",   defaultSection: "Commercial", enumOptions: DISCOUNT_TYPE_OPTIONS, editable: false, hiddenByDefault: true },
-      { key: "discount_pct",   defaultLabel: "Discount %",      widget: "number", defaultSection: "Commercial", editable: false, hiddenByDefault: true },
-      { key: "discount_fixed", defaultLabel: "Discount amount", widget: "number", defaultSection: "Commercial", editable: false, hiddenByDefault: true },
-      { key: "gst_rate",       defaultLabel: "GST %",           widget: "number", defaultSection: "Commercial", editable: false, hiddenByDefault: true },
-
-      { key: "territory", defaultLabel: "Territory", widget: "select", defaultSection: "Sales", selectSource: "territory", hiddenByDefault: true },
-      { key: "sales_org", defaultLabel: "Sales org",  widget: "select", defaultSection: "Sales", selectSource: "sales_org", hiddenByDefault: true },
-
-      { key: "scope_of_work", defaultLabel: "Scope of work", widget: "textarea", defaultSection: "Notes" },
-      { key: "notes",         defaultLabel: "Notes",          widget: "textarea", defaultSection: "Notes" },
-      { key: "terms",         defaultLabel: "Terms",          widget: "textarea", defaultSection: "Notes" },
-
-      // account_id / contact_id / entity_id (relationship pointers, already
-      // shown via dedicated sidebar cards + links) and status / total /
-      // revision / asset_ids / business_status / selected_option_id
-      // (dedicated UI or computed/internal) are deliberately excluded.
-    ],
-  },
-
   case: {
     sections: ["Identity", "Case details", "Sales", "Timeline"],
     fields: [
@@ -414,7 +364,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 };
 
 const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
-  "account", "contact", "asset", "supplier", "quote",
+  "account", "contact", "asset", "supplier",
   "case", "work_order", "invoice", "purchase_order", "inventory",
 ];
 

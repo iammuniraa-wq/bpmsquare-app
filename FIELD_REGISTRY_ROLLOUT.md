@@ -17,16 +17,16 @@
 > Update the tables below as each object lands. Do not start Data Workbench
 > work until every row in "Phase 1" (and, once decided, "Phase 2") is ✅.
 
-> **Current status:** all 9 objects (account, contact, asset, supplier,
-> quote, case, work_order, invoice, purchase_order, inventory) are code-complete.
-> `typecheck`/`build` clean throughout. **Nothing has been manually verified
-> in a browser** — every row's "Overrides verified" / "Rule verified"
-> checklist items are still open. Before starting Data Workbench: click
-> through Adapt on each object (rename a field, hide a field, reload,
-> confirm it stuck), and for the two objects with rules (asset, quote)
-> confirm a rule actually fires. `quote` additionally needs its
-> newly-widened PATCH fields spot-checked (see quote's "still open" notes)
-> — the other four objects' PATCH routes were not modified.
+> **Current status (2026-07-21):** 8 objects (account, contact, asset,
+> supplier, case, work_order, invoice, purchase_order, inventory) are
+> code-complete. **`quote` was reverted back to its pre-rollout state**
+> (page_layouts, the old bespoke per-section Adapt/drag-drop) — see the
+> "quote — reverted" note below before touching it again. `typecheck`/`build`
+> clean throughout. **Nothing else has been manually verified in a
+> browser** — every row's "Overrides verified" / "Rule verified" checklist
+> items are still open. Before starting Data Workbench work on quote
+> specifically: it needs the registry rework redone from scratch, carefully,
+> per the note below — not a repeat of the big-bang rewrite.
 
 ---
 
@@ -218,7 +218,7 @@ object. Line items stay out of scope until a real need appears.
 
 | Object | 1. Registry entry | 2. Pilot type | 3. field-config merges | 4. Adapt + rules | 5. ObjectSections | 6. Old wiring removed | 7. Overrides verified | 8. Rule verified | 9. No regressions | 10. Extension conflicts checked | **Status** |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| quote | ✅ | ✅ | ✅ | ✅ (code, unverified in browser) | ✅ | ✅ | ⬜ manual check | ⬜ manual check | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
+| quote | ❌ reverted 2026-07-21 | ❌ | n/a | n/a | ❌ | ❌ | n/a | n/a | ✅ typecheck+build clean | n/a | 🔴 Reverted — back to page_layouts, see note below |
 | invoice | ✅ | ✅ | ✅ | ✅ (already wired pre-rollout; now backed by a registry) | ✅ | ✅ | ⬜ manual check | ⬜ manual check | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
 | purchase_order | ✅ | ✅ | ✅ | ✅ (already wired pre-rollout; now backed by a registry) | ✅ | ✅ | ⬜ manual check | n/a — no rules yet | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
 | inventory | ✅ | ✅ | ✅ | ✅ (already wired pre-rollout; now backed by a registry) | ✅ | ✅ | ⬜ manual check | n/a — no rules yet | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
@@ -226,7 +226,43 @@ object. Line items stay out of scope until a real need appears.
 Order: quote → invoice → purchase_order → inventory (quote done first —
 most complex, so its shape informs the other three).
 
-### quote — what landed
+### quote — REVERTED 2026-07-21
+
+Everything below this point (through "quote — still open") describes work
+that was **fully reverted**, not the current state. Kept for history —
+whoever picks quote back up should read it to avoid repeating the same
+mistake, not follow it as a plan.
+
+What happened: the ObjectSections rewrite changed the detail page's visible
+field set/order in ways that weren't caught until it shipped, and two rounds
+of trying to patch the defaults forward (hiddenByDefault tweaks) still
+didn't match what the user actually wanted ("I still see notes on the top,
+account on the right — it was not like that before"). Rather than keep
+patching a diverging state, reverted `QuoteDetailLayout.tsx`,
+`api/quotes/[id]/route.ts`, `api/layouts/[object]/route.ts` (recreated),
+`quotations/[id]/page.tsx`, `LayoutSection`/`PageLayout` types (recreated in
+`types.ts`), and `FIELD_REGISTRY.quote` (removed entirely, along with
+`"quote"` from `PilotObjectType`) byte-for-byte back to commit `0aa0921`
+(last commit before the quote rewrite, `fe209c0`). Deleted the unapplied
+`0034_drop_page_layouts.sql` migration since page_layouts is back in use.
+
+**Known breakage from this revert, left as-is per user's explicit choice:**
+Data Workbench's quote import/export (`src/lib/import/registrySchema.ts`,
+`api/import/quotes/route.ts`) reads `FIELD_REGISTRY.quote` via
+`getEffectiveFieldConfig` for its column list. With `quote` no longer a
+`PilotObjectType`, that call now returns no standard fields for quote —
+only the hardcoded reference fields (account_name, contact_name) and line
+fields (QUOTE_LINE_FIELDS) still work; valid_until/notes/terms/ref_no/etc.
+are gone from the import template and can't be set via CSV until quote
+rejoins the registry. Not fixed now — flagged for whoever reworks quote next.
+
+**Lesson for next attempt:** don't do it as one big rewrite. Build the new
+detail-page rendering *alongside* the old one first (e.g. behind a flag or
+in a scratch route), compare it field-by-field and pixel-by-pixel against
+the live old page before swapping, and confirm with the user before
+removing the old component — not after.
+
+### quote — what landed (historical — see revert note above)
 
 By far the biggest of the four objects done so far — not a gap-fill like
 asset/supplier, a **replacement of a real, working, independent system**.
