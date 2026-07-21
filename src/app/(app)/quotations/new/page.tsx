@@ -18,11 +18,13 @@ export default async function NewQuotationPage({
   if (!type) {
     const tenant = await getTenant();
     const vis = tenant?.config?.quote_type_visibility ?? {};
-    // A type is enabled if the visibility map either has no entry for it (default on) or it's true
-    const enabledTypes = QUOTE_TYPES
+    // A type is visible if the visibility map either has no entry for it (default on) or it's true.
+    // This governs whether the card is shown at all — separate from qt.available, which governs
+    // whether a *shown* card is selectable or a disabled "Coming soon" preview.
+    const visibleTypeIds = QUOTE_TYPES
       .filter((qt) => qt.id in vis ? vis[qt.id as keyof typeof vis] !== false : true)
       .map((qt) => qt.id);
-    return <QuoteTypePicker enabledTypes={enabledTypes} />;
+    return <QuoteTypePicker visibleTypeIds={visibleTypeIds} />;
   }
 
   const data = await getQuoteFormData();

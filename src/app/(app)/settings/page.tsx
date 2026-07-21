@@ -118,14 +118,12 @@ function StatusBadge({ status }: { status: "active" | "ready" | "coming-soon" })
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { settings, update, reset } = useSettings();
+  const { settings, reset } = useSettings();
   const tenant = useTenant();
   const tenantFeatures = tenant?.features as Record<string, boolean> | undefined;
-  const accent = ACCENT_PRESETS[settings.accentPreset].color;
+  // tenant.accent_color is the single source of truth for brand colour (see Appearance below).
+  const accent = tenant?.accent_color || ACCENT_PRESETS[settings.accentPreset].color;
   const [saved, flashSaved] = useSavedFlash();
-
-  const [wsName, setWsName] = useState(settings.workspaceName);
-  const wsNameDirty = wsName !== settings.workspaceName;
 
   const [copied, setCopied] = useState(false);
 
@@ -136,16 +134,29 @@ export default function SettingsPage() {
       .filter((item) => !item.featureKey || tenantFeatures?.[item.featureKey] === true)
       .map((item) => ({ ...item, group: grp.group }))
   );
-  const isVisible = (href: string) => !settings.hiddenNavHrefs.includes(href);
 
-  const patch = (vals: Parameters<typeof update>[0]) => { update(vals); flashSaved(); };
+  // ── Navigation visibility — tenant-wide (tenants.config), not per-browser ──
+  const [navSaving, startNavSave] = useTransition();
+  const [navHidden, setNavHidden] = useState<string[]>(() => tenant?.config?.nav_hidden_hrefs ?? []);
+  const isVisible = (href: string) => !navHidden.includes(href);
+
+  const toggleNavItem = (href: string) => {
+    const next = navHidden.includes(href) ? navHidden.filter((h) => h !== href) : [...navHidden, href];
+    setNavHidden(next);
+    startNavSave(async () => {
+      await fetch("/api/settings/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nav_hidden_hrefs: next }),
+      });
+      flashSaved();
+      router.refresh();
+    });
+  };
 
   // ── Quote type visibility ─────────────────────────────────────────────────
   const [qtSaving, startQtSave] = useTransition();
-  const [qtVis, setQtVis] = useState<Partial<Record<QuoteTypeId, boolean>>>(() => {
-    const vis = (tenant?.config as { quote_type_visibility?: Partial<Record<QuoteTypeId, boolean>> } | undefined)?.quote_type_visibility ?? {};
-    return vis;
-  });
+  const [qtVis, setQtVis] = useState<Partial<Record<QuoteTypeId, boolean>>>(() => tenant?.config?.quote_type_visibility ?? {});
 
   function isQtVisible(id: QuoteTypeId): boolean {
     return id in qtVis ? qtVis[id] !== false : true;
@@ -161,6 +172,7 @@ export default function SettingsPage() {
         body: JSON.stringify({ quote_type_visibility: next }),
       });
       flashSaved();
+      router.refresh();
     });
   }
 
@@ -177,9 +189,73 @@ export default function SettingsPage() {
     }
   }
 
-  const toggleNavItem = (href: string) => {
-    const hidden = settings.hiddenNavHrefs;
-    patch({ hiddenNavHrefs: hidden.includes(href) ? hidden.filter((h) => h !== href) : [...hidden, href] });
+  // ── Appearance — tenant-wide. Accent colour writes tenants.accent_color directly
+  // (the same field the platform admin sets), so there's one source of truth, not
+  // a local preset that gets silently overridden by it. ─────────────────────────
+  const [apSaving, startApSave] = useTransition();
+  const [compactSidebar, setCompactSidebar] = useState<boolean>(() => tenant?.config?.appearance?.compact_sidebar ?? false);
+  const [accentColor, setAccentColor] = useState<string>(() => tenant?.accent_color || ACCENT_PRESETS.blue.color);
+
+  const saveAccentColor = (hex: string) => {
+    setAccentColor(hex);
+    startApSave(async () => {
+      await fetch("/api/settings/workspace", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accent_color: hex }),
+      });
+      flashSaved();
+      router.refresh();
+    });
+  };
+
+  const saveCompactSidebar = (v: boolean) => {
+    setCompactSidebar(v);
+    startApSave(async () => {
+      await fetch("/api/settings/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appearance: { compact_sidebar: v } }),
+      });
+      flashSaved();
+      router.refresh();
+    });
+  };
+
+  // ── Workspace name — writes tenants.name directly ──────────────────────────
+  const [wsName, setWsName] = useState(tenant?.name ?? "");
+  const [wsSaving, startWsSave] = useTransition();
+  const wsNameDirty = wsName.trim() !== "" && wsName.trim() !== (tenant?.name ?? "");
+
+  const saveWorkspaceName = () => {
+    const name = wsName.trim();
+    startWsSave(async () => {
+      await fetch("/api/settings/workspace", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      flashSaved();
+      router.refresh();
+    });
+  };
+
+  // ── Reset ────────────────────────────────────────────────────────────────────
+  const [resetting, startReset] = useTransition();
+  const resetTenantDefaults = () => {
+    if (!window.confirm("Reset navigation visibility and compact sidebar to defaults? Accent colour and workspace name are not affected.")) return;
+    setNavHidden([]);
+    setCompactSidebar(false);
+    startReset(async () => {
+      await fetch("/api/settings/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nav_hidden_hrefs: [], appearance: {} }),
+      });
+      reset();
+      flashSaved();
+      router.refresh();
+    });
   };
 
   const copyApiKey = () => {
@@ -206,7 +282,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ── 1. Navigation visibility ── */}
-      <Section title="Navigation visibility" description="Toggle sidebar items on or off. Changes apply instantly — hidden items are still reachable by URL.">
+      <Section title="Navigation visibility" description="Toggle sidebar items on or off for the whole workspace — every user, every device. Hidden items are still reachable by URL.">
         <div style={{ display: "flex", flexDirection: "column" }}>
           {allNavItems.map((item, idx) => {
             const visible = isVisible(item.href);
@@ -226,26 +302,23 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 2. Quote types ── */}
-      <Section title="Quote types" description="Show or hide offer types in the New Quotation picker. Types marked Coming Soon cannot be enabled yet.">
+      <Section title="Quote types" description="Show or hide offer types in the New Quotation picker. Hidden types (including Coming Soon ones you don't need) won't appear there at all.">
         <div style={{ display: "flex", flexDirection: "column" }}>
           {QUOTE_TYPES.map((qt, idx) => {
             const visible = isQtVisible(qt.id as QuoteTypeId);
-            const canToggle = qt.available;
             return (
-              <div key={qt.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderTop: idx > 0 ? `1px solid ${c.line}` : "none", opacity: canToggle ? (visible ? 1 : 0.45) : 0.3, transition: "opacity 0.15s" }}>
+              <div key={qt.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderTop: idx > 0 ? `1px solid ${c.line}` : "none", opacity: visible ? 1 : 0.45, transition: "opacity 0.15s" }}>
                 <TypeIcon id={qt.id} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{qt.label}</div>
                   <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>{qt.description}</div>
                 </div>
-                {!canToggle && (
+                {!qt.available && (
                   <span style={{ fontSize: 10, fontWeight: 700, color: c.hint, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 4, padding: "2px 7px", letterSpacing: 0.3, textTransform: "uppercase" }}>
                     Coming soon
                   </span>
                 )}
-                {canToggle && (
-                  <Toggle on={visible} onChange={() => !qtSaving && toggleQtType(qt.id as QuoteTypeId)} accent={accent} />
-                )}
+                <Toggle on={visible} onChange={() => !qtSaving && toggleQtType(qt.id as QuoteTypeId)} accent={accent} />
               </div>
             );
           })}
@@ -253,14 +326,14 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 3. Appearance ── */}
-      <Section title="Appearance">
+      <Section title="Appearance" description="Applies to your whole workspace — every user, every device.">
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Accent colour</div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {(Object.entries(ACCENT_PRESETS) as [AccentPreset, typeof ACCENT_PRESETS[AccentPreset]][]).map(([key, preset]) => {
-              const selected = settings.accentPreset === key;
+              const selected = accentColor.toLowerCase() === preset.color.toLowerCase();
               return (
-                <button key={key} onClick={() => patch({ accentPreset: key })} title={preset.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, cursor: "pointer", border: selected ? `2px solid ${preset.color}` : `2px solid ${c.line}`, background: selected ? preset.colorBg : "#fff", transition: "all 0.15s" }}>
+                <button key={key} onClick={() => !apSaving && saveAccentColor(preset.color)} title={preset.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, cursor: "pointer", border: selected ? `2px solid ${preset.color}` : `2px solid ${c.line}`, background: selected ? preset.colorBg : "#fff", transition: "all 0.15s" }}>
                   <span style={{ width: 14, height: 14, borderRadius: "50%", background: preset.color, flexShrink: 0, boxShadow: selected ? `0 0 0 2px ${preset.color}44` : "none" }} />
                   <span style={{ fontSize: 12.5, fontWeight: selected ? 600 : 400, color: selected ? preset.color : c.muted }}>{preset.label}</span>
                   {selected && <span style={{ fontSize: 12, color: preset.color }}>✓</span>}
@@ -274,16 +347,16 @@ export default function SettingsPage() {
             <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>Compact sidebar</div>
             <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>Reduce padding between navigation items</div>
           </div>
-          <Toggle on={settings.compactSidebar} onChange={(v) => patch({ compactSidebar: v })} accent={accent} />
+          <Toggle on={compactSidebar} onChange={(v) => !apSaving && saveCompactSidebar(v)} accent={accent} />
         </div>
       </Section>
 
       {/* ── 4. Workspace ── */}
-      <Section title="Workspace" description="Displayed in the sidebar header.">
+      <Section title="Workspace" description="Your organisation's name, shown in the sidebar header.">
         <div style={{ display: "flex", gap: 10 }}>
           <input value={wsName} onChange={(e) => setWsName(e.target.value)} placeholder="Workspace name" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${wsNameDirty ? accent : c.line}`, fontSize: 13, color: c.ink, outline: "none", transition: "border-color 0.15s" }} />
-          <button onClick={() => { update({ workspaceName: wsName.trim() || settings.workspaceName }); flashSaved(); }} disabled={!wsNameDirty} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "none", cursor: wsNameDirty ? "pointer" : "default", background: wsNameDirty ? accent : c.line, color: wsNameDirty ? "#fff" : c.hint, transition: "all 0.15s" }}>
-            Save
+          <button onClick={saveWorkspaceName} disabled={!wsNameDirty || wsSaving} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "none", cursor: wsNameDirty ? "pointer" : "default", background: wsNameDirty ? accent : c.line, color: wsNameDirty ? "#fff" : c.hint, transition: "all 0.15s" }}>
+            {wsSaving ? "Saving…" : "Save"}
           </button>
         </div>
       </Section>
@@ -349,10 +422,11 @@ export default function SettingsPage() {
       {/* ── 6. Reset ── */}
       <Section title="Reset">
         <p style={{ margin: "0 0 14px", fontSize: 12.5, color: c.muted, lineHeight: 1.5 }}>
-          Restore accent colour, nav visibility, compact mode, and workspace name to defaults. Your data is not affected.
+          Restore navigation visibility and compact sidebar to defaults, for the whole workspace. Accent colour and
+          workspace name aren't reset since there's no default to go back to. Your data is not affected.
         </p>
-        <button onClick={() => { if (window.confirm("Reset all settings to defaults?")) { reset(); flashSaved(); } }} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: "#fcebeb", color: "#791f1f", border: "1px solid #f5c5c5", cursor: "pointer" }}>
-          Reset all settings to defaults
+        <button onClick={resetTenantDefaults} disabled={resetting} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: "#fcebeb", color: "#791f1f", border: "1px solid #f5c5c5", cursor: "pointer" }}>
+          {resetting ? "Resetting…" : "Reset navigation & layout to defaults"}
         </button>
       </Section>
 

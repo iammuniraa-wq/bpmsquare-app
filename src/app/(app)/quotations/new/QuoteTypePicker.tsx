@@ -18,8 +18,9 @@ function TypeIcon({ id, size = 26, color }: { id: string; size?: number; color: 
   }
 }
 
-export default function QuoteTypePicker({ enabledTypes }: { enabledTypes?: string[] }) {
+export default function QuoteTypePicker({ visibleTypeIds }: { visibleTypeIds?: string[] }) {
   const router = useRouter();
+  const visibleTypes = QUOTE_TYPES.filter((qt) => !visibleTypeIds || visibleTypeIds.includes(qt.id));
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
@@ -36,10 +37,17 @@ export default function QuoteTypePicker({ enabledTypes }: { enabledTypes?: strin
         </p>
       </div>
 
+      {visibleTypes.length === 0 && (
+        <p style={{ fontSize: 13, color: c.muted }}>
+          No quote types are enabled — turn some on in Settings → Quote types.
+        </p>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        {QUOTE_TYPES.map((qt) => {
-          // If tenant has configured visibility, respect it; otherwise fall back to hardcoded available flag
-          const available = qt.available && (enabledTypes ? enabledTypes.includes(qt.id) : true);
+        {visibleTypes.map((qt) => {
+          // Hidden types (tenant chose not to show them) are filtered out above entirely —
+          // this only governs whether a *shown* card is selectable or a disabled preview.
+          const available = qt.available;
           return (
             <button
               key={qt.id}

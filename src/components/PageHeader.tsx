@@ -25,7 +25,9 @@ export default function PageHeader({
             fontSize: 19,
             margin: 0,
             paddingLeft: 12,
-            borderLeft: "3px solid var(--vevey-accent, #378ADD)",
+            // --tenant-accent is server-rendered from tenant.accent_color in (app)/layout.tsx —
+            // the same source Sidebar uses, so this bar always matches the sidebar highlight.
+            borderLeft: "3px solid var(--tenant-accent, #378ADD)",
             fontWeight: 600,
           }}
         >

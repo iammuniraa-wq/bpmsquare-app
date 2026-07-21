@@ -260,15 +260,20 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { settings } = useSettings();
   const tenant = useTenant();
 
-  const features  = tenant?.features as Record<string, boolean> | undefined;
-  const accent    = tenant?.accent_color ?? ACCENT_PRESETS[settings.accentPreset].color;
-  const compact = settings.compactSidebar;
+  const features   = tenant?.features as Record<string, boolean> | undefined;
+  const appearance = tenant?.config?.appearance;
+  // tenant.accent_color is the single source of truth for brand colour — editable
+  // by both platform admin and tenant admin (Settings → Appearance). The local
+  // preset is only a pre-tenant-load fallback.
+  const accent  = tenant?.accent_color || ACCENT_PRESETS[settings.accentPreset].color;
+  const compact = appearance?.compact_sidebar ?? settings.compactSidebar;
 
   const [navState, setNavState] = useState<NavState>(() => defaultNavState(features));
   useEffect(() => { setNavState(loadNavState(features)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const allMap  = new Map(flattenNav(features).map((i) => [i.href, i]));
-  const hidden  = new Set(settings.hiddenNavHrefs);
+  // Tenant-wide hidden nav items (Settings → General), not a per-browser preference.
+  const hidden  = new Set(tenant?.config?.nav_hidden_hrefs ?? settings.hiddenNavHrefs);
 
   const favItems  = navState.favs
     .filter((h) => !hidden.has(h))

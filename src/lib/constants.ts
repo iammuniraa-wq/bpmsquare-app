@@ -325,6 +325,16 @@ export type TenantConfig = {
   asset_print_fields?: string[];
   // Quote ID (ref) naming convention. Falls back to DEFAULT_QUOTE_ID_FORMAT if absent.
   quote_id_format?: QuoteIdFormat;
+  // Sidebar nav items the tenant admin has hidden — tenant-wide, applies to every
+  // user/device, not a personal per-browser preference.
+  nav_hidden_hrefs?: string[];
+  // Tenant-wide appearance defaults. Accent colour is NOT here — tenants.accent_color
+  // (a real top-level column, editable by both platform admin and tenant admin) is
+  // the single source of truth for that; a second accent setting here would always
+  // be silently overridden by it, which is exactly the bug this fixes.
+  appearance?: {
+    compact_sidebar?: boolean;
+  };
 };
 
 // QuoteIdFormat — per-tenant Quote ID naming convention.
