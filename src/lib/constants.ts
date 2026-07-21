@@ -12,6 +12,18 @@ export function isPrimaryOrDevHost(host: string): boolean {
   return host === PRIMARY_HOST || host === "localhost" || host === "127.0.0.1";
 }
 
+// Trusted identity headers set ONLY by middleware.ts, after it has already
+// verified the session (supabase.auth.getUser(), a real network check) and
+// resolved host -> tenant + role. Server-side code (supabase-server.ts) reads
+// these to skip repeating that same auth + DB round trip on every request.
+// Middleware unconditionally strips any client-supplied value for these names
+// before setting its own, on every code path (including public/bypassed
+// paths) — a request can never reach the app carrying a spoofed value.
+export const TRUSTED_USER_ID_HEADER = "x-bpmsquare-user-id";
+export const TRUSTED_EMAIL_HEADER = "x-bpmsquare-email";
+export const TRUSTED_TENANT_ID_HEADER = "x-bpmsquare-tenant-id";
+export const TRUSTED_ROLE_HEADER = "x-bpmsquare-role";
+
 export const ROUTES = {
   login: "/login",
   pipeline: "/pipeline",

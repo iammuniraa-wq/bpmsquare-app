@@ -1,10 +1,23 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { isPrimaryOrDevHost, PRIMARY_HOST } from "@/lib/constants";
+import {
+  isPrimaryOrDevHost, PRIMARY_HOST,
+  TRUSTED_USER_ID_HEADER, TRUSTED_EMAIL_HEADER, TRUSTED_TENANT_ID_HEADER, TRUSTED_ROLE_HEADER,
+} from "@/lib/constants";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Strip any client-supplied values for the trusted identity headers on
+  // EVERY path, including the public/bypassed ones below — these headers are
+  // only ever set further down, after a verified auth check + tenant
+  // resolution, so nothing must be allowed to smuggle a spoofed value in.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(TRUSTED_USER_ID_HEADER);
+  requestHeaders.delete(TRUSTED_EMAIL_HEADER);
+  requestHeaders.delete(TRUSTED_TENANT_ID_HEADER);
+  requestHeaders.delete(TRUSTED_ROLE_HEADER);
 
   // Public paths — never intercept
   if (
@@ -16,10 +29,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/manifest") ||
     pathname.startsWith("/icons")
   ) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  const response = NextResponse.next({ request });
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -66,6 +79,15 @@ export async function middleware(request: NextRequest) {
     return redirect;
   };
 
+  // Populated only when this middleware itself reaches a firm "resolved"
+  // conclusion (concrete tenant + role) — left null on the pre-existing
+  // fall-through gaps below (no demo tenant configured / unmapped custom
+  // domain) and on localhost/dev, so those paths get no trusted headers and
+  // fall back to the render layer doing the real resolution itself, same as
+  // before this change.
+  let resolvedTenantId: string | null = null;
+  let resolvedRole: "admin" | "member" | null = null;
+
   if (host === PRIMARY_HOST) {
     const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -80,14 +102,19 @@ export async function middleware(request: NextRequest) {
     ]);
 
     const isPlatformAdminUser = !!adminByUserId || !!adminByEmail;
-    if (!isPlatformAdminUser && demoTenant) {
+    if (isPlatformAdminUser) {
+      resolvedTenantId = demoTenant?.id ?? null;
+      resolvedRole = "admin";
+    } else if (demoTenant) {
       const { data: membership } = await admin
         .from("tenant_users")
-        .select("id")
+        .select("role")
         .eq("user_id", user.id)
         .eq("tenant_id", demoTenant.id)
         .maybeSingle();
       if (!membership) return denyWrongWorkspace();
+      resolvedTenantId = demoTenant.id;
+      resolvedRole = (membership.role as "admin" | "member") ?? "member";
     }
   } else if (!isPrimaryOrDevHost(host)) {
     const admin = createClient(
@@ -112,24 +139,39 @@ export async function middleware(request: NextRequest) {
       // without needing a per-tenant tenant_users row or invite.
       const isPlatformAdminUser = !!adminByUserId || !!adminByEmail;
 
-      let tenantMatches = true;
-      if (!isPlatformAdminUser) {
+      if (isPlatformAdminUser) {
+        resolvedTenantId = hostTenant.id;
+        resolvedRole = "admin";
+      } else {
         // Check directly for a row on THIS tenant, not "the" tenant_users row --
         // a user can belong to more than one tenant now (see invite routes).
         const { data: membership } = await admin
           .from("tenant_users")
-          .select("id")
+          .select("role")
           .eq("user_id", user.id)
           .eq("tenant_id", hostTenant.id)
           .maybeSingle();
-        tenantMatches = !!membership;
-      }
-
-      if (!isPlatformAdminUser && !tenantMatches) {
-        // Session belongs to a different tenant than this domain resolves to — hard isolation.
-        return denyWrongWorkspace();
+        if (!membership) {
+          // Session belongs to a different tenant than this domain resolves to — hard isolation.
+          return denyWrongWorkspace();
+        }
+        resolvedTenantId = hostTenant.id;
+        resolvedRole = (membership.role as "admin" | "member") ?? "member";
       }
     }
+  }
+
+  if (resolvedTenantId && resolvedRole) {
+    // Hand the already-verified identity + tenant resolution downstream so
+    // supabase-server.ts can skip repeating the same auth.getUser() network
+    // call and the same tenant/membership queries on every render/route.
+    requestHeaders.set(TRUSTED_USER_ID_HEADER, user.id);
+    requestHeaders.set(TRUSTED_EMAIL_HEADER, user.email ?? "");
+    requestHeaders.set(TRUSTED_TENANT_ID_HEADER, resolvedTenantId);
+    requestHeaders.set(TRUSTED_ROLE_HEADER, resolvedRole);
+    const finalResponse = NextResponse.next({ request: { headers: requestHeaders } });
+    response.cookies.getAll().forEach((cookie) => finalResponse.cookies.set(cookie));
+    return finalResponse;
   }
 
   return response;

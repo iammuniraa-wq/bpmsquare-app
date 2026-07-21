@@ -1,8 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { cookies, headers } from "next/headers";
 import { cache } from "react";
-import { PRIMARY_HOST } from "./constants";
+import {
+  PRIMARY_HOST,
+  TRUSTED_USER_ID_HEADER, TRUSTED_EMAIL_HEADER, TRUSTED_TENANT_ID_HEADER, TRUSTED_ROLE_HEADER,
+} from "./constants";
 
 /**
  * True when Supabase env vars are present. The first build slice runs on seed
@@ -135,7 +138,20 @@ export type HostTenantResult =
  * idempotent (ignoreDuplicates).
  */
 export const resolveHostTenant = cache(async (): Promise<HostTenantResult> => {
-  const host = (await headers()).get("host")?.split(":")[0] ?? "";
+  const h = await headers();
+
+  // middleware.ts already resolved this exact request's tenant + role (via a
+  // verified auth.getUser() call and the real tenant/membership queries)
+  // before it ever reached here — trust that instead of repeating the same
+  // network + DB round trips. Middleware strips any client-supplied value
+  // for this header on every path, so its presence here is never spoofable.
+  const trustedTenantId = h.get(TRUSTED_TENANT_ID_HEADER);
+  const trustedRole = h.get(TRUSTED_ROLE_HEADER);
+  if (trustedTenantId && (trustedRole === "admin" || trustedRole === "member")) {
+    return { kind: "resolved", tenantId: trustedTenantId, role: trustedRole };
+  }
+
+  const host = h.get("host")?.split(":")[0] ?? "";
   if (host === "localhost" || host === "127.0.0.1") return { kind: "dev" };
 
   const user = await getAuthUser();
@@ -242,6 +258,17 @@ export async function requireTenantUser(): Promise<{
  * callers in the same render (AppLayout + getTenant no longer make 2 auth calls).
  */
 export const getAuthUser = cache(async () => {
+  // Same trust as resolveHostTenant() above: middleware.ts already ran the
+  // real supabase.auth.getUser() network call (which verifies the JWT
+  // signature against the auth server) for this exact request. Every caller
+  // of getAuthUser() in this codebase only reads .id / .email off the
+  // result, so a minimal reconstructed object is sufficient here.
+  const h = await headers();
+  const trustedUserId = h.get(TRUSTED_USER_ID_HEADER);
+  if (trustedUserId) {
+    return { id: trustedUserId, email: h.get(TRUSTED_EMAIL_HEADER) || undefined } as unknown as User;
+  }
+
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   return user;
