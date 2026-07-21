@@ -12,6 +12,11 @@ import { ACCOUNT_TYPE_LABEL } from "@/lib/data/labels";
 import type { Account, Asset, Contact, PricingItem, TextFragment, PricingCategory, Quote, QuoteLine } from "@/lib/types";
 import { Gear, Zap, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
+import CreateExtraFields from "@/components/fields/CreateExtraFields";
+
+// Fields the drawer's own inputs already cover — CreateExtraFields renders whatever's
+// left (nameplate fields, tenant custom fields), same exclusion list as /assets/new.
+const CORE_ASSET_KEYS = ["name", "kind", "make", "model", "serial", "rating", "notes", "account_id", "is_loaner"];
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -262,11 +267,19 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   // Create-asset drawer
   const [createAssetOpen, setCreateAssetOpen] = useState(false);
   const [newAsset, setNewAsset] = useState({ name: "", kind: "motor" as Asset["kind"], make: "", model: "", serial: "", rating: "", notes: "" });
+  // Nameplate + any tenant custom fields — same generic renderer as the standalone
+  // /assets/new page, so this drawer stops being a second, incomplete copy of that form.
+  const [newAssetExtra, setNewAssetExtra] = useState<Record<string, unknown>>({});
+  const [newAssetCustomData, setNewAssetCustomData] = useState<Record<string, unknown>>({});
   const [createAssetPending, startCreateAsset] = useTransition();
   const [createAssetError, setCreateAssetError] = useState("");
   const setNA = (k: keyof typeof newAsset) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setNewAsset((p) => ({ ...p, [k]: e.target.value }));
+  const setNewAssetExtraField = (key: string, value: unknown, kind: "standard" | "custom") => {
+    if (kind === "custom") setNewAssetCustomData((d) => ({ ...d, [key]: value }));
+    else setNewAssetExtra((p) => ({ ...p, [key]: value }));
+  };
 
   function handleCreateAsset(e: React.FormEvent) {
     e.preventDefault();
@@ -275,7 +288,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       const res = await fetch("/api/assets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...newAsset, account_id: accountId || null }),
+        body: JSON.stringify({
+          ...newAsset, ...newAssetExtra, account_id: accountId || null,
+          custom_data: newAssetCustomData,
+        }),
       });
       const json = await res.json();
       if (!res.ok) { setCreateAssetError(json.error ?? "Failed to create asset"); return; }
@@ -288,6 +304,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       setSelectedAssetIds((p) => [...p, created.id]);
       setCreateAssetOpen(false);
       setNewAsset({ name: "", kind: "motor", make: "", model: "", serial: "", rating: "", notes: "" });
+      setNewAssetExtra({});
+      setNewAssetCustomData({});
     });
   }
 
@@ -1469,6 +1487,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               </div>
               <div><label style={lbl}>Rating / specs</label><input style={inp} value={newAsset.rating} onChange={setNA("rating")} placeholder="e.g. 75 kW · 415V · 1480 rpm" /></div>
               <div><label style={lbl}>Notes / history</label><textarea style={{ ...inp, resize: "vertical", minHeight: 64 }} value={newAsset.notes} onChange={setNA("notes")} placeholder="e.g. Rewound once — June 2024." /></div>
+              <CreateExtraFields
+                objectType="asset"
+                exclude={CORE_ASSET_KEYS}
+                values={{ ...newAsset, ...newAssetExtra, ...newAssetCustomData }}
+                onChange={setNewAssetExtraField}
+              />
               {createAssetError && <div style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", borderRadius: 7, padding: "8px 12px" }}>{createAssetError}</div>}
               <div style={{ display: "flex", gap: 8, paddingTop: 4 }}>
                 <button type="submit" disabled={createAssetPending} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13, cursor: createAssetPending ? "wait" : "pointer" }}>
