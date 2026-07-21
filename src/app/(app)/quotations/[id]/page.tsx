@@ -15,7 +15,7 @@ export default async function QuotationDetailPage({
   const [data, tenant] = await Promise.all([getQuote(id), getTenant()]);
   if (!data) notFound();
 
-  const { quote, account, contact, lines, workOrders, existingInvoice } = data;
+  const { quote, account, contact, lines, workOrders, existingInvoice, assets } = data;
   const tenantTax = tenant?.config?.tax ?? { label: "GST", rate: 18, inclusive: false };
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
@@ -37,6 +37,7 @@ export default async function QuotationDetailPage({
         tenantTax={tenantTax}
         quoteStatuses={quoteStatuses}
         existingInvoice={existingInvoice}
+        assets={assets}
       />
     </>
   );

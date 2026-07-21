@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import type { Quote, QuoteLine, Account, Contact, LayoutSection } from "@/lib/types";
+import type { Quote, QuoteLine, Account, Contact, Asset, LayoutSection } from "@/lib/types";
 import type { TenantTaxConfig, QuoteStatusDef } from "@/lib/constants";
 import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES } from "@/lib/constants";
 import { c } from "@/lib/theme";
@@ -136,6 +136,7 @@ interface Props {
   tenantTax?: TenantTaxConfig;
   quoteStatuses?: QuoteStatusDef[];
   existingInvoice?: { id: string; ref: string } | null;
+  assets?: Asset[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -155,7 +156,7 @@ const td: React.CSSProperties = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES, existingInvoice = null }: Props) {
+export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES, existingInvoice = null, assets = [] }: Props) {
   const router = useRouter();
   const isTechnical = quote.type === "technical";
   const [currentStatus, setCurrentStatus] = useState<string>(quote.status);
@@ -821,6 +822,26 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                 {contact.phone && <Detail label="Phone" value={contact.phone} />}
                 {contact.email && <Detail label="Email" value={contact.email} />}
+              </div>
+            </section>
+          )}
+
+          {assets.length > 0 && (
+            <section style={cardStyle}>
+              <h3 style={{ fontSize: 13, margin: "0 0 10px", fontWeight: 600 }}>Linked assets · {assets.length}</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {assets.map((asset, idx) => (
+                  <Link
+                    key={asset.id}
+                    href={ROUTES.asset(asset.id)}
+                    style={{ display: "block", paddingTop: idx > 0 ? 8 : 0, borderTop: idx > 0 ? `1px solid ${c.line}` : "none", textDecoration: "none" }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600, color: c.accent }}>{asset.name}</div>
+                    <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2, textTransform: "capitalize" }}>
+                      {asset.kind}{asset.make ? ` · ${asset.make}` : ""}{asset.model ? ` · ${asset.model}` : ""}
+                    </div>
+                  </Link>
+                ))}
               </div>
             </section>
           )}
