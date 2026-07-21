@@ -270,6 +270,7 @@ export const workOrders: WorkOrder[] = [
     status: "in_progress", scheduled_for: "2026-06-18",
     description: "Full stator rewind — 75 kW, 415V, 1480 rpm, Class F insulation. Replace DE & NDE bearings (SKF/FAG). Varnish treatment and oven bake. No-load and full-load testing.",
     notes: "Customer's spinning line B is down. Priority completion by 25 Jun. Ensure phase-failure relay recommendation is in handover note.",
+    custom_data: null,
   },
   {
     id: "wo_sahyadri", account_id: "acc_sahyadri", ref: "WO-2026-0298",
@@ -279,6 +280,7 @@ export const workOrders: WorkOrder[] = [
     status: "completed", scheduled_for: "2026-06-12",
     description: "AMC routine — transformer oil dielectric strength test, dissolved gas analysis (DGA), and visual inspection of bushings and radiators.",
     notes: "Oil test results within limits — dielectric strength 58 kV (limit 40 kV). DGA normal. Bushing surfaces cleaned. Certificate issued.",
+    custom_data: null,
   },
   {
     id: "wo_bharat", account_id: "acc_bharat", ref: "WO-2026-0305",
@@ -288,6 +290,7 @@ export const workOrders: WorkOrder[] = [
     status: "scheduled", scheduled_for: "2026-06-20",
     description: "Bearing replacement — DE & NDE sets (160 kW, 415V). Replace labyrinth seal and end-shield gaskets. Insulation resistance and vibration check on reassembly.",
     notes: "Loaner VP-LNR-001 dispatched to Pune site. Coordinate with Sunil Kulkarni for unit collection once ready.",
+    custom_data: null,
   },
 ];
 
@@ -338,6 +341,7 @@ export const serviceCases: ServiceCase[] = [
     disposition: "repair",
     notes: "Customer needs motor back by 25 Jun — spinning line B is down. Priority job.",
     territory: null, sales_org: null,
+    custom_data: null,
   },
   {
     id: "case_hpsteel",
@@ -361,6 +365,7 @@ export const serviceCases: ServiceCase[] = [
     disposition: null,
     notes: "HV motor — handle with care. 690V class. Ensure HV test cert on completion.",
     territory: null, sales_org: null,
+    custom_data: null,
   },
   {
     id: "case_bharat",
@@ -384,6 +389,7 @@ export const serviceCases: ServiceCase[] = [
     disposition: null,
     notes: "AMC case under Marathon contract AMC-MR-2026-02. Loaner VP-LNR-001 dispatched to Bharat Forge Pune — coordinate return on delivery.",
     territory: null, sales_org: null,
+    custom_data: null,
   },
   {
     // Sub-case discovered during inspection of case_bharat
@@ -408,6 +414,7 @@ export const serviceCases: ServiceCase[] = [
     disposition: null,
     notes: "Discovered during Phase B IR check. May need partial rewind if further tests confirm degradation. Raise separate quote if not AMC-covered.",
     territory: null, sales_org: null,
+    custom_data: null,
   },
 ];
 

@@ -17,6 +17,17 @@
 > Update the tables below as each object lands. Do not start Data Workbench
 > work until every row in "Phase 1" (and, once decided, "Phase 2") is ✅.
 
+> **Current status:** all 9 objects (account, contact, asset, supplier,
+> quote, case, work_order, invoice, purchase_order, inventory) are code-complete.
+> `typecheck`/`build` clean throughout. **Nothing has been manually verified
+> in a browser** — every row's "Overrides verified" / "Rule verified"
+> checklist items are still open. Before starting Data Workbench: click
+> through Adapt on each object (rename a field, hide a field, reload,
+> confirm it stuck), and for the two objects with rules (asset, quote)
+> confirm a rule actually fires. `quote` additionally needs its
+> newly-widened PATCH fields spot-checked (see quote's "still open" notes)
+> — the other four objects' PATCH routes were not modified.
+
 ---
 
 ## Reference: what "done" means (derived from account/contact)
@@ -54,19 +65,22 @@ before their registry work starts.
 
 ---
 
-## Open decision — blocks Phase 2
+## Decision A — resolved
 
-**Decision A: how do line items fit the field-config model?**
+**How do line items fit the field-config model?**
 `EffectiveField` / `field_overrides` / `field_rules` describe a flat object.
 Quote/invoice/PO line items are child rows with their own columns
-(`description`, `qty`, `rate`, `discount_pct`, ...). Options to resolve
-before Phase 2 starts:
+(`description`, `qty`, `rate`, `discount_pct`, ...).
 
-- [ ] (a) Line-item columns are a separate `object_type` (e.g. `"quote_line"`) in the same registry/override/rule tables
-- [ ] (b) Line items are out of scope for Adapt/rules entirely — only the header fields get registry treatment
-- [ ] (c) Something else (record here once decided)
-
-**Status:** ⬜ Not yet decided — revisit when Phase 1 is complete.
+**Resolved as (b): line items are out of scope for Adapt/rules entirely —
+only header fields get registry treatment.** Not decided in a planning
+session — resolved by inspection when quote's old `page_layouts` system
+was read in full: it never let a tenant customize line-item columns
+either, only group *custom fields* into header sections. So there was
+nothing to preserve. Applied identically to invoice and purchase_order.
+If line-item customization is ever actually requested, option (a) — a
+separate `object_type` like `"quote_line"` — is still available and
+untouched by this decision.
 
 ---
 
@@ -76,8 +90,8 @@ before Phase 2 starts:
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | asset | ✅ | ✅ | ✅ | ✅ verified in prod | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Done |
 | supplier | ✅ | ✅ | ✅ | ✅ (code, unverified in browser) | ✅ | ✅ | ⬜ manual check | n/a — no rules yet | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
-| case | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
-| work_order | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
+| case | ✅ | ✅ | ✅ | ✅ (code, unverified in browser) | ✅ | ✅ | ⬜ manual check | ⬜ manual check | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
+| work_order | ✅ | ✅ | ✅ | ✅ (code, unverified in browser) | ✅ | ✅ | ⬜ manual check | n/a — no rules yet | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
 
 Order: asset → supplier → case → work_order.
 
@@ -205,9 +219,9 @@ object. Line items stay out of scope until a real need appears.
 | Object | 1. Registry entry | 2. Pilot type | 3. field-config merges | 4. Adapt + rules | 5. ObjectSections | 6. Old wiring removed | 7. Overrides verified | 8. Rule verified | 9. No regressions | 10. Extension conflicts checked | **Status** |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | quote | ✅ | ✅ | ✅ | ✅ (code, unverified in browser) | ✅ | ✅ | ⬜ manual check | ⬜ manual check | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
-| invoice | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
-| purchase_order | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
-| inventory | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | 🔲 Not started |
+| invoice | ✅ | ✅ | ✅ | ✅ (already wired pre-rollout; now backed by a registry) | ✅ | ✅ | ⬜ manual check | ⬜ manual check | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
+| purchase_order | ✅ | ✅ | ✅ | ✅ (already wired pre-rollout; now backed by a registry) | ✅ | ✅ | ⬜ manual check | n/a — no rules yet | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
+| inventory | ✅ | ✅ | ✅ | ✅ (already wired pre-rollout; now backed by a registry) | ✅ | ✅ | ⬜ manual check | n/a — no rules yet | ✅ typecheck+build clean | ✅ n/a | 🟡 Code complete, manual UI check pending |
 
 Order: quote → invoice → purchase_order → inventory (quote done first —
 most complex, so its shape informs the other three).
@@ -285,6 +299,78 @@ asset/supplier, a **replacement of a real, working, independent system**.
 - **Migration not applied** — `page_layouts` still exists in the DB,
   just unused by the app. Harmless until run, but should be run to
   actually close this out.
+
+### case, work_order, invoice, purchase_order, inventory — what landed
+
+Done together in one pass ("finish all the remaining objects at once").
+No type-drift or bespoke-system surprises this time (quote's `page_layouts`
+was the one genuine surprise; nothing else in the app duplicates it) — but
+two real findings surfaced during investigation, and one design pattern
+repeats across all five:
+
+- **Type drift, same class as `Asset.rpm` earlier:** `custom_data` exists
+  on `service_cases` and `work_orders` in the DB (migration `0020`, and
+  both detail pages already did `(x as Record<string, unknown>).custom_data`
+  casts to work around it) but was missing from `ServiceCase`/`WorkOrder`
+  in `src/lib/types.ts`. Fixed both.
+- **Three of five already had `AdaptObjectDrawer` + `getUserRole()` wired
+  at the page level** (invoice, purchase_order, inventory) — someone
+  started this before the tracking doc existed. They were running in
+  degraded custom-fields-only mode (no `FIELD_REGISTRY` entry means
+  `isPilotObjectType` was false, so `AdaptObjectDrawer`'s rules tab never
+  activated). `case` and `work_order` had neither. All five now have both,
+  consistently.
+- **Repeated pattern: split "edit panel" into kept-vs-retired.** Every one
+  of these five had a bespoke `*EditPanel.tsx` mixing plain-field editing
+  (retired, → `ObjectSections`) with something ObjectSections has no
+  equivalent for:
+  - **case** — `asset_ids` is a many-to-many picker with account-scoped
+    search. `CaseCoreEditPanel.tsx` → `CaseAssetsPanel.tsx`, asset-picker
+    only.
+  - **inventory** — `supplier_id` needs a live picker; no "reference"
+    widget type exists yet in `FieldWidget`/`WidgetType` (territory/
+    sales_org's `selectSource` only resolves two hardcoded sales-config
+    lists, not an arbitrary DB table). `InventoryEditPanel.tsx` →
+    `InventorySupplierPanel.tsx`, supplier picker + delete.
+  - **invoice, purchase_order** — status transitions (Mark as sent /
+    Cancel) + delete are real lifecycle actions, not field values.
+    `InvoiceEditPanel.tsx` → `InvoiceActionsPanel.tsx`,
+    `PurchaseOrderEditPanel.tsx` → `PurchaseOrderActionsPanel.tsx`,
+    actions only.
+  - **work_order** — no special case here (just description/notes, no
+    relationship picker, no status actions of its own —
+    `WorkOrderActions.tsx` already existed separately). `WorkOrderEditPanel.tsx`
+    deleted outright, fully superseded.
+- **Same `total`-staleness reasoning as quote, applied to invoice:**
+  `Invoice.total` is a stored value; `discount_type`/`discount_pct`/
+  `discount_fixed` are `editable: false` in the registry for the same
+  reason as quote's four fields — no dedicated flow recalculates `total`
+  from an inline edit. (Note: invoice's PATCH route *already* accepted
+  these three before this change — a pre-existing latent gap, since
+  nothing in the current UI ever sent them. Not fixed here, out of scope;
+  worth a separate look.) `purchase_order` has no discount columns at
+  all, so no equivalent risk there.
+- Redundant read-only displays removed where `ObjectSections` now covers
+  the same fields: work_order's inline "Scope of work"/"Technician notes"
+  cards, invoice's and purchase_order's "Notes"/"Terms" cards, inventory's
+  inline description/notes paragraphs. Kept: anything that's a genuine
+  at-a-glance summary rather than a second edit surface (e.g. inventory's
+  large qty-on-hand stat block, case's sidebar Complaint preview).
+- `tsc --noEmit` and `npm run build` both clean across all five.
+
+### case, work_order, invoice, purchase_order, inventory — still open
+
+- **Not verified in a browser** — same caveat as every object this
+  session. No manual click-through of Adapt/rename/hide/save for any of
+  the five.
+- **No "reference/lookup" field widget type.** This is now the second
+  time it's blocked a relationship field from joining the generic system
+  (`supplier_id` here, `assigned_to`/technician on case earlier). Worth
+  building once, generically, rather than continuing to special-case each
+  one with its own small picker component.
+- **Invoice's PATCH route accepts discount fields it shouldn't rely on
+  UI never sending** — pre-existing, not introduced by this change, not
+  fixed. Flagged above.
 
 ---
 

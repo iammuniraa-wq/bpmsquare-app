@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCase, CASE_STATUS_LABEL, CASE_TYPE_LABEL, QUOTE_STATUS_LABEL } from "@/lib/data";
+import { getUserRole } from "@/lib/tenant";
 import type { ServiceCase, CasePhoto, InspectionReport } from "@/lib/types";
 import { c, pillar } from "@/lib/theme";
 import type { PillarKey } from "@/lib/theme";
@@ -9,9 +10,10 @@ import Pill from "@/components/Pill";
 import ComingSoon from "@/components/ComingSoon";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
-import CustomFieldsSection from "@/components/CustomFieldsSection";
+import ObjectSections from "@/components/fields/ObjectSections";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import CaseActions from "@/components/CaseActions";
-import CaseCoreEditPanel from "./CaseCoreEditPanel";
+import CaseAssetsPanel from "./CaseAssetsPanel";
 import { MessageSquare } from "@/components/Icons";
 
 // ── Stage groups ──────────────────────────────────────────────────────────────
@@ -72,7 +74,7 @@ const irStatusLabel: Record<InspectionReport["status"], string> = {
 
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const data = await getCase(id);
+  const [data, role] = await Promise.all([getCase(id), getUserRole()]);
   if (!data) notFound();
 
   const { serviceCase: sc, account, contact, assets, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases } = data;
@@ -112,6 +114,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
               {account?.name ?? "—"}{sc.equipment_label ? <span style={{ color: c.hint }}> · {sc.equipment_label}</span> : ""}
             </div>
           </div>
+          <AdaptObjectDrawer objectType="case" objectLabel="Case" isAdmin={role === "admin"} />
         </div>
       </div>
 
@@ -288,10 +291,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             </section>
           )}
 
-          <CustomFieldsSection
+          <ObjectSections
             objectType="case"
-            recordId={sc.id}
-            customData={(sc as Record<string, unknown>).custom_data as Record<string, unknown> | null}
+            record={sc as unknown as Record<string, unknown>}
             patchUrl={`/api/cases/${sc.id}`}
           />
         </div>
@@ -404,13 +406,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
               <MessageSquare size={12} color="#3d7a5a" /> WhatsApp <ComingSoon size="xs" />
             </span>
 
-            <CaseCoreEditPanel
+            <CaseAssetsPanel
               caseId={sc.id}
               accountId={sc.account_id}
-              equipmentLabel={sc.equipment_label}
-              complaint={sc.complaint}
-              symptom={sc.symptom ?? null}
-              notes={sc.notes ?? null}
               assets={assets}
             />
           </div>

@@ -10,8 +10,8 @@ import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import { ROUTES } from "@/lib/constants";
 import type { PurchaseOrderStatus } from "@/lib/types";
-import CustomFieldsSection from "@/components/CustomFieldsSection";
-import PurchaseOrderEditPanel from "./PurchaseOrderEditPanel";
+import ObjectSections from "@/components/fields/ObjectSections";
+import PurchaseOrderActionsPanel from "./PurchaseOrderActionsPanel";
 import ReceivePanel from "./ReceivePanel";
 
 const STATUS_TONE: Record<PurchaseOrderStatus, PillarKey> = {
@@ -106,27 +106,9 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
 
           {canReceive && <ReceivePanel poId={po.id} lines={lines} />}
 
-          {(po.notes || po.terms) && (
-            <section style={cardStyle}>
-              {po.notes && (
-                <>
-                  <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>Notes</div>
-                  <p style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.7, color: c.ink }}>{po.notes}</p>
-                </>
-              )}
-              {po.terms && (
-                <>
-                  <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>Terms</div>
-                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{po.terms}</p>
-                </>
-              )}
-            </section>
-          )}
-
-          <CustomFieldsSection
+          <ObjectSections
             objectType="purchase_order"
-            recordId={po.id}
-            customData={po.custom_data}
+            record={po as unknown as Record<string, unknown>}
             patchUrl={`/api/purchase-orders/${po.id}`}
           />
         </div>
@@ -166,7 +148,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
             <CtxRow label="Created" value={fmtDate(po.created_at)} />
           </section>
 
-          <PurchaseOrderEditPanel po={po} />
+          <PurchaseOrderActionsPanel po={po} />
         </div>
       </div>
     </>

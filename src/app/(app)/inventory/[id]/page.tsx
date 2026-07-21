@@ -9,8 +9,8 @@ import Pill from "@/components/Pill";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import { ROUTES } from "@/lib/constants";
-import CustomFieldsSection from "@/components/CustomFieldsSection";
-import InventoryEditPanel from "./InventoryEditPanel";
+import ObjectSections from "@/components/fields/ObjectSections";
+import InventorySupplierPanel from "./InventorySupplierPanel";
 import AdjustStockPanel from "./AdjustStockPanel";
 
 const fmtDateTime = (s: string) =>
@@ -76,19 +76,6 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
             {item.unit_cost != null && (
               <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>Unit cost: ₹{item.unit_cost.toLocaleString("en-IN")}</div>
             )}
-            {item.description && (
-              <>
-                <div style={{ borderTop: `1px solid ${c.line}`, margin: "14px 0 12px" }} />
-                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{item.description}</p>
-              </>
-            )}
-            {item.notes && (
-              <>
-                <div style={{ borderTop: `1px solid ${c.line}`, margin: "14px 0 12px" }} />
-                <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>Notes</div>
-                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{item.notes}</p>
-              </>
-            )}
           </section>
 
           <AdjustStockPanel itemId={item.id} uom={item.uom} />
@@ -119,10 +106,9 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
             )}
           </section>
 
-          <CustomFieldsSection
+          <ObjectSections
             objectType="inventory"
-            recordId={item.id}
-            customData={item.custom_data}
+            record={item as unknown as Record<string, unknown>}
             patchUrl={`/api/inventory/${item.id}`}
           />
         </div>
@@ -144,7 +130,7 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
             <CtxRow label="Date" value={new Date(item.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} />
           </section>
 
-          <InventoryEditPanel item={item} />
+          <InventorySupplierPanel item={item} />
         </div>
       </div>
     </>

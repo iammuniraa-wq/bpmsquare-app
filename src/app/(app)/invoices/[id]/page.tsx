@@ -9,9 +9,9 @@ import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import { ROUTES } from "@/lib/constants";
 import type { InvoiceStatus } from "@/lib/types";
-import CustomFieldsSection from "@/components/CustomFieldsSection";
+import ObjectSections from "@/components/fields/ObjectSections";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
-import InvoiceEditPanel from "./InvoiceEditPanel";
+import InvoiceActionsPanel from "./InvoiceActionsPanel";
 import RecordPaymentPanel from "./RecordPaymentPanel";
 
 const STATUS_TONE: Record<InvoiceStatus, PillarKey> = {
@@ -132,27 +132,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
           <RecordPaymentPanel invoiceId={invoice.id} status={invoice.status} balanceDue={balanceDue} payments={payments} />
 
-          {(invoice.notes || invoice.terms) && (
-            <section style={cardStyle}>
-              {invoice.notes && (
-                <>
-                  <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>Notes</div>
-                  <p style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.7, color: c.ink }}>{invoice.notes}</p>
-                </>
-              )}
-              {invoice.terms && (
-                <>
-                  <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>Terms</div>
-                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: c.ink }}>{invoice.terms}</p>
-                </>
-              )}
-            </section>
-          )}
-
-          <CustomFieldsSection
+          <ObjectSections
             objectType="invoice"
-            recordId={invoice.id}
-            customData={invoice.custom_data}
+            record={invoice as unknown as Record<string, unknown>}
             patchUrl={`/api/invoices/${invoice.id}`}
           />
         </div>
@@ -204,7 +186,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <CtxRow label="Due" value={fmtDate(invoice.due_date)} />
           </section>
 
-          <InvoiceEditPanel invoice={invoice} />
+          <InvoiceActionsPanel invoice={invoice} />
         </div>
       </div>
     </>

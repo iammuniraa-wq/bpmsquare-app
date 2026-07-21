@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getWorkOrder, CASE_STATUS_LABEL } from "@/lib/data";
+import { getUserRole } from "@/lib/tenant";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
@@ -8,10 +9,10 @@ import Pill from "@/components/Pill";
 import WorkOrderActions from "./WorkOrderActions";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
-import CustomFieldsSection from "@/components/CustomFieldsSection";
+import ObjectSections from "@/components/fields/ObjectSections";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Activity } from "@/components/Icons";
-import WorkOrderEditPanel from "./WorkOrderEditPanel";
 
 const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
   scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
@@ -48,7 +49,7 @@ export default async function WorkOrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data = await getWorkOrder(id);
+  const [data, role] = await Promise.all([getWorkOrder(id), getUserRole()]);
   if (!data) notFound();
 
   const { workOrder: wo, account, asset, technician, serviceCase, quote, contract, loanerAsset } = data;
@@ -65,6 +66,7 @@ export default async function WorkOrderDetailPage({
       <PageHeader
         title={wo.ref}
         subtitle={`Field Service · Work Order · ${account?.name ?? ""}`}
+        action={<AdaptObjectDrawer objectType="work_order" objectLabel="Work Order" isAdmin={role === "admin"} />}
       />
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
@@ -76,19 +78,16 @@ export default async function WorkOrderDetailPage({
       </div>
 
       <div style={{ marginBottom: 14 }}>
-        <WorkOrderEditPanel wo={wo} />
+        <ObjectSections
+          objectType="work_order"
+          record={wo as unknown as Record<string, unknown>}
+          patchUrl={`/api/work-orders/${wo.id}`}
+        />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 12 }} className="hub-grid">
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-          {wo.description && (
-            <section style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 10px" }}>Scope of work</h3>
-              <p style={{ fontSize: 13, color: c.ink, lineHeight: 1.65, margin: 0 }}>{wo.description}</p>
-            </section>
-          )}
 
           {asset && (
             <section style={cardStyle}>
@@ -135,12 +134,6 @@ export default async function WorkOrderDetailPage({
             </section>
           )}
 
-          {wo.notes && (
-            <section style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 8px" }}>Technician notes</h3>
-              <p style={{ fontSize: 12.5, color: c.muted, lineHeight: 1.6, margin: 0 }}>{wo.notes}</p>
-            </section>
-          )}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -206,13 +199,6 @@ export default async function WorkOrderDetailPage({
           )}
         </div>
       </div>
-
-      <CustomFieldsSection
-        objectType="work_order"
-        recordId={wo.id}
-        customData={(wo as Record<string, unknown>).custom_data as Record<string, unknown> | null}
-        patchUrl={`/api/work-orders/${wo.id}`}
-      />
     </>
   );
 }

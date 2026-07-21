@@ -4,6 +4,7 @@
 import type {
   Account, Quote, ServiceCase, Technician, PricingItem, VisitLog,
   WorkOrder, TechnicianLeave, Activity, Contact, Asset, QuoteLine, Invoice, Lead, Contract, Supplier,
+  PurchaseOrder, InventoryItem,
 } from "@/lib/types";
 
 // ── Re-exported base types (no server import chain) ───────────────────────────
@@ -202,6 +203,35 @@ export const SUPPLIER_TYPE_LABEL: Record<Supplier["type"], string> = {
 };
 
 export const SUPPLIER_STATUS_LABEL: Record<Supplier["status"], string> = {
+  active:   "Active",
+  inactive: "Inactive",
+};
+
+export const WORK_ORDER_STATUS_LABEL: Record<WorkOrder["status"], string> = {
+  scheduled:   "Scheduled",
+  in_progress: "In Progress",
+  completed:   "Completed",
+  invoiced:    "Invoiced",
+};
+
+export const INVOICE_STATUS_LABEL: Record<Invoice["status"], string> = {
+  draft:     "Draft",
+  sent:      "Sent",
+  partial:   "Partial",
+  paid:      "Paid",
+  overdue:   "Overdue",
+  cancelled: "Cancelled",
+};
+
+export const PURCHASE_ORDER_STATUS_LABEL: Record<PurchaseOrder["status"], string> = {
+  draft:              "Draft",
+  sent:               "Sent",
+  partially_received: "Partially received",
+  received:           "Received",
+  cancelled:          "Cancelled",
+};
+
+export const INVENTORY_ITEM_STATUS_LABEL: Record<InventoryItem["status"], string> = {
   active:   "Active",
   inactive: "Inactive",
 };

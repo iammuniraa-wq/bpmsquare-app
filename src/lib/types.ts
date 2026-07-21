@@ -201,6 +201,7 @@ export type WorkOrder = {
   scheduled_for: string | null;
   description: string | null;
   notes: string | null;
+  custom_data: Record<string, unknown> | null;
 };
 
 export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue" | "cancelled";
@@ -367,6 +368,7 @@ export type ServiceCase = {
   notes: string | null;
   territory: string | null;
   sales_org: string | null;
+  custom_data: Record<string, unknown> | null;
 };
 
 // ── Pricing catalog & text fragments ─────────────────────────────────────────

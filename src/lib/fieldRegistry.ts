@@ -1,9 +1,12 @@
 // Import from the client-safe labels mirror, not "@/lib/data" (the barrel
 // re-exports server-only live.ts data functions, which would otherwise leak
 // into every client component that imports this registry).
-import { ACCOUNT_TYPE_LABEL, ASSET_KIND_LABEL, SUPPLIER_TYPE_LABEL, SUPPLIER_STATUS_LABEL } from "@/lib/data/labels";
-import { OFFER_TYPE_LABEL } from "@/lib/constants";
-import type { AccountType, Asset, Supplier, QuoteOfferType } from "@/lib/types";
+import {
+  ACCOUNT_TYPE_LABEL, ASSET_KIND_LABEL, SUPPLIER_TYPE_LABEL, SUPPLIER_STATUS_LABEL,
+  CASE_TYPE_LABEL, INVENTORY_ITEM_STATUS_LABEL,
+} from "@/lib/data/labels";
+import { OFFER_TYPE_LABEL, UOM_OPTIONS } from "@/lib/constants";
+import type { AccountType, Asset, Supplier, QuoteOfferType, ServiceCase, InventoryItem } from "@/lib/types";
 
 // ── Widget types ─────────────────────────────────────────────────────────────
 //
@@ -73,7 +76,9 @@ export type EffectiveField = {
   placeholder?: string;
 };
 
-export type PilotObjectType = "account" | "contact" | "asset" | "supplier" | "quote";
+export type PilotObjectType =
+  | "account" | "contact" | "asset" | "supplier" | "quote"
+  | "case" | "work_order" | "invoice" | "purchase_order" | "inventory";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -94,6 +99,20 @@ const DISCOUNT_TYPE_OPTIONS: { value: "pct" | "fixed"; label: string }[] = [
   { value: "pct",   label: "Percentage" },
   { value: "fixed", label: "Fixed amount" },
 ];
+
+const CASE_TYPE_OPTIONS: { value: ServiceCase["type"]; label: string }[] =
+  (Object.keys(CASE_TYPE_LABEL) as ServiceCase["type"][]).map((value) => ({ value, label: CASE_TYPE_LABEL[value] }));
+
+const CASE_DISPOSITION_OPTIONS: { value: NonNullable<ServiceCase["disposition"]>; label: string }[] = [
+  { value: "repair",  label: "Repair" },
+  { value: "buyback", label: "Buyback" },
+  { value: "scrap",   label: "Scrap" },
+];
+
+const INVENTORY_STATUS_OPTIONS: { value: InventoryItem["status"]; label: string }[] =
+  (Object.keys(INVENTORY_ITEM_STATUS_LABEL) as InventoryItem["status"][]).map((value) => ({ value, label: INVENTORY_ITEM_STATUS_LABEL[value] }));
+
+const UOM_ENUM_OPTIONS: { value: string; label: string }[] = UOM_OPTIONS.map((u) => ({ value: u, label: u }));
 
 export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   account: {
@@ -254,6 +273,113 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       // (dedicated UI or computed/internal) are deliberately excluded.
     ],
   },
+
+  case: {
+    sections: ["Identity", "Case details", "Sales", "Timeline"],
+    fields: [
+      { key: "ref",  defaultLabel: "Case ID", widget: "text", defaultSection: "Identity", locked: true, editable: false },
+      { key: "type", defaultLabel: "Type",    widget: "enum", defaultSection: "Identity", enumOptions: CASE_TYPE_OPTIONS, editable: false },
+      { key: "disposition", defaultLabel: "Disposition", widget: "enum", defaultSection: "Identity", enumOptions: CASE_DISPOSITION_OPTIONS, editable: false },
+
+      { key: "equipment_label", defaultLabel: "Equipment",  widget: "text",     defaultSection: "Case details" },
+      { key: "complaint",       defaultLabel: "Complaint",  widget: "textarea", defaultSection: "Case details" },
+      { key: "symptom",         defaultLabel: "Symptom",    widget: "textarea", defaultSection: "Case details" },
+      { key: "notes",           defaultLabel: "Internal notes", widget: "textarea", defaultSection: "Case details" },
+
+      { key: "territory", defaultLabel: "Territory", widget: "select", defaultSection: "Sales", selectSource: "territory" },
+      { key: "sales_org", defaultLabel: "Sales org",  widget: "select", defaultSection: "Sales", selectSource: "sales_org" },
+
+      { key: "intake_at", defaultLabel: "Intake",  widget: "date", defaultSection: "Timeline", locked: true, editable: false, hiddenByDefault: true },
+      { key: "closed_at", defaultLabel: "Closed",   widget: "date", defaultSection: "Timeline", locked: true, editable: false, hiddenByDefault: true },
+
+      // account_id / asset_id / assigned_to / quote_id / contract_id /
+      // loaner_asset_id / parent_case_id (relationship pointers, all shown
+      // via dedicated sidebar cards + links) and status / has_loaner
+      // (own stage-stepper UI, driven by CaseActions) are deliberately
+      // excluded. asset_ids stays on its own picker in CaseAssetsPanel —
+      // a multi-select relationship editor, not a flat field.
+    ],
+  },
+
+  work_order: {
+    sections: ["Identity", "Details"],
+    fields: [
+      { key: "ref",           defaultLabel: "Work Order ID", widget: "text", defaultSection: "Identity", locked: true, editable: false },
+      { key: "scheduled_for", defaultLabel: "Scheduled for", widget: "date", defaultSection: "Identity", editable: false },
+
+      { key: "description", defaultLabel: "Scope of work",      widget: "textarea", defaultSection: "Details" },
+      { key: "notes",        defaultLabel: "Technician notes",   widget: "textarea", defaultSection: "Details" },
+
+      // account_id / case_id / asset_id / technician_id (relationship
+      // pointers) and authorized_by (a {kind,id} union, not a flat field)
+      // and status (own action UI via WorkOrderActions) are excluded.
+    ],
+  },
+
+  invoice: {
+    sections: ["Identity", "Commercial", "Notes"],
+    fields: [
+      { key: "ref",       defaultLabel: "Invoice ID", widget: "text", defaultSection: "Identity", locked: true, editable: false },
+      { key: "due_date",  defaultLabel: "Due date",    widget: "date", defaultSection: "Identity" },
+      { key: "issued_at", defaultLabel: "Issued",      widget: "date", defaultSection: "Identity", locked: true, editable: false, hiddenByDefault: true },
+      { key: "created_at", defaultLabel: "Created",    widget: "date", defaultSection: "Identity", locked: true, editable: false, hiddenByDefault: true },
+
+      // Same reasoning as quote: these feed the stored `total`, which only
+      // dedicated flows (creation, payment recording) recalculate.
+      { key: "discount_type",  defaultLabel: "Discount type",   widget: "enum",   defaultSection: "Commercial", enumOptions: DISCOUNT_TYPE_OPTIONS, editable: false },
+      { key: "discount_pct",   defaultLabel: "Discount %",      widget: "number", defaultSection: "Commercial", editable: false },
+      { key: "discount_fixed", defaultLabel: "Discount amount", widget: "number", defaultSection: "Commercial", editable: false },
+
+      { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
+      { key: "terms", defaultLabel: "Terms", widget: "textarea", defaultSection: "Notes" },
+
+      // account_id / contact_id / work_order_id / quote_id / case_id /
+      // contract_id / entity_id (relationship pointers, shown via
+      // dedicated sidebar links) and status / total / paid_amount /
+      // created_by (own status buttons + RecordPaymentPanel, or
+      // computed/internal) are excluded.
+    ],
+  },
+
+  purchase_order: {
+    sections: ["Identity", "Notes"],
+    fields: [
+      { key: "ref",           defaultLabel: "PO ID",      widget: "text", defaultSection: "Identity", locked: true, editable: false },
+      { key: "order_date",    defaultLabel: "Order date",  widget: "date", defaultSection: "Identity" },
+      { key: "expected_date", defaultLabel: "Expected delivery", widget: "date", defaultSection: "Identity" },
+      { key: "created_at",    defaultLabel: "Created",     widget: "date", defaultSection: "Identity", locked: true, editable: false, hiddenByDefault: true },
+
+      { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
+      { key: "terms", defaultLabel: "Terms", widget: "textarea", defaultSection: "Notes" },
+
+      // supplier_id / quote_id / case_id (relationship pointers, shown via
+      // dedicated sidebar links) and status / total / created_by (own
+      // status buttons + ReceivePanel, or computed/internal) are excluded.
+    ],
+  },
+
+  inventory: {
+    sections: ["Identity", "Stock", "Notes"],
+    fields: [
+      { key: "name",     defaultLabel: "Name",     widget: "text", defaultSection: "Identity", locked: true },
+      { key: "sku",      defaultLabel: "SKU",      widget: "text", defaultSection: "Identity" },
+      { key: "category", defaultLabel: "Category", widget: "text", defaultSection: "Identity" },
+      { key: "status",   defaultLabel: "Status",   widget: "enum", defaultSection: "Identity", enumOptions: INVENTORY_STATUS_OPTIONS },
+
+      { key: "uom",           defaultLabel: "UOM",           widget: "enum",   defaultSection: "Stock", enumOptions: UOM_ENUM_OPTIONS },
+      { key: "reorder_level", defaultLabel: "Reorder level", widget: "number", defaultSection: "Stock" },
+      { key: "unit_cost",     defaultLabel: "Unit cost",     widget: "number", defaultSection: "Stock" },
+
+      { key: "description", defaultLabel: "Description", widget: "textarea", defaultSection: "Notes" },
+      { key: "notes",        defaultLabel: "Notes",       widget: "textarea", defaultSection: "Notes" },
+
+      // supplier_id kept on its own picker in InventorySupplierPanel (no
+      // "reference"/lookup widget type exists yet — see
+      // FIELD_REGISTRY_ROLLOUT.md). qty_on_hand is excluded: it's a
+      // derived running balance from InventoryTransaction rows, changed
+      // only via AdjustStockPanel, never a free-edit field.
+    ],
+  },
 };
 
 /** Fields hidden unless the record's kind matches — see the Nameplate section above. */
@@ -281,8 +407,13 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
   })),
 };
 
+const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
+  "account", "contact", "asset", "supplier", "quote",
+  "case", "work_order", "invoice", "purchase_order", "inventory",
+];
+
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {
-  return objectType === "account" || objectType === "contact" || objectType === "asset" || objectType === "supplier" || objectType === "quote";
+  return (PILOT_OBJECT_TYPES as readonly string[]).includes(objectType);
 }
 
 // ── Rule condition tree ──────────────────────────────────────────────────────
