@@ -13,6 +13,7 @@ import type { Account, Asset, Contact, PricingItem, TextFragment, PricingCategor
 import { Gear, Zap, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import CreateExtraFields from "@/components/fields/CreateExtraFields";
+import ObjectSections from "@/components/fields/ObjectSections";
 
 // Fields the drawer's own inputs already cover — CreateExtraFields renders whatever's
 // left (nameplate fields, tenant custom fields), same exclusion list as /assets/new.
@@ -186,6 +187,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   // Linked assets
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>(eq?.asset_ids ?? []);
   const [assetPickerOpen, setAssetPickerOpen]   = useState(false);
+  const [viewAssetId, setViewAssetId]           = useState<string | null>(null);
 
   // Line items & groups
   const [rows, setRows] = useState<Row[]>(() => editQuote ? editLinesToRows(editQuote.lines) : [
@@ -922,6 +924,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         {asset.rating && <span>{asset.rating}</span>}
                       </div>
                     </div>
+                    <button onClick={() => setViewAssetId(asset.id)} style={{ fontSize: 11, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 9px", cursor: "pointer", flexShrink: 0 }} title="View details">
+                      View →
+                    </button>
                     <button onClick={() => toggleAsset(asset.id)} style={{ background: "none", border: "none", color: c.hint, fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }} title="Unlink">×</button>
                   </div>
                 ))}
@@ -1505,6 +1510,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         </>
       )}
 
+      {/* ── View linked asset (read + inline-edit, same data/component as /assets/[id]) ── */}
+      {viewAssetId && (
+        <AssetGlancePanel assetId={viewAssetId} onClose={() => setViewAssetId(null)} />
+      )}
+
       {/* ── Notes / Terms fragment picker ────────────────────────────────── */}
       {fragTarget && (
         <>
@@ -1559,6 +1569,71 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           </div>
         </>
       )}
+    </>
+  );
+}
+
+// ── Linked-asset glance panel ────────────────────────────────────────────────
+//
+// Always fetches the asset fresh (never reads from the quote form's own,
+// possibly-stale localAssets snapshot) and renders it with the exact same
+// ObjectSections component + patchUrl the real /assets/[id] page uses — so
+// this is never a second, hand-maintained view of the asset. Any edit made
+// here saves to the real record; any edit made on the real page shows up
+// here next time it's opened.
+function AssetGlancePanel({ assetId, onClose }: { assetId: string; onClose: () => void }) {
+  const [asset, setAsset] = useState<Asset | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    setAsset(null);
+    fetch(`/api/assets/${assetId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then((data: Asset) => { if (!cancelled) setAsset(data); })
+      .catch(() => { if (!cancelled) setError("Could not load this asset."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [assetId]);
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 440, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {asset?.name ?? "Asset"}
+            </div>
+            {asset && (
+              <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2, textTransform: "capitalize" }}>
+                {asset.kind}{asset.make ? ` · ${asset.make}` : ""}{asset.model ? ` · ${asset.model}` : ""}
+              </div>
+            )}
+          </div>
+          <Link href={ROUTES.asset(assetId)} target="_blank" rel="noopener" style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+            Open full page ↗
+          </Link>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "18px 20px" }}>
+          {loading && <div style={{ color: c.hint, fontSize: 13, textAlign: "center", padding: "40px 0" }}>Loading…</div>}
+          {error && <div style={{ fontSize: 12.5, color: "#dc2626", background: "#fef2f2", borderRadius: 7, padding: "10px 12px" }}>{error}</div>}
+          {asset && (
+            <ObjectSections
+              objectType="asset"
+              record={asset as unknown as Record<string, unknown>}
+              patchUrl={`/api/assets/${asset.id}`}
+            />
+          )}
+        </div>
+      </div>
     </>
   );
 }
