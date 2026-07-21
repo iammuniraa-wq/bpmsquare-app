@@ -137,7 +137,7 @@ export default function QuotePrintDocument({
       <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid" }}>
 
         {/* Row 1: ISO / accreditation (left) | GST (right) */}
-        <div style={{ padding: "2px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #dde2e8" }}>
+        <div style={{ padding: "1.5px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #dde2e8" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {co.iso && (
               <span style={{ fontSize: 9, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 6px", borderRadius: 2, letterSpacing: 0.4 }}>
@@ -151,23 +151,23 @@ export default function QuotePrintDocument({
         </div>
 
         {/* Row 2: Logo + Company name + tagline | Doc title */}
-        <div style={{ padding: "10px 22px 9px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
+        <div style={{ padding: "7px 22px 6px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
 
           {/* Left: logo + name + tagline */}
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             {co.logo_url ? (
-              <img src={co.logo_url} alt={co.name} style={{ height: 60, maxWidth: 80, objectFit: "contain", flexShrink: 0 }} />
+              <img src={co.logo_url} alt={co.name} style={{ height: 48, maxWidth: 68, objectFit: "contain", flexShrink: 0 }} />
             ) : (
-              <div style={{ width: 60, height: 60, borderRadius: 10, flexShrink: 0, background: co.logo_bg || brand.dark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 900, color: "#fff" }}>
+              <div style={{ width: 48, height: 48, borderRadius: 9, flexShrink: 0, background: co.logo_bg || brand.dark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, color: "#fff" }}>
                 {logoIni}
               </div>
             )}
             <div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: "#B91C1C", letterSpacing: 0.4, textTransform: "uppercase", lineHeight: 1.15 }}>
+              <div style={{ fontSize: 18, fontWeight: 900, color: "#B91C1C", letterSpacing: 0.4, textTransform: "uppercase", lineHeight: 1.15 }}>
                 {co.name}
               </div>
               {co.tagline && (
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: "#1a4fa0", fontStyle: "italic", marginTop: 3 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: "#1a4fa0", fontStyle: "italic", marginTop: 2 }}>
                   {co.tagline}
                 </div>
               )}
@@ -186,15 +186,15 @@ export default function QuotePrintDocument({
         {co.partners.length > 0 && (
           <>
             <div style={{ borderTop: "1px solid #dde2e8", margin: "0 22px" }} />
-            <div style={{ padding: "3px 22px 1px", textAlign: "center" }}>
-              <span style={{ display: "inline-block", border: "1px solid #555", borderRadius: 20, padding: "2px 16px", fontSize: 9.5, fontWeight: 700, color: "#333", letterSpacing: 0.6 }}>
+            <div style={{ padding: "2px 22px 1px", textAlign: "center" }}>
+              <span style={{ display: "inline-block", border: "1px solid #555", borderRadius: 20, padding: "1.5px 16px", fontSize: 9.5, fontWeight: 700, color: "#333", letterSpacing: 0.6 }}>
                 Authorised Channel Partner
               </span>
             </div>
-            <div style={{ padding: "3px 22px 6px", display: "flex", justifyContent: "center", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+            <div style={{ padding: "2px 22px 4px", display: "flex", justifyContent: "center", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
               {co.partners.map((p, i) => (
                 p.logo_url ? (
-                  <img key={i} src={p.logo_url} alt={p.name} title={p.name} style={{ height: 32, maxWidth: 88, objectFit: "contain" }} />
+                  <img key={i} src={p.logo_url} alt={p.name} title={p.name} style={{ height: 26, maxWidth: 74, objectFit: "contain" }} />
                 ) : (
                   <span key={i} style={{ fontSize: 11, fontWeight: 800, color: "#111", letterSpacing: 0.1 }}>{p.name}</span>
                 )
@@ -205,13 +205,13 @@ export default function QuotePrintDocument({
 
         {/* Row 4: Undertaking strip */}
         {co.undertaking && (
-          <div style={{ borderTop: "1px solid #dde2e8", padding: "2.5px 22px", textAlign: "center", fontSize: 9.5, color: "#444", background: "#f8f9fb" }}>
+          <div style={{ borderTop: "1px solid #dde2e8", padding: "2px 22px", textAlign: "center", fontSize: 9.5, color: "#444", background: "#f8f9fb" }}>
             We Undertake: {co.undertaking}
           </div>
         )}
 
         {/* Row 5: Email | Web contact strip */}
-        <div style={{ borderTop: "1px solid #dde2e8", padding: "2.5px 22px", display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap", fontSize: 10, color: "#555", background: "#f4f5f7" }}>
+        <div style={{ borderTop: "1px solid #dde2e8", padding: "2px 22px", display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap", fontSize: 10, color: "#555", background: "#f4f5f7" }}>
           {(co.email || co.email2) && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <Mail size={10} color="#888" />
@@ -505,7 +505,7 @@ export default function QuotePrintDocument({
       <div style={{ background: brand.dark, borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid" }}>
         {/* Address row */}
         {co.address && (
-          <div style={{ padding: "6px 28px 3px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: "#8aa0b8" }}>
+          <div style={{ padding: "5px 28px 2px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: "#8aa0b8" }}>
             <MapPin size={10} color="#8aa0b8" style={{ flexShrink: 0 }} />
             <span>{co.address}</span>
             {co.gstin && <span style={{ marginLeft: "auto", color: brand.amber, fontWeight: 600 }}>GSTIN: {co.gstin}</span>}
@@ -513,7 +513,7 @@ export default function QuotePrintDocument({
         )}
         {/* Phones grid row */}
         {co.phones.length > 0 && (
-          <div style={{ padding: "5px 28px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", flexWrap: "wrap", gap: "4px 28px", fontSize: 10.5 }}>
+          <div style={{ padding: "4px 28px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", flexWrap: "wrap", gap: "4px 28px", fontSize: 10.5 }}>
             {co.phones.map((p, i) => (
               <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 <span style={{ color: "#8aa0b8" }}>{p.label}</span>
@@ -529,7 +529,7 @@ export default function QuotePrintDocument({
           </div>
         )}
         {/* Tagline row */}
-        <div style={{ padding: "6px 28px", display: "flex", justifyContent: "center", alignItems: "center", fontSize: 10.5 }}>
+        <div style={{ padding: "5px 28px", display: "flex", justifyContent: "center", alignItems: "center", fontSize: 10.5 }}>
           {co.footer_tagline
             ? <span style={{ color: brand.amber, fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
             : <span style={{ color: "#5a7494" }}>{co.name}</span>

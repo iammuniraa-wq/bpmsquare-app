@@ -279,15 +279,13 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       });
       const json = await res.json();
       if (!res.ok) { setCreateAssetError(json.error ?? "Failed to create asset"); return; }
-      const created: Asset = {
-        id: json.id, account_id: accountId || null, ...newAsset,
-        rpm: null, frame_type: null, insulation_class: null, connection: null, duty: null,
-        ambient_temp: null, output_kw: null, stator_voltage: null, stator_current: null,
-        excitation_voltage: null, excitation_current: null, frequency: null,
-        is_loaner: false, loaner_status: null, custom_data: null,
-      };
+      // Use the row the server actually inserted, rather than re-deriving it from
+      // local form state — a hand-built duplicate can silently drift from what's
+      // really in the DB (this already happened once: the nameplate fields were
+      // added to the Asset type but this reconstruction wasn't updated for weeks).
+      const created = json as Asset;
       setLocalAssets((p) => [...p, created]);
-      setSelectedAssetIds((p) => [...p, json.id]);
+      setSelectedAssetIds((p) => [...p, created.id]);
       setCreateAssetOpen(false);
       setNewAsset({ name: "", kind: "motor", make: "", model: "", serial: "", rating: "", notes: "" });
     });

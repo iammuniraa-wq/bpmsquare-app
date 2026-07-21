@@ -85,10 +85,10 @@ export async function POST(request: NextRequest) {
       loaner_status: is_loaner ? "available" : null,
       ...(custom_data && Object.keys(custom_data).length ? { custom_data } : {}),
     })
-    .select("id")
+    .select("*")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ id: asset.id }, { status: 201 });
+  return NextResponse.json(asset, { status: 201 });
 }

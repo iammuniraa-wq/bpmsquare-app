@@ -7,6 +7,11 @@ import type { TenantEntity, TenantConfig, TenantTaxConfig, QuoteIdFormat } from 
 import { DEFAULT_QUOTE_ID_FORMAT } from "@/lib/constants";
 import { formatQuoteRef } from "@/lib/quoteRefFormat";
 import type { CompanyInfo } from "@/lib/tenant";
+import { resizeImageFile } from "@/lib/resizeImage";
+
+// Bounding boxes uploaded logos are downscaled to fit before upload — see resizeImage.ts.
+const LOGO_MAX = { width: 400, height: 300 };
+const PARTNER_LOGO_MAX = { width: 300, height: 150 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -70,9 +75,10 @@ function LogoUpload({ currentUrl, onUploaded, label = "Logo", size = 64 }: {
     const file = e.target.files?.[0];
     if (!file) return;
     setErr(""); setUploading(true);
-    const form = new FormData();
-    form.append("file", file);
     try {
+      const resized = await resizeImageFile(file, LOGO_MAX.width, LOGO_MAX.height);
+      const form = new FormData();
+      form.append("file", resized);
       const res = await fetch("/api/upload", { method: "POST", body: form });
       const json = await res.json();
       if (!res.ok) { setErr(json.error ?? "Upload failed"); return; }
@@ -117,7 +123,7 @@ function LogoUpload({ currentUrl, onUploaded, label = "Logo", size = 64 }: {
               </button>
             )}
           </div>
-          <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>PNG, JPG, WebP or SVG · max 2 MB</div>
+          <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>PNG, JPG, WebP or SVG · max 2 MB · resized to fit {LOGO_MAX.width}×{LOGO_MAX.height}px</div>
           {err && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>{err}</div>}
           {/* Also allow direct URL paste */}
           <input
@@ -157,9 +163,10 @@ function PartnerLogos({ partners, onChange }: {
     if (!file) return;
     setErrs((p) => ({ ...p, [idx]: "" }));
     setUploading(idx);
-    const form = new FormData();
-    form.append("file", file);
     try {
+      const resized = await resizeImageFile(file, PARTNER_LOGO_MAX.width, PARTNER_LOGO_MAX.height);
+      const form = new FormData();
+      form.append("file", resized);
       const res = await fetch("/api/upload", { method: "POST", body: form });
       const json = await res.json();
       if (!res.ok) { setErrs((p) => ({ ...p, [idx]: json.error ?? "Upload failed" })); return; }
