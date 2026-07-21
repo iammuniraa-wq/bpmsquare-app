@@ -486,16 +486,12 @@ export default function QuotePrintDocument({
       )}
 
 
-      {/* Signature block */}
-      <div style={{ margin: "6px 28px 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, breakInside: "avoid", breakBefore: "avoid" }}>
-        <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
+      {/* Signature block — company only, right-aligned. Customer acceptance removed. */}
+      <div style={{ margin: "6px 28px 20px", display: "flex", justifyContent: "flex-end", breakInside: "avoid", breakBefore: "avoid" }}>
+        <div style={{ width: "50%", border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
           <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 6 }}>For {co.name}</div>
           {ext.quoteSignatureSlot ?? <div style={{ height: 48, marginBottom: 6 }} />}
           <div style={{ borderTop: `1px solid ${brand.dark}`, paddingTop: 6, fontSize: 11, color: "#5f6b7a" }}>Authorised Signatory</div>
-        </div>
-        <div style={{ border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
-          <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 28 }}>Customer acceptance — {account?.name ?? ""}</div>
-          <div style={{ borderTop: `1px solid ${brand.line}`, paddingTop: 6, fontSize: 11, color: "#5f6b7a" }}>Name, Designation &amp; Stamp</div>
         </div>
       </div>
 

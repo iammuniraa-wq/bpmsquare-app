@@ -148,7 +148,7 @@ worth knowing so it isn't re-litigated from scratch:
 ## Fixed 2026-07-21 (for context, not action)
 
 - `custom_fields` had no RLS policy at all since it was created (migration
-  0011) — added in `0034_custom_fields_rls.sql`.
+  0011) — added in `0034_custom_fields_rls.sql`, **applied to the database**.
 - Invoice creation (`POST /api/invoices`) didn't verify `quote_id`/
   `contact_id`/`case_id`/`contract_id`/`entity_id` belonged to the tenant.
 - Two low-severity missing `.eq("tenant_id", ...)` filters (inventory
