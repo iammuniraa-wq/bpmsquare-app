@@ -465,9 +465,37 @@ consumes it directly instead of a hardcoded schema:
       dedupe guards beyond what's already there (accounts/users have them
       via existing-record + in-file maps, others rely on DB constraints);
       `import_batches` record for audit + undo
-- [ ] Export with filters — simple field filters (not `field_rules`'
-      `ConditionNode` engine — decided against reusing it for export, see
-      2026-07-21 entry below)
+- [x] Export with filters — simple field filters (not `field_rules`'
+      `ConditionNode` engine). All objects except `quotes` (see below).
+      Column picker + AND-combined filters (`src/app/(app)/data-workbench/ExportFlow.tsx`),
+      `src/lib/import/exportServer.ts` (row formatting + in-memory filter
+      matching — filters run in memory, not SQL, since PII columns are
+      encrypted at rest and can't be filtered server-side by Postgres).
+      Reference fields (account_name, quote_ref, ...) are resolved and
+      included as read-only display columns via per-route id→name/ref
+      lookup maps, same shape as import's reference resolution reversed.
+- [x] **Update** (new capability, added alongside export, not originally
+      scoped in Phase 3): bulk-edit existing records by uploading a
+      previously-exported file. Matches rows by the real DB `id` (a UUID,
+      always the leading export column) — not a business key like name/ref,
+      since those can collide or get renamed. A row whose id doesn't match
+      any record in the tenant fails clearly; never silently skipped, never
+      turned into a new record. Only fields already safe to inline-edit via
+      each object's own `PATCH /api/<object>/[id]` route are bulk-editable —
+      `src/app/api/update/<object>/route.ts` mirrors that route's exact
+      `allowed` list (and PII/date handling) so nothing new becomes
+      editable in bulk that wasn't already editable one at a time.
+      Relationship fields (account_name, supplier_name, ...) are excluded
+      from Update — changing a relationship isn't a scalar patch, out of
+      scope for v1. `src/lib/import/updateServer.ts` does one PATCH per row
+      (PostgREST has no bulk "many rows, different values" primitive),
+      chunked at 10 concurrent.
+      **`quotes` is excluded from both Export and Update** — it isn't on
+      `FIELD_REGISTRY` (reverted the same day, see quote's REVERTED note
+      above), so there's no live field list to build a spec from. Import
+      still nominally accepts quotes; Export/Update do not.
+      **`users` is excluded from Update only** (still exportable) — invite/
+      role changes don't fit the id-match bulk-patch shape.
 - [ ] Bulk delete
 - [ ] Keep from the earlier attempt (these were sound and don't depend on
       the registry): `src/lib/import/parse.ts` (RFC-4180 + xlsx parser,
@@ -490,3 +518,10 @@ consumes it directly instead of a hardcoded schema:
   10 objects, then export, then bulk delete (its own check-in — the one
   destructive piece). Import is now done for all 10; export and bulk delete
   remain.
+- 2026-07-21 — Export built for all objects except `quotes` (excluded from
+  the registry after that day's revert). User also asked for Update — not
+  originally scoped, added alongside export: bulk-edit existing records,
+  matched by real DB `id`, reusing each object's existing PATCH whitelist so
+  nothing new becomes editable in bulk. `users` gets export but not update.
+  Bulk delete remains the only undone Phase 3 item, still deferred for its
+  own check-in.

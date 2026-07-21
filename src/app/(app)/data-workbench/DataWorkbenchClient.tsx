@@ -8,16 +8,26 @@ import { hasBlockingIssue, validateQuoteRows, validateRow } from "@/lib/import/v
 import { buildErrorReportCsv, buildTemplateCsv, downloadCsv } from "@/lib/import/template";
 import type {
   ColumnMapping,
+  FieldSpec,
   ImportObjectId,
   ImportResponse,
   ObjectSpec,
   ParsedSheet,
+  UpdateResponse,
   ValidatedRow,
 } from "@/lib/import/types";
 import ColumnMapper from "./ColumnMapper";
+import ExportFlow from "./ExportFlow";
 import { banner, btn, btnGhost, card, mono, pill, stepDot, td, th, tone } from "./ui";
 
 type Step = "upload" | "map" | "review" | "done";
+type Mode = "import" | "export" | "update";
+
+const MODES: { id: Mode; label: string }[] = [
+  { id: "import", label: "Import" },
+  { id: "export", label: "Export" },
+  { id: "update", label: "Update" },
+];
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "upload", label: "Upload" },
@@ -26,61 +36,113 @@ const STEPS: { id: Step; label: string }[] = [
   { id: "done", label: "Result" },
 ];
 
+// Synthetic column prepended to a spec's fields when in Update mode — matches
+// the "id" key every /api/export/[object] route always includes.
+const ID_FIELD: FieldSpec = {
+  key: "id",
+  label: "Record ID",
+  type: "text",
+  required: true,
+  hint: "The record's internal ID — comes from a file you exported from this workbench.",
+  aliases: ["record id", "recordid", "id"],
+};
+
 export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) {
+  const [mode, setMode] = useState<Mode>("import");
   const [activeId, setActiveId] = useState<ImportObjectId>(specs[0]?.id ?? "accounts");
 
-  const spec = specs.find((s) => s.id === activeId) ?? specs[0];
+  const visibleSpecs = specs.filter((s) => {
+    if (mode === "import") return true;
+    if (mode === "export") return s.id !== "quotes";
+    return s.id !== "quotes" && s.id !== "users"; // update
+  });
+  const spec = visibleSpecs.find((s) => s.id === activeId) ?? visibleSpecs[0];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "215px 1fr", gap: 18, alignItems: "start" }}>
-      <nav style={{ display: "flex", flexDirection: "column", gap: 3, position: "sticky", top: 20 }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, padding: "4px 10px 8px" }}>
-          What to import
-        </div>
-        {specs.map((obj) => {
-          const active = obj.id === activeId;
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${c.line}`, paddingBottom: 0 }}>
+        {MODES.map((m) => {
+          const active = m.id === mode;
           return (
             <button
-              key={obj.id}
-              onClick={() => setActiveId(obj.id)}
+              key={m.id}
+              onClick={() => setMode(m.id)}
               style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-                textAlign: "left", width: "100%",
-                background: active ? c.accentbg : "transparent",
-                color: active ? c.accent : c.ink,
-                fontWeight: active ? 600 : 400,
+                padding: "9px 18px", border: "none", background: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: active ? 700 : 500, color: active ? c.accent : c.muted,
+                borderBottom: active ? `2px solid ${c.accent}` : "2px solid transparent",
+                marginBottom: -1,
               }}
             >
-              <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{obj.icon}</span>
-              <div>
-                <div style={{ fontSize: 13 }}>{obj.label}</div>
-                <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1, fontWeight: 400 }}>
-                  {obj.fields.length} fields
-                </div>
-              </div>
+              {m.label}
             </button>
           );
         })}
+      </div>
 
-        <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 12, paddingTop: 12, padding: "12px 10px 0" }}>
-          <strong style={{ display: "block", marginBottom: 4, color: c.muted, fontSize: 11 }}>Import order</strong>
-          <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6 }}>
-            {spec && spec.dependsOn.length > 0 ? (
-              <>Import {spec.dependsOn.map((id) => specs.find((s) => s.id === id)?.label ?? id).join(", ")} first — {spec.label} links to {spec.dependsOn.length === 1 ? "it" : "them"} by name.</>
-            ) : (
-              <>{spec?.label ?? "This object"} has no dependencies — safe to import first.</>
-            )}
+      <div style={{ display: "grid", gridTemplateColumns: "215px 1fr", gap: 18, alignItems: "start" }}>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 3, position: "sticky", top: 20 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, padding: "4px 10px 8px" }}>
+            {mode === "import" ? "What to import" : mode === "export" ? "What to export" : "What to update"}
           </div>
-        </div>
-      </nav>
+          {visibleSpecs.map((obj) => {
+            const active = obj.id === activeId;
+            return (
+              <button
+                key={obj.id}
+                onClick={() => setActiveId(obj.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+                  textAlign: "left", width: "100%",
+                  background: active ? c.accentbg : "transparent",
+                  color: active ? c.accent : c.ink,
+                  fontWeight: active ? 600 : 400,
+                }}
+              >
+                <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{obj.icon}</span>
+                <div>
+                  <div style={{ fontSize: 13 }}>{obj.label}</div>
+                  <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1, fontWeight: 400 }}>
+                    {obj.fields.length} fields
+                  </div>
+                </div>
+              </button>
+            );
+          })}
 
-      <ImportFlow key={activeId} spec={spec} />
+          {mode === "import" && (
+            <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 12, paddingTop: 12, padding: "12px 10px 0" }}>
+              <strong style={{ display: "block", marginBottom: 4, color: c.muted, fontSize: 11 }}>Import order</strong>
+              <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6 }}>
+                {spec && spec.dependsOn.length > 0 ? (
+                  <>Import {spec.dependsOn.map((id) => specs.find((s) => s.id === id)?.label ?? id).join(", ")} first — {spec.label} links to {spec.dependsOn.length === 1 ? "it" : "them"} by name.</>
+                ) : (
+                  <>{spec?.label ?? "This object"} has no dependencies — safe to import first.</>
+                )}
+              </div>
+            </div>
+          )}
+        </nav>
+
+        {spec && mode === "export" && <ExportFlow key={`${mode}-${activeId}`} spec={spec} />}
+        {spec && (mode === "import" || mode === "update") && (
+          <ImportFlow key={`${mode}-${activeId}`} spec={spec} mode={mode} />
+        )}
+      </div>
     </div>
   );
 }
 
-function ImportFlow({ spec }: { spec: ObjectSpec }) {
+function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import" | "update" }) {
+  // Update mode works against an exported file: a Record ID column is required,
+  // and only scalar (non-relationship) fields are mapped/submitted — relationship
+  // changes aren't supported by bulk Update, matching what each object's own
+  // PATCH route accepts in bulk.
+  const spec: ObjectSpec = useMemo(() => {
+    if (mode !== "update") return baseSpec;
+    return { ...baseSpec, fields: [ID_FIELD, ...baseSpec.fields.filter((f) => f.type !== "ref")] };
+  }, [baseSpec, mode]);
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>("upload");
   const [dragging, setDragging] = useState(false);
@@ -89,7 +151,7 @@ function ImportFlow({ spec }: { spec: ObjectSpec }) {
   const [mapping, setMapping] = useState<ColumnMapping>({});
   const [parseError, setParseError] = useState("");
   const [serverError, setServerError] = useState("");
-  const [result, setResult] = useState<ImportResponse | null>(null);
+  const [result, setResult] = useState<ImportResponse | UpdateResponse | null>(null);
   const [showOnlyProblems, setShowOnlyProblems] = useState(false);
   const [pending, startImport] = useTransition();
 
@@ -148,7 +210,7 @@ function ImportFlow({ spec }: { spec: ObjectSpec }) {
 
     startImport(async () => {
       try {
-        const res = await fetch(`/api/import/${spec.id}`, {
+        const res = await fetch(`/api/${mode}/${spec.id}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -158,10 +220,10 @@ function ImportFlow({ spec }: { spec: ObjectSpec }) {
 
         const json = await res.json();
         if (!res.ok) {
-          setServerError(json.error ?? `Import failed (${res.status})`);
+          setServerError(json.error ?? `${mode === "update" ? "Update" : "Import"} failed (${res.status})`);
           return;
         }
-        setResult(json as ImportResponse);
+        setResult(json as ImportResponse | UpdateResponse);
         setStep("done");
       } catch {
         setServerError("Could not reach the server. Check your connection and try again.");
@@ -186,6 +248,7 @@ function ImportFlow({ spec }: { spec: ObjectSpec }) {
       {step === "upload" && (
         <UploadStep
           spec={spec}
+          mode={mode}
           dragging={dragging}
           setDragging={setDragging}
           fileRef={fileRef}
@@ -217,8 +280,10 @@ function ImportFlow({ spec }: { spec: ObjectSpec }) {
       {step === "review" && sheet && (
         <div style={card}>
           <SectionTitle
-            title="Review before importing"
-            subtitle="Rows with problems are left out — everything else is imported."
+            title={mode === "update" ? "Review before updating" : "Review before importing"}
+            subtitle={mode === "update"
+              ? "Rows with problems are left out — everything else updates the matching record."
+              : "Rows with problems are left out — everything else is imported."}
           />
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
@@ -251,7 +316,9 @@ function ImportFlow({ spec }: { spec: ObjectSpec }) {
                 cursor: readyRows.length > 0 && !pending ? "pointer" : "not-allowed",
               }}
             >
-              {pending ? "Importing…" : `Import ${readyRows.length} row${readyRows.length === 1 ? "" : "s"}`}
+              {pending
+                ? (mode === "update" ? "Updating…" : "Importing…")
+                : `${mode === "update" ? "Update" : "Import"} ${readyRows.length} row${readyRows.length === 1 ? "" : "s"}`}
             </button>
             <button onClick={() => setStep("map")} style={btnGhost}>← Back to columns</button>
             {problemRows.length > 0 && (
@@ -262,7 +329,7 @@ function ImportFlow({ spec }: { spec: ObjectSpec }) {
                     buildErrorReportCsv(
                       problemRows.map((r) => ({
                         rowNum: r.rowNum,
-                        status: "not imported",
+                        status: mode === "update" ? "not updated" : "not imported",
                         reason: r.issues.filter((i) => i.severity === "error").map((i) => i.message).join("; "),
                       }))
                     )
@@ -278,7 +345,7 @@ function ImportFlow({ spec }: { spec: ObjectSpec }) {
       )}
 
       {step === "done" && result && (
-        <ResultStep spec={spec} result={result} onReset={reset} />
+        <ResultStep spec={spec} mode={mode} result={result} onReset={reset} />
       )}
     </div>
   );
@@ -311,9 +378,10 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
 }
 
 function UploadStep({
-  spec, dragging, setDragging, fileRef, onFile, parseError,
+  spec, mode, dragging, setDragging, fileRef, onFile, parseError,
 }: {
   spec: ObjectSpec;
+  mode: "import" | "update";
   dragging: boolean;
   setDragging: (v: boolean) => void;
   fileRef: React.RefObject<HTMLInputElement | null>;
@@ -324,24 +392,39 @@ function UploadStep({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={card}>
-        <SectionTitle
-          title="Start from the template"
-          subtitle="Pre-filled with example rows and every column this import understands. Replace the examples with your data."
-        />
-        {required.length > 0 && (
-          <div style={{ ...banner(tone.warn), marginBottom: 14 }}>
-            <strong>Required:</strong>{" "}
-            {required.map((f) => f.label).join(", ")}. Everything else is optional.
-          </div>
-        )}
-        <button
-          onClick={() => downloadCsv(`bpmsquare_${spec.id}_template.csv`, buildTemplateCsv(spec))}
-          style={btn()}
-        >
-          ↓ Download {spec.label} template
-        </button>
-      </div>
+      {mode === "update" ? (
+        <div style={card}>
+          <SectionTitle
+            title="Use a file you exported"
+            subtitle="Update matches rows by Record ID, so it needs a file that already has that column — go to Export, download a CSV, edit the values you want to change, then upload it here."
+          />
+          {required.length > 0 && (
+            <div style={banner(tone.warn)}>
+              <strong>Required:</strong>{" "}
+              {required.map((f) => f.label).join(", ")}. Everything else is left unchanged unless you map it.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={card}>
+          <SectionTitle
+            title="Start from the template"
+            subtitle="Pre-filled with example rows and every column this import understands. Replace the examples with your data."
+          />
+          {required.length > 0 && (
+            <div style={{ ...banner(tone.warn), marginBottom: 14 }}>
+              <strong>Required:</strong>{" "}
+              {required.map((f) => f.label).join(", ")}. Everything else is optional.
+            </div>
+          )}
+          <button
+            onClick={() => downloadCsv(`bpmsquare_${spec.id}_template.csv`, buildTemplateCsv(spec))}
+            style={btn()}
+          >
+            ↓ Download {spec.label} template
+          </button>
+        </div>
+      )}
 
       <div style={card}>
         <SectionTitle
@@ -457,26 +540,29 @@ function ReviewTable({
 }
 
 function ResultStep({
-  spec, result, onReset,
+  spec, mode, result, onReset,
 }: {
   spec: ObjectSpec;
-  result: ImportResponse;
+  mode: "import" | "update";
+  result: ImportResponse | UpdateResponse;
   onReset: () => void;
 }) {
-  const problems = result.outcomes.filter((o) => o.status !== "inserted");
+  const doneCount = mode === "update" ? (result as UpdateResponse).updated : (result as ImportResponse).inserted;
+  const doneLabel = mode === "update" ? "updated" : "imported";
+  const problems = result.outcomes.filter((o) => o.status !== "inserted" && o.status !== "updated");
   const allGood = result.failed === 0 && result.skipped === 0;
 
   return (
     <div style={card}>
       <div style={{ ...banner(result.failed > 0 ? tone.warn : tone.ok), marginBottom: problems.length ? 16 : 0 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
-          {allGood ? "✓ Import complete" : "Import finished"}
+          {allGood ? `✓ ${mode === "update" ? "Update" : "Import"} complete` : `${mode === "update" ? "Update" : "Import"} finished`}
         </div>
         <div>
-          <strong>{result.inserted}</strong> {spec.label.toLowerCase()} imported
+          <strong>{doneCount}</strong> {spec.label.toLowerCase()} {doneLabel}
           {result.skipped > 0 && <> · <strong>{result.skipped}</strong> skipped</>}
-          {result.failed > 0 && <> · <strong>{result.failed}</strong> could not be imported</>}
-          {result.inserted > 0 && result.failed > 0 && (
+          {result.failed > 0 && <> · <strong>{result.failed}</strong> could not be {doneLabel}</>}
+          {doneCount > 0 && result.failed > 0 && (
             <div style={{ marginTop: 6 }}>
               The successful rows are saved. Fix the rows below and re-upload just those.
             </div>
@@ -512,12 +598,12 @@ function ResultStep({
       )}
 
       <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-        <button onClick={onReset} style={btn()}>Import another file</button>
+        <button onClick={onReset} style={btn()}>{mode === "update" ? "Update another file" : "Import another file"}</button>
         {problems.length > 0 && (
           <button
             onClick={() =>
               downloadCsv(
-                `${spec.id}_import_report.csv`,
+                `${spec.id}_${mode}_report.csv`,
                 buildErrorReportCsv(problems.map((o) => ({ rowNum: o.rowNum, status: o.status, reason: o.reason ?? "" })))
               )
             }

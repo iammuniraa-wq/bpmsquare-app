@@ -28,6 +28,15 @@ export function downloadCsv(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
+export type ExportColumn = { key: string; label: string };
+
+/** columns should already include the leading "Record ID" column when the export is meant for re-import as an Update. */
+export function buildExportCsv(columns: ExportColumn[], rows: Record<string, string>[]): string {
+  const header = csvRow(columns.map((c) => c.label));
+  const body = rows.map((row) => csvRow(columns.map((c) => row[c.key] ?? "")));
+  return BOM + [header, ...body].join("\r\n") + "\r\n";
+}
+
 export type ErrorReportRow = { rowNum: number; status: string; reason: string };
 
 /** Lets the user fix problems in a spreadsheet rather than reading them off the screen. */

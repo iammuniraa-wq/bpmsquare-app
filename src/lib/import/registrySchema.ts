@@ -49,7 +49,7 @@ export type ReferenceFieldDef = {
   targetColumn?: "name" | "ref";
 };
 
-const REFERENCE_FIELDS: Partial<Record<ImportObjectId, ReferenceFieldDef[]>> = {
+export const REFERENCE_FIELDS: Partial<Record<ImportObjectId, ReferenceFieldDef[]>> = {
   accounts: [
     { key: "referred_by_account_name", label: "Referred by", hint: "Name of the OEM account that referred this one — only used when type is end_customer", target: "accounts" },
   ],
