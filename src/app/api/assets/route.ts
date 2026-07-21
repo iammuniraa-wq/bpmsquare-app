@@ -35,7 +35,12 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { account_id, name, kind, make, model, rating, serial, notes, is_loaner } = body;
+  const {
+    account_id, name, kind, make, model, rating, serial, notes, is_loaner,
+    rpm, frame_type, insulation_class, connection, duty, ambient_temp,
+    output_kw, stator_voltage, stator_current, excitation_voltage,
+    excitation_current, frequency, custom_data,
+  } = body;
 
   if (!name || !kind) {
     return NextResponse.json({ error: "name and kind are required" }, { status: 400 });
@@ -64,8 +69,21 @@ export async function POST(request: NextRequest) {
       rating: rating || null,
       serial: serial || null,
       notes: notes || null,
+      rpm: rpm || null,
+      frame_type: frame_type || null,
+      insulation_class: insulation_class || null,
+      connection: connection || null,
+      duty: duty || null,
+      ambient_temp: ambient_temp || null,
+      output_kw: output_kw || null,
+      stator_voltage: stator_voltage || null,
+      stator_current: stator_current || null,
+      excitation_voltage: excitation_voltage || null,
+      excitation_current: excitation_current || null,
+      frequency: frequency || null,
       is_loaner: Boolean(is_loaner),
       loaner_status: is_loaner ? "available" : null,
+      ...(custom_data && Object.keys(custom_data).length ? { custom_data } : {}),
     })
     .select("id")
     .single();

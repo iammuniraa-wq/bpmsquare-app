@@ -5,7 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
+import CreateExtraFields from "@/components/fields/CreateExtraFields";
 import Link from "next/link";
+
+const CORE_ASSET_KEYS = ["name", "kind", "make", "model", "serial", "rating", "notes", "account_id", "is_loaner"];
 
 const KINDS = [
   { value: "motor",       label: "Motor" },
@@ -41,6 +44,13 @@ export default function NewAssetPage() {
     rating: "", serial: "", notes: "",
     account_id: prefillAccountId, is_loaner: false,
   });
+  const [extra, setExtra] = useState<Record<string, unknown>>({});
+  const [customData, setCustomData] = useState<Record<string, unknown>>({});
+
+  const setExtraField = (key: string, value: unknown, kind: "standard" | "custom") => {
+    if (kind === "custom") setCustomData((d) => ({ ...d, [key]: value }));
+    else setExtra((e) => ({ ...e, [key]: value }));
+  };
 
   useEffect(() => {
     fetch("/api/accounts")
@@ -60,7 +70,7 @@ export default function NewAssetPage() {
       const res = await fetch("/api/assets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, ...extra, custom_data: customData }),
       });
       const json = await res.json();
       if (res.ok) {
@@ -137,6 +147,13 @@ export default function NewAssetPage() {
                 />
               </div>
             </div>
+
+            <CreateExtraFields
+              objectType="asset"
+              exclude={CORE_ASSET_KEYS}
+              values={{ ...form, ...extra, ...customData }}
+              onChange={setExtraField}
+            />
           </div>
 
           {/* Right — ownership + actions */}

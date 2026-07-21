@@ -13,7 +13,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ["name", "kind", "make", "model", "rating", "serial", "notes", "account_id", "custom_data"];
+  const allowed = [
+    "name", "kind", "make", "model", "rating", "serial", "notes", "account_id", "custom_data",
+    // Nameplate fields (migration 0033) — were added to FIELD_REGISTRY and shown via
+    // ObjectSections, but never added here, so inline edits silently failed to save.
+    "rpm", "frame_type", "insulation_class", "connection", "duty", "ambient_temp",
+    "output_kw", "stator_voltage", "stator_current", "excitation_voltage",
+    "excitation_current", "frequency",
+  ];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
 
