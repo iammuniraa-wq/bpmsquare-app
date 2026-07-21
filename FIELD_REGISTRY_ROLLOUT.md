@@ -299,6 +299,24 @@ asset/supplier, a **replacement of a real, working, independent system**.
 - **Migration not applied** — `page_layouts` still exists in the DB,
   just unused by the app. Harmless until run, but should be run to
   actually close this out.
+- **2026-07-21 — default visibility reverted to match the old detail page.**
+  The rewrite made every `FIELD_REGISTRY.quote` field visible by default,
+  which changed what showed on the detail page (Name, Type, PR no., PO
+  number/amount, discount/GST, Territory, Sales org all became visible —
+  none of them were before). User wanted the old per-section Adapt/drag-drop
+  gone (confirmed fine) but the old *visual layout* back. Fixed by adding
+  `hiddenByDefault: true` to those fields and reordering Identity to
+  ref/ref_no/created_at/valid_until, matching the old hardcoded row exactly.
+  They're still there — a tenant can reveal any of them via Adapt, same
+  mechanism as every other object's optional fields.
+  **Side effect worth knowing:** Data Workbench's quote import/export reads
+  the same live field-config and already excludes hidden fields from
+  templates (by design — see `registrySchema.ts`). So by default, a quote
+  import template will no longer offer columns for Type, PR no., PO
+  number/amount, Territory, or Sales org either, until a tenant unhides them
+  via Adapt. Not flagged before applying — same "hidden = not in the
+  template" rule already agreed for every other object, just calling out
+  that it now also applies to fields that used to be template-visible.
 
 ### case, work_order, invoice, purchase_order, inventory — what landed
 
