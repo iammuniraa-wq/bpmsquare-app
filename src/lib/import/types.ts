@@ -1,4 +1,7 @@
-export type ImportObjectId = "accounts" | "contacts" | "assets" | "quotes" | "users";
+export type ImportObjectId =
+  | "accounts" | "contacts" | "assets" | "suppliers" | "quotes"
+  | "cases" | "work_orders" | "invoices" | "purchase_orders" | "inventory"
+  | "users";
 
 export type FieldType =
   | "text"

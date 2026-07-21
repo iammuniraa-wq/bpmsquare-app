@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { encrypt } from "@/lib/encryption";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { buildObjectSpec } from "@/lib/import/registrySchema";
 import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
@@ -27,13 +26,13 @@ export async function POST(request: NextRequest) {
   const rows = readImportBody(await request.json());
   if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
-  const [fieldConfig, salesConfig, accounts] = await Promise.all([
-    getEffectiveFieldConfig(supabase, tenantId, "contact"),
+  const [fieldConfig, salesConfig, suppliers] = await Promise.all([
+    getEffectiveFieldConfig(supabase, tenantId, "inventory"),
     getSalesConfig(supabase, tenantId),
-    fetchAllRows<{ id: string; name: string }>(supabase, "accounts", "id, name", tenantId),
+    fetchAllRows<{ id: string; name: string }>(supabase, "suppliers", "id, name", tenantId),
   ]);
-  const spec = buildObjectSpec("contacts", fieldConfig, salesConfig);
-  const accountByName = new Map(accounts.map((a) => [nameKey(a.name), a.id]));
+  const spec = buildObjectSpec("inventory", fieldConfig, salesConfig);
+  const supplierByName = new Map(suppliers.map((s) => [nameKey(s.name), s.id]));
 
   const prepared: PreparedRow[] = [];
   const outcomes: RowOutcome[] = [];
@@ -50,14 +49,18 @@ export async function POST(request: NextRequest) {
     }
 
     const v = validated.values;
-    const accountId = accountByName.get(nameKey(v.account_name));
-    if (!accountId) {
-      outcomes.push({
-        rowNum,
-        status: "failed",
-        reason: `Account "${v.account_name}" was not found — import accounts first, or check the spelling`,
-      });
-      continue;
+
+    let supplierId: string | null = null;
+    if (v.supplier_name) {
+      supplierId = supplierByName.get(nameKey(v.supplier_name)) ?? null;
+      if (!supplierId) {
+        outcomes.push({
+          rowNum,
+          status: "failed",
+          reason: `Supplier "${v.supplier_name}" was not found — import suppliers first, or leave the column blank`,
+        });
+        continue;
+      }
     }
 
     const custom = collectCustomData(values);
@@ -66,26 +69,15 @@ export async function POST(request: NextRequest) {
       rowNum,
       record: {
         tenant_id: tenantId,
-        account_id: accountId,
         name: v.name,
-        role: v.role ?? null,
-        department: v.department ?? null,
-        phone: encrypt(v.phone ?? null),
-        phone2: encrypt(v.phone2 ?? null),
-        phone3: encrypt(v.phone3 ?? null),
-        email: encrypt(v.email ?? null),
-        email2: encrypt(v.email2 ?? null),
-        website: v.website ?? null,
-        birthday: v.birthday ?? null,
-        linkedin_url: v.linkedin_url ?? null,
-        address_line1: v.address_line1 ?? null,
-        address_line2: v.address_line2 ?? null,
-        city: v.city ?? null,
-        state: v.state ?? null,
-        postal_code: v.postal_code ?? null,
-        country: v.country ?? null,
-        territory: v.territory ?? null,
-        sales_org: v.sales_org ?? null,
+        sku: v.sku ?? null,
+        description: v.description ?? null,
+        category: v.category ?? null,
+        uom: v.uom || "Nos",
+        supplier_id: supplierId,
+        reorder_level: v.reorder_level ? Number(v.reorder_level) : null,
+        unit_cost: v.unit_cost ? Number(v.unit_cost) : null,
+        status: v.status || "active",
         notes: v.notes ?? null,
         ...(custom ? { custom_data: custom } : {}),
       },
@@ -93,5 +85,5 @@ export async function POST(request: NextRequest) {
   }
 
   if (prepared.length === 0) return NextResponse.json(summarise(outcomes));
-  return NextResponse.json(await insertRows(supabase, "contacts", prepared, outcomes));
+  return NextResponse.json(await insertRows(supabase, "inventory_items", prepared, outcomes));
 }

@@ -2,49 +2,39 @@ import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import DataWorkbenchClient from "./DataWorkbenchClient";
 import { requireTenantUser } from "@/lib/supabase-server";
-import type { CustomFieldDef } from "@/lib/constants";
+import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
+import { REGISTRY_OBJECT_TYPE, buildObjectSpec } from "@/lib/import/registrySchema";
+import { USERS_SPEC } from "@/lib/import/usersSchema";
+import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 
-type CustomFieldRow = {
-  object_type: string;
-  field_key: string;
-  field_label: string;
-  field_type: string;
-  options: string[] | null;
-};
+const OBJECT_ORDER: ImportObjectId[] = [
+  "accounts", "contacts", "assets", "suppliers", "quotes",
+  "cases", "work_orders", "invoices", "purchase_orders", "inventory",
+  "users",
+];
 
 export default async function DataWorkbenchPage() {
   const { supabase, tenantId } = await requireTenantUser();
 
-  const { data } = await supabase
-    .from("custom_fields")
-    .select("object_type, field_key, field_label, field_type, options")
-    .eq("tenant_id", tenantId)
-    .order("position")
-    .order("created_at");
+  const salesConfig = await getSalesConfig(supabase, tenantId);
 
-  const customFieldsByObject: Record<string, CustomFieldDef[]> = {};
-  for (const row of (data ?? []) as CustomFieldRow[]) {
-    const type: CustomFieldDef["type"] =
-      row.field_type === "checkbox" ? "boolean"
-      : row.field_type === "textarea" ? "text"
-      : (row.field_type as CustomFieldDef["type"]);
-
-    (customFieldsByObject[row.object_type] ??= []).push({
-      key: row.field_key,
-      label: row.field_label,
-      type,
-      ...(row.options ? { options: row.options } : {}),
-    });
-  }
+  const specs: ObjectSpec[] = await Promise.all(
+    OBJECT_ORDER.map(async (id): Promise<ObjectSpec> => {
+      const registryType = REGISTRY_OBJECT_TYPE[id];
+      if (!registryType) return USERS_SPEC;
+      const fieldConfig = await getEffectiveFieldConfig(supabase, tenantId, registryType);
+      return buildObjectSpec(id, fieldConfig, salesConfig);
+    })
+  );
 
   return (
     <>
       <TabTitle title="Data Workbench" />
       <PageHeader
         title="Data Workbench"
-        subtitle="Bring accounts, contacts, assets, quotes and users in from Excel or CSV — download a template or upload your own file, match the columns, then review before anything is saved"
+        subtitle="Bring your data in from Excel or CSV — download a template or upload your own file, match the columns, then review before anything is saved. Templates always match your current field setup."
       />
-      <DataWorkbenchClient customFieldsByObject={customFieldsByObject} />
+      <DataWorkbenchClient specs={specs} />
     </>
   );
 }

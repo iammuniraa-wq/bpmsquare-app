@@ -381,17 +381,40 @@ repeats across all five:
 Once every object exposes the same `field-config` contract, the workbench
 consumes it directly instead of a hardcoded schema:
 
-- [ ] Delete `src/lib/import/schema.ts` (the static registry built in the
+- [x] Delete `src/lib/import/schema.ts` (the static registry built in the
       earlier attempt) — replaced by live `field-config` reads
-- [ ] Templates generated from `field-config`: tenant's actual labels,
+- [x] Templates generated from `field-config`: tenant's actual labels,
       hidden fields excluded, real dropdown validation from `enumOptions` /
       `selectSource` — generic sample data, not Vikas's real company data
-- [ ] Import: chunked submission (no single giant request — see body-size
-      and duration limits noted in prior review), per-object dedupe guards
-      (accounts and users had them; contacts/assets/quotes did not),
+- [x] Import wired for all 10 objects (9 registry objects + users), via
+      `src/lib/import/registrySchema.ts` (`buildObjectSpec`) +
+      `src/app/api/import/<object>/route.ts`. Reference/lookup fields
+      (account_name, quote_ref, ...) are explicit constants in
+      `registrySchema.ts`, not part of FIELD_REGISTRY — same reasoning as
+      quote's line items (Decision A). Scope decisions made along the way:
+      - Line items (quote/invoice/PO) stay out of scope — header fields only,
+        consistent with Decision A above.
+      - Invoices/POs import as headers with `total: 0` and no lines; lines
+        are added later via the UI, same as a manually-created empty header.
+      - Work orders: no creation route existed anywhere in the app before
+        this (only list/PATCH/DELETE) — invented `WO-{YYYY}-{NNNN}` ref
+        format to match PO/invoice convention. `auth_kind`/`auth_id` are
+        quote-only for v1 (`quote_ref` required); contract-authorized work
+        orders aren't importable — confirmed with user rather than guessed.
+      - Cases: `type` was missing from `REQUIRED_KEYS` even though
+        `service_cases.type` is `not null` — fixed.
+      - Required-but-unresolvable reference values (e.g. a `quote_ref` that
+        doesn't match any quote) fail the row; a *blank* optional reference
+        is fine and resolves to null.
+- [ ] Chunked submission for very large files (no single giant request — see
+      body-size and duration limits noted in prior review); per-object
+      dedupe guards beyond what's already there (accounts/users have them
+      via existing-record + in-file maps, others rely on DB constraints);
       `import_batches` record for audit + undo
-- [ ] Export with filters, reusing `field_rules`' `ConditionNode` shape
-      rather than inventing a new filter language
+- [ ] Export with filters — simple field filters (not `field_rules`'
+      `ConditionNode` engine — decided against reusing it for export, see
+      2026-07-21 entry below)
+- [ ] Bulk delete
 - [ ] Keep from the earlier attempt (these were sound and don't depend on
       the registry): `src/lib/import/parse.ts` (RFC-4180 + xlsx parser,
       15/15 tested), `src/lib/import/server.ts` (chunked insert, DB-error
@@ -405,3 +428,11 @@ consumes it directly instead of a hardcoded schema:
 
 - 2026-07-20 — Doc created. Decided: extend all objects to pilot parity
   before resuming Data Workbench work. Starting with `asset`.
+- 2026-07-21 — All 10 objects reached pilot parity; Phase 3 (Data Workbench
+  rebuild) started. Scoping decided with user: all 9 registry objects get
+  Workbench support (users stays separate, its own static spec), bulk
+  delete is in scope, export filters are simple field filters rather than
+  the `field_rules` condition-tree engine. Sequencing: import first for all
+  10 objects, then export, then bulk delete (its own check-in — the one
+  destructive piece). Import is now done for all 10; export and bulk delete
+  remain.

@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { encrypt } from "@/lib/encryption";
-import { getObjectSpec } from "@/lib/import/schema";
+import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
+import { buildObjectSpec } from "@/lib/import/registrySchema";
 import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
 import {
   collectCustomData,
@@ -26,8 +27,12 @@ export async function POST(request: NextRequest) {
   const rows = readImportBody(await request.json());
   if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
-  const spec = getObjectSpec("accounts");
-  const existing = await fetchAllRows<{ id: string; name: string }>(supabase, "accounts", "id, name", tenantId);
+  const [fieldConfig, salesConfig, existing] = await Promise.all([
+    getEffectiveFieldConfig(supabase, tenantId, "account"),
+    getSalesConfig(supabase, tenantId),
+    fetchAllRows<{ id: string; name: string }>(supabase, "accounts", "id, name", tenantId),
+  ]);
+  const spec = buildObjectSpec("accounts", fieldConfig, salesConfig);
   const byName = new Map(existing.map((a) => [nameKey(a.name), a.id]));
 
   const prepared: PreparedRow[] = [];

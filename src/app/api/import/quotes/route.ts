@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig } from "@/lib/constants";
 import { formatQuoteRef } from "@/lib/quoteRefFormat";
-import { getObjectSpec } from "@/lib/import/schema";
+import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
+import { buildObjectSpec } from "@/lib/import/registrySchema";
 import { validateQuoteRows } from "@/lib/import/validate";
 import {
   collectCustomData,
@@ -45,12 +46,15 @@ export async function POST(request: NextRequest) {
   const rows = readImportBody(await request.json());
   if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
-  const spec = getObjectSpec("quotes");
+  const [fieldConfig, salesConfig, accounts, contacts, { data: tenantRow }] = await Promise.all([
+    getEffectiveFieldConfig(supabase, tenantId, "quote"),
+    getSalesConfig(supabase, tenantId),
+    fetchAllRows<{ id: string; name: string }>(supabase, "accounts", "id, name", tenantId),
+    fetchAllRows<{ id: string; name: string }>(supabase, "contacts", "id, name", tenantId),
+    supabase.from("tenants").select("config").eq("id", tenantId).single(),
+  ]);
+  const spec = buildObjectSpec("quotes", fieldConfig, salesConfig);
   const validated = validateQuoteRows(spec, rows);
-
-  // Custom fields are tenant-defined and absent from the static spec, so they are
-  // read from the raw payload rather than the validated (spec-filtered) values.
-  const rawByRowNum = new Map(rows.map((r) => [r.rowNum, r.values]));
 
   const outcomes: RowOutcome[] = [];
   const groups = new Map<string, Group>();
@@ -72,7 +76,7 @@ export async function POST(request: NextRequest) {
         firstRowNum: row.rowNum,
         rowNums: [],
         header: row.values,
-        customData: collectCustomData(rawByRowNum.get(row.rowNum) ?? {}),
+        customData: collectCustomData(row.values),
         lines: [],
       });
       order.push(key);
@@ -96,12 +100,6 @@ export async function POST(request: NextRequest) {
       });
     }
   }
-
-  const [accounts, contacts, { data: tenantRow }] = await Promise.all([
-    fetchAllRows<{ id: string; name: string }>(supabase, "accounts", "id, name", tenantId),
-    fetchAllRows<{ id: string; name: string }>(supabase, "contacts", "id, name", tenantId),
-    supabase.from("tenants").select("config").eq("id", tenantId).single(),
-  ]);
 
   const accountByName = new Map(accounts.map((a) => [nameKey(a.name), a.id]));
   const contactByName = new Map(contacts.map((c) => [nameKey(c.name), c.id]));

@@ -2,8 +2,6 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { c } from "@/lib/theme";
-import type { CustomFieldDef } from "@/lib/constants";
-import { IMPORT_OBJECTS, CUSTOM_FIELD_OBJECT_TYPE, getObjectSpec, withCustomFields } from "@/lib/import/schema";
 import { ImportParseError, parseImportFile } from "@/lib/import/parse";
 import { applyMapping, suggestMapping } from "@/lib/import/mapping";
 import { hasBlockingIssue, validateQuoteRows, validateRow } from "@/lib/import/validate";
@@ -28,24 +26,10 @@ const STEPS: { id: Step; label: string }[] = [
   { id: "done", label: "Result" },
 ];
 
-export default function DataWorkbenchClient({
-  customFieldsByObject = {},
-}: {
-  customFieldsByObject?: Record<string, CustomFieldDef[]>;
-}) {
-  const [activeId, setActiveId] = useState<ImportObjectId>("accounts");
+export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) {
+  const [activeId, setActiveId] = useState<ImportObjectId>(specs[0]?.id ?? "accounts");
 
-  const specs = useMemo(() => {
-    const map = {} as Record<ImportObjectId, ObjectSpec>;
-    for (const base of IMPORT_OBJECTS) {
-      const objectType = CUSTOM_FIELD_OBJECT_TYPE[base.id];
-      const defs = objectType ? customFieldsByObject[objectType] ?? [] : [];
-      map[base.id] = withCustomFields(base, defs);
-    }
-    return map;
-  }, [customFieldsByObject]);
-
-  const spec = specs[activeId];
+  const spec = specs.find((s) => s.id === activeId) ?? specs[0];
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "215px 1fr", gap: 18, alignItems: "start" }}>
@@ -53,7 +37,7 @@ export default function DataWorkbenchClient({
         <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, padding: "4px 10px 8px" }}>
           What to import
         </div>
-        {IMPORT_OBJECTS.map((obj) => {
+        {specs.map((obj) => {
           const active = obj.id === activeId;
           return (
             <button
@@ -72,7 +56,7 @@ export default function DataWorkbenchClient({
               <div>
                 <div style={{ fontSize: 13 }}>{obj.label}</div>
                 <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1, fontWeight: 400 }}>
-                  {specs[obj.id].fields.length} fields
+                  {obj.fields.length} fields
                 </div>
               </div>
             </button>
@@ -82,7 +66,11 @@ export default function DataWorkbenchClient({
         <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 12, paddingTop: 12, padding: "12px 10px 0" }}>
           <strong style={{ display: "block", marginBottom: 4, color: c.muted, fontSize: 11 }}>Import order</strong>
           <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6 }}>
-            Accounts first, then Contacts and Assets, then Quotes. Each one links to the records above it by name.
+            {spec && spec.dependsOn.length > 0 ? (
+              <>Import {spec.dependsOn.map((id) => specs.find((s) => s.id === id)?.label ?? id).join(", ")} first — {spec.label} links to {spec.dependsOn.length === 1 ? "it" : "them"} by name.</>
+            ) : (
+              <>{spec?.label ?? "This object"} has no dependencies — safe to import first.</>
+            )}
           </div>
         </div>
       </nav>

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
-import { getObjectSpec } from "@/lib/import/schema";
+import { USERS_SPEC } from "@/lib/import/usersSchema";
 import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
 import { describeDbError, readImportBody, summarise } from "@/lib/import/server";
 import type { RowOutcome } from "@/lib/import/types";
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   const rows = readImportBody(await request.json());
   if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
-  const spec = getObjectSpec("users");
+  const spec = USERS_SPEC;
   const admin = createAdminSupabase();
 
   const { data: members } = await admin
