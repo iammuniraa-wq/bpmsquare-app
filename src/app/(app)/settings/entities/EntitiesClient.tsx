@@ -12,6 +12,7 @@ import { resizeImageFile } from "@/lib/resizeImage";
 // Bounding boxes uploaded logos are downscaled to fit before upload — see resizeImage.ts.
 const LOGO_MAX = { width: 400, height: 300 };
 const PARTNER_LOGO_MAX = { width: 300, height: 150 };
+const CERT_LOGO_MAX = { width: 200, height: 100 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -243,6 +244,111 @@ function PartnerLogos({ partners, onChange }: {
   );
 }
 
+// ── CertificationLogos ───────────────────────────────────────────────────────
+
+type Cert = { name: string; logo_url?: string };
+
+function CertificationLogos({ certifications, onChange }: {
+  certifications: Cert[];
+  onChange: (c: Cert[]) => void;
+}) {
+  const addCert = () => onChange([...certifications, { name: "", logo_url: "" }]);
+  const removeCert = (i: number) => { const arr = [...certifications]; arr.splice(i, 1); onChange(arr); };
+  const updateCert = (i: number, patch: Partial<Cert>) => {
+    const arr = [...certifications];
+    arr[i] = { ...arr[i], ...patch };
+    onChange(arr);
+  };
+
+  const fileRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [uploading, setUploading] = useState<number | null>(null);
+  const [errs, setErrs] = useState<Record<number, string>>({});
+
+  async function handleCertFile(idx: number, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrs((p) => ({ ...p, [idx]: "" }));
+    setUploading(idx);
+    try {
+      const resized = await resizeImageFile(file, CERT_LOGO_MAX.width, CERT_LOGO_MAX.height);
+      const form = new FormData();
+      form.append("file", resized);
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const json = await res.json();
+      if (!res.ok) { setErrs((p) => ({ ...p, [idx]: json.error ?? "Upload failed" })); return; }
+      updateCert(idx, { logo_url: json.url });
+    } catch {
+      setErrs((p) => ({ ...p, [idx]: "Upload failed" }));
+    } finally {
+      setUploading(null);
+      const ref = fileRefs.current[idx];
+      if (ref) ref.value = "";
+    }
+  }
+
+  return (
+    <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 14, marginTop: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>Certification / accreditation logos</div>
+          <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Shown top-left of the quote letterhead (e.g. ISO, EGAC, IAF). Replaces the plain-text ISO field above once at least one is added.</div>
+        </div>
+        <button onClick={addCert} style={{ fontSize: 12, color: c.accent, background: "none", border: `1px solid ${c.accent}`, borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap" }}>
+          + Add certification
+        </button>
+      </div>
+
+      {certifications.length === 0 && (
+        <div style={{ fontSize: 12.5, color: c.hint, padding: "12px 0" }}>No certification logos added yet.</div>
+      )}
+
+      {certifications.map((cert, i) => (
+        <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12, padding: "12px", border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel2 }}>
+          {/* Logo preview + upload */}
+          <div>
+            <div style={{ width: 56, height: 36, border: `1px solid ${c.line}`, borderRadius: 6, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: 6 }}>
+              {cert.logo_url
+                ? <img src={cert.logo_url} alt={cert.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", padding: 2 }} />
+                : <span style={{ fontSize: 9, color: c.hint }}>No logo</span>
+              }
+            </div>
+            <input
+              ref={(el) => { fileRefs.current[i] = el; }}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              style={{ display: "none" }}
+              onChange={(e) => handleCertFile(i, e)}
+            />
+            <button
+              type="button"
+              onClick={() => fileRefs.current[i]?.click()}
+              disabled={uploading === i}
+              style={{ fontSize: 10.5, fontWeight: 600, padding: "4px 8px", borderRadius: 5, border: `1px solid ${c.accent}`, color: c.accent, background: "#fff", cursor: uploading === i ? "wait" : "pointer", whiteSpace: "nowrap" }}
+            >
+              {uploading === i ? "…" : cert.logo_url ? "Replace" : "Upload"}
+            </button>
+            {errs[i] && <div style={{ fontSize: 10, color: "#dc2626", marginTop: 3, maxWidth: 70 }}>{errs[i]}</div>}
+          </div>
+
+          {/* Fields */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ marginBottom: 8 }}>
+              <label style={lbl}>Certification name</label>
+              <input style={inp} value={cert.name} onChange={(e) => updateCert(i, { name: e.target.value })} placeholder="e.g. ISO 9000:2015, EGAC, IAF" />
+            </div>
+            <div>
+              <label style={lbl}>Logo URL (or upload above)</label>
+              <input style={{ ...inp, fontSize: 12 }} value={cert.logo_url ?? ""} onChange={(e) => updateCert(i, { logo_url: e.target.value })} placeholder="https://…/logo.png" />
+            </div>
+          </div>
+
+          <button onClick={() => removeCert(i)} style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 6, color: "#b91c1c", fontSize: 16, cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 16 }}>×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── EntityCard ────────────────────────────────────────────────────────────────
 
 function EntityCard({ entity, accent, onChange, onRemove, onSetDefault, isDefault }: {
@@ -388,6 +494,9 @@ export default function EntitiesClient() {
   const partners = co.partners ?? [];
   const setPartners = (p: { name: string; logo_url?: string }[]) => setCo((prev) => ({ ...prev, partners: p }));
 
+  const certifications = co.certifications ?? [];
+  const setCertifications = (cert: Cert[]) => setCo((prev) => ({ ...prev, certifications: cert }));
+
   if (loading) return <div style={{ padding: 24, color: c.muted, fontSize: 13 }}>Loading…</div>;
 
   return (
@@ -435,7 +544,7 @@ export default function EntitiesClient() {
           <Field label="GSTIN / Tax ID" value={co.gstin ?? ""} onChange={setCoProp("gstin")} placeholder="29AXXXXX0000X0XX" mono />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
-          <Field label="ISO / certification" value={co.iso ?? ""} onChange={setCoProp("iso")} placeholder="e.g. ISO 9001:2015" />
+          <Field label="ISO / certification (legacy text, fallback only)" value={co.iso ?? ""} onChange={setCoProp("iso")} placeholder="e.g. ISO 9001:2015" />
           <Field label="Footer tagline" value={co.footer_tagline ?? ""} onChange={setCoProp("footer_tagline")} placeholder="e.g. Assuring our best services as always!" />
         </div>
         <Field label="Scope of work / undertaking (header strip)" value={co.undertaking ?? ""} onChange={setCoProp("undertaking")} placeholder="e.g. Rewinding of LT | HT Large Motors, Transformers & Hydro Gensets" />
@@ -480,6 +589,9 @@ export default function EntitiesClient() {
             <PhoneRow key={i} phone={p} onChange={(v) => updatePhone(i, v)} onRemove={() => removePhone(i)} />
           ))}
         </div>
+
+        {/* Certification / accreditation logos */}
+        <CertificationLogos certifications={certifications} onChange={setCertifications} />
 
         {/* Partner logos */}
         <PartnerLogos partners={partners} onChange={setPartners} />

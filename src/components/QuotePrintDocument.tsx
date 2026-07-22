@@ -98,6 +98,7 @@ export default function QuotePrintDocument({
     logo_bg:        companyInfo.logo_bg      ?? brand.blue,
     undertaking:    companyInfo.undertaking  ?? "",
     iso:            companyInfo.iso          ?? "",
+    certifications: companyInfo.certifications ?? [],
     footer_tagline: companyInfo.footer_tagline ?? "",
     partners:       companyInfo.partners     ?? [],
     // Generic phones list; fall back to legacy fields if present
@@ -133,17 +134,27 @@ export default function QuotePrintDocument({
   return (
     <div className="doc">
 
-      {/* ── WHITE LETTERHEAD HEADER ── */}
-      <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid" }}>
+      {/* ── WHITE LETTERHEAD HEADER — fixed 55mm ── */}
+      <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid", height: "55mm", overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
-        {/* Row 1: ISO / accreditation (left) | GST (right) */}
-        <div style={{ padding: "1.5px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #dde2e8" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {co.iso && (
+        {/* Row 1: certification/accreditation logos (left) | GST (right) */}
+        <div style={{ padding: "3px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #dde2e8" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {co.certifications.length > 0 ? (
+              co.certifications.map((cert, i) =>
+                cert.logo_url ? (
+                  <img key={i} src={cert.logo_url} alt={cert.name} title={cert.name} style={{ height: 22, maxWidth: 60, objectFit: "contain" }} />
+                ) : (
+                  <span key={i} style={{ fontSize: 9, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 6px", borderRadius: 2, letterSpacing: 0.4 }}>
+                    {cert.name}
+                  </span>
+                )
+              )
+            ) : co.iso ? (
               <span style={{ fontSize: 9, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 6px", borderRadius: 2, letterSpacing: 0.4 }}>
                 {co.iso}
               </span>
-            )}
+            ) : null}
           </div>
           {co.gstin && (
             <span style={{ fontSize: 10.5, fontWeight: 700, color: "#1a2733" }}>GST No. {co.gstin}</span>
@@ -497,38 +508,38 @@ export default function QuotePrintDocument({
 
       {ext.quoteExtraSection ?? null}
 
-      {/* Footer — mirrors the PDF sample: address row · phones grid · tagline */}
-      <div style={{ background: brand.dark, borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid" }}>
+      {/* Footer — white, fixed 20mm: address row · phones grid · tagline */}
+      <div style={{ background: "#fff", borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid", height: "20mm", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
         {/* Address row */}
         {co.address && (
-          <div style={{ padding: "5px 28px 2px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: "#8aa0b8" }}>
-            <MapPin size={10} color="#8aa0b8" style={{ flexShrink: 0 }} />
+          <div style={{ padding: "3px 28px 2px", borderBottom: `1px solid ${brand.line}`, display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: "#5f6b7a" }}>
+            <MapPin size={10} color="#5f6b7a" style={{ flexShrink: 0 }} />
             <span>{co.address}</span>
-            {co.gstin && <span style={{ marginLeft: "auto", color: brand.amber, fontWeight: 600 }}>GSTIN: {co.gstin}</span>}
+            {co.gstin && <span style={{ marginLeft: "auto", color: "#b45309", fontWeight: 600 }}>GSTIN: {co.gstin}</span>}
           </div>
         )}
         {/* Phones grid row */}
         {co.phones.length > 0 && (
-          <div style={{ padding: "4px 28px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", flexWrap: "wrap", gap: "4px 28px", fontSize: 10.5 }}>
+          <div style={{ padding: "3px 28px", borderBottom: `1px solid ${brand.line}`, display: "flex", flexWrap: "wrap", gap: "3px 28px", fontSize: 10.5 }}>
             {co.phones.map((p, i) => (
               <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <span style={{ color: "#8aa0b8" }}>{p.label}</span>
-                <span style={{ color: "#b0c4d8", fontWeight: 600 }}> — {p.number}</span>
+                <span style={{ color: "#5f6b7a" }}>{p.label}</span>
+                <span style={{ color: brand.dark, fontWeight: 600 }}> — {p.number}</span>
               </span>
             ))}
             {co.phone && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <span style={{ color: "#8aa0b8" }}>Phone</span>
-                <span style={{ color: "#b0c4d8", fontWeight: 600 }}> — {co.phone}</span>
+                <span style={{ color: "#5f6b7a" }}>Phone</span>
+                <span style={{ color: brand.dark, fontWeight: 600 }}> — {co.phone}</span>
               </span>
             )}
           </div>
         )}
         {/* Tagline row */}
-        <div style={{ padding: "5px 28px", display: "flex", justifyContent: "center", alignItems: "center", fontSize: 10.5 }}>
+        <div style={{ padding: "3px 28px", display: "flex", justifyContent: "center", alignItems: "center", fontSize: 10.5 }}>
           {co.footer_tagline
-            ? <span style={{ color: brand.amber, fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
-            : <span style={{ color: "#5a7494" }}>{co.name}</span>
+            ? <span style={{ color: "#b45309", fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
+            : <span style={{ color: "#5f6b7a" }}>{co.name}</span>
           }
         </div>
       </div>

@@ -24,7 +24,11 @@ export type CompanyInfo = {
   phones?: { label: string; number: string }[];
   // Optional extras — only rendered when present
   undertaking?: string;
+  /** @deprecated Plain-text cert badge (e.g. "ISO 9001:2015"). Superseded by `certifications`
+   * (logo images) but left in place as a fallback for tenants who haven't migrated. */
   iso?: string;
+  /** Accreditation/certification logos shown in the quote letterhead header (e.g. ISO, EGAC, IAF). */
+  certifications?: { name: string; logo_url?: string }[];
   partners?: { name: string; logo_url?: string }[];
   // Tax override for print (falls back to tenants.config.tax)
   tax_label?: string;
