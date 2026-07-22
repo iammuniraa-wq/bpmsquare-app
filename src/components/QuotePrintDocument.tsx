@@ -313,11 +313,11 @@ export default function QuotePrintDocument({
           {assets.map((asset, ai) => {
             const fields = assetPrintFields
               .map((field) => {
-                const val = (asset as Record<string, unknown>)[field]
+                const raw = (asset as Record<string, unknown>)[field]
                   ?? (asset.custom_data as Record<string, unknown> | null)?.[field];
-                return val ? { field, val } : null;
+                return raw ? { field, val: String(raw) } : null;
               })
-              .filter((f): f is { field: string; val: unknown } => f !== null);
+              .filter((f): f is { field: string; val: string } => f !== null);
             const rows: (typeof fields)[] = [];
             for (let i = 0; i < fields.length; i += 3) rows.push(fields.slice(i, i + 3));
 
