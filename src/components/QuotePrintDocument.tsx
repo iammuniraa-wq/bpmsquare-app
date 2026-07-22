@@ -296,46 +296,63 @@ export default function QuotePrintDocument({
       )}
 
       {/* Equipment Details — shown when assets are linked and tenant has chosen fields.
-          breakInside:avoid lives on each asset entry, not this wrapper: with several assets,
-          treating the whole section as one atomic block forced ALL of them onto the next page
-          the moment the combined height didn't fit, stranding a large blank gap on the page
-          before it. Each entry now breaks cleanly on its own; only the section label is pinned
-          (breakAfter) to whichever entry follows it, so it never prints alone at a page bottom. */}
+          Fields render as a real <table> (3 per row), not a CSS grid: Chromium's print
+          pagination never fragments a grid/flex container internally — with
+          breakInside:avoid on the whole grid it jumps to the next page as one atomic
+          block the moment it doesn't fit, and without it, it *still* jumps as a whole
+          (grid layout just isn't fragmentation-aware here), either way stranding a big
+          blank gap on the page before it. An actual table's rows DO fragment
+          independently in print — confirmed by rendering this exact section through
+          headless Chromium — so a long equipment's fields now fill the remaining page
+          space and continue on the next page, instead of leaving it empty. Each row
+          still keeps breakInside:avoid so a field's label and value never separate. */}
       {assets.length > 0 && assetPrintFields.length > 0 && (
         <div style={{ margin: "0 0", borderBottom: `1px solid ${brand.line}` }}>
           <div style={{ padding: "7px 28px 4px", background: "#e6f1fb", breakAfter: "avoid" }}>
             <SectionLabel>Equipment details</SectionLabel>
           </div>
-          {assets.map((asset, ai) => (
-            <div key={asset.id} style={{
-              padding: "10px 28px",
-              borderTop: ai > 0 ? `1px solid ${brand.line}` : undefined,
-              breakInside: "avoid",
-            }}>
-              {assets.length > 1 && (
-                <div style={{ fontSize: 11, fontWeight: 700, color: brand.blue, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Equipment {ai + 1}
-                </div>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px 24px" }}>
-                {assetPrintFields.map((field) => {
-                  const val = (asset as Record<string, unknown>)[field]
-                    ?? (asset.custom_data as Record<string, unknown> | null)?.[field];
-                  if (!val) return null;
-                  return (
-                    <div key={field}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "#8a96a5", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
-                        {ASSET_FIELD_LABELS[field] ?? assetCustomFieldLabels[field] ?? field}
-                      </div>
-                      <div style={{ fontSize: 12.5, fontWeight: field === "name" ? 600 : 400, color: "#1a2533" }}>
-                        {String(val)}
-                      </div>
-                    </div>
-                  );
-                })}
+          {assets.map((asset, ai) => {
+            const fields = assetPrintFields
+              .map((field) => {
+                const val = (asset as Record<string, unknown>)[field]
+                  ?? (asset.custom_data as Record<string, unknown> | null)?.[field];
+                return val ? { field, val } : null;
+              })
+              .filter((f): f is { field: string; val: unknown } => f !== null);
+            const rows: (typeof fields)[] = [];
+            for (let i = 0; i < fields.length; i += 3) rows.push(fields.slice(i, i + 3));
+
+            return (
+              <div key={asset.id} style={{
+                padding: "10px 28px",
+                borderTop: ai > 0 ? `1px solid ${brand.line}` : undefined,
+              }}>
+                {assets.length > 1 && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: brand.blue, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5, breakAfter: "avoid" }}>
+                    Equipment {ai + 1}
+                  </div>
+                )}
+                <table style={{ width: "100%" }}>
+                  <tbody>
+                    {rows.map((row, ri) => (
+                      <tr key={ri} style={{ breakInside: "avoid" }}>
+                        {row.map(({ field, val }) => (
+                          <td key={field} style={{ width: "33.33%", padding: "0 24px 6px 0", verticalAlign: "top" }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: "#8a96a5", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
+                              {ASSET_FIELD_LABELS[field] ?? assetCustomFieldLabels[field] ?? field}
+                            </div>
+                            <div style={{ fontSize: 12.5, fontWeight: field === "name" ? 600 : 400, color: "#1a2533" }}>
+                              {String(val)}
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
