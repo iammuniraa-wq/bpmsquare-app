@@ -134,8 +134,8 @@ export default function QuotePrintDocument({
   return (
     <div className="doc">
 
-      {/* ── WHITE LETTERHEAD HEADER — fixed 55mm ── */}
-      <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid", height: "55mm", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      {/* ── WHITE LETTERHEAD HEADER — 55mm target, grows (never clips) for longer tenant content ── */}
+      <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid", minHeight: "55mm", display: "flex", flexDirection: "column" }}>
 
         {/* Row 1: certification/accreditation logos stacked directly above GST, both right-aligned
             near the logo — mirrors the physical Vikas Pioneers letterhead (ISO text + EGAC + IAF
@@ -295,16 +295,22 @@ export default function QuotePrintDocument({
         </div>
       )}
 
-      {/* Equipment Details — shown when assets are linked and tenant has chosen fields */}
+      {/* Equipment Details — shown when assets are linked and tenant has chosen fields.
+          breakInside:avoid lives on each asset entry, not this wrapper: with several assets,
+          treating the whole section as one atomic block forced ALL of them onto the next page
+          the moment the combined height didn't fit, stranding a large blank gap on the page
+          before it. Each entry now breaks cleanly on its own; only the section label is pinned
+          (breakAfter) to whichever entry follows it, so it never prints alone at a page bottom. */}
       {assets.length > 0 && assetPrintFields.length > 0 && (
-        <div style={{ margin: "0 0", borderBottom: `1px solid ${brand.line}`, breakInside: "avoid" }}>
-          <div style={{ padding: "7px 28px 4px", background: "#e6f1fb" }}>
+        <div style={{ margin: "0 0", borderBottom: `1px solid ${brand.line}` }}>
+          <div style={{ padding: "7px 28px 4px", background: "#e6f1fb", breakAfter: "avoid" }}>
             <SectionLabel>Equipment details</SectionLabel>
           </div>
           {assets.map((asset, ai) => (
             <div key={asset.id} style={{
               padding: "10px 28px",
               borderTop: ai > 0 ? `1px solid ${brand.line}` : undefined,
+              breakInside: "avoid",
             }}>
               {assets.length > 1 && (
                 <div style={{ fontSize: 11, fontWeight: 700, color: brand.blue, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -514,8 +520,13 @@ export default function QuotePrintDocument({
 
       {ext.quoteExtraSection ?? null}
 
-      {/* Footer — white, fixed 10mm: address+GSTIN row · phones+tagline row */}
-      <div style={{ background: "#fff", borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid", height: "10mm", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      {/* Footer — white, 10mm target: address+GSTIN row · phones+tagline row.
+          minHeight (not a fixed height+overflow:hidden box) so it grows instead of silently
+          clipping when a tenant has a long address or several phone numbers — a fixed-size
+          flex column here previously either cut text off mid-word or, worse, visually collided
+          with the block above it when print pagination ran out of room for it. flexWrap on the
+          phones row means an overflowing list drops to a second line instead of either. */}
+      <div style={{ background: "#fff", borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid", minHeight: "10mm", display: "flex", flexDirection: "column", justifyContent: "center" }}>
         {/* Row 1: address (left) + GSTIN (right) */}
         {co.address && (
           <div style={{ padding: "1.5px 28px", borderBottom: `1px solid ${brand.line}`, display: "flex", alignItems: "center", gap: 6, fontSize: 9.5, color: "#5f6b7a" }}>
@@ -524,10 +535,11 @@ export default function QuotePrintDocument({
             {co.gstin && <span style={{ marginLeft: "auto", flexShrink: 0, color: "#b45309", fontWeight: 600 }}>GSTIN: {co.gstin}</span>}
           </div>
         )}
-        {/* Row 2: phones (left) + tagline/name (right) */}
-        {(co.phones.length > 0 || co.phone || co.footer_tagline || co.name) && (
-          <div style={{ padding: "1.5px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, fontSize: 9.5 }}>
-            <div style={{ display: "flex", flexWrap: "nowrap", overflow: "hidden", gap: 16 }}>
+        {/* Row 2: phones (left) + tagline (right, only when the tenant actually set one —
+            the company name doesn't need to repeat a third time and was crowding phones out) */}
+        {(co.phones.length > 0 || co.phone || co.footer_tagline) && (
+          <div style={{ padding: "1.5px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, rowGap: 2, flexWrap: "wrap", fontSize: 9.5 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 16px" }}>
               {co.phones.map((p, i) => (
                 <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
                   <span style={{ color: "#5f6b7a" }}>{p.label}</span>
@@ -541,12 +553,11 @@ export default function QuotePrintDocument({
                 </span>
               )}
             </div>
-            <div style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
-              {co.footer_tagline
-                ? <span style={{ color: "#b45309", fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
-                : <span style={{ color: "#5f6b7a" }}>{co.name}</span>
-              }
-            </div>
+            {co.footer_tagline && (
+              <span style={{ flexShrink: 0, whiteSpace: "nowrap", color: "#b45309", fontStyle: "italic", fontWeight: 500 }}>
+                {co.footer_tagline} ☺
+              </span>
+            )}
           </div>
         )}
       </div>
