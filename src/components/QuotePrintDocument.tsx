@@ -137,12 +137,11 @@ export default function QuotePrintDocument({
       {/* ── WHITE LETTERHEAD HEADER — 55mm target, grows (never clips) for longer tenant content ── */}
       <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid", minHeight: "55mm", display: "flex", flexDirection: "column" }}>
 
-        {/* Row 1: certification/accreditation logos stacked directly above GST, both right-aligned
-            near the logo — mirrors the physical Vikas Pioneers letterhead (ISO text + EGAC + IAF
-            badges cluster in the top-right corner, GST directly beneath them). */}
+        {/* Row 1: certification/accreditation logos stacked directly above GST, both left-aligned
+            above the company logo in the top-left corner. */}
         {(co.certifications.length > 0 || co.iso || co.gstin) && (
-          <div style={{ padding: "3px 22px", display: "flex", justifyContent: "flex-end", borderBottom: "1px solid #dde2e8" }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+          <div style={{ padding: "3px 22px", display: "flex", justifyContent: "flex-start", borderBottom: "1px solid #dde2e8" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {co.certifications.length > 0 ? (
                   co.certifications.map((cert, i) =>
