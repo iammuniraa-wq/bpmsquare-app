@@ -514,40 +514,41 @@ export default function QuotePrintDocument({
 
       {ext.quoteExtraSection ?? null}
 
-      {/* Footer — white, fixed 20mm: address row · phones grid · tagline */}
-      <div style={{ background: "#fff", borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid", height: "20mm", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        {/* Address row */}
+      {/* Footer — white, fixed 10mm: address+GSTIN row · phones+tagline row */}
+      <div style={{ background: "#fff", borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid", height: "10mm", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        {/* Row 1: address (left) + GSTIN (right) */}
         {co.address && (
-          <div style={{ padding: "3px 28px 2px", borderBottom: `1px solid ${brand.line}`, display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: "#5f6b7a" }}>
-            <MapPin size={10} color="#5f6b7a" style={{ flexShrink: 0 }} />
-            <span>{co.address}</span>
-            {co.gstin && <span style={{ marginLeft: "auto", color: "#b45309", fontWeight: 600 }}>GSTIN: {co.gstin}</span>}
+          <div style={{ padding: "1.5px 28px", borderBottom: `1px solid ${brand.line}`, display: "flex", alignItems: "center", gap: 6, fontSize: 9.5, color: "#5f6b7a" }}>
+            <MapPin size={9} color="#5f6b7a" style={{ flexShrink: 0 }} />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{co.address}</span>
+            {co.gstin && <span style={{ marginLeft: "auto", flexShrink: 0, color: "#b45309", fontWeight: 600 }}>GSTIN: {co.gstin}</span>}
           </div>
         )}
-        {/* Phones grid row */}
-        {co.phones.length > 0 && (
-          <div style={{ padding: "3px 28px", borderBottom: `1px solid ${brand.line}`, display: "flex", flexWrap: "wrap", gap: "3px 28px", fontSize: 10.5 }}>
-            {co.phones.map((p, i) => (
-              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <span style={{ color: "#5f6b7a" }}>{p.label}</span>
-                <span style={{ color: brand.dark, fontWeight: 600 }}> — {p.number}</span>
-              </span>
-            ))}
-            {co.phone && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <span style={{ color: "#5f6b7a" }}>Phone</span>
-                <span style={{ color: brand.dark, fontWeight: 600 }}> — {co.phone}</span>
-              </span>
-            )}
+        {/* Row 2: phones (left) + tagline/name (right) */}
+        {(co.phones.length > 0 || co.phone || co.footer_tagline || co.name) && (
+          <div style={{ padding: "1.5px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, fontSize: 9.5 }}>
+            <div style={{ display: "flex", flexWrap: "nowrap", overflow: "hidden", gap: 16 }}>
+              {co.phones.map((p, i) => (
+                <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                  <span style={{ color: "#5f6b7a" }}>{p.label}</span>
+                  <span style={{ color: brand.dark, fontWeight: 600 }}> — {p.number}</span>
+                </span>
+              ))}
+              {co.phone && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                  <span style={{ color: "#5f6b7a" }}>Phone</span>
+                  <span style={{ color: brand.dark, fontWeight: 600 }}> — {co.phone}</span>
+                </span>
+              )}
+            </div>
+            <div style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+              {co.footer_tagline
+                ? <span style={{ color: "#b45309", fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
+                : <span style={{ color: "#5f6b7a" }}>{co.name}</span>
+              }
+            </div>
           </div>
         )}
-        {/* Tagline row */}
-        <div style={{ padding: "3px 28px", display: "flex", justifyContent: "center", alignItems: "center", fontSize: 10.5 }}>
-          {co.footer_tagline
-            ? <span style={{ color: "#b45309", fontStyle: "italic", fontWeight: 500 }}>{co.footer_tagline} ☺</span>
-            : <span style={{ color: "#5f6b7a" }}>{co.name}</span>
-          }
-        </div>
       </div>
 
     </div>
