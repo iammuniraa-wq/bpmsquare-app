@@ -133,7 +133,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <Sidebar />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <TabBar />
-          <main style={{ flex: 1, padding: "20px 24px", overflowX: "hidden" }}>
+          {/* overflowX:auto, not hidden -- "hidden" silently clips any page whose content
+              runs wider than the viewport with no way to reach it (short of zooming the
+              browser out). "auto" degrades to a scrollbar instead. */}
+          <main style={{ flex: 1, padding: "20px 24px", overflowX: "auto" }}>
             {children}
           </main>
         </div>

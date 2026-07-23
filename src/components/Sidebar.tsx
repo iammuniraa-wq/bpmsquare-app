@@ -15,6 +15,7 @@ import { createBrowserSupabase } from "@/lib/supabase-browser";
 // ── Nav order persistence ─────────────────────────────────────────────────────
 
 const NAV_STATE_KEY = "vevey_nav_state_v2";
+const SIDEBAR_COLLAPSED_KEY = "vevey_sidebar_collapsed_v1";
 
 type NavState = {
   favs: string[];
@@ -196,9 +197,32 @@ function DraggableSection({
   );
 }
 
+// ── Icon-only rail row (collapsed sidebar) ─────────────────────────────────────
+
+function IconRailItem({ item, active, accent, onNavigate }: {
+  item: FlatItem; active: boolean; accent: string; onNavigate?: () => void;
+}) {
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      title={item.label}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        width: 36, height: 36, margin: "0 auto 4px", borderRadius: 8,
+        color: active ? "#fff" : "#aebccd",
+        background: active ? accent : "transparent",
+        textDecoration: "none", fontSize: 15,
+      }}
+    >
+      {item.icon}
+    </Link>
+  );
+}
+
 // ── Main sidebar ──────────────────────────────────────────────────────────────
 
-function UserFooter({ accent }: { accent: string }) {
+function UserFooter({ accent, collapsed }: { accent: string; collapsed?: boolean }) {
   const [email, setEmail] = useState<string | null>(null);
   const router = useRouter();
 
@@ -221,9 +245,9 @@ function UserFooter({ accent }: { accent: string }) {
     <div style={{
       borderBottom: "1px solid rgba(255,255,255,.07)",
       paddingBottom: 10, marginBottom: 10,
-      display: "flex", alignItems: "center", gap: 8,
+      display: "flex", flexDirection: collapsed ? "column" : "row", alignItems: "center", gap: 8,
     }}>
-      <div style={{
+      <div title={email} style={{
         width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
         background: accent, color: "#fff",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -231,14 +255,16 @@ function UserFooter({ accent }: { accent: string }) {
       }}>
         {initials}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: 11, color: "#8aa0b8",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>
-          {email}
+      {!collapsed && (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 11, color: "#8aa0b8",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {email}
+          </div>
         </div>
-      </div>
+      )}
       <button
         onClick={signOut}
         title="Sign out"
@@ -259,6 +285,22 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { settings } = useSettings();
   const tenant = useTenant();
+
+  // Per-browser preference to fully collapse the sidebar to an icon-only rail,
+  // separate from the tenant-wide "compact" width setting (which just narrows it
+  // while keeping labels). Read from localStorage after mount only, to avoid an
+  // SSR/client hydration mismatch -- the server always renders expanded.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1"); } catch {}
+  }, []);
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0"); } catch {}
+      return next;
+    });
+  };
 
   const features   = tenant?.features as Record<string, boolean> | undefined;
   const appearance = tenant?.config?.appearance;
@@ -315,10 +357,10 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <aside style={{
-      width: compact ? 210 : 236,
+      width: collapsed ? 56 : compact ? 210 : 236,
       background: g.sidebar,
       flexShrink: 0,
-      padding: "16px 12px",
+      padding: collapsed ? "16px 8px" : "16px 12px",
       color: "#aebccd",
       minHeight: "100vh",
       display: "flex",
@@ -326,37 +368,90 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       transition: "width 0.2s",
     }}>
 
-      {/* Logo */}
+      {/* Logo + collapse toggle */}
       <div style={{
         display: "flex", alignItems: "center", gap: 9,
+        justifyContent: collapsed ? "center" : "space-between",
         padding: "4px 6px 14px",
         borderBottom: "1px solid rgba(255,255,255,.08)",
         marginBottom: 12,
       }}>
-        {tenant?.logo_url ? (
-          <img
-            src={tenant.logo_url}
-            alt={tenant.name}
-            style={{ width: 34, height: 34, borderRadius: 8, objectFit: "contain", flexShrink: 0 }}
-          />
-        ) : (
-          <Logo size={34} />
-        )}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, color: "#fff", fontSize: 14 }}>
-            {tenant?.name ?? <span>Vevey<span style={{ color: "#7fb4ec" }}>CRM</span></span>}
-          </div>
-          <div style={{
-            fontSize: 11, color: "#8aa0b8",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            {tenant ? "workspace" : settings.workspaceName}
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+          {tenant?.logo_url ? (
+            <img
+              src={tenant.logo_url}
+              alt={tenant.name}
+              style={{ width: 34, height: 34, borderRadius: 8, objectFit: "contain", flexShrink: 0 }}
+            />
+          ) : (
+            <Logo size={34} />
+          )}
+          {!collapsed && (
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600, color: "#fff", fontSize: 14 }}>
+                {tenant?.name ?? <span>Vevey<span style={{ color: "#7fb4ec" }}>CRM</span></span>}
+              </div>
+              <div style={{
+                fontSize: 11, color: "#8aa0b8",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {tenant ? "workspace" : settings.workspaceName}
+              </div>
+            </div>
+          )}
         </div>
+        {!collapsed && (
+          <button
+            onClick={toggleCollapsed}
+            title="Collapse sidebar"
+            style={{
+              flexShrink: 0, width: 22, height: 22, borderRadius: 6,
+              background: "rgba(255,255,255,.06)", border: "none",
+              color: "#8aa0b8", cursor: "pointer", fontSize: 11, lineHeight: 1,
+            }}
+          >
+            ◀
+          </button>
+        )}
       </div>
 
-      <UserFooter accent={accent} />
+      {collapsed && (
+        <button
+          onClick={toggleCollapsed}
+          title="Expand sidebar"
+          style={{
+            width: 32, height: 22, borderRadius: 6, margin: "-6px auto 10px",
+            background: "rgba(255,255,255,.06)", border: "none",
+            color: "#8aa0b8", cursor: "pointer", fontSize: 11, lineHeight: 1,
+          }}
+        >
+          ▶
+        </button>
+      )}
 
+      <UserFooter accent={accent} collapsed={collapsed} />
+
+      {collapsed ? (
+        <nav style={{ overflowY: "auto" }}>
+          {[...favItems, ...restItems].map((item) => (
+            <IconRailItem key={item.href} item={item} active={isActive(item.href)} accent={accent} onNavigate={onNavigate} />
+          ))}
+          <div style={{ borderTop: "1px solid rgba(255,255,255,.08)", margin: "8px 4px" }} />
+          <Link
+            href={ROUTES.settings}
+            onClick={onNavigate}
+            title="Settings"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: 36, height: 36, margin: "0 auto", borderRadius: 8,
+              background: isActive(ROUTES.settings) ? accent : "transparent",
+              textDecoration: "none",
+            }}
+          >
+            <Gear size={14} color={isActive(ROUTES.settings) ? "#fff" : "#9db3c4"} />
+          </Link>
+        </nav>
+      ) : (
       <nav>
         {/* Favourites */}
         <div style={{
@@ -428,6 +523,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </button>
         </div>
       </nav>
+      )}
     </aside>
   );
 }
