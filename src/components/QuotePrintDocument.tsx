@@ -137,32 +137,29 @@ export default function QuotePrintDocument({
       {/* ── WHITE LETTERHEAD HEADER — 55mm target, grows (never clips) for longer tenant content ── */}
       <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid", minHeight: "55mm", display: "flex", flexDirection: "column" }}>
 
-        {/* Row 1: certification/accreditation logos stacked directly above GST, both left-aligned
-            above the company logo in the top-left corner. */}
+        {/* Row 1: certification/accreditation logos top-left, GST on the same line, right-aligned. */}
         {(co.certifications.length > 0 || co.iso || co.gstin) && (
-          <div style={{ padding: "3px 22px", display: "flex", justifyContent: "flex-start", borderBottom: "1px solid #dde2e8" }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {co.certifications.length > 0 ? (
-                  co.certifications.map((cert, i) =>
-                    cert.logo_url ? (
-                      <img key={i} src={cert.logo_url} alt={cert.name} title={cert.name} style={{ height: 22, maxWidth: 60, objectFit: "contain" }} />
-                    ) : (
-                      <span key={i} style={{ fontSize: 9, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 6px", borderRadius: 2, letterSpacing: 0.4 }}>
-                        {cert.name}
-                      </span>
-                    )
+          <div style={{ padding: "2px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottom: "1px solid #dde2e8" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {co.certifications.length > 0 ? (
+                co.certifications.map((cert, i) =>
+                  cert.logo_url ? (
+                    <img key={i} src={cert.logo_url} alt={cert.name} title={cert.name} style={{ height: 18, maxWidth: 52, objectFit: "contain" }} />
+                  ) : (
+                    <span key={i} style={{ fontSize: 8.5, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 5px", borderRadius: 2, letterSpacing: 0.4 }}>
+                      {cert.name}
+                    </span>
                   )
-                ) : co.iso ? (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 6px", borderRadius: 2, letterSpacing: 0.4 }}>
-                    {co.iso}
-                  </span>
-                ) : null}
-              </div>
-              {co.gstin && (
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: "#1a2733" }}>GST No. {co.gstin}</span>
-              )}
+                )
+              ) : co.iso ? (
+                <span style={{ fontSize: 8.5, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 5px", borderRadius: 2, letterSpacing: 0.4 }}>
+                  {co.iso}
+                </span>
+              ) : null}
             </div>
+            {co.gstin && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#1a2733", flexShrink: 0 }}>GST No. {co.gstin}</span>
+            )}
           </div>
         )}
 
