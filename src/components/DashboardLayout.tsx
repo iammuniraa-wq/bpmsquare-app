@@ -118,6 +118,21 @@ const daysSince = (iso: string) => Math.floor((Date.now() - new Date(iso).getTim
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
+// ── "Ledger" visual identity — dashboard-local, not the shared theme ────────────
+// A forest-teal accent + serif numerals for money figures, giving the home
+// dashboard a financial-statement feel. Scoped to this file (not theme.ts) so
+// it doesn't change accent colours anywhere else in the app -- other pages keep
+// c.accent/pillar as before.
+const ledger = {
+  accent: "#0f6b5c",
+  accentSoft: "#e4efec",
+  line: "#d8dee6",
+};
+const serifNum: React.CSSProperties = {
+  fontFamily: 'Georgia, "Iowan Old Style", "Times New Roman", serif',
+  fontVariantNumeric: "tabular-nums",
+};
+
 // ── Mini analytics chart primitives ──────────────────────────────────────────
 
 function MiniHBar({ rows, colorFn }: {
@@ -208,7 +223,7 @@ function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: numb
     <div style={{ display: "flex", alignItems: "flex-end", gap: 18, height }}>
       {bars.map((b, i) => (
         <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: 1 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: c.ink }}>{inr(b.value)}</div>
+          <div style={{ ...serifNum, fontSize: 11, fontWeight: 700, color: c.ink }}>{inr(b.value)}</div>
           <div style={{ width: "100%", maxWidth: 46, height: Math.max(4, (b.value / max) * (height - 34)), background: b.color, borderRadius: "5px 5px 2px 2px" }} />
           <div style={{ fontSize: 10, color: c.hint, textAlign: "center" }}>{b.label}</div>
         </div>
@@ -539,28 +554,70 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   // ── Block renderers ────────────────────────────────────────────────────────
 
   function renderOverviewStrip() {
+    const tiles: { label: string; href?: string; content: React.ReactNode }[] = [
+      {
+        label: "Open pipeline",
+        href: ROUTES.quotations,
+        content: (
+          <>
+            <div style={{ ...serifNum, fontSize: 25, fontWeight: 700, color: ledger.accent, lineHeight: 1 }}>{inr(kpis.openQuoteValue)}</div>
+            <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{kpis.awaitingApproval} awaiting response</div>
+          </>
+        ),
+      },
+      {
+        label: "Case resolution",
+        href: ROUTES.cases,
+        content: (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <ProgressRing pct={resolutionRate} color={ledger.accent} size={42} stroke={5} />
+            <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.3 }}>{resolvedCases} of {totalCases}<br />resolved</div>
+          </div>
+        ),
+      },
+      {
+        label: "Overdue",
+        content: (
+          <>
+            <div style={{ ...serifNum, fontSize: 25, fontWeight: 700, color: overdueItems.length > 0 ? "#b5451f" : ledger.accent, lineHeight: 1 }}>{overdueItems.length}</div>
+            <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{overdueItems.length > 0 ? "need attention" : "all caught up"}</div>
+          </>
+        ),
+      },
+      {
+        label: "Active work orders",
+        href: ROUTES.workOrders,
+        content: (
+          <>
+            <div style={{ ...serifNum, fontSize: 25, fontWeight: 700, color: ledger.accent, lineHeight: 1 }}>{kpis.activeWorkOrders}</div>
+            <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{kpis.inRepair} in repair</div>
+          </>
+        ),
+      },
+    ];
     return (
-      <section style={{ ...cardStyle, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "4px 14px", borderRight: `1px solid ${c.line}` }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>Case resolution</div>
-          <ProgressRing pct={resolutionRate} color={pillar.blue.base} />
+      <section style={{ ...cardStyle, padding: 14 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {tiles.map((t) => {
+            const box = (
+              <div style={{ padding: "13px 16px", borderRadius: 8, border: `1px solid ${ledger.line}`, background: c.panel2 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>{t.label}</div>
+                {t.content}
+              </div>
+            );
+            return t.href
+              ? <Link key={t.label} href={t.href} style={{ textDecoration: "none", display: "block", flex: "1 1 150px", minWidth: 150 }}>{box}</Link>
+              : <div key={t.label} style={{ flex: "1 1 150px", minWidth: 150 }}>{box}</div>;
+          })}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 8, padding: "4px 14px", borderRight: `1px solid ${c.line}` }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>Case pipeline</div>
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${ledger.line}`, display: "flex", gap: 22, flexWrap: "wrap" }}>
           {CASE_STAGE_TILES.map((s) => (
-            <Link key={s.status} href={`${ROUTES.cases}?status=${s.status}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: c.muted }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
-                {s.label}
-              </span>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>{caseStatusCount(s.status)}</span>
+            <Link key={s.status} href={`${ROUTES.cases}?status=${s.status}`} style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 11.5, color: c.muted }}>{s.label}</span>
+              <span style={{ ...serifNum, fontSize: 12, fontWeight: 700, color: c.ink }}>{caseStatusCount(s.status)}</span>
             </Link>
           ))}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 6, padding: "4px 14px" }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>Open pipeline</div>
-          <Link href={ROUTES.quotations} style={{ fontSize: 22, fontWeight: 800, color: c.ink, textDecoration: "none" }}>{inr(kpis.openQuoteValue)}</Link>
-          <div style={{ fontSize: 10.5, color: c.hint }}>{kpis.awaitingApproval} awaiting response</div>
         </div>
       </section>
     );
@@ -571,11 +628,11 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <section style={cardStyle}>
         <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Revenue</div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 }}>
-          <span style={{ fontSize: 24, fontWeight: 800, color: c.ink }}>{inr(revenueValue)}</span>
+          <span style={{ ...serifNum, fontSize: 25, fontWeight: 700, color: ledger.accent }}>{inr(revenueValue)}</span>
           {revenueTarget > 0 && <span style={{ fontSize: 12, color: c.hint }}>of {inr(revenueTarget)} pipeline</span>}
         </div>
-        <div style={{ height: 8, background: c.line, borderRadius: 4, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${Math.min(100, revenuePct)}%`, background: revenuePct >= 100 ? pillar.green.base : pillar.blue.base, borderRadius: 4 }} />
+        <div style={{ height: 6, background: ledger.accentSoft, borderRadius: 3, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${Math.min(100, revenuePct)}%`, background: ledger.accent, borderRadius: 3 }} />
         </div>
         <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{revenuePct}% of open pipeline invoiced</div>
       </section>
@@ -589,12 +646,12 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <section style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>Invoiced vs paid</div>
-          <Link href={ROUTES.invoices} style={{ fontSize: 11, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All invoices →</Link>
+          <Link href={ROUTES.invoices} style={{ fontSize: 11, color: ledger.accent, textDecoration: "none", fontWeight: 600 }}>All invoices →</Link>
         </div>
         <VBarTriplet bars={[
-          { label: "Invoiced", value: invoiced, color: pillar.blue.base },
-          { label: "Paid", value: paid, color: pillar.green.base },
-          { label: "Outstanding", value: outstanding, color: outstanding > 0 ? pillar.amber.base : c.line },
+          { label: "Invoiced", value: invoiced, color: ledger.line },
+          { label: "Paid", value: paid, color: ledger.accent },
+          { label: "Outstanding", value: outstanding, color: outstanding > 0 ? "#b5451f" : ledger.line },
         ]} />
       </section>
     );
@@ -603,10 +660,10 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   function renderOverdueTasks() {
     return (
       <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px 10px", borderBottom: `1px solid ${c.line}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px 10px", borderBottom: `1px solid ${ledger.line}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 24, height: 24, borderRadius: 6, background: overdueItems.length > 0 ? pillar.amber.bg : pillar.green.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {overdueItems.length > 0 ? <AlertTriangle size={12} color={pillar.amber.base} /> : <CheckIcon size={12} color={pillar.green.base} />}
+            <div style={{ width: 24, height: 24, borderRadius: 6, background: overdueItems.length > 0 ? "#fbeee7" : ledger.accentSoft, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {overdueItems.length > 0 ? <AlertTriangle size={12} color="#b5451f" /> : <CheckIcon size={12} color={ledger.accent} />}
             </div>
             <span style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Overdue tasks</span>
           </div>
@@ -616,18 +673,18 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: c.panel2 }}>
-                <th style={{ textAlign: "left", padding: "7px 16px", fontSize: 10.5, color: c.hint, fontWeight: 700 }}>Overdue</th>
-                <th style={{ textAlign: "left", padding: "7px 12px", fontSize: 10.5, color: c.hint, fontWeight: 700 }}>Task</th>
-                <th style={{ textAlign: "left", padding: "7px 12px", fontSize: 10.5, color: c.hint, fontWeight: 700 }}>Deadline</th>
-                <th style={{ textAlign: "left", padding: "7px 16px", fontSize: 10.5, color: c.hint, fontWeight: 700 }}>Account</th>
+              <tr>
+                <th style={{ textAlign: "left", padding: "6px 16px 8px", fontSize: 10, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${ledger.line}` }}>Overdue</th>
+                <th style={{ textAlign: "left", padding: "6px 12px 8px", fontSize: 10, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${ledger.line}` }}>Task</th>
+                <th style={{ textAlign: "left", padding: "6px 12px 8px", fontSize: 10, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${ledger.line}` }}>Deadline</th>
+                <th style={{ textAlign: "left", padding: "6px 16px 8px", fontSize: 10, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${ledger.line}` }}>Account</th>
               </tr>
             </thead>
             <tbody>
               {overdueItems.map((item) => (
-                <tr key={item.id} className="dash-row" style={{ borderTop: `1px solid ${c.line}` }}>
+                <tr key={item.id} className="dash-row" style={{ borderTop: `1px solid ${ledger.line}` }}>
                   <td style={{ padding: "9px 16px" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#dc2626" }}>{item.days} day{item.days !== 1 ? "s" : ""}</span>
+                    <span style={{ ...serifNum, fontSize: 11.5, fontWeight: 700, color: "#b5451f" }}>{item.days} day{item.days !== 1 ? "s" : ""}</span>
                   </td>
                   <td style={{ padding: "9px 12px" }}>
                     <Link href={item.href} style={{ fontSize: 12.5, color: c.ink, textDecoration: "none", fontWeight: 500 }}>{item.task}</Link>
@@ -649,9 +706,9 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <section style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>Work orders by technician</div>
-          <Link href={ROUTES.technicians} style={{ fontSize: 11, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All →</Link>
+          <Link href={ROUTES.technicians} style={{ fontSize: 11, color: ledger.accent, textDecoration: "none", fontWeight: 600 }}>All →</Link>
         </div>
-        <MiniHBar rows={techWorkload} colorFn={() => pillar.amber.base} />
+        <MiniHBar rows={techWorkload} colorFn={() => ledger.accent} />
       </section>
     );
   }
@@ -662,9 +719,9 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <section style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>Top accounts by revenue</div>
-          <Link href={ROUTES.accounts} style={{ fontSize: 11, color: c.accent, textDecoration: "none", fontWeight: 600 }}>All →</Link>
+          <Link href={ROUTES.accounts} style={{ fontSize: 11, color: ledger.accent, textDecoration: "none", fontWeight: 600 }}>All →</Link>
         </div>
-        <MiniHBar rows={analytics.topAccountsByRevenue.map((a) => ({ label: a.name, value: a.value, href: ROUTES.account(a.accountId) }))} colorFn={() => pillar.teal.base} />
+        <MiniHBar rows={analytics.topAccountsByRevenue.map((a) => ({ label: a.name, value: a.value, href: ROUTES.account(a.accountId) }))} colorFn={() => ledger.accent} />
       </section>
     );
   }
