@@ -55,6 +55,14 @@ export interface TenantExtension {
   quoteExtraSection?(ctx: QuotePrintContext): ReactNode;
 
   /**
+   * Formats the quote print "Subject:" line from the quote's short name.
+   * Standard default just echoes the name verbatim -- tenants whose business
+   * needs a fixed subject template (e.g. "Quotation for the Rewinding of X")
+   * override this instead of that wording living in the standard print doc.
+   */
+  quoteSubject?(quoteName: string): string;
+
+  /**
    * Called before an account is saved (create or update).
    * Return { ok: false, error } to block the save with a validation message.
    */

@@ -55,6 +55,7 @@ export default async function QuotePrintPage({ params }: { params: Promise<{ id:
       ext={{
         quoteSignatureSlot: ext.quoteSignatureSlot?.(ctx) ?? null,
         quoteExtraSection: ext.quoteExtraSection?.(ctx) ?? null,
+        quoteSubject: quote.name ? (ext.quoteSubject?.(quote.name) ?? quote.name) : null,
       }}
     />
   );

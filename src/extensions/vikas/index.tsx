@@ -30,6 +30,17 @@ const vikas: TenantExtension = {
     return [];
   },
 
+  // Sales reps often already type "Rewinding of ..." into the quote name
+  // themselves -- prepending the fixed prefix unconditionally produced
+  // "Quotation for the Rewinding of Rewinding Of 132KW Motor". Only add the
+  // prefix when the name doesn't already start with "rewinding".
+  quoteSubject: (name) => {
+    const trimmed = name.trim();
+    return /^rewinding\b/i.test(trimmed)
+      ? `Quotation for the ${trimmed}`
+      : `Quotation for the Rewinding of ${trimmed}`;
+  },
+
   quoteSignatureSlot: () => (
     <img
       src={VIKAS_SIGNATURE}

@@ -316,6 +316,60 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [catalogTarget, setCatalogTarget] = useState<string | null>(null);
   const [catalogCat, setCatalogCat]       = useState<PricingCategory | "" | "inventory">("");
   const [fragTarget, setFragTarget]       = useState<"notes" | "terms" | null>(null);
+  const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set());
+  const toggleDesc = (id: string) => setExpandedDescs((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  // Particulars description cell: a single-line input by default (native horizontal
+  // scroll on overflow instead of the browser's default textarea resize handle +
+  // word-wrapping into a narrow column), expandable into a full textarea when a
+  // description is long enough that the user wants to see/edit all of it at once.
+  function descCell(id: string, value: string, opts: { onCatalog: () => void; small?: boolean }) {
+    const catalogBtn = (
+      <button onClick={opts.onCatalog} style={{ marginTop: opts.small ? 3 : 4, fontSize: opts.small ? 10.5 : 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+        ◈ {opts.small ? "Catalog" : "From catalog"}
+      </button>
+    );
+    if (expandedDescs.has(id)) {
+      return (
+        <div>
+          <textarea
+            autoFocus
+            style={{ ...inp, resize: "vertical", minHeight: opts.small ? 48 : 58, lineHeight: 1.5, fontSize: opts.small ? 12.5 : undefined }}
+            value={value}
+            onChange={(e) => updateLine(id, "description", e.target.value)}
+            placeholder={opts.small ? "Line description…" : "Describe the service or item…"}
+          />
+          <div style={{ display: "flex", gap: 10, marginTop: opts.small ? 3 : 4, alignItems: "center" }}>
+            {catalogBtn}
+            <button onClick={() => toggleDesc(id)} style={{ fontSize: opts.small ? 10.5 : 11, color: c.hint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>▴ Collapse</button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div>
+        <div style={{ position: "relative" }}>
+          <input
+            style={{ ...inp, fontSize: opts.small ? 12.5 : undefined, paddingRight: 20 }}
+            value={value}
+            onChange={(e) => updateLine(id, "description", e.target.value)}
+            placeholder={opts.small ? "Line description…" : "Describe the service or item…"}
+          />
+          <button
+            onClick={() => toggleDesc(id)}
+            title="Expand to see more"
+            style={{ position: "absolute", right: 3, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: c.hint, cursor: "pointer", fontSize: 11, padding: 2, lineHeight: 1 }}
+          >
+            ▾
+          </button>
+        </div>
+        {catalogBtn}
+      </div>
+    );
+  }
   const [savedId, setSavedId]             = useState<string | null>(null);
   const [saveError, setSaveError]         = useState("");
   const [savePending, startSave]          = useTransition();
@@ -980,10 +1034,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         onChange={(e) => updateLine(row.id, "sl_no", e.target.value)}
                         placeholder="1"
                       />
-                      <div>
-                        <textarea style={{ ...inp, resize: "vertical", minHeight: 58, lineHeight: 1.5 }} value={row.description} onChange={(e) => updateLine(row.id, "description", e.target.value)} placeholder="Describe the service or item…" />
-                        <button onClick={() => openCatalog(row.id)} style={{ marginTop: 4, fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ From catalog</button>
-                      </div>
+                      {descCell(row.id, row.description, { onCatalog: () => openCatalog(row.id) })}
                       <select style={{ ...selStyle, fontSize: 12 }} value={row.uom ?? ""} onChange={(e) => updateLine(row.id, "uom", e.target.value)}>
                         <option value="">—</option>
                         {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -1079,10 +1130,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                               onChange={(e) => updateLine(item.id, "sl_no", e.target.value)}
                               placeholder="1.1"
                             />
-                            <div>
-                              <textarea style={{ ...inp, resize: "vertical", minHeight: 48, lineHeight: 1.5, fontSize: 12.5 }} value={item.description} onChange={(e) => updateLine(item.id, "description", e.target.value)} placeholder="Line description…" />
-                              <button onClick={() => openCatalog(item.id)} style={{ marginTop: 3, fontSize: 10.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>◈ Catalog</button>
-                            </div>
+                            {descCell(item.id, item.description, { onCatalog: () => openCatalog(item.id), small: true })}
                             <select style={{ ...selStyle, fontSize: 12 }} value={item.uom ?? ""} onChange={(e) => updateLine(item.id, "uom", e.target.value)}>
                               <option value="">—</option>
                               {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}

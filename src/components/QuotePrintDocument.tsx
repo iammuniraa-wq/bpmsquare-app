@@ -55,6 +55,7 @@ export type QuotePrintDocumentProps = {
   ext?: {
     quoteSignatureSlot?: ReactNode;
     quoteExtraSection?: ReactNode;
+    quoteSubject?: string | null;
   };
 };
 
@@ -225,8 +226,12 @@ export default function QuotePrintDocument({
 
       </div>
 
-      {/* Date row */}
-      <div style={{ padding: "7px 28px", display: "flex", justifyContent: "flex-end", alignItems: "center", borderBottom: `1px solid ${brand.line}`, background: "#fff", breakInside: "avoid" }}>
+      {/* Ref No | Date row -- ref_no was captured on the form ("Ref no." / "Your own
+          reference") but never rendered anywhere in the print doc. */}
+      <div style={{ padding: "7px 28px", display: "flex", justifyContent: quote.ref_no ? "space-between" : "flex-end", alignItems: "center", borderBottom: `1px solid ${brand.line}`, background: "#fff", breakInside: "avoid" }}>
+        {quote.ref_no && (
+          <span style={{ fontSize: 12.5 }}>Ref No: <strong>{quote.ref_no}</strong></span>
+        )}
         <span style={{ fontSize: 12.5 }}>Date: <strong>{fmtDate(quote.created_at)}</strong>{quote.valid_until ? <span style={{ marginLeft: 24, color: "#5f6b7a" }}>Valid until: {fmtDate(quote.valid_until)}</span> : ""}</span>
       </div>
 
@@ -268,7 +273,7 @@ export default function QuotePrintDocument({
       {quote.name && (
         <div style={{ padding: "9px 28px", borderBottom: `1px solid ${brand.line}`, breakInside: "avoid" }}>
           <div style={{ fontSize: 13, marginBottom: 4 }}>
-            <strong>Subject:</strong> Quotation for the Rewinding of {quote.name}
+            <strong>Subject:</strong> {ext.quoteSubject ?? quote.name}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700 }}>Dear Sir,</div>
           <div style={{ fontSize: 12.5, color: "#5f6b7a", marginTop: 3, lineHeight: 1.5 }}>

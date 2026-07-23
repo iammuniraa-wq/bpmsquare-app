@@ -8,6 +8,7 @@ const base: TenantExtension = {
   extraCustomFields: () => [],
   quoteSignatureSlot: () => null,
   quoteExtraSection: () => null,
+  quoteSubject: (name) => name,
   beforeSaveAccount: () => ({ ok: true }),
   beforeSaveContact: () => ({ ok: true }),
   beforeSaveAsset: () => ({ ok: true }),
