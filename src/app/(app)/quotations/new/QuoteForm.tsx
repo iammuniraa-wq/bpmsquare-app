@@ -397,6 +397,13 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     return (
       <div style={{
         display: "flex", flexDirection: "column", gap: 8,
+        // On a wide/ultra-wide monitor, an unconstrained flex row stretches the
+        // Description input edge-to-edge (looks broken for a one-line field) and
+        // leaves a large dead gap in the metadata row before Amount, which is
+        // pushed all the way to the far right by marginLeft:auto. Capping the
+        // row's width keeps it comfortable at any screen size; anything narrower
+        // than the cap still uses the full available width as before.
+        maxWidth: 900,
         paddingBottom: opts.small ? 6 : 8,
         borderBottom: opts.small ? `1px solid ${c.accent}20` : `1px solid ${c.line}`,
       }}>
