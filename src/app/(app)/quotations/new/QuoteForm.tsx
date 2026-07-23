@@ -779,7 +779,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       <div style={{ display: "grid", gridTemplateColumns: "1fr 288px", gap: 14, alignItems: "start" }} className="hub-grid">
 
         {/* ── LEFT ─────────────────────────────────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* minWidth:0 overrides the grid item's default min-width:auto -- without it, the
+            Particulars table's natural content width (many fixed-px columns) refuses to
+            shrink below its own min-content size, which forces this whole "1fr" column
+            wider than the viewport on a laptop screen and drags the 288px summary sidebar
+            off-screen with it (only reachable by zooming the browser out). */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
 
           {/* Account & Contact */}
           <section style={cardStyle}>
@@ -1007,6 +1012,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               </div>
             </div>
 
+            {/* Particulars can't shrink to fit a laptop-width screen without squeezing
+                columns unreadably -- scroll horizontally instead, headers and rows together
+                so they stay aligned. */}
+            <div style={{ overflowX: "auto" }}>
             {/* Column headers */}
             <div style={{ display: "grid", gridTemplateColumns: standaloneCols, gap: 8, marginBottom: 6 }}>
               {standaloneHeaders.map((h, i) => (
@@ -1172,6 +1181,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   </div>
                 );
               })}
+            </div>
             </div>
           </section>
 
