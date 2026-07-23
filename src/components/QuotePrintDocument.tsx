@@ -134,28 +134,28 @@ export default function QuotePrintDocument({
   return (
     <div className="doc">
 
-      {/* ── WHITE LETTERHEAD HEADER — 55mm target, grows (never clips) for longer tenant content ── */}
-      <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid", minHeight: "55mm", display: "flex", flexDirection: "column" }}>
+      {/* ── WHITE LETTERHEAD HEADER — sized to its own content, no artificial floor ── */}
+      <div style={{ background: "#fff", borderBottom: `2px solid ${brand.dark}`, breakInside: "avoid", display: "flex", flexDirection: "column" }}>
 
-        {/* Row 1: certification/accreditation logos top-left, GST on the same line, right-aligned. */}
+        {/* Row 1: certification/accreditation badges top-left (ISO always shown alongside any
+            other certifications, not replaced by them), GST on the same line, right-aligned. */}
         {(co.certifications.length > 0 || co.iso || co.gstin) && (
           <div style={{ padding: "2px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottom: "1px solid #dde2e8" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {co.certifications.length > 0 ? (
-                co.certifications.map((cert, i) =>
-                  cert.logo_url ? (
-                    <img key={i} src={cert.logo_url} alt={cert.name} title={cert.name} style={{ height: 18, maxWidth: 52, objectFit: "contain" }} />
-                  ) : (
-                    <span key={i} style={{ fontSize: 8.5, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 5px", borderRadius: 2, letterSpacing: 0.4 }}>
-                      {cert.name}
-                    </span>
-                  )
-                )
-              ) : co.iso ? (
+              {co.iso && (
                 <span style={{ fontSize: 8.5, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 5px", borderRadius: 2, letterSpacing: 0.4 }}>
                   {co.iso}
                 </span>
-              ) : null}
+              )}
+              {co.certifications.map((cert, i) =>
+                cert.logo_url ? (
+                  <img key={i} src={cert.logo_url} alt={cert.name} title={cert.name} style={{ height: 18, maxWidth: 52, objectFit: "contain" }} />
+                ) : (
+                  <span key={i} style={{ fontSize: 8.5, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 5px", borderRadius: 2, letterSpacing: 0.4 }}>
+                    {cert.name}
+                  </span>
+                )
+              )}
             </div>
             {co.gstin && (
               <span style={{ fontSize: 10, fontWeight: 700, color: "#1a2733", flexShrink: 0 }}>GST No. {co.gstin}</span>
@@ -223,20 +223,6 @@ export default function QuotePrintDocument({
           </div>
         )}
 
-        {/* Row 5: Email | Web contact strip */}
-        <div style={{ borderTop: "1px solid #dde2e8", padding: "2px 22px", display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap", fontSize: 10, color: "#555", background: "#f4f5f7" }}>
-          {(co.email || co.email2) && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <Mail size={10} color="#888" />
-              {co.email}{co.email2 ? <span style={{ color: "#888" }}> | {co.email2}</span> : ""}
-            </span>
-          )}
-          {co.web && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <Globe size={10} color="#888" /> {co.web}
-            </span>
-          )}
-        </div>
       </div>
 
       {/* Date row */}
@@ -569,6 +555,26 @@ export default function QuotePrintDocument({
             {co.footer_tagline && (
               <span style={{ flexShrink: 0, whiteSpace: "nowrap", color: "#b45309", fontStyle: "italic", fontWeight: 500 }}>
                 {co.footer_tagline} ☺
+              </span>
+            )}
+          </div>
+        )}
+        {/* Row 3: email + website (moved down from the header) */}
+        {(co.email || co.email2 || co.web) && (
+          <div style={{
+            padding: "1.5px 28px",
+            borderTop: (co.address || co.phones.length > 0 || co.phone || co.footer_tagline) ? `1px solid ${brand.line}` : undefined,
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", fontSize: 9.5, color: "#5f6b7a",
+          }}>
+            {(co.email || co.email2) && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <Mail size={9} color="#5f6b7a" />
+                {co.email}{co.email2 ? <span style={{ color: "#8a96a5" }}> | {co.email2}</span> : ""}
+              </span>
+            )}
+            {co.web && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <Globe size={9} color="#5f6b7a" /> {co.web}
               </span>
             )}
           </div>
