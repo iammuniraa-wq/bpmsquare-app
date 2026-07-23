@@ -33,6 +33,11 @@ const lbl: React.CSSProperties = {
   color: c.muted, textTransform: "uppercase", letterSpacing: "0.06em",
   marginBottom: 5,
 };
+const miniLbl: React.CSSProperties = {
+  display: "block", fontSize: 9.5, fontWeight: 600,
+  color: c.hint, textTransform: "uppercase", letterSpacing: "0.04em",
+  marginBottom: 3,
+};
 const sectionTitle: React.CSSProperties = {
   fontSize: 12, fontWeight: 700, color: c.muted,
   textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 12px",
@@ -370,6 +375,111 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       </div>
     );
   }
+
+  // A line item's Sl No + Description get their own full-width row; the smaller
+  // fields (UOM, Category, Qty, Rate, Disc %, Deduction, Amount) go in a compact
+  // row underneath instead of competing with Description for width in one long
+  // spreadsheet row -- on a laptop screen next to the summary sidebar, that left
+  // Description with barely any room regardless of how the field itself behaved.
+  function lineRowFields(opts: {
+    id: string; slNo: string; description: string; uom: string;
+    category: PricingCategory | ""; qty: string; rate: string; discount: string; deduction: string;
+    onField: (field: keyof LineItem, val: string) => void;
+    onRemove: () => void; onCatalog: () => void;
+    checkbox?: { checked: boolean; onToggle: () => void };
+    small?: boolean;
+  }) {
+    const qtyN   = parseFloat(opts.qty) || 0;
+    const rateN  = parseFloat(opts.rate) || 0;
+    const discN  = Math.max(0, Math.min(100, parseFloat(opts.discount) || 0));
+    const amount = qtyN * rateN * (1 - discN / 100);
+
+    return (
+      <div style={{
+        display: "flex", flexDirection: "column", gap: 8,
+        paddingBottom: opts.small ? 6 : 8,
+        borderBottom: opts.small ? `1px solid ${c.accent}20` : `1px solid ${c.line}`,
+      }}>
+        {/* Row A: Sl No + Description */}
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          {opts.checkbox && (
+            <input
+              type="checkbox" checked={opts.checkbox.checked} onChange={opts.checkbox.onToggle}
+              style={{ marginTop: 10, width: 13, height: 13, accentColor: c.accent, cursor: "pointer", flexShrink: 0 }}
+            />
+          )}
+          <input
+            style={{ ...inp, width: 56, flexShrink: 0, textAlign: "center", fontFamily: "monospace", fontSize: 12, padding: "8px 4px" }}
+            value={opts.slNo}
+            onChange={(e) => opts.onField("sl_no", e.target.value)}
+            placeholder={opts.small ? "1.1" : "1"}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {descCell(opts.id, opts.description, { onCatalog: opts.onCatalog, small: opts.small })}
+          </div>
+          <button
+            onClick={opts.onRemove}
+            style={{ color: c.hint, background: "none", border: "none", fontSize: opts.small ? 16 : 18, cursor: "pointer", padding: "6px 0 0", lineHeight: 1, flexShrink: 0 }}
+            title="Remove line"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Row B: compact metadata -- wraps naturally instead of forcing horizontal scroll */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end", paddingLeft: opts.checkbox ? 21 : 0 }}>
+          <div style={{ width: 90 }}>
+            <span style={miniLbl}>UOM</span>
+            <select style={{ ...selStyle, fontSize: 12 }} value={opts.uom ?? ""} onChange={(e) => opts.onField("uom", e.target.value)}>
+              <option value="">—</option>
+              {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
+          <div style={{ width: 120 }}>
+            <span style={miniLbl}>Category</span>
+            <select style={{ ...selStyle, fontSize: 12 }} value={opts.category} onChange={(e) => opts.onField("category", e.target.value)}>
+              <option value="">—</option>
+              {(Object.keys(CAT_LABEL) as PricingCategory[]).map((cat) => <option key={cat} value={cat}>{CAT_LABEL[cat]}</option>)}
+            </select>
+          </div>
+          <div style={{ width: 70 }}>
+            <span style={miniLbl}>Qty</span>
+            <input style={{ ...inp, textAlign: "center" }} type="number" min="0" step="1" value={opts.qty} onChange={(e) => opts.onField("qty", e.target.value)} />
+          </div>
+          {!isTechnical && (
+            <div style={{ width: 100 }}>
+              <span style={miniLbl}>Rate (₹)</span>
+              <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={opts.rate} onChange={(e) => opts.onField("rate", e.target.value)} />
+            </div>
+          )}
+          {!isTechnical && (
+            <div style={{ width: 70 }}>
+              <span style={miniLbl}>Disc %</span>
+              <input style={{ ...inp, textAlign: "right", color: discN > 0 ? "#d97706" : c.muted }} type="number" min="0" max="100" step="0.5" value={opts.discount} onChange={(e) => opts.onField("discount", e.target.value)} placeholder="0" />
+            </div>
+          )}
+          {!isTechnical && opts.category === "material" && (
+            <div style={{ width: 100 }}>
+              <span style={miniLbl}>Deduction (₹)</span>
+              <input
+                style={{ ...inp, textAlign: "right", color: "#b91c1c" }} type="number" min="0" step="10"
+                value={opts.deduction} onChange={(e) => opts.onField("deduction", e.target.value)} placeholder="0"
+                title="Salvage / deduction credited back, subtracted once from the grand total"
+              />
+            </div>
+          )}
+          {!isTechnical && (
+            <div style={{ marginLeft: "auto", textAlign: "right" }}>
+              <span style={miniLbl}>Amount</span>
+              <div style={{ fontSize: opts.small ? 13 : 13.5, fontWeight: 600, color: c.ink }}>{fmt(amount)}</div>
+              {discN > 0 && <div style={{ fontSize: 10, color: "#d97706", marginTop: 1 }}>−{discN}%</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const [savedId, setSavedId]             = useState<string | null>(null);
   const [saveError, setSaveError]         = useState("");
   const [savePending, startSave]          = useTransition();
@@ -723,23 +833,6 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     );
   }
 
-  // ── Column template helpers ───────────────────────────────────────────────
-  // Standalone line: checkbox | sl_no | description | uom | category | qty | [rate | disc | deduction | amount] | delete
-  const standaloneCols = isTechnical
-    ? "20px 52px 1fr 58px 56px 50px 32px"
-    : "20px 52px 1fr 58px 56px 50px 100px 54px 60px 100px 32px";
-  const standaloneHeaders = isTechnical
-    ? ["", "Sl No", "Description", "UOM", "Category", "Qty", ""]
-    : ["", "Sl No", "Description", "UOM", "Category", "Qty", "Rate (₹)", "Disc %", "Deduction (₹)", "Amount", ""];
-
-  // Group item line: sl_no | description | uom | category | qty | [rate | disc | deduction | amount] | delete
-  const groupItemCols = isTechnical
-    ? "52px 1fr 58px 56px 50px 32px"
-    : "52px 1fr 58px 56px 50px 100px 54px 60px 100px 32px";
-  const groupItemHeaders = isTechnical
-    ? ["Sl No", "Description", "UOM", "Category", "Qty", ""]
-    : ["Sl No", "Description", "UOM", "Category", "Qty", "Rate (₹)", "Disc %", "Deduction (₹)", "Amount", ""];
-
   // ── Main form ─────────────────────────────────────────────────────────────
   return (
     <>
@@ -1012,61 +1105,21 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               </div>
             </div>
 
-            {/* Particulars can't shrink to fit a laptop-width screen without squeezing
-                columns unreadably -- scroll horizontally instead, headers and rows together
-                so they stay aligned. */}
-            <div style={{ overflowX: "auto" }}>
-            {/* Column headers */}
-            <div style={{ display: "grid", gridTemplateColumns: standaloneCols, gap: 8, marginBottom: 6 }}>
-              {standaloneHeaders.map((h, i) => (
-                <div key={i} style={{ fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</div>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {rows.map((row) => {
                 if (row.kind === "line") {
-                  const qty    = parseFloat(row.qty) || 0;
-                  const rate   = parseFloat(row.rate) || 0;
-                  const disc   = Math.max(0, Math.min(100, parseFloat(row.discount) || 0));
-                  const amount = qty * rate * (1 - disc / 100);
-                  const sel    = selectedIds.has(row.id);
+                  const sel = selectedIds.has(row.id);
                   return (
-                    <div key={row.id} style={{ display: "grid", gridTemplateColumns: standaloneCols, gap: 8, alignItems: "start", borderBottom: `1px solid ${c.line}`, background: sel ? c.accentbg : "transparent", borderRadius: sel ? 6 : 0, padding: sel ? "4px 6px 8px" : "0 0 8px" }}>
-                      <div style={{ paddingTop: 10 }}>
-                        <input type="checkbox" checked={sel} onChange={() => toggleSelect(row.id)} style={{ width: 13, height: 13, accentColor: c.accent, cursor: "pointer" }} />
-                      </div>
-                      {/* Sl No */}
-                      <input
-                        style={{ ...inp, textAlign: "center", fontFamily: "monospace", fontSize: 12, padding: "8px 4px" }}
-                        value={row.sl_no}
-                        onChange={(e) => updateLine(row.id, "sl_no", e.target.value)}
-                        placeholder="1"
-                      />
-                      {descCell(row.id, row.description, { onCatalog: () => openCatalog(row.id) })}
-                      <select style={{ ...selStyle, fontSize: 12 }} value={row.uom ?? ""} onChange={(e) => updateLine(row.id, "uom", e.target.value)}>
-                        <option value="">—</option>
-                        {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-                      </select>
-                      <select style={{ ...selStyle, fontSize: 12 }} value={row.category} onChange={(e) => updateLine(row.id, "category", e.target.value as PricingCategory | "")}>
-                        <option value="">—</option>
-                        {(Object.keys(CAT_LABEL) as PricingCategory[]).map((cat) => <option key={cat} value={cat}>{CAT_LABEL[cat]}</option>)}
-                      </select>
-                      <input style={{ ...inp, textAlign: "center" }} type="number" min="0" step="1" value={row.qty} onChange={(e) => updateLine(row.id, "qty", e.target.value)} />
-                      {!isTechnical && <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={row.rate} onChange={(e) => updateLine(row.id, "rate", e.target.value)} />}
-                      {!isTechnical && <input style={{ ...inp, textAlign: "right", color: disc > 0 ? "#d97706" : c.muted }} type="number" min="0" max="100" step="0.5" value={row.discount} onChange={(e) => updateLine(row.id, "discount", e.target.value)} placeholder="0" />}
-                      {!isTechnical && (
-                        row.category === "material"
-                          ? <input style={{ ...inp, textAlign: "right", color: "#b91c1c" }} type="number" min="0" step="10" value={row.deduction} onChange={(e) => updateLine(row.id, "deduction", e.target.value)} placeholder="0" title="Salvage / deduction credited back, subtracted once from the grand total" />
-                          : <div />
-                      )}
-                      {!isTechnical && (
-                        <div style={{ textAlign: "right", paddingTop: 8 }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{fmt(amount)}</div>
-                          {disc > 0 && <div style={{ fontSize: 10.5, color: "#d97706", marginTop: 1 }}>−{disc}%</div>}
-                        </div>
-                      )}
-                      <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove">×</button>
+                    <div key={row.id} style={{ background: sel ? c.accentbg : "transparent", borderRadius: sel ? 8 : 0, padding: sel ? "6px 8px" : 0 }}>
+                      {lineRowFields({
+                        id: row.id, slNo: row.sl_no, description: row.description,
+                        uom: row.uom ?? "", category: row.category, qty: row.qty, rate: row.rate,
+                        discount: row.discount, deduction: row.deduction,
+                        onField: (field, val) => updateLine(row.id, field, val),
+                        onRemove: () => removeRow(row.id),
+                        onCatalog: () => openCatalog(row.id),
+                        checkbox: { checked: sel, onToggle: () => toggleSelect(row.id) },
+                      })}
                     </div>
                   );
                 }
@@ -1116,53 +1169,20 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       />
                     </div>
 
-                    {/* Group item column headers */}
-                    <div style={{ display: "grid", gridTemplateColumns: groupItemCols, gap: 8, marginBottom: 4, paddingLeft: 4 }}>
-                      {groupItemHeaders.map((h, i) => (
-                        <div key={i} style={{ fontSize: 10, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</div>
-                      ))}
-                    </div>
-
                     {/* Group line items */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {row.items.map((item) => {
-                        const qty    = parseFloat(item.qty) || 0;
-                        const rate   = parseFloat(item.rate) || 0;
-                        const disc   = Math.max(0, Math.min(100, parseFloat(item.discount) || 0));
-                        const amount = qty * rate * (1 - disc / 100);
                         return (
-                          <div key={item.id} style={{ display: "grid", gridTemplateColumns: groupItemCols, gap: 8, alignItems: "start", paddingBottom: 6, borderBottom: `1px solid ${c.accent}20` }}>
-                            {/* Sl No */}
-                            <input
-                              style={{ ...inp, textAlign: "center", fontFamily: "monospace", fontSize: 12, padding: "6px 4px" }}
-                              value={item.sl_no}
-                              onChange={(e) => updateLine(item.id, "sl_no", e.target.value)}
-                              placeholder="1.1"
-                            />
-                            {descCell(item.id, item.description, { onCatalog: () => openCatalog(item.id), small: true })}
-                            <select style={{ ...selStyle, fontSize: 12 }} value={item.uom ?? ""} onChange={(e) => updateLine(item.id, "uom", e.target.value)}>
-                              <option value="">—</option>
-                              {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-                            </select>
-                            <select style={{ ...selStyle, fontSize: 12 }} value={item.category} onChange={(e) => updateLine(item.id, "category", e.target.value as PricingCategory | "")}>
-                              <option value="">—</option>
-                              {(Object.keys(CAT_LABEL) as PricingCategory[]).map((cat) => <option key={cat} value={cat}>{CAT_LABEL[cat]}</option>)}
-                            </select>
-                            <input style={{ ...inp, textAlign: "center", fontSize: 12.5 }} type="number" min="0" step="1" value={item.qty} onChange={(e) => updateLine(item.id, "qty", e.target.value)} />
-                            {!isTechnical && <input style={{ ...inp, textAlign: "right", fontSize: 12.5 }} type="number" min="0" step="100" value={item.rate} onChange={(e) => updateLine(item.id, "rate", e.target.value)} />}
-                            {!isTechnical && <input style={{ ...inp, textAlign: "right", fontSize: 12.5, color: disc > 0 ? "#d97706" : c.muted }} type="number" min="0" max="100" step="0.5" value={item.discount} onChange={(e) => updateLine(item.id, "discount", e.target.value)} placeholder="0" />}
-                            {!isTechnical && (
-                              item.category === "material"
-                                ? <input style={{ ...inp, textAlign: "right", fontSize: 12.5, color: "#b91c1c" }} type="number" min="0" step="10" value={item.deduction} onChange={(e) => updateLine(item.id, "deduction", e.target.value)} placeholder="0" title="Salvage / deduction credited back, subtracted once from the grand total" />
-                                : <div />
-                            )}
-                            {!isTechnical && (
-                              <div style={{ textAlign: "right", paddingTop: 8 }}>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{fmt(amount)}</div>
-                                {disc > 0 && <div style={{ fontSize: 10, color: "#d97706", marginTop: 1 }}>−{disc}%</div>}
-                              </div>
-                            )}
-                            <button onClick={() => removeLineFromGroup(row.id, item.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 16, cursor: "pointer", paddingTop: 6, lineHeight: 1 }} title="Remove line">×</button>
+                          <div key={item.id}>
+                            {lineRowFields({
+                              id: item.id, slNo: item.sl_no, description: item.description,
+                              uom: item.uom ?? "", category: item.category, qty: item.qty, rate: item.rate,
+                              discount: item.discount, deduction: item.deduction,
+                              onField: (field, val) => updateLine(item.id, field, val),
+                              onRemove: () => removeLineFromGroup(row.id, item.id),
+                              onCatalog: () => openCatalog(item.id),
+                              small: true,
+                            })}
                           </div>
                         );
                       })}
@@ -1181,7 +1201,6 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                   </div>
                 );
               })}
-            </div>
             </div>
           </section>
 
