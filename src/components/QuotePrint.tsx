@@ -29,12 +29,20 @@ export default function QuotePrint(props: Props) {
   return (
     <>
       <style>{`
+        /* Self-hosted, not a system font: @sparticuz/chromium (the headless Chromium used
+           to render the production PDF) only bundles Open Sans, which has no glyph for the
+           Indian Rupee sign -- every "₹" was silently rendering as blank. Loading the actual
+           font file over HTTP sidesteps whatever fonts happen to be installed on the render
+           host, in dev or production alike. The PDF route awaits document.fonts.ready before
+           snapshotting so this is guaranteed loaded by the time the page prints. */
+        @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+        @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
         @media print {
           @page { size: A4 portrait; margin: 12mm 15mm; }
           body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .no-print { display: none !important; }
         }
-        body { margin: 0; background: #e8ecf0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; color: #1c2733; }
+        body { margin: 0; background: #e8ecf0; font-family: "PrintSans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; color: #1c2733; }
         .doc { background: #fff; max-width: 800px; margin: 0 auto; }
         table { border-collapse: collapse; width: 100%; }
         td, th { vertical-align: top; }

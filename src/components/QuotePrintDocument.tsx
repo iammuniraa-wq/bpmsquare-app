@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { Quote, QuoteLine, QuoteRevision, Account, Contact, Site, Asset } from "@/lib/types";
 import type { CompanyInfo } from "@/lib/tenant";
 import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
@@ -132,6 +132,14 @@ export default function QuotePrintDocument({
 
   const logoIni = initials(co.name || "?");
 
+  // Company/cert/partner logos come from tenant-uploaded URLs that can go stale
+  // (deleted asset, expired link, wrong bucket permissions) -- a broken image
+  // renders as an ugly native "missing image" icon on a customer-facing PDF.
+  // Fall back to the existing text/initials treatment when a logo fails to load.
+  const [failedLogos, setFailedLogos] = useState<Set<string>>(new Set());
+  const logoFailed = (key: string) => failedLogos.has(key);
+  const markLogoFailed = (key: string) => setFailedLogos((prev) => new Set(prev).add(key));
+
   return (
     <div className="doc">
 
@@ -149,8 +157,8 @@ export default function QuotePrintDocument({
                 </span>
               )}
               {co.certifications.map((cert, i) =>
-                cert.logo_url ? (
-                  <img key={i} src={cert.logo_url} alt={cert.name} title={cert.name} style={{ height: 18, maxWidth: 52, objectFit: "contain" }} />
+                cert.logo_url && !logoFailed(`cert-${i}`) ? (
+                  <img key={i} src={cert.logo_url} alt={cert.name} title={cert.name} style={{ height: 18, maxWidth: 52, objectFit: "contain" }} onError={() => markLogoFailed(`cert-${i}`)} />
                 ) : (
                   <span key={i} style={{ fontSize: 8.5, fontWeight: 700, color: "#333", border: "1px solid #999", padding: "1px 5px", borderRadius: 2, letterSpacing: 0.4 }}>
                     {cert.name}
@@ -169,8 +177,8 @@ export default function QuotePrintDocument({
 
           {/* Left: logo + name + tagline */}
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {co.logo_url ? (
-              <img src={co.logo_url} alt={co.name} style={{ height: 48, maxWidth: 68, objectFit: "contain", flexShrink: 0 }} />
+            {co.logo_url && !logoFailed("company") ? (
+              <img src={co.logo_url} alt={co.name} style={{ height: 48, maxWidth: 68, objectFit: "contain", flexShrink: 0 }} onError={() => markLogoFailed("company")} />
             ) : (
               <div style={{ width: 48, height: 48, borderRadius: 9, flexShrink: 0, background: co.logo_bg || brand.dark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, color: "#fff" }}>
                 {logoIni}
@@ -207,8 +215,8 @@ export default function QuotePrintDocument({
             </div>
             <div style={{ padding: "2px 22px 4px", display: "flex", justifyContent: "center", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
               {co.partners.map((p, i) => (
-                p.logo_url ? (
-                  <img key={i} src={p.logo_url} alt={p.name} title={p.name} style={{ height: 26, maxWidth: 74, objectFit: "contain" }} />
+                p.logo_url && !logoFailed(`partner-${i}`) ? (
+                  <img key={i} src={p.logo_url} alt={p.name} title={p.name} style={{ height: 26, maxWidth: 74, objectFit: "contain" }} onError={() => markLogoFailed(`partner-${i}`)} />
                 ) : (
                   <span key={i} style={{ fontSize: 11, fontWeight: 800, color: "#111", letterSpacing: 0.1 }}>{p.name}</span>
                 )

@@ -30,16 +30,13 @@ const vikas: TenantExtension = {
     return [];
   },
 
-  // Sales reps often already type "Rewinding of ..." into the quote name
-  // themselves -- prepending the fixed prefix unconditionally produced
-  // "Quotation for the Rewinding of Rewinding Of 132KW Motor". Only add the
-  // prefix when the name doesn't already start with "rewinding".
-  quoteSubject: (name) => {
-    const trimmed = name.trim();
-    return /^rewinding\b/i.test(trimmed)
-      ? `Quotation for the ${trimmed}`
-      : `Quotation for the Rewinding of ${trimmed}`;
-  },
+  // Vikas does both rewinding AND overhauling work (see their own scope-of-work
+  // text: "Stator Overhaulling" / "Rotor Overhauling"), and sales reps already
+  // type a complete job description into the quote name themselves -- e.g.
+  // "Rewinding Of 132KW Motor", "Overhualing of 430KW Motor", "Repair &
+  // Overhauling of 1250KW 11KV HT Motor". A fixed "Rewinding of" prefix was
+  // both duplicating that wording and mislabeling overhaul jobs as rewinds.
+  quoteSubject: (name) => `Quotation for the ${name.trim()}`,
 
   quoteSignatureSlot: () => (
     <img

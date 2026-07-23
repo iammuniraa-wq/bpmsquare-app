@@ -52,6 +52,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Failed to render quote for PDF" }, { status: 502 });
     }
 
+    // The self-hosted PrintSans @font-face (see QuotePrint.tsx) carries the Indian
+    // Rupee glyph that @sparticuz/chromium's bundled Open Sans lacks -- but the font
+    // file loads asynchronously, same as images below, so wait for it explicitly
+    // rather than risk snapshotting before it's ready and silently falling back to
+    // a font missing the ₹ glyph.
+    await page.evaluate(async () => {
+      await Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 8000))]);
+    });
+
     // "networkidle0" only guarantees network requests finished -- it does NOT
     // guarantee images have finished decoding/painting yet. That gap was
     // silently dropping every image (company logo, tenant signature) from
