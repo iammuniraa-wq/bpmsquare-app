@@ -240,6 +240,98 @@ function MiniDonut({ slices, size = 64 }: { slices: { label: string; value: numb
   );
 }
 
+// ── "Big" chart primitives — used when a donut/funnel widget is sized Half or
+// Full, matching the richer treatment the Analytics workcenter (/reports) gives
+// the same metrics. Slice colors stay the categorical palette (identity data);
+// only chrome/typography follows the Ledger identity. ──────────────────────────
+
+function BigDonut({ segments, size = 156, r = 52, sw = 20 }: {
+  segments: { label: string; value: number; color: string; href?: string }[];
+  size?: number; r?: number; sw?: number;
+}) {
+  const cx = size / 2, cy = size / 2;
+  const circ = 2 * Math.PI * r;
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  if (!total) return null;
+  let cumDash = 0;
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ flexShrink: 0, display: "block" }}>
+      <g transform={`rotate(-90 ${cx} ${cy})`}>
+        {segments.map((seg, i) => {
+          const dash = (seg.value / total) * circ;
+          const offset = circ - cumDash;
+          cumDash += dash;
+          const el = (
+            <circle key={i} cx={cx} cy={cy} r={r} fill="none"
+              stroke={seg.color} strokeWidth={sw}
+              strokeDasharray={`${dash} ${circ - dash}`} strokeDashoffset={offset}
+              style={{ cursor: seg.href ? "pointer" : "default" }}
+            />
+          );
+          return seg.href ? <a key={i} href={seg.href}>{el}</a> : el;
+        })}
+      </g>
+      <text x={cx} y={cy - 4} textAnchor="middle" fontSize={22} fontWeight={700} fill={ledger.accent} fontFamily='Georgia, "Iowan Old Style", "Times New Roman", serif'>{total}</text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fontSize={9.5} fill={c.hint}>total</text>
+    </svg>
+  );
+}
+
+function BigDonutLegend({ items }: { items: { label: string; value: number; color: string; href?: string }[] }) {
+  const total = items.reduce((s, x) => s + x.value, 0);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
+      {items.map((item, i) => {
+        const inner = (
+          <>
+            <div style={{ width: 9, height: 9, borderRadius: 3, background: item.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: c.ink, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+            <span style={{ ...serifNum, fontSize: 12, fontWeight: 700, color: c.ink }}>{item.value}</span>
+            <span style={{ fontSize: 10.5, color: c.hint, minWidth: 32, textAlign: "right" }}>
+              {total > 0 ? `${Math.round((item.value / total) * 100)}%` : "—"}
+            </span>
+          </>
+        );
+        return item.href
+          ? <Link key={i} href={item.href} style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>{inner}</Link>
+          : <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>{inner}</div>;
+      })}
+    </div>
+  );
+}
+
+// Funnel stages are one ordered process narrowing down, not unrelated
+// categories -- a single-hue sequential ramp (light -> full accent) tells that
+// story correctly, and ties the widget to the Ledger identity.
+const FUNNEL_RAMP = ["#bfdfd7", "#7ebeae", "#3d9484", ledger.accent];
+
+function BigFunnel({ stages }: { stages: { stage: string; count: number; href?: string }[] }) {
+  const max = stages[0]?.count || 1;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      {stages.map((s, i) => {
+        const pct = Math.max(28, Math.round((s.count / max) * 100));
+        const color = FUNNEL_RAMP[i % FUNNEL_RAMP.length];
+        const bar = (
+          <div style={{
+            width: `${pct}%`, height: 36, borderRadius: 7, background: color,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "0 14px", boxSizing: "border-box",
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: i >= 2 ? "#fff" : c.ink }}>{s.stage}</span>
+            <span style={{ ...serifNum, fontSize: 15, fontWeight: 700, color: i >= 2 ? "#fff" : c.ink }}>{s.count}</span>
+          </div>
+        );
+        return (
+          <div key={s.stage} style={{ display: "flex" }}>
+            {s.href ? <Link href={s.href} style={{ width: `${pct}%`, textDecoration: "none" }}>{bar}</Link> : bar}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProgressRing({ pct, color, size = 84, stroke = 9 }: { pct: number; color: string; size?: number; stroke?: number }) {
   const clamped = Math.max(0, Math.min(100, pct));
   const r = size / 2 - stroke / 2;
@@ -306,8 +398,9 @@ function AnalyticsCard({ title, href, children }: { title: string; href: string;
 
 // ── Analytics widget renderer ─────────────────────────────────────────────────
 
-function renderWidget(id: AnalyticsMetricId, a: AnalyticsData): React.ReactNode {
+function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full"): React.ReactNode {
   const COLORS = [pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.purple.base, pillar.green.base];
+  const big = size !== "compact";
   switch (id) {
     case "accounts":        return <AnalyticsCard title="Accounts" href={ROUTES.accounts}><StatTile value={a.totals.accounts} label="Total accounts" icon={<Globe size={14} color={ledger.accent} />} href={ROUTES.accounts} /></AnalyticsCard>;
     case "contacts":        return <AnalyticsCard title="Contacts" href={ROUTES.contacts}><StatTile value={a.totals.contacts} label="Total contacts" icon={<Phone size={14} color={ledger.accent} />} href={ROUTES.contacts} /></AnalyticsCard>;
@@ -317,9 +410,27 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData): React.ReactNode 
     case "contracts":       return <AnalyticsCard title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile value={a.contractStats.activeCount} label="Active" icon={<CalendarCheck size={14} color={ledger.accent} />} href={ROUTES.amc} /><StatTile value={inr(a.contractStats.totalValue)} label="Total value" icon={<CalendarCheck size={14} color={ledger.accent} />} href={ROUTES.amc} /></div></AnalyticsCard>;
     case "leads":           return <AnalyticsCard title="Leads" href={ROUTES.leads}><StatTile value={a.totals.leads} label="Total leads" icon={<Zap size={14} color={ledger.accent} />} href={ROUTES.leads} /></AnalyticsCard>;
     case "technicians":     return <AnalyticsCard title="Technicians" href={ROUTES.technicians}><StatTile value={a.totals.technicians} label="Total technicians" icon={<Clipboard size={14} color={ledger.accent} />} href={ROUTES.technicians} /></AnalyticsCard>;
-    case "accounts_by_type": return <AnalyticsCard title="Accounts by type" href={ROUTES.accounts}><MiniDonut slices={a.accountsByType.map((x, i) => ({ label: x.label, value: x.count, color: COLORS[i % COLORS.length] }))} /></AnalyticsCard>;
-    case "lead_funnel":      return <AnalyticsCard title="Lead funnel" href={ROUTES.leads}><MiniHBar rows={a.leadFunnel.map((x) => ({ label: x.stage, value: x.count }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
-    case "assets_by_kind":   return <AnalyticsCard title="Assets by kind" href={ROUTES.assets}><MiniHBar rows={a.assetsByKind.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.assets}?kind=${x.kind}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
+    case "accounts_by_type": {
+      const segs = a.accountsByType.map((x, i) => ({ label: x.label, value: x.count, color: COLORS[i % COLORS.length], href: `${ROUTES.accounts}?type=${x.type}` }));
+      return <AnalyticsCard title="Accounts by type" href={ROUTES.accounts}>{big
+        ? <div style={{ display: "flex", alignItems: "center", gap: 22, maxWidth: 460 }}><BigDonut segments={segs} /><BigDonutLegend items={segs} /></div>
+        : <MiniDonut slices={segs} />}</AnalyticsCard>;
+    }
+    case "lead_funnel": {
+      const stages = a.leadFunnel.map((x, i) => ({
+        stage: x.stage, count: x.count,
+        href: i === 0 ? ROUTES.leads : `${ROUTES.leads}?status=${i === 3 ? "won" : i === 1 ? "inspecting" : "quoted"}`,
+      }));
+      return <AnalyticsCard title="Lead funnel" href={ROUTES.leads}>{big
+        ? <BigFunnel stages={stages} />
+        : <MiniHBar rows={a.leadFunnel.map((x) => ({ label: x.stage, value: x.count }))} colorFn={(i) => COLORS[i % COLORS.length]} />}</AnalyticsCard>;
+    }
+    case "assets_by_kind": {
+      const segs = a.assetsByKind.map((x, i) => ({ label: x.label, value: x.count, color: COLORS[i % COLORS.length], href: `${ROUTES.assets}?kind=${x.kind}` }));
+      return <AnalyticsCard title="Assets by kind" href={ROUTES.assets}>{big
+        ? <div style={{ display: "flex", alignItems: "center", gap: 22, maxWidth: 460 }}><BigDonut segments={segs} /><BigDonutLegend items={segs} /></div>
+        : <MiniHBar rows={segs} colorFn={(i) => COLORS[i % COLORS.length]} />}</AnalyticsCard>;
+    }
     case "quote_trend":      return <AnalyticsCard title="Quote pipeline" href={ROUTES.quotations}><MiniHBar rows={a.quotesByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.quotations}?status=${x.status}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
     case "case_status":      return <AnalyticsCard title="Case status" href={ROUTES.cases}><MiniHBar rows={a.casesByStatus.map((x) => ({ label: x.label, value: x.count }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
     case "work_order_status": return <AnalyticsCard title="Work order status" href={ROUTES.workOrders}><MiniHBar rows={a.workOrdersByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.workOrders}?status=${x.status}` }))} colorFn={(i) => [pillar.amber.base, pillar.blue.base, pillar.teal.base][i % 3]} /></AnalyticsCard>;
@@ -847,7 +958,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
 
   function renderMainBlock(block: DashLayoutItem) {
     if (isAnalyticsId(block.id)) {
-      return <div key={block.id}>{renderWidget(block.id, analytics)}</div>;
+      return <div key={block.id}>{renderWidget(block.id, analytics, blockSize(block))}</div>;
     }
     switch (block.id) {
       case "overview_strip": return <div key={block.id}>{renderOverviewStrip()}</div>;
