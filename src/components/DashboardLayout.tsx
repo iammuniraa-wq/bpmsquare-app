@@ -88,15 +88,26 @@ const DEFAULT_LAYOUT: DashLayoutItem[] = [
 // right for the bundle; everything else falls back to blockSize()'s default.
 type BundleBlock = { id: string; size?: "compact" | "half" | "full" };
 const BUNDLES: { id: string; label: string; feature?: keyof TenantFeatures; blocks: BundleBlock[] }[] = [
-  { id: "accounts",     label: "Accounts",      blocks: [{ id: "accounts" }, { id: "accounts_by_type" }] },
+  { id: "accounts",     label: "Accounts",      blocks: [
+    { id: "accounts" }, { id: "accounts_by_type" }, { id: "top_accounts" }, { id: "account_news" },
+  ] },
+  { id: "contacts",     label: "Contacts",      blocks: [{ id: "contacts" }] },
   { id: "quotations",   label: "Quotations",    blocks: [{ id: "quote_trend" }, { id: "revenue_card" }] },
   { id: "cases",        label: "Cases",         blocks: [{ id: "open_cases" }, { id: "case_status" }] },
-  { id: "work_orders",  label: "Work orders",   blocks: [{ id: "work_orders" }, { id: "work_order_status" }, { id: "tech_workload" }] },
-  { id: "assets",       label: "Assets",        blocks: [{ id: "assets" }, { id: "assets_by_kind" }, { id: "loaner_availability", size: "half" }] },
+  { id: "work_orders",  label: "Work orders",   blocks: [
+    { id: "work_orders" }, { id: "work_order_status" }, { id: "tech_workload" },
+  ] },
+  { id: "assets",       label: "Assets",        blocks: [
+    { id: "assets" }, { id: "assets_by_kind" }, { id: "loaner_availability", size: "half" },
+  ] },
   { id: "contracts",    label: "AMC / Contracts", feature: "amc", blocks: [{ id: "contracts", size: "half" }] },
   { id: "leads",        label: "Leads",         feature: "leads", blocks: [{ id: "leads" }, { id: "lead_funnel" }] },
-  { id: "technicians",  label: "Technicians",   blocks: [{ id: "technicians" }, { id: "technician_availability" }] },
-  { id: "invoices",     label: "Invoices",      feature: "invoices", blocks: [{ id: "invoice_budget" }, { id: "invoices_by_status" }] },
+  { id: "technicians",  label: "Technicians",   blocks: [
+    { id: "technicians" }, { id: "technician_availability" }, { id: "tech_workload" },
+  ] },
+  { id: "invoices",     label: "Invoices",      feature: "invoices", blocks: [
+    { id: "invoice_budget" }, { id: "invoices_by_status" }, { id: "revenue_overview" },
+  ] },
 ];
 
 function resolveLayout(saved: DashLayoutItem[]): DashLayoutItem[] {
