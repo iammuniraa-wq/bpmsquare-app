@@ -93,12 +93,25 @@ function isAnalyticsId(id: string): id is AnalyticsMetricId {
   return id in ANALYTICS_META;
 }
 
-// Single/dual stat-tile widgets are narrow by nature -- let them sit side by
-// side in a wrapping row instead of each claiming a full-width row of mostly
-// empty space.
+// Single/dual stat-tile widgets are narrow by nature -- default them to compact
+// so they sit side by side in a wrapping row instead of each claiming a
+// full-width row of mostly empty space. Users can still override via block.size.
 const COMPACT_ANALYTICS_IDS = new Set<AnalyticsMetricId>([
   "accounts", "contacts", "assets", "open_cases", "work_orders", "leads", "technicians",
 ]);
+
+function blockSize(block: DashLayoutItem): "compact" | "half" | "full" {
+  if (block.size) return block.size;
+  return isAnalyticsId(block.id) && COMPACT_ANALYTICS_IDS.has(block.id) ? "compact" : "full";
+}
+
+const SIZE_FLEX: Record<"compact" | "half" | "full", React.CSSProperties> = {
+  // flex-grow: 0 on compact/half so a block sitting alone on its row keeps its
+  // intended width instead of stretching to fill the empty space beside it.
+  compact: { flex: "0 1 220px", minWidth: 190 },
+  half:    { flex: "0 1 calc(50% - 7px)", minWidth: 260 },
+  full:    { flex: "1 1 100%", minWidth: 0 },
+};
 
 function blockLabel(id: string): string {
   if (id in NATIVE_META) return NATIVE_META[id].label;
@@ -336,6 +349,11 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
     onLayoutChange(next);
   }
 
+  function setSize(idx: number, size: "compact" | "half" | "full") {
+    const next = layout.map((b, i) => i === idx ? { ...b, size } : b);
+    onLayoutChange(next);
+  }
+
   function toggleAnalyticsPin(id: AnalyticsMetricId) {
     if (pinnedAnalyticsIds.has(id)) {
       onLayoutChange(layout.filter((b) => b.id !== id));
@@ -386,6 +404,8 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
           {layout.map((block, i) => {
             const label = blockLabel(block.id);
             const isOver = overIdx === i && dragIdx.current !== i;
+            const resizable = !block.hidden && !NATIVE_META[block.id]?.sidebar;
+            const currentSize = blockSize(block);
             return (
               <div
                 key={block.id}
@@ -395,34 +415,54 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
                 onDrop={() => onDrop(i)}
                 onDragEnd={onDragEnd}
                 style={{
-                  display: "flex", alignItems: "center", gap: 10,
                   padding: "9px 12px", cursor: "grab",
                   opacity: dragIdx.current === i ? 0.4 : 1,
                   borderTop: isOver ? `2px solid ${c.accent}` : "2px solid transparent",
                   transition: "border-color 0.1s, opacity 0.15s",
                 }}
               >
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, flexShrink: 0, userSelect: "none" }}>⠿</span>
-                <span style={{
-                  flex: 1, fontSize: 12, fontWeight: 500,
-                  color: block.hidden ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.85)",
-                  textDecoration: block.hidden ? "line-through" : "none",
-                }}>
-                  {label}
-                  {isAnalyticsId(block.id) && (
-                    <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.25)", marginLeft: 5 }}>analytics</span>
-                  )}
-                </span>
-                <button
-                  onClick={() => toggleHidden(i)}
-                  title={block.hidden ? "Show" : "Hide"}
-                  style={{
-                    background: "transparent", border: "none", cursor: "pointer", padding: "2px 4px",
-                    fontSize: 14, lineHeight: 1, color: block.hidden ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.65)",
-                  }}
-                >
-                  {block.hidden ? "⊘" : "◉"}
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, flexShrink: 0, userSelect: "none" }}>⠿</span>
+                  <span style={{
+                    flex: 1, fontSize: 12, fontWeight: 500,
+                    color: block.hidden ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.85)",
+                    textDecoration: block.hidden ? "line-through" : "none",
+                  }}>
+                    {label}
+                    {isAnalyticsId(block.id) && (
+                      <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.25)", marginLeft: 5 }}>analytics</span>
+                    )}
+                  </span>
+                  <button
+                    onClick={() => toggleHidden(i)}
+                    title={block.hidden ? "Show" : "Hide"}
+                    style={{
+                      background: "transparent", border: "none", cursor: "pointer", padding: "2px 4px",
+                      fontSize: 14, lineHeight: 1, color: block.hidden ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.65)",
+                    }}
+                  >
+                    {block.hidden ? "⊘" : "◉"}
+                  </button>
+                </div>
+                {resizable && (
+                  <div style={{ display: "flex", gap: 4, marginLeft: 24, marginTop: 6 }}>
+                    {(["compact", "half", "full"] as const).map((sz) => (
+                      <button
+                        key={sz}
+                        onClick={() => setSize(i, sz)}
+                        style={{
+                          fontSize: 9.5, fontWeight: 600, padding: "3px 8px", borderRadius: 5, cursor: "pointer",
+                          textTransform: "capitalize",
+                          background: currentSize === sz ? "rgba(55,138,221,0.22)" : "rgba(255,255,255,0.05)",
+                          border: `1px solid ${currentSize === sz ? "rgba(55,138,221,0.55)" : "rgba(255,255,255,0.08)"}`,
+                          color: currentSize === sz ? "#bcd9f7" : "rgba(255,255,255,0.4)",
+                        }}
+                      >
+                        {sz === "compact" ? "Small" : sz}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -806,14 +846,11 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       {/* Two-column layout */}
       <div className="dash-outer" style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 14, alignItems: "start" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
-          {mainBlocks.map((b) => {
-            const compact = isAnalyticsId(b.id) && COMPACT_ANALYTICS_IDS.has(b.id);
-            return (
-              <div key={b.id} style={{ flex: compact ? "0 1 220px" : "1 1 100%", minWidth: compact ? 190 : 0 }}>
-                {renderMainBlock(b)}
-              </div>
-            );
-          })}
+          {mainBlocks.map((b) => (
+            <div key={b.id} style={SIZE_FLEX[blockSize(b)]}>
+              {renderMainBlock(b)}
+            </div>
+          ))}
         </div>
         {sidebarBlocks.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

@@ -292,7 +292,9 @@ export type AnalyticsMetricId =
 
 // Dashboard layout block — covers native cards and analytics widgets.
 // id is a NativeDashBlockId or AnalyticsMetricId string.
-export type DashLayoutItem = { id: string; hidden?: boolean };
+// size is an explicit width override; omitted = each block's own sensible default
+// (single-stat widgets go compact, everything else goes full width).
+export type DashLayoutItem = { id: string; hidden?: boolean; size?: "compact" | "half" | "full" };
 
 // CustomFieldDef — one custom field definition for any object type.
 // Stored in tenants.config.custom_fields[objectType][].
