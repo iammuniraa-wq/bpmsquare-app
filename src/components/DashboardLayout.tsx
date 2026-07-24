@@ -154,6 +154,25 @@ const serifNum: React.CSSProperties = {
   fontVariantNumeric: "tabular-nums",
 };
 
+// News-card monogram themes -- cycled by row index (decorative variety, not an
+// identity channel that needs to stay fixed to a specific source/account).
+const NEWS_THEMES = [
+  { thumb: "linear-gradient(135deg, #0f6b5c, #1d9e75)", pillBg: "#e4efec", pillFg: "#0f6b5c" },
+  { thumb: "linear-gradient(135deg, #a3651a, #d99a3e)", pillBg: "#fdf1e2", pillFg: "#a3651a" },
+  { thumb: "linear-gradient(135deg, #2f5aa8, #5c86e6)", pillBg: "#e8edf9", pillFg: "#2f5aa8" },
+  { thumb: "linear-gradient(135deg, #96385a, #c26b8e)", pillBg: "#f8e9ee", pillFg: "#96385a" },
+  { thumb: "linear-gradient(135deg, #46505c, #6b7686)", pillBg: "#eceef1", pillFg: "#46505c" },
+];
+
+const NEWS_STOPWORDS = new Set(["the", "a", "an", "of", "and", "in", "on", "for"]);
+
+function sourceInitials(source: string): string {
+  const words = source.split(/\s+/).filter((w) => w && !NEWS_STOPWORDS.has(w.toLowerCase()));
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return "?";
+}
+
 // ── Mini analytics chart primitives ──────────────────────────────────────────
 
 function MiniHBar({ rows, colorFn }: {
@@ -313,12 +332,27 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData): React.ReactNode 
         <div style={{ fontSize: 11.5, color: c.hint, textAlign: "center", padding: "10px 0" }}>No recent news for your top accounts</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {a.accountNews.map((n, i) => (
-            <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", display: "block", borderLeft: `2px solid ${ledger.accentSoft}`, paddingLeft: 9 }}>
-              <div style={{ fontSize: 11, color: c.ink, fontWeight: 500 }}>{n.title}</div>
-              <div style={{ fontSize: 10, color: c.hint, marginTop: 1 }}>{n.accountName} · {n.source} · {fmtDate(n.publishedAt)}</div>
-            </a>
-          ))}
+          {a.accountNews.map((n, i) => {
+            const theme = NEWS_THEMES[i % NEWS_THEMES.length];
+            return (
+              <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", gap: 12, alignItems: "flex-start", textDecoration: "none" }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 9, flexShrink: 0, background: theme.thumb,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: 0.2,
+                }}>
+                  {sourceInitials(n.source)}
+                </div>
+                <div style={{ minWidth: 0, paddingTop: 1 }}>
+                  <div style={{ fontSize: 11.5, color: c.ink, fontWeight: 600, lineHeight: 1.35 }}>{n.title}</div>
+                  <div style={{ fontSize: 10, color: c.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: theme.pillBg, color: theme.pillFg }}>{n.accountName}</span>
+                    {n.source} · {fmtDate(n.publishedAt)}
+                  </div>
+                </div>
+              </a>
+            );
+          })}
         </div>
       )}</AnalyticsCard>;
     default: return null;
