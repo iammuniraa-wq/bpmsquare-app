@@ -122,6 +122,7 @@ export type AnalyticsData = {
   topAccountsByRevenue: Array<{ accountId: string; name: string; value: number }>;
   contractStats: { activeCount: number; totalValue: number };
   recentActivity: Array<{ text: string; at: string; pillar: Activity["pillar"]; accountName: string }>;
+  accountNews: Array<{ title: string; url: string; source: string; publishedAt: string; accountName: string }>;
 };
 
 // ── Display label maps ────────────────────────────────────────────────────────

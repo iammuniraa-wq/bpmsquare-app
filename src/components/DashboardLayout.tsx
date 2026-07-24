@@ -69,6 +69,7 @@ const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof
   invoices_by_status:      { label: "Invoices by status", feature: "invoices" },
   loaner_availability:     { label: "Loaner availability" },
   recent_activity:         { label: "Recent activity (analytics)" },
+  account_news:            { label: "Client news" },
 };
 
 const DEFAULT_LAYOUT: DashLayoutItem[] = [
@@ -308,6 +309,18 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData): React.ReactNode 
     case "invoices_by_status": return <AnalyticsCard title="Invoices by status" href={ROUTES.invoices}><MiniHBar rows={a.invoicesByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.invoices}?status=${x.status}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
     case "loaner_availability": return <AnalyticsCard title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile value={a.loanerStock.available} label="Available" icon={<Battery size={14} color={ledger.accent} />} href={ROUTES.assets} /><StatTile value={a.loanerStock.onLoan} label="On loan" icon={<Package size={14} color={ledger.accent} />} href={ROUTES.assets} /></div></AnalyticsCard>;
     case "recent_activity":  return <AnalyticsCard title="Recent activity" href={ROUTES.accounts}><div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{a.recentActivity.slice(0, 4).map((act, i) => (<div key={i} style={{ fontSize: 11, color: c.muted, borderLeft: `2px solid ${ledger.accentSoft}`, paddingLeft: 9 }}><div style={{ color: c.ink }}>{act.text}</div><div style={{ fontSize: 10, color: c.hint, marginTop: 1 }}>{act.accountName} · {fmtDate(act.at)}</div></div>))}</div></AnalyticsCard>;
+    case "account_news":     return <AnalyticsCard title="Client news" href={ROUTES.accounts}>{a.accountNews.length === 0 ? (
+        <div style={{ fontSize: 11.5, color: c.hint, textAlign: "center", padding: "10px 0" }}>No recent news for your top accounts</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {a.accountNews.map((n, i) => (
+            <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", display: "block", borderLeft: `2px solid ${ledger.accentSoft}`, paddingLeft: 9 }}>
+              <div style={{ fontSize: 11, color: c.ink, fontWeight: 500 }}>{n.title}</div>
+              <div style={{ fontSize: 10, color: c.hint, marginTop: 1 }}>{n.accountName} · {n.source} · {fmtDate(n.publishedAt)}</div>
+            </a>
+          ))}
+        </div>
+      )}</AnalyticsCard>;
     default: return null;
   }
 }

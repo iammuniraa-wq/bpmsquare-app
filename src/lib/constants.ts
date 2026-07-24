@@ -288,7 +288,8 @@ export type AnalyticsMetricId =
   | "accounts_by_type" | "lead_funnel" | "assets_by_kind"
   | "quote_trend" | "case_status" | "work_order_status"
   | "technician_availability" | "revenue_overview"
-  | "invoices_by_status" | "loaner_availability" | "recent_activity";
+  | "invoices_by_status" | "loaner_availability" | "recent_activity"
+  | "account_news";
 
 // Dashboard layout block — covers native cards and analytics widgets.
 // id is a NativeDashBlockId or AnalyticsMetricId string.

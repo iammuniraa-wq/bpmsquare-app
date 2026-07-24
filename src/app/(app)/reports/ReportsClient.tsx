@@ -334,6 +334,7 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   invoices_by_status:     { label: "Invoices by status",  feature: "invoices" },
   loaner_availability:    { label: "Loaner availability" },
   recent_activity:        { label: "Recent activity" },
+  account_news:           { label: "Client news" },
 };
 
 export default function ReportsClient({

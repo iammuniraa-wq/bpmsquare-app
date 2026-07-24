@@ -2,6 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAdminSupabase, resolveViewerTenantId, getAuthUser } from "@/lib/supabase-server";
 import { decryptAccount, decryptContact } from "@/lib/encryption";
+import { getAccountNews, type AccountNewsItem } from "@/lib/data/news";
 import type {
   Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder,
   Contract, Activity, QuoteLine, QuoteRevision, Technician, TechnicianLeave,
@@ -1252,6 +1253,7 @@ export type AnalyticsData = {
   topAccountsByRevenue: Array<{ accountId: string; name: string; value: number }>;
   contractStats: { activeCount: number; totalValue: number };
   recentActivity: Array<{ text: string; at: string; pillar: Activity["pillar"]; accountName: string }>;
+  accountNews: AccountNewsItem[];
 };
 
 const CASE_STATUS_LABEL_MAP: Record<string, string> = {
@@ -1273,6 +1275,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       topAccountsByRevenue: [],
       contractStats: { activeCount: 0, totalValue: 0 },
       recentActivity: [],
+      accountNews: [],
     };
   }
   const supabase = createAdminSupabase();
@@ -1426,6 +1429,11 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     totalValue:  activeContracts.reduce((s, c) => s + (c.value ?? 0), 0),
   };
 
+  const accountNews = await getAccountNews(
+    tenantId,
+    topAccountsByRevenue.map((a) => a.name).filter((n) => n && n !== "—")
+  );
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recentActivity = (activities ?? []).map((act: any) => ({
     text:        act.text as string,
@@ -1438,6 +1446,6 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
     quotesByStatus, quoteTrend, casesByStatus, workOrdersByStatus,
     techniciansByStatus, invoicesByStatus, invoiceTotals, topAccountsByRevenue,
-    contractStats, recentActivity,
+    contractStats, recentActivity, accountNews,
   };
 }
