@@ -64,7 +64,7 @@ export const ACCOUNT_TYPE_LABEL: Record<Account["type"], string> = {
   end_customer: "End-customer (under OEM)",
 };
 
-export { QUOTE_STATUS_LABEL, CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/constants";
+export { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/constants";
 
 export const TECH_STATUS_LABEL: Record<Technician["status"], string> = {
   active:   "Active",

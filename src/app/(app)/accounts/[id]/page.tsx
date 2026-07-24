@@ -4,7 +4,6 @@ import {
   ACCOUNT_TYPE_LABEL,
   CASE_STATUS_LABEL,
   CASE_TYPE_LABEL,
-  QUOTE_STATUS_LABEL,
 } from "@/lib/data";
 import { getAccountHubLive } from "@/lib/data/live";
 import { getUserRole, getTenant } from "@/lib/tenant";
@@ -12,7 +11,8 @@ import type { Activity, Account, InvoiceStatus } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
-import { ROUTES, type TenantFeatures } from "@/lib/constants";
+import QuoteStatusPill from "@/components/QuoteStatusPill";
+import { ROUTES, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef, type TenantFeatures } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
 import QuickCreateDeck from "@/components/QuickCreateDeck";
@@ -28,9 +28,6 @@ const CASE_TONE: Record<string, PillarKey> = {
   in_repair: "amber", qa: "teal",
   ready: "green", closed: "green",
   buyback: "purple", scrapped: "red",
-};
-const QUOTE_TONE: Record<string, PillarKey> = {
-  draft: "blue", sent: "amber", approved: "green", rejected: "red",
 };
 const WO_TONE: Record<string, PillarKey> = {
   scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
@@ -151,6 +148,8 @@ export default async function AccountHubPage({
 
   const { account, referredBy } = hub;
   const features = tenant?.features as TenantFeatures | undefined;
+  const quoteStatuses: QuoteStatusDef[] =
+    (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
   const visibleTabs = TABS.filter((t) => !t.featureKey || features?.[t.featureKey] === true);
   const activeTab: Tab = (visibleTabs.find((t) => t.id === rawTab)?.id) ?? "overview";
 
@@ -424,7 +423,7 @@ export default async function AccountHubPage({
                 {hub.quotes.map((q, i) => (
                   <tr key={q.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : "#fff" }}>
                     <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{q.ref}</span></td>
-                    <td style={td2}><Pill label={QUOTE_STATUS_LABEL[q.status]} tone={QUOTE_TONE[q.status] ?? "blue"} /></td>
+                    <td style={td2}><QuoteStatusPill status={q.status} statuses={quoteStatuses} /></td>
                     <td style={td2}><span style={{ fontWeight: 600, color: c.ink }}>{fmtINR(q.total)}</span></td>
                     <td style={{ ...td2, color: c.hint, fontSize: 12 }}>{q.valid_until ? fmtDate(q.valid_until) : "—"}</td>
                     <td style={td2}>

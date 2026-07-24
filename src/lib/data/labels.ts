@@ -134,13 +134,6 @@ export const ACCOUNT_TYPE_LABEL: Record<Account["type"], string> = {
   end_customer: "End-customer (under OEM)",
 };
 
-export const QUOTE_STATUS_LABEL: Record<Quote["status"], string> = {
-  draft:    "Draft",
-  sent:     "Sent",
-  approved: "Approved",
-  rejected: "Rejected",
-};
-
 export const CASE_STATUS_LABEL: Record<ServiceCase["status"], string> = {
   intake:          "Intake",
   inspection:      "Inspection",

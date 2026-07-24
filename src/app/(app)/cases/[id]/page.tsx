@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCase, CASE_STATUS_LABEL, CASE_TYPE_LABEL, QUOTE_STATUS_LABEL } from "@/lib/data";
-import { getUserRole } from "@/lib/tenant";
+import { getCase, CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/data";
+import { getUserRole, getTenant } from "@/lib/tenant";
 import type { ServiceCase, CasePhoto, InspectionReport } from "@/lib/types";
 import { c, pillar } from "@/lib/theme";
 import type { PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import QuoteStatusPill from "@/components/QuoteStatusPill";
 import ComingSoon from "@/components/ComingSoon";
-import { ROUTES } from "@/lib/constants";
+import { ROUTES, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
@@ -74,10 +75,12 @@ const irStatusLabel: Record<InspectionReport["status"], string> = {
 
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [data, role] = await Promise.all([getCase(id), getUserRole()]);
+  const [data, role, tenant] = await Promise.all([getCase(id), getUserRole(), getTenant()]);
   if (!data) notFound();
 
   const { serviceCase: sc, account, contact, assets, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases } = data;
+  const quoteStatuses: QuoteStatusDef[] =
+    (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
 
   const currentGroupIdx = stageIndex(sc.status);
   const isExit = EXIT_STATUSES.includes(sc.status);
@@ -239,7 +242,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             <section style={cardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <SectionHeading>Quotation</SectionHeading>
-                <Pill label={QUOTE_STATUS_LABEL[quote.status]} tone={quote.status === "approved" ? "teal" : quote.status === "sent" ? "amber" : "blue"} />
+                <QuoteStatusPill status={quote.status} statuses={quoteStatuses} />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>

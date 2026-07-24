@@ -125,6 +125,9 @@ export default function StatusesClient({ initial, initialAssetFields, assetCusto
   function toggleTerminal(idx: number) {
     setStatuses((p) => p.map((s, i) => i === idx ? { ...s, is_terminal: !s.is_terminal } : s));
   }
+  function toggleLost(idx: number) {
+    setStatuses((p) => p.map((s, i) => i === idx ? { ...s, is_lost: !s.is_lost } : s));
+  }
 
   async function save() {
     setError("");
@@ -217,6 +220,11 @@ export default function StatusesClient({ initial, initialAssetFields, assetCusto
                 <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: c.muted, cursor: "pointer" }}>
                   <input type="checkbox" checked={!!s.is_terminal} onChange={() => toggleTerminal(idx)} style={{ cursor: "pointer" }} />
                   Terminal (locks editing)
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: c.muted, cursor: "pointer" }}>
+                  <input type="checkbox" checked={!!s.is_lost} onChange={() => toggleLost(idx)} style={{ cursor: "pointer" }} />
+                  Lost (excluded from open pipeline value)
                 </label>
               </div>
             </div>

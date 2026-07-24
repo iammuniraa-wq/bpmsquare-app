@@ -239,13 +239,6 @@ export type TenantTaxConfig = {
 
 // ── Label maps (safe to import in client components) ─────────────────────────
 
-export const QUOTE_STATUS_LABEL: Record<string, string> = {
-  draft:    "Draft",
-  sent:     "Sent",
-  approved: "Approved",
-  rejected: "Rejected",
-};
-
 export const CASE_STATUS_LABEL: Record<string, string> = {
   intake:          "Intake",
   inspection:      "Inspection",
@@ -312,6 +305,9 @@ export type QuoteStatusDef = {
   color: string;      // hex colour for the pill
   is_initial?: boolean;  // shown as default on new quotes
   is_terminal?: boolean; // quote locked (no edit) when in this status
+  is_lost?: boolean;     // excluded from "open pipeline value" (e.g. rejected/lost) --
+                         // distinct from is_terminal, since "approved" is also terminal
+                         // but should still count toward pipeline value.
 };
 
 // Default statuses used when tenant has not configured custom ones.
@@ -319,7 +315,7 @@ export const DEFAULT_QUOTE_STATUSES: QuoteStatusDef[] = [
   { value: "draft",       label: "Draft",       color: "#3b82f6", is_initial: true },
   { value: "sent",        label: "Sent",        color: "#8b5cf6" },
   { value: "approved",    label: "Approved",    color: "#10b981", is_terminal: true },
-  { value: "rejected",    label: "Rejected",    color: "#ef4444", is_terminal: true },
+  { value: "rejected",    label: "Rejected",    color: "#ef4444", is_terminal: true, is_lost: true },
 ];
 
 // TenantConfig — full shape of tenants.config JSONB column.

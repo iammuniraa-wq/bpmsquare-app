@@ -1162,6 +1162,7 @@ export async function getDashboardSummaryLive() {
   const today = new Date().toISOString().slice(0, 10);
 
   const [
+    tenant,
     { data: cases },
     { data: contracts },
     { data: quotes },
@@ -1169,6 +1170,7 @@ export async function getDashboardSummaryLive() {
     { data: activities },
     { data: overdueInvoiceRows },
   ] = await Promise.all([
+    getTenant(),
     supabase.from("service_cases").select("id, status, account_id, ref, intake_at, equipment_label").eq("tenant_id", tenantId).order("intake_at", { ascending: true }),
     supabase.from("contracts").select("id, status").eq("tenant_id", tenantId),
     supabase.from("quotes").select("id, status, total").eq("tenant_id", tenantId),
@@ -1181,12 +1183,21 @@ export async function getDashboardSummaryLive() {
   const allContracts = (contracts ?? []) as Contract[];
   const allQuotes = (quotes ?? []) as Quote[];
 
+  // "Open pipeline value" must walk the tenant's actual configured quote statuses
+  // (Settings -> Statuses), not a hardcoded sent/approved pair -- a tenant that
+  // renamed or added quote statuses would otherwise see quotes in those statuses
+  // silently drop out of this KPI, same bug class as quotesByStatus above.
+  const quoteStatusDefs = tenant?.config?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
+  const openPipelineStatuses = new Set(
+    quoteStatusDefs.filter((d) => !d.is_initial && !d.is_lost).map((d) => d.value)
+  );
+
   const kpis = {
     openCases:        allCases.filter((sc) => OPEN_CASE_STATUSES.includes(sc.status)).length,
     inRepair:         allCases.filter((sc) => sc.status === "in_repair").length,
     awaitingApproval: allCases.filter((sc) => sc.status === "report_sent" || sc.status === "quote_sent").length,
     activeContracts:  allContracts.filter((c) => c.status === "active").length,
-    openQuoteValue:   allQuotes.filter((q) => q.status === "sent" || q.status === "approved").reduce((s, q) => s + q.total, 0),
+    openQuoteValue:   allQuotes.filter((q) => openPipelineStatuses.has(q.status)).reduce((s, q) => s + q.total, 0),
     activeWorkOrders: (workOrders ?? []).length,
   };
 

@@ -7,6 +7,7 @@ import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { CheckIcon, XIcon } from "@/components/Icons";
+import QuoteStatusPill from "@/components/QuoteStatusPill";
 import type { QuoteSummary } from "@/lib/data/labels";
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -29,21 +30,6 @@ const COLUMNS: ColDef[] = [
 const LS_KEY = "bms_quotes_cols";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function StatusPill({ status, statuses }: { status: string; statuses: QuoteStatusDef[] }) {
-  const def = statuses.find((s) => s.value === status);
-  const color = def?.color ?? "#94a3b8";
-  const label = def?.label ?? status;
-  return (
-    <span style={{
-      display: "inline-block", padding: "2px 10px", borderRadius: 12,
-      fontSize: 11.5, fontWeight: 600,
-      background: `${color}22`, color, border: `1px solid ${color}55`,
-    }}>
-      {label}
-    </span>
-  );
-}
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
@@ -384,7 +370,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                           </Link>
                         </td>
                       )}
-                      {vis("status")      && <td style={td}><StatusPill status={quote.status} statuses={quoteStatuses} /></td>}
+                      {vis("status")      && <td style={td}><QuoteStatusPill status={quote.status} statuses={quoteStatuses} /></td>}
                       {vis("lines")       && <td style={{ ...td, textAlign: "center", color: c.muted }}>{lineCount} items</td>}
                       {vis("total")       && <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>{inr(quote.total)}</td>}
                       {vis("date")        && <td style={{ ...td, color: c.muted }}>{fmtDate(quote.created_at)}</td>}

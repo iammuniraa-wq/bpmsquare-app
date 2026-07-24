@@ -6,11 +6,10 @@ import { useRouter } from "next/navigation";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
-import { ROUTES } from "@/lib/constants";
+import QuoteStatusPill from "@/components/QuoteStatusPill";
+import { ROUTES, type QuoteStatusDef } from "@/lib/constants";
 import type { AnalyticsMetricId } from "@/lib/constants";
-import { QUOTE_STATUS_LABEL } from "@/lib/data/labels";
 import type { QuoteSummary, AnalyticsData } from "@/lib/data/labels";
-import type { Quote } from "@/lib/types";
 import type { TenantFeatures } from "@/lib/constants";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -18,10 +17,6 @@ import type { TenantFeatures } from "@/lib/constants";
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-const statusTone: Record<Quote["status"], PillarKey> = {
-  draft: "blue", sent: "purple", approved: "teal", rejected: "red",
-};
 
 const CHART_COLORS = [
   pillar.blue.base, pillar.teal.base, pillar.purple.base, pillar.amber.base,
@@ -343,17 +338,19 @@ export default function ReportsClient({
   features,
   hiddenMetrics: initialHidden,
   isAdmin,
+  quoteStatuses,
 }: {
   rows: QuoteSummary[];
   analytics: AnalyticsData;
   features: TenantFeatures;
   hiddenMetrics: AnalyticsMetricId[];
   isAdmin: boolean;
+  quoteStatuses: QuoteStatusDef[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [rows]            = useState<QuoteSummary[]>(initialRows);
-  const [filterStatus, setFilterStatus]   = useState<Quote["status"] | "">("");
+  const [filterStatus, setFilterStatus]   = useState<string>("");
   const [filterAccount, setFilterAccount] = useState("");
   const [sortKey, setSortKey]             = useState<"date" | "total" | "ref">("date");
   const [sortDir, setSortDir]             = useState<"asc" | "desc">("desc");
@@ -382,8 +379,6 @@ export default function ReportsClient({
     setSaving(false);
     startTransition(() => router.refresh());
   }
-
-  const STATUSES: Array<Quote["status"]> = ["draft", "sent", "approved", "rejected"];
 
   const filtered = useMemo(() => {
     const base = rows
@@ -767,16 +762,16 @@ export default function ReportsClient({
                   color:      filterStatus === "" ? "#fff" : c.muted,
                 }}
               >All</button>
-              {STATUSES.map((s) => (
-                <button key={s}
-                  onClick={() => setFilterStatus(filterStatus === s ? "" : s)}
+              {quoteStatuses.map((s) => (
+                <button key={s.value}
+                  onClick={() => setFilterStatus(filterStatus === s.value ? "" : s.value)}
                   style={{
                     fontSize: 12, padding: "5px 12px", borderRadius: 20,
                     border: "none", cursor: "pointer", fontWeight: 600,
-                    background: filterStatus === s ? pillar[statusTone[s]].base : c.line,
-                    color:      filterStatus === s ? "#fff" : c.muted,
+                    background: filterStatus === s.value ? s.color : c.line,
+                    color:      filterStatus === s.value ? "#fff" : c.muted,
                   }}
-                >{QUOTE_STATUS_LABEL[s]}</button>
+                >{s.label}</button>
               ))}
             </div>
             <input
@@ -834,7 +829,7 @@ export default function ReportsClient({
                     <Link href={ROUTES.account(account.id)} style={{ color: c.ink }}>{account.name}</Link>
                   </td>
                   <td style={td}>
-                    <Pill label={QUOTE_STATUS_LABEL[quote.status]} tone={statusTone[quote.status]} />
+                    <QuoteStatusPill status={quote.status} statuses={quoteStatuses} />
                   </td>
                   <td style={{ ...td, color: c.muted }}>{lineCount} items</td>
                   <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>{inr(quote.total)}</td>
