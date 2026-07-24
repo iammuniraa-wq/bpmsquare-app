@@ -3,6 +3,8 @@ import { unstable_cache } from "next/cache";
 import { createAdminSupabase, resolveViewerTenantId, getAuthUser } from "@/lib/supabase-server";
 import { decryptAccount, decryptContact } from "@/lib/encryption";
 import { getAccountNews, type AccountNewsItem } from "@/lib/data/news";
+import { getTenant } from "@/lib/tenant";
+import { DEFAULT_QUOTE_STATUSES } from "@/lib/constants";
 import type {
   Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder,
   Contract, Activity, QuoteLine, QuoteRevision, Technician, TechnicianLeave,
@@ -1281,11 +1283,13 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const supabase = createAdminSupabase();
 
   const [
+    tenant,
     { data: accounts }, { data: contacts }, { data: assets },
     { data: cases }, { data: workOrders }, { data: contracts },
     { data: leads }, { data: technicians }, { data: quotes },
     { data: invoices }, { data: activities },
   ] = await Promise.all([
+    getTenant(),
     supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
     supabase.from("contacts").select("id").eq("tenant_id", tenantId),
     supabase.from("assets").select("id, kind, is_loaner, loaner_status").eq("tenant_id", tenantId),
@@ -1360,8 +1364,13 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     const s = qStatusCounts.get(q.status) ?? { count: 0, value: 0 };
     qStatusCounts.set(q.status, { count: s.count + 1, value: s.value + q.total });
   });
-  const quotesByStatus = ["draft","sent","approved","rejected"]
-    .map((status) => ({ status, label: status.charAt(0).toUpperCase() + status.slice(1), ...(qStatusCounts.get(status) ?? { count: 0, value: 0 }) }))
+  // Tenants can rename/reconfigure quote statuses (Settings -> Statuses), so this
+  // must walk the tenant's actual configured statuses, not a hardcoded default
+  // list -- otherwise quotes sitting in a custom/renamed status silently vanish
+  // from the pipeline breakdown.
+  const quoteStatusDefs = tenant?.config?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
+  const quotesByStatus = quoteStatusDefs
+    .map((def) => ({ status: def.value, label: def.label, ...(qStatusCounts.get(def.value) ?? { count: 0, value: 0 }) }))
     .filter((x) => x.count > 0);
 
   let cumulative = 0;
