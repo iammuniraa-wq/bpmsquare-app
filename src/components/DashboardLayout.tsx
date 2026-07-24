@@ -82,6 +82,23 @@ const DEFAULT_LAYOUT: DashLayoutItem[] = [
   { id: "quick_create" },
 ];
 
+// Standard per-object starter bundles -- one click adds a sensible combo of
+// already-existing blocks (native or analytics) instead of hand-picking each
+// one. Sizes are only specified where the block's own default isn't already
+// right for the bundle; everything else falls back to blockSize()'s default.
+type BundleBlock = { id: string; size?: "compact" | "half" | "full" };
+const BUNDLES: { id: string; label: string; feature?: keyof TenantFeatures; blocks: BundleBlock[] }[] = [
+  { id: "accounts",     label: "Accounts",      blocks: [{ id: "accounts" }, { id: "accounts_by_type" }] },
+  { id: "quotations",   label: "Quotations",    blocks: [{ id: "quote_trend" }, { id: "revenue_card" }] },
+  { id: "cases",        label: "Cases",         blocks: [{ id: "open_cases" }, { id: "case_status" }] },
+  { id: "work_orders",  label: "Work orders",   blocks: [{ id: "work_orders" }, { id: "work_order_status" }, { id: "tech_workload" }] },
+  { id: "assets",       label: "Assets",        blocks: [{ id: "assets" }, { id: "assets_by_kind" }, { id: "loaner_availability", size: "half" }] },
+  { id: "contracts",    label: "AMC / Contracts", feature: "amc", blocks: [{ id: "contracts", size: "half" }] },
+  { id: "leads",        label: "Leads",         feature: "leads", blocks: [{ id: "leads" }, { id: "lead_funnel" }] },
+  { id: "technicians",  label: "Technicians",   blocks: [{ id: "technicians" }, { id: "technician_availability" }] },
+  { id: "invoices",     label: "Invoices",      feature: "invoices", blocks: [{ id: "invoice_budget" }, { id: "invoices_by_status" }] },
+];
+
 function resolveLayout(saved: DashLayoutItem[]): DashLayoutItem[] {
   if (!saved || saved.length === 0) return DEFAULT_LAYOUT;
   // Ensure native blocks that aren't in saved layout appear (as hidden) so user can un-hide them
@@ -502,6 +519,21 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
     return !feat || features[feat];
   });
 
+  const availableBundles = BUNDLES.filter((b) => !b.feature || features[b.feature]);
+
+  function addBundle(blocks: BundleBlock[]) {
+    const next = [...layout];
+    for (const b of blocks) {
+      const idx = next.findIndex((x) => x.id === b.id);
+      if (idx >= 0) {
+        next[idx] = { ...next[idx], hidden: false, ...(b.size ? { size: b.size } : {}) };
+      } else {
+        next.push({ id: b.id, ...(b.size ? { size: b.size } : {}) });
+      }
+    }
+    onLayoutChange(next);
+  }
+
   function toggleHidden(idx: number) {
     const next = layout.map((b, i) => i === idx ? { ...b, hidden: !b.hidden } : b);
     onLayoutChange(next);
@@ -556,6 +588,29 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
 
         {/* block list */}
         <div style={{ flex: 1, overflowY: "auto", padding: "10px 0" }}>
+          {/* Quick add — per-object starter bundles */}
+          <div style={{ padding: "0 12px 8px", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 6 }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+              Quick add
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {availableBundles.map((bundle) => (
+                <button
+                  key={bundle.id}
+                  onClick={() => addBundle(bundle.blocks)}
+                  title={`Add ${bundle.blocks.map((b) => blockLabel(b.id)).join(", ")}`}
+                  style={{
+                    fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 20, cursor: "pointer",
+                    background: "rgba(55,138,221,0.12)", border: "1px solid rgba(55,138,221,0.35)",
+                    color: "#bcd9f7",
+                  }}
+                >
+                  + {bundle.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div style={{ padding: "0 12px 6px", fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1 }}>
             Drag to reorder
           </div>
