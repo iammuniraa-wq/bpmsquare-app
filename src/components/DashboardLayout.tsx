@@ -235,7 +235,7 @@ function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: numb
 function StatTile({ value, label, color, href }: { value: number | string; label: string; color: string; href: string }) {
   return (
     <Link href={href} style={{ textDecoration: "none", display: "block", flex: 1, textAlign: "center", padding: "10px 8px" }}>
-      <div style={{ fontSize: 22, fontWeight: 800, color }}>{value}</div>
+      <div style={{ ...serifNum, fontSize: 22, fontWeight: 700, color }}>{value}</div>
       <div style={{ fontSize: 10, color: c.hint, marginTop: 2 }}>{label}</div>
     </Link>
   );
@@ -244,9 +244,9 @@ function StatTile({ value, label, color, href }: { value: number | string; label
 function AnalyticsCard({ title, href, children }: { title: string; href: string; children: React.ReactNode }) {
   return (
     <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px 8px", borderBottom: `1px solid ${c.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px 8px", borderBottom: `1px solid ${ledger.line}` }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: c.ink }}>{title}</span>
-        <Link href={href} style={{ fontSize: 10, color: c.accent, textDecoration: "none" }}>Full view →</Link>
+        <Link href={href} style={{ fontSize: 10, color: ledger.accent, textDecoration: "none" }}>Full view →</Link>
       </div>
       <div style={{ padding: "10px 12px" }}>{children}</div>
     </div>
@@ -258,14 +258,14 @@ function AnalyticsCard({ title, href, children }: { title: string; href: string;
 function renderWidget(id: AnalyticsMetricId, a: AnalyticsData): React.ReactNode {
   const COLORS = [pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.purple.base, pillar.green.base];
   switch (id) {
-    case "accounts":        return <AnalyticsCard title="Accounts" href={ROUTES.accounts}><StatTile value={a.totals.accounts} label="Total accounts" color={pillar.blue.base} href={ROUTES.accounts} /></AnalyticsCard>;
-    case "contacts":        return <AnalyticsCard title="Contacts" href={ROUTES.contacts}><StatTile value={a.totals.contacts} label="Total contacts" color={pillar.blue.base} href={ROUTES.contacts} /></AnalyticsCard>;
-    case "assets":          return <AnalyticsCard title="Assets" href={ROUTES.assets}><StatTile value={a.totals.customerAssets} label="Customer assets" color={pillar.green.base} href={ROUTES.assets} /></AnalyticsCard>;
-    case "open_cases":      return <AnalyticsCard title="Open cases" href={ROUTES.cases}><StatTile value={a.totals.openCases} label="Open cases" color={pillar.teal.base} href={ROUTES.cases} /></AnalyticsCard>;
-    case "work_orders":     return <AnalyticsCard title="Work orders" href={ROUTES.workOrders}><StatTile value={a.totals.workOrders} label="Total work orders" color={pillar.amber.base} href={ROUTES.workOrders} /></AnalyticsCard>;
-    case "contracts":       return <AnalyticsCard title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile value={a.contractStats.activeCount} label="Active" color={pillar.green.base} href={ROUTES.amc} /><StatTile value={inr(a.contractStats.totalValue)} label="Total value" color={pillar.green.base} href={ROUTES.amc} /></div></AnalyticsCard>;
-    case "leads":           return <AnalyticsCard title="Leads" href={ROUTES.leads}><StatTile value={a.totals.leads} label="Total leads" color={pillar.purple.base} href={ROUTES.leads} /></AnalyticsCard>;
-    case "technicians":     return <AnalyticsCard title="Technicians" href={ROUTES.technicians}><StatTile value={a.totals.technicians} label="Total technicians" color={pillar.teal.base} href={ROUTES.technicians} /></AnalyticsCard>;
+    case "accounts":        return <AnalyticsCard title="Accounts" href={ROUTES.accounts}><StatTile value={a.totals.accounts} label="Total accounts" color={ledger.accent} href={ROUTES.accounts} /></AnalyticsCard>;
+    case "contacts":        return <AnalyticsCard title="Contacts" href={ROUTES.contacts}><StatTile value={a.totals.contacts} label="Total contacts" color={ledger.accent} href={ROUTES.contacts} /></AnalyticsCard>;
+    case "assets":          return <AnalyticsCard title="Assets" href={ROUTES.assets}><StatTile value={a.totals.customerAssets} label="Customer assets" color={ledger.accent} href={ROUTES.assets} /></AnalyticsCard>;
+    case "open_cases":      return <AnalyticsCard title="Open cases" href={ROUTES.cases}><StatTile value={a.totals.openCases} label="Open cases" color={ledger.accent} href={ROUTES.cases} /></AnalyticsCard>;
+    case "work_orders":     return <AnalyticsCard title="Work orders" href={ROUTES.workOrders}><StatTile value={a.totals.workOrders} label="Total work orders" color={ledger.accent} href={ROUTES.workOrders} /></AnalyticsCard>;
+    case "contracts":       return <AnalyticsCard title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile value={a.contractStats.activeCount} label="Active" color={ledger.accent} href={ROUTES.amc} /><StatTile value={inr(a.contractStats.totalValue)} label="Total value" color={ledger.accent} href={ROUTES.amc} /></div></AnalyticsCard>;
+    case "leads":           return <AnalyticsCard title="Leads" href={ROUTES.leads}><StatTile value={a.totals.leads} label="Total leads" color={ledger.accent} href={ROUTES.leads} /></AnalyticsCard>;
+    case "technicians":     return <AnalyticsCard title="Technicians" href={ROUTES.technicians}><StatTile value={a.totals.technicians} label="Total technicians" color={ledger.accent} href={ROUTES.technicians} /></AnalyticsCard>;
     case "accounts_by_type": return <AnalyticsCard title="Accounts by type" href={ROUTES.accounts}><MiniDonut slices={a.accountsByType.map((x, i) => ({ label: x.label, value: x.count, color: COLORS[i % COLORS.length] }))} /></AnalyticsCard>;
     case "lead_funnel":      return <AnalyticsCard title="Lead funnel" href={ROUTES.leads}><MiniHBar rows={a.leadFunnel.map((x) => ({ label: x.stage, value: x.count }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
     case "assets_by_kind":   return <AnalyticsCard title="Assets by kind" href={ROUTES.assets}><MiniHBar rows={a.assetsByKind.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.assets}?kind=${x.kind}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
@@ -275,8 +275,8 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData): React.ReactNode 
     case "technician_availability": return <AnalyticsCard title="Technician availability" href={ROUTES.technicians}><MiniHBar rows={a.techniciansByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.technicians}?status=${x.status}` }))} colorFn={(i) => [pillar.teal.base, pillar.amber.base, c.muted][i]} /></AnalyticsCard>;
     case "revenue_overview": return <AnalyticsCard title="Revenue overview" href={ROUTES.invoices}><MiniHBar rows={[{ label: "AMC contracts", value: a.contractStats.totalValue, href: ROUTES.amc }, { label: "Quote pipeline", value: a.quotesByStatus.reduce((s, x) => s + x.value, 0), href: ROUTES.quotations }, ...a.invoicesByStatus.map((inv) => ({ label: `Invoices (${inv.label})`, value: inv.value, href: `${ROUTES.invoices}?status=${inv.status}` }))]} colorFn={(i) => [pillar.green.base, pillar.blue.base, pillar.purple.base, pillar.teal.base][i % 4]} /></AnalyticsCard>;
     case "invoices_by_status": return <AnalyticsCard title="Invoices by status" href={ROUTES.invoices}><MiniHBar rows={a.invoicesByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.invoices}?status=${x.status}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
-    case "loaner_availability": return <AnalyticsCard title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile value={a.loanerStock.available} label="Available" color={pillar.green.base} href={ROUTES.assets} /><StatTile value={a.loanerStock.onLoan} label="On loan" color={pillar.amber.base} href={ROUTES.assets} /></div></AnalyticsCard>;
-    case "recent_activity":  return <AnalyticsCard title="Recent activity" href={ROUTES.accounts}><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{a.recentActivity.slice(0, 4).map((act, i) => (<div key={i} style={{ fontSize: 11, color: c.muted, borderLeft: `2px solid ${c.line}`, paddingLeft: 7 }}><div style={{ color: c.ink }}>{act.text}</div><div style={{ fontSize: 10, color: c.hint }}>{act.accountName} · {fmtDate(act.at)}</div></div>))}</div></AnalyticsCard>;
+    case "loaner_availability": return <AnalyticsCard title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile value={a.loanerStock.available} label="Available" color={ledger.accent} href={ROUTES.assets} /><StatTile value={a.loanerStock.onLoan} label="On loan" color={ledger.accent} href={ROUTES.assets} /></div></AnalyticsCard>;
+    case "recent_activity":  return <AnalyticsCard title="Recent activity" href={ROUTES.accounts}><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{a.recentActivity.slice(0, 4).map((act, i) => (<div key={i} style={{ fontSize: 11, color: c.muted, borderLeft: `2px solid ${ledger.line}`, paddingLeft: 7 }}><div style={{ color: c.ink }}>{act.text}</div><div style={{ fontSize: 10, color: c.hint }}>{act.accountName} · {fmtDate(act.at)}</div></div>))}</div></AnalyticsCard>;
     default: return null;
   }
 }
