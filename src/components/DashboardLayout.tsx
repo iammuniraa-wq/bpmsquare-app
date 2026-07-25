@@ -430,6 +430,52 @@ function AnalyticsCard({ title, href, children }: { title: string; href: string;
   );
 }
 
+const NEWS_COLLAPSED_COUNT = 5;
+
+function AccountNewsList({ items }: { items: AnalyticsData["accountNews"] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (items.length === 0) {
+    return <div style={{ fontSize: 11.5, color: c.hint, textAlign: "center", padding: "10px 0" }}>No recent news for your top accounts</div>;
+  }
+  const visible = expanded ? items : items.slice(0, NEWS_COLLAPSED_COUNT);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {visible.map((n, i) => {
+        const theme = NEWS_THEMES[i % NEWS_THEMES.length];
+        return (
+          <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", gap: 12, alignItems: "flex-start", textDecoration: "none" }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 9, flexShrink: 0, background: theme.thumb,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: 0.2,
+            }}>
+              {sourceInitials(n.source)}
+            </div>
+            <div style={{ minWidth: 0, paddingTop: 1 }}>
+              <div style={{ fontSize: 11.5, color: c.ink, fontWeight: 600, lineHeight: 1.35 }}>{n.title}</div>
+              <div style={{ fontSize: 10, color: c.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: theme.pillBg, color: theme.pillFg }}>{n.accountName}</span>
+                {n.source} · {fmtDate(n.publishedAt)}
+              </div>
+            </div>
+          </a>
+        );
+      })}
+      {items.length > NEWS_COLLAPSED_COUNT && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          style={{
+            alignSelf: "flex-start", background: "transparent", border: "none", cursor: "pointer",
+            fontSize: 11, fontWeight: 600, color: ledger.accent, padding: 0, marginTop: 2,
+          }}
+        >
+          {expanded ? "Show less" : `Show ${items.length - NEWS_COLLAPSED_COUNT} more`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Analytics widget renderer ─────────────────────────────────────────────────
 
 function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full"): React.ReactNode {
@@ -480,33 +526,7 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
     case "invoices_by_status": return <AnalyticsCard title="Invoices by status" href={ROUTES.invoices}><MiniHBar rows={a.invoicesByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.invoices}?status=${x.status}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
     case "loaner_availability": return <AnalyticsCard title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile value={a.loanerStock.available} label="Available" icon={<Battery size={14} color={ledger.accent} />} href={ROUTES.assets} /><StatTile value={a.loanerStock.onLoan} label="On loan" icon={<Package size={14} color={ledger.accent} />} href={ROUTES.assets} /></div></AnalyticsCard>;
     case "recent_activity":  return <AnalyticsCard title="Recent activity" href={ROUTES.accounts}><div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{a.recentActivity.slice(0, 4).map((act, i) => (<div key={i} style={{ fontSize: 11, color: c.muted, borderLeft: `2px solid ${ledger.accentSoft}`, paddingLeft: 9 }}><div style={{ color: c.ink }}>{act.text}</div><div style={{ fontSize: 10, color: c.hint, marginTop: 1 }}>{act.accountName} · {fmtDate(act.at)}</div></div>))}</div></AnalyticsCard>;
-    case "account_news":     return <AnalyticsCard title="Client news" href={ROUTES.accounts}>{a.accountNews.length === 0 ? (
-        <div style={{ fontSize: 11.5, color: c.hint, textAlign: "center", padding: "10px 0" }}>No recent news for your top accounts</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {a.accountNews.map((n, i) => {
-            const theme = NEWS_THEMES[i % NEWS_THEMES.length];
-            return (
-              <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", gap: 12, alignItems: "flex-start", textDecoration: "none" }}>
-                <div style={{
-                  width: 44, height: 44, borderRadius: 9, flexShrink: 0, background: theme.thumb,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: 0.2,
-                }}>
-                  {sourceInitials(n.source)}
-                </div>
-                <div style={{ minWidth: 0, paddingTop: 1 }}>
-                  <div style={{ fontSize: 11.5, color: c.ink, fontWeight: 600, lineHeight: 1.35 }}>{n.title}</div>
-                  <div style={{ fontSize: 10, color: c.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: theme.pillBg, color: theme.pillFg }}>{n.accountName}</span>
-                    {n.source} · {fmtDate(n.publishedAt)}
-                  </div>
-                </div>
-              </a>
-            );
-          })}
-        </div>
-      )}</AnalyticsCard>;
+    case "account_news":     return <AnalyticsCard title="Client news" href={ROUTES.accounts}><AccountNewsList items={a.accountNews} /></AnalyticsCard>;
     case "quote_outcomes": {
       const { open, won, lost } = a.quoteOutcomeTotals;
       const rows = [
