@@ -204,7 +204,7 @@ function sourceInitials(source: string): string {
 // ── Mini analytics chart primitives ──────────────────────────────────────────
 
 function MiniHBar({ rows, colorFn }: {
-  rows: { label: string; value: number; href?: string }[];
+  rows: { label: string; value: number; href?: string; valueLabel?: string }[];
   colorFn?: (i: number) => string;
 }) {
   const max = Math.max(...rows.map((r) => r.value), 1);
@@ -224,8 +224,8 @@ function MiniHBar({ rows, colorFn }: {
             <div style={{ flex: 1, height: 10, background: c.panel2, borderRadius: 5 }}>
               <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: "0 5px 5px 0" }} />
             </div>
-            <span style={{ ...serifNum, fontSize: 11.5, fontWeight: 700, color: c.ink, minWidth: 28, textAlign: "right", flexShrink: 0 }}>
-              {row.value}
+            <span style={{ ...serifNum, fontSize: 11.5, fontWeight: 700, color: c.ink, minWidth: 28, textAlign: "right", flexShrink: 0, whiteSpace: "nowrap" }}>
+              {row.valueLabel ?? row.value}
             </span>
           </div>
         );
@@ -459,11 +459,18 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
         ? <div style={{ display: "flex", alignItems: "center", gap: 22, maxWidth: 460 }}><BigDonut segments={segs} /><BigDonutLegend items={segs} /></div>
         : <MiniHBar rows={segs} colorFn={(i) => COLORS[i % COLORS.length]} />}</AnalyticsCard>;
     }
-    case "quote_trend":      return <AnalyticsCard title="Quote pipeline" href={ROUTES.quotations}><MiniHBar rows={a.quotesByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.quotations}?status=${x.status}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
+    case "quote_trend":      return <AnalyticsCard title="Quote pipeline" href={ROUTES.quotations}><MiniHBar rows={a.quotesByStatus.map((x) => ({ label: x.label, value: x.value, valueLabel: inr(x.value), href: `${ROUTES.quotations}?status=${x.status}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
     case "case_status":      return <AnalyticsCard title="Case status" href={ROUTES.cases}><MiniHBar rows={a.casesByStatus.map((x) => ({ label: x.label, value: x.count }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
     case "work_order_status": return <AnalyticsCard title="Work order status" href={ROUTES.workOrders}><MiniHBar rows={a.workOrdersByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.workOrders}?status=${x.status}` }))} colorFn={(i) => [pillar.amber.base, pillar.blue.base, pillar.teal.base][i % 3]} /></AnalyticsCard>;
     case "technician_availability": return <AnalyticsCard title="Technician availability" href={ROUTES.technicians}><MiniHBar rows={a.techniciansByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.technicians}?status=${x.status}` }))} colorFn={(i) => [pillar.teal.base, pillar.amber.base, c.muted][i]} /></AnalyticsCard>;
-    case "revenue_overview": return <AnalyticsCard title="Revenue overview" href={ROUTES.invoices}><MiniHBar rows={[{ label: "AMC contracts", value: a.contractStats.totalValue, href: ROUTES.amc }, { label: "Quote pipeline", value: a.quotesByStatus.reduce((s, x) => s + x.value, 0), href: ROUTES.quotations }, ...a.invoicesByStatus.map((inv) => ({ label: `Invoices (${inv.label})`, value: inv.value, href: `${ROUTES.invoices}?status=${inv.status}` }))]} colorFn={(i) => [pillar.green.base, pillar.blue.base, pillar.purple.base, pillar.teal.base][i % 4]} /></AnalyticsCard>;
+    case "revenue_overview": {
+      const rows = [
+        { label: "AMC contracts", value: a.contractStats.totalValue, href: ROUTES.amc },
+        { label: "Quote pipeline", value: a.quotesByStatus.reduce((s, x) => s + x.value, 0), href: ROUTES.quotations },
+        ...a.invoicesByStatus.map((inv) => ({ label: `Invoices (${inv.label})`, value: inv.value, href: `${ROUTES.invoices}?status=${inv.status}` })),
+      ].map((r) => ({ ...r, valueLabel: inr(r.value) }));
+      return <AnalyticsCard title="Revenue overview" href={ROUTES.invoices}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.blue.base, pillar.purple.base, pillar.teal.base][i % 4]} /></AnalyticsCard>;
+    }
     case "invoices_by_status": return <AnalyticsCard title="Invoices by status" href={ROUTES.invoices}><MiniHBar rows={a.invoicesByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.invoices}?status=${x.status}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
     case "loaner_availability": return <AnalyticsCard title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile value={a.loanerStock.available} label="Available" icon={<Battery size={14} color={ledger.accent} />} href={ROUTES.assets} /><StatTile value={a.loanerStock.onLoan} label="On loan" icon={<Package size={14} color={ledger.accent} />} href={ROUTES.assets} /></div></AnalyticsCard>;
     case "recent_activity":  return <AnalyticsCard title="Recent activity" href={ROUTES.accounts}><div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{a.recentActivity.slice(0, 4).map((act, i) => (<div key={i} style={{ fontSize: 11, color: c.muted, borderLeft: `2px solid ${ledger.accentSoft}`, paddingLeft: 9 }}><div style={{ color: c.ink }}>{act.text}</div><div style={{ fontSize: 10, color: c.hint, marginTop: 1 }}>{act.accountName} · {fmtDate(act.at)}</div></div>))}</div></AnalyticsCard>;

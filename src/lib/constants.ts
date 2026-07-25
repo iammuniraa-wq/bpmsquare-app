@@ -305,9 +305,9 @@ export type QuoteStatusDef = {
   color: string;      // hex colour for the pill
   is_initial?: boolean;  // shown as default on new quotes
   is_terminal?: boolean; // quote locked (no edit) when in this status
-  is_lost?: boolean;     // excluded from "open pipeline value" (e.g. rejected/lost) --
-                         // distinct from is_terminal, since "approved" is also terminal
-                         // but should still count toward pipeline value.
+  is_lost?: boolean;     // this terminal status represents a lost/rejected deal --
+                         // distinguishes it from a "won" terminal status (e.g. approved)
+                         // when computing won/approved value.
 };
 
 // Default statuses used when tenant has not configured custom ones.

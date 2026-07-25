@@ -1187,9 +1187,11 @@ export async function getDashboardSummaryLive() {
   // (Settings -> Statuses), not a hardcoded sent/approved pair -- a tenant that
   // renamed or added quote statuses would otherwise see quotes in those statuses
   // silently drop out of this KPI, same bug class as quotesByStatus above.
+  // Any quote not yet won or lost counts, including drafts -- matches the
+  // Quotations page's "In pipeline" tile.
   const quoteStatusDefs = tenant?.config?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
   const openPipelineStatuses = new Set(
-    quoteStatusDefs.filter((d) => !d.is_initial && !d.is_lost).map((d) => d.value)
+    quoteStatusDefs.filter((d) => !d.is_terminal).map((d) => d.value)
   );
 
   const kpis = {

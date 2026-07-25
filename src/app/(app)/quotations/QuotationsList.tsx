@@ -85,11 +85,16 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
     [rows, filterStatus, filterAccount]
   );
 
-  // Summary strip values
-  const terminalStatus = quoteStatuses.find((s) => s.is_terminal && !s.value.includes("reject"))?.value ?? "approved";
-  const pipelineStatus = quoteStatuses.find((s) => !s.is_initial && !s.is_terminal)?.value ?? "sent";
-  const totalApproved  = rows.filter((r) => r.quote.status === terminalStatus).reduce((s, r) => s + r.quote.total, 0);
-  const totalPipeline  = rows.filter((r) => r.quote.status === pipelineStatus).reduce((s, r) => s + r.quote.total, 0);
+  // Summary strip values -- derived from the tenant's actual configured quote
+  // statuses (Settings -> Statuses), not a hardcoded draft/sent/approved list.
+  const wonStatuses  = new Set(quoteStatuses.filter((s) => s.is_terminal && !s.is_lost).map((s) => s.value));
+  const openStatuses = new Set(quoteStatuses.filter((s) => !s.is_terminal).map((s) => s.value));
+  const sentStatuses = new Set(quoteStatuses.filter((s) => !s.is_initial && !s.is_terminal).map((s) => s.value));
+  const totalApproved = rows.filter((r) => wonStatuses.has(r.quote.status)).reduce((s, r) => s + r.quote.total, 0);
+  // "In pipeline" = any quote not yet won or lost -- includes drafts, since not
+  // every team reliably marks a quote "Sent" as its own separate step.
+  const totalPipeline = rows.filter((r) => openStatuses.has(r.quote.status)).reduce((s, r) => s + r.quote.total, 0);
+  const awaitingApprovalCount = rows.filter((r) => sentStatuses.has(r.quote.status)).length;
 
   // ── Selection helpers ──────────────────────────────────────────────────────
 
@@ -171,7 +176,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
           { label: "Total quotes",      value: rows.length,                                             color: c.ink },
           { label: "Approved value",    value: inr(totalApproved),                                     color: pillar.teal.fg },
           { label: "In pipeline",       value: inr(totalPipeline),                                     color: pillar.blue.fg },
-          { label: "Awaiting approval", value: rows.filter((r) => r.quote.status === "sent").length,   color: c.muted },
+          { label: "Awaiting approval", value: awaitingApprovalCount,                                  color: c.muted },
         ].map((s) => (
           <div key={s.label} style={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, padding: "12px 14px" }}>
             <div style={{ fontSize: 11, color: c.muted }}>{s.label}</div>

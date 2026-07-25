@@ -224,7 +224,7 @@ export default function StatusesClient({ initial, initialAssetFields, assetCusto
 
                 <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: c.muted, cursor: "pointer" }}>
                   <input type="checkbox" checked={!!s.is_lost} onChange={() => toggleLost(idx)} style={{ cursor: "pointer" }} />
-                  Lost (excluded from open pipeline value)
+                  Lost (excluded from won/approved value)
                 </label>
               </div>
             </div>
