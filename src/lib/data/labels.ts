@@ -114,6 +114,9 @@ export type AnalyticsData = {
   loanerStock: { available: number; onLoan: number; total: number };
   quotesByStatus: Array<{ status: string; label: string; count: number; value: number }>;
   quoteTrend: Array<{ dateLabel: string; value: number; cumulative: number }>;
+  quoteOutcomeTotals: { open: number; won: number; lost: number };
+  quoteOverdueCount: number;
+  quoteSource: { caseLinked: { count: number; value: number }; standalone: { count: number; value: number } };
   casesByStatus: Array<{ status: string; label: string; count: number }>;
   workOrdersByStatus: Array<{ status: string; label: string; count: number }>;
   techniciansByStatus: Array<{ status: string; label: string; count: number }>;

@@ -129,6 +129,10 @@ export type Quote = {
   type: QuoteOfferType;
   status: "draft" | "sent" | "approved" | "rejected";
   business_status?: "pending" | "po_received";
+  // Won/Lost outcome -- independent of status (see QuoteStatusDef.is_terminal /
+  // is_lost), auto-synced when status reaches a terminal state but can also be
+  // set manually before that (e.g. marked "lost" while still "sent").
+  outcome: "open" | "won" | "lost";
   total: number;
   created_at: string;
   valid_until: string | null;

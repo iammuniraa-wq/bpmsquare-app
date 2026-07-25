@@ -32,6 +32,7 @@ export {
   // Quotes
   listQuotesLive as listQuotes,
   getQuoteLive as getQuote,
+  getCaseLinkedQuoteIdsLive as getCaseLinkedQuoteIds,
   // Cases
   listCasesLive as listCases,
   getCaseLive as getCase,

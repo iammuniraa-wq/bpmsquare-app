@@ -47,7 +47,7 @@ const td: React.CSSProperties = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QUOTE_STATUSES }: { initialRows: QuoteSummary[]; quoteStatuses?: QuoteStatusDef[] }) {
+export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QUOTE_STATUSES, caseLinkedQuoteIds = [] }: { initialRows: QuoteSummary[]; quoteStatuses?: QuoteStatusDef[]; caseLinkedQuoteIds?: string[] }) {
   const router = useRouter();
 
   const [rows, setRows]                 = useState<QuoteSummary[]>(initialRows);
@@ -85,16 +85,28 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
     [rows, filterStatus, filterAccount]
   );
 
-  // Summary strip values -- derived from the tenant's actual configured quote
-  // statuses (Settings -> Statuses), not a hardcoded draft/sent/approved list.
-  const wonStatuses  = new Set(quoteStatuses.filter((s) => s.is_terminal && !s.is_lost).map((s) => s.value));
-  const openStatuses = new Set(quoteStatuses.filter((s) => !s.is_terminal).map((s) => s.value));
-  const sentStatuses = new Set(quoteStatuses.filter((s) => !s.is_initial && !s.is_terminal).map((s) => s.value));
-  const totalApproved = rows.filter((r) => wonStatuses.has(r.quote.status)).reduce((s, r) => s + r.quote.total, 0);
+  // Summary strip values -- outcome (Won/Lost/Open) is the source of truth for
+  // value reporting: it's auto-synced from the pipeline status but can also be
+  // set independently (e.g. marked Lost while still "Sent"), so it reflects
+  // reality even when status alone wouldn't.
+  const totalOverall  = rows.reduce((s, r) => s + r.quote.total, 0);
+  const totalWon      = rows.filter((r) => r.quote.outcome === "won").reduce((s, r) => s + r.quote.total, 0);
+  const totalLost     = rows.filter((r) => r.quote.outcome === "lost").reduce((s, r) => s + r.quote.total, 0);
   // "In pipeline" = any quote not yet won or lost -- includes drafts, since not
   // every team reliably marks a quote "Sent" as its own separate step.
-  const totalPipeline = rows.filter((r) => openStatuses.has(r.quote.status)).reduce((s, r) => s + r.quote.total, 0);
+  const totalPipeline = rows.filter((r) => r.quote.outcome === "open").reduce((s, r) => s + r.quote.total, 0);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueCount = rows.filter((r) => r.quote.outcome === "open" && r.quote.valid_until && r.quote.valid_until < today).length;
+
+  const sentStatuses = new Set(quoteStatuses.filter((s) => !s.is_initial && !s.is_terminal).map((s) => s.value));
   const awaitingApprovalCount = rows.filter((r) => sentStatuses.has(r.quote.status)).length;
+
+  const caseLinkedSet = new Set(caseLinkedQuoteIds);
+  const caseLinked  = rows.filter((r) => caseLinkedSet.has(r.quote.id))
+    .reduce((acc, r) => ({ count: acc.count + 1, value: acc.value + r.quote.total }), { count: 0, value: 0 });
+  const standalone  = rows.filter((r) => !caseLinkedSet.has(r.quote.id))
+    .reduce((acc, r) => ({ count: acc.count + 1, value: acc.value + r.quote.total }), { count: 0, value: 0 });
 
   // ── Selection helpers ──────────────────────────────────────────────────────
 
@@ -173,10 +185,15 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
       {/* Summary strip */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 14 }}>
         {[
-          { label: "Total quotes",      value: rows.length,                                             color: c.ink },
-          { label: "Approved value",    value: inr(totalApproved),                                     color: pillar.teal.fg },
-          { label: "In pipeline",       value: inr(totalPipeline),                                     color: pillar.blue.fg },
-          { label: "Awaiting approval", value: awaitingApprovalCount,                                  color: c.muted },
+          { label: "Total quotes",      value: rows.length,                    color: c.ink },
+          { label: "Overall value",     value: inr(totalOverall),               color: c.ink },
+          { label: "Won value",         value: inr(totalWon),                   color: pillar.teal.fg },
+          { label: "Lost value",        value: inr(totalLost),                  color: pillar.red.fg },
+          { label: "In pipeline",       value: inr(totalPipeline),              color: pillar.blue.fg },
+          { label: "Overdue",           value: overdueCount,                    color: overdueCount > 0 ? pillar.amber.fg : c.muted },
+          { label: "Awaiting approval", value: awaitingApprovalCount,           color: c.muted },
+          { label: "From cases",        value: `${caseLinked.count} · ${inr(caseLinked.value)}`, color: pillar.purple.fg },
+          { label: "Standalone",        value: `${standalone.count} · ${inr(standalone.value)}`, color: c.muted },
         ].map((s) => (
           <div key={s.label} style={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, padding: "12px 14px" }}>
             <div style={{ fontSize: 11, color: c.muted }}>{s.label}</div>

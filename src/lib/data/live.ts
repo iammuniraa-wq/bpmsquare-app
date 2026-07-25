@@ -590,6 +590,20 @@ export async function listQuotesLive(): Promise<QuoteSummary[]> {
   return _listQuotesCached(tenantId);
 }
 
+// Which quote ids some service case references (the FK runs case -> quote).
+// Everything not in this set is a standalone quote.
+export async function getCaseLinkedQuoteIdsLive(): Promise<string[]> {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const supabase = createAdminSupabase();
+  const { data } = await supabase
+    .from("service_cases")
+    .select("quote_id")
+    .eq("tenant_id", tenantId)
+    .not("quote_id", "is", null);
+  return (data ?? []).map((r) => r.quote_id as string);
+}
+
 export async function getQuoteLive(id: string) {
   const tenantId = await currentTenantId();
   if (!tenantId) return null;
@@ -1260,6 +1274,9 @@ export type AnalyticsData = {
   loanerStock: { available: number; onLoan: number; total: number };
   quotesByStatus: Array<{ status: string; label: string; count: number; value: number }>;
   quoteTrend: Array<{ dateLabel: string; value: number; cumulative: number }>;
+  quoteOutcomeTotals: { open: number; won: number; lost: number };
+  quoteOverdueCount: number;
+  quoteSource: { caseLinked: { count: number; value: number }; standalone: { count: number; value: number } };
   casesByStatus: Array<{ status: string; label: string; count: number }>;
   workOrdersByStatus: Array<{ status: string; label: string; count: number }>;
   techniciansByStatus: Array<{ status: string; label: string; count: number }>;
@@ -1285,6 +1302,9 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
+      quoteOutcomeTotals: { open: 0, won: 0, lost: 0 },
+      quoteOverdueCount: 0,
+      quoteSource: { caseLinked: { count: 0, value: 0 }, standalone: { count: 0, value: 0 } },
       techniciansByStatus: [], invoicesByStatus: [],
       invoiceTotals: { invoiced: 0, paid: 0, outstanding: 0 },
       topAccountsByRevenue: [],
@@ -1306,24 +1326,24 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
     supabase.from("contacts").select("id").eq("tenant_id", tenantId),
     supabase.from("assets").select("id, kind, is_loaner, loaner_status").eq("tenant_id", tenantId),
-    supabase.from("service_cases").select("id, status").eq("tenant_id", tenantId),
+    supabase.from("service_cases").select("id, status, quote_id").eq("tenant_id", tenantId),
     supabase.from("work_orders").select("id, status").eq("tenant_id", tenantId),
     supabase.from("contracts").select("id, status, value").eq("tenant_id", tenantId),
     supabase.from("leads").select("id, status").eq("tenant_id", tenantId),
     supabase.from("technicians").select("id, status").eq("tenant_id", tenantId),
-    supabase.from("quotes").select("id, status, total, created_at").eq("tenant_id", tenantId).order("created_at"),
+    supabase.from("quotes").select("id, status, outcome, total, valid_until, created_at").eq("tenant_id", tenantId).order("created_at"),
     supabase.from("invoices").select("id, status, total, paid_amount, account_id, accounts(name)").eq("tenant_id", tenantId),
     supabase.from("activities").select("*, accounts(name)").eq("tenant_id", tenantId).order("at", { ascending: false }).limit(6),
   ]);
 
   const allAccounts    = (accounts    ?? []) as Array<{ id: string; type: string }>;
   const allAssets      = (assets      ?? []) as Array<{ id: string; kind: string; is_loaner: boolean; loaner_status: string | null }>;
-  const allCases       = (cases       ?? []) as Array<{ id: string; status: string }>;
+  const allCases       = (cases       ?? []) as Array<{ id: string; status: string; quote_id: string | null }>;
   const allWorkOrders  = (workOrders  ?? []) as Array<{ id: string; status: string }>;
   const allContracts   = (contracts   ?? []) as Array<{ id: string; status: string; value: number | null }>;
   const allLeads       = (leads       ?? []) as Array<{ id: string; status: string }>;
   const allTechnicians = (technicians ?? []) as Array<{ id: string; status: string }>;
-  const allQuotes      = (quotes      ?? []) as Array<{ id: string; status: string; total: number; created_at: string }>;
+  const allQuotes      = (quotes      ?? []) as Array<{ id: string; status: string; outcome: "open" | "won" | "lost"; total: number; valid_until: string | null; created_at: string }>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allInvoices    = (invoices    ?? []) as any as Array<{ id: string; status: string; total: number; paid_amount: number; account_id: string; accounts: { name: string } | { name: string }[] | null }>;
 
@@ -1385,6 +1405,29 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const quotesByStatus = quoteStatusDefs
     .map((def) => ({ status: def.value, label: def.label, ...(qStatusCounts.get(def.value) ?? { count: 0, value: 0 }) }))
     .filter((x) => x.count > 0);
+
+  const quoteOutcomeTotals = { open: 0, won: 0, lost: 0 };
+  allQuotes.forEach((q) => { quoteOutcomeTotals[q.outcome] += q.total; });
+
+  // A quote is overdue when its validity date has passed with no decision --
+  // nobody followed up before it expired.
+  const todayISOForOverdue = new Date().toISOString().slice(0, 10);
+  const quoteOverdueCount = allQuotes.filter(
+    (q) => q.outcome === "open" && q.valid_until && q.valid_until < todayISOForOverdue
+  ).length;
+
+  // A quote is "case-linked" if some service case references it (the FK runs
+  // case -> quote, not the other way around); everything else is standalone.
+  const caseLinkedQuoteIds = new Set(allCases.map((c) => c.quote_id).filter((id): id is string => !!id));
+  const quoteSource = allQuotes.reduce(
+    (acc, q) => {
+      const bucket = caseLinkedQuoteIds.has(q.id) ? acc.caseLinked : acc.standalone;
+      bucket.count += 1;
+      bucket.value += q.total;
+      return acc;
+    },
+    { caseLinked: { count: 0, value: 0 }, standalone: { count: 0, value: 0 } }
+  );
 
   let cumulative = 0;
   const quoteTrend = allQuotes.map((q) => {
@@ -1466,7 +1509,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
 
   return {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
-    quotesByStatus, quoteTrend, casesByStatus, workOrdersByStatus,
+    quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOverdueCount, quoteSource,
+    casesByStatus, workOrdersByStatus,
     techniciansByStatus, invoicesByStatus, invoiceTotals, topAccountsByRevenue,
     contractStats, recentActivity, accountNews,
   };

@@ -15,13 +15,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: quote } = await supabase
     .from("quotes")
-    .select("id, account_id, contact_id, entity_id, status")
+    .select("id, account_id, contact_id, entity_id, status, outcome")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (!quote) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
-  if (quote.status !== "approved") {
-    return NextResponse.json({ error: "Only an approved quote can be converted to an invoice" }, { status: 400 });
+  if (quote.outcome !== "won") {
+    return NextResponse.json({ error: "Only a won quote can be converted to an invoice" }, { status: 400 });
   }
 
   const { data: existing } = await supabase.from("invoices").select("id, ref").eq("quote_id", id).eq("tenant_id", tenantId).maybeSingle();

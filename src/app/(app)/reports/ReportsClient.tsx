@@ -330,6 +330,9 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   loaner_availability:    { label: "Loaner availability" },
   recent_activity:        { label: "Recent activity" },
   account_news:           { label: "Client news" },
+  quote_outcomes:         { label: "Quote won/lost value" },
+  quote_overdue:          { label: "Quote overdue" },
+  quote_source:           { label: "Quote source (cases vs standalone)" },
 };
 
 export default function ReportsClient({
@@ -594,6 +597,45 @@ export default function ReportsClient({
               href: `${ROUTES.cases}?filter=${x.status === "in_repair" ? "in_repair" : x.status === "closed" || x.status === "buyback" || x.status === "scrapped" ? "closed" : "open"}`,
             }))}
           />
+        </ChartCard>}
+      </div>
+      )}
+
+      {/* ── Row 2.5: Quote won/lost value · Overdue · Source ── */}
+      {(isVisible("quote_outcomes") || isVisible("quote_overdue") || isVisible("quote_source")) && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
+
+        {isVisible("quote_outcomes") && <ChartCard title="Quote won/lost value" href={ROUTES.quotations}>
+          <HBarChartNav
+            rows={[
+              { label: "Won",  value: a.quoteOutcomeTotals.won,  sub: inr(a.quoteOutcomeTotals.won) },
+              { label: "Lost", value: a.quoteOutcomeTotals.lost, sub: inr(a.quoteOutcomeTotals.lost) },
+              { label: "Open", value: a.quoteOutcomeTotals.open, sub: inr(a.quoteOutcomeTotals.open) },
+            ]}
+            colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.blue.base][i]}
+          />
+        </ChartCard>}
+
+        {isVisible("quote_overdue") && <ChartCard title="Quote overdue" href={ROUTES.quotations}>
+          <div style={{ textAlign: "center", padding: "10px 0" }}>
+            <div style={{ fontSize: 32, fontWeight: 700, color: a.quoteOverdueCount > 0 ? pillar.amber.fg : c.ink }}>{a.quoteOverdueCount}</div>
+            <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>Past valid-until, still open</div>
+          </div>
+        </ChartCard>}
+
+        {isVisible("quote_source") && <ChartCard title="Quote source" href={ROUTES.quotations}>
+          <div style={{ display: "flex", gap: 20 }}>
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: c.ink }}>{a.quoteSource.caseLinked.count}</div>
+              <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>From cases</div>
+              <div style={{ fontSize: 11.5, color: pillar.purple.fg, marginTop: 2 }}>{inr(a.quoteSource.caseLinked.value)}</div>
+            </div>
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: c.ink }}>{a.quoteSource.standalone.count}</div>
+              <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Standalone</div>
+              <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{inr(a.quoteSource.standalone.value)}</div>
+            </div>
+          </div>
         </ChartCard>}
       </div>
       )}

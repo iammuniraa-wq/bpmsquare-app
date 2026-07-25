@@ -8,7 +8,7 @@ import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
-import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery } from "@/components/Icons";
+import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText } from "@/components/Icons";
 import type { AnalyticsData } from "@/lib/data/labels";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -70,6 +70,9 @@ const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof
   loaner_availability:     { label: "Loaner availability" },
   recent_activity:         { label: "Recent activity (analytics)" },
   account_news:            { label: "Client news" },
+  quote_outcomes:          { label: "Quote won/lost value" },
+  quote_overdue:           { label: "Quote overdue" },
+  quote_source:            { label: "Quote source (cases vs standalone)" },
 };
 
 const DEFAULT_LAYOUT: DashLayoutItem[] = [
@@ -92,7 +95,10 @@ const BUNDLES: { id: string; label: string; feature?: keyof TenantFeatures; bloc
     { id: "accounts" }, { id: "accounts_by_type" }, { id: "top_accounts" }, { id: "account_news" },
   ] },
   { id: "contacts",     label: "Contacts",      blocks: [{ id: "contacts" }] },
-  { id: "quotations",   label: "Quotations",    blocks: [{ id: "quote_trend" }, { id: "revenue_card" }] },
+  { id: "quotations",   label: "Quotations",    blocks: [
+    { id: "quote_trend" }, { id: "revenue_card" }, { id: "quote_outcomes" },
+    { id: "quote_overdue", size: "compact" }, { id: "quote_source", size: "half" },
+  ] },
   { id: "cases",        label: "Cases",         blocks: [{ id: "open_cases" }, { id: "case_status" }] },
   { id: "work_orders",  label: "Work orders",   blocks: [
     { id: "work_orders" }, { id: "work_order_status" }, { id: "tech_workload" },
@@ -126,7 +132,7 @@ function isAnalyticsId(id: string): id is AnalyticsMetricId {
 // so they sit side by side in a wrapping row instead of each claiming a
 // full-width row of mostly empty space. Users can still override via block.size.
 const COMPACT_ANALYTICS_IDS = new Set<AnalyticsMetricId>([
-  "accounts", "contacts", "assets", "open_cases", "work_orders", "leads", "technicians",
+  "accounts", "contacts", "assets", "open_cases", "work_orders", "leads", "technicians", "quote_overdue",
 ]);
 
 function blockSize(block: DashLayoutItem): "compact" | "half" | "full" {
@@ -501,6 +507,17 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
           })}
         </div>
       )}</AnalyticsCard>;
+    case "quote_outcomes": {
+      const { open, won, lost } = a.quoteOutcomeTotals;
+      const rows = [
+        { label: "Won",  value: won,  valueLabel: inr(won) },
+        { label: "Lost", value: lost, valueLabel: inr(lost) },
+        { label: "Open", value: open, valueLabel: inr(open) },
+      ];
+      return <AnalyticsCard title="Quote won/lost value" href={ROUTES.quotations}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.blue.base][i]} /></AnalyticsCard>;
+    }
+    case "quote_overdue": return <AnalyticsCard title="Quote overdue" href={ROUTES.quotations}><StatTile value={a.quoteOverdueCount} label="Overdue quotes" icon={<AlertTriangle size={14} color={ledger.accent} />} href={ROUTES.quotations} /></AnalyticsCard>;
+    case "quote_source": return <AnalyticsCard title="Quote source" href={ROUTES.quotations}><div style={{ display: "flex" }}><StatTile value={a.quoteSource.caseLinked.count} label="From cases" icon={<Wrench size={14} color={ledger.accent} />} href={ROUTES.quotations} /><StatTile value={a.quoteSource.standalone.count} label="Standalone" icon={<FileText size={14} color={ledger.accent} />} href={ROUTES.quotations} /></div></AnalyticsCard>;
     default: return null;
   }
 }

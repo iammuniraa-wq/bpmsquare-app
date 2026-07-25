@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -61,11 +62,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ["status", "notes", "custom_data", "ref_no"];
+  const allowed = ["status", "notes", "custom_data", "ref_no", "outcome"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
 
-  const { data, error } = await createAdminSupabase()
+  const admin = createAdminSupabase();
+
+  // Auto-sync outcome to the pipeline status whenever status changes (unless
+  // the caller is also explicitly setting outcome in this same request) --
+  // reaching a terminal status is a definitive event. A quote can still be
+  // marked won/lost independently, before that, via its own "outcome" patch.
+  if ("status" in patch && !("outcome" in patch)) {
+    const { data: tenant } = await admin.from("tenants").select("config").eq("id", tenantId).single();
+    const quoteStatuses: QuoteStatusDef[] = (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
+    const def = quoteStatuses.find((s) => s.value === patch.status);
+    patch.outcome = def?.is_terminal ? (def.is_lost ? "lost" : "won") : "open";
+  }
+
+  const { data, error } = await admin
     .from("quotes")
     .update(patch)
     .eq("id", id)

@@ -9,6 +9,7 @@ import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import QuoteStatusPill from "@/components/QuoteStatusPill";
 import ComingSoon from "@/components/ComingSoon";
 import { ROUTES } from "@/lib/constants";
 import { MessageSquare, CheckIcon } from "@/components/Icons";
@@ -104,6 +105,88 @@ function StatusChanger({ quoteId, currentStatus, statuses, onChanged }: {
   );
 }
 
+const OUTCOME_META: Record<"open" | "won" | "lost", { label: string; color: string }> = {
+  open: { label: "Open",  color: "#94a3b8" },
+  won:  { label: "Won",   color: "#10b981" },
+  lost: { label: "Lost",  color: "#ef4444" },
+};
+
+// Independent from the pipeline status -- a quote can be marked Lost while
+// still sitting in a non-terminal status (customer went quiet), or Won ahead
+// of the status catching up. Status changes still auto-sync this when they
+// reach a terminal state (see the PATCH route), but this lets it be set
+// directly at any time.
+function OutcomeChanger({ quoteId, currentOutcome, onChanged }: {
+  quoteId: string; currentOutcome: "open" | "won" | "lost"; onChanged: (o: "open" | "won" | "lost") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const meta = OUTCOME_META[currentOutcome];
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  async function change(value: "open" | "won" | "lost") {
+    if (value === currentOutcome) { setOpen(false); return; }
+    setSaving(true);
+    const res = await fetch(`/api/quotes/${quoteId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ outcome: value }),
+    });
+    setSaving(false);
+    if (res.ok) { onChanged(value); setOpen(false); }
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        disabled={saving}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "3px 12px 3px 10px", borderRadius: 12,
+          fontSize: 12, fontWeight: 600, cursor: "pointer",
+          background: `${meta.color}22`, color: meta.color, border: `1px solid ${meta.color}55`,
+        }}
+      >
+        {saving ? "…" : meta.label} <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50,
+          background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
+          boxShadow: "0 8px 24px rgba(0,0,0,.15)", minWidth: 140, overflow: "hidden",
+        }}>
+          {(["open", "won", "lost"] as const).map((o) => (
+            <button
+              key={o}
+              onClick={() => change(o)}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                width: "100%", padding: "9px 14px", border: "none", cursor: "pointer",
+                background: o === currentOutcome ? `${OUTCOME_META[o].color}15` : "transparent",
+                color: o === currentOutcome ? OUTCOME_META[o].color : c.ink,
+                fontSize: 13, fontWeight: o === currentOutcome ? 700 : 400,
+                textAlign: "left",
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: OUTCOME_META[o].color, flexShrink: 0 }} />
+              {OUTCOME_META[o].label}
+              {o === currentOutcome && <span style={{ marginLeft: "auto", fontSize: 11 }}>✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ACCT_LABEL: Record<string, string> = {
   prospect: "Prospect", oem: "OEM / Vendor",
   direct: "Direct customer", end_customer: "End-customer (under OEM)",
@@ -161,6 +244,8 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const isTechnical = quote.type === "technical";
   const [currentStatus, setCurrentStatus] = useState<string>(quote.status);
   useEffect(() => { setCurrentStatus(quote.status); }, [quote.status]);
+  const [currentOutcome, setCurrentOutcome] = useState<"open" | "won" | "lost">(quote.outcome);
+  useEffect(() => { setCurrentOutcome(quote.outcome); }, [quote.outcome]);
   // CR-010: GST is optional per quote — no rate entered means no tax row at all
   // (the "GST @ 18%" statement lives in Terms & Conditions text instead).
   const hasGst      = quote.gst_rate !== null && quote.gst_rate !== undefined;
@@ -627,8 +712,9 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
       <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <Link href={ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>← All quotations</Link>
         <StatusChanger quoteId={quote.id} currentStatus={currentStatus} statuses={quoteStatuses} onChanged={setCurrentStatus} />
+        <OutcomeChanger quoteId={quote.id} currentOutcome={currentOutcome} onChanged={setCurrentOutcome} />
 
-        {currentStatus === "approved" && (
+        {currentOutcome === "won" && (
           existingInvoice ? (
             <Link
               href={ROUTES.invoice(existingInvoice.id)}
@@ -861,7 +947,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                         </div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Pill label={rev.status.charAt(0).toUpperCase() + rev.status.slice(1)} tone={rev.status === "approved" ? "green" : rev.status === "rejected" ? "red" : rev.status === "sent" ? "purple" : "blue"} />
+                        <QuoteStatusPill status={rev.status} statuses={quoteStatuses} />
                         {!isCurrent && (
                           <Link href={ROUTES.quotation(rev.id)} style={{ fontSize: 11, color: c.accent, textDecoration: "none", fontWeight: 600 }}>View →</Link>
                         )}
