@@ -6,13 +6,17 @@ import EmailComposeModal from "./EmailComposeModal";
 import { MessageSquare } from "@/components/Icons";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/whatsapp";
 
-type Props = QuotePrintDocumentProps;
+type Props = QuotePrintDocumentProps & {
+  /** Signed, no-login link to this quote's PDF, for the WhatsApp message. Null when
+   * QUOTE_PUBLIC_LINK_SECRET isn't configured (see lib/quotePublicLink.ts). */
+  publicPdfLink?: string | null;
+};
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 export default function QuotePrint(props: Props) {
-  const { quote, account, contact, companyInfo } = props;
+  const { quote, account, contact, companyInfo, publicPdfLink } = props;
   const recipient = contact?.email || contact?.email2 || account?.email || account?.email2 || null;
   const [emailState, setEmailState] = useState<"idle" | "sent">("idle");
   const [composeOpen, setComposeOpen] = useState(false);
@@ -26,7 +30,7 @@ export default function QuotePrint(props: Props) {
   };
 
   const waPhone = sanitizePhoneForWhatsApp(contact?.phone || contact?.phone2 || contact?.phone3 || account?.phone || account?.phone2);
-  const waLink = waPhone ? buildWhatsAppLink(waPhone, buildQuoteWhatsAppMessage(emailVars)) : null;
+  const waLink = waPhone ? buildWhatsAppLink(waPhone, buildQuoteWhatsAppMessage({ ...emailVars, pdfLink: publicPdfLink })) : null;
 
   return (
     <>

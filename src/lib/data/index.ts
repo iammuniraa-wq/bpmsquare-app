@@ -33,6 +33,8 @@ export {
   listQuotesLive as listQuotes,
   getQuoteLive as getQuote,
   getCaseLinkedQuoteIdsLive as getCaseLinkedQuoteIds,
+  getQuoteByPublicTokenLive as getQuoteByPublicToken,
+  getTenantForPublicQuoteLive as getTenantForPublicQuote,
   // Cases
   listCasesLive as listCases,
   getCaseLive as getCase,

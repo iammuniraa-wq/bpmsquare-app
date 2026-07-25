@@ -27,8 +27,15 @@ export function buildQuoteWhatsAppMessage(vars: {
   quote_ref: string;
   quote_total: string;
   valid_until: string;
+  /** Signed, no-login link to the quote PDF (see lib/quotePublicLink.ts). When
+   * absent (QUOTE_PUBLIC_LINK_SECRET not configured), the message asks the rep
+   * to attach the PDF manually instead. */
+  pdfLink?: string | null;
 }): string {
-  return `Hi ${vars.customer_name}, this is ${vars.company_name}. Your quote ${vars.quote_ref} for ${vars.quote_total} is ready (valid until ${vars.valid_until}). We've emailed the PDF too — happy to answer any questions!`;
+  const base = `Hi ${vars.customer_name}, this is ${vars.company_name}. Your quote ${vars.quote_ref} for ${vars.quote_total} is ready (valid until ${vars.valid_until}).`;
+  return vars.pdfLink
+    ? `${base} View/download it here: ${vars.pdfLink}`
+    : `${base} We've emailed the PDF too — happy to answer any questions!`;
 }
 
 export function buildCaseWhatsAppMessage(vars: {

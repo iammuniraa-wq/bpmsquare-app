@@ -1,24 +1,27 @@
 import { notFound } from "next/navigation";
-import { getQuote } from "@/lib/data";
-import { getTenant } from "@/lib/tenant";
+import { getQuoteByPublicToken, getTenantForPublicQuote } from "@/lib/data";
+import { verifyQuotePublicToken } from "@/lib/quotePublicLink";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import type { Asset } from "@/lib/types";
-import QuotePrint from "@/components/QuotePrint";
+import QuotePrintPublic from "@/components/QuotePrintPublic";
 import { getExtension } from "@/extensions/registry";
-import { signQuotePublicToken, buildAbsoluteUrl } from "@/lib/quotePublicLink";
 
-export default async function QuotePrintPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const [data, tenant] = await Promise.all([getQuote(id), getTenant()]);
+// No login required -- reached via a signed, expiring link (see lib/quotePublicLink.ts),
+// e.g. shared over WhatsApp. Token is verified against the exact quote id in the URL
+// before any data is fetched; every query after that is still tenant-scoped internally
+// (see getQuoteByPublicTokenLive / getTenantForPublicQuoteLive in data/live.ts).
+export default async function QuotePublicPrintPage({ params }: { params: Promise<{ id: string; token: string }> }) {
+  const { id, token } = await params;
+  if (!verifyQuotePublicToken(id, token)) notFound();
+
+  const data = await getQuoteByPublicToken(id);
   if (!data) notFound();
-
-  const { quote, account, contact, site, lines, revisions } = data;
+  const { quote, account, contact, site, lines, revisions, tenantId } = data;
   const assets: Asset[] = (data as { assets?: Asset[] }).assets ?? [];
-  const assetPrintFields: string[] =
-    (tenant?.config as { asset_print_fields?: string[] })?.asset_print_fields ?? [];
 
-  // Custom asset fields (cf_*) need their tenant-defined labels for the Equipment Details
-  // section -- ASSET_FIELD_LABELS in QuotePrint.tsx only covers the base Asset columns.
+  const tenant = await getTenantForPublicQuote(tenantId);
+  const assetPrintFields: string[] = (tenant?.config as { asset_print_fields?: string[] })?.asset_print_fields ?? [];
+
   const assetCustomFieldLabels: Record<string, string> = {};
   if (tenant) {
     const { data: customFields } = await createAdminSupabase()
@@ -33,19 +36,13 @@ export default async function QuotePrintPage({ params }: { params: Promise<{ id:
   try {
     ext = await getExtension(tenant?.slug);
   } catch (e: unknown) {
-    console.error("[quote print] extension load failed for slug", tenant?.slug, e);
-    ext = await getExtension(undefined); // fall back to the no-op base extension
+    console.error("[quote public print] extension load failed for slug", tenant?.slug, e);
+    ext = await getExtension(undefined);
   }
   const ctx = { companyName: tenant?.name ?? "", accountName: account?.name ?? null };
 
-  const publicToken = signQuotePublicToken(quote.id);
-  const publicPdfLink = publicToken
-    ? await buildAbsoluteUrl(`/api/quotes/${quote.id}/pdf-public/${publicToken}`)
-    : null;
-
   return (
-    <QuotePrint
-      publicPdfLink={publicPdfLink}
+    <QuotePrintPublic
       quote={quote}
       account={account}
       contact={contact}

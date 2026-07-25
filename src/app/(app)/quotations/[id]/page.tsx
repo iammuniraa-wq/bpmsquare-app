@@ -5,6 +5,7 @@ import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import QuoteDetailLayout from "@/components/QuoteDetailLayout";
+import { signQuotePublicToken, buildAbsoluteUrl } from "@/lib/quotePublicLink";
 
 export default async function QuotationDetailPage({
   params,
@@ -20,6 +21,11 @@ export default async function QuotationDetailPage({
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
   const offerLabel = OFFER_TYPE_LABEL[quote.type] ?? "Quotation";
+
+  const publicToken = signQuotePublicToken(quote.id);
+  const publicPdfLink = publicToken
+    ? await buildAbsoluteUrl(`/api/quotes/${quote.id}/pdf-public/${publicToken}`)
+    : null;
 
   return (
     <>
@@ -38,6 +44,7 @@ export default async function QuotationDetailPage({
         quoteStatuses={quoteStatuses}
         existingInvoice={existingInvoice}
         assets={assets}
+        publicPdfLink={publicPdfLink}
       />
     </>
   );

@@ -27,7 +27,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/manifest") ||
-    pathname.startsWith("/icons")
+    pathname.startsWith("/icons") ||
+    // Signed, no-login quote PDF links (see lib/quotePublicLink.ts) — shared over
+    // WhatsApp/etc. Auth here is the token itself, verified inside the route/page,
+    // not a session; every tenant-owned query behind them is still tenant-scoped.
+    /^\/quotations\/[^/]+\/print-public\//.test(pathname) ||
+    /^\/api\/quotes\/[^/]+\/pdf-public\//.test(pathname)
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }

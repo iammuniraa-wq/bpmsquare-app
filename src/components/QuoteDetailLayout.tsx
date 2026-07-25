@@ -223,6 +223,9 @@ interface Props {
   quoteStatuses?: QuoteStatusDef[];
   existingInvoice?: { id: string; ref: string } | null;
   assets?: Asset[];
+  /** Signed, no-login link to this quote's PDF, for the WhatsApp message. Null when
+   * QUOTE_PUBLIC_LINK_SECRET isn't configured (see lib/quotePublicLink.ts). */
+  publicPdfLink?: string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -242,7 +245,7 @@ const td: React.CSSProperties = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES, existingInvoice = null, assets = [] }: Props) {
+export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES, existingInvoice = null, assets = [], publicPdfLink = null }: Props) {
   const router = useRouter();
   const isTechnical = quote.type === "technical";
   const [currentStatus, setCurrentStatus] = useState<string>(quote.status);
@@ -291,7 +294,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
     valid_until: quote.valid_until ? fmtDate(quote.valid_until) : "—",
   };
   const waPhone = sanitizePhoneForWhatsApp(contact?.phone || contact?.phone2 || contact?.phone3 || account?.phone || account?.phone2);
-  const waLink = waPhone ? buildWhatsAppLink(waPhone, buildQuoteWhatsAppMessage(emailVars)) : null;
+  const waLink = waPhone ? buildWhatsAppLink(waPhone, buildQuoteWhatsAppMessage({ ...emailVars, pdfLink: publicPdfLink })) : null;
   // Section drag
   const dragSectionId   = useRef<string | null>(null);
   const dragOverSectionId = useRef<string | null>(null);

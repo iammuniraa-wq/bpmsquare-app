@@ -4,7 +4,9 @@ import { createAdminSupabase, resolveViewerTenantId, getAuthUser } from "@/lib/s
 import { decryptAccount, decryptContact } from "@/lib/encryption";
 import { getAccountNews, type AccountNewsItem } from "@/lib/data/news";
 import { getTenant } from "@/lib/tenant";
+import type { CompanyInfo } from "@/lib/tenant";
 import { DEFAULT_QUOTE_STATUSES } from "@/lib/constants";
+import type { TenantConfig } from "@/lib/constants";
 import type {
   Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder,
   Contract, Activity, QuoteLine, QuoteRevision, Technician, TechnicianLeave,
@@ -607,6 +609,13 @@ export async function getCaseLinkedQuoteIdsLive(): Promise<string[]> {
 export async function getQuoteLive(id: string) {
   const tenantId = await currentTenantId();
   if (!tenantId) return null;
+  return getQuoteForTenant(id, tenantId);
+}
+
+/** Shared by getQuoteLive (session-derived tenantId) and the public-link print
+ * route (token-verified tenantId, no session) -- same tenant-scoped query
+ * either way, just a different source for tenantId. */
+async function getQuoteForTenant(id: string, tenantId: string) {
   const supabase = createAdminSupabase();
   const [
     { data: quote },
@@ -668,6 +677,29 @@ export async function getQuoteLive(id: string) {
     assets,
     existingInvoice: existingInvoiceRow as { id: string; ref: string } | null,
   };
+}
+
+/** No session involved -- the caller has already verified the signed public-link
+ * token against this exact quote id before calling this. tenantId is looked up
+ * from the quote row itself (not from a session/host), then every subsequent
+ * query in getQuoteForTenant is still filtered by it. */
+export async function getQuoteByPublicTokenLive(id: string) {
+  const { data: row } = await createAdminSupabase().from("quotes").select("tenant_id").eq("id", id).maybeSingle();
+  if (!row) return null;
+  const tenantId = row.tenant_id as string;
+  const result = await getQuoteForTenant(id, tenantId);
+  return result ? { ...result, tenantId } : null;
+}
+
+/** Minimal tenant fields needed to render a public quote PDF (company info, logo,
+ * tax/entity config) -- fetched by id since there's no session to derive it from. */
+export async function getTenantForPublicQuoteLive(tenantId: string) {
+  const { data } = await createAdminSupabase()
+    .from("tenants")
+    .select("id, slug, name, logo_url, company_info, config")
+    .eq("id", tenantId)
+    .maybeSingle();
+  return data as { id: string; slug: string; name: string; logo_url: string | null; company_info: CompanyInfo | null; config: TenantConfig | null } | null;
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
