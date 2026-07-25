@@ -1331,7 +1331,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     supabase.from("contracts").select("id, status, value").eq("tenant_id", tenantId),
     supabase.from("leads").select("id, status").eq("tenant_id", tenantId),
     supabase.from("technicians").select("id, status").eq("tenant_id", tenantId),
-    supabase.from("quotes").select("id, status, outcome, total, valid_until, created_at").eq("tenant_id", tenantId).order("created_at"),
+    supabase.from("quotes").select("id, status, outcome, total, valid_until, created_at, account_id, accounts(name)").eq("tenant_id", tenantId).order("created_at"),
     supabase.from("invoices").select("id, status, total, paid_amount, account_id, accounts(name)").eq("tenant_id", tenantId),
     supabase.from("activities").select("*, accounts(name)").eq("tenant_id", tenantId).order("at", { ascending: false }).limit(6),
   ]);
@@ -1343,7 +1343,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const allContracts   = (contracts   ?? []) as Array<{ id: string; status: string; value: number | null }>;
   const allLeads       = (leads       ?? []) as Array<{ id: string; status: string }>;
   const allTechnicians = (technicians ?? []) as Array<{ id: string; status: string }>;
-  const allQuotes      = (quotes      ?? []) as Array<{ id: string; status: string; outcome: "open" | "won" | "lost"; total: number; valid_until: string | null; created_at: string }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allQuotes      = (quotes      ?? []) as any as Array<{ id: string; status: string; outcome: "open" | "won" | "lost"; total: number; valid_until: string | null; created_at: string; account_id: string; accounts: { name: string } | { name: string }[] | null }>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allInvoices    = (invoices    ?? []) as any as Array<{ id: string; status: string; total: number; paid_amount: number; account_id: string; accounts: { name: string } | { name: string }[] | null }>;
 
@@ -1494,10 +1495,28 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     totalValue:  activeContracts.reduce((s, c) => s + (c.value ?? 0), 0),
   };
 
-  const accountNews = await getAccountNews(
-    tenantId,
-    topAccountsByRevenue.map((a) => a.name).filter((n) => n && n !== "—")
-  );
+  // Client news searches billed-revenue accounts AND accounts with quoted
+  // value (any status, including draft) -- a tenant with no invoices yet
+  // (everything still in the quote pipeline) would otherwise have no accounts
+  // to search news for at all.
+  const acctQuoteValue = new Map<string, { name: string; value: number }>();
+  allQuotes.forEach((q) => {
+    const acctName = (Array.isArray(q.accounts) ? q.accounts[0]?.name : q.accounts?.name) ?? "—";
+    const cur = acctQuoteValue.get(q.account_id) ?? { name: acctName, value: 0 };
+    cur.value += q.total;
+    acctQuoteValue.set(q.account_id, cur);
+  });
+  const topAccountsByQuoteValue = [...acctQuoteValue.entries()]
+    .map(([accountId, v]) => ({ accountId, ...v }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
+
+  const newsAccountNames = [...new Set([
+    ...topAccountsByRevenue.map((a) => a.name),
+    ...topAccountsByQuoteValue.map((a) => a.name),
+  ])].filter((n) => n && n !== "—").slice(0, 8);
+
+  const accountNews = await getAccountNews(tenantId, newsAccountNames);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recentActivity = (activities ?? []).map((act: any) => ({
