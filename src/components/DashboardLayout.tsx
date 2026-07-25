@@ -1069,6 +1069,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <section style={{ ...cardStyle, padding: "14px 14px 12px" }}>
         <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Quick create</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <QCBtn href={ROUTES.accountNew}   label="New account"    icon={<Globe size={13} color={pillar.purple.base} />}   bg={pillar.purple.bg} />
           <QCBtn href={ROUTES.caseNew}      label="New case"       icon={<Activity size={13} color={pillar.teal.base} />}  bg={pillar.teal.bg} />
           <QCBtn href={ROUTES.contactNew}   label="New contact"    icon={<Phone size={13} color={pillar.blue.base} />}     bg={pillar.blue.bg} />
           <QCBtn href={ROUTES.quotationNew} label="New quotation"  icon={<Package size={13} color={pillar.amber.base} />}  bg={pillar.amber.bg} />
