@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { generateNextQuoteRef } from "@/lib/quoteRef";
 import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig } from "@/lib/constants";
+import { sanitizeRichText } from "@/lib/sanitizeHtml";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
     valid_until: valid_until || null,
     notes: notes || null,
     terms: terms || null,
-    scope_of_work: scope_of_work || null,
+    scope_of_work: sanitizeRichText(scope_of_work),
     entity_id: entity_id || null,
     name: name || null,
     contact_id: contact_id || null,

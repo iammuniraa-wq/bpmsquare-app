@@ -14,6 +14,8 @@ import { Gear, Zap, Droplet, Battery, Monitor, Activity } from "@/components/Ico
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import CreateExtraFields from "@/components/fields/CreateExtraFields";
 import ObjectSections from "@/components/fields/ObjectSections";
+import RichTextEditor from "@/components/RichTextEditor";
+import { richTextToDisplayHtml, isRichTextEmpty } from "@/lib/richText";
 
 // Fields the drawer's own inputs already cover — CreateExtraFields renders whatever's
 // left (nameplate fields, tenant custom fields), same exclusion list as /assets/new.
@@ -213,7 +215,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [entityId, setEntityId] = useState(() => eq?.entity_id ?? tenantEntities.find((e) => e.is_default)?.id ?? "");
   const [sows, setSows] = useState<SowEntry[]>(() =>
     eq?.scope_of_work
-      ? eq.scope_of_work.split("\n\n---\n\n").map((text, i) => ({ id: String(i + 1), text }))
+      ? eq.scope_of_work.split("\n\n---\n\n").map((text, i) => ({ id: String(i + 1), text: richTextToDisplayHtml(text) }))
       : [{ id: "1", text: "" }]
   );
   const [sowFragTarget, setSowFragTarget] = useState<string | null>(null); // SOW entry id
@@ -751,12 +753,13 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     if (fragTarget === "terms") setTerms((p) => p ? p + "\n\n" + frag.text : frag.text);
     setFragTarget(null);
   };
-  // SOW fragment insert
+  // SOW fragment insert -- frag.text is plain text (Settings > Templates), escaped
+  // into the existing HTML rather than concatenated raw.
   const insertSowFragment = (frag: TextFragment) => {
-    if (sowFragTarget) updateSow(sowFragTarget, sows.find(s => s.id === sowFragTarget)?.text
-      ? (sows.find(s => s.id === sowFragTarget)!.text + "\n\n" + frag.text)
-      : frag.text
-    );
+    if (sowFragTarget) {
+      const current = sows.find(s => s.id === sowFragTarget)?.text ?? "";
+      updateSow(sowFragTarget, current + richTextToDisplayHtml(frag.text));
+    }
     setSowFragTarget(null);
   };
   const noteFrags  = textFragments.filter((f) => f.category === "notes");
@@ -766,7 +769,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   function handleSave() {
     setSaveError("");
     startSave(async () => {
-      const scope_of_work = sows.map((s) => s.text).filter(Boolean).join("\n\n---\n\n") || null;
+      const scope_of_work = sows.map((s) => s.text).filter((t) => !isRichTextEmpty(t)).join("\n\n---\n\n") || null;
       const linesPayload = rows.flatMap((r): {
         sl_no: string | null; description: string; uom: string; qty: string; rate: string;
         discount_pct: number; group_id: string | null; group_label: string | null;
@@ -1016,10 +1019,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       )}
                     </div>
                   </div>
-                  <textarea
-                    style={{ ...inp, minHeight: 80, resize: "vertical", lineHeight: 1.6, background: c.panel }}
+                  <RichTextEditor
                     value={sow.text}
-                    onChange={(e) => updateSow(sow.id, e.target.value)}
+                    onChange={(html) => updateSow(sow.id, html)}
                     placeholder={`Describe scope of work${sows.length > 1 ? ` ${idx + 1}` : ""}…`}
                   />
                 </div>

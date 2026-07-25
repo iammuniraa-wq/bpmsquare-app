@@ -3,6 +3,7 @@ import type { Quote, QuoteLine, QuoteRevision, Account, Contact, Site, Asset } f
 import type { CompanyInfo } from "@/lib/tenant";
 import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
 import { MapPin, Mail, Globe } from "@/components/Icons";
+import { richTextToDisplayHtml } from "@/lib/richText";
 
 const OFFER_TITLE: Record<string, string> = {
   quotation: "Quotation",
@@ -500,7 +501,11 @@ export default function QuotePrintDocument({
       {quote.scope_of_work && (
         <div style={{ padding: "9px 28px 10px", borderTop: `1px solid ${brand.line}`, breakInside: "avoid" }}>
           <SectionLabel>Scope of work</SectionLabel>
-          <div style={{ color: "#5f6b7a", fontSize: 12.5, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{quote.scope_of_work}</div>
+          <div
+            className="rich-content"
+            style={{ color: "#5f6b7a", fontSize: 12.5, lineHeight: 1.55 }}
+            dangerouslySetInnerHTML={{ __html: richTextToDisplayHtml(quote.scope_of_work) }}
+          />
         </div>
       )}
 

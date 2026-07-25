@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { sanitizeRichText } from "@/lib/sanitizeHtml";
 
 // Full edit of a DRAFT quote: header fields + line items (replaced wholesale).
 // Server enforces draft-only; sent/approved quotes must use /revise instead.
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     valid_until: valid_until || null,
     notes: notes ?? null,
     terms: terms ?? null,
-    scope_of_work: scope_of_work ?? null,
+    scope_of_work: sanitizeRichText(scope_of_work),
     selected_option_id: effectiveAltId,
     ...(territory !== undefined ? { territory: territory || null } : {}),
     ...(sales_org !== undefined ? { sales_org: sales_org || null } : {}),

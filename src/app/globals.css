@@ -35,6 +35,12 @@ html, body {
 
 a { color: inherit; text-decoration: none; }
 
+/* Rendered output of RichTextEditor.tsx (e.g. quote scope of work) wherever it's
+   displayed via dangerouslySetInnerHTML outside the editor itself. */
+.rich-content p { margin: 0 0 6px; }
+.rich-content p:last-child { margin-bottom: 0; }
+.rich-content ul, .rich-content ol { margin: 0 0 6px; padding-left: 20px; }
+
 @media (max-width: 780px) {
   .hub-grid     { grid-template-columns: 1fr !important; }
   .kpi-grid     { grid-template-columns: 1fr 1fr !important; }

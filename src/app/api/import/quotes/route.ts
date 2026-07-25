@@ -14,6 +14,7 @@ import {
   summarise,
 } from "@/lib/import/server";
 import type { RowOutcome } from "@/lib/import/types";
+import { sanitizeRichText } from "@/lib/sanitizeHtml";
 
 type Line = { description: string; uom: string | null; qty: number; rate: number; discount_pct: number; amount: number };
 
@@ -150,7 +151,7 @@ export async function POST(request: NextRequest) {
       name: group.name,
       contact_id: contactId,
       valid_until: group.header.valid_until ?? null,
-      scope_of_work: group.header.scope_of_work ?? null,
+      scope_of_work: sanitizeRichText(group.header.scope_of_work),
       notes: group.header.notes ?? null,
       terms: group.header.terms ?? null,
       po_number: group.header.po_number ?? null,

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { richTextToPlainText } from "@/lib/sanitizeHtml";
 
 function esc(v: string | number | null | undefined): string {
   const s = v == null ? "" : String(v);
@@ -72,7 +73,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   if (quote.scope_of_work) {
-    rows.push(`Scope of Work,${esc(quote.scope_of_work)}`);
+    rows.push(`Scope of Work,${esc(richTextToPlainText(quote.scope_of_work))}`);
     rows.push(``);
   }
 

@@ -17,6 +17,7 @@ import QuoteEditPanel from "@/components/QuoteEditPanel";
 import EmailComposeModal from "@/components/EmailComposeModal";
 import { useTenant } from "@/lib/tenant-context";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/whatsapp";
+import { richTextToDisplayHtml } from "@/lib/richText";
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -639,7 +640,11 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             {quote.scope_of_work && (
               <div style={{ marginBottom: 14 }}>
                 <h3 style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>Scope of work</h3>
-                <p style={{ fontSize: 12.5, color: c.muted, margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{quote.scope_of_work}</p>
+                <div
+                  className="rich-content"
+                  style={{ fontSize: 12.5, color: c.muted, lineHeight: 1.6 }}
+                  dangerouslySetInnerHTML={{ __html: richTextToDisplayHtml(quote.scope_of_work) }}
+                />
               </div>
             )}
             {quote.notes && (
