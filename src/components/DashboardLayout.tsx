@@ -173,6 +173,18 @@ const daysSince = (iso: string) => Math.floor((Date.now() - new Date(iso).getTim
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
+// KPI tiles are narrow (minWidth 150) -- a lakhs/crores figure at the default
+// 25px was overflowing its box instead of shrinking to fit. Scale the font
+// down as the formatted string gets longer rather than fixing one size.
+function kpiNumFontSize(text: string): number {
+  const len = text.length;
+  if (len >= 13) return 14;
+  if (len >= 11) return 16;
+  if (len >= 9)  return 19;
+  if (len >= 7)  return 22;
+  return 25;
+}
+
 // ── "Ledger" visual identity — dashboard-local, not the shared theme ────────────
 // A forest-teal accent + serif numerals for money figures, giving the home
 // dashboard a financial-statement feel. Scoped to this file (not theme.ts) so
@@ -406,12 +418,12 @@ function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: numb
 
 function StatTile({ value, label, icon, href }: { value: number | string; label: string; icon: React.ReactNode; href: string }) {
   return (
-    <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px" }}>
+    <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px", minWidth: 0 }}>
       <div style={{ width: 28, height: 28, borderRadius: 7, background: ledger.accentSoft, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         {icon}
       </div>
       <div>
-        <div style={{ ...serifNum, fontSize: 27, fontWeight: 700, color: ledger.accent, lineHeight: 1 }}>{value}</div>
+        <div style={{ ...serifNum, fontSize: kpiNumFontSize(String(value)) + 2, fontWeight: 700, color: ledger.accent, lineHeight: 1.15, whiteSpace: "nowrap" }}>{value}</div>
         <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>{label}</div>
       </div>
     </Link>
@@ -886,7 +898,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         href: ROUTES.quotations,
         content: (
           <>
-            <div style={{ ...serifNum, fontSize: 25, fontWeight: 700, color: ledger.accent, lineHeight: 1 }}>{inr(kpis.openQuoteValue)}</div>
+            <div style={{ ...serifNum, fontSize: kpiNumFontSize(inr(kpis.openQuoteValue)), fontWeight: 700, color: ledger.accent, lineHeight: 1.15, whiteSpace: "nowrap" }}>{inr(kpis.openQuoteValue)}</div>
             <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{kpis.awaitingApproval} awaiting response</div>
           </>
         ),
@@ -953,8 +965,8 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     return (
       <section style={cardStyle}>
         <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Revenue</div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 }}>
-          <span style={{ ...serifNum, fontSize: 25, fontWeight: 700, color: ledger.accent }}>{inr(revenueValue)}</span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+          <span style={{ ...serifNum, fontSize: kpiNumFontSize(inr(revenueValue)), fontWeight: 700, color: ledger.accent, whiteSpace: "nowrap" }}>{inr(revenueValue)}</span>
           {revenueTarget > 0 && <span style={{ fontSize: 12, color: c.hint }}>of {inr(revenueTarget)} pipeline</span>}
         </div>
         <div style={{ height: 6, background: ledger.accentSoft, borderRadius: 3, overflow: "hidden" }}>
