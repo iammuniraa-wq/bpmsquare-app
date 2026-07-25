@@ -65,6 +65,7 @@ export const ROUTES = {
   settingsTeam: "/settings/team",
   settingsEntities: "/settings/entities",
   settingsStatuses: "/settings/statuses",
+  settingsEmailTemplates: "/settings/email-templates",
   settingsSales: "/settings/sales",
   settingsDeletionLog: "/settings/deletion-log",
   reports: "/reports",

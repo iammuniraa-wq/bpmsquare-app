@@ -409,6 +409,22 @@ export type TextFragment = {
   text: string;
 };
 
+// A subject+body pair a user can pick between when sending an email, with
+// {{variable}} placeholders resolved at send time (see lib/emailTemplates.ts).
+// category exists so invoice/report templates can be added later without a
+// schema change, even though only "quote" is wired to actually send today.
+export type EmailTemplateCategory = "quote" | "invoice" | "report";
+
+export type EmailTemplate = {
+  id: string;
+  category: EmailTemplateCategory;
+  name: string;
+  subject: string;
+  body: string;
+  is_default: boolean;
+  created_at: string;
+};
+
 export type CasePhoto = {
   id: string;
   case_id: string;

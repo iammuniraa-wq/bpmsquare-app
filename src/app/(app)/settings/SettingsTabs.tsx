@@ -10,6 +10,7 @@ const ALL_TABS = [
   { label: "Team",          href: ROUTES.settingsTeam,       adminOnly: true  },
   { label: "Entities",      href: ROUTES.settingsEntities,   adminOnly: true  },
   { label: "Statuses & assets", href: ROUTES.settingsStatuses, adminOnly: true  },
+  { label: "Email templates", href: ROUTES.settingsEmailTemplates, adminOnly: true  },
   { label: "Sales config",  href: ROUTES.settingsSales,      adminOnly: true  },
   { label: "Deleted records", href: ROUTES.settingsDeletionLog, adminOnly: true  },
   { label: "Pricing",       href: ROUTES.configPricing,      adminOnly: false },

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { getQuote } from "@/lib/data";
 import { getTenant } from "@/lib/tenant";
+import { renderTemplate, DEFAULT_EMAIL_TEMPLATES } from "@/lib/emailTemplates";
 import { Resend } from "resend";
 
 export const runtime = "nodejs";
@@ -44,8 +45,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Email sending isn't configured yet (missing RESEND_API_KEY)." }, { status: 500 });
   }
 
-  const body = await request.json().catch(() => ({}));
-  const overrideEmail = typeof body?.email === "string" ? body.email.trim() : "";
+  const reqBody = await request.json().catch(() => ({}));
+  const overrideEmail = typeof reqBody?.email === "string" ? reqBody.email.trim() : "";
   const recipient = overrideEmail || contact?.email || contact?.email2 || account?.email || account?.email2;
   if (!recipient) {
     return NextResponse.json({ error: "No email address on file for this contact or account." }, { status: 400 });
@@ -70,13 +71,39 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const fromLocalPart = (tenant.slug || "quotes").toLowerCase().replace(/[^a-z0-9._-]/g, "");
   const fromAddress = `${companyName} <${fromLocalPart}@${sendingDomain}>`;
 
+  // The compose modal sends fully-resolved (and possibly user-edited)
+  // subject/body directly -- use those as-is. Any other caller that doesn't
+  // supply them (a bare API call) falls back to the tenant's default "quote"
+  // template, or the built-in default if none is set.
+  let subject = typeof reqBody?.subject === "string" ? reqBody.subject : "";
+  let text = typeof reqBody?.body === "string" ? reqBody.body : "";
+  if (!subject || !text) {
+    const { data: defaultTemplate } = await supabase
+      .from("email_templates")
+      .select("subject, body")
+      .eq("tenant_id", tenantId)
+      .eq("category", "quote")
+      .eq("is_default", true)
+      .maybeSingle();
+    const fallback = defaultTemplate ?? DEFAULT_EMAIL_TEMPLATES.quote;
+    const vars = {
+      customer_name: contact?.name ?? "Sir/Madam",
+      company_name: companyName,
+      quote_ref: quote.ref,
+      quote_total: "₹" + quote.total.toLocaleString("en-IN", { maximumFractionDigits: 0 }),
+      valid_until: quote.valid_until ? new Date(quote.valid_until).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
+    };
+    subject = subject || renderTemplate(fallback.subject, vars);
+    text = text || renderTemplate(fallback.body, vars);
+  }
+
   const resend = new Resend(process.env.RESEND_API_KEY);
   const { error: sendError } = await resend.emails.send({
     from: fromAddress,
     to: recipient,
     replyTo,
-    subject: `Quotation ${quote.ref} from ${companyName}`,
-    text: `Dear ${contact?.name ?? "Sir/Madam"},\n\nPlease find attached our quotation ${quote.ref}.\n\nRegards,\n${companyName}`,
+    subject,
+    text,
     attachments: [{ filename: `${quote.ref}.pdf`, content: pdfBuffer }],
   });
 
