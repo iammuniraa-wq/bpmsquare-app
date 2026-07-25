@@ -274,7 +274,25 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const [moreOpen, setMoreOpen]       = useState(false);
   const [copying, setCopying]         = useState(false);
   const [converting, setConverting]   = useState(false);
+  const [emailState, setEmailState]   = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [emailError, setEmailError]   = useState("");
   const moreRef                       = useRef<HTMLDivElement>(null);
+
+  const emailRecipient = contact?.email || contact?.email2 || account?.email || account?.email2 || null;
+
+  async function sendQuoteEmail() {
+    setEmailState("sending");
+    setEmailError("");
+    try {
+      const res = await fetch(`/api/quotes/${quote.id}/email`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to send email");
+      setEmailState("sent");
+    } catch (e: unknown) {
+      setEmailState("error");
+      setEmailError(e instanceof Error ? e.message : "Failed to send email");
+    }
+  }
 
   // Section drag
   const dragSectionId   = useRef<string | null>(null);
@@ -790,11 +808,25 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                   >
                     <span style={{ fontSize: 15 }}>⎘</span> {copying ? "Copying…" : "Copy quote"}
                   </button>
-                  <div style={{ padding: "11px 16px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", gap: 10, cursor: "not-allowed", opacity: 0.5 }}>
+                  <button
+                    onClick={() => { if (emailRecipient) sendQuoteEmail(); }}
+                    disabled={!emailRecipient || emailState === "sending"}
+                    title={emailRecipient ? `Send to ${emailRecipient}` : "No email on file for this contact or account"}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, width: "100%",
+                      padding: "11px 16px", fontSize: 13, background: "none", border: "none",
+                      borderBottom: `1px solid ${c.line}`, textAlign: "left",
+                      color: emailState === "sent" ? "#10b981" : emailRecipient ? c.ink : c.hint,
+                      cursor: !emailRecipient || emailState === "sending" ? "not-allowed" : "pointer",
+                      opacity: emailRecipient ? 1 : 0.5,
+                    }}
+                  >
                     <span style={{ fontSize: 13 }}>✉</span>
-                    <span style={{ fontSize: 13, color: c.ink }}>Email quote</span>
-                    <ComingSoon size="xs" />
-                  </div>
+                    {emailState === "sending" ? "Sending…" : emailState === "sent" ? `Sent to ${emailRecipient}` : "Email quote"}
+                  </button>
+                  {emailState === "error" && (
+                    <div style={{ padding: "0 16px 10px", fontSize: 11.5, color: "#dc2626" }}>{emailError}</div>
+                  )}
                   <div style={{ padding: "11px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "not-allowed", opacity: 0.5 }}>
                     <MessageSquare size={13} color={c.ink} />
                     <span style={{ fontSize: 13, color: c.ink }}>WhatsApp</span>
