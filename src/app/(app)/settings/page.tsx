@@ -26,10 +26,10 @@ const INTEGRATIONS = [
     note: "Free tier: 3,000 emails/month · inspection reports and invoices not wired up yet",
   },
   {
-    icon: <MessageSquare size={16} />, name: "WhatsApp Business API",
-    desc: "Message contacts from cases, quotations and work orders via WhatsApp",
+    icon: <MessageSquare size={16} />, name: "WhatsApp (embedded)",
+    desc: "Message contacts from cases, quotations and work orders via the Meta Business API — automated sends, delivery receipts, full inbox",
     status: "coming-soon" as const,
-    note: "Meta Cloud API · 1,000 free conversations/month · recommended for India",
+    note: "Meta Cloud API · 1,000 free conversations/month · recommended for India · a lighter-weight WhatsApp (external) option is already live on quotes and cases — opens a pre-filled wa.me chat for a rep to send manually",
   },
   {
     icon: <LinkIcon size={16} />, name: "Webhooks",

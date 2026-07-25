@@ -16,6 +16,7 @@ import { MessageSquare, CheckIcon } from "@/components/Icons";
 import QuoteEditPanel from "@/components/QuoteEditPanel";
 import EmailComposeModal from "@/components/EmailComposeModal";
 import { useTenant } from "@/lib/tenant-context";
+import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/whatsapp";
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -289,6 +290,8 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
     quote_total: inr(quote.total),
     valid_until: quote.valid_until ? fmtDate(quote.valid_until) : "—",
   };
+  const waPhone = sanitizePhoneForWhatsApp(contact?.phone || contact?.phone2 || contact?.phone3 || account?.phone || account?.phone2);
+  const waLink = waPhone ? buildWhatsAppLink(waPhone, buildQuoteWhatsAppMessage(emailVars)) : null;
   // Section drag
   const dragSectionId   = useRef<string | null>(null);
   const dragOverSectionId = useRef<string | null>(null);
@@ -817,9 +820,25 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                     <span style={{ fontSize: 13 }}>✉</span>
                     {emailState === "sent" ? "Sent" : "Email quote"}
                   </button>
+                  {waLink ? (
+                    <a
+                      href={waLink}
+                      target="_blank"
+                      rel="noopener"
+                      onClick={() => setMoreOpen(false)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 16px", fontSize: 13, color: c.ink, textDecoration: "none", borderBottom: `1px solid ${c.line}` }}
+                    >
+                      <MessageSquare size={13} color={c.ink} /> WhatsApp
+                    </a>
+                  ) : (
+                    <div style={{ padding: "11px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "not-allowed", opacity: 0.5, borderBottom: `1px solid ${c.line}` }} title="No phone number on file for this contact/account">
+                      <MessageSquare size={13} color={c.ink} />
+                      <span style={{ fontSize: 13, color: c.ink }}>WhatsApp</span>
+                    </div>
+                  )}
                   <div style={{ padding: "11px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "not-allowed", opacity: 0.5 }}>
                     <MessageSquare size={13} color={c.ink} />
-                    <span style={{ fontSize: 13, color: c.ink }}>WhatsApp</span>
+                    <span style={{ fontSize: 13, color: c.ink }}>WhatsApp (embedded)</span>
                     <ComingSoon size="xs" />
                   </div>
                 </div>

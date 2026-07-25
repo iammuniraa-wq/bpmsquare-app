@@ -16,6 +16,7 @@ import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import CaseActions from "@/components/CaseActions";
 import CaseAssetsPanel from "./CaseAssetsPanel";
 import { MessageSquare } from "@/components/Icons";
+import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildCaseWhatsAppMessage } from "@/lib/whatsapp";
 
 // ── Stage groups ──────────────────────────────────────────────────────────────
 
@@ -81,6 +82,15 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const { serviceCase: sc, account, contact, assets, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases } = data;
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
+
+  const waPhone = sanitizePhoneForWhatsApp(contact?.phone || account?.phone || account?.phone2);
+  const waLink = waPhone
+    ? buildWhatsAppLink(waPhone, buildCaseWhatsAppMessage({
+        customer_name: contact?.name ?? "Sir/Madam",
+        company_name: tenant?.company_info?.name ?? tenant?.name ?? "our team",
+        case_ref: sc.ref,
+      }))
+    : null;
 
   const currentGroupIdx = stageIndex(sc.status);
   const isExit = EXIT_STATUSES.includes(sc.status);
@@ -401,12 +411,29 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
                 ↓ Download PDF
               </Link>
             )}
+            {waLink ? (
+              <a href={waLink} target="_blank" rel="noopener" style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                background: "#f0faf5", color: "#3d7a5a", borderRadius: 8, padding: "7px 14px",
+                fontSize: 12, fontWeight: 500, textDecoration: "none",
+              }}>
+                <MessageSquare size={12} color="#3d7a5a" /> WhatsApp
+              </a>
+            ) : (
+              <span style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                background: "#f0faf5", color: "#3d7a5a", borderRadius: 8, padding: "7px 14px",
+                fontSize: 12, fontWeight: 500, cursor: "not-allowed", opacity: 0.6,
+              }} title="No phone number on file for this contact/account">
+                <MessageSquare size={12} color="#3d7a5a" /> WhatsApp
+              </span>
+            )}
             <span style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               background: "#f0faf5", color: "#3d7a5a", borderRadius: 8, padding: "7px 14px",
               fontSize: 12, fontWeight: 500, cursor: "not-allowed",
             }}>
-              <MessageSquare size={12} color="#3d7a5a" /> WhatsApp <ComingSoon size="xs" />
+              <MessageSquare size={12} color="#3d7a5a" /> WhatsApp (embedded) <ComingSoon size="xs" />
             </span>
 
             <CaseAssetsPanel

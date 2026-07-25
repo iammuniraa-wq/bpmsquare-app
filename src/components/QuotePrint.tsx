@@ -4,6 +4,7 @@ import { useState } from "react";
 import QuotePrintDocument, { type QuotePrintDocumentProps } from "./QuotePrintDocument";
 import EmailComposeModal from "./EmailComposeModal";
 import { MessageSquare } from "@/components/Icons";
+import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/whatsapp";
 
 type Props = QuotePrintDocumentProps;
 
@@ -23,6 +24,9 @@ export default function QuotePrint(props: Props) {
     quote_total: inr(quote.total),
     valid_until: quote.valid_until ? fmtDate(quote.valid_until) : "—",
   };
+
+  const waPhone = sanitizePhoneForWhatsApp(contact?.phone || contact?.phone2 || contact?.phone3 || account?.phone || account?.phone2);
+  const waLink = waPhone ? buildWhatsAppLink(waPhone, buildQuoteWhatsAppMessage(emailVars)) : null;
 
   return (
     <>
@@ -70,8 +74,22 @@ export default function QuotePrint(props: Props) {
         >
           {emailState === "sent" ? "✓ Sent" : "Email quote"}
         </button>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.07)", color: "#6b8099", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }}>
-          <MessageSquare size={13} color="#6b8099" style={{ marginRight: 4 }} /> WhatsApp
+        {waLink ? (
+          <a
+            href={waLink}
+            target="_blank"
+            rel="noopener"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: "#aebccd", border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: "8px 16px", fontSize: 13, textDecoration: "none" }}
+          >
+            <MessageSquare size={13} color="#aebccd" /> WhatsApp
+          </a>
+        ) : (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.07)", color: "#6b8099", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }} title="No phone number on file for this contact/account">
+            <MessageSquare size={13} color="#6b8099" style={{ marginRight: 4 }} /> WhatsApp
+          </span>
+        )}
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.07)", color: "#6b8099", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 500, cursor: "not-allowed" }} title="Meta Business API integration — full inbox, delivery receipts, automated sends">
+          <MessageSquare size={13} color="#6b8099" style={{ marginRight: 4 }} /> WhatsApp (embedded)
           <span style={{ fontSize: 9, fontWeight: 700, color: "#f6b23c", background: "rgba(246,178,60,.15)", border: "1px solid rgba(246,178,60,.3)", borderRadius: 5, padding: "1px 5px", letterSpacing: 0.4 }}>SOON</span>
         </span>
         <button onClick={() => window.close()} style={{ background: "transparent", color: "#aebccd", border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>Close</button>
