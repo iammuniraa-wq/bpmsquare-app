@@ -21,6 +21,12 @@ type Props = {
   onSaved?: () => void;
   /** Escape hatch for bespoke per-section UI (e.g. Contact's "Copy from account" button). */
   sectionExtras?: Record<string, (helpers: FormHelpers) => React.ReactNode>;
+  /** Field keys already rendered by a dedicated header/card elsewhere on the
+   * page (mirrors CreateExtraFields' same-named prop) -- without this, a
+   * field shown in a hand-built header (e.g. an asset's make/model/serial)
+   * renders a second time here, since this component otherwise shows every
+   * field the registry knows about. */
+  exclude?: string[];
 };
 
 /**
@@ -30,9 +36,14 @@ type Props = {
  * the fields at any time (never a read-only block plus a separate edit form
  * elsewhere on the page).
  */
-export default function ObjectSections({ objectType, record, patchUrl, onSaved, sectionExtras }: Props) {
+export default function ObjectSections({ objectType, record, patchUrl, onSaved, sectionExtras, exclude = [] }: Props) {
   const router = useRouter();
-  const { sections, rules, loading } = useEffectiveFieldConfig(objectType);
+  const { sections: allSections, rules, loading } = useEffectiveFieldConfig(objectType);
+  const excludeSet = new Set(exclude);
+  const sections = allSections.map((section) => ({
+    ...section,
+    fields: section.fields.filter((f) => !excludeSet.has(f.field_key)),
+  })).filter((section) => section.fields.length > 0);
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [pending, startTransition] = useTransition();

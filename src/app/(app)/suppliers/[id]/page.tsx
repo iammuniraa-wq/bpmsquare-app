@@ -74,6 +74,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             objectType="supplier"
             record={supplier as unknown as Record<string, unknown>}
             patchUrl={`/api/suppliers/${supplier.id}`}
+            exclude={["name", "type", "city", "status"]}
           />
         </div>
 

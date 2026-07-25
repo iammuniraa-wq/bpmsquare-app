@@ -242,7 +242,7 @@ export default async function AccountHubPage({
 
           {/* LEFT: Account details only — everything else (cases, contacts,
               assets, quotations, invoices) already has its own tab above. */}
-          <ObjectSections objectType="account" record={account as unknown as Record<string, unknown>} patchUrl={`/api/accounts/${account.id}`} />
+          <ObjectSections objectType="account" record={account as unknown as Record<string, unknown>} patchUrl={`/api/accounts/${account.id}`} exclude={["name", "type", "city", "phone", "email"]} />
 
           {/* RIGHT: Quick create — jump straight into a related object */}
           <QuickCreateDeck items={[

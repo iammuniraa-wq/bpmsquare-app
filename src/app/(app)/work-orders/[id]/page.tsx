@@ -82,6 +82,7 @@ export default async function WorkOrderDetailPage({
           objectType="work_order"
           record={wo as unknown as Record<string, unknown>}
           patchUrl={`/api/work-orders/${wo.id}`}
+          exclude={["ref"]}
         />
       </div>
 

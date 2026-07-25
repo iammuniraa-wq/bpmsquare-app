@@ -110,6 +110,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
             objectType="purchase_order"
             record={po as unknown as Record<string, unknown>}
             patchUrl={`/api/purchase-orders/${po.id}`}
+            exclude={["ref"]}
           />
         </div>
 

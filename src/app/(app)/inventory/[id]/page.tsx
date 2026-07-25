@@ -110,6 +110,7 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
             objectType="inventory"
             record={item as unknown as Record<string, unknown>}
             patchUrl={`/api/inventory/${item.id}`}
+            exclude={["name", "sku", "category", "reorder_level", "unit_cost"]}
           />
         </div>
 

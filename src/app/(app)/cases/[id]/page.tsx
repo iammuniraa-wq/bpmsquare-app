@@ -308,6 +308,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             objectType="case"
             record={sc as unknown as Record<string, unknown>}
             patchUrl={`/api/cases/${sc.id}`}
+            exclude={["ref", "type", "equipment_label"]}
           />
         </div>
 

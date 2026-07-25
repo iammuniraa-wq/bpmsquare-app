@@ -315,8 +315,20 @@ export default function QuotePrintDocument({
                 return raw ? { field, val: String(raw) } : null;
               })
               .filter((f): f is { field: string; val: string } => f !== null);
-            const rows: (typeof fields)[] = [];
-            for (let i = 0; i < fields.length; i += 3) rows.push(fields.slice(i, i + 3));
+            // A tenant custom field's label can be configured to collide with a
+            // built-in one (e.g. a custom "Serial No." next to the built-in
+            // `serial`) -- dedup by resolved label so the print-out never shows
+            // the same-looking row twice, keeping whichever came first in the
+            // tenant's configured field order.
+            const seenLabels = new Set<string>();
+            const dedupedFields = fields.filter(({ field }) => {
+              const label = ASSET_FIELD_LABELS[field] ?? assetCustomFieldLabels[field] ?? field;
+              if (seenLabels.has(label)) return false;
+              seenLabels.add(label);
+              return true;
+            });
+            const rows: (typeof dedupedFields)[] = [];
+            for (let i = 0; i < dedupedFields.length; i += 3) rows.push(dedupedFields.slice(i, i + 3));
 
             return (
               <div key={asset.id} style={{

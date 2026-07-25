@@ -47,6 +47,7 @@ export default async function AssetDetailPage({
           objectType="asset"
           record={asset as unknown as Record<string, unknown>}
           patchUrl={`/api/assets/${asset.id}`}
+          exclude={["name", "kind", "make", "model", "serial", "rating", "notes"]}
         />
       </div>
 

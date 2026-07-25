@@ -136,6 +136,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             objectType="invoice"
             record={invoice as unknown as Record<string, unknown>}
             patchUrl={`/api/invoices/${invoice.id}`}
+            exclude={["ref"]}
           />
         </div>
 
