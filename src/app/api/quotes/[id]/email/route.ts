@@ -61,8 +61,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const companyName = tenant.name || "our team";
   const replyTo = tenant.company_info?.email || undefined;
+  // Sending domain is shared and verified once in Resend for all tenants, but
+  // the local-part + display name are always derived per-tenant so two
+  // tenants never look like they're sending as each other. Deliberately does
+  // NOT read a global RESEND_FROM_EMAIL override -- that would collapse every
+  // tenant's identity into one shared "from", defeating the point.
   const sendingDomain = process.env.RESEND_SENDING_DOMAIN || "bpmsquare.com";
-  const fromAddress = process.env.RESEND_FROM_EMAIL || `${companyName} <quotes@${sendingDomain}>`;
+  const fromLocalPart = (tenant.slug || "quotes").toLowerCase().replace(/[^a-z0-9._-]/g, "");
+  const fromAddress = `${companyName} <${fromLocalPart}@${sendingDomain}>`;
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const { error: sendError } = await resend.emails.send({
