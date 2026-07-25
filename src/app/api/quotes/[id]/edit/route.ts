@@ -43,6 +43,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!acct) return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
+  // contact_id/asset_ids come straight from the request body -- verify each
+  // belongs to this tenant before it's written, same as the invoices route's
+  // existing pattern. Without this, a tenant-A caller could splice in a
+  // tenant-B contact/asset id and have that tenant's (decrypted) PII rendered
+  // on this quote, including via the public print/WhatsApp link.
+  if (contact_id !== undefined && contact_id) {
+    const { data: contact } = await supabase.from("contacts").select("id").eq("id", contact_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!contact) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+  }
+  if (Array.isArray(asset_ids) && asset_ids.length > 0) {
+    const { data: verifiedAssets } = await supabase.from("assets").select("id").in("id", asset_ids).eq("tenant_id", tenantId);
+    if (!verifiedAssets || verifiedAssets.length !== new Set(asset_ids).size) {
+      return NextResponse.json({ error: "One or more assets not found" }, { status: 404 });
+    }
+  }
+
   // Normalize incoming lines and compute total.
   const cleanLines = Array.isArray(lines)
     ? lines

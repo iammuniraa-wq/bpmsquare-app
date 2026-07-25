@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   isPrimaryOrDevHost, PRIMARY_HOST,
   TRUSTED_USER_ID_HEADER, TRUSTED_EMAIL_HEADER, TRUSTED_TENANT_ID_HEADER, TRUSTED_ROLE_HEADER,
+  SUPABASE_COOKIE_OPTIONS,
 } from "@/lib/constants";
 
 export async function middleware(request: NextRequest) {
@@ -52,6 +53,7 @@ export async function middleware(request: NextRequest) {
           });
         },
       },
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
     }
   );
 

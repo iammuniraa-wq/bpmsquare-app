@@ -1,9 +1,22 @@
+import { createHash, timingSafeEqual } from "crypto";
+
+// Hash both sides to a fixed-length digest before comparing -- a plain `===`
+// short-circuits on the first mismatched byte, which is a real (if narrow)
+// timing side-channel for recovering a secret over many requests. Hashing
+// first also sidesteps timingSafeEqual's own requirement that both buffers
+// be equal length (which a naive length pre-check would itself leak).
+function constantTimeEqual(a: string, b: string): boolean {
+  const aHash = createHash("sha256").update(a).digest();
+  const bHash = createHash("sha256").update(b).digest();
+  return timingSafeEqual(aHash, bHash);
+}
+
 export function checkApiKey(req: Request): boolean {
   const auth = req.headers.get("Authorization") ?? "";
   const provided = auth.startsWith("Bearer ") ? auth.slice(7).trim() : auth.trim();
   const expected = process.env.VEVEY_API_KEY;
   if (!expected) return false; // key not configured — block all access
-  return provided === expected;
+  return constantTimeEqual(provided, expected);
 }
 
 /**

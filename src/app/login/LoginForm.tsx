@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { c, g, sh } from "@/lib/theme";
 import Logo from "@/components/Logo";
+import { safeInternalPath } from "@/lib/safeRedirect";
 
 type Branding = { name: string; logo_url: string | null } | null;
 
@@ -23,7 +24,7 @@ const inputStyle: React.CSSProperties = {
 
 function LoginFormInner({ branding }: { branding: Branding }) {
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/";
+  const next = safeInternalPath(searchParams.get("next"));
 
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");

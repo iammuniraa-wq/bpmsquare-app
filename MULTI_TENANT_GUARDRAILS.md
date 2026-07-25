@@ -119,10 +119,24 @@ the rest exposed.
   as advertised for a genuine server-to-server caller. Newer v1 routes
   (`inventory`, `invoices`, `purchase-orders`) already use
   `resolveTenantFromBearer` correctly — migrate the three legacy ones onto
-  that.
-- **`page_layouts` / `deletion_log`** — live tables, no tracked migration,
-  RLS status unverifiable from the repo. Back-fill a migration before
-  trusting or extending either.
+  that. **Reviewed 2026-07-25, deliberately deferred, not fixed**: the fix
+  requires refactoring `listAccountsLive`/`getAccountHubLive`/
+  `listCasesLive`/`listQuotesLive` (`src/lib/data/live.ts`) to accept an
+  explicit `tenantId` instead of always deriving it from the session (same
+  pattern already used for `getQuoteForTenant`/`getQuoteByPublicTokenLive`),
+  then porting each v1 route onto that — four data-rich functions with no
+  way to verify the change against a live database from this environment.
+  Doing that blind risked a real regression to a documented external API
+  contract; not a new finding, still open. Practical impact in the meantime
+  is low-severity (not a cross-tenant leak) — an external caller with no
+  browser session gets an empty result rather than another tenant's data;
+  a same-origin call with cookies attached uses that caller's own
+  already-authorized session tenant regardless of which bearer key was sent.
+- ~~`page_layouts` / `deletion_log`~~ — `page_layouts` now has a tracked
+  migration (`0039_page_layouts_rls.sql`, 2026-07-25). `deletion_log` no
+  longer exists as a table at all — `/api/deletion-log` reads/writes a
+  JSONB array inside `tenants.config` instead; that half of this item was
+  stale and is dropped.
 
 ## What a 2026-07-21 deep audit specifically confirmed safe
 
@@ -144,6 +158,162 @@ worth knowing so it isn't re-litigated from scratch:
   tenant B's cache too, but every recompute is still correctly
   `tenant_id`-scoped, so it's a wasted-cache-hit inefficiency, not a leak.
   Not fixed; noted so nobody mistakes it for one later.
+
+## Fixed 2026-07-25 — full codebase security audit
+
+A five-agent audit (multi-tenant isolation, auth/session/middleware,
+injection/XSS, secrets/encryption/config exposure, uploads/integrations)
+covering the whole app, not just a diff. One item below needs action from a
+human with Supabase dashboard access — everything else is a code fix,
+already applied.
+
+> ⚠️ **Action still required, not something code can fix**: `scripts/
+> push-seed-to-supabase.mjs` had a live, permanent-expiry Supabase
+> `service_role` key hardcoded and already pushed to `main` on GitHub. The
+> script now reads `SUPABASE_SERVICE_ROLE_KEY`/`NEXT_PUBLIC_SUPABASE_URL`
+> from the environment like every other server file — but **the exposed key
+> itself must still be rotated in the Supabase dashboard** (Project Settings
+> → API → reset `service_role`) if that hasn't happened yet. Nothing else in
+> this list matters if that key is still live.
+
+**Critical — cross-tenant data leaks via unverified foreign ids.** Same root
+cause as the invoices-route fix on 2026-07-21, found in three more places by
+grepping every `createAdminSupabase()` call site for a matching
+`.eq("tenant_id", ...)`:
+- `quotes.contact_id` / `quotes.asset_ids` — unverified in `POST
+  /api/quotes` and `POST /api/quotes/[id]/edit`; `getQuoteForTenant`
+  (`src/lib/data/live.ts`) then fetched and *decrypted* the foreign
+  contact's PII with no tenant filter. Worst path: a dual-tenant user (the
+  guardrails intro's own example — platform admins always are one) sets
+  `contact_id` on a tenant-A quote to a contact they know from tenant B;
+  that contact's decrypted name/phone/email then renders on the tenant-A
+  quote, including through the public print/WhatsApp link.
+- `service_cases.asset_ids` / `asset_id` — same shape, `getCaseLive`.
+- `accounts.referred_by_account_id` — same shape, `getAccountHubLive`
+  (lower impact: only a foreign account's name leaks).
+
+  Fixed by adding the same `.eq("id", x).eq("tenant_id", tenantId)`
+  pre-check the invoices route already used, to `POST/PATCH` on
+  `/api/quotes`, `/api/quotes/[id]/edit`, `/api/cases`, `/api/cases/[id]`,
+  `/api/accounts`, `/api/accounts/[id]`.
+
+**High — storage bucket RLS didn't check tenant.**
+`0014_storage_company_assets.sql`'s insert/delete policies only checked
+`bucket_id = 'company-assets'`; the tenant-id folder prefix used by `/api/
+upload` was an app-level convention only, so any authenticated user of any
+tenant could call the Storage API directly (their own real session, not
+through the app) and overwrite/delete another tenant's logo objects. Fixed
+in `0038_storage_tenant_isolation.sql` — policies now also check
+`(storage.foldername(name))[1]` against `tenant_users`. Same migration also
+adds the first-ever tracked migration + admin-only policies for the
+`logos` bucket (used by `/api/admin/upload-logo`), which had neither.
+
+**High — Next.js pinned to a version with a real advisory range covering a
+middleware-bypass CVE** (notable specifically here since `middleware.ts` is
+this app's actual tenant-resolution boundary). Upgraded `16.2.6` →
+`16.2.12`. Residual `npm audit` high-severity entries on `sharp`/`postcss`
+are Next's own internal transitive pins (no independently newer version
+published yet) — confirmed low real exposure since nothing in this app's
+code feeds untrusted input through `next/image` or a PostCSS build step on
+user content.
+
+**Medium — open redirect + reflected XSS chained through the `next` param**
+(`src/app/login/LoginForm.tsx`, `src/app/auth/callback/route.ts`). Two
+distinct bugs sharing one root cause (an unvalidated `next` query param):
+1. Open redirect — `next` was used as `${origin}${next}`/`window.location.href
+   = next` with no check it was an internal path, so `next=.evil.com` turned
+   `https://app.bpmsquare.com` into `https://app.bpmsquare.com.evil.com` (an
+   attacker-owned domain) right after a genuine login/magic-link/invite
+   completed.
+2. Reflected XSS — the callback route's implicit-flow HTML interpolates
+   `next` directly into `'${next}'` inside an inline `<script>` tag with **no
+   escaping**. A `next` value containing a quote character could break out
+   of the JS string literal and inject arbitrary script, which would run in
+   the real app origin mid-authentication — chained with session cookies
+   being non-`httpOnly` (a `@supabase/ssr` architectural requirement, not a
+   bug — see below), this was a full session-hijack primitive delivered via
+   what looks like a legitimate auth link.
+
+   Both closed by one fix: `src/lib/safeRedirect.ts`'s `safeInternalPath()`
+   restricts `next` to a strict internal-path charset (must start with `/`,
+   not `//`, no quotes/backslash/angle-brackets/semicolons/whitespace) —
+   applied in `LoginForm.tsx` and `auth/callback/route.ts`. The charset
+   restriction closes the injection too, since a validated path can never
+   contain the quote character needed to break out of the string literal.
+
+**Medium — CSV/formula injection in every CSV export.** Neither CSV writer
+(`esc()` in `src/app/api/quotes/[id]/export/route.ts`, `csvCell()` in
+`src/lib/import/template.ts` — the latter shared by every Data Workbench
+export) neutralized a cell starting with `=`/`+`/`-`/`@`, which Excel/
+LibreOffice run as a formula on open. Both are fed by attacker-influenceable
+tenant data (quote/account/contact names, notes, line descriptions). Fixed:
+both now prefix such cells with `'` before quoting, forcing plain-text
+interpretation.
+
+**Medium — SVG upload → stored XSS.** `/api/upload` (no role gate at all —
+any authenticated tenant member, not just admin) and `/api/cases/[id]/
+photos` (a `.startsWith("image/")` fallback let SVG through even though it
+wasn't in the explicit allowlist) both accepted `image/svg+xml` into a
+public bucket; an SVG can carry a `<script>`/`onload` payload that executes
+when its public URL is opened directly. Fixed: SVG removed from all three
+upload routes (`/api/upload`, `/api/admin/upload-logo`, `/api/cases/[id]/
+photos` — logos/photos all render fine as raster); `/api/upload` now also
+requires `role === "admin"` (matching Settings → Entities' existing
+`adminOnly: true` nav gate, which was never enforced server-side). Also
+fixed a related MIME/extension-mismatch gap in `/api/upload` and `/api/
+admin/upload-logo`: both validated one of {declared MIME type, filename
+extension} but stored the *other*, unvalidated one — the storage path's
+extension is now always derived from the validated MIME type, never from
+the attacker-supplied filename.
+
+**Medium — `FIELD_ENCRYPTION_KEY` unset silently wrote plaintext PII.**
+`encrypt()`/`decrypt()` (`src/lib/encryption.ts`) fell back to a no-op with
+zero signal if the key was missing — every account/contact PII write would
+silently land in the DB as plaintext. Not changed to a hard throw (that
+would turn one missing env var into a full outage on every account/contact
+read+write); now logs a loud `console.error` once per process instead, so
+it's impossible to miss in server logs.
+
+**Low — v1 bearer API key comparison wasn't constant-time.**
+`checkApiKey()` (`src/app/api/v1/_auth.ts`) used plain `===`, a narrow
+timing side-channel for recovering the key over many requests. Fixed via
+`crypto.timingSafeEqual` over SHA-256 digests of both sides (hashing first
+sidesteps `timingSafeEqual`'s equal-length requirement without a
+length-revealing pre-check).
+
+**Low — session cookies had no explicit `secure` flag.**
+`@supabase/ssr`'s own defaults set no `secure` key at all (`httpOnly:
+false` is required by its architecture — the browser client reads the same
+cookie via `document.cookie` — so that one is intentionally left as-is).
+Added `SUPABASE_COOKIE_OPTIONS` (`src/lib/constants.ts`,
+`{ secure: NODE_ENV === "production" }`) to every `createServerClient`/
+`createBrowserClient` call (`supabase-server.ts`, `supabase-browser.ts`,
+`middleware.ts`, `auth/callback/route.ts`, `api/auth/session/route.ts`) —
+conditional on `NODE_ENV` so `http://localhost` dev still works.
+
+**Low — `page_layouts` back-filled** with a tracked migration
+(`0039_page_layouts_rls.sql`) — see the tracked-debt section above.
+
+**Low — basic recipient format validation** added to `POST /api/quotes/
+[id]/email` before handing a client-suppliable `email` field to Resend.
+
+**Confirmed clean, no action needed** (so it isn't re-litigated later):
+encryption correctness (AES-256-GCM, random IV per call, auth tag verified
+on decrypt, no hardcoded key fallback); no hardcoded secrets anywhere else
+in tracked files; `SUPABASE_SERVICE_ROLE_KEY` never reaches a client
+bundle; the two `NEXT_PUBLIC_` vars in use are the standard
+designed-to-be-public Supabase anon credentials; the new public quote-PDF
+link (`lib/quotePublicLink.ts`) is timing-safe and fails closed; the
+`scope_of_work` rich-text sanitizer has no bypass (every write path runs it,
+`revise`/`copy` only ever copy an already-sanitized value); no raw-string-
+built Supabase filters anywhere in `src/`; the PDF-rendering routes'
+headless-browser navigation can't be redirected to an external/internal-
+network URL (no SSRF); Data Workbench routes all still match the documented
+shape; `unstable_cache` keys are still always `tenantId`-scoped; admin
+routes still gate server-side via `isPlatformAdmin()`; no rate limiting
+exists on `/login` or the v1 bearer key (relies on Supabase Auth's own
+project-level limits — worth confirming those are adequate, not a code bug
+here).
 
 ## Fixed 2026-07-21 (for context, not action)
 

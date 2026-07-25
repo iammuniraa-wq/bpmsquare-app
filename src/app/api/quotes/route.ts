@@ -38,6 +38,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
+  // contact_id/asset_ids come straight from the request body -- verify each
+  // belongs to this tenant before it's woven into the new quote, same pattern
+  // as the invoices route already uses for its foreign ids. Without this, a
+  // tenant-A caller could splice in a tenant-B contact/asset id and have that
+  // tenant's (decrypted) PII rendered on this quote, including via the public
+  // print/WhatsApp link.
+  if (contact_id) {
+    const { data: contact } = await supabase.from("contacts").select("id").eq("id", contact_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!contact) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+  }
+  const assetIdsArr: string[] = Array.isArray(asset_ids) ? asset_ids : [];
+  if (assetIdsArr.length > 0) {
+    const { data: verifiedAssets } = await supabase.from("assets").select("id").in("id", assetIdsArr).eq("tenant_id", tenantId);
+    if (!verifiedAssets || verifiedAssets.length !== new Set(assetIdsArr).size) {
+      return NextResponse.json({ error: "One or more assets not found" }, { status: 404 });
+    }
+  }
+
   // Server-side sequential ref generation — tenant's own Quote ID format, or the default.
   const admin = createAdminSupabase();
   const { data: tenantRow } = await admin.from("tenants").select("config").eq("id", tenantId).maybeSingle();
@@ -64,7 +82,7 @@ export async function POST(request: NextRequest) {
     discount_pct: parseFloat(discount_pct) || 0,
     discount_fixed: parseFloat(discount_fixed) || 0,
     gst_rate: gst_rate !== undefined && gst_rate !== null && gst_rate !== "" ? parseFloat(gst_rate) : null,
-    asset_ids: Array.isArray(asset_ids) ? asset_ids : [],
+    asset_ids: assetIdsArr,
     revision: 1,
     selected_option_id: selected_option_id ?? null,
     meta: meta ?? null,

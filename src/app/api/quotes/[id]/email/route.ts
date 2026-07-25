@@ -51,6 +51,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!recipient) {
     return NextResponse.json({ error: "No email address on file for this contact or account." }, { status: 400 });
   }
+  // Basic shape check on a client-suppliable field before it reaches Resend's API.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+    return NextResponse.json({ error: "That doesn't look like a valid email address." }, { status: 400 });
+  }
 
   const cookieHeader = request.headers.get("cookie") ?? "";
   const pdfUrl = new URL(`/api/quotes/${id}/pdf`, request.nextUrl.origin).toString();

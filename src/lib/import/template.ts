@@ -1,7 +1,12 @@
 import type { ObjectSpec } from "./types";
 
 function csvCell(value: string): string {
-  const v = value ?? "";
+  let v = value ?? "";
+  // CSV/formula injection: a cell starting with =, +, -, @ (or tab/CR) is run
+  // as a formula by Excel/LibreOffice on open. This backs every Data
+  // Workbench export, so cells routinely come from attacker-influenceable
+  // tenant data -- prefix with a quote to force plain-text interpretation.
+  if (/^[=+\-@\t\r]/.test(v)) v = `'${v}`;
   return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 

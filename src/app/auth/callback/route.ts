@@ -1,5 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { safeInternalPath } from "@/lib/safeRedirect";
+import { SUPABASE_COOKIE_OPTIONS } from "@/lib/constants";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -8,7 +10,7 @@ export async function GET(request: NextRequest) {
   const type      = searchParams.get("type");
   const next = type === "recovery"
     ? "/reset-password"
-    : (searchParams.get("next") ?? "/");
+    : safeInternalPath(searchParams.get("next"));
 
   const makeSupabase = (response: NextResponse) =>
     createServerClient(
@@ -23,6 +25,7 @@ export async function GET(request: NextRequest) {
             );
           },
         },
+        cookieOptions: SUPABASE_COOKIE_OPTIONS,
       }
     );
 

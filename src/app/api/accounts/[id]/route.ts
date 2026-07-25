@@ -57,6 +57,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (key in body) patch[key] = PII_FIELDS.has(key) ? encrypt(body[key] as string | null) : body[key];
   }
 
+  // referred_by_account_id comes straight from the request body -- verify it
+  // belongs to this tenant before linking it (same reasoning as the POST route).
+  if (patch.referred_by_account_id) {
+    const { data: referrer } = await supabase.from("accounts").select("id").eq("id", patch.referred_by_account_id as string).eq("tenant_id", tenantId).maybeSingle();
+    if (!referrer) return NextResponse.json({ error: "Referring account not found" }, { status: 404 });
+  }
+
   const { data, error } = await supabase
     .from("accounts")
     .update(patch)

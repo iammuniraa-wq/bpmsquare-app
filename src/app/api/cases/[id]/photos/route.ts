@@ -41,9 +41,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
+  // Strict allowlist, no "starts with image/" fallback -- that fallback let
+  // image/svg+xml through, and an SVG can carry a <script>/onload payload
+  // that executes when its public storage URL is opened directly (stored XSS).
+  // Case photos are always raster; there's no legitimate reason to accept SVG here.
   const validTypes = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
-  if (!validTypes.includes(file.type) && !file.type.startsWith("image/")) {
-    return NextResponse.json({ error: "Only image files are allowed" }, { status: 400 });
+  if (!validTypes.includes(file.type)) {
+    return NextResponse.json({ error: "Only JPEG, PNG, WebP, HEIC, or HEIF images are allowed" }, { status: 400 });
   }
   if (file.size > 10 * 1024 * 1024) {
     return NextResponse.json({ error: "File too large (max 10 MB)" }, { status: 400 });

@@ -3,7 +3,12 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { richTextToPlainText } from "@/lib/sanitizeHtml";
 
 function esc(v: string | number | null | undefined): string {
-  const s = v == null ? "" : String(v);
+  let s = v == null ? "" : String(v);
+  // CSV/formula injection: a cell starting with =, +, -, @ (or tab/CR) is run
+  // as a formula by Excel/LibreOffice on open. Every value here can come from
+  // attacker-influenceable tenant data (quote/account/contact name, notes,
+  // line descriptions), so prefix with a quote to force plain-text interpretation.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   if (s.includes(",") || s.includes('"') || s.includes("\n")) {
     return `"${s.replace(/"/g, '""')}"`;
   }

@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { SUPABASE_COOKIE_OPTIONS } from "@/lib/constants";
 
 // Receives access_token + refresh_token from client, sets server-side cookies, redirects.
 export async function POST(request: NextRequest) {
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
           });
         },
       },
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
     }
   );
 

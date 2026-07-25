@@ -5,9 +5,21 @@ import type { Account, Contact } from "@/lib/types";
 const ALGO = "aes-256-gcm";
 const ENC_PREFIX = "enc:v1:";
 
+// Missing key used to fail completely silently -- every PII write would land
+// in the DB as plaintext with zero signal anywhere that encryption had
+// stopped happening. Not a hard throw (that would turn one missing env var
+// into a full outage on every account/contact read+write); logged loudly
+// instead, once per process, so it's impossible to miss in server logs.
+let warnedMissingKey = false;
 function getKey(): Buffer | null {
   const hex = process.env.FIELD_ENCRYPTION_KEY;
-  if (!hex) return null;
+  if (!hex) {
+    if (!warnedMissingKey) {
+      console.error("[encryption] FIELD_ENCRYPTION_KEY is not set -- PII fields are being read/written as PLAINTEXT.");
+      warnedMissingKey = true;
+    }
+    return null;
+  }
   return Buffer.from(hex, "hex");
 }
 

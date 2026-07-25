@@ -24,6 +24,14 @@ export const TRUSTED_EMAIL_HEADER = "x-bpmsquare-email";
 export const TRUSTED_TENANT_ID_HEADER = "x-bpmsquare-tenant-id";
 export const TRUSTED_ROLE_HEADER = "x-bpmsquare-role";
 
+// @supabase/ssr's own cookie defaults set no `secure` flag at all (httpOnly:
+// false is required by its architecture -- the browser client reads the same
+// cookie via document.cookie -- so that one isn't overridden here). Passed as
+// `cookieOptions` to every createServerClient/createBrowserClient call.
+// Conditional on NODE_ENV so local http://localhost dev still works --
+// browsers refuse to send a Secure cookie over plain HTTP.
+export const SUPABASE_COOKIE_OPTIONS = { secure: process.env.NODE_ENV === "production" };
+
 export const ROUTES = {
   login: "/login",
   pipeline: "/pipeline",

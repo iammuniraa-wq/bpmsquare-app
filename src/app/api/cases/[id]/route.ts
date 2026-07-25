@@ -50,8 +50,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   for (const key of allowed) if (key in body) patch[key] = body[key];
 
   // Keep the legacy single asset_id in sync with the new asset_ids array (primary = first).
+  // asset_ids comes straight from the request body -- verify each belongs to
+  // this tenant before it's linked (same reasoning as the POST route above).
   if ("asset_ids" in body) {
     const cleanAssetIds: string[] = Array.isArray(body.asset_ids) ? body.asset_ids.filter(Boolean) : [];
+    if (cleanAssetIds.length > 0) {
+      const { data: verifiedAssets } = await supabase.from("assets").select("id").in("id", cleanAssetIds).eq("tenant_id", tenantId);
+      if (!verifiedAssets || verifiedAssets.length !== new Set(cleanAssetIds).size) {
+        return NextResponse.json({ error: "One or more assets not found" }, { status: 404 });
+      }
+    }
     patch.asset_ids = cleanAssetIds;
     patch.asset_id = cleanAssetIds[0] ?? null;
   }

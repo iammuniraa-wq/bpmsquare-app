@@ -27,6 +27,18 @@ export async function POST(request: NextRequest) {
     .from("accounts").select("id, territory, sales_org").eq("id", account_id).eq("tenant_id", tenantId).maybeSingle();
   if (!acct) return NextResponse.json({ error: "Account not found" }, { status: 404 });
 
+  // asset_ids comes straight from the request body -- verify each belongs to
+  // this tenant before it's linked, same pattern as the invoices route uses
+  // for its foreign ids. Without this, a tenant-A caller could splice in a
+  // tenant-B asset id and have it fetched (with no tenant filter) wherever
+  // this case's assets are displayed.
+  if (cleanAssetIds.length > 0) {
+    const { data: verifiedAssets } = await supabase.from("assets").select("id").in("id", cleanAssetIds).eq("tenant_id", tenantId);
+    if (!verifiedAssets || verifiedAssets.length !== new Set(cleanAssetIds).size) {
+      return NextResponse.json({ error: "One or more assets not found" }, { status: 404 });
+    }
+  }
+
   // Generate ref: CS-YYYY-XXXX (sequential within tenant)
   const year = new Date().getFullYear();
   const { count } = await supabase

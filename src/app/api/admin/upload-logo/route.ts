@@ -10,10 +10,19 @@ export async function POST(request: NextRequest) {
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "png";
-  const allowed = ["png", "jpg", "jpeg", "svg", "webp"];
-  if (!allowed.includes(ext)) {
-    return NextResponse.json({ error: "Only PNG, JPG, SVG, WEBP allowed" }, { status: 400 });
+  // Validate the actual MIME type, not the client-supplied filename extension
+  // -- the previous extension-only check let a request send an allowed-looking
+  // filename ("x.png") while a different file.type (e.g. "image/svg+xml") was
+  // still stored as-is via `contentType: file.type` below, so the object would
+  // still be served as SVG regardless of its ".png"-looking path. No SVG: it's
+  // XML and can carry a <script>/onload payload that executes when its public
+  // storage URL is opened directly -- stored XSS. Partner logos render fine as
+  // raster. The extension used in the storage path is derived from the
+  // validated MIME type, never from the attacker-supplied filename.
+  const EXT_BY_TYPE: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+  const ext = EXT_BY_TYPE[file.type];
+  if (!ext) {
+    return NextResponse.json({ error: "Only PNG, JPG, WEBP allowed" }, { status: 400 });
   }
 
   const path = `partner-logos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;

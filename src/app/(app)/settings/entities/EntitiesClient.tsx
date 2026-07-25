@@ -104,7 +104,7 @@ function LogoUpload({ currentUrl, onUploaded, label = "Logo", size = 64 }: {
           }
         </div>
         <div style={{ flex: 1 }}>
-          <input ref={ref} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style={{ display: "none" }} onChange={handleFile} />
+          <input ref={ref} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }} onChange={handleFile} />
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               type="button"
@@ -124,7 +124,7 @@ function LogoUpload({ currentUrl, onUploaded, label = "Logo", size = 64 }: {
               </button>
             )}
           </div>
-          <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>PNG, JPG, WebP or SVG · max 2 MB · resized to fit {LOGO_MAX.width}×{LOGO_MAX.height}px</div>
+          <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>PNG, JPG or WebP · max 2 MB · resized to fit {LOGO_MAX.width}×{LOGO_MAX.height}px</div>
           {err && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>{err}</div>}
           {/* Also allow direct URL paste */}
           <input
@@ -210,7 +210,7 @@ function PartnerLogos({ partners, onChange }: {
             <input
               ref={(el) => { fileRefs.current[i] = el; }}
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              accept="image/png,image/jpeg,image/webp"
               style={{ display: "none" }}
               onChange={(e) => handlePartnerFile(i, e)}
             />
@@ -315,7 +315,7 @@ function CertificationLogos({ certifications, onChange }: {
             <input
               ref={(el) => { fileRefs.current[i] = el; }}
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              accept="image/png,image/jpeg,image/webp"
               style={{ display: "none" }}
               onChange={(e) => handleCertFile(i, e)}
             />

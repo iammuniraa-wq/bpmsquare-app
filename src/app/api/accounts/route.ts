@@ -49,6 +49,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "name and type are required" }, { status: 400 });
   }
 
+  // referred_by_account_id comes straight from the request body -- verify it
+  // belongs to this tenant before linking it, same pattern as the invoices
+  // route uses for its foreign ids. Without this, a tenant-A caller could
+  // splice in a tenant-B account id and have its name resolved (no tenant
+  // filter) wherever this account's referral is displayed.
+  if (referred_by_account_id) {
+    const { data: referrer } = await supabase.from("accounts").select("id").eq("id", referred_by_account_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!referrer) return NextResponse.json({ error: "Referring account not found" }, { status: 404 });
+  }
+
   const { data, error } = await supabase
     .from("accounts")
     .insert({

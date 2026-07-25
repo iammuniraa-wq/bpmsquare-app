@@ -5,6 +5,7 @@ import { cache } from "react";
 import {
   PRIMARY_HOST,
   TRUSTED_USER_ID_HEADER, TRUSTED_EMAIL_HEADER, TRUSTED_TENANT_ID_HEADER, TRUSTED_ROLE_HEADER,
+  SUPABASE_COOKIE_OPTIONS,
 } from "./constants";
 
 /**
@@ -292,6 +293,7 @@ export async function createServerSupabase() {
           } catch {}
         },
       },
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
     }
   );
 }

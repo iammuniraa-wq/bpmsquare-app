@@ -10,9 +10,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 
-const SUPABASE_URL = "https://paajhifadwyoplemssgx.supabase.co";
-const SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhYWpoaWZhZHd5b3BsZW1zc2d4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTc5ODk0NCwiZXhwIjoyMDk3Mzc0OTQ0fQ.Agn1vLj_jgcfcT_YybnLrLouFkHWP_Sgn6PJOE2NTSU";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ADMIN_EMAIL = "sap.rashid@gmail.com";
+
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+  throw new Error("Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment before running this script.");
+}
 
 const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
