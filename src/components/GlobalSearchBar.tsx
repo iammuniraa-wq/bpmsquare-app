@@ -88,7 +88,7 @@ export default function GlobalSearchBar() {
     <div style={{ position: "relative", flex: 1, maxWidth: 480 }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
-        background: "var(--sb-hover)", border: "1px solid var(--sb-line)",
+        background: "var(--sb-search-bg)", border: "1px solid var(--sb-search-border)",
         borderRadius: 8, padding: "0 10px", height: 32,
       }}>
         <SearchIcon size={14} color="var(--sb-text-dim)" />
