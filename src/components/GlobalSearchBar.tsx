@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SEARCH_OBJECTS, type SearchObjectType, type SearchResult } from "@/lib/globalSearch";
+import { searchObjectsForFeatures, type SearchObjectType, type SearchResult } from "@/lib/globalSearch";
 import { SearchIcon, XIcon } from "@/components/Icons";
+import { useTenant } from "@/lib/tenant-context";
 
 const DEBOUNCE_MS = 300;
 const MIN_QUERY_LEN = 2;
@@ -14,6 +15,8 @@ const MIN_QUERY_LEN = 2;
  * one object type via the dropdown. Ctrl/Cmd+K focuses it from anywhere. */
 export default function GlobalSearchBar() {
   const router = useRouter();
+  const tenant = useTenant();
+  const searchObjects = useMemo(() => searchObjectsForFeatures(tenant?.features as Record<string, boolean> | undefined), [tenant?.features]);
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [objectType, setObjectType] = useState<SearchObjectType | "">("");
@@ -35,6 +38,10 @@ export default function GlobalSearchBar() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => {
+    if (objectType && !searchObjects.some((o) => o.type === objectType)) setObjectType("");
+  }, [objectType, searchObjects]);
 
   useEffect(() => {
     const term = query.trim();
@@ -63,10 +70,10 @@ export default function GlobalSearchBar() {
       const list = byType.get(r.type);
       if (list) list.push(r); else byType.set(r.type, [r]);
     }
-    return SEARCH_OBJECTS
+    return searchObjects
       .map((o) => ({ type: o.type, items: byType.get(o.type) ?? [] }))
       .filter((g) => g.items.length > 0);
-  }, [objectType, results]);
+  }, [objectType, results, searchObjects]);
 
   function goTo(href: string) {
     setOpen(false);
@@ -116,7 +123,7 @@ export default function GlobalSearchBar() {
           }}
         >
           <option value="">All objects</option>
-          {SEARCH_OBJECTS.map((o) => <option key={o.type} value={o.type}>{o.label}</option>)}
+          {searchObjects.map((o) => <option key={o.type} value={o.type}>{o.label}</option>)}
         </select>
         <span style={{ fontSize: 10, color: "#4a6070", flexShrink: 0, paddingLeft: 2 }}>⌘K</span>
       </div>
@@ -137,7 +144,7 @@ export default function GlobalSearchBar() {
               <div style={{ padding: "14px 16px", fontSize: 12, color: "#7a9ab8" }}>No matches for "{query.trim()}".</div>
             )}
             {grouped.map((group) => {
-              const def = SEARCH_OBJECTS.find((o) => o.type === group.type);
+              const def = searchObjects.find((o) => o.type === group.type);
               return (
                 <div key={group.type}>
                   <div style={{

@@ -1819,6 +1819,10 @@ type SearchSpec = {
   textCols: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toResult: (row: any) => Omit<SearchResult, "type">;
+  /** Mirrors SearchObjectDef.featureKey (lib/globalSearch.ts) -- when set,
+   * this object's table isn't queried at all for a tenant without that
+   * feature enabled, not just hidden from the UI. */
+  featureKey?: string;
 };
 
 const SEARCH_SPECS: SearchSpec[] = [
@@ -1851,11 +1855,13 @@ const SEARCH_SPECS: SearchSpec[] = [
     type: "invoice", table: "invoices", columns: "id, ref, status, total",
     textCols: ["ref"],
     toResult: (r) => ({ id: r.id, title: r.ref, subtitle: `₹${r.total ?? 0} · ${r.status}`, href: ROUTES.invoice(r.id), matched: "ref" }),
+    featureKey: "invoices",
   },
   {
     type: "purchase_order", table: "purchase_orders", columns: "id, ref, status, total",
     textCols: ["ref"],
     toResult: (r) => ({ id: r.id, title: r.ref, subtitle: `₹${r.total ?? 0} · ${r.status}`, href: ROUTES.purchaseOrder(r.id), matched: "ref" }),
+    featureKey: "purchasing",
   },
   {
     type: "asset", table: "assets", columns: "id, name, serial, make, model",
@@ -1866,6 +1872,7 @@ const SEARCH_SPECS: SearchSpec[] = [
     type: "inventory_item", table: "inventory_items", columns: "id, name, sku, category",
     textCols: ["name", "sku"],
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.sku, r.category].filter(Boolean).join(" · ") || "Inventory item", href: ROUTES.inventoryItem(r.id), matched: "name/sku" }),
+    featureKey: "purchasing",
   },
   {
     type: "supplier", table: "suppliers", columns: "id, name, city, type",
@@ -1878,6 +1885,7 @@ const SEARCH_SPECS: SearchSpec[] = [
     type: "lead", table: "leads", columns: "id, title, status",
     textCols: ["title"],
     toResult: (r) => ({ id: r.id, title: r.title, subtitle: r.status, href: ROUTES.leads, matched: "title" }),
+    featureKey: "leads",
   },
 ];
 
@@ -1894,6 +1902,12 @@ function sanitizeSearchTerm(q: string): string {
  * one object type. Runs one tenant-scoped query per object type in
  * parallel, same shape as every other read in this file.
  *
+ * An object whose feature flag is off for this tenant (e.g. "purchasing"
+ * for Purchase Orders/Inventory) is skipped entirely -- its table is never
+ * queried, not just hidden from the results UI, so a tenant only ever sees
+ * (and this function only ever looks at) the objects actually part of its
+ * plan/config.
+ *
  * Phone/email are excluded from the main pass (they're encrypted at rest --
  * see lib/encryption.ts -- so no database-side ILIKE match is possible on
  * them) and instead get a separate decrypt-then-filter fallback pass over
@@ -1909,7 +1923,11 @@ export async function globalSearchLive(
   if (term.length < 2) return [];
 
   const supabase = createAdminSupabase();
-  const specs = objectType ? SEARCH_SPECS.filter((s) => s.type === objectType) : SEARCH_SPECS;
+  const { data: tenantRow } = await supabase.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  const features = (tenantRow?.features ?? {}) as Record<string, boolean>;
+
+  const enabledSpecs = SEARCH_SPECS.filter((s) => !s.featureKey || features[s.featureKey] === true);
+  const specs = objectType ? enabledSpecs.filter((s) => s.type === objectType) : enabledSpecs;
   const perTypeLimit = objectType ? Math.max(limit, 20) : Math.min(limit, 6);
 
   const byType = await Promise.all(
