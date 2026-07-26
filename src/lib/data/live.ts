@@ -5,7 +5,7 @@ import { decryptAccount, decryptContact, decrypt } from "@/lib/encryption";
 import { getAccountNews, type AccountNewsItem } from "@/lib/data/news";
 import { getTenant } from "@/lib/tenant";
 import type { CompanyInfo } from "@/lib/tenant";
-import { DEFAULT_QUOTE_STATUSES } from "@/lib/constants";
+import { DEFAULT_QUOTE_STATUSES, ROUTES } from "@/lib/constants";
 import type { TenantConfig } from "@/lib/constants";
 import type {
   Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder,
@@ -15,6 +15,7 @@ import type {
   MarketingCampaign, MarketingCampaignRecipient, MarketingTargetGroup, AccountType,
 } from "@/lib/types";
 import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
+import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
 
 /**
  * Every read helper below scopes to this tenant explicitly (service-role client
@@ -1807,4 +1808,160 @@ export async function getUnsubscribeAccountInfoLive(accountId: string): Promise<
   if (!account) return null;
   const { data: tenant } = await supabase.from("tenants").select("name").eq("id", account.tenant_id).maybeSingle();
   return { accountName: account.name as string, tenantName: (tenant?.name as string) ?? "this company" };
+}
+
+// ── Global search ─────────────────────────────────────────────────────────────
+
+type SearchSpec = {
+  type: SearchObjectType;
+  table: string;
+  columns: string;
+  textCols: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toResult: (row: any) => Omit<SearchResult, "type">;
+};
+
+const SEARCH_SPECS: SearchSpec[] = [
+  {
+    type: "account", table: "accounts", columns: "id, name, city, type",
+    textCols: ["name"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.city, r.type].filter(Boolean).join(" · ") || "Account", href: ROUTES.account(r.id), matched: "name" }),
+  },
+  {
+    type: "contact", table: "contacts", columns: "id, name, role",
+    textCols: ["name"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: r.role || "Contact", href: ROUTES.contact(r.id), matched: "name" }),
+  },
+  {
+    type: "case", table: "service_cases", columns: "id, ref, equipment_label, status",
+    textCols: ["ref", "equipment_label"],
+    toResult: (r) => ({ id: r.id, title: r.ref, subtitle: r.equipment_label || r.status, href: ROUTES.case(r.id), matched: "ref" }),
+  },
+  {
+    type: "quote", table: "quotes", columns: "id, ref, ref_no, po_number, name, total",
+    textCols: ["ref", "ref_no", "po_number", "name"],
+    toResult: (r) => ({ id: r.id, title: r.ref, subtitle: r.name || (r.po_number ? `PO ${r.po_number}` : `₹${r.total ?? 0}`), href: ROUTES.quotation(r.id), matched: "ref" }),
+  },
+  {
+    type: "work_order", table: "work_orders", columns: "id, ref, description, status",
+    textCols: ["ref", "description"],
+    toResult: (r) => ({ id: r.id, title: r.ref, subtitle: r.description || r.status, href: ROUTES.workOrder(r.id), matched: "ref" }),
+  },
+  {
+    type: "invoice", table: "invoices", columns: "id, ref, status, total",
+    textCols: ["ref"],
+    toResult: (r) => ({ id: r.id, title: r.ref, subtitle: `₹${r.total ?? 0} · ${r.status}`, href: ROUTES.invoice(r.id), matched: "ref" }),
+  },
+  {
+    type: "purchase_order", table: "purchase_orders", columns: "id, ref, status, total",
+    textCols: ["ref"],
+    toResult: (r) => ({ id: r.id, title: r.ref, subtitle: `₹${r.total ?? 0} · ${r.status}`, href: ROUTES.purchaseOrder(r.id), matched: "ref" }),
+  },
+  {
+    type: "asset", table: "assets", columns: "id, name, serial, make, model",
+    textCols: ["name", "serial", "make", "model"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.make, r.model, r.serial ? `SN ${r.serial}` : null].filter(Boolean).join(" · ") || "Asset", href: ROUTES.asset(r.id), matched: "name/serial" }),
+  },
+  {
+    type: "inventory_item", table: "inventory_items", columns: "id, name, sku, category",
+    textCols: ["name", "sku"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.sku, r.category].filter(Boolean).join(" · ") || "Inventory item", href: ROUTES.inventoryItem(r.id), matched: "name/sku" }),
+  },
+  {
+    type: "supplier", table: "suppliers", columns: "id, name, city, type",
+    textCols: ["name"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.city, r.type].filter(Boolean).join(" · ") || "Supplier", href: ROUTES.supplier(r.id), matched: "name" }),
+  },
+  {
+    // Leads have no detail page (list-only), so every lead result points at
+    // the Leads list rather than a record it doesn't have.
+    type: "lead", table: "leads", columns: "id, title, status",
+    textCols: ["title"],
+    toResult: (r) => ({ id: r.id, title: r.title, subtitle: r.status, href: ROUTES.leads, matched: "title" }),
+  },
+];
+
+/** Strips characters with special meaning in PostgREST's `.or()` filter DSL
+ * (comma separates conditions, parens nest groups) so a search term
+ * containing them can't accidentally break out of the intended per-column
+ * ILIKE clause. */
+function sanitizeSearchTerm(q: string): string {
+  return q.replace(/[,()]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Global "search everything" -- fuzzy (case-insensitive substring) match
+ * across every major object's name/ref/title fields, optionally scoped to
+ * one object type. Runs one tenant-scoped query per object type in
+ * parallel, same shape as every other read in this file.
+ *
+ * Phone/email are excluded from the main pass (they're encrypted at rest --
+ * see lib/encryption.ts -- so no database-side ILIKE match is possible on
+ * them) and instead get a separate decrypt-then-filter fallback pass over
+ * this tenant's accounts/contacts, same trade-off already accepted by
+ * resolveMarketingRecipientsLive's account-preview fetch. */
+export async function globalSearchLive(
+  tenantId: string,
+  query: string,
+  objectType?: SearchObjectType,
+  limit = 8
+): Promise<SearchResult[]> {
+  const term = sanitizeSearchTerm(query);
+  if (term.length < 2) return [];
+
+  const supabase = createAdminSupabase();
+  const specs = objectType ? SEARCH_SPECS.filter((s) => s.type === objectType) : SEARCH_SPECS;
+  const perTypeLimit = objectType ? Math.max(limit, 20) : Math.min(limit, 6);
+
+  const byType = await Promise.all(
+    specs.map(async (spec): Promise<SearchResult[]> => {
+      const orFilter = spec.textCols.map((col) => `${col}.ilike.%${term}%`).join(",");
+      const { data } = await supabase
+        .from(spec.table)
+        .select(spec.columns)
+        .eq("tenant_id", tenantId)
+        .or(orFilter)
+        .limit(perTypeLimit);
+      return (data ?? []).map((r) => ({ type: spec.type, ...spec.toResult(r) }));
+    })
+  );
+  const results = byType.flat();
+
+  if (!objectType || objectType === "account" || objectType === "contact") {
+    const seen = new Set(results.filter((r) => r.type === "account" || r.type === "contact").map((r) => `${r.type}:${r.id}`));
+    const lowerTerm = term.toLowerCase();
+
+    if (!objectType || objectType === "account") {
+      const { data: accountRows } = await supabase
+        .from("accounts")
+        .select("id, name, city, type, phone, phone2, email, email2")
+        .eq("tenant_id", tenantId);
+      for (const row of (accountRows ?? []) as Account[]) {
+        if (seen.has(`account:${row.id}`)) continue;
+        const a = decryptAccount(row);
+        const hit = [a.phone, a.phone2, a.email, a.email2].some((v) => v?.toLowerCase().includes(lowerTerm));
+        if (hit) {
+          results.push({ type: "account", id: a.id, title: a.name, subtitle: [a.city, a.type].filter(Boolean).join(" · ") || "Account", href: ROUTES.account(a.id), matched: "phone/email" });
+          seen.add(`account:${a.id}`);
+        }
+      }
+    }
+
+    if (!objectType || objectType === "contact") {
+      const { data: contactRows } = await supabase
+        .from("contacts")
+        .select("id, name, role, phone, phone2, phone3, email, email2")
+        .eq("tenant_id", tenantId);
+      for (const row of (contactRows ?? []) as Contact[]) {
+        if (seen.has(`contact:${row.id}`)) continue;
+        const ct = decryptContact(row);
+        const hit = [ct.phone, ct.phone2, ct.phone3, ct.email, ct.email2].some((v) => v?.toLowerCase().includes(lowerTerm));
+        if (hit) {
+          results.push({ type: "contact", id: ct.id, title: ct.name, subtitle: ct.role || "Contact", href: ROUTES.contact(ct.id), matched: "phone/email" });
+          seen.add(`contact:${ct.id}`);
+        }
+      }
+    }
+  }
+
+  return objectType ? results.slice(0, limit) : results;
 }

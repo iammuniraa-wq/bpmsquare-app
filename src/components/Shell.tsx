@@ -8,6 +8,7 @@ import Logo from "./Logo";
 import Sidebar from "./Sidebar";
 import { TabsProvider } from "@/lib/tabs-context";
 import TabBar from "./TabBar";
+import GlobalSearchBar from "./GlobalSearchBar";
 import { XIcon } from "@/components/Icons";
 import { useTenant } from "@/lib/tenant-context";
 
@@ -46,9 +47,13 @@ function MobileTopBar() {
           ) : (
             <Logo size={26} />
           )}
-          <span style={{ color: "#e2e7ee", fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em" }}>
+          <span style={{ color: "#e2e7ee", fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
             {tenant?.name ?? "BPMSquare"}
           </span>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0, maxWidth: 260 }}>
+          <GlobalSearchBar />
         </div>
 
         {/* Hamburger / close */}
@@ -132,6 +137,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <div style={{ display: "flex", minHeight: "100vh" }}>
         <Sidebar />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "flex-end",
+            background: g.sidebar, borderBottom: "1px solid rgba(255,255,255,.07)",
+            height: 48, minHeight: 48, flexShrink: 0, padding: "0 16px",
+          }}>
+            <GlobalSearchBar />
+          </div>
           <TabBar />
           {/* overflowX:auto, not hidden -- "hidden" silently clips any page whose content
               runs wider than the viewport with no way to reach it (short of zooming the

@@ -71,6 +71,7 @@ export {
   countLeadsForCampaignLive as countLeadsForCampaign,
   getCampaignInterestInfoLive as getCampaignInterestInfo,
   createCampaignInterestLeadLive as createCampaignInterestLead,
+  globalSearchLive as globalSearch,
   type MarketingTargetRule,
   type MarketingRecipientCandidate,
 } from "./live";
