@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { resolveMarketingRecipients } from "@/lib/data";
+import { sanitizeSegmentFilters, sanitizeMatch } from "@/lib/marketingSegmentation";
 
 // Live "-> N recipients" preview while composing -- takes the targeting rule
 // straight from the request body (not the saved campaign row) so the UI can
@@ -20,6 +21,8 @@ export async function POST(request: NextRequest) {
     include_account_ids: Array.isArray(body.include_account_ids) ? body.include_account_ids : [],
     exclude_account_ids: Array.isArray(body.exclude_account_ids) ? body.exclude_account_ids : [],
     manual_emails: Array.isArray(body.manual_emails) ? body.manual_emails : [],
+    filters: sanitizeSegmentFilters(body.filters),
+    match: sanitizeMatch(body.match),
   };
 
   const candidates = await resolveMarketingRecipients(tenantId, rule);

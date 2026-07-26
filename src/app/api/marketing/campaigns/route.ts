@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { resolveCampaignContent } from "@/lib/marketingCampaignContent";
+import { sanitizeSegmentFilters, sanitizeMatch } from "@/lib/marketingSegmentation";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { name, subject, html, account_types, include_account_ids, exclude_account_ids, manual_emails, template_id, custom_message } = body;
+  const { name, subject, html, account_types, include_account_ids, exclude_account_ids, manual_emails, filters, match, template_id, custom_message } = body;
 
   if (!name?.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
 
@@ -63,6 +64,8 @@ export async function POST(request: NextRequest) {
       include_account_ids: Array.isArray(include_account_ids) ? include_account_ids : [],
       exclude_account_ids: Array.isArray(exclude_account_ids) ? exclude_account_ids : [],
       manual_emails: cleanEmails(manual_emails),
+      filters: sanitizeSegmentFilters(filters),
+      match: sanitizeMatch(match),
       created_by: userId,
     })
     .select("id")

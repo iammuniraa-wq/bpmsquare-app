@@ -53,6 +53,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     include_account_ids: campaign.include_account_ids ?? [],
     exclude_account_ids: campaign.exclude_account_ids ?? [],
     manual_emails: campaign.manual_emails ?? [],
+    filters: campaign.filters ?? [],
+    match: campaign.match ?? "all",
   });
 
   const resend = new Resend(process.env.RESEND_API_KEY);

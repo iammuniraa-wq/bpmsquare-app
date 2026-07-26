@@ -6,6 +6,7 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import type { AccountType } from "@/lib/types";
+import type { SegmentFilter } from "@/lib/marketingSegmentation";
 import type { MarketingTemplateId } from "@/lib/marketingTemplates";
 import RichTextEditor from "@/components/RichTextEditor";
 import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/TargetAudiencePicker";
@@ -20,7 +21,7 @@ const lbl: React.CSSProperties = {
   textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6,
 };
 
-export default function MarketingComposeForm({ accounts }: { accounts: AccountLite[] }) {
+export default function MarketingComposeForm({ accounts, initialGroupId }: { accounts: AccountLite[]; initialGroupId?: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [templateId, setTemplateId] = useState<MarketingTemplateId | null>(null);
@@ -31,6 +32,8 @@ export default function MarketingComposeForm({ accounts }: { accounts: AccountLi
   const [includeIds, setIncludeIds] = useState<Set<string>>(new Set());
   const [excludeIds, setExcludeIds] = useState<Set<string>>(new Set());
   const [manualEmails, setManualEmails] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<SegmentFilter[]>([]);
+  const [match, setMatch] = useState<"all" | "any">("all");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -49,6 +52,7 @@ export default function MarketingComposeForm({ accounts }: { accounts: AccountLi
           include_account_ids: [...includeIds],
           exclude_account_ids: [...excludeIds],
           manual_emails: [...manualEmails],
+          filters, match,
         }),
       });
       const json = await res.json();
@@ -96,6 +100,9 @@ export default function MarketingComposeForm({ accounts }: { accounts: AccountLi
         includeIds={includeIds} setIncludeIds={setIncludeIds}
         excludeIds={excludeIds} setExcludeIds={setExcludeIds}
         manualEmails={manualEmails} setManualEmails={setManualEmails}
+        filters={filters} setFilters={setFilters}
+        match={match} setMatch={setMatch}
+        autoLoadGroupId={initialGroupId}
       />
 
       {error && <div style={{ fontSize: 12.5, color: "#dc2626" }}>{error}</div>}

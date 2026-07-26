@@ -14,6 +14,7 @@ import type {
   Supplier, InventoryItem, PurchaseOrder, PurchaseOrderLine, InvoiceLine, InvoicePayment,
   MarketingCampaign, MarketingCampaignRecipient, MarketingTargetGroup, AccountType,
 } from "@/lib/types";
+import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
 
 /**
  * Every read helper below scopes to this tenant explicitly (service-role client
@@ -1642,6 +1643,12 @@ export type MarketingTargetRule = {
   include_account_ids: string[];
   exclude_account_ids: string[];
   manual_emails: string[];
+  /** Rule-based segmentation conditions from the Segmentation builder. When
+   * non-empty, these supersede account_types (include/exclude/manual_emails
+   * still apply as manual overrides) -- empty keeps the original
+   * checkbox-only behaviour for every campaign/group saved before this. */
+  filters?: SegmentFilter[];
+  match?: "all" | "any";
 };
 
 export type MarketingRecipientCandidate = {
@@ -1667,18 +1674,21 @@ export async function resolveMarketingRecipientsLive(
   const supabase = createAdminSupabase();
   const { data } = await supabase
     .from("accounts")
-    .select("id, name, type, email, email2, marketing_opt_out")
+    .select("id, name, type, email, email2, marketing_opt_out, city, state, country, territory, sales_org, industry, employee_count, annual_revenue, created_at")
     .eq("tenant_id", tenantId);
 
-  const accounts = (data ?? []) as Pick<Account, "id" | "name" | "type" | "email" | "email2" | "marketing_opt_out">[];
+  const accounts = (data ?? []) as Pick<Account, "id" | "name" | "type" | "email" | "email2" | "marketing_opt_out" | "city" | "state" | "country" | "territory" | "sales_org" | "industry" | "employee_count" | "annual_revenue" | "created_at">[];
   const excludeSet = new Set(rule.exclude_account_ids);
   const includeSet = new Set(rule.include_account_ids);
   const typeSet = new Set(rule.account_types as AccountType[]);
+  const filters = rule.filters ?? [];
+  const match = rule.match ?? "all";
 
   const accountCandidates: MarketingRecipientCandidate[] = accounts
     .filter((a) => {
       if (excludeSet.has(a.id)) return false;
       if (includeSet.has(a.id)) return true;
+      if (filters.length > 0) return matchesAllFilters(a as unknown as Record<string, unknown>, filters, match);
       return typeSet.has(a.type);
     })
     .map((a) => ({
@@ -1709,6 +1719,18 @@ export async function listMarketingTargetGroupsLive(): Promise<MarketingTargetGr
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
   return (data ?? []) as MarketingTargetGroup[];
+}
+
+export async function getMarketingTargetGroupLive(id: string): Promise<MarketingTargetGroup | null> {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const { data } = await createAdminSupabase()
+    .from("marketing_target_groups")
+    .select("*")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  return (data as MarketingTargetGroup) ?? null;
 }
 
 export async function setAccountMarketingOptOutLive(accountId: string): Promise<boolean> {

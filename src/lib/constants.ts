@@ -42,6 +42,9 @@ export const ROUTES = {
   marketingNew: "/marketing/new",
   marketingCampaign: (id: string) => `/marketing/${id}`,
   marketingUnsubscribe: (accountId: string, token: string) => `/marketing/unsubscribe/${accountId}/${token}`,
+  marketingSegments: "/marketing/segments",
+  marketingSegmentNew: "/marketing/segments/new",
+  marketingSegment: (id: string) => `/marketing/segments/${id}`,
   quotations: "/quotations",
   quotation: (id: string) => `/quotations/${id}`,
   quotationEdit: (id: string) => `/quotations/${id}/edit`,
@@ -125,6 +128,7 @@ export const NAV: NavGroup[] = [
       { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads" },
       { label: "Partners", href: ROUTES.partners, icon: "⌂", pillar: "purple", featureKey: "partners" },
       { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing" },
+      { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing" },
     ],
   },
   {

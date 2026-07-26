@@ -67,6 +67,7 @@ export {
   setAccountMarketingOptOutLive as setAccountMarketingOptOut,
   getUnsubscribeAccountInfoLive as getUnsubscribeAccountInfo,
   listMarketingTargetGroupsLive as listMarketingTargetGroups,
+  getMarketingTargetGroupLive as getMarketingTargetGroup,
   type MarketingTargetRule,
   type MarketingRecipientCandidate,
 } from "./live";

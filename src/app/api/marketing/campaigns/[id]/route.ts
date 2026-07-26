@@ -3,6 +3,7 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { resolveCampaignContent } from "@/lib/marketingCampaignContent";
 import { getMarketingCampaign } from "@/lib/data";
+import { sanitizeSegmentFilters, sanitizeMatch } from "@/lib/marketingSegmentation";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -48,7 +49,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (existing.status !== "draft") return NextResponse.json({ error: "Only draft campaigns can be edited" }, { status: 409 });
 
   const body = await request.json();
-  const { name, subject, html, account_types, include_account_ids, exclude_account_ids, manual_emails, template_id, custom_message } = body;
+  const { name, subject, html, account_types, include_account_ids, exclude_account_ids, manual_emails, filters, match, template_id, custom_message } = body;
 
   const patch: Record<string, unknown> = {};
   if (name !== undefined) patch.name = String(name).trim();
@@ -78,6 +79,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (Array.isArray(include_account_ids)) patch.include_account_ids = include_account_ids;
   if (Array.isArray(exclude_account_ids)) patch.exclude_account_ids = exclude_account_ids;
   if (manual_emails !== undefined) patch.manual_emails = cleanEmails(manual_emails);
+  if (filters !== undefined) patch.filters = sanitizeSegmentFilters(filters);
+  if (match !== undefined) patch.match = sanitizeMatch(match);
 
   const { error } = await supabase.from("marketing_campaigns").update(patch).eq("id", id).eq("tenant_id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

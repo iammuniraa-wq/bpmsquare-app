@@ -10,6 +10,7 @@ import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/T
 import TemplatePicker from "@/components/marketing/TemplatePicker";
 import type { MarketingTemplateId } from "@/lib/marketingTemplates";
 import type { MarketingCampaign, MarketingCampaignRecipient, AccountType } from "@/lib/types";
+import type { SegmentFilter } from "@/lib/marketingSegmentation";
 
 const inp: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", border: `1px solid ${c.line}`, borderRadius: 8,
@@ -44,6 +45,8 @@ export default function MarketingCampaignDetail({
   const [includeIds, setIncludeIds] = useState<Set<string>>(new Set(campaign.include_account_ids));
   const [excludeIds, setExcludeIds] = useState<Set<string>>(new Set(campaign.exclude_account_ids));
   const [manualEmails, setManualEmails] = useState<Set<string>>(new Set(campaign.manual_emails));
+  const [filters, setFilters] = useState<SegmentFilter[]>(campaign.filters ?? []);
+  const [match, setMatch] = useState<"all" | "any">(campaign.match ?? "all");
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -64,6 +67,7 @@ export default function MarketingCampaignDetail({
           include_account_ids: [...includeIds],
           exclude_account_ids: [...excludeIds],
           manual_emails: [...manualEmails],
+          filters, match,
         }),
       });
       if (!res.ok) { const j = await res.json(); throw new Error(j.error || "Failed to save"); }
@@ -163,6 +167,8 @@ export default function MarketingCampaignDetail({
         includeIds={includeIds} setIncludeIds={setIncludeIds}
         excludeIds={excludeIds} setExcludeIds={setExcludeIds}
         manualEmails={manualEmails} setManualEmails={setManualEmails}
+        filters={filters} setFilters={setFilters}
+        match={match} setMatch={setMatch}
       />
 
       {error && <div style={{ fontSize: 12.5, color: "#dc2626" }}>{error}</div>}

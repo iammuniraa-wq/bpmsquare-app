@@ -1,6 +1,8 @@
 // VeveyCRM domain model — the Account is the hub; everything carries account_id.
 // Mirrors the LOCKED data model in PROJECT.md §3.
 
+import type { SegmentFilter } from "@/lib/marketingSegmentation";
+
 export type AccountType = "prospect" | "oem" | "direct" | "end_customer";
 
 export type Account = {
@@ -48,6 +50,8 @@ export type MarketingCampaign = {
   include_account_ids: string[];
   exclude_account_ids: string[];
   manual_emails: string[];
+  filters: SegmentFilter[];
+  match: "all" | "any";
   sent_count: number;
   failed_count: number;
   skipped_count: number;
@@ -73,7 +77,9 @@ export type MarketingCampaignRecipient = {
 
 /** A saved, reusable audience definition -- same shape as a campaign's own
  * ad hoc targeting rule, so it can be loaded into the picker as a starting
- * point for a new campaign. */
+ * point for a new campaign. `filters`/`match` are the rule-based
+ * segmentation conditions built in the drag-and-drop Segmentation builder;
+ * see lib/marketingSegmentation.ts. */
 export type MarketingTargetGroup = {
   id: string;
   name: string;
@@ -81,6 +87,8 @@ export type MarketingTargetGroup = {
   include_account_ids: string[];
   exclude_account_ids: string[];
   manual_emails: string[];
+  filters: SegmentFilter[];
+  match: "all" | "any";
   created_by: string | null;
   created_at: string;
 };
