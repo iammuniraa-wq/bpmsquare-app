@@ -29,11 +29,12 @@ const RECIPIENT_STATUS_TONE: Record<string, "green" | "red" | "amber" | "blue"> 
 };
 
 export default function MarketingCampaignDetail({
-  campaign, recipients, accounts,
+  campaign, recipients, accounts, leadsGenerated,
 }: {
   campaign: MarketingCampaign;
   recipients: (MarketingCampaignRecipient & { account_name: string | null })[];
   accounts: AccountLite[];
+  leadsGenerated: number;
 }) {
   const router = useRouter();
   const [name, setName] = useState(campaign.name);
@@ -104,6 +105,7 @@ export default function MarketingCampaignDetail({
             <Stat label="Sent" value={campaign.sent_count} color="#1d9e75" />
             <Stat label="Failed" value={campaign.failed_count} color="#a32d2d" />
             <Stat label="Skipped" value={campaign.skipped_count} color={c.hint} />
+            <Stat label="Leads" value={leadsGenerated} color={c.accent} />
           </div>
           <div style={{ fontSize: 11, color: c.hint }}>
             {campaign.status === "sending" ? "Sending…" : campaign.sent_at ? `Sent ${new Date(campaign.sent_at).toLocaleString("en-IN")}` : ""}

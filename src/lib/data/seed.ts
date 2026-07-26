@@ -214,10 +214,10 @@ export const contracts: Contract[] = [
 ];
 
 export const leads: Lead[] = [
-  { id: "lead_krishna", account_id: "acc_krishna",  title: "Ring-frame motor burnt — rewind enquiry", source: "direct",       status: "quoted",     created_at: "2026-06-10" },
-  { id: "lead_hpsteel", account_id: "acc_hpsteel",  title: "Rolling mill motor noisy — inspection",   source: "direct",       status: "inspecting", created_at: "2026-06-14" },
-  { id: "lead_sahyadri",account_id: "acc_sahyadri", title: "Transformer oil test (AMC due)",          source: "amc",          status: "won",        created_at: "2026-06-02" },
-  { id: "lead_bharat",  account_id: "acc_bharat",   title: "Hammer motor bearing replacement",        source: "oem_referral", status: "new",        created_at: "2026-06-16" },
+  { id: "lead_krishna", account_id: "acc_krishna",  title: "Ring-frame motor burnt — rewind enquiry", source: "direct",       source_campaign_id: null, status: "quoted",     created_at: "2026-06-10" },
+  { id: "lead_hpsteel", account_id: "acc_hpsteel",  title: "Rolling mill motor noisy — inspection",   source: "direct",       source_campaign_id: null, status: "inspecting", created_at: "2026-06-14" },
+  { id: "lead_sahyadri",account_id: "acc_sahyadri", title: "Transformer oil test (AMC due)",          source: "amc",          source_campaign_id: null, status: "won",        created_at: "2026-06-02" },
+  { id: "lead_bharat",  account_id: "acc_bharat",   title: "Hammer motor bearing replacement",        source: "oem_referral", source_campaign_id: null, status: "new",        created_at: "2026-06-16" },
 ];
 
 export const quotes: Quote[] = [

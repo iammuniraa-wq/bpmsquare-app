@@ -42,6 +42,7 @@ export const ROUTES = {
   marketingNew: "/marketing/new",
   marketingCampaign: (id: string) => `/marketing/${id}`,
   marketingUnsubscribe: (accountId: string, token: string) => `/marketing/unsubscribe/${accountId}/${token}`,
+  marketingInterest: (campaignId: string, accountId: string, token: string) => `/marketing/interest/${campaignId}/${accountId}/${token}`,
   marketingSegments: "/marketing/segments",
   marketingSegmentNew: "/marketing/segments/new",
   marketingSegment: (id: string) => `/marketing/segments/${id}`,
@@ -106,6 +107,9 @@ export type NavItem = {
   pillar: PillarKey;
   /** If set, item is hidden unless the tenant has this feature enabled. */
   featureKey?: string;
+  /** Sub-items shown when this item is expanded in the sidebar -- the item
+   * itself becomes an expand/collapse toggle rather than a direct link. */
+  children?: NavItem[];
 };
 
 export type NavGroup = { group: string; items: NavItem[] };
@@ -125,10 +129,15 @@ export const NAV: NavGroup[] = [
   {
     group: "MARKETING",
     items: [
-      { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads" },
-      { label: "Partners", href: ROUTES.partners, icon: "⌂", pillar: "purple", featureKey: "partners" },
-      { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing" },
-      { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing" },
+      {
+        label: "Marketing", href: ROUTES.marketing, icon: "📣", pillar: "purple",
+        children: [
+          { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing" },
+          { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing" },
+          { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads" },
+          { label: "Partners", href: ROUTES.partners, icon: "⌂", pillar: "purple", featureKey: "partners" },
+        ],
+      },
     ],
   },
   {

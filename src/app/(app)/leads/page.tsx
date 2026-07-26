@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
 import { listLeadsLive } from "@/lib/data/live";
+import { listAccounts } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
+import NewLeadButton from "./NewLeadButton";
 
 type LeadStatus = "new" | "inspecting" | "quoted" | "won" | "lost";
-type LeadSource = "oem_referral" | "amc" | "direct";
+type LeadSource = "oem_referral" | "amc" | "direct" | "campaign";
 
 const STATUS_TONE: Record<LeadStatus, PillarKey> = {
   new: "blue", inspecting: "teal", quoted: "amber", won: "green", lost: "red",
@@ -17,7 +19,7 @@ const STATUS_LABEL: Record<LeadStatus, string> = {
   new: "New", inspecting: "Inspecting", quoted: "Quoted", won: "Won", lost: "Lost",
 };
 const SOURCE_LABEL: Record<LeadSource, string> = {
-  oem_referral: "OEM Referral", amc: "AMC", direct: "Direct",
+  oem_referral: "OEM Referral", amc: "AMC", direct: "Direct", campaign: "Campaign",
 };
 
 const fmtDate = (s: string) =>
@@ -42,6 +44,8 @@ export default async function LeadsPage({
   await requireFeature("leads");
   const { status: statusFilter } = await searchParams;
   const leads = await listLeadsLive();
+  const summaries = await listAccounts();
+  const accounts = summaries.map((s) => ({ id: s.account.id, name: s.account.name }));
 
   const byStatus = ALL_STATUSES.map((s) => ({
     status: s,
@@ -54,7 +58,11 @@ export default async function LeadsPage({
 
   return (
     <>
-      <PageHeader title="Leads" subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as LeadStatus] ?? statusFilter}` : ""} of ${leads.length} total · Marketing & enquiries`} />
+      <PageHeader
+        title="Leads"
+        subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as LeadStatus] ?? statusFilter}` : ""} of ${leads.length} total · Marketing & enquiries`}
+        action={<NewLeadButton accounts={accounts} />}
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
         {byStatus.map(({ status, count }) => (
@@ -102,7 +110,15 @@ export default async function LeadsPage({
                   <td style={{ ...td, fontWeight: 600 }}>{lead.title ?? "—"}</td>
                   <td style={td}>{lead.account_name ?? "—"}</td>
                   <td style={{ ...td, color: c.muted }}>
-                    {SOURCE_LABEL[lead.source as LeadSource] ?? lead.source ?? "—"}
+                    {lead.source === "campaign" && lead.campaign_name ? (
+                      lead.source_campaign_id ? (
+                        <Link href={ROUTES.marketingCampaign(lead.source_campaign_id)} style={{ color: c.accent, textDecoration: "none" }}>
+                          {lead.campaign_name}
+                        </Link>
+                      ) : lead.campaign_name
+                    ) : (
+                      SOURCE_LABEL[lead.source as LeadSource] ?? lead.source ?? "—"
+                    )}
                   </td>
                   <td style={td}>
                     <Pill

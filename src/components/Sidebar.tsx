@@ -16,6 +16,15 @@ import { createBrowserSupabase } from "@/lib/supabase-browser";
 
 const NAV_STATE_KEY = "vevey_nav_state_v2";
 const SIDEBAR_COLLAPSED_KEY = "vevey_sidebar_collapsed_v1";
+const NAV_EXPANDED_KEY = "vevey_nav_expanded_v1";
+
+function loadExpanded(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(NAV_EXPANDED_KEY) || "{}"); } catch { return {}; }
+}
+function saveExpanded(map: Record<string, boolean>) {
+  try { localStorage.setItem(NAV_EXPANDED_KEY, JSON.stringify(map)); } catch {}
+}
 
 type NavState = {
   favs: string[];
@@ -81,10 +90,13 @@ type SectionProps = {
   onNavigate?: () => void;
   accent: string;
   compact: boolean;
+  features?: Record<string, boolean>;
+  expanded: Record<string, boolean>;
+  onToggleExpand: (href: string) => void;
 };
 
 function DraggableSection({
-  items, isFavSection, isActive, onToggleFav, onReorder, onNavigate, accent, compact,
+  items, isFavSection, isActive, onToggleFav, onReorder, onNavigate, accent, compact, features, expanded, onToggleExpand,
 }: SectionProps) {
   const [dropAt, setDropAt]   = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
@@ -135,9 +147,56 @@ function DraggableSection({
   return (
     <div onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       {items.map((item, idx) => {
-        const on         = isActive(item.href);
+        const hasChildren = !!item.children?.length;
+        const childActive = hasChildren && item.children!.some((ch) => isActive(ch.href));
+        const on         = isActive(item.href) || childActive;
         const isDragging = dragIdx.current === idx;
         const showHover  = hovered === idx;
+        const isOpen     = expanded[item.href] !== false; // default expanded
+
+        const rowContent = (
+          <>
+            <span style={{ width: 16, textAlign: "center", fontSize: 14, flexShrink: 0 }}>
+              {item.icon}
+            </span>
+            <span style={{ flex: 1 }}>{item.label}</span>
+            {hasChildren && (
+              <span style={{ fontSize: 10, flexShrink: 0, color: on ? "#fff" : "#7a9ab8", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
+            )}
+            {!hasChildren && (isFavSection || showHover) && (
+              <span
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFav(item.href); }}
+                title={isFavSection ? "Remove from favourites" : "Add to favourites"}
+                style={{
+                  fontSize: 13, flexShrink: 0, cursor: "pointer", lineHeight: 1,
+                  color: isFavSection ? "#f6b23c" : "#f6b23c99",
+                }}
+              >
+                {isFavSection ? <StarFilled size={12} color="#f6b23c" /> : <StarOutline size={12} color="#f6b23c99" />}
+              </span>
+            )}
+            {!hasChildren && (
+              <span style={{
+                fontSize: 14, flexShrink: 0, cursor: "grab", lineHeight: 1,
+                color: showHover ? "rgba(255,255,255,.3)" : "transparent",
+                transition: "color 0.1s",
+              }}>⠿</span>
+            )}
+          </>
+        );
+
+        const rowStyle: React.CSSProperties = {
+          display: "flex", alignItems: "center", gap: 9,
+          padding: `${py} 10px`,
+          borderRadius: 8, fontSize: 13, marginBottom: 1,
+          color: on ? "#fff" : "#cdd8e6",
+          background: on ? accent : "transparent",
+          opacity: isDragging ? 0.35 : 1,
+          textDecoration: "none",
+          userSelect: "none",
+          transition: "background 0.12s",
+          cursor: hasChildren ? "pointer" : "default",
+        };
 
         return (
           <div
@@ -151,44 +210,40 @@ function DraggableSection({
           >
             {dropAt === idx && <DropLine accent={accent} />}
 
-            <Link
-              href={item.href}
-              onClick={onNavigate}
-              style={{
-                display: "flex", alignItems: "center", gap: 9,
-                padding: `${py} 10px`,
-                borderRadius: 8, fontSize: 13, marginBottom: 1,
-                color: on ? "#fff" : "#cdd8e6",
-                background: on ? accent : "transparent",
-                opacity: isDragging ? 0.35 : 1,
-                textDecoration: "none",
-                userSelect: "none",
-                transition: "background 0.12s",
-                cursor: "default",
-              }}
-            >
-              <span style={{ width: 16, textAlign: "center", fontSize: 14, flexShrink: 0 }}>
-                {item.icon}
-              </span>
-              <span style={{ flex: 1 }}>{item.label}</span>
-              {(isFavSection || showHover) && (
-                <span
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFav(item.href); }}
-                  title={isFavSection ? "Remove from favourites" : "Add to favourites"}
-                  style={{
-                    fontSize: 13, flexShrink: 0, cursor: "pointer", lineHeight: 1,
-                    color: isFavSection ? "#f6b23c" : "#f6b23c99",
-                  }}
-                >
-                  {isFavSection ? <StarFilled size={12} color="#f6b23c" /> : <StarOutline size={12} color="#f6b23c99" />}
-                </span>
-              )}
-              <span style={{
-                fontSize: 14, flexShrink: 0, cursor: "grab", lineHeight: 1,
-                color: showHover ? "rgba(255,255,255,.3)" : "transparent",
-                transition: "color 0.1s",
-              }}>⠿</span>
-            </Link>
+            {hasChildren ? (
+              <div onClick={() => onToggleExpand(item.href)} style={rowStyle}>{rowContent}</div>
+            ) : (
+              <Link href={item.href} onClick={onNavigate} style={rowStyle}>{rowContent}</Link>
+            )}
+
+            {hasChildren && isOpen && (
+              <div style={{ marginLeft: 10 }}>
+                {item.children!
+                  .filter((ch) => !ch.featureKey || features?.[ch.featureKey] === true)
+                  .map((ch) => {
+                    const childOn = isActive(ch.href);
+                    return (
+                      <Link
+                        key={ch.href}
+                        href={ch.href}
+                        onClick={onNavigate}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: `${py} 10px`,
+                          borderRadius: 8, fontSize: 12.5, marginBottom: 1,
+                          color: childOn ? "#fff" : "#aebccd",
+                          background: childOn ? accent : "transparent",
+                          textDecoration: "none",
+                          transition: "background 0.12s",
+                        }}
+                      >
+                        <span style={{ width: 14, textAlign: "center", fontSize: 12, flexShrink: 0 }}>{ch.icon}</span>
+                        <span>{ch.label}</span>
+                      </Link>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         );
       })}
@@ -312,6 +367,16 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   const [navState, setNavState] = useState<NavState>(() => defaultNavState(features));
   useEffect(() => { setNavState(loadNavState(features)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
+  useEffect(() => { setExpandedMap(loadExpanded()); }, []);
+  const toggleExpand = (href: string) => {
+    setExpandedMap((prev) => {
+      const next = { ...prev, [href]: !(prev[href] !== false) };
+      saveExpanded(next);
+      return next;
+    });
+  };
 
   const allMap  = new Map(flattenNav(features).map((i) => [i.href, i]));
   // Tenant-wide hidden nav items (Settings → General), not a per-browser preference.
@@ -469,6 +534,9 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           onNavigate={onNavigate}
           accent={accent}
           compact={compact}
+          features={features}
+          expanded={expandedMap}
+          onToggleExpand={toggleExpand}
         />
 
         {/* Divider */}
@@ -490,6 +558,9 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           onNavigate={onNavigate}
           accent={accent}
           compact={compact}
+          features={features}
+          expanded={expandedMap}
+          onToggleExpand={toggleExpand}
         />
 
         {/* Settings link + reset */}

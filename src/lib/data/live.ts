@@ -52,21 +52,78 @@ export async function listInvoices(): Promise<InvoiceRow[]> {
 
 // ── Leads ─────────────────────────────────────────────────────────────────────
 
-export type LeadRow = Lead & { account_name: string };
+export type LeadRow = Lead & { account_name: string; campaign_name: string | null };
 
 export async function listLeadsLive(): Promise<LeadRow[]> {
   const tenantId = await currentTenantId();
   if (!tenantId) return [];
   const { data } = await createAdminSupabase()
     .from("leads")
-    .select("*, accounts(name)")
+    .select("*, accounts(name), marketing_campaigns(name)")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((r: any) => ({
     ...(r as Lead),
     account_name: (Array.isArray(r.accounts) ? r.accounts[0]?.name : r.accounts?.name) ?? "—",
+    campaign_name: (Array.isArray(r.marketing_campaigns) ? r.marketing_campaigns[0]?.name : r.marketing_campaigns?.name) ?? null,
   }));
+}
+
+/** How many leads a campaign has generated via its "I'm interested"
+ * click-through link -- shown on the campaign detail page. */
+export async function countLeadsForCampaignLive(campaignId: string, tenantId: string): Promise<number> {
+  const { count } = await createAdminSupabase()
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("source_campaign_id", campaignId)
+    .eq("tenant_id", tenantId);
+  return count ?? 0;
+}
+
+/** Looks up the campaign + account behind a click-through interest link --
+ * no session involved, reached via a signed link exactly like
+ * getUnsubscribeAccountInfoLive. Returns null if either side doesn't
+ * resolve, or if the account isn't actually the tenant that owns the
+ * campaign (defence in depth against a tampered but still-valid-looking URL). */
+export async function getCampaignInterestInfoLive(campaignId: string, accountId: string): Promise<{ campaignName: string; accountName: string; tenantName: string } | null> {
+  const supabase = createAdminSupabase();
+  const { data: campaign } = await supabase.from("marketing_campaigns").select("name, tenant_id").eq("id", campaignId).maybeSingle();
+  if (!campaign) return null;
+  const { data: account } = await supabase.from("accounts").select("name, tenant_id").eq("id", accountId).eq("tenant_id", campaign.tenant_id).maybeSingle();
+  if (!account) return null;
+  const { data: tenant } = await supabase.from("tenants").select("name").eq("id", campaign.tenant_id).maybeSingle();
+  return { campaignName: campaign.name as string, accountName: account.name as string, tenantName: (tenant?.name as string) ?? "this company" };
+}
+
+/** Creates the lead a campaign's "I'm interested" click generates.
+ * Deduped: a repeat click on the same link (mail-client link prefetch, a
+ * recipient clicking twice) reuses the existing lead instead of spawning a
+ * new one every time. */
+export async function createCampaignInterestLeadLive(campaignId: string, accountId: string): Promise<boolean> {
+  const supabase = createAdminSupabase();
+  const { data: campaign } = await supabase.from("marketing_campaigns").select("id, name, tenant_id").eq("id", campaignId).maybeSingle();
+  if (!campaign) return false;
+  const { data: account } = await supabase.from("accounts").select("id").eq("id", accountId).eq("tenant_id", campaign.tenant_id).maybeSingle();
+  if (!account) return false;
+
+  const { data: existing } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("account_id", accountId)
+    .eq("source_campaign_id", campaignId)
+    .maybeSingle();
+  if (existing) return true;
+
+  const { error } = await supabase.from("leads").insert({
+    tenant_id: campaign.tenant_id,
+    account_id: accountId,
+    title: `Interest from campaign: ${campaign.name}`,
+    source: "campaign",
+    source_campaign_id: campaignId,
+    status: "new",
+  });
+  return !error;
 }
 
 // ── Contracts / AMC ───────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { resolveMarketingRecipients } from "@/lib/data";
 import { renderTemplate } from "@/lib/emailTemplates";
 import { richTextToPlainText } from "@/lib/sanitizeHtml";
 import { signUnsubscribeToken } from "@/lib/marketingUnsubscribe";
+import { signCampaignInterestToken } from "@/lib/campaignInterestLink";
 import { buildAbsoluteUrl } from "@/lib/quotePublicLink";
 import { ROUTES } from "@/lib/constants";
 
@@ -84,21 +85,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const subject = renderTemplate(campaign.subject, vars);
     const bodyHtml = renderTemplate(campaign.body, vars);
 
-    // Manually-typed recipients have no account row to flag opted-out, so
-    // there's nothing for an unsubscribe link to update -- skip it for them.
+    // Manually-typed recipients have no account row to flag opted-out or
+    // attribute a lead to, so there's nothing for an unsubscribe or interest
+    // link to act on -- skip both for them.
     const unsubToken = candidate.account_id ? signUnsubscribeToken(candidate.account_id) : null;
     const unsubUrl = unsubToken && candidate.account_id ? await buildAbsoluteUrl(ROUTES.marketingUnsubscribe(candidate.account_id, unsubToken)) : null;
+    const interestToken = candidate.account_id ? signCampaignInterestToken(id, candidate.account_id) : null;
+    const interestUrl = interestToken && candidate.account_id ? await buildAbsoluteUrl(ROUTES.marketingInterest(id, candidate.account_id, interestToken)) : null;
+
+    const interestBlock = interestUrl
+      ? `<div style="text-align:center;margin:22px 0 4px;"><a href="${interestUrl}" style="display:inline-block;padding:11px 24px;border-radius:8px;background:#378add;color:#ffffff;font-size:13.5px;font-weight:600;text-decoration:none;">Interested? Tell us more</a></div>`
+      : "";
     const footer = unsubUrl
       ? `<p style="font-size:11px;color:#8a96a5;margin-top:24px;">You're receiving this because you're a contact of ${companyName}. <a href="${unsubUrl}">Unsubscribe</a></p>`
       : "";
-    const textFooter = unsubUrl ? `\n\n---\nUnsubscribe: ${unsubUrl}` : "";
+    const textFooter = [interestUrl ? `\nInterested? Tell us more: ${interestUrl}` : "", unsubUrl ? `\n\n---\nUnsubscribe: ${unsubUrl}` : ""].join("");
 
     const { error: sendError } = await resend.emails.send({
       from: fromAddress,
       to: candidate.email,
       replyTo,
       subject,
-      html: bodyHtml + footer,
+      html: bodyHtml + interestBlock + footer,
       text: richTextToPlainText(bodyHtml) + textFooter,
     });
 

@@ -173,7 +173,10 @@ export type Lead = {
   id: string;
   account_id: string;
   title: string;
-  source: "oem_referral" | "amc" | "direct";
+  source: "oem_referral" | "amc" | "direct" | "campaign";
+  /** Set when source === "campaign" -- which sent campaign generated this
+   * lead, via the click-through "I'm interested" link. */
+  source_campaign_id: string | null;
   status: LeadStatus;
   created_at: string;
 };

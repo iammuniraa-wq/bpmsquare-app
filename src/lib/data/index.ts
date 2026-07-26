@@ -68,6 +68,9 @@ export {
   getUnsubscribeAccountInfoLive as getUnsubscribeAccountInfo,
   listMarketingTargetGroupsLive as listMarketingTargetGroups,
   getMarketingTargetGroupLive as getMarketingTargetGroup,
+  countLeadsForCampaignLive as countLeadsForCampaign,
+  getCampaignInterestInfoLive as getCampaignInterestInfo,
+  createCampaignInterestLeadLive as createCampaignInterestLead,
   type MarketingTargetRule,
   type MarketingRecipientCandidate,
 } from "./live";
