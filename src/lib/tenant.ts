@@ -104,6 +104,25 @@ export async function requireFeature(key: keyof TenantFeatures): Promise<void> {
 }
 
 /**
+ * Strips admin-only secrets (the v1 API key, and the ERP webhook-push
+ * signing secret nested in `config`) from a tenant object before it's
+ * handed to TenantProvider -- every authenticated member of a tenant was
+ * previously receiving both in full via the client-side tenant context
+ * (and could also read them by calling their settings API routes directly),
+ * even though the Settings UI only *displays* them to admins. Regenerating
+ * either was already admin-gated server-side; reading them wasn't.
+ */
+export function redactTenantForRole(tenant: Tenant, role: "admin" | "member" | null): Tenant {
+  if (role === "admin") return tenant;
+  const push = tenant.config?.integration_push;
+  return {
+    ...tenant,
+    api_key: null,
+    config: { ...tenant.config, integration_push: push ? { webhook_url: push.webhook_url } : undefined },
+  };
+}
+
+/**
  * Public, unauthenticated lookup for branding a tenant's dedicated login page
  * (name + logo only — nothing sensitive). Returns null when the host has no
  * mapped tenant, so callers fall back to generic BPMSquare branding.

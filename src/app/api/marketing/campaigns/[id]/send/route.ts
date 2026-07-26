@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Resend } from "resend";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { resolveMarketingRecipients } from "@/lib/data";
-import { renderTemplate } from "@/lib/emailTemplates";
+import { renderTemplate, escapeHtml } from "@/lib/emailTemplates";
 import { richTextToPlainText } from "@/lib/sanitizeHtml";
 import { signUnsubscribeToken } from "@/lib/marketingUnsubscribe";
 import { signCampaignInterestToken } from "@/lib/campaignInterestLink";
@@ -83,7 +83,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const vars = { account_name: candidate.account_name, company_name: companyName };
     const subject = renderTemplate(campaign.subject, vars);
-    const bodyHtml = renderTemplate(campaign.body, vars);
+    // The body is real HTML (a template or sanitized rich text) -- unlike the
+    // plain-text subject, account_name/company_name here must be
+    // HTML-escaped before substitution, since an account name is free text
+    // any tenant user can set and has no reason to ever contain markup.
+    const htmlVars = { account_name: escapeHtml(candidate.account_name), company_name: escapeHtml(companyName) };
+    const bodyHtml = renderTemplate(campaign.body, htmlVars);
 
     // Manually-typed recipients have no account row to flag opted-out or
     // attribute a lead to, so there's nothing for an unsubscribe or interest

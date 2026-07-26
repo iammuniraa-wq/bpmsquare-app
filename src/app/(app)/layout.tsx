@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Shell from "@/components/Shell";
-import { getTenant, getUserRole, isPlatformAdmin } from "@/lib/tenant";
+import { getTenant, getUserRole, isPlatformAdmin, redactTenantForRole } from "@/lib/tenant";
 import { TenantProvider } from "@/lib/tenant-context";
 import { getAuthUser } from "@/lib/supabase-server";
 import { LinkIcon } from "@/components/Icons";
@@ -53,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <TenantProvider tenant={tenant} userRole={userRole}>
+    <TenantProvider tenant={redactTenantForRole(tenant, userRole)} userRole={userRole}>
       <style>{`:root { --tenant-accent: ${tenant.accent_color}; }`}</style>
       <Shell>{children}</Shell>
     </TenantProvider>

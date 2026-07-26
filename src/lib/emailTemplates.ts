@@ -49,3 +49,17 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<EmailTemplateCategory, { name: stri
 export function renderTemplate(text: string, vars: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? "");
 }
+
+/** Escapes a value that's about to be substituted into an HTML email body --
+ * use this on every `vars` entry before a renderTemplate() call whose result
+ * becomes `html:` (not needed for a plain-text `subject`/`text` render).
+ * Untrusted values like an account name have no reason to ever contain
+ * markup, but nothing stops a user from typing some. */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}

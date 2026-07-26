@@ -4,13 +4,14 @@ import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import type { TenantConfig } from "@/lib/constants";
 
 export async function GET() {
-  let tenantId;
+  let tenantId, role;
   try {
-    ({ tenantId } = await requireTenantUser());
+    ({ tenantId, role } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+  if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { data, error } = await createAdminSupabase()
     .from("tenants")

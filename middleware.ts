@@ -36,12 +36,14 @@ export async function middleware(request: NextRequest) {
     /^\/api\/quotes\/[^/]+\/pdf-public\//.test(pathname) ||
     // Signed, no-login marketing-email unsubscribe link (see
     // lib/marketingUnsubscribe.ts) -- same reasoning as the quote links above.
-    /^\/marketing\/unsubscribe\/[^/]+\/[^/]+/.test(pathname) ||
-    /^\/api\/marketing\/unsubscribe\/[^/]+\/[^/]+/.test(pathname) ||
+    // $-anchored so this can never match a deeper/future path under the same
+    // prefix with different auth requirements.
+    /^\/marketing\/unsubscribe\/[^/]+\/[^/]+$/.test(pathname) ||
+    /^\/api\/marketing\/unsubscribe\/[^/]+\/[^/]+$/.test(pathname) ||
     // Signed, no-login "I'm interested" campaign click-through link (see
     // lib/campaignInterestLink.ts) -- same reasoning as the unsubscribe link.
-    /^\/marketing\/interest\/[^/]+\/[^/]+\/[^/]+/.test(pathname) ||
-    /^\/api\/marketing\/interest\/[^/]+\/[^/]+\/[^/]+/.test(pathname)
+    /^\/marketing\/interest\/[^/]+\/[^/]+\/[^/]+$/.test(pathname) ||
+    /^\/api\/marketing\/interest\/[^/]+\/[^/]+\/[^/]+$/.test(pathname)
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }

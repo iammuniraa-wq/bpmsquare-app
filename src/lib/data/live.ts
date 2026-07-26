@@ -124,6 +124,11 @@ export async function createCampaignInterestLeadLive(campaignId: string, account
     source_campaign_id: campaignId,
     status: "new",
   });
+  // 23505 = unique_violation on leads_account_campaign_unique_idx -- a
+  // concurrent request (double-click, mail-scanner link prefetch) already
+  // created this exact lead between our check above and this insert; that's
+  // success, not a failure.
+  if (error && error.code === "23505") return true;
   return !error;
 }
 

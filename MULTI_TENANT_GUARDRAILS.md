@@ -160,6 +160,73 @@ worth knowing so it isn't re-litigated from scratch:
   `tenant_id`-scoped, so it's a wasted-cache-hit inefficiency, not a leak.
   Not fixed; noted so nobody mistakes it for one later.
 
+## Fixed 2026-07-26 — audit of the marketing/leads/search features
+
+A four-agent audit (multi-tenant isolation, auth/access-control, injection/
+XSS, secrets/config/logic-bugs) scoped to everything built since the
+2026-07-25 audit: marketing campaigns, Segmentation, target groups, leads
+(including the new campaign-interest-link attribution), and global search.
+Most of this surface held up — every new table has RLS + a same-migration
+tenant-isolation policy, every admin-client query is `tenant_id`-scoped,
+the two new signed no-login links (campaign-interest, and the existing
+unsubscribe link) both verify their HMAC token before touching the
+database, and `globalSearchLive`'s `.or()` ILIKE construction has no
+injection path (PostgREST's filter DSL never reaches raw SQL, and the only
+special characters that matter for its own condition-separator syntax —
+`,` and `()` — are stripped by `sanitizeSearchTerm`). Five real findings,
+all fixed:
+
+**Medium-High — unescaped account name interpolated into real outbound
+marketing-email HTML.** `renderTemplate()` (`lib/emailTemplates.ts`) does a
+raw substitution with no HTML-escaping, and the marketing send route
+(`api/marketing/campaigns/[id]/send/route.ts`) used it to build the actual
+`html:` body sent via Resend, substituting `account_name`/`company_name`
+directly from `accounts.name` -- free text any tenant user (not just an
+admin) can set when creating an account. The custom-message field in the
+same template is properly escaped via `escapeCustomMessage()`; the account
+name wasn't, which was the actual gap -- any account whose name contained
+markup would have that markup land, unescaped, in a real email sent to that
+account's own contact. Fixed: added `escapeHtml()` (`lib/emailTemplates.ts`)
+and applied it to `account_name`/`company_name` specifically for the
+HTML-body render (`bodyHtml`), leaving the plain-text `subject` render on
+the original unescaped `vars` since HTML-escaping a subject line would
+incorrectly show literal `&amp;` etc. Confirmed the only other
+`renderTemplate()` caller with untrusted vars (`api/quotes/[id]/email/route.ts`)
+sends its result as a `text:` field, not `html:`, so it was never at risk.
+
+**Low/Medium — the tenant's real v1 API key and ERP webhook-signing secret
+were readable by every authenticated member, not just admins.** Both
+`Tenant.api_key` and `TenantConfig.integration_push.webhook_secret` were
+part of the full tenant row `getTenant()` fetches, and that whole object
+was handed to `TenantProvider` in `app/(app)/layout.tsx` for every logged-in
+user regardless of role -- the Settings page's admin-only gating was
+UI-only, not backed by the data actually being absent for non-admins.
+`GET /api/settings/integration-push` additionally had no role check at all
+(unlike its own `PATCH`), so a non-admin could also fetch the secret
+directly. Regenerating either was already correctly admin-gated; reading
+wasn't. Fixed: added `redactTenantForRole()` (`lib/tenant.ts`), applied at
+the `TenantProvider` boundary in `layout.tsx` -- a non-admin's tenant
+context now has `api_key: null` and `config.integration_push.webhook_secret`
+stripped (its `webhook_url` is left visible, since that's not sensitive).
+Added the missing `role !== "admin"` check to the `GET` handler in
+`api/settings/integration-push/route.ts` as defense in depth.
+
+**Low — race condition in campaign-interest lead dedup.**
+`createCampaignInterestLeadLive`'s check-then-insert (`lib/data/live.ts`)
+had no unique constraint behind it, so a double-click or a mail-client/
+security-scanner link prefetch hitting the same interest link twice in
+close succession could create two duplicate leads for the same
+account+campaign. Fixed: `supabase/migrations/0046_leads_campaign_dedup_constraint.sql`
+adds a unique index on `leads (account_id, source_campaign_id) where
+source_campaign_id is not null`; the insert now treats a `23505`
+(unique-violation) error as success rather than a failure.
+
+**Informational — the new unsubscribe/interest public-path regexes in
+`middleware.ts` weren't `$`-anchored**, so they'd also match a hypothetical
+deeper path under the same prefix. Not exploitable today (no such route
+exists), but a latent footgun if one is ever added later with different
+auth requirements. Fixed: anchored all four regexes with `$`.
+
 ## Fixed 2026-07-25 — full codebase security audit
 
 A five-agent audit (multi-tenant isolation, auth/session/middleware,
