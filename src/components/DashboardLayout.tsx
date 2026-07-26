@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { ServiceCase, Account, WorkOrder, Activity as ActivityRec } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { useUiTheme } from "@/lib/tenant-context";
 import { ROUTES } from "@/lib/constants";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
 import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText } from "@/components/Icons";
@@ -417,13 +418,24 @@ function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: numb
 }
 
 function StatTile({ value, label, icon, href }: { value: number | string; label: string; icon: React.ReactNode; href: string }) {
+  const modern = useUiTheme() === "modern";
   return (
     <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px", minWidth: 0 }}>
-      <div style={{ width: 28, height: 28, borderRadius: 7, background: ledger.accentSoft, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: modern ? 8 : 7,
+        background: modern ? "var(--modern-accent-bg)" : ledger.accentSoft,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+      }}>
         {icon}
       </div>
       <div>
-        <div style={{ ...serifNum, fontSize: kpiNumFontSize(String(value)) + 2, fontWeight: 700, color: ledger.accent, lineHeight: 1.15, whiteSpace: "nowrap" }}>{value}</div>
+        <div style={{
+          ...(modern ? {} : serifNum),
+          fontSize: kpiNumFontSize(String(value)) + 2, fontWeight: modern ? 800 : 700,
+          color: modern ? "var(--modern-accent)" : ledger.accent,
+          letterSpacing: modern ? "-0.01em" : undefined,
+          lineHeight: 1.15, whiteSpace: "nowrap",
+        }}>{value}</div>
         <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>{label}</div>
       </div>
     </Link>
@@ -431,13 +443,17 @@ function StatTile({ value, label, icon, href }: { value: number | string; label:
 }
 
 function AnalyticsCard({ title, href, children }: { title: string; href: string; children: React.ReactNode }) {
+  const modern = useUiTheme() === "modern";
   return (
-    <div style={{ ...cardStyle, padding: 0, overflow: "hidden", boxShadow: "0 1px 2px rgba(16,24,40,.04), 0 1px 6px rgba(16,24,40,.03)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px 9px", borderBottom: `1px solid ${ledger.line}` }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>
-        <Link href={href} style={{ fontSize: 10.5, color: ledger.accent, textDecoration: "none", fontWeight: 600 }}>Full view →</Link>
+    <div
+      className={modern ? "modern-lift" : undefined}
+      style={{ ...cardStyle, padding: 0, overflow: "hidden", boxShadow: modern ? cardStyle.boxShadow : "0 1px 2px rgba(16,24,40,.04), 0 1px 6px rgba(16,24,40,.03)" }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${modern ? "var(--line)" : ledger.line}` }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: modern ? "var(--modern-accent)" : c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>
+        <Link href={href} style={{ fontSize: 10.5, color: modern ? "var(--modern-accent)" : ledger.accent, textDecoration: "none", fontWeight: 600 }}>Full view →</Link>
       </div>
-      <div style={{ padding: "12px 14px" }}>{children}</div>
+      <div style={{ padding: modern ? "14px 16px" : "12px 14px" }}>{children}</div>
     </div>
   );
 }
@@ -557,8 +573,19 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
 // ── Sidebar sub-components ────────────────────────────────────────────────────
 
 function QCBtn({ href, label, icon, bg }: { href: string; label: string; icon: React.ReactNode; bg: string }) {
+  const modern = useUiTheme() === "modern";
   return (
-    <Link href={href} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 11px", borderRadius: 8, background: bg, border: `1px solid ${c.line}`, textDecoration: "none", fontSize: 12.5, color: c.ink, fontWeight: 600 }}>
+    <Link
+      className={modern ? "modern-lift" : undefined}
+      href={href}
+      style={{
+        display: "flex", alignItems: "center", gap: 9, padding: modern ? "9px 12px" : "8px 11px",
+        borderRadius: modern ? "var(--card-radius)" : 8,
+        background: modern ? "var(--card-bg)" : bg,
+        border: `1px solid ${modern ? "var(--line)" : c.line}`,
+        textDecoration: "none", fontSize: 12.5, color: c.ink, fontWeight: modern ? 700 : 600,
+      }}
+    >
       {icon}{label}
     </Link>
   );
@@ -805,6 +832,7 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
 
 export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin }: Props) {
   const router = useRouter();
+  const modern = useUiTheme() === "modern";
   const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout));
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [saving, startSave] = useTransition();
@@ -933,30 +961,57 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         ),
       },
     ];
+    // Modern: each tile is its own elevated, hover-lifting card (real
+    // structural difference, not just a recolor) -- classic keeps every tile
+    // nested inside one flat bordered strip, unchanged.
+    const tileBoxStyle: React.CSSProperties = modern
+      ? { padding: "16px 18px", borderRadius: "var(--card-radius)", border: "1px solid var(--line)", background: "var(--card-bg)", boxShadow: "var(--card-shadow)" }
+      : { padding: "13px 16px", borderRadius: 8, border: `1px solid ${ledger.line}`, background: c.panel2 };
+    const tileLabelStyle: React.CSSProperties = modern
+      ? { fontSize: 10.5, fontWeight: 700, color: "var(--modern-accent)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }
+      : { fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 };
+
+    const tilesRow = (
+      <div style={{ display: "flex", flexWrap: "wrap", gap: modern ? 14 : 10 }}>
+        {tiles.map((t) => {
+          const box = (
+            <div className={modern ? "modern-lift" : undefined} style={tileBoxStyle}>
+              <div style={tileLabelStyle}>{t.label}</div>
+              {t.content}
+            </div>
+          );
+          return t.href
+            ? <Link key={t.label} href={t.href} style={{ textDecoration: "none", display: "block", flex: modern ? "1 1 180px" : "1 1 150px", minWidth: modern ? 180 : 150 }}>{box}</Link>
+            : <div key={t.label} style={{ flex: modern ? "1 1 180px" : "1 1 150px", minWidth: modern ? 180 : 150 }}>{box}</div>;
+        })}
+      </div>
+    );
+
+    const stageRowContent = (
+      <div style={{ display: "flex", gap: 22, flexWrap: "wrap" }}>
+        {CASE_STAGE_TILES.map((s) => (
+          <Link key={s.status} href={`${ROUTES.cases}?status=${s.status}`} style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 11.5, color: c.muted }}>{s.label}</span>
+            <span style={{ ...(modern ? {} : serifNum), fontSize: 12, fontWeight: 700, color: c.ink }}>{caseStatusCount(s.status)}</span>
+          </Link>
+        ))}
+      </div>
+    );
+
+    if (modern) {
+      return (
+        <>
+          {tilesRow}
+          <div style={{ ...cardStyle, marginTop: 12, padding: "12px 16px" }}>{stageRowContent}</div>
+        </>
+      );
+    }
+
     return (
       <section style={{ ...cardStyle, padding: 14 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-          {tiles.map((t) => {
-            const box = (
-              <div style={{ padding: "13px 16px", borderRadius: 8, border: `1px solid ${ledger.line}`, background: c.panel2 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>{t.label}</div>
-                {t.content}
-              </div>
-            );
-            return t.href
-              ? <Link key={t.label} href={t.href} style={{ textDecoration: "none", display: "block", flex: "1 1 150px", minWidth: 150 }}>{box}</Link>
-              : <div key={t.label} style={{ flex: "1 1 150px", minWidth: 150 }}>{box}</div>;
-          })}
-        </div>
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${ledger.line}`, display: "flex", gap: 22, flexWrap: "wrap" }}>
-          {CASE_STAGE_TILES.map((s) => (
-            <Link key={s.status} href={`${ROUTES.cases}?status=${s.status}`} style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 11.5, color: c.muted }}>{s.label}</span>
-              <span style={{ ...serifNum, fontSize: 12, fontWeight: 700, color: c.ink }}>{caseStatusCount(s.status)}</span>
-            </Link>
-          ))}
-        </div>
+        {tilesRow}
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${ledger.line}` }}>{stageRowContent}</div>
       </section>
     );
   }
