@@ -132,42 +132,56 @@
   --sb-search-icon: #5b6b85;
 }
 
-/* "Modern 3" direction (Microsoft Fluent) -- same structure as modern2 (solid
-   sidebar/top-bar, white search pill + panels, no card hairline), swapped to
-   Microsoft's Fluent blue ramp (#0078d4 -> #005a9e, vs. modern2's Salesforce
-   #0176d3 -> #014486) with a touch more corner softness, so a tenant can pick
-   between the two blue identities instead of one theme trying to be both. */
+/* "Modern 3" direction (Microsoft Fluent) -- deliberately NOT a re-hued
+   Modern 2. Real Fluent/Windows-11-style chrome is light neutral grey, not a
+   solid brand-colour block -- blue is reserved for accents/active states/
+   buttons, same as Outlook, Teams (light theme) and SharePoint. So unlike
+   modern2, the sidebar/top-bar flip back to a light background here, using
+   Fluent's actual neutral-grey ramp (neutralLighter/neutralLight) and text
+   scale (neutralPrimary/neutralSecondary greys, not navy) rather than blue-
+   tinted tokens. Card shadow uses Fluent's two-layer "depth" shadow shape,
+   and the theme opts into Segoe UI first (see the font-family rule below)
+   since that's a real, checkable difference on Windows, not just a colour. */
 [data-theme="modern3"] {
-  --card-radius: 10px;
-  --card-shadow: 0 1px 3px rgba(10, 40, 80, 0.08);
-  --line: #dbe6f3;
-  --sidebar-grad: linear-gradient(180deg, #0078d4 0%, #005a9e 100%);
+  --card-radius: 6px;
+  --card-shadow: 0 1.6px 3.6px rgba(0, 0, 0, 0.11), 0 0.3px 0.9px rgba(0, 0, 0, 0.09);
+  --line: #edebe9;
+  --sidebar-grad: linear-gradient(180deg, #faf9f8 0%, #f3f2f1 100%);
   --modern-accent: #0078d4;
   --modern-accent-bg: #deecf9;
   --modern-gold: #0078d4;
   --modern-gold-bg: #deecf9;
 
-  --sb-text: #dbeafd;
-  --sb-text-dim: #8ec2ea;
-  --sb-text-dimmer: #a9d0ef;
-  --sb-text-faint: #4d84b8;
-  --sb-strong: #ffffff;
-  --sb-icon-muted: #bfe0f7;
-  --sb-line: rgba(255, 255, 255, 0.18);
-  --sb-hover: rgba(255, 255, 255, 0.1);
-  --sb-hover-strong: rgba(255, 255, 255, 0.16);
+  /* Fluent's neutral text ramp -- grey-black, not the blue-tinted navy the
+     solid-blue directions use, since the chrome itself is light grey now. */
+  --sb-text: #323130;
+  --sb-text-dim: #605e5c;
+  --sb-text-dimmer: #797775;
+  --sb-text-faint: #a19f9d;
+  --sb-strong: #201f1e;
+  --sb-icon-muted: #605e5c;
+  --sb-line: #edebe9;
+  --sb-hover: rgba(0, 0, 0, 0.04);
+  --sb-hover-strong: rgba(0, 0, 0, 0.06);
 
   --sb-panel-bg: #ffffff;
-  --sb-panel-border: #dbe6f3;
-  --sb-panel-text: #14324f;
-  --sb-panel-text-dim: #5b6b85;
-  --sb-panel-hover: rgba(15, 40, 80, 0.05);
+  --sb-panel-border: #edebe9;
+  --sb-panel-text: #201f1e;
+  --sb-panel-text-dim: #605e5c;
+  --sb-panel-hover: rgba(0, 0, 0, 0.04);
 
-  --sb-search-bg: rgba(255, 255, 255, 0.92);
-  --sb-search-border: rgba(255, 255, 255, 0.6);
-  --sb-search-text: #14324f;
-  --sb-search-icon: #5b6b85;
+  /* A filled light-grey pill (Fluent's neutralLighter), distinct from both
+     the sidebar's own light grey and the white floating panels -- the same
+     subtle layering an actual Teams/Outlook search box uses. */
+  --sb-search-bg: #f3f2f1;
+  --sb-search-border: #e1dfdd;
+  --sb-search-text: #201f1e;
+  --sb-search-icon: #605e5c;
 }
+/* Segoe UI first -- a real, checkable Fluent difference on Windows (where it's
+   installed), not just a colour choice. Harmlessly falls through to the same
+   system-font stack everywhere else. */
+[data-theme="modern3"] { font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; }
 
 /* Real interaction states -- the whole reason this can't just be inline
    styles (React inline style objects can't express :hover/transition).

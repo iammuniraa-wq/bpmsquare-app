@@ -248,7 +248,7 @@ export default function TenantEditor({ tenant, users }: Props) {
             { value: "classic" as const, label: "Classic", desc: "The current, stable look — still available for any tenant, but no longer the default for newly created ones." },
             { value: "modern" as const, label: "Modern 1 (beta) — default for new tenants", desc: "Structured-Enterprise direction: denser cards, sharper borders, navy sidebar, no card hairline, AI assistant dock." },
             { value: "modern2" as const, label: "Modern 2 (beta)", desc: "Lightning direction: solid Salesforce-blue sidebar/top-bar, white search + panels, no card hairline, AI assistant dock." },
-            { value: "modern3" as const, label: "Modern 3 (beta)", desc: "Fluent direction: same structure as Modern 2 with Microsoft's blue instead of Salesforce's, softer corners, AI assistant dock." },
+            { value: "modern3" as const, label: "Modern 3 (beta)", desc: "Fluent direction: light neutral-grey sidebar/top-bar (not a solid blue block), blue reserved for accents and buttons, Segoe UI, Fluent's two-layer card shadow, AI assistant dock." },
           ]).map((opt) => (
             <label key={opt.value} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
