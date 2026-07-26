@@ -30,6 +30,23 @@
   --card-radius: 12px;
   --card-shadow: none;
   --sidebar-grad: linear-gradient(180deg, #152233 0%, #0e1a28 100%);
+
+  /* Sidebar/tab-bar chrome tokens -- Sidebar.tsx, TabBar.tsx and Shell.tsx's
+     MobileTopBar read these instead of hardcoding light-on-dark colours, so a
+     theme with a LIGHT sidebar (see modern2 below) can flip them to
+     dark-on-light without touching those components again. Values here are
+     the classic/modern1 defaults (both use a dark sidebar). */
+  --sb-text: #cdd8e6;
+  --sb-text-dim: #7a9ab8;
+  --sb-text-dimmer: #8aa0b8;
+  --sb-text-faint: #4a6070;
+  --sb-strong: #fff;
+  --sb-icon-muted: #9db3c4;
+  --sb-line: rgba(255, 255, 255, 0.08);
+  --sb-hover: rgba(255, 255, 255, 0.06);
+  --sb-hover-strong: rgba(255, 255, 255, 0.1);
+  --sb-panel-bg: #152233;
+  --sb-panel-border: rgba(255, 255, 255, 0.1);
 }
 
 /* "Modern" direction (Structured Enterprise) -- denser, sharper-bordered
@@ -55,6 +72,40 @@
   --modern-gold-bg: #faf3e6;
 }
 
+/* "Modern 2" direction (Lightning Blue) -- a second, independent modern
+   option a tenant can be opted into instead of "modern": a LIGHT sidebar
+   (white, not navy) with blue reserved for active states/accents/buttons,
+   styled after Salesforce Lightning's blue-and-white identity. This is the
+   one direction so far where the sidebar itself flips from dark to light,
+   which is why the --sb-* chrome tokens above exist -- every sidebar/tab-bar
+   ink, line and hover colour is re-pointed here instead of needing new JSX. */
+[data-theme="modern2"] {
+  --card-radius: 8px;
+  --card-shadow: 0 1px 2px rgba(15, 50, 92, 0.07);
+  --line: #dde6f0;
+  --sidebar-grad: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  --modern-accent: #0176d3;
+  --modern-accent-bg: #eaf3fd;
+  /* Reuses the same "--modern-gold" hairline-accent slot the modern-lift-gold
+     class already reads -- here it's blue instead of gold, so no component
+     code (DashboardLayout's className={modern ? "modern-lift-gold" : ...})
+     needs to know which modern direction is active. */
+  --modern-gold: #0176d3;
+  --modern-gold-bg: #eaf3fd;
+
+  --sb-text: #425466;
+  --sb-text-dim: #7c8aa0;
+  --sb-text-dimmer: #8894a8;
+  --sb-text-faint: #9aa7ba;
+  --sb-strong: #16325c;
+  --sb-icon-muted: #5b6b85;
+  --sb-line: rgba(15, 40, 80, 0.1);
+  --sb-hover: rgba(15, 40, 80, 0.05);
+  --sb-hover-strong: rgba(15, 40, 80, 0.08);
+  --sb-panel-bg: #ffffff;
+  --sb-panel-border: #dde6f0;
+}
+
 /* Real interaction states -- the whole reason this can't just be inline
    styles (React inline style objects can't express :hover/transition).
    Opt a card into this class (only in modern mode) for a genuine hover-lift
@@ -63,20 +114,29 @@
    inline style's box-shadow always beats a stylesheet :hover rule for the
    same property, which would otherwise silently cancel the lift. */
 [data-theme="modern"] .modern-lift,
-[data-theme="modern"] .modern-lift-gold {
+[data-theme="modern2"] .modern-lift,
+[data-theme="modern"] .modern-lift-gold,
+[data-theme="modern2"] .modern-lift-gold {
   transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.16s;
 }
-[data-theme="modern"] .modern-lift { box-shadow: var(--card-shadow); }
-/* Same lift, plus the thin gold top-accent -- the enterprise "signature"
-   touch, used sparingly (a hairline, never a fill). */
-[data-theme="modern"] .modern-lift-gold { box-shadow: var(--card-shadow), inset 0 2px 0 var(--modern-gold); }
+[data-theme="modern"] .modern-lift,
+[data-theme="modern2"] .modern-lift { box-shadow: var(--card-shadow); }
+/* Same lift, plus a thin top-accent in whichever hue --modern-gold resolves
+   to for the active direction (gold for modern1, blue for modern2) --
+   used sparingly (a hairline, never a fill). */
+[data-theme="modern"] .modern-lift-gold,
+[data-theme="modern2"] .modern-lift-gold { box-shadow: var(--card-shadow), inset 0 2px 0 var(--modern-gold); }
 [data-theme="modern"] .modern-lift:hover,
-[data-theme="modern"] .modern-lift-gold:hover {
+[data-theme="modern2"] .modern-lift:hover,
+[data-theme="modern"] .modern-lift-gold:hover,
+[data-theme="modern2"] .modern-lift-gold:hover {
   transform: translateY(-2px);
   border-color: #b3bfd6;
 }
-[data-theme="modern"] .modern-lift:hover { box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14); }
-[data-theme="modern"] .modern-lift-gold:hover { box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14), inset 0 2px 0 var(--modern-gold); }
+[data-theme="modern"] .modern-lift:hover,
+[data-theme="modern2"] .modern-lift:hover { box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14); }
+[data-theme="modern"] .modern-lift-gold:hover,
+[data-theme="modern2"] .modern-lift-gold:hover { box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14), inset 0 2px 0 var(--modern-gold); }
 
 * { box-sizing: border-box; }
 

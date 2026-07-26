@@ -375,12 +375,14 @@ export type TenantConfig = {
   appearance?: {
     compact_sidebar?: boolean;
     /** "modern" opts this tenant into the Structured-Enterprise theme
-     * direction (denser cards, sharper borders, navy sidebar) via CSS
-     * custom properties (see globals.css's `[data-theme="modern"]` block)
-     * -- undefined/"classic" renders exactly as before for every other
+     * direction (denser cards, sharper borders, navy+gold sidebar); "modern2"
+     * opts into the Lightning-style light-blue-and-white direction (white
+     * sidebar, blue accents) -- both via CSS custom properties (see
+     * globals.css's `[data-theme="modern"]` / `[data-theme="modern2"]`
+     * blocks). undefined/"classic" renders exactly as before for every other
      * tenant. Platform-admin-only for now (TenantEditor.tsx); intended to
-     * become a tenant-facing opt-in once the direction is finalized. */
-    ui_theme?: "classic" | "modern";
+     * become a tenant-facing opt-in once a direction is finalized. */
+    ui_theme?: "classic" | "modern" | "modern2";
   };
   // On-demand push to an external system (e.g. an ERP's webhook receiver) --
   // a rep clicks "Push to ERP" on a record; distinct from (and simpler than)

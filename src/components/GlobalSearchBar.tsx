@@ -88,10 +88,10 @@ export default function GlobalSearchBar() {
     <div style={{ position: "relative", flex: 1, maxWidth: 480 }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
-        background: "rgba(255,255,255,.07)", border: "1px solid rgba(255,255,255,.1)",
+        background: "var(--sb-hover)", border: "1px solid var(--sb-line)",
         borderRadius: 8, padding: "0 10px", height: 32,
       }}>
-        <SearchIcon size={14} color="#7a9ab8" />
+        <SearchIcon size={14} color="var(--sb-text-dim)" />
         <input
           ref={inputRef}
           value={query}
@@ -100,7 +100,7 @@ export default function GlobalSearchBar() {
           placeholder="Search accounts, quotes, cases, ref numbers…"
           style={{
             flex: 1, background: "transparent", border: "none", outline: "none",
-            color: "#e2e7ee", fontSize: 12.5, height: "100%",
+            color: "var(--sb-strong)", fontSize: 12.5, height: "100%",
           }}
         />
         {query && (
@@ -109,7 +109,7 @@ export default function GlobalSearchBar() {
             style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}
             title="Clear"
           >
-            <XIcon size={12} color="#7a9ab8" />
+            <XIcon size={12} color="var(--sb-text-dim)" />
           </button>
         )}
         <select
@@ -117,15 +117,15 @@ export default function GlobalSearchBar() {
           onChange={(e) => setObjectType(e.target.value as SearchObjectType | "")}
           title="Limit search to one object"
           style={{
-            background: "rgba(255,255,255,.06)", border: "none", borderLeft: "1px solid rgba(255,255,255,.12)",
-            color: "#9db3c4", fontSize: 11, height: "100%", paddingLeft: 8, marginLeft: 2,
+            background: "var(--sb-hover)", border: "none", borderLeft: "1px solid var(--sb-line)",
+            color: "var(--sb-icon-muted)", fontSize: 11, height: "100%", paddingLeft: 8, marginLeft: 2,
             outline: "none", cursor: "pointer", flexShrink: 0,
           }}
         >
           <option value="">All objects</option>
           {searchObjects.map((o) => <option key={o.type} value={o.type}>{o.label}</option>)}
         </select>
-        <span style={{ fontSize: 10, color: "#4a6070", flexShrink: 0, paddingLeft: 2 }}>⌘K</span>
+        <span style={{ fontSize: 10, color: "var(--sb-text-faint)", flexShrink: 0, paddingLeft: 2 }}>⌘K</span>
       </div>
 
       {showDropdown && (
@@ -133,15 +133,15 @@ export default function GlobalSearchBar() {
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 400 }} />
           <div style={{
             position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0,
-            background: "#152233", border: "1px solid rgba(255,255,255,.1)", borderRadius: 10,
+            background: "var(--sb-panel-bg)", border: "1px solid var(--sb-panel-border)", borderRadius: 10,
             boxShadow: "0 12px 36px rgba(0,0,0,.5)", zIndex: 401,
             maxHeight: 420, overflowY: "auto", padding: "6px 0",
           }}>
             {loading && results.length === 0 && (
-              <div style={{ padding: "14px 16px", fontSize: 12, color: "#7a9ab8" }}>Searching…</div>
+              <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--sb-text-dim)" }}>Searching…</div>
             )}
             {!loading && grouped.length === 0 && (
-              <div style={{ padding: "14px 16px", fontSize: 12, color: "#7a9ab8" }}>No matches for "{query.trim()}".</div>
+              <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--sb-text-dim)" }}>No matches for "{query.trim()}".</div>
             )}
             {grouped.map((group) => {
               const def = searchObjects.find((o) => o.type === group.type);
@@ -149,7 +149,7 @@ export default function GlobalSearchBar() {
                 <div key={group.type}>
                   <div style={{
                     padding: "6px 14px 4px", fontSize: 10, fontWeight: 700,
-                    color: "#5a8ab0", textTransform: "uppercase", letterSpacing: 0.6,
+                    color: "var(--modern-accent, #5a8ab0)", textTransform: "uppercase", letterSpacing: 0.6,
                   }}>
                     {def?.icon} {def?.label}
                   </div>
@@ -161,11 +161,11 @@ export default function GlobalSearchBar() {
                         display: "flex", flexDirection: "column", width: "100%", textAlign: "left",
                         padding: "7px 14px", border: "none", background: "transparent", cursor: "pointer",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,.06)"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sb-hover)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                     >
-                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "#e2e7ee" }}>{r.title}</span>
-                      <span style={{ fontSize: 11, color: "#7a9ab8" }}>{r.subtitle}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--sb-strong)" }}>{r.title}</span>
+                      <span style={{ fontSize: 11, color: "var(--sb-text-dim)" }}>{r.subtitle}</span>
                     </button>
                   ))}
                 </div>

@@ -47,7 +47,7 @@ function MobileTopBar() {
           ) : (
             <Logo size={26} />
           )}
-          <span style={{ color: "#e2e7ee", fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
+          <span style={{ color: "var(--sb-strong)", fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
             {tenant?.name ?? "BPMSquare"}
           </span>
         </div>
@@ -62,19 +62,19 @@ function MobileTopBar() {
           aria-label={open ? "Close menu" : "Open menu"}
           style={{
             width: 36, height: 36, borderRadius: 7,
-            background: open ? "rgba(255,255,255,.1)" : "transparent",
+            background: open ? "var(--sb-hover-strong)" : "transparent",
             border: "none", cursor: "pointer",
             display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 5,
           }}
         >
           {open ? (
-            <XIcon size={18} color="#e2e7ee" />
+            <XIcon size={18} color="var(--sb-strong)" />
           ) : (
             <>
-              <span style={{ width: 18, height: 1.5, background: "#c5d3de", borderRadius: 1, display: "block" }} />
-              <span style={{ width: 18, height: 1.5, background: "#c5d3de", borderRadius: 1, display: "block" }} />
-              <span style={{ width: 18, height: 1.5, background: "#c5d3de", borderRadius: 1, display: "block" }} />
+              <span style={{ width: 18, height: 1.5, background: "var(--sb-text)", borderRadius: 1, display: "block" }} />
+              <span style={{ width: 18, height: 1.5, background: "var(--sb-text)", borderRadius: 1, display: "block" }} />
+              <span style={{ width: 18, height: 1.5, background: "var(--sb-text)", borderRadius: 1, display: "block" }} />
             </>
           )}
         </button>
@@ -128,7 +128,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <main style={{ flex: 1, padding: 12, overflowX: "auto", minWidth: 0 }}>
             {children}
           </main>
-          {uiTheme === "modern" && <AIDock />}
+          {uiTheme !== "classic" && <AIDock />}
         </div>
       </TabsProvider>
     );
@@ -141,7 +141,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "flex-end",
-            background: "var(--sidebar-grad)", borderBottom: "1px solid rgba(255,255,255,.07)",
+            background: "var(--sidebar-grad)", borderBottom: "1px solid var(--sb-line)",
             height: 48, minHeight: 48, flexShrink: 0, padding: "0 16px",
           }}>
             <GlobalSearchBar />
@@ -154,7 +154,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {children}
           </main>
         </div>
-        {uiTheme === "modern" && <AIDock />}
+        {uiTheme !== "classic" && <AIDock />}
       </div>
     </TabsProvider>
   );

@@ -160,7 +160,7 @@ function DraggableSection({
             </span>
             <span style={{ flex: 1 }}>{item.label}</span>
             {hasChildren && (
-              <span style={{ fontSize: 10, flexShrink: 0, color: on ? "#fff" : "#7a9ab8", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
+              <span style={{ fontSize: 10, flexShrink: 0, color: on ? "#fff" : "var(--sb-text-dim)", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
             )}
             {!hasChildren && (isFavSection || showHover) && (
               <span
@@ -177,7 +177,7 @@ function DraggableSection({
             {!hasChildren && (
               <span style={{
                 fontSize: 14, flexShrink: 0, cursor: "grab", lineHeight: 1,
-                color: showHover ? "rgba(255,255,255,.3)" : "transparent",
+                color: showHover ? "var(--sb-text-dim)" : "transparent",
                 transition: "color 0.1s",
               }}>⠿</span>
             )}
@@ -188,7 +188,7 @@ function DraggableSection({
           display: "flex", alignItems: "center", gap: 9,
           padding: `${py} 10px`,
           borderRadius: 8, fontSize: 13, marginBottom: 1,
-          color: on ? "#fff" : "#cdd8e6",
+          color: on ? "#fff" : "var(--sb-text)",
           background: on ? accent : "transparent",
           opacity: isDragging ? 0.35 : 1,
           textDecoration: "none",
@@ -230,7 +230,7 @@ function DraggableSection({
                           display: "flex", alignItems: "center", gap: 8,
                           padding: `${py} 10px`,
                           borderRadius: 8, fontSize: 12.5, marginBottom: 1,
-                          color: childOn ? "#fff" : "#aebccd",
+                          color: childOn ? "#fff" : "var(--sb-text)",
                           background: childOn ? accent : "transparent",
                           textDecoration: "none",
                           transition: "background 0.12s",
@@ -264,7 +264,7 @@ function IconRailItem({ item, active, accent, onNavigate }: {
       style={{
         display: "flex", alignItems: "center", justifyContent: "center",
         width: 36, height: 36, margin: "0 auto 4px", borderRadius: 8,
-        color: active ? "#fff" : "#aebccd",
+        color: active ? "#fff" : "var(--sb-text)",
         background: active ? accent : "transparent",
         textDecoration: "none", fontSize: 15,
       }}
@@ -297,7 +297,7 @@ function UserFooter({ accent, collapsed }: { accent: string; collapsed?: boolean
 
   return (
     <div style={{
-      borderBottom: "1px solid rgba(255,255,255,.07)",
+      borderBottom: "1px solid var(--sb-line)",
       paddingBottom: 10, marginBottom: 10,
       display: "flex", flexDirection: collapsed ? "column" : "row", alignItems: "center", gap: 8,
     }}>
@@ -312,7 +312,7 @@ function UserFooter({ accent, collapsed }: { accent: string; collapsed?: boolean
       {!collapsed && (
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontSize: 11, color: "#8aa0b8",
+            fontSize: 11, color: "var(--sb-text-dimmer)",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             {email}
@@ -324,7 +324,7 @@ function UserFooter({ accent, collapsed }: { accent: string; collapsed?: boolean
         title="Sign out"
         style={{
           background: "transparent", border: "none",
-          color: "#4a6070", cursor: "pointer",
+          color: "var(--sb-text-faint)", cursor: "pointer",
           fontSize: 14, padding: 4, borderRadius: 4,
           flexShrink: 0,
         }}
@@ -425,7 +425,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       background: "var(--sidebar-grad)",
       flexShrink: 0,
       padding: collapsed ? "16px 8px" : "16px 12px",
-      color: "#aebccd",
+      color: "var(--sb-text)",
       minHeight: "100vh",
       display: "flex",
       flexDirection: "column",
@@ -437,7 +437,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         display: "flex", alignItems: "center", gap: 9,
         justifyContent: collapsed ? "center" : "space-between",
         padding: "4px 6px 14px",
-        borderBottom: "1px solid rgba(255,255,255,.08)",
+        borderBottom: "1px solid var(--sb-line)",
         marginBottom: 12,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
@@ -452,11 +452,11 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           )}
           {!collapsed && (
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, color: "#fff", fontSize: 14 }}>
+              <div style={{ fontWeight: 600, color: "var(--sb-strong)", fontSize: 14 }}>
                 {tenant?.name ?? <span>Vevey<span style={{ color: "#7fb4ec" }}>CRM</span></span>}
               </div>
               <div style={{
-                fontSize: 11, color: "#8aa0b8",
+                fontSize: 11, color: "var(--sb-text-dimmer)",
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}>
                 {tenant ? "workspace" : settings.workspaceName}
@@ -470,8 +470,8 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             title="Collapse sidebar"
             style={{
               flexShrink: 0, width: 22, height: 22, borderRadius: 6,
-              background: "rgba(255,255,255,.06)", border: "none",
-              color: "#8aa0b8", cursor: "pointer", fontSize: 11, lineHeight: 1,
+              background: "var(--sb-hover)", border: "none",
+              color: "var(--sb-text-dimmer)", cursor: "pointer", fontSize: 11, lineHeight: 1,
             }}
           >
             ◀
@@ -485,8 +485,8 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           title="Expand sidebar"
           style={{
             width: 32, height: 22, borderRadius: 6, margin: "-6px auto 10px",
-            background: "rgba(255,255,255,.06)", border: "none",
-            color: "#8aa0b8", cursor: "pointer", fontSize: 11, lineHeight: 1,
+            background: "var(--sb-hover)", border: "none",
+            color: "var(--sb-text-dimmer)", cursor: "pointer", fontSize: 11, lineHeight: 1,
           }}
         >
           ▶
@@ -500,7 +500,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           {[...favItems, ...restItems].map((item) => (
             <IconRailItem key={item.href} item={item} active={isActive(item.href)} accent={accent} onNavigate={onNavigate} />
           ))}
-          <div style={{ borderTop: "1px solid rgba(255,255,255,.08)", margin: "8px 4px" }} />
+          <div style={{ borderTop: "1px solid var(--sb-line)", margin: "8px 4px" }} />
           <Link
             href={ROUTES.settings}
             onClick={onNavigate}
@@ -512,7 +512,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               textDecoration: "none",
             }}
           >
-            <Gear size={14} color={isActive(ROUTES.settings) ? "#fff" : "#9db3c4"} />
+            <Gear size={14} color={isActive(ROUTES.settings) ? "#fff" : "var(--sb-icon-muted)"} />
           </Link>
         </nav>
       ) : (
@@ -539,14 +539,14 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         />
 
         {/* Divider */}
-        <div style={{ borderTop: "1px solid rgba(255,255,255,.08)", margin: "10px 4px" }} />
+        <div style={{ borderTop: "1px solid var(--sb-line)", margin: "10px 4px" }} />
 
         {/* All items */}
         <div style={{
           fontSize: 9.5, letterSpacing: 1.1, fontWeight: 600,
-          color: "#7a9ab8", paddingLeft: 10, marginBottom: 3,
+          color: "var(--sb-text-dim)", paddingLeft: 10, marginBottom: 3,
         }}>
-          ALL · drag · <StarOutline size={9} color="#7a9ab8" /> to pin
+          ALL · drag · <StarOutline size={9} color="var(--sb-text-dim)" /> to pin
         </div>
         <DraggableSection
           items={restItems}
@@ -563,27 +563,27 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         />
 
         {/* Settings link + reset */}
-        <div style={{ borderTop: "1px solid rgba(255,255,255,.06)", marginTop: 10, paddingTop: 8 }}>
+        <div style={{ borderTop: "1px solid var(--sb-line)", marginTop: 10, paddingTop: 8 }}>
           <Link
             href={ROUTES.settings}
             onClick={onNavigate}
             style={{
               display: "flex", alignItems: "center", gap: 8, width: "100%",
               padding: "7px 10px", borderRadius: 8, fontSize: 12.5,
-              color: isActive(ROUTES.settings) ? "#dce9f6" : "#cdd8e6",
+              color: isActive(ROUTES.settings) ? "#dce9f6" : "var(--sb-text)",
               background: isActive(ROUTES.settings) ? accent : "transparent",
               textDecoration: "none",
               transition: "background 0.12s",
             }}
           >
-            <Gear size={14} color={isActive(ROUTES.settings) ? "#fff" : "#9db3c4"} />
+            <Gear size={14} color={isActive(ROUTES.settings) ? "#fff" : "var(--sb-icon-muted)"} />
             <span>Settings</span>
           </Link>
           <button
             onClick={resetNav}
             style={{
               background: "transparent", border: "none",
-              color: "#7a9ab8", fontSize: 11, cursor: "pointer",
+              color: "var(--sb-text-dim)", fontSize: 11, cursor: "pointer",
               padding: "4px 10px", borderRadius: 5,
               textAlign: "left", width: "100%",
               marginTop: 2,

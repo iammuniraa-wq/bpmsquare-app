@@ -47,7 +47,7 @@ export default function TabBar() {
 
   const btn: React.CSSProperties = {
     flexShrink: 0, width: 28, height: 28, borderRadius: 6, border: "none",
-    background: "transparent", color: "#9db3c4", cursor: "pointer",
+    background: "transparent", color: "var(--sb-icon-muted)", cursor: "pointer",
     fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center",
     transition: "background .12s, color .12s",
   };
@@ -55,7 +55,7 @@ export default function TabBar() {
   return (
     <div style={{
       display: "flex", alignItems: "center",
-      borderBottom: "1px solid rgba(255,255,255,.07)",
+      borderBottom: "1px solid var(--sb-line)",
       background: "var(--sidebar-grad)",
       height: 42, minHeight: 42, flexShrink: 0,
       position: "relative",
@@ -87,22 +87,22 @@ export default function TabBar() {
                 padding: "0 10px 0 12px",
                 minWidth: 110, maxWidth: 180, flexShrink: 0,
                 height: 42,
-                background: active ? "rgba(255,255,255,.09)" : "transparent",
+                background: active ? "var(--sb-hover-strong)" : "transparent",
                 borderBottom: active ? `2px solid ${c.accent}` : "2px solid transparent",
                 cursor: "pointer",
-                borderRight: "1px solid rgba(255,255,255,.05)",
+                borderRight: "1px solid var(--sb-line)",
                 position: "relative",
                 transition: "background .12s",
               }}
               onClick={() => focusTab(tab.href)}
-              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "rgba(255,255,255,.04)"; }}
+              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--sb-hover)"; }}
               onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
             >
               <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>{tab.icon}</span>
               <span style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <span style={{
                   fontSize: 12, fontWeight: active ? 600 : 400,
-                  color: active ? "#e2e7ee" : "#8fa8be",
+                  color: active ? "var(--sb-strong)" : "var(--sb-text-dim)",
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   lineHeight: "1.2",
                 }}>
@@ -110,7 +110,7 @@ export default function TabBar() {
                 </span>
                 {tab.section && (
                   <span style={{
-                    fontSize: 9, color: active ? "#5a8ab0" : "#3d5f78",
+                    fontSize: 9, color: active ? "var(--modern-accent, #5a8ab0)" : "var(--sb-text-faint)",
                     textTransform: "uppercase", letterSpacing: "0.04em",
                     lineHeight: "1.2", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>
@@ -124,12 +124,12 @@ export default function TabBar() {
                 style={{
                   flexShrink: 0, width: 16, height: 16, borderRadius: 3,
                   border: "none", background: "transparent",
-                  color: "#6b8599", cursor: "pointer", fontSize: 12, lineHeight: 1,
+                  color: "var(--sb-text-dim)", cursor: "pointer", fontSize: 12, lineHeight: 1,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   padding: 0,
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,.12)"; e.currentTarget.style.color = "#e2e7ee"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6b8599"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sb-hover-strong)"; e.currentTarget.style.color = "var(--sb-strong)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--sb-text-dim)"; }}
               >×</button>
             </div>
           );
@@ -174,7 +174,7 @@ export default function TabBar() {
           onClick={() => setDropOpen((v) => !v)}
           title={`All tabs (${tabs.length})`}
         >
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#8fa8be" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--sb-text-dim)" }}>
             {tabs.length} ▾
           </span>
         </button>
@@ -187,8 +187,8 @@ export default function TabBar() {
             />
             <div style={{
               position: "absolute", top: "calc(100% + 4px)", right: 0,
-              width: 240, background: "#152233",
-              border: "1px solid rgba(255,255,255,.1)", borderRadius: 10,
+              width: 240, background: "var(--sb-panel-bg)",
+              border: "1px solid var(--sb-panel-border)", borderRadius: 10,
               boxShadow: "0 8px 32px rgba(0,0,0,.5)",
               zIndex: 401, overflow: "hidden",
               padding: "4px 0",
@@ -198,7 +198,7 @@ export default function TabBar() {
                 onClick={() => { closeAllTabs(); setDropOpen(false); }}
                 style={{
                   width: "100%", textAlign: "left",
-                  padding: "7px 14px", border: "none", borderBottom: "1px solid rgba(255,255,255,.07)",
+                  padding: "7px 14px", border: "none", borderBottom: "1px solid var(--sb-line)",
                   background: "transparent", color: "#e05a5a",
                   fontSize: 12, fontWeight: 600, cursor: "pointer",
                   display: "flex", alignItems: "center", gap: 8,
@@ -219,24 +219,24 @@ export default function TabBar() {
                       width: "100%", textAlign: "left",
                       padding: "8px 14px", border: "none",
                       background: active ? "rgba(55,138,221,.2)" : "transparent",
-                      color: active ? "#e2e7ee" : "#8fa8be",
+                      color: active ? "var(--sb-strong)" : "var(--sb-text-dim)",
                       fontSize: 12.5, fontWeight: active ? 600 : 400,
                       cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
                     }}
-                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "rgba(255,255,255,.05)"; }}
+                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--sb-hover)"; }}
                     onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = active ? "rgba(55,138,221,.2)" : "transparent"; }}
                   >
                     <span style={{ fontSize: 11, opacity: 0.7, flexShrink: 0 }}>{tab.icon}</span>
                     <span style={{ flex: 1, overflow: "hidden" }}>
                       <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tab.title}</span>
-                      {tab.section && <span style={{ display: "block", fontSize: 10, color: "#3d5f78", textTransform: "uppercase", letterSpacing: "0.04em" }}>{tab.section}</span>}
+                      {tab.section && <span style={{ display: "block", fontSize: 10, color: "var(--sb-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{tab.section}</span>}
                     </span>
                     {active && <Dot size={8} color={c.accent} />}
                     <span
                       onClick={(e) => { e.stopPropagation(); closeTab(tab.href); setDropOpen(false); }}
-                      style={{ color: "#4a6070", fontSize: 14, lineHeight: 1, padding: "0 2px" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.color = "#e2e7ee"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = "#4a6070"; }}
+                      style={{ color: "var(--sb-text-faint)", fontSize: 14, lineHeight: 1, padding: "0 2px" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = "var(--sb-strong)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = "var(--sb-text-faint)"; }}
                     >×</span>
                   </button>
                 );

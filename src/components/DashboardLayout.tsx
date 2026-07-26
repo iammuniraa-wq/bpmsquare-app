@@ -418,7 +418,7 @@ function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: numb
 }
 
 function StatTile({ value, label, icon, href }: { value: number | string; label: string; icon: React.ReactNode; href: string }) {
-  const modern = useUiTheme() === "modern";
+  const modern = useUiTheme() !== "classic";
   return (
     <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px", minWidth: 0 }}>
       <div style={{
@@ -443,7 +443,7 @@ function StatTile({ value, label, icon, href }: { value: number | string; label:
 }
 
 function AnalyticsCard({ title, href, children }: { title: string; href: string; children: React.ReactNode }) {
-  const modern = useUiTheme() === "modern";
+  const modern = useUiTheme() !== "classic";
   return (
     <div
       className={modern ? "modern-lift-gold" : undefined}
@@ -580,7 +580,7 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
 // ── Sidebar sub-components ────────────────────────────────────────────────────
 
 function QCBtn({ href, label, icon, bg }: { href: string; label: string; icon: React.ReactNode; bg: string }) {
-  const modern = useUiTheme() === "modern";
+  const modern = useUiTheme() !== "classic";
   return (
     <Link
       className={modern ? "modern-lift" : undefined}
@@ -839,7 +839,7 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
 
 export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin }: Props) {
   const router = useRouter();
-  const modern = useUiTheme() === "modern";
+  const modern = useUiTheme() !== "classic";
   const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout));
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [saving, startSave] = useTransition();
