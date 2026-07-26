@@ -41,8 +41,10 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [status, setStatus]           = useState(tenant.status);
   const [plan, setPlan]               = useState(tenant.plan);
   const [features, setFeatures]       = useState<TenantFeatures>({ ...tenant.features });
-  const [uiTheme, setUiTheme]         = useState<"classic" | "modern" | "modern2">(
-    tenant.config?.appearance?.ui_theme === "modern" || tenant.config?.appearance?.ui_theme === "modern2"
+  const [uiTheme, setUiTheme]         = useState<"classic" | "modern" | "modern2" | "modern3">(
+    tenant.config?.appearance?.ui_theme === "modern" ||
+    tenant.config?.appearance?.ui_theme === "modern2" ||
+    tenant.config?.appearance?.ui_theme === "modern3"
       ? tenant.config.appearance.ui_theme
       : "classic"
   );
@@ -243,9 +245,10 @@ export default function TenantEditor({ tenant, users }: Props) {
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {([
-            { value: "classic" as const, label: "Classic", desc: "The current, stable look — default for every tenant." },
+            { value: "classic" as const, label: "Classic", desc: "The current, stable look — still available for any tenant, but no longer the default for newly created ones." },
             { value: "modern" as const, label: "Modern 1 (beta)", desc: "Structured-Enterprise direction: denser cards, sharper borders, navy + gold sidebar, AI assistant dock." },
-            { value: "modern2" as const, label: "Modern 2 (beta)", desc: "Lightning direction: white sidebar, light blue + white accents, AI assistant dock." },
+            { value: "modern2" as const, label: "Modern 2 (beta) — default for new tenants", desc: "Lightning direction: solid Salesforce-blue sidebar/top-bar, white search + panels, no card hairline, AI assistant dock." },
+            { value: "modern3" as const, label: "Modern 3 (beta)", desc: "Fluent direction: same structure as Modern 2 with Microsoft's blue instead of Salesforce's, softer corners, AI assistant dock." },
           ]).map((opt) => (
             <label key={opt.value} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",

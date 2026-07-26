@@ -376,13 +376,18 @@ export type TenantConfig = {
     compact_sidebar?: boolean;
     /** "modern" opts this tenant into the Structured-Enterprise theme
      * direction (denser cards, sharper borders, navy+gold sidebar); "modern2"
-     * opts into the Lightning-style light-blue-and-white direction (white
-     * sidebar, blue accents) -- both via CSS custom properties (see
-     * globals.css's `[data-theme="modern"]` / `[data-theme="modern2"]`
-     * blocks). undefined/"classic" renders exactly as before for every other
-     * tenant. Platform-admin-only for now (TenantEditor.tsx); intended to
-     * become a tenant-facing opt-in once a direction is finalized. */
-    ui_theme?: "classic" | "modern" | "modern2";
+     * opts into the Lightning-style solid-blue direction (Salesforce-flavoured
+     * blue sidebar/top-bar, white search pill + panels, no card hairline);
+     * "modern3" is the same structure with a Microsoft Fluent-flavoured blue
+     * instead -- all three via CSS custom properties (see globals.css's
+     * `[data-theme="modern"]` / `"modern2"` / `"modern3"` blocks).
+     * undefined/"classic" renders exactly as before. modern2 is the default
+     * for newly created tenants (see POST /api/admin/tenants) -- existing
+     * tenants with no ui_theme set keep resolving to classic, so this only
+     * takes effect going forward. Platform-admin-only for now
+     * (TenantEditor.tsx); intended to become a tenant-facing opt-in once a
+     * direction is finalized. */
+    ui_theme?: "classic" | "modern" | "modern2" | "modern3";
   };
   // On-demand push to an external system (e.g. an ERP's webhook receiver) --
   // a rep clicks "Push to ERP" on a record; distinct from (and simpler than)

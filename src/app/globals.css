@@ -132,6 +132,43 @@
   --sb-search-icon: #5b6b85;
 }
 
+/* "Modern 3" direction (Microsoft Fluent) -- same structure as modern2 (solid
+   sidebar/top-bar, white search pill + panels, no card hairline), swapped to
+   Microsoft's Fluent blue ramp (#0078d4 -> #005a9e, vs. modern2's Salesforce
+   #0176d3 -> #014486) with a touch more corner softness, so a tenant can pick
+   between the two blue identities instead of one theme trying to be both. */
+[data-theme="modern3"] {
+  --card-radius: 10px;
+  --card-shadow: 0 1px 3px rgba(10, 40, 80, 0.08);
+  --line: #dbe6f3;
+  --sidebar-grad: linear-gradient(180deg, #0078d4 0%, #005a9e 100%);
+  --modern-accent: #0078d4;
+  --modern-accent-bg: #deecf9;
+  --modern-gold: #0078d4;
+  --modern-gold-bg: #deecf9;
+
+  --sb-text: #dbeafd;
+  --sb-text-dim: #8ec2ea;
+  --sb-text-dimmer: #a9d0ef;
+  --sb-text-faint: #4d84b8;
+  --sb-strong: #ffffff;
+  --sb-icon-muted: #bfe0f7;
+  --sb-line: rgba(255, 255, 255, 0.18);
+  --sb-hover: rgba(255, 255, 255, 0.1);
+  --sb-hover-strong: rgba(255, 255, 255, 0.16);
+
+  --sb-panel-bg: #ffffff;
+  --sb-panel-border: #dbe6f3;
+  --sb-panel-text: #14324f;
+  --sb-panel-text-dim: #5b6b85;
+  --sb-panel-hover: rgba(15, 40, 80, 0.05);
+
+  --sb-search-bg: rgba(255, 255, 255, 0.92);
+  --sb-search-border: rgba(255, 255, 255, 0.6);
+  --sb-search-text: #14324f;
+  --sb-search-icon: #5b6b85;
+}
+
 /* Real interaction states -- the whole reason this can't just be inline
    styles (React inline style objects can't express :hover/transition).
    Opt a card into this class (only in modern mode) for a genuine hover-lift
@@ -141,28 +178,37 @@
    same property, which would otherwise silently cancel the lift. */
 [data-theme="modern"] .modern-lift,
 [data-theme="modern2"] .modern-lift,
+[data-theme="modern3"] .modern-lift,
 [data-theme="modern"] .modern-lift-gold,
-[data-theme="modern2"] .modern-lift-gold {
+[data-theme="modern2"] .modern-lift-gold,
+[data-theme="modern3"] .modern-lift-gold {
   transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.16s;
 }
 [data-theme="modern"] .modern-lift,
 [data-theme="modern2"] .modern-lift,
-[data-theme="modern2"] .modern-lift-gold { box-shadow: var(--card-shadow); }
-/* Thin top-accent hairline -- modern1 (navy+gold) only. Modern2 (Lightning
-   blue) deliberately skips it on cards/KPI tiles -- asked for after seeing
-   it live ("don't like the blue lines on KPI tiles") -- so .modern-lift-gold
-   renders identically to plain .modern-lift under modern2 (see rule above). */
+[data-theme="modern3"] .modern-lift,
+[data-theme="modern2"] .modern-lift-gold,
+[data-theme="modern3"] .modern-lift-gold { box-shadow: var(--card-shadow); }
+/* Thin top-accent hairline -- modern1 (navy+gold) only. Modern2/modern3
+   (both solid-blue directions) deliberately skip it on cards/KPI tiles --
+   asked for after seeing it live ("don't like the blue lines on KPI tiles")
+   -- so .modern-lift-gold renders identically to plain .modern-lift under
+   either of them (see rule above). */
 [data-theme="modern"] .modern-lift-gold { box-shadow: var(--card-shadow), inset 0 2px 0 var(--modern-gold); }
 [data-theme="modern"] .modern-lift:hover,
 [data-theme="modern2"] .modern-lift:hover,
+[data-theme="modern3"] .modern-lift:hover,
 [data-theme="modern"] .modern-lift-gold:hover,
-[data-theme="modern2"] .modern-lift-gold:hover {
+[data-theme="modern2"] .modern-lift-gold:hover,
+[data-theme="modern3"] .modern-lift-gold:hover {
   transform: translateY(-2px);
   border-color: #b3bfd6;
 }
 [data-theme="modern"] .modern-lift:hover,
 [data-theme="modern2"] .modern-lift:hover,
-[data-theme="modern2"] .modern-lift-gold:hover { box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14); }
+[data-theme="modern3"] .modern-lift:hover,
+[data-theme="modern2"] .modern-lift-gold:hover,
+[data-theme="modern3"] .modern-lift-gold:hover { box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14); }
 [data-theme="modern"] .modern-lift-gold:hover { box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14), inset 0 2px 0 var(--modern-gold); }
 
 * { box-sizing: border-box; }
