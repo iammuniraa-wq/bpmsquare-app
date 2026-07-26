@@ -198,7 +198,7 @@ export default function TabBar() {
                 onClick={() => { closeAllTabs(); setDropOpen(false); }}
                 style={{
                   width: "100%", textAlign: "left",
-                  padding: "7px 14px", border: "none", borderBottom: "1px solid var(--sb-line)",
+                  padding: "7px 14px", border: "none", borderBottom: "1px solid var(--sb-panel-border)",
                   background: "transparent", color: "#e05a5a",
                   fontSize: 12, fontWeight: 600, cursor: "pointer",
                   display: "flex", alignItems: "center", gap: 8,
@@ -219,24 +219,24 @@ export default function TabBar() {
                       width: "100%", textAlign: "left",
                       padding: "8px 14px", border: "none",
                       background: active ? "rgba(55,138,221,.2)" : "transparent",
-                      color: active ? "var(--sb-strong)" : "var(--sb-text-dim)",
+                      color: active ? "var(--sb-panel-text)" : "var(--sb-panel-text-dim)",
                       fontSize: 12.5, fontWeight: active ? 600 : 400,
                       cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
                     }}
-                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--sb-hover)"; }}
+                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--sb-panel-hover)"; }}
                     onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = active ? "rgba(55,138,221,.2)" : "transparent"; }}
                   >
                     <span style={{ fontSize: 11, opacity: 0.7, flexShrink: 0 }}>{tab.icon}</span>
                     <span style={{ flex: 1, overflow: "hidden" }}>
                       <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tab.title}</span>
-                      {tab.section && <span style={{ display: "block", fontSize: 10, color: "var(--sb-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{tab.section}</span>}
+                      {tab.section && <span style={{ display: "block", fontSize: 10, color: "var(--sb-panel-text-dim)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{tab.section}</span>}
                     </span>
                     {active && <Dot size={8} color={c.accent} />}
                     <span
                       onClick={(e) => { e.stopPropagation(); closeTab(tab.href); setDropOpen(false); }}
-                      style={{ color: "var(--sb-text-faint)", fontSize: 14, lineHeight: 1, padding: "0 2px" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.color = "var(--sb-strong)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = "var(--sb-text-faint)"; }}
+                      style={{ color: "var(--sb-panel-text-dim)", fontSize: 14, lineHeight: 1, padding: "0 2px" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = "var(--sb-panel-text)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = "var(--sb-panel-text-dim)"; }}
                     >×</span>
                   </button>
                 );

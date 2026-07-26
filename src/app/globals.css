@@ -47,10 +47,21 @@
   --sb-hover-strong: rgba(255, 255, 255, 0.1);
   --sb-panel-bg: #152233;
   --sb-panel-border: rgba(255, 255, 255, 0.1);
+  /* Floating panels (TabBar's "all tabs" dropdown, GlobalSearchBar's results
+     list) -- kept as separate tokens from --sb-text/--sb-strong because a
+     theme can have its panel background land at a different lightness than
+     its sidebar/top-bar background (see modern2, where the sidebar is a
+     solid blue but panels stay white). */
+  --sb-panel-text: #e2e7ee;
+  --sb-panel-text-dim: #8fa8be;
+  --sb-panel-hover: rgba(255, 255, 255, 0.05);
   /* Search-bar pill -- its own token pair so a theme can give the search box
-     a distinct fill from the bar it sits in (see modern2). */
+     a distinct fill (and, since that fill's lightness can also diverge from
+     the bar, its own text colour) from the bar it sits in. */
   --sb-search-bg: rgba(255, 255, 255, 0.07);
   --sb-search-border: rgba(255, 255, 255, 0.1);
+  --sb-search-text: var(--sb-strong);
+  --sb-search-icon: var(--sb-text-dim);
 }
 
 /* "Modern" direction (Structured Enterprise) -- denser, sharper-bordered
@@ -77,39 +88,48 @@
 }
 
 /* "Modern 2" direction (Lightning Blue) -- a second, independent modern
-   option a tenant can be opted into instead of "modern": a LIGHT sidebar
-   (white, not navy) with blue reserved for active states/accents/buttons,
-   styled after Salesforce Lightning's blue-and-white identity. This is the
-   one direction so far where the sidebar itself flips from dark to light,
-   which is why the --sb-* chrome tokens above exist -- every sidebar/tab-bar
-   ink, line and hover colour is re-pointed here instead of needing new JSX. */
+   option a tenant can be opted into instead of "modern": a SOLID saturated
+   blue sidebar/top-bar (Salesforce/Microsoft-style, not a pale wash) with a
+   white search pill and white floating panels, styled after Lightning's
+   blue-and-white identity. The sidebar and the floating panels/search pill
+   land at different lightness here (dark blue vs. white), which is why
+   panel/search text get their own tokens instead of reusing --sb-strong. */
 [data-theme="modern2"] {
   --card-radius: 8px;
   --card-shadow: 0 1px 2px rgba(15, 50, 92, 0.07);
   --line: #dde6f0;
-  /* Light blue nav bar + top bar (both read --sidebar-grad), not white --
-     the specific "Salesforce-like light blue" look asked for. */
-  --sidebar-grad: linear-gradient(180deg, #eaf4fd 0%, #dceefb 100%);
+  --sidebar-grad: linear-gradient(180deg, #0176d3 0%, #014486 100%);
   --modern-accent: #0176d3;
   --modern-accent-bg: #eaf3fd;
   --modern-gold: #0176d3;
   --modern-gold-bg: #eaf3fd;
 
-  --sb-text: #425466;
-  --sb-text-dim: #7c8aa0;
-  --sb-text-dimmer: #8894a8;
-  --sb-text-faint: #9aa7ba;
-  --sb-strong: #16325c;
-  --sb-icon-muted: #5b6b85;
-  --sb-line: rgba(15, 40, 80, 0.1);
-  --sb-hover: rgba(15, 40, 80, 0.06);
-  --sb-hover-strong: rgba(15, 40, 80, 0.1);
+  /* Sidebar/top-bar chrome text -- light-on-dark again now the sidebar is a
+     solid blue, not the pale wash from the first pass. */
+  --sb-text: #dcebfa;
+  --sb-text-dim: #8fc2ea;
+  --sb-text-dimmer: #a9d0ef;
+  --sb-text-faint: #4d84b8;
+  --sb-strong: #ffffff;
+  --sb-icon-muted: #bfe0f7;
+  --sb-line: rgba(255, 255, 255, 0.18);
+  --sb-hover: rgba(255, 255, 255, 0.1);
+  --sb-hover-strong: rgba(255, 255, 255, 0.16);
+
+  /* Floating panels stay white (matching the page content, not the blue
+     chrome), so their text goes back to dark-on-light. */
   --sb-panel-bg: #ffffff;
-  --sb-panel-border: #dde6f0;
-  /* Search pill gets its own, more saturated light blue so it reads as a
-     distinct control against the paler sidebar/top-bar background. */
-  --sb-search-bg: #cfe8fb;
-  --sb-search-border: #a9d6f2;
+  --sb-panel-border: #d8e8fa;
+  --sb-panel-text: #16325c;
+  --sb-panel-text-dim: #5b6b85;
+  --sb-panel-hover: rgba(15, 40, 80, 0.05);
+
+  /* Search pill: near-solid white on the blue bar (Lightning/Fluent style),
+     so its own content needs dark text, not the chrome's light text. */
+  --sb-search-bg: rgba(255, 255, 255, 0.92);
+  --sb-search-border: rgba(255, 255, 255, 0.6);
+  --sb-search-text: #16325c;
+  --sb-search-icon: #5b6b85;
 }
 
 /* Real interaction states -- the whole reason this can't just be inline

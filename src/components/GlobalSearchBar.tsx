@@ -91,7 +91,7 @@ export default function GlobalSearchBar() {
         background: "var(--sb-search-bg)", border: "1px solid var(--sb-search-border)",
         borderRadius: 8, padding: "0 10px", height: 32,
       }}>
-        <SearchIcon size={14} color="var(--sb-text-dim)" />
+        <SearchIcon size={14} color="var(--sb-search-icon)" />
         <input
           ref={inputRef}
           value={query}
@@ -100,7 +100,7 @@ export default function GlobalSearchBar() {
           placeholder="Search accounts, quotes, cases, ref numbers…"
           style={{
             flex: 1, background: "transparent", border: "none", outline: "none",
-            color: "var(--sb-strong)", fontSize: 12.5, height: "100%",
+            color: "var(--sb-search-text)", fontSize: 12.5, height: "100%",
           }}
         />
         {query && (
@@ -109,7 +109,7 @@ export default function GlobalSearchBar() {
             style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}
             title="Clear"
           >
-            <XIcon size={12} color="var(--sb-text-dim)" />
+            <XIcon size={12} color="var(--sb-search-icon)" />
           </button>
         )}
         <select
@@ -117,15 +117,15 @@ export default function GlobalSearchBar() {
           onChange={(e) => setObjectType(e.target.value as SearchObjectType | "")}
           title="Limit search to one object"
           style={{
-            background: "var(--sb-hover)", border: "none", borderLeft: "1px solid var(--sb-line)",
-            color: "var(--sb-icon-muted)", fontSize: 11, height: "100%", paddingLeft: 8, marginLeft: 2,
+            background: "transparent", border: "none", borderLeft: "1px solid var(--sb-search-border)",
+            color: "var(--sb-search-icon)", fontSize: 11, height: "100%", paddingLeft: 8, marginLeft: 2,
             outline: "none", cursor: "pointer", flexShrink: 0,
           }}
         >
           <option value="">All objects</option>
           {searchObjects.map((o) => <option key={o.type} value={o.type}>{o.label}</option>)}
         </select>
-        <span style={{ fontSize: 10, color: "var(--sb-text-faint)", flexShrink: 0, paddingLeft: 2 }}>⌘K</span>
+        <span style={{ fontSize: 10, color: "var(--sb-search-icon)", flexShrink: 0, paddingLeft: 2 }}>⌘K</span>
       </div>
 
       {showDropdown && (
@@ -138,10 +138,10 @@ export default function GlobalSearchBar() {
             maxHeight: 420, overflowY: "auto", padding: "6px 0",
           }}>
             {loading && results.length === 0 && (
-              <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--sb-text-dim)" }}>Searching…</div>
+              <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--sb-panel-text-dim)" }}>Searching…</div>
             )}
             {!loading && grouped.length === 0 && (
-              <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--sb-text-dim)" }}>No matches for "{query.trim()}".</div>
+              <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--sb-panel-text-dim)" }}>No matches for "{query.trim()}".</div>
             )}
             {grouped.map((group) => {
               const def = searchObjects.find((o) => o.type === group.type);
@@ -161,11 +161,11 @@ export default function GlobalSearchBar() {
                         display: "flex", flexDirection: "column", width: "100%", textAlign: "left",
                         padding: "7px 14px", border: "none", background: "transparent", cursor: "pointer",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sb-hover)"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sb-panel-hover)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                     >
-                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--sb-strong)" }}>{r.title}</span>
-                      <span style={{ fontSize: 11, color: "var(--sb-text-dim)" }}>{r.subtitle}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--sb-panel-text)" }}>{r.title}</span>
+                      <span style={{ fontSize: 11, color: "var(--sb-panel-text-dim)" }}>{r.subtitle}</span>
                     </button>
                   ))}
                 </div>
