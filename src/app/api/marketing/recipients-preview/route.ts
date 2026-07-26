@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     account_types: Array.isArray(body.account_types) ? body.account_types : [],
     include_account_ids: Array.isArray(body.include_account_ids) ? body.include_account_ids : [],
     exclude_account_ids: Array.isArray(body.exclude_account_ids) ? body.exclude_account_ids : [],
+    manual_emails: Array.isArray(body.manual_emails) ? body.manual_emails : [],
   };
 
   const candidates = await resolveMarketingRecipients(tenantId, rule);

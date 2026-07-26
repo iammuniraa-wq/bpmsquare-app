@@ -52,15 +52,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     account_types: campaign.account_types ?? [],
     include_account_ids: campaign.include_account_ids ?? [],
     exclude_account_ids: campaign.exclude_account_ids ?? [],
+    manual_emails: campaign.manual_emails ?? [],
   });
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   let sent = 0, failed = 0, skipped = 0;
 
   for (const candidate of candidates) {
+    const target = { account_id: candidate.account_id, manual_email: candidate.manual_email };
+
     if (candidate.marketing_opt_out) {
       await supabase.from("marketing_campaign_recipients").insert({
-        tenant_id: tenantId, campaign_id: id, account_id: candidate.account_id,
+        tenant_id: tenantId, campaign_id: id, ...target,
         email: null, status: "skipped_opt_out",
       });
       skipped++;
@@ -68,7 +71,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     if (!candidate.email) {
       await supabase.from("marketing_campaign_recipients").insert({
-        tenant_id: tenantId, campaign_id: id, account_id: candidate.account_id,
+        tenant_id: tenantId, campaign_id: id, ...target,
         email: null, status: "skipped_no_email",
       });
       skipped++;
@@ -79,8 +82,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const subject = renderTemplate(campaign.subject, vars);
     const bodyHtml = renderTemplate(campaign.body, vars);
 
-    const unsubToken = signUnsubscribeToken(candidate.account_id);
-    const unsubUrl = unsubToken ? await buildAbsoluteUrl(ROUTES.marketingUnsubscribe(candidate.account_id, unsubToken)) : null;
+    // Manually-typed recipients have no account row to flag opted-out, so
+    // there's nothing for an unsubscribe link to update -- skip it for them.
+    const unsubToken = candidate.account_id ? signUnsubscribeToken(candidate.account_id) : null;
+    const unsubUrl = unsubToken && candidate.account_id ? await buildAbsoluteUrl(ROUTES.marketingUnsubscribe(candidate.account_id, unsubToken)) : null;
     const footer = unsubUrl
       ? `<p style="font-size:11px;color:#8a96a5;margin-top:24px;">You're receiving this because you're a contact of ${companyName}. <a href="${unsubUrl}">Unsubscribe</a></p>`
       : "";
@@ -97,13 +102,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (sendError) {
       await supabase.from("marketing_campaign_recipients").insert({
-        tenant_id: tenantId, campaign_id: id, account_id: candidate.account_id,
+        tenant_id: tenantId, campaign_id: id, ...target,
         email: candidate.email, status: "failed", error: sendError.message,
       });
       failed++;
     } else {
       await supabase.from("marketing_campaign_recipients").insert({
-        tenant_id: tenantId, campaign_id: id, account_id: candidate.account_id,
+        tenant_id: tenantId, campaign_id: id, ...target,
         email: candidate.email, status: "sent", sent_at: new Date().toISOString(),
       });
       sent++;

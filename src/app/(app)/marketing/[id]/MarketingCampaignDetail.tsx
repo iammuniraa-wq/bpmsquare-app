@@ -43,6 +43,7 @@ export default function MarketingCampaignDetail({
   const [types, setTypes] = useState<Set<AccountType>>(new Set(campaign.account_types));
   const [includeIds, setIncludeIds] = useState<Set<string>>(new Set(campaign.include_account_ids));
   const [excludeIds, setExcludeIds] = useState<Set<string>>(new Set(campaign.exclude_account_ids));
+  const [manualEmails, setManualEmails] = useState<Set<string>>(new Set(campaign.manual_emails));
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -62,6 +63,7 @@ export default function MarketingCampaignDetail({
           account_types: [...types],
           include_account_ids: [...includeIds],
           exclude_account_ids: [...excludeIds],
+          manual_emails: [...manualEmails],
         }),
       });
       if (!res.ok) { const j = await res.json(); throw new Error(j.error || "Failed to save"); }
@@ -113,8 +115,8 @@ export default function MarketingCampaignDetail({
               {recipients.map((r) => (
                 <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 14px", borderBottom: `1px solid ${c.line}` }}>
                   <div>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{r.account_name ?? "—"}</div>
-                    <div style={{ fontSize: 11, color: c.hint }}>{r.email ?? "—"}{r.error ? ` · ${r.error}` : ""}</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{r.account_name ?? (r.manual_email ? "External contact" : "—")}</div>
+                    <div style={{ fontSize: 11, color: c.hint }}>{r.email ?? r.manual_email ?? "—"}{r.error ? ` · ${r.error}` : ""}</div>
                   </div>
                   <Pill label={RECIPIENT_STATUS_LABEL[r.status] ?? r.status} tone={RECIPIENT_STATUS_TONE[r.status] ?? "blue"} />
                 </div>
@@ -160,6 +162,7 @@ export default function MarketingCampaignDetail({
         types={types} setTypes={setTypes}
         includeIds={includeIds} setIncludeIds={setIncludeIds}
         excludeIds={excludeIds} setExcludeIds={setExcludeIds}
+        manualEmails={manualEmails} setManualEmails={setManualEmails}
       />
 
       {error && <div style={{ fontSize: 12.5, color: "#dc2626" }}>{error}</div>}

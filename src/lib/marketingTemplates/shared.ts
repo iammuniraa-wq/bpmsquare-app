@@ -17,6 +17,10 @@ export type MarketingTemplateDef = {
   emoji: string;
   description: string;
   defaultSubject: string;
+  /** The design's banner background (solid colour or gradient) -- shown as a
+   * small colour preview strip in the picker so the folder view itself looks
+   * like the design it represents instead of a flat, colourless list. */
+  swatch: string;
   buildBodyHtml: (customMessageHtml: string) => string;
 };
 
@@ -87,6 +91,7 @@ export function festivalTemplate(opts: {
     emoji,
     description: archetype.label,
     defaultSubject: subject,
+    swatch: archetype.bannerBg,
     buildBodyHtml: (customMessageHtml) =>
       wrapper(archetype.bannerBg, archetype.bannerFg, emoji, title, greetingBody(opening, closing, customMessageHtml, archetype.accentColor, archetype.highlightBg)),
   };

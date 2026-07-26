@@ -41,6 +41,7 @@ export const SERVICE_REMINDER_TEMPLATES: MarketingTemplateDef[] = [
     emoji: "🔧",
     description: "A friendly, professional maintenance/AMC check-up nudge",
     defaultSubject: "A quick reminder from {{company_name}}",
+    swatch: "linear-gradient(135deg,#04342c 0%,#0f6b5c 60%,#1d9e75 100%)",
     buildBodyHtml: (customMessageHtml) =>
       wrapper(
         "linear-gradient(135deg,#04342c 0%,#0f6b5c 60%,#1d9e75 100%)",

@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { resolveCampaignContent } from "@/lib/marketingCampaignContent";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,7 +24,7 @@ export async function GET() {
   }
 
   const { data, error } = await supabase
-    .from("marketing_campaigns")
+    .from("marketing_target_groups")
     .select("*")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
@@ -44,28 +43,22 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { name, subject, html, account_types, include_account_ids, exclude_account_ids, manual_emails, template_id, custom_message } = body;
+  const { name, account_types, include_account_ids, exclude_account_ids, manual_emails } = body;
 
   if (!name?.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
 
-  const content = resolveCampaignContent({ template_id, custom_message, subject, html });
-
   const { data, error } = await supabase
-    .from("marketing_campaigns")
+    .from("marketing_target_groups")
     .insert({
       tenant_id: tenantId,
       name: name.trim(),
-      subject: content.subject,
-      body: content.body,
-      template_id: content.template_id,
-      custom_message: content.custom_message,
       account_types: Array.isArray(account_types) ? account_types : [],
       include_account_ids: Array.isArray(include_account_ids) ? include_account_ids : [],
       exclude_account_ids: Array.isArray(exclude_account_ids) ? exclude_account_ids : [],
       manual_emails: cleanEmails(manual_emails),
       created_by: userId,
     })
-    .select("id")
+    .select("*")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

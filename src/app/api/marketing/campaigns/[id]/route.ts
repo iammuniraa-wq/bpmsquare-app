@@ -4,6 +4,19 @@ import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { resolveCampaignContent } from "@/lib/marketingCampaignContent";
 import { getMarketingCampaign } from "@/lib/data";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function cleanEmails(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of input) {
+    const email = String(raw).trim().toLowerCase();
+    if (email && EMAIL_RE.test(email) && !seen.has(email)) { seen.add(email); out.push(email); }
+  }
+  return out;
+}
+
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireTenantUser();
@@ -35,7 +48,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (existing.status !== "draft") return NextResponse.json({ error: "Only draft campaigns can be edited" }, { status: 409 });
 
   const body = await request.json();
-  const { name, subject, html, account_types, include_account_ids, exclude_account_ids, template_id, custom_message } = body;
+  const { name, subject, html, account_types, include_account_ids, exclude_account_ids, manual_emails, template_id, custom_message } = body;
 
   const patch: Record<string, unknown> = {};
   if (name !== undefined) patch.name = String(name).trim();
@@ -64,6 +77,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (Array.isArray(account_types)) patch.account_types = account_types;
   if (Array.isArray(include_account_ids)) patch.include_account_ids = include_account_ids;
   if (Array.isArray(exclude_account_ids)) patch.exclude_account_ids = exclude_account_ids;
+  if (manual_emails !== undefined) patch.manual_emails = cleanEmails(manual_emails);
 
   const { error } = await supabase.from("marketing_campaigns").update(patch).eq("id", id).eq("tenant_id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

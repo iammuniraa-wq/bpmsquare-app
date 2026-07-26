@@ -47,6 +47,7 @@ export type MarketingCampaign = {
   account_types: AccountType[];
   include_account_ids: string[];
   exclude_account_ids: string[];
+  manual_emails: string[];
   sent_count: number;
   failed_count: number;
   skipped_count: number;
@@ -62,11 +63,26 @@ export type MarketingRecipientStatus = "pending" | "sent" | "failed" | "skipped_
 export type MarketingCampaignRecipient = {
   id: string;
   campaign_id: string;
-  account_id: string;
+  account_id: string | null;
+  manual_email: string | null;
   email: string | null;
   status: MarketingRecipientStatus;
   error: string | null;
   sent_at: string | null;
+};
+
+/** A saved, reusable audience definition -- same shape as a campaign's own
+ * ad hoc targeting rule, so it can be loaded into the picker as a starting
+ * point for a new campaign. */
+export type MarketingTargetGroup = {
+  id: string;
+  name: string;
+  account_types: AccountType[];
+  include_account_ids: string[];
+  exclude_account_ids: string[];
+  manual_emails: string[];
+  created_by: string | null;
+  created_at: string;
 };
 
 export type Contact = {

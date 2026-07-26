@@ -30,6 +30,7 @@ export default function MarketingComposeForm({ accounts }: { accounts: AccountLi
   const [types, setTypes] = useState<Set<AccountType>>(new Set());
   const [includeIds, setIncludeIds] = useState<Set<string>>(new Set());
   const [excludeIds, setExcludeIds] = useState<Set<string>>(new Set());
+  const [manualEmails, setManualEmails] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -47,6 +48,7 @@ export default function MarketingComposeForm({ accounts }: { accounts: AccountLi
           account_types: [...types],
           include_account_ids: [...includeIds],
           exclude_account_ids: [...excludeIds],
+          manual_emails: [...manualEmails],
         }),
       });
       const json = await res.json();
@@ -93,6 +95,7 @@ export default function MarketingComposeForm({ accounts }: { accounts: AccountLi
         types={types} setTypes={setTypes}
         includeIds={includeIds} setIncludeIds={setIncludeIds}
         excludeIds={excludeIds} setExcludeIds={setExcludeIds}
+        manualEmails={manualEmails} setManualEmails={setManualEmails}
       />
 
       {error && <div style={{ fontSize: 12.5, color: "#dc2626" }}>{error}</div>}

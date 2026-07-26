@@ -41,6 +41,13 @@ export default function TemplatePicker({
     return Array.from(map.entries()).map(([category, v]) => ({ category, ...v }));
   }, []);
 
+  const swatchStrip = (bg: string) => (
+    <span style={{ display: "block", width: 44, height: 6, borderRadius: 3, background: bg }} />
+  );
+
+  const folderPreviewGradient = (templates: typeof MARKETING_TEMPLATES) =>
+    `linear-gradient(90deg, ${templates.map((t) => t.swatch.match(/#[0-9a-fA-F]{3,8}/g)?.[0] ?? t.swatch).join(", ")})`;
+
   const [openCategory, setOpenCategory] = useState<string | null>(null);
 
   if (!template) {
@@ -62,6 +69,7 @@ export default function TemplatePicker({
                 <span style={{ fontSize: 28 }}>{cat.emoji}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{cat.category}</span>
                 <span style={{ fontSize: 11, color: c.hint }}>{cat.templates.length} designs</span>
+                {swatchStrip(folderPreviewGradient(cat.templates))}
               </button>
             ))}
           </div>
@@ -92,6 +100,7 @@ export default function TemplatePicker({
               <span style={{ fontSize: 28 }}>{t.emoji}</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{t.variantName}</span>
               <span style={{ fontSize: 11, color: c.hint, lineHeight: 1.4 }}>{t.description}</span>
+              {swatchStrip(t.swatch)}
             </button>
           ))}
         </div>
@@ -110,6 +119,7 @@ export default function TemplatePicker({
     <section style={cardStyle}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 22, height: 22, borderRadius: 6, background: template.swatch, flexShrink: 0 }} />
           <span style={{ fontSize: 20 }}>{template.emoji}</span>
           <span style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{template.category} — {template.variantName}</span>
         </div>

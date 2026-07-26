@@ -12,7 +12,7 @@ import type {
   Contract, Activity, QuoteLine, QuoteRevision, Technician, TechnicianLeave,
   VisitLog, PricingItem, TextFragment, CaseStatus, CasePhoto, InspectionReport,
   Supplier, InventoryItem, PurchaseOrder, PurchaseOrderLine, InvoiceLine, InvoicePayment,
-  MarketingCampaign, MarketingCampaignRecipient, AccountType,
+  MarketingCampaign, MarketingCampaignRecipient, MarketingTargetGroup, AccountType,
 } from "@/lib/types";
 
 /**
@@ -1641,20 +1641,25 @@ export type MarketingTargetRule = {
   account_types: string[];
   include_account_ids: string[];
   exclude_account_ids: string[];
+  manual_emails: string[];
 };
 
 export type MarketingRecipientCandidate = {
-  account_id: string;
+  account_id: string | null;
   account_name: string;
   email: string | null;
   marketing_opt_out: boolean;
+  manual_email: string | null;
 };
 
 /** Resolves which accounts a targeting rule currently matches -- shared by
  * the compose-time "-> N recipients" preview and the actual send, so what
  * a rep previews is exactly who gets emailed. Opt-out is reflected in each
  * candidate's `marketing_opt_out` flag rather than filtered out here, so
- * callers can show the true "N will receive, M are opted out" breakdown. */
+ * callers can show the true "N will receive, M are opted out" breakdown.
+ * Manually-typed emails (not tied to any account) are appended as their own
+ * candidates -- deduped against emails already matched via an account, so
+ * typing an address that's also a known account contact doesn't double-send. */
 export async function resolveMarketingRecipientsLive(
   tenantId: string,
   rule: MarketingTargetRule
@@ -1670,7 +1675,7 @@ export async function resolveMarketingRecipientsLive(
   const includeSet = new Set(rule.include_account_ids);
   const typeSet = new Set(rule.account_types as AccountType[]);
 
-  return accounts
+  const accountCandidates: MarketingRecipientCandidate[] = accounts
     .filter((a) => {
       if (excludeSet.has(a.id)) return false;
       if (includeSet.has(a.id)) return true;
@@ -1681,7 +1686,29 @@ export async function resolveMarketingRecipientsLive(
       account_name: a.name,
       email: decrypt(a.email) || decrypt(a.email2),
       marketing_opt_out: a.marketing_opt_out,
+      manual_email: null,
     }));
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const accountEmails = new Set(accountCandidates.map((c) => c.email?.toLowerCase()).filter(Boolean));
+  const seenManual = new Set<string>();
+  const manualCandidates: MarketingRecipientCandidate[] = (rule.manual_emails ?? [])
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => EMAIL_RE.test(e) && !accountEmails.has(e) && !seenManual.has(e) && seenManual.add(e))
+    .map((email) => ({ account_id: null, account_name: email, email, marketing_opt_out: false, manual_email: email }));
+
+  return [...accountCandidates, ...manualCandidates];
+}
+
+export async function listMarketingTargetGroupsLive(): Promise<MarketingTargetGroup[]> {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase()
+    .from("marketing_target_groups")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false });
+  return (data ?? []) as MarketingTargetGroup[];
 }
 
 export async function setAccountMarketingOptOutLive(accountId: string): Promise<boolean> {
