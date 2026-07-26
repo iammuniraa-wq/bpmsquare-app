@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { MOBILE_BREAKPOINT } from "@/lib/constants";
-import { c, g } from "@/lib/theme";
 import Logo from "./Logo";
 import Sidebar from "./Sidebar";
 import { TabsProvider } from "@/lib/tabs-context";
 import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
+import AIDock from "./AIDock";
 import { XIcon } from "@/components/Icons";
-import { useTenant } from "@/lib/tenant-context";
+import { useTenant, useUiTheme } from "@/lib/tenant-context";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 // Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
@@ -29,7 +29,7 @@ function MobileTopBar() {
       {/* Top bar */}
       <header style={{
         position: "sticky", top: 0, zIndex: 100, flexShrink: 0,
-        background: g.sidebar,
+        background: "var(--sidebar-grad)",
         height: 48,
         display: "flex", alignItems: "center",
         justifyContent: "space-between",
@@ -111,6 +111,7 @@ function MobileTopBar() {
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const [mobile, setMobile] = useState(false);
+  const uiTheme = useUiTheme();
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth <= MOBILE_BREAKPOINT);
@@ -122,11 +123,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   if (mobile) {
     return (
       <TabsProvider>
-        <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        <div data-theme={uiTheme} style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
           <MobileTopBar />
           <main style={{ flex: 1, padding: 12, overflowX: "auto", minWidth: 0 }}>
             {children}
           </main>
+          {uiTheme === "modern" && <AIDock />}
         </div>
       </TabsProvider>
     );
@@ -134,12 +136,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <TabsProvider>
-      <div style={{ display: "flex", minHeight: "100vh" }}>
+      <div data-theme={uiTheme} style={{ display: "flex", minHeight: "100vh" }}>
         <Sidebar />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "flex-end",
-            background: g.sidebar, borderBottom: "1px solid rgba(255,255,255,.07)",
+            background: "var(--sidebar-grad)", borderBottom: "1px solid rgba(255,255,255,.07)",
             height: 48, minHeight: 48, flexShrink: 0, padding: "0 16px",
           }}>
             <GlobalSearchBar />
@@ -152,15 +154,20 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {children}
           </main>
         </div>
+        {uiTheme === "modern" && <AIDock />}
       </div>
     </TabsProvider>
   );
 }
 
-// Shared surface styles used across pages.
+// Shared surface styles used across pages. Theme-reactive via CSS custom
+// properties (see globals.css) -- a tenant opted into appearance.ui_theme:
+// "modern" gets sharper radii + a subtle shadow here with zero per-page
+// changes, since every page already just spreads this constant.
 export const cardStyle: React.CSSProperties = {
-  background: c.panel,
-  border: `1px solid ${c.line}`,
-  borderRadius: 12,
+  background: "var(--card-bg)",
+  border: "1px solid var(--line)",
+  borderRadius: "var(--card-radius)",
   padding: 16,
+  boxShadow: "var(--card-shadow)",
 };

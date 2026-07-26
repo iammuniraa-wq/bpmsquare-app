@@ -19,6 +19,31 @@
   --amberc: #ba7517;      --amberbg: #faeeda;  --amberink: #633806;
   --red: #a32d2d;         --redbg: #fcebeb;    --redink: #791f1f;
   --green: #639922;       --greenbg: #eaf3de;  --greenink: #173404;
+
+  /* Structural theme tokens -- the "one stop shop" surface every shared
+     chrome component (Sidebar, TabBar, Shell's cardStyle) reads from,
+     instead of a hardcoded hex/gradient, so a tenant can be opted into a
+     different visual direction (see appearance.ui_theme in constants.ts)
+     via one data-theme attribute on the app root, with zero risk to any
+     other tenant since these classic values are the unconditional default. */
+  --card-bg: var(--panel);
+  --card-radius: 12px;
+  --card-shadow: none;
+  --sidebar-grad: linear-gradient(180deg, #152233 0%, #0e1a28 100%);
+}
+
+/* "Modern" direction (Structured Enterprise) -- denser, sharper-bordered
+   cards, a deep navy sidebar instead of near-black. Shell.tsx stamps
+   data-theme="modern" on its own wrapper div (not <html>) when the tenant
+   has appearance.ui_theme === "modern" -- deliberately NOT `:root[...]`
+   here, since that selector only ever matches the <html> element itself;
+   a plain attribute selector matches Shell's wrapper directly and these
+   custom properties still cascade to every descendant exactly the same way. */
+[data-theme="modern"] {
+  --card-radius: 8px;
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --line: #d7dee6;
+  --sidebar-grad: linear-gradient(180deg, #0b2540 0%, #071c33 100%);
 }
 
 * { box-sizing: border-box; }

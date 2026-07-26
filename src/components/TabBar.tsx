@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useLayoutEffect } from "react";
 import { useTabs } from "@/lib/tabs-context";
-import { c, g } from "@/lib/theme";
+import { c } from "@/lib/theme";
 import { AlertTriangle, XIcon, Dot } from "@/components/Icons";
 
 export default function TabBar() {
@@ -56,7 +56,7 @@ export default function TabBar() {
     <div style={{
       display: "flex", alignItems: "center",
       borderBottom: "1px solid rgba(255,255,255,.07)",
-      background: g.sidebar,
+      background: "var(--sidebar-grad)",
       height: 42, minHeight: 42, flexShrink: 0,
       position: "relative",
     }}>

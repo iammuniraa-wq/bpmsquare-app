@@ -41,6 +41,7 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [status, setStatus]           = useState(tenant.status);
   const [plan, setPlan]               = useState(tenant.plan);
   const [features, setFeatures]       = useState<TenantFeatures>({ ...tenant.features });
+  const [uiTheme, setUiTheme]         = useState<"classic" | "modern">(tenant.config?.appearance?.ui_theme === "modern" ? "modern" : "classic");
   const [apiKey, setApiKey]           = useState(tenant.api_key ?? "");
   const [saved, setSaved]             = useState(false);
   const [error, setError]             = useState("");
@@ -111,6 +112,7 @@ export default function TenantEditor({ tenant, users }: Props) {
         body: JSON.stringify({
           name, slug, accent_color: accentColor, logo_url: logoUrl || null, status, plan, features,
           custom_domain: customDomain || null, api_key: apiKey || null,
+          config: { ...tenant.config, appearance: { ...tenant.config?.appearance, ui_theme: uiTheme } },
         }),
       });
       if (res.ok) {
@@ -223,6 +225,40 @@ export default function TenantEditor({ tenant, users }: Props) {
                 checked={features[key]}
                 onChange={() => toggleFeature(key)}
                 style={{ width: 16, height: 16, cursor: "pointer", accentColor: c.accent }}
+              />
+            </label>
+          ))}
+        </div>
+      </section>
+
+      {/* Appearance / theme direction */}
+      <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
+        <h2 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Theme direction</h2>
+        <p style={{ margin: "0 0 14px", fontSize: 12, color: "#6b7280" }}>
+          Internal rollout control for the new visual direction (not yet exposed to tenant admins). Only set this for tenants explicitly testing the new UI.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {([
+            { value: "classic" as const, label: "Classic", desc: "The current, stable look — default for every tenant." },
+            { value: "modern" as const, label: "Modern (beta)", desc: "Structured-Enterprise direction: denser cards, sharper borders, navy sidebar, AI assistant dock." },
+          ]).map((opt) => (
+            <label key={opt.value} style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "10px 14px", borderRadius: 8,
+              background: uiTheme === opt.value ? "#eff6ff" : "#f9fafb",
+              border: `1px solid ${uiTheme === opt.value ? "#bfdbfe" : "#e5e7eb"}`,
+              cursor: "pointer",
+            }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{opt.label}</div>
+                <div style={{ fontSize: 11.5, color: "#9ca3af", marginTop: 2 }}>{opt.desc}</div>
+              </div>
+              <input
+                type="radio"
+                name="ui_theme"
+                checked={uiTheme === opt.value}
+                onChange={() => { setUiTheme(opt.value); setSaved(false); }}
+                style={{ width: 16, height: 16, cursor: "pointer", accentColor: c.accent, flexShrink: 0 }}
               />
             </label>
           ))}

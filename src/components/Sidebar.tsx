@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { NAV, ROUTES } from "@/lib/constants";
 import type { NavItem } from "@/lib/constants";
-import { g } from "@/lib/theme";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear } from "@/components/Icons";
@@ -423,7 +422,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <aside style={{
       width: collapsed ? 56 : compact ? 210 : 236,
-      background: g.sidebar,
+      background: "var(--sidebar-grad)",
       flexShrink: 0,
       padding: collapsed ? "16px 8px" : "16px 12px",
       color: "#aebccd",

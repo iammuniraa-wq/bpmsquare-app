@@ -158,7 +158,7 @@ export async function adminListTenants(): Promise<Tenant[]> {
 /** Admin: update tenant features / status / plan. */
 export async function adminUpdateTenant(
   id: string,
-  patch: Partial<Pick<Tenant, "status" | "plan" | "features" | "name" | "logo_url" | "accent_color" | "company_info" | "custom_domain" | "api_key">>
+  patch: Partial<Pick<Tenant, "status" | "plan" | "features" | "name" | "logo_url" | "accent_color" | "company_info" | "custom_domain" | "api_key" | "config">>
 ) {
   return createAdminSupabase().from("tenants").update(patch).eq("id", id);
 }

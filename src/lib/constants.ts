@@ -374,6 +374,13 @@ export type TenantConfig = {
   // be silently overridden by it, which is exactly the bug this fixes.
   appearance?: {
     compact_sidebar?: boolean;
+    /** "modern" opts this tenant into the Structured-Enterprise theme
+     * direction (denser cards, sharper borders, navy sidebar) via CSS
+     * custom properties (see globals.css's `[data-theme="modern"]` block)
+     * -- undefined/"classic" renders exactly as before for every other
+     * tenant. Platform-admin-only for now (TenantEditor.tsx); intended to
+     * become a tenant-facing opt-in once the direction is finalized. */
+    ui_theme?: "classic" | "modern";
   };
   // On-demand push to an external system (e.g. an ERP's webhook receiver) --
   // a rep clicks "Push to ERP" on a record; distinct from (and simpler than)

@@ -38,3 +38,13 @@ export function useTenantFeature(key: keyof Tenant["features"]): boolean {
   const { tenant } = useContext(TenantContext);
   return tenant?.features?.[key] ?? false;
 }
+
+/** The active visual theme direction -- "classic" for every tenant unless a
+ * platform admin has explicitly opted this one into "modern" (see
+ * TenantConfig.appearance.ui_theme). Shell stamps this as a `data-theme`
+ * attribute on the app root, which is what the CSS custom property
+ * overrides in globals.css key off. */
+export function useUiTheme(): "classic" | "modern" {
+  const { tenant } = useContext(TenantContext);
+  return tenant?.config?.appearance?.ui_theme === "modern" ? "modern" : "classic";
+}
