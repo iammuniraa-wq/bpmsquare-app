@@ -26,16 +26,16 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminSupabase();
 
-  // Create the tenant. New tenants default to the "modern2" UI theme (see
-  // TenantConfig.appearance.ui_theme in constants.ts) -- existing tenants
-  // with no ui_theme set keep resolving to "classic" via useUiTheme()'s
-  // fallback, so this only changes what happens going forward.
+  // Create the tenant. New tenants default to the "modern" (Modern 1) UI
+  // theme (see TenantConfig.appearance.ui_theme in constants.ts) -- existing
+  // tenants with no ui_theme set keep resolving to "classic" via
+  // useUiTheme()'s fallback, so this only changes what happens going forward.
   const { data: tenant, error: tenantErr } = await admin
     .from("tenants")
     .insert({
       name, slug, accent_color, logo_url, plan, features,
       custom_domain: custom_domain || null, status: "active",
-      config: { appearance: { ui_theme: "modern2" } },
+      config: { appearance: { ui_theme: "modern" } },
     })
     .select("id")
     .single();
