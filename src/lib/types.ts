@@ -53,6 +53,8 @@ export type MarketingCampaign = {
   created_by: string | null;
   created_at: string;
   sent_at: string | null;
+  template_id: string | null;
+  custom_message: string | null;
 };
 
 export type MarketingRecipientStatus = "pending" | "sent" | "failed" | "skipped_opt_out" | "skipped_no_email";

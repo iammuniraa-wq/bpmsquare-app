@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { sanitizeRichText } from "@/lib/sanitizeHtml";
+import { resolveCampaignContent } from "@/lib/marketingCampaignContent";
 
 export async function GET() {
   let supabase, tenantId;
@@ -31,17 +31,21 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { name, subject, html, account_types, include_account_ids, exclude_account_ids } = body;
+  const { name, subject, html, account_types, include_account_ids, exclude_account_ids, template_id, custom_message } = body;
 
   if (!name?.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
+
+  const content = resolveCampaignContent({ template_id, custom_message, subject, html });
 
   const { data, error } = await supabase
     .from("marketing_campaigns")
     .insert({
       tenant_id: tenantId,
       name: name.trim(),
-      subject: subject || "",
-      body: sanitizeRichText(html) ?? "",
+      subject: content.subject,
+      body: content.body,
+      template_id: content.template_id,
+      custom_message: content.custom_message,
       account_types: Array.isArray(account_types) ? account_types : [],
       include_account_ids: Array.isArray(include_account_ids) ? include_account_ids : [],
       exclude_account_ids: Array.isArray(exclude_account_ids) ? exclude_account_ids : [],

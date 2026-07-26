@@ -7,6 +7,8 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import RichTextEditor from "@/components/RichTextEditor";
 import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/TargetAudiencePicker";
+import TemplatePicker from "@/components/marketing/TemplatePicker";
+import type { MarketingTemplateId } from "@/lib/marketingTemplates";
 import type { MarketingCampaign, MarketingCampaignRecipient, AccountType } from "@/lib/types";
 
 const inp: React.CSSProperties = {
@@ -34,7 +36,9 @@ export default function MarketingCampaignDetail({
 }) {
   const router = useRouter();
   const [name, setName] = useState(campaign.name);
+  const [templateId, setTemplateId] = useState<MarketingTemplateId | null>(campaign.template_id as MarketingTemplateId | null);
   const [subject, setSubject] = useState(campaign.subject);
+  const [customMessage, setCustomMessage] = useState(campaign.custom_message ?? "");
   const [body, setBody] = useState(campaign.body);
   const [types, setTypes] = useState<Set<AccountType>>(new Set(campaign.account_types));
   const [includeIds, setIncludeIds] = useState<Set<string>>(new Set(campaign.include_account_ids));
@@ -53,7 +57,8 @@ export default function MarketingCampaignDetail({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name, subject, html: body,
+          name, subject,
+          ...(templateId ? { template_id: templateId, custom_message: customMessage } : { html: body }),
           account_types: [...types],
           include_account_ids: [...includeIds],
           exclude_account_ids: [...excludeIds],
@@ -124,19 +129,31 @@ export default function MarketingCampaignDetail({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 760 }}>
       <section style={cardStyle}>
-        <div style={{ marginBottom: 12 }}>
-          <label style={lbl}>Campaign name (internal)</label>
-          <input style={inp} value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={lbl}>Subject</label>
-          <input style={inp} value={subject} onChange={(e) => setSubject(e.target.value)} />
-        </div>
-        <div>
-          <label style={lbl}>Message</label>
-          <RichTextEditor value={body} onChange={setBody} placeholder="Write your message…" minHeight={160} />
-        </div>
+        <label style={lbl}>Campaign name (internal)</label>
+        <input style={inp} value={name} onChange={(e) => setName(e.target.value)} />
       </section>
+
+      <TemplatePicker
+        selectedId={templateId}
+        onSelect={setTemplateId}
+        subject={subject}
+        onSubjectChange={setSubject}
+        customMessage={customMessage}
+        onCustomMessageChange={setCustomMessage}
+      />
+
+      {!templateId && (
+        <section style={cardStyle}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={lbl}>Subject</label>
+            <input style={inp} value={subject} onChange={(e) => setSubject(e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Message</label>
+            <RichTextEditor value={body} onChange={setBody} placeholder="Write your message…" minHeight={160} />
+          </div>
+        </section>
+      )}
 
       <TargetAudiencePicker
         accounts={accounts}

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
+import { resolveCampaignContent } from "@/lib/marketingCampaignContent";
 import { getMarketingCampaign } from "@/lib/data";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -29,17 +30,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const { id } = await params;
-  const { data: existing } = await supabase.from("marketing_campaigns").select("status").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: existing } = await supabase.from("marketing_campaigns").select("status, template_id, custom_message, subject").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!existing) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   if (existing.status !== "draft") return NextResponse.json({ error: "Only draft campaigns can be edited" }, { status: 409 });
 
   const body = await request.json();
-  const { name, subject, html, account_types, include_account_ids, exclude_account_ids } = body;
+  const { name, subject, html, account_types, include_account_ids, exclude_account_ids, template_id, custom_message } = body;
 
   const patch: Record<string, unknown> = {};
   if (name !== undefined) patch.name = String(name).trim();
-  if (subject !== undefined) patch.subject = subject;
-  if (html !== undefined) patch.body = sanitizeRichText(html) ?? "";
+
+  const effectiveTemplateId = template_id !== undefined ? template_id : existing.template_id;
+  if (effectiveTemplateId) {
+    // Template mode (already was, or just switched to one) -- re-render from
+    // the template every time so subject/custom_message edits stay in sync.
+    const content = resolveCampaignContent({
+      template_id: effectiveTemplateId,
+      custom_message: custom_message !== undefined ? custom_message : (existing.custom_message ?? ""),
+      subject: subject !== undefined ? subject : existing.subject,
+    });
+    patch.subject = content.subject;
+    patch.body = content.body;
+    patch.template_id = content.template_id;
+    patch.custom_message = content.custom_message;
+  } else {
+    // Free-hand mode -- only touch what's actually provided, same as before.
+    if (subject !== undefined) patch.subject = subject;
+    if (html !== undefined) patch.body = sanitizeRichText(html) ?? "";
+    patch.template_id = null;
+    patch.custom_message = null;
+  }
+
   if (Array.isArray(account_types)) patch.account_types = account_types;
   if (Array.isArray(include_account_ids)) patch.include_account_ids = include_account_ids;
   if (Array.isArray(exclude_account_ids)) patch.exclude_account_ids = exclude_account_ids;
