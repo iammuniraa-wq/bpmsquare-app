@@ -1,7 +1,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAdminSupabase, resolveViewerTenantId, getAuthUser } from "@/lib/supabase-server";
-import { decryptAccount, decryptContact } from "@/lib/encryption";
+import { decryptAccount, decryptContact, decrypt } from "@/lib/encryption";
 import { getAccountNews, type AccountNewsItem } from "@/lib/data/news";
 import { getTenant } from "@/lib/tenant";
 import type { CompanyInfo } from "@/lib/tenant";
@@ -12,6 +12,7 @@ import type {
   Contract, Activity, QuoteLine, QuoteRevision, Technician, TechnicianLeave,
   VisitLog, PricingItem, TextFragment, CaseStatus, CasePhoto, InspectionReport,
   Supplier, InventoryItem, PurchaseOrder, PurchaseOrderLine, InvoiceLine, InvoicePayment,
+  MarketingCampaign, MarketingCampaignRecipient, AccountType,
 } from "@/lib/types";
 
 /**
@@ -1589,4 +1590,115 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     techniciansByStatus, invoicesByStatus, invoiceTotals, topAccountsByRevenue,
     contractStats, recentActivity, accountNews,
   };
+}
+
+// ── Marketing campaigns ───────────────────────────────────────────────────────
+
+export async function listMarketingCampaignsLive(): Promise<MarketingCampaign[]> {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase()
+    .from("marketing_campaigns")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false });
+  return (data ?? []) as MarketingCampaign[];
+}
+
+export async function getMarketingCampaignLive(id: string) {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
+
+  const { data: campaign } = await supabase
+    .from("marketing_campaigns")
+    .select("*")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!campaign) return null;
+
+  const { data: recipients } = await supabase
+    .from("marketing_campaign_recipients")
+    .select("*, accounts(name)")
+    .eq("campaign_id", id)
+    .eq("tenant_id", tenantId)
+    .order("sent_at", { ascending: false });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mappedRecipients = (recipients ?? []).map((r: any) => ({
+    ...r,
+    account_name: (Array.isArray(r.accounts) ? r.accounts[0]?.name : r.accounts?.name) ?? null,
+  }));
+
+  return {
+    campaign: campaign as MarketingCampaign,
+    recipients: mappedRecipients as (MarketingCampaignRecipient & { account_name: string | null })[],
+  };
+}
+
+export type MarketingTargetRule = {
+  account_types: string[];
+  include_account_ids: string[];
+  exclude_account_ids: string[];
+};
+
+export type MarketingRecipientCandidate = {
+  account_id: string;
+  account_name: string;
+  email: string | null;
+  marketing_opt_out: boolean;
+};
+
+/** Resolves which accounts a targeting rule currently matches -- shared by
+ * the compose-time "-> N recipients" preview and the actual send, so what
+ * a rep previews is exactly who gets emailed. Opt-out is reflected in each
+ * candidate's `marketing_opt_out` flag rather than filtered out here, so
+ * callers can show the true "N will receive, M are opted out" breakdown. */
+export async function resolveMarketingRecipientsLive(
+  tenantId: string,
+  rule: MarketingTargetRule
+): Promise<MarketingRecipientCandidate[]> {
+  const supabase = createAdminSupabase();
+  const { data } = await supabase
+    .from("accounts")
+    .select("id, name, type, email, email2, marketing_opt_out")
+    .eq("tenant_id", tenantId);
+
+  const accounts = (data ?? []) as Pick<Account, "id" | "name" | "type" | "email" | "email2" | "marketing_opt_out">[];
+  const excludeSet = new Set(rule.exclude_account_ids);
+  const includeSet = new Set(rule.include_account_ids);
+  const typeSet = new Set(rule.account_types as AccountType[]);
+
+  return accounts
+    .filter((a) => {
+      if (excludeSet.has(a.id)) return false;
+      if (includeSet.has(a.id)) return true;
+      return typeSet.has(a.type);
+    })
+    .map((a) => ({
+      account_id: a.id,
+      account_name: a.name,
+      email: decrypt(a.email) || decrypt(a.email2),
+      marketing_opt_out: a.marketing_opt_out,
+    }));
+}
+
+export async function setAccountMarketingOptOutLive(accountId: string): Promise<boolean> {
+  const { error } = await createAdminSupabase()
+    .from("accounts")
+    .update({ marketing_opt_out: true })
+    .eq("id", accountId);
+  return !error;
+}
+
+/** No session involved -- reached via a signed unsubscribe link, same
+ * capability-URL model as getQuoteByPublicTokenLive. Only exposes the two
+ * display strings the confirmation page needs, nothing else. */
+export async function getUnsubscribeAccountInfoLive(accountId: string): Promise<{ accountName: string; tenantName: string } | null> {
+  const supabase = createAdminSupabase();
+  const { data: account } = await supabase.from("accounts").select("name, tenant_id").eq("id", accountId).maybeSingle();
+  if (!account) return null;
+  const { data: tenant } = await supabase.from("tenants").select("name").eq("id", account.tenant_id).maybeSingle();
+  return { accountName: account.name as string, tenantName: (tenant?.name as string) ?? "this company" };
 }

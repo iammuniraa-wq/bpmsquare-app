@@ -33,6 +33,38 @@ export type Account = {
   referred_by_account_id: string | null;
   created_at: string;
   custom_data: Record<string, unknown> | null;
+  marketing_opt_out: boolean;
+};
+
+export type MarketingCampaignStatus = "draft" | "sending" | "sent" | "failed";
+
+export type MarketingCampaign = {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  status: MarketingCampaignStatus;
+  account_types: AccountType[];
+  include_account_ids: string[];
+  exclude_account_ids: string[];
+  sent_count: number;
+  failed_count: number;
+  skipped_count: number;
+  created_by: string | null;
+  created_at: string;
+  sent_at: string | null;
+};
+
+export type MarketingRecipientStatus = "pending" | "sent" | "failed" | "skipped_opt_out" | "skipped_no_email";
+
+export type MarketingCampaignRecipient = {
+  id: string;
+  campaign_id: string;
+  account_id: string;
+  email: string | null;
+  status: MarketingRecipientStatus;
+  error: string | null;
+  sent_at: string | null;
 };
 
 export type Contact = {

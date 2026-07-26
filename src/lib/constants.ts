@@ -38,6 +38,10 @@ export const ROUTES = {
   dashboard: "/",
   leads: "/leads",
   partners: "/partners",
+  marketing: "/marketing",
+  marketingNew: "/marketing/new",
+  marketingCampaign: (id: string) => `/marketing/${id}`,
+  marketingUnsubscribe: (accountId: string, token: string) => `/marketing/unsubscribe/${accountId}/${token}`,
   quotations: "/quotations",
   quotation: (id: string) => `/quotations/${id}`,
   quotationEdit: (id: string) => `/quotations/${id}/edit`,
@@ -120,6 +124,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads" },
       { label: "Partners", href: ROUTES.partners, icon: "⌂", pillar: "purple", featureKey: "partners" },
+      { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing" },
     ],
   },
   {
@@ -281,6 +286,7 @@ export type TenantFeatures = {
   ai_assistant: boolean;
   db_export: boolean;
   purchasing: boolean;
+  marketing: boolean;
 };
 
 // All metric IDs available in the Analytics page.

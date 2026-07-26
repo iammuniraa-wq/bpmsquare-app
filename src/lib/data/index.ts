@@ -60,6 +60,14 @@ export {
   listLeadsLive as listLeads,
   listContracts,
   listDispatch,
+  // Marketing campaigns
+  listMarketingCampaignsLive as listMarketingCampaigns,
+  getMarketingCampaignLive as getMarketingCampaign,
+  resolveMarketingRecipientsLive as resolveMarketingRecipients,
+  setAccountMarketingOptOutLive as setAccountMarketingOptOut,
+  getUnsubscribeAccountInfoLive as getUnsubscribeAccountInfo,
+  type MarketingTargetRule,
+  type MarketingRecipientCandidate,
 } from "./live";
 
 // ── Display label maps (static — no DB query needed) ─────────────────────────

@@ -33,7 +33,11 @@ export async function middleware(request: NextRequest) {
     // WhatsApp/etc. Auth here is the token itself, verified inside the route/page,
     // not a session; every tenant-owned query behind them is still tenant-scoped.
     /^\/quotations\/[^/]+\/print-public\//.test(pathname) ||
-    /^\/api\/quotes\/[^/]+\/pdf-public\//.test(pathname)
+    /^\/api\/quotes\/[^/]+\/pdf-public\//.test(pathname) ||
+    // Signed, no-login marketing-email unsubscribe link (see
+    // lib/marketingUnsubscribe.ts) -- same reasoning as the quote links above.
+    /^\/marketing\/unsubscribe\/[^/]+\/[^/]+/.test(pathname) ||
+    /^\/api\/marketing\/unsubscribe\/[^/]+\/[^/]+/.test(pathname)
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }

@@ -13,6 +13,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "invoices",     label: "Invoices" },
   { key: "partners",     label: "Partners" },
   { key: "purchasing",   label: "Inventory & Purchasing" },
+  { key: "marketing",    label: "Marketing campaigns" },
   { key: "ai_assistant", label: "AI Assistant", premium: true },
   { key: "db_export",    label: "DB Export",    premium: true },
 ];
@@ -20,7 +21,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
 const DEFAULT_FEATURES: TenantFeatures = {
   leads: false, pipeline: false, amc: false, dispatch: false,
   invoices: false, partners: false, ai_assistant: false, db_export: false,
-  purchasing: false,
+  purchasing: false, marketing: false,
 };
 
 const inputStyle: React.CSSProperties = {

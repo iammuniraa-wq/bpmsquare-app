@@ -17,6 +17,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "dispatch",     label: "Dispatch" },
   { key: "invoices",     label: "Invoices" },
   { key: "partners",     label: "Partners" },
+  { key: "marketing",    label: "Marketing campaigns" },
   { key: "purchasing",   label: "Inventory & Purchasing" },
   { key: "ai_assistant", label: "AI Assistant", premium: true },
   { key: "db_export",    label: "DB Export",    premium: true },
