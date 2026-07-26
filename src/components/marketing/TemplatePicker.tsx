@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { MARKETING_TEMPLATES, escapeCustomMessage, type MarketingTemplateId } from "@/lib/marketingTemplates";
@@ -30,12 +31,55 @@ export default function TemplatePicker({
 }) {
   const template = MARKETING_TEMPLATES.find((t) => t.id === selectedId) ?? null;
 
+  const categories = useMemo(() => {
+    const map = new Map<string, { emoji: string; templates: typeof MARKETING_TEMPLATES }>();
+    for (const t of MARKETING_TEMPLATES) {
+      const entry = map.get(t.category);
+      if (entry) entry.templates.push(t);
+      else map.set(t.category, { emoji: t.emoji, templates: [t] });
+    }
+    return Array.from(map.entries()).map(([category, v]) => ({ category, ...v }));
+  }, []);
+
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+
   if (!template) {
+    if (!openCategory) {
+      return (
+        <section style={cardStyle}>
+          <div style={lbl}>Start from a template</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
+            {categories.map((cat) => (
+              <button
+                key={cat.category}
+                onClick={() => setOpenCategory(cat.category)}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 6,
+                  padding: "18px 12px", borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel2,
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 28 }}>{cat.emoji}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{cat.category}</span>
+                <span style={{ fontSize: 11, color: c.hint }}>{cat.templates.length} designs</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    const variants = categories.find((cat) => cat.category === openCategory)?.templates ?? [];
     return (
       <section style={cardStyle}>
-        <div style={lbl}>Start from a template</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={lbl}>{openCategory} — choose a design</div>
+          <button onClick={() => setOpenCategory(null)} style={{ fontSize: 12, color: c.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+            ← All folders
+          </button>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
-          {MARKETING_TEMPLATES.map((t) => (
+          {variants.map((t) => (
             <button
               key={t.id}
               onClick={() => onSelect(t.id)}
@@ -46,7 +90,7 @@ export default function TemplatePicker({
               }}
             >
               <span style={{ fontSize: 28 }}>{t.emoji}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{t.name}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{t.variantName}</span>
               <span style={{ fontSize: 11, color: c.hint, lineHeight: 1.4 }}>{t.description}</span>
             </button>
           ))}
@@ -67,10 +111,10 @@ export default function TemplatePicker({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 20 }}>{template.emoji}</span>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{template.name}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{template.category} — {template.variantName}</span>
         </div>
-        <button onClick={() => onSelect(null)} style={{ fontSize: 12, color: c.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
-          ← Choose a different template
+        <button onClick={() => { onSelect(null); setOpenCategory(template.category); }} style={{ fontSize: 12, color: c.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+          ← Choose a different design
         </button>
       </div>
 
