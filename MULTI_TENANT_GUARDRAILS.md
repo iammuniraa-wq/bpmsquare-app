@@ -112,26 +112,27 @@ the rest exposed.
 
 ## Known tracked debt (update this list as items are fixed)
 
-- **Legacy v1 API routes** (`src/app/api/v1/{accounts,cases,quotations}`)
-  don't actually bind to a tenant via the bearer API key — tenant scoping
-  there currently comes from the caller's session cookie, not the key
-  itself, so the documented "Bearer VEVEY_API_KEY" model doesn't function
-  as advertised for a genuine server-to-server caller. Newer v1 routes
-  (`inventory`, `invoices`, `purchase-orders`) already use
-  `resolveTenantFromBearer` correctly — migrate the three legacy ones onto
-  that. **Reviewed 2026-07-25, deliberately deferred, not fixed**: the fix
-  requires refactoring `listAccountsLive`/`getAccountHubLive`/
-  `listCasesLive`/`listQuotesLive` (`src/lib/data/live.ts`) to accept an
-  explicit `tenantId` instead of always deriving it from the session (same
-  pattern already used for `getQuoteForTenant`/`getQuoteByPublicTokenLive`),
-  then porting each v1 route onto that — four data-rich functions with no
-  way to verify the change against a live database from this environment.
-  Doing that blind risked a real regression to a documented external API
-  contract; not a new finding, still open. Practical impact in the meantime
-  is low-severity (not a cross-tenant leak) — an external caller with no
-  browser session gets an empty result rather than another tenant's data;
-  a same-origin call with cookies attached uses that caller's own
-  already-authorized session tenant regardless of which bearer key was sent.
+- ~~**Legacy v1 API routes** (`src/app/api/v1/{accounts,cases,quotations}`)
+  don't actually bind to a tenant via the bearer API key~~ — **Fixed
+  2026-07-26.** `listAccountsLive`/`getAccountHubLive`/`listCasesLive`/
+  `listQuotesLive` (`src/lib/data/live.ts`) were refactored to extract
+  `listAccountsForTenant`/`getAccountHubForTenant`/`listCasesForTenant`/
+  `listQuotesForTenant` (same pattern as `getQuoteForTenant`), and all four
+  legacy v1 routes now use `resolveTenantFromBearer` exactly like
+  `inventory`/`invoices`/`purchase-orders` already did — there is no longer
+  a global `VEVEY_API_KEY`, every v1 route resolves its tenant from a
+  per-tenant key on `tenants.api_key`. `src/app/api/v1/_auth.ts`'s dead
+  `checkApiKey`/`ERR_401` were removed. Settings → General → Developer now
+  shows the tenant's real key with a self-service "Generate/Regenerate"
+  button (`POST /api/settings/api-key`, admin-only) instead of a hardcoded
+  `"dev-key"` placeholder that never matched any real auth path.
+  `mcp-server/mcp.json`'s auth section and description (which named Vikas
+  Pioneers specifically, despite every tool in it being fully generic) were
+  updated to match. **Not independently verified against a live database**
+  from this environment — the refactor mirrors the proven
+  `getQuoteForTenant` extraction exactly and `tsc`/`next build` are clean,
+  but this is the first real-world exercise of these four routes' new auth
+  path; watch for issues on first live use.
 - ~~`page_layouts` / `deletion_log`~~ — `page_layouts` now has a tracked
   migration (`0039_page_layouts_rls.sql`, 2026-07-25). `deletion_log` no
   longer exists as a table at all — `/api/deletion-log` reads/writes a

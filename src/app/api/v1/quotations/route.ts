@@ -1,14 +1,15 @@
-import { listQuotes } from "@/lib/data";
-import { checkApiKey, ERR_401, jsonOk } from "../_auth";
+import { listQuotesForTenant } from "@/lib/data";
+import { resolveTenantFromBearer, ERR_401_TENANT, jsonOk } from "../_auth";
 
 export async function GET(req: Request) {
-  if (!checkApiKey(req)) return ERR_401();
+  const tenantId = await resolveTenantFromBearer(req);
+  if (!tenantId) return ERR_401_TENANT();
 
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
   const accountId = url.searchParams.get("account_id");
 
-  let quotes = await listQuotes();
+  let quotes = await listQuotesForTenant(tenantId);
 
   if (status)    quotes = quotes.filter((q) => q.quote.status === status);
   if (accountId) quotes = quotes.filter((q) => q.quote.account_id === accountId);

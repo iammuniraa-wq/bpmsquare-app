@@ -24,19 +24,23 @@ export type {
 export {
   // Accounts
   listAccountsLive as listAccounts,
+  listAccountsForTenant,
   getAccountHubLive as getAccountHub,
+  getAccountHubForTenant,
   // Contacts
   listContactsLive as listContacts,
   // Assets
   listAssetsLive as listAssets,
   // Quotes
   listQuotesLive as listQuotes,
+  listQuotesForTenant,
   getQuoteLive as getQuote,
   getCaseLinkedQuoteIdsLive as getCaseLinkedQuoteIds,
   getQuoteByPublicTokenLive as getQuoteByPublicToken,
   getTenantForPublicQuoteLive as getTenantForPublicQuote,
   // Cases
   listCasesLive as listCases,
+  listCasesForTenant,
   getCaseLive as getCase,
   // Work orders
   listWorkOrdersLive as listWorkOrders,

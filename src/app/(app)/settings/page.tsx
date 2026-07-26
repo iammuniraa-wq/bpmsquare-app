@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import type { AccentPreset } from "@/lib/settings";
 import { NAV, ROUTES, QUOTE_TYPES } from "@/lib/constants";
-import type { QuoteTypeId } from "@/lib/constants";
+import type { QuoteTypeId, TenantConfig } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useTenant } from "@/lib/tenant-context";
+import { useTenant, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
 
 const PILLAR_DOT: Record<string, string> = {
@@ -52,11 +52,17 @@ const INTEGRATIONS = [
 ];
 
 const API_ENDPOINTS = [
-  { method: "GET", path: "/api/v1",                desc: "API index + auth info" },
-  { method: "GET", path: "/api/v1/accounts",        desc: "List all accounts with counts" },
-  { method: "GET", path: "/api/v1/accounts/:id",    desc: "Account detail — contacts, cases, quotes, WOs" },
-  { method: "GET", path: "/api/v1/cases",           desc: "List cases · filter: ?status= &account_id=" },
-  { method: "GET", path: "/api/v1/quotations",      desc: "List quotations · filter: ?status= &account_id=" },
+  { method: "GET", path: "/api/v1",                    desc: "API index + auth info" },
+  { method: "GET", path: "/api/v1/accounts",            desc: "List all accounts with counts" },
+  { method: "GET", path: "/api/v1/accounts/:id",        desc: "Account detail — contacts, cases, quotes, WOs" },
+  { method: "GET", path: "/api/v1/cases",               desc: "List cases · filter: ?status= &account_id=" },
+  { method: "GET", path: "/api/v1/quotations",          desc: "List quotations · filter: ?status= &account_id=" },
+  { method: "GET", path: "/api/v1/inventory",           desc: "List inventory · filter: ?low_stock=true" },
+  { method: "GET", path: "/api/v1/inventory/:id",       desc: "Inventory item detail + transaction history" },
+  { method: "GET", path: "/api/v1/invoices",            desc: "List invoices · filter: ?status= &account_id=" },
+  { method: "GET", path: "/api/v1/invoices/:id",        desc: "Invoice detail — lines, payments, balance due" },
+  { method: "GET", path: "/api/v1/purchase-orders",     desc: "List POs · filter: ?status= &supplier_id=" },
+  { method: "GET", path: "/api/v1/purchase-orders/:id", desc: "Purchase order detail + receiving progress" },
 ];
 
 const API_COMING_SOON = [
@@ -120,12 +126,54 @@ export default function SettingsPage() {
   const router = useRouter();
   const { settings, reset } = useSettings();
   const tenant = useTenant();
+  const role = useUserRole();
   const tenantFeatures = tenant?.features as Record<string, boolean> | undefined;
   // tenant.accent_color is the single source of truth for brand colour (see Appearance below).
   const accent = tenant?.accent_color || ACCENT_PRESETS[settings.accentPreset].color;
   const [saved, flashSaved] = useSavedFlash();
 
   const [copied, setCopied] = useState(false);
+  const [apiKey, setApiKey] = useState<string | null>(tenant?.api_key ?? null);
+  const [regenerating, startRegenerate] = useTransition();
+  const [keyError, setKeyError] = useState("");
+
+  // Push to external systems (on demand) -- see lib/webhookPush.ts
+  const pushConfig = (tenant?.config as TenantConfig | undefined)?.integration_push;
+  const [pushUrl, setPushUrl] = useState(pushConfig?.webhook_url ?? "");
+  const [pushSecret, setPushSecret] = useState(pushConfig?.webhook_secret ?? "");
+  const [pushSaving, startPushSave] = useTransition();
+  const [pushSecretSaving, startPushSecretSave] = useTransition();
+  const [pushSaved, flashPushSaved] = useSavedFlash();
+  const [pushError, setPushError] = useState("");
+
+  const savePushUrl = () => {
+    setPushError("");
+    startPushSave(async () => {
+      const res = await fetch("/api/settings/integration-push", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webhook_url: pushUrl.trim() }),
+      });
+      const json = await res.json();
+      if (res.ok) flashPushSaved();
+      else setPushError(json.error ?? "Failed to save");
+    });
+  };
+
+  const regeneratePushSecret = () => {
+    if (pushSecret && !window.confirm("Generate a new signing secret? The old one stops verifying — update it on the receiving end too.")) return;
+    setPushError("");
+    startPushSecretSave(async () => {
+      const res = await fetch("/api/settings/integration-push", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regenerate_secret: true }),
+      });
+      const json = await res.json();
+      if (res.ok) setPushSecret(json.webhook_secret ?? "");
+      else setPushError(json.error ?? "Failed to generate secret");
+    });
+  };
 
   // Only show nav items whose feature is enabled at the tenant (platform admin) level.
   // If platform admin turns off a feature, local admin cannot see or re-enable it here.
@@ -259,7 +307,19 @@ export default function SettingsPage() {
   };
 
   const copyApiKey = () => {
-    navigator.clipboard.writeText("dev-key").then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    if (!apiKey) return;
+    navigator.clipboard.writeText(apiKey).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  };
+
+  const regenerateApiKey = () => {
+    if (apiKey && !window.confirm("Generate a new API key? The current key stops working immediately — anything using it (an ERP integration, an AI assistant's MCP config) will need the new one.")) return;
+    setKeyError("");
+    startRegenerate(async () => {
+      const res = await fetch("/api/settings/api-key", { method: "POST" });
+      const json = await res.json();
+      if (res.ok) setApiKey(json.api_key);
+      else setKeyError(json.error ?? "Failed to generate key");
+    });
   };
 
   return (
@@ -381,19 +441,33 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 5. Developer — REST API v1 ── */}
-      <Section title="Developer — REST API v1" description="Live read-only endpoints. Authenticate with: Authorization: Bearer <VEVEY_API_KEY>">
+      <Section title="Developer — REST API v1" description="Live read-only endpoints. Authenticate with: Authorization: Bearer <your tenant's API key>">
 
-        {/* API key row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}` }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>API Key (dev)</div>
-            <code style={{ fontSize: 12.5, color: c.ink, fontFamily: "monospace" }}>dev-key</code>
-            <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Set VEVEY_API_KEY in environment to change</div>
+        {/* API key row — admin only: this key grants read access to every
+            account/case/quote/invoice/etc. in this tenant via the v1 API. */}
+        {role === "admin" ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}` }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>API Key</div>
+              {apiKey ? (
+                <code style={{ fontSize: 12.5, color: c.ink, fontFamily: "monospace", wordBreak: "break-all" }}>{apiKey}</code>
+              ) : (
+                <div style={{ fontSize: 12.5, color: c.hint, fontStyle: "italic" }}>No key generated yet</div>
+              )}
+              {keyError && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 3 }}>{keyError}</div>}
+            </div>
+            {apiKey && (
+              <button onClick={copyApiKey} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "#fff", cursor: "pointer", flexShrink: 0, color: copied ? "#1d9e75" : c.muted }}>
+                {copied ? "✓ Copied" : "Copy key"}
+              </button>
+            )}
+            <button onClick={regenerateApiKey} disabled={regenerating} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "#fff", cursor: regenerating ? "not-allowed" : "pointer", flexShrink: 0, color: c.muted }}>
+              {regenerating ? "…" : apiKey ? "Regenerate" : "Generate key"}
+            </button>
           </div>
-          <button onClick={copyApiKey} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "#fff", cursor: "pointer", flexShrink: 0, color: copied ? "#1d9e75" : c.muted }}>
-            {copied ? "✓ Copied" : "Copy key"}
-          </button>
-        </div>
+        ) : (
+          <div style={{ fontSize: 12, color: c.hint, marginBottom: 14 }}>Ask a workspace admin to generate or view the API key.</div>
+        )}
 
         {/* Endpoints */}
         <div style={{ marginBottom: 12 }}>
@@ -417,6 +491,48 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
+      </Section>
+
+      {/* ── 5b. Push to external systems (on demand) ── */}
+      <Section title="Push to external systems" description="Send a single record to your ERP or another system right now, on demand -- a rep clicking &quot;Push to ERP&quot; on a record. Different from the Webhooks integration above (automatic, event-driven, still Coming Soon).">
+        {role === "admin" ? (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Receiving URL</label>
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  value={pushUrl}
+                  onChange={(e) => setPushUrl(e.target.value)}
+                  placeholder="https://your-erp.example.com/webhooks/bpmsquare"
+                  style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, color: c.ink, outline: "none" }}
+                />
+                <button onClick={savePushUrl} disabled={pushSaving} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "none", cursor: pushSaving ? "not-allowed" : "pointer", background: pushSaved ? "#1d9e75" : accent, color: "#fff" }}>
+                  {pushSaving ? "Saving…" : pushSaved ? "✓ Saved" : "Save"}
+                </button>
+              </div>
+              {pushError && <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 6 }}>{pushError}</div>}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}` }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Signing secret</div>
+                {pushSecret ? (
+                  <code style={{ fontSize: 12.5, color: c.ink, fontFamily: "monospace", wordBreak: "break-all" }}>{pushSecret}</code>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: c.hint, fontStyle: "italic" }}>Not generated -- pushes will be unsigned</div>
+                )}
+                <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Sent as the X-BPMSquare-Signature header (HMAC-SHA256 of the request body) so your endpoint can verify it's really from BPMSquare.</div>
+              </div>
+              <button onClick={regeneratePushSecret} disabled={pushSecretSaving} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "#fff", cursor: pushSecretSaving ? "not-allowed" : "pointer", flexShrink: 0, color: c.muted }}>
+                {pushSecretSaving ? "…" : pushSecret ? "Regenerate" : "Generate"}
+              </button>
+            </div>
+
+            <div style={{ fontSize: 11.5, color: c.hint, marginTop: 10 }}>Live today on Accounts (the "Push to ERP" action on an account's page) -- extends to other objects the same way.</div>
+          </>
+        ) : (
+          <div style={{ fontSize: 12, color: c.hint }}>Ask a workspace admin to configure this.</div>
+        )}
       </Section>
 
       {/* ── 6. Reset ── */}

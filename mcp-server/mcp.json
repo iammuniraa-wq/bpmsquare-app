@@ -1,11 +1,11 @@
 {
-  "name": "veveycrm",
-  "version": "1.0.0",
-  "description": "VeveyCRM MCP server — field service CRM for electromechanical repair businesses (Vikas Pioneers, Hosapete)",
-  "api_base": "https://veveycrm-92bd.vercel.app/api/v1",
+  "name": "bpmsquare",
+  "version": "1.1.0",
+  "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
+  "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
     "type": "bearer",
-    "env_var": "VEVEY_API_KEY"
+    "description": "A per-tenant API key, generated in Settings → Admin → this tenant (not a shared/global key). Send as: Authorization: Bearer <tenant API key>."
   },
   "tools": [
     {

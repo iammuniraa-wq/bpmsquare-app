@@ -1,14 +1,15 @@
-import { listCases } from "@/lib/data";
-import { checkApiKey, ERR_401, jsonOk } from "../_auth";
+import { listCasesForTenant } from "@/lib/data";
+import { resolveTenantFromBearer, ERR_401_TENANT, jsonOk } from "../_auth";
 
 export async function GET(req: Request) {
-  if (!checkApiKey(req)) return ERR_401();
+  const tenantId = await resolveTenantFromBearer(req);
+  if (!tenantId) return ERR_401_TENANT();
 
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
   const accountId = url.searchParams.get("account_id");
 
-  let cases = await listCases();
+  let cases = await listCasesForTenant(tenantId);
 
   if (status)    cases = cases.filter((c) => c.serviceCase.status === status);
   if (accountId) cases = cases.filter((c) => c.serviceCase.account_id === accountId);

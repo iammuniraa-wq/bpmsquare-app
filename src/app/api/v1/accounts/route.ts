@@ -1,10 +1,11 @@
-import { listAccounts } from "@/lib/data";
-import { checkApiKey, ERR_401, jsonOk } from "../_auth";
+import { listAccountsForTenant } from "@/lib/data";
+import { resolveTenantFromBearer, ERR_401_TENANT, jsonOk } from "../_auth";
 
 export async function GET(req: Request) {
-  if (!checkApiKey(req)) return ERR_401();
+  const tenantId = await resolveTenantFromBearer(req);
+  if (!tenantId) return ERR_401_TENANT();
 
-  const accounts = await listAccounts();
+  const accounts = await listAccountsForTenant(tenantId);
 
   return jsonOk({
     data: accounts.map(({ account, referredBy, counts }) => ({

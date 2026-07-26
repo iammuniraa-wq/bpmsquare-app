@@ -356,6 +356,15 @@ export type TenantConfig = {
   appearance?: {
     compact_sidebar?: boolean;
   };
+  // On-demand push to an external system (e.g. an ERP's webhook receiver) --
+  // a rep clicks "Push to ERP" on a record; distinct from (and simpler than)
+  // the automatic event-driven Webhooks integration, which is still Coming
+  // Soon. webhook_secret signs each push (HMAC-SHA256) so the receiver can
+  // verify it actually came from BPMSquare.
+  integration_push?: {
+    webhook_url?: string;
+    webhook_secret?: string;
+  };
 };
 
 // QuoteIdFormat — per-tenant Quote ID naming convention.

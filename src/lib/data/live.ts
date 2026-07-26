@@ -219,6 +219,12 @@ const _listAccountsCached = unstable_cache(
 export async function listAccountsLive(): Promise<AccountSummary[]> {
   const tenantId = await currentTenantId();
   if (!tenantId) return [];
+  return listAccountsForTenant(tenantId);
+}
+
+/** Shared by listAccountsLive (session-derived tenantId) and the v1 API
+ * (bearer-key-resolved tenantId, no session) -- same tenant-scoped query either way. */
+export async function listAccountsForTenant(tenantId: string): Promise<AccountSummary[]> {
   const rows = await _listAccountsCached(tenantId);
   return rows.map((s) => ({ ...s, account: decryptAccount(s.account) }));
 }
@@ -226,6 +232,12 @@ export async function listAccountsLive(): Promise<AccountSummary[]> {
 export async function getAccountHubLive(id: string) {
   const tenantId = await currentTenantId();
   if (!tenantId) return null;
+  return getAccountHubForTenant(id, tenantId);
+}
+
+/** Shared by getAccountHubLive (session-derived tenantId) and the v1 API
+ * (bearer-key-resolved tenantId, no session) -- same tenant-scoped query either way. */
+export async function getAccountHubForTenant(id: string, tenantId: string) {
   const supabase = createAdminSupabase();
 
   const { data: account } = await supabase
@@ -589,6 +601,12 @@ const _listQuotesCached = unstable_cache(
 export async function listQuotesLive(): Promise<QuoteSummary[]> {
   const tenantId = await currentTenantId();
   if (!tenantId) return [];
+  return listQuotesForTenant(tenantId);
+}
+
+/** Shared by listQuotesLive (session-derived tenantId) and the v1 API
+ * (bearer-key-resolved tenantId, no session) -- same tenant-scoped query either way. */
+export async function listQuotesForTenant(tenantId: string): Promise<QuoteSummary[]> {
   return _listQuotesCached(tenantId);
 }
 
@@ -791,6 +809,12 @@ const _listCasesCached = unstable_cache(
 export async function listCasesLive(): Promise<CaseSummary[]> {
   const tenantId = await currentTenantId();
   if (!tenantId) return [];
+  return listCasesForTenant(tenantId);
+}
+
+/** Shared by listCasesLive (session-derived tenantId) and the v1 API
+ * (bearer-key-resolved tenantId, no session) -- same tenant-scoped query either way. */
+export async function listCasesForTenant(tenantId: string): Promise<CaseSummary[]> {
   return _listCasesCached(tenantId);
 }
 

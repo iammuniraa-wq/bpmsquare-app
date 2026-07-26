@@ -18,6 +18,7 @@ import ObjectSections from "@/components/fields/ObjectSections";
 import QuickCreateDeck from "@/components/QuickCreateDeck";
 import { MapPin, Phone, Mail, Gear, Activity as ActivityIcon, Package, FileText } from "@/components/Icons";
 import AccountHeader from "./AccountHeader";
+import AccountPushButton from "./AccountPushButton";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
 
@@ -170,7 +171,7 @@ export default async function AccountHubPage({
       </div>
 
       {/* ── Account header ────────────────────────────────────────────────── */}
-      <AccountHeader isAdmin={role === "admin"}>
+      <AccountHeader isAdmin={role === "admin"} actions={<AccountPushButton accountId={account.id} />}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: c.ink }}>{account.name}</h1>

@@ -1,14 +1,15 @@
-import { getAccountHub } from "@/lib/data";
-import { checkApiKey, ERR_401, jsonOk } from "../../_auth";
+import { getAccountHubForTenant } from "@/lib/data";
+import { resolveTenantFromBearer, ERR_401_TENANT, jsonOk } from "../../_auth";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!checkApiKey(req)) return ERR_401();
+  const tenantId = await resolveTenantFromBearer(req);
+  if (!tenantId) return ERR_401_TENANT();
 
   const { id } = await params;
-  const hub = await getAccountHub(id);
+  const hub = await getAccountHubForTenant(id, tenantId);
   if (!hub) {
     return Response.json({ error: "Not found", id }, { status: 404 });
   }
