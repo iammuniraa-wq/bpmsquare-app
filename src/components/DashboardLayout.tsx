@@ -446,8 +446,15 @@ function AnalyticsCard({ title, href, children }: { title: string; href: string;
   const modern = useUiTheme() === "modern";
   return (
     <div
-      className={modern ? "modern-lift" : undefined}
-      style={{ ...cardStyle, padding: 0, overflow: "hidden", boxShadow: modern ? cardStyle.boxShadow : "0 1px 2px rgba(16,24,40,.04), 0 1px 6px rgba(16,24,40,.03)" }}
+      className={modern ? "modern-lift-gold" : undefined}
+      style={{
+        ...cardStyle, padding: 0, overflow: "hidden",
+        // box-shadow is owned by .modern-lift-gold in modern mode (base +
+        // hover + the gold edge all live there) -- leaving it inline here
+        // too would silently cancel the class's :hover rule, since an
+        // inline style always beats a stylesheet rule for the same element.
+        boxShadow: modern ? undefined : "0 1px 2px rgba(16,24,40,.04), 0 1px 6px rgba(16,24,40,.03)",
+      }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${modern ? "var(--line)" : ledger.line}` }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, color: modern ? "var(--modern-accent)" : c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>
@@ -965,7 +972,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     // structural difference, not just a recolor) -- classic keeps every tile
     // nested inside one flat bordered strip, unchanged.
     const tileBoxStyle: React.CSSProperties = modern
-      ? { padding: "16px 18px", borderRadius: "var(--card-radius)", border: "1px solid var(--line)", background: "var(--card-bg)", boxShadow: "var(--card-shadow)" }
+      ? { padding: "16px 18px", borderRadius: "var(--card-radius)", border: "1px solid var(--line)", background: "var(--card-bg)" }
       : { padding: "13px 16px", borderRadius: 8, border: `1px solid ${ledger.line}`, background: c.panel2 };
     const tileLabelStyle: React.CSSProperties = modern
       ? { fontSize: 10.5, fontWeight: 700, color: "var(--modern-accent)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }
@@ -975,7 +982,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <div style={{ display: "flex", flexWrap: "wrap", gap: modern ? 14 : 10 }}>
         {tiles.map((t) => {
           const box = (
-            <div className={modern ? "modern-lift" : undefined} style={tileBoxStyle}>
+            <div className={modern ? "modern-lift-gold" : undefined} style={tileBoxStyle}>
               <div style={tileLabelStyle}>{t.label}</div>
               {t.content}
             </div>

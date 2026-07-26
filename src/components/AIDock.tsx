@@ -40,7 +40,7 @@ export default function AIDock() {
         style={{
           position: "fixed", right: 22, bottom: 22, zIndex: 300,
           width: 52, height: 52, borderRadius: "50%", border: "none", cursor: "pointer",
-          background: "var(--tenant-accent, #0a66c2)", color: "#fff",
+          background: "var(--tenant-accent, #1e3a6e)", color: "#fff",
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 10px 26px rgba(0,0,0,.25)",
         }}
@@ -48,7 +48,7 @@ export default function AIDock() {
         {!open && (
           <span style={{
             position: "absolute", inset: -4, borderRadius: "50%",
-            border: "2px solid var(--tenant-accent, #0a66c2)", opacity: 0.35,
+            border: "2px solid var(--tenant-accent, #1e3a6e)", opacity: 0.35,
             animation: "vvcrm-pulse-ring 2.2s ease-out infinite",
           }} />
         )}
@@ -67,7 +67,7 @@ export default function AIDock() {
         }}>
           <div style={{ padding: "12px 16px", background: "var(--accentbg)", color: c.accent, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
             ✦ BPMSquare Assistant
-            <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 700, color: "#8a5a12", background: "#fdf1de", border: "1px solid #f0d9ae", borderRadius: 5, padding: "2px 6px", letterSpacing: 0.4 }}>PREVIEW</span>
+            <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 700, color: "var(--modern-gold, #8a5a12)", background: "var(--modern-gold-bg, #fdf1de)", border: "1px solid #f0d9ae", borderRadius: 5, padding: "2px 6px", letterSpacing: 0.4 }}>PREVIEW</span>
           </div>
           <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5, flex: 1, overflowY: "auto" }}>
             {messages.map((m, i) => (
@@ -76,7 +76,7 @@ export default function AIDock() {
                 style={{
                   alignSelf: m.from === "me" ? "flex-end" : "flex-start",
                   maxWidth: "88%",
-                  background: m.from === "me" ? "var(--tenant-accent, #0a66c2)" : "var(--panel2)",
+                  background: m.from === "me" ? "var(--tenant-accent, #1e3a6e)" : "var(--panel2)",
                   color: m.from === "me" ? "#fff" : c.ink,
                   borderRadius: "var(--card-radius, 10px)",
                   padding: "9px 12px",
@@ -97,7 +97,7 @@ export default function AIDock() {
             />
             <button
               onClick={sendMessage}
-              style={{ background: "var(--tenant-accent, #0a66c2)", color: "#fff", border: "none", borderRadius: "var(--card-radius, 10px)", padding: "9px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+              style={{ background: "var(--tenant-accent, #1e3a6e)", color: "#fff", border: "none", borderRadius: "var(--card-radius, 10px)", padding: "9px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
             >
               →
             </button>
