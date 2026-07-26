@@ -20,7 +20,12 @@ export default function InvoicePrint(props: Props) {
         @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
         @media print {
           @page { size: A4 portrait; margin: 12mm 15mm; }
-          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          /* body's on-screen grey (below) is a page-editor backdrop, not
+             something that should ever print -- print-color-adjust:exact
+             forces backgrounds to actually render (browsers normally strip
+             them to save ink), so without overriding it back to white here
+             that grey shows through on any page shorter than a full sheet. */
+          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background: #fff !important; }
           .no-print { display: none !important; }
         }
         body { margin: 0; background: #e8ecf0; font-family: "PrintSans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; color: #1c2733; }

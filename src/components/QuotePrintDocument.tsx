@@ -564,29 +564,34 @@ export default function QuotePrintDocument({
             {co.gstin && <span style={{ marginLeft: "auto", flexShrink: 0, color: "#b45309", fontWeight: 600 }}>GSTIN: {co.gstin}</span>}
           </div>
         )}
-        {/* Row 2: phones (left) + tagline (right, only when the tenant actually set one —
-            the company name doesn't need to repeat a third time and was crowding phones out) */}
-        {(co.phones.length > 0 || co.phone || co.footer_tagline) && (
-          <div style={{ padding: "1.5px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, rowGap: 2, flexWrap: "wrap", fontSize: 9.5 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 16px" }}>
-              {co.phones.map((p, i) => (
-                <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-                  <span style={{ color: "#5f6b7a" }}>{p.label}</span>
-                  <span style={{ color: brand.dark, fontWeight: 600 }}> — {p.number}</span>
-                </span>
-              ))}
-              {co.phone && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-                  <span style={{ color: "#5f6b7a" }}>Phone</span>
-                  <span style={{ color: brand.dark, fontWeight: 600 }}> — {co.phone}</span>
-                </span>
-              )}
-            </div>
-            {co.footer_tagline && (
-              <span style={{ flexShrink: 0, whiteSpace: "nowrap", color: "#b45309", fontStyle: "italic", fontWeight: 500 }}>
-                {co.footer_tagline} ☺
+        {/* Row 2: phones -- its own row, full width, so a tenant with several
+            numbers (Dir/Tech, Commercial, Work, Landline) always has enough
+            room to lay out on one line. Previously shared this row with the
+            tagline via justify-content:space-between, which ate into the
+            phones' available width and forced a wrap even when the phones
+            alone would have fit. */}
+        {(co.phones.length > 0 || co.phone) && (
+          <div style={{ padding: "1.5px 28px", display: "flex", flexWrap: "wrap", gap: "2px 16px", fontSize: 9.5 }}>
+            {co.phones.map((p, i) => (
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                <span style={{ color: "#5f6b7a" }}>{p.label}</span>
+                <span style={{ color: brand.dark, fontWeight: 600 }}> — {p.number}</span>
+              </span>
+            ))}
+            {co.phone && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                <span style={{ color: "#5f6b7a" }}>Phone</span>
+                <span style={{ color: brand.dark, fontWeight: 600 }}> — {co.phone}</span>
               </span>
             )}
+          </div>
+        )}
+        {/* Row 2b: tagline -- its own line, below phones, not competing with them for width. */}
+        {co.footer_tagline && (
+          <div style={{ padding: "1.5px 28px", fontSize: 9.5 }}>
+            <span style={{ whiteSpace: "nowrap", color: "#b45309", fontStyle: "italic", fontWeight: 500 }}>
+              {co.footer_tagline} ☺
+            </span>
           </div>
         )}
         {/* Row 3: email + website (moved down from the header) */}
