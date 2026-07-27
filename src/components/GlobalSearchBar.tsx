@@ -12,8 +12,10 @@ const MIN_QUERY_LEN = 2;
 /** Global "search everything" bar -- present on every authenticated screen
  * (mounted once in Shell), fuzzy-matches across every major object (account
  * name, quote/case/invoice ref, asset serial, etc.), optionally scoped to
- * one object type via the dropdown. Ctrl/Cmd+K focuses it from anywhere. */
-export default function GlobalSearchBar() {
+ * one object type via the dropdown. Ctrl/Cmd+K focuses it from anywhere.
+ * `autoFocus` is used by Shell's mobile search overlay, which mounts this
+ * component fresh each time it's opened and wants the keyboard up immediately. */
+export default function GlobalSearchBar({ autoFocus }: { autoFocus?: boolean } = {}) {
   const router = useRouter();
   const tenant = useTenant();
   const searchObjects = useMemo(() => searchObjectsForFeatures(tenant?.features as Record<string, boolean> | undefined), [tenant?.features]);
@@ -23,6 +25,10 @@ export default function GlobalSearchBar() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

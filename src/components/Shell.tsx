@@ -9,7 +9,7 @@ import { TabsProvider } from "@/lib/tabs-context";
 import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
-import { XIcon } from "@/components/Icons";
+import { XIcon, SearchIcon } from "@/components/Icons";
 import { useTenant, useUiTheme } from "@/lib/tenant-context";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
@@ -19,10 +19,17 @@ import { useTenant, useUiTheme } from "@/lib/tenant-context";
 function MobileTopBar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const tenant = useTenant();
 
-  // Close the drawer whenever the route changes.
-  useEffect(() => { setOpen(false); }, [pathname]);
+  // Close the drawer/search overlay whenever the route changes.
+  useEffect(() => { setOpen(false); setSearchOpen(false); }, [pathname]);
+
+  const iconBtn: React.CSSProperties = {
+    width: 36, height: 36, borderRadius: 7, flexShrink: 0,
+    border: "none", cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center",
+  };
 
   return (
     <>
@@ -32,12 +39,14 @@ function MobileTopBar() {
         background: "var(--sidebar-grad)",
         height: 48,
         display: "flex", alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 14px",
+        gap: 8,
+        padding: "0 10px 0 14px",
         boxShadow: "0 1px 6px rgba(0,0,0,.45)",
       }}>
-        {/* Brand */}
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        {/* Brand -- minWidth:0 + truncated name so a long tenant name shrinks
+            instead of pushing the search/menu buttons off screen (that overflow
+            was why the hamburger could go missing on narrow phones). */}
+        <div style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0 }}>
           {tenant?.logo_url ? (
             <img
               src={tenant.logo_url}
@@ -47,26 +56,27 @@ function MobileTopBar() {
           ) : (
             <Logo size={26} />
           )}
-          <span style={{ color: "var(--sb-strong)", fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
+          <span style={{
+            color: "var(--sb-strong)", fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0,
+          }}>
             {tenant?.name ?? "BPMSquare"}
           </span>
         </div>
 
-        <div style={{ flex: 1, minWidth: 0, maxWidth: 260 }}>
-          <GlobalSearchBar />
-        </div>
-
-        {/* Hamburger / close */}
+        {/* Search + hamburger -- fixed-size icon buttons that never shrink, so
+            they stay tappable regardless of how long the tenant name is. */}
         <button
-          onClick={() => setOpen(v => !v)}
+          onClick={() => { setSearchOpen(v => !v); setOpen(false); }}
+          aria-label={searchOpen ? "Close search" : "Search"}
+          style={{ ...iconBtn, background: searchOpen ? "var(--sb-hover-strong)" : "transparent" }}
+        >
+          {searchOpen ? <XIcon size={18} color="var(--sb-strong)" /> : <SearchIcon size={18} color="var(--sb-strong)" />}
+        </button>
+        <button
+          onClick={() => { setOpen(v => !v); setSearchOpen(false); }}
           aria-label={open ? "Close menu" : "Open menu"}
-          style={{
-            width: 36, height: 36, borderRadius: 7,
-            background: open ? "var(--sb-hover-strong)" : "transparent",
-            border: "none", cursor: "pointer",
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center", gap: 5,
-          }}
+          style={{ ...iconBtn, flexDirection: "column", gap: 5, background: open ? "var(--sb-hover-strong)" : "transparent" }}
         >
           {open ? (
             <XIcon size={18} color="var(--sb-strong)" />
@@ -79,6 +89,20 @@ function MobileTopBar() {
           )}
         </button>
       </header>
+
+      {/* Search overlay -- a full-width row anchored under the header, instead
+          of squeezing the search input + object-type dropdown into the top
+          bar itself (which is what made it unusable on narrow phones). */}
+      {searchOpen && (
+        <div style={{
+          position: "sticky", top: 48, zIndex: 99,
+          background: "var(--sidebar-grad)",
+          padding: "8px 14px 10px",
+          boxShadow: "0 4px 14px rgba(0,0,0,.3)",
+        }}>
+          <GlobalSearchBar autoFocus />
+        </div>
+      )}
 
       {/* Backdrop */}
       {open && (
