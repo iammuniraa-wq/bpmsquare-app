@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c, pillar } from "@/lib/theme";
@@ -8,32 +8,121 @@ import { cardStyle } from "@/components/Shell";
 import { ROUTES, OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { CheckIcon, XIcon } from "@/components/Icons";
 import QuoteStatusPill from "@/components/QuoteStatusPill";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
+import { useUserRole } from "@/lib/tenant-context";
+import type { EffectiveField } from "@/lib/fieldRegistry";
 import type { QuoteSummary } from "@/lib/data/labels";
 
 // ── Column definitions ────────────────────────────────────────────────────────
+//
+// Every column the list can show -- standard Quote fields plus, appended at
+// render time, whatever custom fields this tenant has defined for "quote"
+// (via the Adapt drawer below). Not scoped to a hardcoded subset: any field
+// on the Quote record is available here, and any new custom field a tenant
+// adds shows up automatically (see the bpm:cf-changed listener).
 
-type ColId = "type" | "account" | "status" | "lines" | "total" | "date" | "valid_until" | "territory";
-
-type ColDef = { id: ColId; label: string; defaultOn: boolean; align?: "right" | "center" };
-
-const COLUMNS: ColDef[] = [
-  { id: "type",        label: "Type",        defaultOn: true  },
-  { id: "account",     label: "Account",     defaultOn: true  },
-  { id: "status",      label: "Status",      defaultOn: true  },
-  { id: "lines",       label: "Lines",       defaultOn: true,  align: "center" },
-  { id: "total",       label: "Total",       defaultOn: true,  align: "right"  },
-  { id: "date",        label: "Date",        defaultOn: true  },
-  { id: "valid_until", label: "Valid until", defaultOn: false },
-  { id: "territory",   label: "Territory",   defaultOn: false },
-];
+type ColDef = {
+  id: string;
+  label: string;
+  defaultOn: boolean;
+  align?: "right" | "center";
+  group: "standard" | "custom";
+  render: (row: QuoteSummary) => React.ReactNode;
+  cellStyle?: React.CSSProperties;
+};
 
 const LS_KEY = "bms_quotes_cols";
+const LS_SEEN_KEY = "bms_quotes_cols_seen";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+const muted = (v: React.ReactNode): React.ReactNode => <span style={{ color: c.muted }}>{v}</span>;
+const truncated = (s: string, max = 60): React.ReactNode =>
+  s.length > max ? <span title={s}>{s.slice(0, max - 1)}…</span> : s;
+
+const BUSINESS_STATUS_LABEL: Record<string, string> = { pending: "Pending", po_received: "PO received" };
+const OUTCOME_COLOR: Record<string, string> = { won: pillar.teal.fg, lost: pillar.red.fg, open: pillar.blue.fg };
+const OUTCOME_LABEL: Record<string, string> = { won: "Won", lost: "Lost", open: "Open" };
+
+function discountDisplay(q: QuoteSummary["quote"]): React.ReactNode {
+  if (q.discount_type === "pct" && q.discount_pct) return `${q.discount_pct}%`;
+  if (q.discount_type === "fixed" && q.discount_fixed) return inr(q.discount_fixed);
+  return muted("—");
+}
+
+/** Standard Quote fields, built per-render since a couple (status) need
+ * props (quoteStatuses) that aren't available at module scope. */
+function buildStandardColumns(quoteStatuses: QuoteStatusDef[]): ColDef[] {
+  return [
+    { id: "type",        label: "Type",           defaultOn: true,  group: "standard",
+      render: (r) => muted(OFFER_TYPE_LABEL[r.quote.type] ?? r.quote.type) },
+    { id: "account",     label: "Account",         defaultOn: true,  group: "standard",
+      render: (r) => <Link href={ROUTES.account(r.account.id)} onClick={(e) => e.stopPropagation()} style={{ color: c.ink }}>{r.account.name}</Link> },
+    { id: "status",      label: "Status",          defaultOn: true,  group: "standard",
+      render: (r) => <QuoteStatusPill status={r.quote.status} statuses={quoteStatuses} /> },
+    { id: "lines",       label: "Lines",           defaultOn: true,  group: "standard", align: "center",
+      render: (r) => muted(`${r.lineCount} items`) },
+    { id: "total",       label: "Total",           defaultOn: true,  group: "standard", align: "right",
+      render: (r) => inr(r.quote.total), cellStyle: { fontWeight: 600 } },
+    { id: "date",        label: "Date",            defaultOn: true,  group: "standard",
+      render: (r) => muted(fmtDate(r.quote.created_at)) },
+    { id: "valid_until", label: "Valid until",     defaultOn: false, group: "standard",
+      render: (r) => muted(r.quote.valid_until ? fmtDate(r.quote.valid_until) : "—") },
+    { id: "territory",   label: "Territory",       defaultOn: false, group: "standard",
+      render: (r) => muted(r.quote.territory ?? "—") },
+    { id: "name",        label: "Quote name",      defaultOn: false, group: "standard",
+      render: (r) => r.quote.name || muted("—") },
+    { id: "sales_org",   label: "Sales org",       defaultOn: false, group: "standard",
+      render: (r) => muted(r.quote.sales_org ?? "—") },
+    { id: "business_status", label: "Business status", defaultOn: false, group: "standard",
+      render: (r) => muted(r.quote.business_status ? BUSINESS_STATUS_LABEL[r.quote.business_status] ?? r.quote.business_status : "—") },
+    { id: "outcome",     label: "Outcome",         defaultOn: false, group: "standard",
+      render: (r) => <span style={{ color: OUTCOME_COLOR[r.quote.outcome], fontWeight: 600 }}>{OUTCOME_LABEL[r.quote.outcome] ?? r.quote.outcome}</span> },
+    { id: "ref_no",      label: "Ref No.",         defaultOn: false, group: "standard",
+      render: (r) => muted(r.quote.ref_no ?? "—") },
+    { id: "pr_no",       label: "PR No.",          defaultOn: false, group: "standard",
+      render: (r) => muted(r.quote.pr_no ?? "—") },
+    { id: "po_number",   label: "PO number",       defaultOn: false, group: "standard",
+      render: (r) => muted(r.quote.po_number ?? "—") },
+    { id: "po_amount",   label: "PO amount",       defaultOn: false, group: "standard", align: "right",
+      render: (r) => r.quote.po_amount != null ? inr(r.quote.po_amount) : muted("—") },
+    { id: "discount",    label: "Discount",        defaultOn: false, group: "standard",
+      render: (r) => discountDisplay(r.quote) },
+    { id: "gst_rate",    label: "GST %",           defaultOn: false, group: "standard",
+      render: (r) => muted(r.quote.gst_rate != null ? `${r.quote.gst_rate}%` : "—") },
+    { id: "revision",    label: "Revision",        defaultOn: false, group: "standard", align: "center",
+      render: (r) => muted(`Rev ${r.quote.revision ?? 1}`) },
+    { id: "notes",       label: "Notes",           defaultOn: false, group: "standard",
+      render: (r) => r.quote.notes ? truncated(r.quote.notes) : muted("—") },
+    { id: "terms",       label: "Terms",           defaultOn: false, group: "standard",
+      render: (r) => r.quote.terms ? truncated(r.quote.terms) : muted("—") },
+  ];
+}
+
+function customValueDisplay(field: EffectiveField, raw: unknown): React.ReactNode {
+  if (raw === null || raw === undefined || raw === "") return muted("—");
+  if (field.widget === "checkbox") return raw ? "Yes" : "No";
+  if (field.widget === "date" && typeof raw === "string") {
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? raw : fmtDate(raw);
+  }
+  return truncated(String(raw));
+}
+
+function buildCustomColumns(fields: EffectiveField[]): ColDef[] {
+  return fields
+    .filter((f) => !f.hidden)
+    .map((f) => ({
+      id: f.field_key,
+      label: f.label,
+      defaultOn: true, // shown as soon as a tenant adds one -- no extra step to "discover" it
+      group: "custom" as const,
+      render: (r: QuoteSummary) => customValueDisplay(f, (r.quote.custom_data ?? {})[f.field_key]),
+    }));
+}
 
 const th: React.CSSProperties = {
   textAlign: "left", color: c.hint, fontWeight: 500,
@@ -49,6 +138,8 @@ const td: React.CSSProperties = {
 
 export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QUOTE_STATUSES, caseLinkedQuoteIds = [] }: { initialRows: QuoteSummary[]; quoteStatuses?: QuoteStatusDef[]; caseLinkedQuoteIds?: string[] }) {
   const router = useRouter();
+  const role = useUserRole();
+  const isAdmin = role === "admin";
 
   const [rows, setRows]                 = useState<QuoteSummary[]>(initialRows);
   const [selected, setSelected]         = useState<Set<string>>(new Set());
@@ -56,18 +147,72 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   const [filterAccount, setFilterAccount] = useState("");
   const [toast, setToast]               = useState<string | null>(null);
   const [adaptOpen, setAdaptOpen]       = useState(false);
-  const [visibleCols, setVisibleCols]   = useState<Set<ColId>>(
-    new Set(COLUMNS.filter((c) => c.defaultOn).map((c) => c.id))
+  const [customFields, setCustomFields] = useState<EffectiveField[]>([]);
+
+  const standardColumns = useMemo(() => buildStandardColumns(quoteStatuses), [quoteStatuses]);
+  const customColumns   = useMemo(() => buildCustomColumns(customFields), [customFields]);
+  const columns         = useMemo(() => [...standardColumns, ...customColumns], [standardColumns, customColumns]);
+
+  const [visibleCols, setVisibleCols]   = useState<Set<string>>(
+    new Set(standardColumns.filter((col) => col.defaultOn).map((col) => col.id))
   );
+
+  // Custom fields for "quote" -- the same fields a tenant admin manages via
+  // the Adapt drawer (also mounted on the quote create/edit form). Fetched
+  // client-side and refetched whenever the drawer reports a change, so a
+  // newly-added field appears as a column with no page reload needed.
+  const seenCustomIds = useRef<Set<string>>(new Set());
+  function fetchCustomFields() {
+    fetch("/api/settings/field-config?object=quote")
+      .then((r) => r.json())
+      .then((data: { sections?: { fields: EffectiveField[] }[] }) => {
+        setCustomFields((data.sections ?? []).flatMap((s) => s.fields));
+      })
+      .catch(() => {});
+  }
+  useEffect(() => {
+    fetchCustomFields();
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ objectType?: string }>).detail;
+      if (!detail || detail.objectType === "quote") fetchCustomFields();
+    };
+    window.addEventListener("bpm:cf-changed", handler);
+    return () => window.removeEventListener("bpm:cf-changed", handler);
+  }, []);
+
+  // Show newly-discovered custom fields by default (so adding one via Adapt
+  // makes it visible immediately), without re-showing a field the user has
+  // since explicitly hidden via the column picker. "Seen" is persisted so a
+  // hide sticks across page loads instead of being re-defaulted every visit.
+  useEffect(() => {
+    if (customColumns.length === 0) return;
+    if (seenCustomIds.current.size === 0) {
+      try { (JSON.parse(localStorage.getItem(LS_SEEN_KEY) ?? "[]") as string[]).forEach((id) => seenCustomIds.current.add(id)); } catch { /* ignore */ }
+    }
+    setVisibleCols((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      customColumns.forEach((col) => {
+        if (!seenCustomIds.current.has(col.id)) {
+          next.add(col.id);
+          changed = true;
+        }
+        seenCustomIds.current.add(col.id);
+      });
+      try { localStorage.setItem(LS_SEEN_KEY, JSON.stringify([...seenCustomIds.current])); } catch { /* ignore */ }
+      if (changed) { try { localStorage.setItem(LS_KEY, JSON.stringify([...next])); } catch { /* ignore */ } }
+      return changed ? next : prev;
+    });
+  }, [customColumns]);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(LS_KEY);
-      if (stored) setVisibleCols(new Set(JSON.parse(stored) as ColId[]));
+      if (stored) setVisibleCols(new Set(JSON.parse(stored) as string[]));
     } catch { /* ignore */ }
   }, []);
 
-  function toggleCol(id: ColId) {
+  function toggleCol(id: string) {
     setVisibleCols((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -175,8 +320,8 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   };
 
   const selectedCount = selected.size;
-  const vis = (id: ColId) => visibleCols.has(id);
-  const colCount = 1 + 1 + visibleCols.size; // checkbox + ref + visible
+  const shownColumns = columns.filter((col) => visibleCols.has(col.id));
+  const colCount = 1 + 1 + shownColumns.length; // checkbox + ref + visible
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -255,8 +400,13 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
             {filtered.length} quote{filtered.length !== 1 ? "s" : ""}
           </span>
 
-          {/* Columns picker */}
-          <div style={{ position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Adapt drawer -- lets an admin add/rename/hide quote fields; a
+                field added here becomes a column in this list immediately. */}
+            <AdaptObjectDrawer objectType="quote" objectLabel="Quotation" isAdmin={isAdmin} />
+
+            {/* Columns picker */}
+            <div style={{ position: "relative" }}>
             <button
               type="button"
               onClick={() => setAdaptOpen((v) => !v)}
@@ -275,36 +425,44 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
               <div style={{
                 position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50,
                 background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.10)", padding: "10px 0", minWidth: 180,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.10)", padding: "10px 0", minWidth: 200,
+                maxHeight: 420, overflowY: "auto",
               }}>
                 <div style={{ padding: "4px 14px 8px", fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>
                   Show columns
                 </div>
-                {COLUMNS.map((col) => {
+                {columns.map((col, i) => {
                   const on = visibleCols.has(col.id);
+                  const firstCustom = col.group === "custom" && columns[i - 1]?.group !== "custom";
                   return (
-                    <button
-                      key={col.id}
-                      type="button"
-                      onClick={() => toggleCol(col.id)}
-                      style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: 10,
-                        padding: "7px 14px", background: "none", border: "none",
-                        cursor: "pointer", textAlign: "left",
-                      }}
-                    >
-                      <div style={{
-                        width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-                        background: on ? c.accent : "none",
-                        border: `1.5px solid ${on ? c.accent : c.line}`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        {on && <CheckIcon size={10} color="#fff" />}
-                      </div>
-                      <span style={{ fontSize: 12.5, color: on ? c.ink : c.hint, fontWeight: on ? 600 : 400 }}>
-                        {col.label}
-                      </span>
-                    </button>
+                    <div key={col.id}>
+                      {firstCustom && (
+                        <div style={{ padding: "8px 14px 4px", fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, borderTop: `1px solid ${c.line}`, marginTop: 6 }}>
+                          Custom fields
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleCol(col.id)}
+                        style={{
+                          width: "100%", display: "flex", alignItems: "center", gap: 10,
+                          padding: "7px 14px", background: "none", border: "none",
+                          cursor: "pointer", textAlign: "left",
+                        }}
+                      >
+                        <div style={{
+                          width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                          background: on ? c.accent : "none",
+                          border: `1.5px solid ${on ? c.accent : c.line}`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          {on && <CheckIcon size={10} color="#fff" />}
+                        </div>
+                        <span style={{ fontSize: 12.5, color: on ? c.ink : c.hint, fontWeight: on ? 600 : 400 }}>
+                          {col.label}
+                        </span>
+                      </button>
+                    </div>
                   );
                 })}
                 <div style={{ borderTop: `1px solid ${c.line}`, margin: "8px 0 4px" }} />
@@ -321,6 +479,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                 </button>
               </div>
             )}
+            </div>
           </div>
         </div>
 
@@ -338,14 +497,9 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                   />
                 </th>
                 <th style={th}>Quote ID</th>
-                {vis("type")        && <th style={th}>Type</th>}
-                {vis("account")     && <th style={th}>Account</th>}
-                {vis("status")      && <th style={th}>Status</th>}
-                {vis("lines")       && <th style={{ ...th, textAlign: "center" }}>Lines</th>}
-                {vis("total")       && <th style={{ ...th, textAlign: "right" }}>Total</th>}
-                {vis("date")        && <th style={th}>Date</th>}
-                {vis("valid_until") && <th style={th}>Valid until</th>}
-                {vis("territory")   && <th style={th}>Territory</th>}
+                {shownColumns.map((col) => (
+                  <th key={col.id} style={{ ...th, textAlign: col.align ?? "left" }}>{col.label}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -356,7 +510,8 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                   </td>
                 </tr>
               ) : (
-                filtered.map(({ quote, account, lineCount }) => {
+                filtered.map((row) => {
+                  const { quote } = row;
                   const isSelected = selected.has(quote.id);
                   return (
                     <tr
@@ -384,20 +539,11 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                           {quote.ref}
                         </Link>
                       </td>
-                      {vis("type")    && <td style={{ ...td, color: c.muted, fontSize: 12 }}>{OFFER_TYPE_LABEL[quote.type] ?? quote.type}</td>}
-                      {vis("account") && (
-                        <td style={td}>
-                          <Link href={ROUTES.account(account.id)} onClick={(e) => e.stopPropagation()} style={{ color: c.ink }}>
-                            {account.name}
-                          </Link>
+                      {shownColumns.map((col) => (
+                        <td key={col.id} style={{ ...td, textAlign: col.align ?? "left", ...col.cellStyle }}>
+                          {col.render(row)}
                         </td>
-                      )}
-                      {vis("status")      && <td style={td}><QuoteStatusPill status={quote.status} statuses={quoteStatuses} /></td>}
-                      {vis("lines")       && <td style={{ ...td, textAlign: "center", color: c.muted }}>{lineCount} items</td>}
-                      {vis("total")       && <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>{inr(quote.total)}</td>}
-                      {vis("date")        && <td style={{ ...td, color: c.muted }}>{fmtDate(quote.created_at)}</td>}
-                      {vis("valid_until") && <td style={{ ...td, color: c.muted }}>{quote.valid_until ? fmtDate(quote.valid_until) : "—"}</td>}
-                      {vis("territory")   && <td style={{ ...td, color: c.muted }}>{quote.territory ?? "—"}</td>}
+                      ))}
                     </tr>
                   );
                 })

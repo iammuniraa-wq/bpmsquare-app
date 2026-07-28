@@ -216,6 +216,11 @@ export type Quote = {
   selected_option_id?: string | null;
   territory?: string | null;
   sales_org?: string | null;
+  // Custom-field values for this quote (see custom_fields table +
+  // AdaptObjectDrawer) -- keyed by field_key. Column exists in the DB and is
+  // already read/written by the API routes and QuoteForm's cfValues editor;
+  // was just missing from this type.
+  custom_data?: Record<string, unknown> | null;
 };
 
 // One row per revision of a quote — tracks what changed between versions.
