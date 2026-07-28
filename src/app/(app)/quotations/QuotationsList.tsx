@@ -337,12 +337,13 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
           { label: "In pipeline",       value: inr(totalPipeline),              color: pillar.blue.fg },
           { label: "Overdue",           value: overdueCount,                    color: overdueCount > 0 ? pillar.amber.fg : c.muted },
           { label: "Awaiting approval", value: awaitingApprovalCount,           color: c.muted },
-          { label: "From cases",        value: `${caseLinked.count} · ${inr(caseLinked.value)}`, color: pillar.purple.fg },
-          { label: "Standalone",        value: `${standalone.count} · ${inr(standalone.value)}`, color: c.muted },
+          { label: "From cases",        value: caseLinked.count,                color: pillar.purple.fg, sub: inr(caseLinked.value) },
+          { label: "Standalone",        value: standalone.count,                color: c.muted,          sub: inr(standalone.value) },
         ].map((s) => (
           <div key={s.label} style={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, padding: "12px 14px" }}>
             <div style={{ fontSize: 11, color: c.muted }}>{s.label}</div>
             <div style={{ fontSize: 20, fontWeight: 600, color: s.color, marginTop: 4 }}>{s.value}</div>
+            {"sub" in s && <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{s.sub}</div>}
           </div>
         ))}
       </div>
@@ -496,7 +497,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                     style={{ cursor: "pointer", accentColor: c.accent }}
                   />
                 </th>
-                <th style={th}>Quote ID</th>
+                <th style={th}>Ref No</th>
                 {shownColumns.map((col) => (
                   <th key={col.id} style={{ ...th, textAlign: col.align ?? "left" }}>{col.label}</th>
                 ))}
@@ -536,7 +537,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                           onClick={(e) => e.stopPropagation()}
                           style={{ fontWeight: 600, color: c.accent, fontFamily: "monospace" }}
                         >
-                          {quote.ref}
+                          {quote.ref_no || quote.ref}
                         </Link>
                       </td>
                       {shownColumns.map((col) => (

@@ -22,7 +22,7 @@ export default function ContactDetailSections({ contact, accountAddress }: { con
       objectType="contact"
       record={contact as unknown as Record<string, unknown>}
       patchUrl={`/api/contacts/${contact.id}`}
-      exclude={["name", "role", "phone", "email"]}
+      exclude={["name", "role", "phone"]}
       sectionExtras={accountAddress ? {
         Address: ({ setValues }: FormHelpers) => (
           <button
