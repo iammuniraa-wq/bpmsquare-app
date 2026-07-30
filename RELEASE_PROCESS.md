@@ -90,7 +90,7 @@ document committed to both branches.
 - [ ] **Optional**: Vercel → Domains → assign `staging.bpmsquare.com` to the
       `develop` branch for a stable staging URL (host-based tenant resolution
       needs the staging tenant's `custom_domain` to match whatever host you use).
-- [ ] Confirm the staging deployment can log in and sees the `dev` tenant.
+- [x] Confirm the staging deployment can log in and sees the `dev` tenant. (Verified 2026-07-30 -- login OK at the develop branch alias URL.)
 
 > Note: the Supabase GitHub integration applies migrations on **push** to the
 > configured branch -- connecting it to an existing branch does not sync
