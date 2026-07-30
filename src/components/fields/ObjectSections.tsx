@@ -162,7 +162,7 @@ export default function ObjectSections({ objectType, record, patchUrl, onSaved, 
             </button>
             <button type="button" onClick={handleSave} disabled={pending} style={{
               padding: "5px 14px", borderRadius: 6, border: "none",
-              background: c.accent, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer",
+              background: `var(--modern-accent, ${c.accent})`, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer",
             }}>
               {pending ? "Saving…" : "Save"}
             </button>

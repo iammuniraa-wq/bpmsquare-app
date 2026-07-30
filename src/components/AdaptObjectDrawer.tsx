@@ -62,15 +62,15 @@ const LEGACY_SECTIONS: Record<string, string[]> = {
 
 const inp: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", padding: "7px 10px", fontSize: 13,
-  border: "1px solid #1e2d3d", borderRadius: 6,
-  background: "#0a1520", color: "#e2e8f0", outline: "none", fontFamily: "inherit",
+  border: "1px solid var(--drawer-line)", borderRadius: 6,
+  background: "var(--drawer-card)", color: "var(--drawer-text)", outline: "none", fontFamily: "inherit",
 };
 const lbl: React.CSSProperties = {
-  display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748b",
+  display: "block", fontSize: 10.5, fontWeight: 700, color: "var(--drawer-hint)",
   textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4,
 };
 const sectionHead: React.CSSProperties = {
-  fontSize: 10.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase",
+  fontSize: 10.5, fontWeight: 700, color: "var(--drawer-hint)", textTransform: "uppercase",
   letterSpacing: 0.5, margin: "16px 0 8px",
 };
 
@@ -153,28 +153,28 @@ export default function AdaptObjectDrawer({ objectType, objectLabel, isAdmin }: 
           />
           <div style={{
             position: "fixed", top: 0, right: 0, width: 380, height: "100vh",
-            background: "#0e1a28", zIndex: 201, display: "flex", flexDirection: "column",
+            background: "var(--drawer-bg)", zIndex: 201, display: "flex", flexDirection: "column",
             boxShadow: "-4px 0 24px rgba(0,0,0,0.45)",
           }}>
             <div style={{
-              padding: "18px 20px 0", borderBottom: "1px solid #1e2d3d",
+              padding: "18px 20px 0", borderBottom: "1px solid var(--drawer-line)",
               display: "flex", alignItems: "flex-start", justifyContent: "space-between",
             }}>
               <div style={{ paddingBottom: 14 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>Adapt {objectLabel}</div>
-                <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 2 }}>Fields, layout and rules</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--drawer-text)" }}>Adapt {objectLabel}</div>
+                <div style={{ fontSize: 11.5, color: "var(--drawer-hint)", marginTop: 2 }}>Fields, layout and rules</div>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                style={{ background: "none", border: "none", color: "#64748b", fontSize: 20, cursor: "pointer", lineHeight: 1 }}
+                style={{ background: "none", border: "none", color: "var(--drawer-hint)", fontSize: 20, cursor: "pointer", lineHeight: 1 }}
               >
                 ✕
               </button>
             </div>
 
             {supportsRules && (
-              <div style={{ display: "flex", borderBottom: "1px solid #1e2d3d" }}>
+              <div style={{ display: "flex", borderBottom: "1px solid var(--drawer-line)" }}>
                 {(["fields", "rules"] as const).map((t) => (
                   <button
                     key={t}
@@ -183,7 +183,7 @@ export default function AdaptObjectDrawer({ objectType, objectLabel, isAdmin }: 
                     style={{
                       flex: 1, padding: "10px 0", background: "none", border: "none", cursor: "pointer",
                       fontSize: 12.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
-                      color: tab === t ? c.accent : "#64748b",
+                      color: tab === t ? c.accent : "var(--drawer-hint)",
                       borderBottom: tab === t ? `2px solid ${c.accent}` : "2px solid transparent",
                     }}
                   >
@@ -195,7 +195,7 @@ export default function AdaptObjectDrawer({ objectType, objectLabel, isAdmin }: 
 
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
               {loading ? (
-                <div style={{ color: "#64748b", fontSize: 13, textAlign: "center", padding: "24px 0" }}>Loading…</div>
+                <div style={{ color: "var(--drawer-hint)", fontSize: 13, textAlign: "center", padding: "24px 0" }}>Loading…</div>
               ) : error ? (
                 <div style={{ color: "#ef4444", fontSize: 13, textAlign: "center", padding: "24px 0" }}>{error}</div>
               ) : tab === "fields" ? (
@@ -345,7 +345,7 @@ function FieldsTab({ objectType, sections, sectionNames, onChanged }: {
   return (
     <>
       {sections.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "20px 0 8px", color: "#64748b", fontSize: 13 }}>
+        <div style={{ textAlign: "center", padding: "20px 0 8px", color: "var(--drawer-hint)", fontSize: 13 }}>
           No fields yet.
         </div>
       ) : (
@@ -364,12 +364,12 @@ function FieldsTab({ objectType, sections, sectionNames, onChanged }: {
                     onDragOver={(e) => e.preventDefault()}
                     onDragEnd={() => handleDragEnd(section)}
                     style={{
-                      background: isDragging ? "#132335" : "#0a1520", border: "1px solid #1e2d3d", borderRadius: 8,
+                      background: isDragging ? "var(--drawer-card-alt)" : "var(--drawer-card)", border: "1px solid var(--drawer-line)", borderRadius: 8,
                       padding: "9px 10px", opacity: isDragging ? 0.5 : f.hidden ? 0.55 : 1,
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ color: "#475569", fontSize: 12, cursor: "grab", flexShrink: 0 }}>⠿</span>
+                      <span style={{ color: "var(--drawer-hint-faint)", fontSize: 12, cursor: "grab", flexShrink: 0 }}>⠿</span>
                       {editingLabel === f.field_key ? (
                         <input
                           autoFocus
@@ -382,7 +382,7 @@ function FieldsTab({ objectType, sections, sectionNames, onChanged }: {
                       ) : (
                         <span
                           onClick={() => startRename(f)}
-                          style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", cursor: "pointer", flex: 1, minWidth: 0 }}
+                          style={{ fontSize: 13, fontWeight: 600, color: "var(--drawer-text)", cursor: "pointer", flex: 1, minWidth: 0 }}
                           title="Click to rename"
                         >
                           {f.label}
@@ -394,8 +394,8 @@ function FieldsTab({ objectType, sections, sectionNames, onChanged }: {
                         disabled={f.locked}
                         title={f.locked ? "This field can't be hidden" : f.hidden ? "Hidden — click to show" : "Visible — click to hide"}
                         style={{
-                          background: "none", border: "1px solid #2d3748", borderRadius: 5,
-                          color: f.locked ? "#334155" : f.hidden ? "#64748b" : c.accent,
+                          background: "none", border: "1px solid var(--drawer-line-strong)", borderRadius: 5,
+                          color: f.locked ? "var(--drawer-hint-faint)" : f.hidden ? "var(--drawer-hint)" : c.accent,
                           cursor: f.locked ? "not-allowed" : "pointer", fontSize: 11, padding: "3px 7px", flexShrink: 0,
                         }}
                       >
@@ -406,14 +406,14 @@ function FieldsTab({ objectType, sections, sectionNames, onChanged }: {
                           type="button"
                           onClick={() => removeCustomField(f.id!)}
                           disabled={deleting === f.id}
-                          style={{ background: "none", border: "1px solid #2d3748", borderRadius: 5, color: "#ef4444", cursor: "pointer", fontSize: 12, padding: "3px 7px", flexShrink: 0, opacity: deleting === f.id ? 0.4 : 1 }}
+                          style={{ background: "none", border: "1px solid var(--drawer-line-strong)", borderRadius: 5, color: "#ef4444", cursor: "pointer", fontSize: 12, padding: "3px 7px", flexShrink: 0, opacity: deleting === f.id ? 0.4 : 1 }}
                         >
                           ✕
                         </button>
                       )}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                      <span style={{ fontFamily: "monospace", fontSize: 10.5, color: "#475569" }}>{f.field_key}</span>
+                      <span style={{ fontFamily: "monospace", fontSize: 10.5, color: "var(--drawer-hint-faint)" }}>{f.field_key}</span>
                       <select
                         value={f.section}
                         onChange={(e) => reassignSection(f, e.target.value)}
@@ -430,8 +430,8 @@ function FieldsTab({ objectType, sections, sectionNames, onChanged }: {
         ))
       )}
 
-      <div style={{ borderTop: "1px solid #1e2d3d", paddingTop: 16, marginTop: 4 }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>
+      <div style={{ borderTop: "1px solid var(--drawer-line)", paddingTop: 16, marginTop: 4 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--drawer-hint)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>
           Add custom field
         </div>
 
@@ -459,11 +459,11 @@ function FieldsTab({ objectType, sections, sectionNames, onChanged }: {
         )}
         <label style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12, cursor: "pointer" }}>
           <input type="checkbox" checked={newRequired} onChange={(e) => setNewRequired(e.target.checked)} style={{ width: 14, height: 14, accentColor: c.accent }} />
-          <span style={{ fontSize: 12, color: "#94a3b8" }}>Required</span>
+          <span style={{ fontSize: 12, color: "var(--drawer-text-dim)" }}>Required</span>
         </label>
 
         {saveErr && (
-          <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 8, padding: "7px 10px", background: "#1a0a0a", borderRadius: 6, border: "1px solid #3d1a1a" }}>
+          <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 8, padding: "7px 10px", background: "var(--drawer-err-bg)", borderRadius: 6, border: "1px solid var(--drawer-err-border)" }}>
             {saveErr}
           </div>
         )}
@@ -557,29 +557,29 @@ function RulesTab({ objectType, allFields, rules, onChanged }: {
   return (
     <>
       {rules.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "20px 0 8px", color: "#64748b", fontSize: 13 }}>
+        <div style={{ textAlign: "center", padding: "20px 0 8px", color: "var(--drawer-hint)", fontSize: 13 }}>
           No rules yet.
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
           {rules.map((rule) => (
             <div key={rule.id} style={{
-              background: "#0a1520", border: "1px solid #1e2d3d", borderRadius: 8,
+              background: "var(--drawer-card)", border: "1px solid var(--drawer-line)", borderRadius: 8,
               padding: "9px 10px", opacity: rule.is_active ? 1 : 0.5,
             }}>
-              <div style={{ fontSize: 12.5, color: "#e2e8f0", lineHeight: 1.5 }}>{ruleSummary(rule, fieldLabel)}</div>
+              <div style={{ fontSize: 12.5, color: "var(--drawer-text)", lineHeight: 1.5 }}>{ruleSummary(rule, fieldLabel)}</div>
               <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
                 <button
                   type="button"
                   onClick={() => toggleActive(rule)}
-                  style={{ background: "none", border: "1px solid #2d3748", borderRadius: 5, color: rule.is_active ? c.accent : "#64748b", cursor: "pointer", fontSize: 11, padding: "3px 8px" }}
+                  style={{ background: "none", border: "1px solid var(--drawer-line-strong)", borderRadius: 5, color: rule.is_active ? c.accent : "var(--drawer-hint)", cursor: "pointer", fontSize: 11, padding: "3px 8px" }}
                 >
                   {rule.is_active ? "Active" : "Inactive"}
                 </button>
                 <button
                   type="button"
                   onClick={() => deleteRule(rule)}
-                  style={{ background: "none", border: "1px solid #2d3748", borderRadius: 5, color: "#ef4444", cursor: "pointer", fontSize: 12, padding: "3px 8px" }}
+                  style={{ background: "none", border: "1px solid var(--drawer-line-strong)", borderRadius: 5, color: "#ef4444", cursor: "pointer", fontSize: 12, padding: "3px 8px" }}
                 >
                   ✕
                 </button>
@@ -594,14 +594,14 @@ function RulesTab({ objectType, allFields, rules, onChanged }: {
           type="button"
           onClick={() => setBuilding(true)}
           style={{
-            width: "100%", padding: "9px 0", borderRadius: 7, border: `1px dashed #2d3748`,
+            width: "100%", padding: "9px 0", borderRadius: 7, border: "1px dashed var(--drawer-line-strong)",
             background: "none", color: c.accent, fontWeight: 600, fontSize: 13, cursor: "pointer",
           }}
         >
           + New rule
         </button>
       ) : (
-        <div style={{ borderTop: "1px solid #1e2d3d", paddingTop: 16 }}>
+        <div style={{ borderTop: "1px solid var(--drawer-line)", paddingTop: 16 }}>
           <div style={{ marginBottom: 10 }}>
             <label style={lbl}>Target field</label>
             <select style={{ ...inp, cursor: "pointer" }} value={targetKey} onChange={(e) => setTargetKey(e.target.value)}>
@@ -618,7 +618,7 @@ function RulesTab({ objectType, allFields, rules, onChanged }: {
           <ConditionGroupEditor group={root} onChange={setRoot} fields={allFields} />
 
           {saveErr && (
-            <div style={{ fontSize: 12, color: "#ef4444", margin: "10px 0", padding: "7px 10px", background: "#1a0a0a", borderRadius: 6, border: "1px solid #3d1a1a" }}>
+            <div style={{ fontSize: 12, color: "#ef4444", margin: "10px 0", padding: "7px 10px", background: "var(--drawer-err-bg)", borderRadius: 6, border: "1px solid var(--drawer-err-border)" }}>
               {saveErr}
             </div>
           )}
@@ -635,7 +635,7 @@ function RulesTab({ objectType, allFields, rules, onChanged }: {
             <button
               type="button"
               onClick={() => { setBuilding(false); setRoot(newConditionGroup()); setSaveErr(""); }}
-              style={{ padding: "9px 14px", borderRadius: 7, border: "1px solid #2d3748", background: "none", color: "#94a3b8", fontWeight: 500, fontSize: 13, cursor: "pointer" }}
+              style={{ padding: "9px 14px", borderRadius: 7, border: "1px solid var(--drawer-line-strong)", background: "none", color: "var(--drawer-text-dim)", fontWeight: 500, fontSize: 13, cursor: "pointer" }}
             >
               Cancel
             </button>
@@ -664,8 +664,8 @@ function ConditionGroupEditor({ group, onChange, fields, depth = 0 }: {
 
   return (
     <div style={{
-      border: "1px solid #1e2d3d", borderRadius: 7, padding: 10,
-      background: depth % 2 === 0 ? "#0a1520" : "#0e1a28",
+      border: "1px solid var(--drawer-line)", borderRadius: 7, padding: 10,
+      background: depth % 2 === 0 ? "var(--drawer-card)" : "var(--drawer-bg)",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <select
@@ -691,7 +691,7 @@ function ConditionGroupEditor({ group, onChange, fields, depth = 0 }: {
             <button
               type="button"
               onClick={() => removeChild(i)}
-              style={{ background: "none", border: "1px solid #2d3748", borderRadius: 5, color: "#ef4444", cursor: "pointer", fontSize: 11, padding: "3px 7px", flexShrink: 0 }}
+              style={{ background: "none", border: "1px solid var(--drawer-line-strong)", borderRadius: 5, color: "#ef4444", cursor: "pointer", fontSize: 11, padding: "3px 7px", flexShrink: 0 }}
             >
               ✕
             </button>
@@ -703,14 +703,14 @@ function ConditionGroupEditor({ group, onChange, fields, depth = 0 }: {
         <button
           type="button"
           onClick={() => onChange({ ...group, children: [...group.children, newFieldCondition()] })}
-          style={{ fontSize: 11, color: c.accent, background: "none", border: "1px dashed #2d3748", borderRadius: 5, padding: "4px 8px", cursor: "pointer" }}
+          style={{ fontSize: 11, color: c.accent, background: "none", border: "1px dashed var(--drawer-line-strong)", borderRadius: 5, padding: "4px 8px", cursor: "pointer" }}
         >
           + Add condition
         </button>
         <button
           type="button"
           onClick={() => onChange({ ...group, children: [...group.children, newConditionGroup()] })}
-          style={{ fontSize: 11, color: "#94a3b8", background: "none", border: "1px dashed #2d3748", borderRadius: 5, padding: "4px 8px", cursor: "pointer" }}
+          style={{ fontSize: 11, color: "var(--drawer-text-dim)", background: "none", border: "1px dashed var(--drawer-line-strong)", borderRadius: 5, padding: "4px 8px", cursor: "pointer" }}
         >
           + Add group
         </button>
@@ -729,7 +729,7 @@ function FieldConditionEditor({ condition, onChange, fields }: {
   const valueOptions = field?.widget === "select" ? field.options : field?.widget === "enum" ? field.enumOptions?.map((o) => o.value) : undefined;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "#0e1a28", border: "1px solid #1e2d3d", borderRadius: 6, padding: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "var(--drawer-bg)", border: "1px solid var(--drawer-line)", borderRadius: 6, padding: 8 }}>
       <select
         value={condition.field_key}
         onChange={(e) => onChange({ ...condition, field_key: e.target.value })}

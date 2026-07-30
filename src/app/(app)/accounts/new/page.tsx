@@ -345,7 +345,7 @@ function Actions({ pending, cancelHref, label }: { pending: boolean; cancelHref:
         disabled={pending}
         style={{
           flex: 1, padding: "12px 0", borderRadius: 8, border: "none",
-          background: c.accent, color: "#fff", fontWeight: 700, fontSize: 14,
+          background: `var(--modern-accent, ${c.accent})`, color: "#fff", fontWeight: 700, fontSize: 14,
           cursor: pending ? "wait" : "pointer",
         }}
       >

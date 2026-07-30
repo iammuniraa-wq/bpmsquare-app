@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { Account, Contact } from "@/lib/types";
 import { c, pillar } from "@/lib/theme";
+import { cardStyle as shellCardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { CheckIcon, XIcon, Phone, Mail } from "@/components/Icons";
 import type { PillarKey } from "@/lib/theme";
@@ -241,7 +242,7 @@ function ColPicker({ cols, visible, toggle, onClose }: {
 }
 
 const cardStyle: React.CSSProperties = {
-  background: "#fff", border: `1px solid ${c.line}`, borderRadius: 12, overflow: "hidden",
+  ...shellCardStyle, padding: 0, overflow: "hidden",
 };
 
 const th: React.CSSProperties = {

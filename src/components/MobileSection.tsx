@@ -21,9 +21,10 @@ export default function MobileSection({
 
   return (
     <div style={{
-      background: c.panel,
-      border: `1px solid ${c.line}`,
-      borderRadius: 12,
+      background: "var(--card-bg)",
+      border: "1px solid var(--line)",
+      borderRadius: "var(--card-radius)",
+      boxShadow: "var(--card-shadow)",
       overflow: "hidden",
     }}>
       <button
@@ -40,7 +41,7 @@ export default function MobileSection({
         <span style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>{title}</span>
         <span style={{
           width: 24, height: 24, borderRadius: 6,
-          background: open ? c.accent : c.line,
+          background: open ? `var(--modern-accent, ${c.accent})` : c.line,
           color: open ? "#fff" : c.muted,
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 16, fontWeight: 300, lineHeight: 1, flexShrink: 0,

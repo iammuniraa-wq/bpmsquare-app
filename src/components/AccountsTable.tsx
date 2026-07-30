@@ -8,6 +8,7 @@ const ACCOUNT_TYPE_LABEL: Record<Account["type"], string> = {
   prospect: "Prospect", oem: "OEM", direct: "Direct", end_customer: "End customer",
 };
 import { c, pillar } from "@/lib/theme";
+import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import { MapPin, CheckIcon, XIcon } from "@/components/Icons";
@@ -274,12 +275,6 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
 }
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
-
-const cardStyle: React.CSSProperties = {
-  background: "#fff",
-  border: `1px solid ${c.line}`,
-  borderRadius: 12,
-};
 
 const th: React.CSSProperties = {
   textAlign: "left", color: c.hint, fontWeight: 600,

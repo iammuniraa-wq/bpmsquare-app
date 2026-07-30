@@ -712,7 +712,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
     <>
       {/* Adapt mode banner */}
       {adaptMode && (
-        <div style={{ background: "#0c447c", color: "#fff", padding: "10px 16px", borderRadius: 8, marginBottom: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ background: "var(--modern-accent, #0c447c)", color: "#fff", padding: "10px 16px", borderRadius: 8, marginBottom: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13 }}>⊙ Adapt mode — drag sections to reorder, add custom sections &amp; fields</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <button

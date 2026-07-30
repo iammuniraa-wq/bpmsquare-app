@@ -675,23 +675,23 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
       {/* drawer */}
       <div style={{
         position: "fixed", top: 0, right: 0, bottom: 0, width: 300,
-        background: "#0e1a28", zIndex: 100, display: "flex", flexDirection: "column",
+        background: "var(--drawer-bg)", zIndex: 100, display: "flex", flexDirection: "column",
         boxShadow: "-4px 0 24px rgba(0,0,0,0.35)",
       }}>
         {/* header */}
-        <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid var(--drawer-line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Adapt dashboard</div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>Drag to reorder · click eye to hide</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--drawer-text)" }}>Adapt dashboard</div>
+            <div style={{ fontSize: 11, color: "var(--drawer-text-dim)", marginTop: 2 }}>Drag to reorder · click eye to hide</div>
           </div>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 18, cursor: "pointer", lineHeight: 1, padding: "2px 6px" }}>✕</button>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--drawer-text-dim)", fontSize: 18, cursor: "pointer", lineHeight: 1, padding: "2px 6px" }}>✕</button>
         </div>
 
         {/* block list */}
         <div style={{ flex: 1, overflowY: "auto", padding: "10px 0" }}>
           {/* Quick add — per-object starter bundles */}
-          <div style={{ padding: "0 12px 8px", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 6 }}>
-            <div style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+          <div style={{ padding: "0 12px 8px", borderBottom: "1px solid var(--drawer-line)", marginBottom: 6 }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--drawer-hint)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
               Quick add
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -703,7 +703,7 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
                   style={{
                     fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 20, cursor: "pointer",
                     background: "rgba(55,138,221,0.12)", border: "1px solid rgba(55,138,221,0.35)",
-                    color: "#bcd9f7",
+                    color: "var(--modern-accent, #bcd9f7)",
                   }}
                 >
                   + {bundle.label}
@@ -712,7 +712,7 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
             </div>
           </div>
 
-          <div style={{ padding: "0 12px 6px", fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1 }}>
+          <div style={{ padding: "0 12px 6px", fontSize: 9.5, fontWeight: 700, color: "var(--drawer-hint)", textTransform: "uppercase", letterSpacing: 1 }}>
             Drag to reorder
           </div>
           {layout.map((block, i) => {
@@ -736,15 +736,15 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, flexShrink: 0, userSelect: "none" }}>⠿</span>
+                  <span style={{ color: "var(--drawer-hint)", fontSize: 14, flexShrink: 0, userSelect: "none" }}>⠿</span>
                   <span style={{
                     flex: 1, fontSize: 12, fontWeight: 500,
-                    color: block.hidden ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.85)",
+                    color: block.hidden ? "var(--drawer-hint)" : "var(--drawer-text)",
                     textDecoration: block.hidden ? "line-through" : "none",
                   }}>
                     {label}
                     {isAnalyticsId(block.id) && (
-                      <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.25)", marginLeft: 5 }}>analytics</span>
+                      <span style={{ fontSize: 9.5, color: "var(--drawer-hint-faint)", marginLeft: 5 }}>analytics</span>
                     )}
                   </span>
                   <button
@@ -752,7 +752,7 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
                     title={block.hidden ? "Show" : "Hide"}
                     style={{
                       background: "transparent", border: "none", cursor: "pointer", padding: "2px 4px",
-                      fontSize: 14, lineHeight: 1, color: block.hidden ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.65)",
+                      fontSize: 14, lineHeight: 1, color: block.hidden ? "var(--drawer-hint-faint)" : "var(--drawer-text-dim)",
                     }}
                   >
                     {block.hidden ? "⊘" : "◉"}
@@ -767,9 +767,9 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
                         style={{
                           fontSize: 9.5, fontWeight: 600, padding: "3px 8px", borderRadius: 5, cursor: "pointer",
                           textTransform: "capitalize",
-                          background: currentSize === sz ? "rgba(55,138,221,0.22)" : "rgba(255,255,255,0.05)",
-                          border: `1px solid ${currentSize === sz ? "rgba(55,138,221,0.55)" : "rgba(255,255,255,0.08)"}`,
-                          color: currentSize === sz ? "#bcd9f7" : "rgba(255,255,255,0.4)",
+                          background: currentSize === sz ? "rgba(55,138,221,0.22)" : "var(--drawer-card)",
+                          border: `1px solid ${currentSize === sz ? "rgba(55,138,221,0.55)" : "var(--drawer-line-strong)"}`,
+                          color: currentSize === sz ? "var(--modern-accent, #bcd9f7)" : "var(--drawer-text-dim)",
                         }}
                       >
                         {sz === "compact" ? "Small" : sz}
@@ -782,7 +782,7 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
           })}
 
           {/* analytics picker */}
-          <div style={{ padding: "14px 12px 6px", borderTop: "1px solid rgba(255,255,255,0.07)", marginTop: 6 }}>
+          <div style={{ padding: "14px 12px 6px", borderTop: "1px solid var(--drawer-line)", marginTop: 6 }}>
             <button
               onClick={() => setAnalyticsOpen((o) => !o)}
               style={{
@@ -790,10 +790,10 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
                 background: "transparent", border: "none", cursor: "pointer", padding: 0,
               }}
             >
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1 }}>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--drawer-hint)", textTransform: "uppercase", letterSpacing: 1 }}>
                 Analytics widgets
               </span>
-              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{analyticsOpen ? "▴" : "▾"}</span>
+              <span style={{ fontSize: 12, color: "var(--drawer-hint)" }}>{analyticsOpen ? "▴" : "▾"}</span>
             </button>
           </div>
 
@@ -805,8 +805,8 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
                   <label key={id} style={{
                     display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
                     padding: "6px 8px", borderRadius: 6,
-                    background: pinned ? "rgba(55,138,221,0.15)" : "rgba(255,255,255,0.04)",
-                    border: `1px solid ${pinned ? "rgba(55,138,221,0.4)" : "rgba(255,255,255,0.07)"}`,
+                    background: pinned ? "rgba(55,138,221,0.15)" : "var(--drawer-card)",
+                    border: `1px solid ${pinned ? "rgba(55,138,221,0.4)" : "var(--drawer-line-strong)"}`,
                   }}>
                     <input
                       type="checkbox"
@@ -814,7 +814,7 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
                       onChange={() => toggleAnalyticsPin(id)}
                       style={{ accentColor: c.accent, width: 12, height: 12, flexShrink: 0 }}
                     />
-                    <span style={{ fontSize: 11.5, color: pinned ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.5)", fontWeight: pinned ? 600 : 400 }}>
+                    <span style={{ fontSize: 11.5, color: pinned ? "var(--drawer-text)" : "var(--drawer-text-dim)", fontWeight: pinned ? 600 : 400 }}>
                       {ANALYTICS_META[id].label}
                     </span>
                   </label>
@@ -825,8 +825,8 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
         </div>
 
         {/* footer */}
-        <div style={{ padding: "12px 14px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.3)", textAlign: "center" }}>
+        <div style={{ padding: "12px 14px", borderTop: "1px solid var(--drawer-line)" }}>
+          <div style={{ fontSize: 10.5, color: "var(--drawer-hint)", textAlign: "center" }}>
             {saving ? "Saving…" : "Changes saved automatically"}
           </div>
         </div>

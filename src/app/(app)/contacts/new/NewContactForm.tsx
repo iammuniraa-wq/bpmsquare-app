@@ -276,7 +276,7 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
         disabled={pending}
         style={{
           flex: 1, padding: "10px 0", borderRadius: 8, border: "none",
-          background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13,
+          background: `var(--modern-accent, ${c.accent})`, color: "#fff", fontWeight: 700, fontSize: 13,
           cursor: pending ? "wait" : "pointer",
         }}
       >

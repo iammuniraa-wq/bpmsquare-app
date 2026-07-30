@@ -33,7 +33,7 @@ export default async function ContactsPage({
             href={ROUTES.contactNew}
             style={{
               padding: "7px 15px", borderRadius: 7, fontSize: 13, fontWeight: 600,
-              background: c.accent, color: "#fff", textDecoration: "none",
+              background: `var(--modern-accent, ${c.accent})`, color: "#fff", textDecoration: "none",
             }}
           >
             + New Contact

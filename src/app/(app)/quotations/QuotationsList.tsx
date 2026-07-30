@@ -340,7 +340,11 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
           { label: "From cases",        value: caseLinked.count,                color: pillar.purple.fg, sub: inr(caseLinked.value) },
           { label: "Standalone",        value: standalone.count,                color: c.muted,          sub: inr(standalone.value) },
         ].map((s) => (
-          <div key={s.label} style={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, padding: "12px 14px" }}>
+          <div
+            key={s.label}
+            className="modern-lift"
+            style={{ background: "var(--card-bg)", border: "1px solid var(--line)", borderRadius: "var(--card-radius)", padding: "12px 14px" }}
+          >
             <div style={{ fontSize: 11, color: c.muted }}>{s.label}</div>
             <div style={{ fontSize: 20, fontWeight: 600, color: s.color, marginTop: 4 }}>{s.value}</div>
             {"sub" in s && <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{s.sub}</div>}

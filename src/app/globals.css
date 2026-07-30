@@ -74,6 +74,22 @@
      light grey, so themes override these. */
   --sb-tab-underline: #378add;
   --sb-tab-sub-active: #5a8ab0;
+
+  /* Adapt drawers (AdaptObjectDrawer, dashboard AdaptDrawer) -- the
+     slide-in config panels. Dark by design on classic/modern1; the light
+     modern2/3 directions flip them to a light panel so the config surface
+     no longer looks like a different product bolted on. */
+  --drawer-bg: #0e1a28;
+  --drawer-card: #0a1520;
+  --drawer-card-alt: #132335;
+  --drawer-line: #1e2d3d;
+  --drawer-line-strong: #2d3748;
+  --drawer-text: #e2e8f0;
+  --drawer-text-dim: #94a3b8;
+  --drawer-hint: #64748b;
+  --drawer-hint-faint: #475569;
+  --drawer-err-bg: #1a0a0a;
+  --drawer-err-border: #3d1a1a;
 }
 
 /* "Modern" direction (Structured Enterprise) -- denser, sharper-bordered
@@ -154,6 +170,18 @@
   --sb-search-border: rgba(255, 255, 255, 0.6);
   --sb-search-text: #16325c;
   --sb-search-icon: #5b6b85;
+
+  --drawer-bg: #ffffff;
+  --drawer-card: #f7fafd;
+  --drawer-card-alt: #eaf3fd;
+  --drawer-line: #dde6f0;
+  --drawer-line-strong: #c9d8ea;
+  --drawer-text: #16325c;
+  --drawer-text-dim: #5b6b85;
+  --drawer-hint: #7c8aa0;
+  --drawer-hint-faint: #9aa7ba;
+  --drawer-err-bg: #fdecea;
+  --drawer-err-border: #f5c6c0;
 }
 
 /* "Modern 3" direction (Microsoft Fluent) -- deliberately NOT a re-hued
@@ -208,6 +236,18 @@
   --sb-search-border: #e1dfdd;
   --sb-search-text: #201f1e;
   --sb-search-icon: #605e5c;
+
+  --drawer-bg: #ffffff;
+  --drawer-card: #faf9f8;
+  --drawer-card-alt: #f3f2f1;
+  --drawer-line: #edebe9;
+  --drawer-line-strong: #d2d0ce;
+  --drawer-text: #201f1e;
+  --drawer-text-dim: #605e5c;
+  --drawer-hint: #797775;
+  --drawer-hint-faint: #a19f9d;
+  --drawer-err-bg: #fdecea;
+  --drawer-err-border: #f5c6c0;
 }
 /* Segoe UI first -- a real, checkable Fluent difference on Windows (where it's
    installed), not just a colour choice. Harmlessly falls through to the same

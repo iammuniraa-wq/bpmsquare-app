@@ -33,7 +33,7 @@ export default async function AccountsPage({
             href={ROUTES.accountNew}
             style={{
               padding: "7px 15px", borderRadius: 7, fontSize: 13, fontWeight: 600,
-              background: c.accent, color: "#fff", textDecoration: "none",
+              background: `var(--modern-accent, ${c.accent})`, color: "#fff", textDecoration: "none",
             }}
           >
             + New account
@@ -72,7 +72,7 @@ export default async function AccountsPage({
           type="submit"
           style={{
             padding: "7px 14px", borderRadius: 7, border: "none",
-            background: c.accent, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+            background: `var(--modern-accent, ${c.accent})`, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}
         >
           Filter

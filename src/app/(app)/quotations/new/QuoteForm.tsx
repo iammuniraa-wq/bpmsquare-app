@@ -1419,7 +1419,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             <h3 style={sectionTitle}>Actions</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {saveError && <div style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", borderRadius: 7, padding: "6px 10px" }}>{saveError}</div>}
-              <button onClick={handleSave} disabled={!accountId || savePending} style={{ width: "100%", padding: "10px 0", borderRadius: 9, fontSize: 13.5, fontWeight: 700, background: accountId ? c.accent : c.line, color: accountId ? "#fff" : c.hint, border: "none", cursor: accountId && !savePending ? "pointer" : "not-allowed" }}>
+              <button onClick={handleSave} disabled={!accountId || savePending} style={{ width: "100%", padding: "10px 0", borderRadius: 9, fontSize: 13.5, fontWeight: 700, background: accountId ? `var(--modern-accent, ${c.accent})` : c.line, color: accountId ? "#fff" : c.hint, border: "none", cursor: accountId && !savePending ? "pointer" : "not-allowed" }}>
                 {savePending ? "Saving…" : editQuote ? "Save changes" : "Save as draft"}
               </button>
               <button disabled style={{ width: "100%", padding: "9px 0", borderRadius: 9, fontSize: 13, fontWeight: 600, background: c.panel2, color: c.muted, border: `1px solid ${c.line}`, cursor: "not-allowed", opacity: 0.7 }}>Send to customer · Coming soon</button>
