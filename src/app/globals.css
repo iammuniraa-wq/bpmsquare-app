@@ -328,6 +328,10 @@
 [data-theme="nextgen"][data-mode="dark"] {
   --panel: #17181c;
   --panel2: #101114;
+  /* :root's --card-bg: var(--panel) resolves against :root's LIGHT --panel
+     and descendants inherit that resolved white -- re-declaring it here, on
+     the same element that overrides --panel, makes it resolve dark. */
+  --card-bg: var(--panel);
   --ink: #f2f3f5;
   --muted: #9aa1ac;
   --hint: #7c828c;
