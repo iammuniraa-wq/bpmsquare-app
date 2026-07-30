@@ -114,7 +114,12 @@ export type NavItem = {
 
 export type NavGroup = { group: string; items: NavItem[] };
 
-// Grouped sidebar — Accounts at the top (the hub everything points to).
+// Grouped sidebar — a short workspace core (Dashboard/Accounts/Contacts) at
+// the top, then one expandable parent per business function (Sales, Service,
+// Marketing, Master data), mirroring the SAP-cloud-style module nav. Parents
+// reuse the Marketing parent's children mechanism (expand/collapse row, not a
+// link); a parent's href is its first child's route, used only as its
+// stable identity key for expand-state/favourites persistence.
 export const NAV: NavGroup[] = [
   {
     group: "WORKSPACE",
@@ -122,8 +127,34 @@ export const NAV: NavGroup[] = [
       { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue" },
       { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue" },
       { label: "Contacts",  href: ROUTES.contacts,  icon: "◉", pillar: "blue" },
-      { label: "Cases",     href: ROUTES.cases,     icon: "☎", pillar: "teal" },
-      { label: "Pipeline",  href: ROUTES.pipeline,  icon: "▦", pillar: "blue", featureKey: "pipeline" },
+    ],
+  },
+  {
+    group: "SALES",
+    items: [
+      {
+        label: "Sales", href: ROUTES.quotations, icon: "₹", pillar: "blue",
+        children: [
+          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue" },
+          { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline" },
+          { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices" },
+        ],
+      },
+    ],
+  },
+  {
+    group: "SERVICE",
+    items: [
+      {
+        label: "Service", href: ROUTES.cases, icon: "☎", pillar: "teal",
+        children: [
+          { label: "Cases",         href: ROUTES.cases,       icon: "☎", pillar: "teal" },
+          { label: "AMC contracts", href: ROUTES.amc,         icon: "▥", pillar: "teal", featureKey: "amc" },
+          { label: "Work orders",   href: ROUTES.workOrders,  icon: "▤", pillar: "amber" },
+          { label: "Dispatch",      href: ROUTES.dispatch,    icon: "◷", pillar: "amber", featureKey: "dispatch" },
+          { label: "Technicians",   href: ROUTES.technicians, icon: "◍", pillar: "amber" },
+        ],
+      },
     ],
   },
   {
@@ -141,34 +172,23 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    group: "SALES",
+    group: "MASTER DATA",
     items: [
-      { label: "Quotations",     href: ROUTES.quotations,    icon: "₹", pillar: "blue" },
+      {
+        label: "Master data", href: ROUTES.assets, icon: "⚙", pillar: "green",
+        children: [
+          { label: "Assets",          href: ROUTES.assets,         icon: "⚙", pillar: "green" },
+          { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green" },
+          { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing" },
+          { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "green", featureKey: "purchasing" },
+        ],
+      },
     ],
   },
   {
-    group: "SERVICE",
+    group: "ANALYTICS",
     items: [
-      { label: "AMC contracts", href: ROUTES.amc, icon: "▥", pillar: "teal", featureKey: "amc" },
-    ],
-  },
-  {
-    group: "FIELD SERVICE",
-    items: [
-      { label: "Work orders", href: ROUTES.workOrders, icon: "▤", pillar: "amber" },
-      { label: "Dispatch", href: ROUTES.dispatch, icon: "◷", pillar: "amber", featureKey: "dispatch" },
-      { label: "Technicians", href: ROUTES.technicians, icon: "◍", pillar: "amber" },
-    ],
-  },
-  {
-    group: "RECORDS",
-    items: [
-      { label: "Assets",     href: ROUTES.assets,     icon: "⚙", pillar: "green" },
-      { label: "Suppliers",  href: ROUTES.suppliers,  icon: "◫", pillar: "green" },
-      { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing" },
-      { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "green", featureKey: "purchasing" },
-      { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "green", featureKey: "invoices" },
-      { label: "Analytics",  href: ROUTES.reports,    icon: "◫", pillar: "purple" },
+      { label: "Analytics", href: ROUTES.reports, icon: "◫", pillar: "purple" },
     ],
   },
   {
