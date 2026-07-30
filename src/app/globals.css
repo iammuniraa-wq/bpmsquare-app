@@ -19,6 +19,12 @@
   --amberc: #ba7517;      --amberbg: #faeeda;  --amberink: #633806;
   --red: #a32d2d;         --redbg: #fcebeb;    --redink: #791f1f;
   --green: #639922;       --greenbg: #eaf3de;  --greenink: #173404;
+  /* Border companions + the error-banner family (Tailwind-red flavour used by
+     inline save/validation errors app-wide). Tokenized so nextgen dark mode
+     can remap them -- hardcoded, these stay glaring light patches on dark. */
+  --blueline: #c5dbf5;
+  --amberline: #f0d09e;
+  --err-bg: #fef2f2;      --err-line: #fecaca; --err-ink: #dc2626;
 
   /* Structural theme tokens -- the "one stop shop" surface every shared
      chrome component (Sidebar, TabBar, Shell's cardStyle) reads from,
@@ -318,9 +324,7 @@
 /* nextgen dark mode -- per-browser toggle (Shell.tsx stamps data-mode="dark"
    on the same wrapper that carries data-theme). Only nextgen ships it: the
    other themes' component styles assume a light content area. The c.* JS
-   neutrals (theme.ts) resolve to these vars, so inline styles follow. Known
-   v1 gap: a few pages hardcode #fff fills (zebra rows, some form panels)
-   and will show light patches in dark mode until they're tokenized. */
+   neutrals (theme.ts) resolve to these vars, so inline styles follow. */
 [data-theme="nextgen"][data-mode="dark"] {
   --panel: #17181c;
   --panel2: #101114;
@@ -330,6 +334,18 @@
   --line: #26282e;
   --accentbg: #1c2740;
   --card-shadow: none;
+
+  /* Pillar + status families -- light soft-tint surfaces flip to deep tints
+     with lightened ink so banners/chips/badges stay readable on dark. */
+  --blue: #6aa7e8;        --bluebg: #14243a;   --blueink: #a8c9ef;
+  --purple: #a89bff;      --purplebg: #241f3d; --purpleink: #c7bfff;
+  --teal: #3ecf8e;        --tealbg: #12291f;   --tealink: #8fe2bd;
+  --amberc: #e4b34c;      --amberbg: #2e2410;  --amberink: #ecc87e;
+  --red: #f0705b;         --redbg: #331a15;    --redink: #f5a294;
+  --green: #9ccf58;       --greenbg: #1d2913;  --greenink: #c0e18e;
+  --blueline: #24406a;
+  --amberline: #52401c;
+  --err-bg: #331a15;      --err-line: #5a2d22; --err-ink: #f0705b;
 
   --sidebar-grad: #14151a;
   --sb-bar-bg: #101114;

@@ -223,7 +223,7 @@ const serifNum: React.CSSProperties = {
 // News-card monogram themes -- cycled by row index (decorative variety, not an
 // identity channel that needs to stay fixed to a specific source/account).
 const NEWS_THEMES = [
-  { thumb: "linear-gradient(135deg, #0f6b5c, #1d9e75)", pillBg: "#e4efec", pillFg: "#0f6b5c" },
+  { thumb: "linear-gradient(135deg, #0f6b5c, var(--teal))", pillBg: "#e4efec", pillFg: "#0f6b5c" },
   { thumb: "linear-gradient(135deg, #a3651a, #d99a3e)", pillBg: "#fdf1e2", pillFg: "#a3651a" },
   { thumb: "linear-gradient(135deg, #2f5aa8, #5c86e6)", pillBg: "#e8edf9", pillFg: "#2f5aa8" },
   { thumb: "linear-gradient(135deg, #96385a, #c26b8e)", pillBg: "#f8e9ee", pillFg: "#96385a" },
@@ -384,8 +384,8 @@ function BigFunnel({ stages }: { stages: { stage: string; count: number; href?: 
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "0 14px", boxSizing: "border-box",
           }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: i >= 2 ? "#fff" : c.ink }}>{s.stage}</span>
-            <span style={{ ...serifNum, fontSize: 15, fontWeight: 700, color: i >= 2 ? "#fff" : c.ink }}>{s.count}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: i >= 2 ? "#fff" : "#1c2733" }}>{s.stage}</span>
+            <span style={{ ...serifNum, fontSize: 15, fontWeight: 700, color: i >= 2 ? "#fff" : "#1c2733" }}>{s.count}</span>
           </div>
         );
         return (

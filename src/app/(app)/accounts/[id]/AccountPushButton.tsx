@@ -33,15 +33,15 @@ export default function AccountPushButton({ accountId }: { accountId: string }) 
         style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "7px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 500,
-          border: `1px solid ${state === "sent" ? "#1d9e75" : c.line}`,
-          background: state === "sent" ? "rgba(29,158,117,.08)" : "#fff",
-          color: state === "sent" ? "#1d9e75" : c.muted,
+          border: `1px solid ${state === "sent" ? "var(--teal)" : c.line}`,
+          background: state === "sent" ? "rgba(29,158,117,.08)" : "var(--panel)",
+          color: state === "sent" ? "var(--teal)" : c.muted,
           cursor: state === "pushing" ? "not-allowed" : "pointer",
         }}
       >
         {state === "pushing" ? "Pushing…" : state === "sent" ? "✓ Pushed" : "Push to ERP"}
       </button>
-      {error && <span style={{ fontSize: 11, color: "#dc2626" }}>{error}</span>}
+      {error && <span style={{ fontSize: 11, color: "var(--err-ink)" }}>{error}</span>}
     </div>
   );
 }

@@ -71,7 +71,7 @@ export default function SegmentsListClient({ groups }: { groups: MarketingTarget
               <td style={{ ...td, textAlign: "right" }}>
                 <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                   <Link href={`${ROUTES.marketingNew}?group=${g.id}`} style={{ fontSize: 12, color: c.accent, fontWeight: 600, textDecoration: "none" }}>Use in campaign</Link>
-                  <button onClick={() => remove(g.id)} style={{ fontSize: 12, color: "#dc2626", background: "none", border: "none", cursor: "pointer" }}>Delete</button>
+                  <button onClick={() => remove(g.id)} style={{ fontSize: 12, color: "var(--err-ink)", background: "none", border: "none", cursor: "pointer" }}>Delete</button>
                 </div>
               </td>
             </tr>

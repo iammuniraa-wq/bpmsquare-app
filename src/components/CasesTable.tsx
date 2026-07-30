@@ -197,7 +197,7 @@ function ColPicker({ cols, visible, toggle, onClose }: {
   return (
     <div style={{
       position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50,
-      background: "#fff", border: `1px solid ${c.line}`, borderRadius: 10,
+      background: "var(--panel)", border: `1px solid ${c.line}`, borderRadius: 10,
       boxShadow: "0 4px 16px rgba(0,0,0,0.10)", padding: "10px 0", minWidth: 180,
     }}>
       <div style={{ padding: "4px 14px 8px", fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>
@@ -234,7 +234,7 @@ function ColPicker({ cols, visible, toggle, onClose }: {
 }
 
 const cardStyle: React.CSSProperties = {
-  background: "#fff", border: `1px solid ${c.line}`, borderRadius: 12, overflow: "hidden",
+  background: "var(--panel)", border: `1px solid ${c.line}`, borderRadius: 12, overflow: "hidden",
 };
 
 const th: React.CSSProperties = {

@@ -40,7 +40,7 @@ export default function InvoiceActionsPanel({ invoice }: { invoice: Invoice }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {error && (
-        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "#dc2626" }}>
+        <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)" }}>
           {error}
         </div>
       )}
@@ -59,7 +59,7 @@ export default function InvoiceActionsPanel({ invoice }: { invoice: Invoice }) {
       {invoice.status === "draft" && (
         <button type="button" disabled={pending} onClick={handleDelete} style={{
           display: "flex", alignItems: "center", justifyContent: "center",
-          background: "none", color: "#a32d2d", borderRadius: 7,
+          background: "none", color: "var(--red)", borderRadius: 7,
           padding: "7px 14px", fontSize: 12, fontWeight: 500,
           border: "1px solid #f5c0c0", cursor: pending ? "wait" : "pointer", width: "100%",
         }}>
@@ -69,7 +69,7 @@ export default function InvoiceActionsPanel({ invoice }: { invoice: Invoice }) {
       {!["draft", "cancelled", "paid"].includes(invoice.status) && (
         <button type="button" disabled={pending} onClick={() => setStatus("cancelled")} style={{
           display: "flex", alignItems: "center", justifyContent: "center",
-          background: "none", color: "#a32d2d", borderRadius: 7,
+          background: "none", color: "var(--red)", borderRadius: 7,
           padding: "7px 14px", fontSize: 12, fontWeight: 500,
           border: "1px solid #f5c0c0", cursor: pending ? "wait" : "pointer", width: "100%",
         }}>

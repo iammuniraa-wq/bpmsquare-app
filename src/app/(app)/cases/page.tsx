@@ -96,7 +96,7 @@ export default async function CasesPage({
           style={{
             flex: "1 1 300px", maxWidth: 420, padding: "8px 12px", borderRadius: 7,
             border: `1px solid ${c.line}`, fontSize: 13.5, color: c.ink,
-            background: "#fff", outline: "none",
+            background: "var(--panel)", outline: "none",
           }}
         />
         {q && (

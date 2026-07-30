@@ -106,7 +106,7 @@ function TemplateCard({ template, onSaved, onDeleted }: {
         <label style={lbl}>Body</label>
         <textarea style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.5 }} value={body} onChange={(e) => setBody(e.target.value)} />
       </div>
-      {error && <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 8 }}>{error}</div>}
+      {error && <div style={{ fontSize: 12, color: "var(--err-ink)", marginBottom: 8 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <button
           type="button" onClick={save} disabled={saving || (!dirty && !template.isNew)}
@@ -116,7 +116,7 @@ function TemplateCard({ template, onSaved, onDeleted }: {
         </button>
         <button
           type="button" onClick={remove} disabled={deleting}
-          style={{ padding: "6px 16px", borderRadius: 7, border: `1px solid #fecaca`, background: "transparent", color: "#dc2626", fontSize: 12.5, cursor: "pointer" }}
+          style={{ padding: "6px 16px", borderRadius: 7, border: `1px solid var(--err-line)`, background: "transparent", color: "var(--err-ink)", fontSize: 12.5, cursor: "pointer" }}
         >
           {deleting ? "Removing…" : "Delete"}
         </button>

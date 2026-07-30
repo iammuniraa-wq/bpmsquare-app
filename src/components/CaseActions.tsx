@@ -39,7 +39,7 @@ const btnPrimary: React.CSSProperties = {
   cursor: "pointer",
 };
 const btnSuccess: React.CSSProperties = {
-  ...btnPrimary, background: "#1d9e75",
+  ...btnPrimary, background: "var(--teal)",
 };
 const btnSecondary: React.CSSProperties = {
   padding: "7px 14px", borderRadius: 7,
@@ -87,7 +87,7 @@ function IntakeReference({ notes, photos }: { notes: string | null; photos: Case
   const [open, setOpen] = useState(false);
   if (!notes && photos.length === 0) return null;
   return (
-    <div style={{ background: "#f8fafc", border: `1px solid ${c.line}`, borderRadius: 10, marginBottom: 12, overflow: "hidden" }}>
+    <div style={{ background: "var(--panel2)", border: `1px solid ${c.line}`, borderRadius: 10, marginBottom: 12, overflow: "hidden" }}>
       <button type="button" onClick={() => setOpen(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 14px", background: "none", border: "none", cursor: "pointer" }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: c.muted, textTransform: "uppercase", letterSpacing: 0.7 }}>
           <Clipboard size={12} color={c.muted} style={{ marginRight: 5 }} /> Intake reference{photos.length > 0 ? ` · ${photos.length} photo${photos.length > 1 ? "s" : ""}` : ""}
@@ -221,7 +221,7 @@ export default function CaseActions({
   }
 
   const errorBox = error ? (
-    <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "9px 14px", fontSize: 12.5, color: "#dc2626", marginTop: 10 }}>
+    <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "9px 14px", fontSize: 12.5, color: "var(--err-ink)", marginTop: 10 }}>
       {error}
     </div>
   ) : null;
@@ -320,7 +320,7 @@ export default function CaseActions({
   if (currentStatus === "report_sent") {
     return (
       <div style={card}>
-        <div style={{ background: c.accentbg, borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#0c447c", marginBottom: 14 }}>
+        <div style={{ background: c.accentbg, borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "var(--blueink)", marginBottom: 14 }}>
           Report sent to customer — waiting for approval.
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -416,16 +416,16 @@ export default function CaseActions({
 
   if (currentStatus === "ready") {
     return (
-      <div style={{ ...card, borderLeftColor: "#1d9e75" }}>
+      <div style={{ ...card, borderLeftColor: "var(--teal)" }}>
         <div style={{ fontSize: 12.5, color: "#1d6b4a", marginBottom: 12 }}>Equipment is ready for pickup.</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button style={btnSuccess} onClick={() => patchCase({ status: "closed" })} disabled={pending} type="button">
             {pending ? "…" : "Close — handed to customer ✓"}
           </button>
-          <button style={{ ...btnSecondary, color: "#7f77dd", borderColor: "#c4c2f0" }} onClick={() => patchCase({ status: "buyback" })} disabled={pending} type="button">
+          <button style={{ ...btnSecondary, color: "var(--purple)", borderColor: "#c4c2f0" }} onClick={() => patchCase({ status: "buyback" })} disabled={pending} type="button">
             {pending ? "…" : "Buyback — customer sold unit"}
           </button>
-          <button style={{ ...btnSecondary, color: "#a32d2d", borderColor: "#f5c0c0" }} onClick={() => patchCase({ status: "scrapped" })} disabled={pending} type="button">
+          <button style={{ ...btnSecondary, color: "var(--red)", borderColor: "#f5c0c0" }} onClick={() => patchCase({ status: "scrapped" })} disabled={pending} type="button">
             {pending ? "…" : "Scrap unit"}
           </button>
         </div>
@@ -438,22 +438,22 @@ export default function CaseActions({
 
   if (currentStatus === "closed") {
     return (
-      <div style={{ ...card, borderLeftColor: "#1d9e75", background: "#f0faf5" }}>
+      <div style={{ ...card, borderLeftColor: "var(--teal)", background: "var(--tealbg)" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#04342c" }}>Case closed</div>
       </div>
     );
   }
   if (currentStatus === "buyback") {
     return (
-      <div style={{ ...card, borderLeftColor: "#7f77dd", background: "#eeedfe" }}>
+      <div style={{ ...card, borderLeftColor: "var(--purple)", background: "var(--purplebg)" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#26215c" }}>Unit purchased (buyback)</div>
       </div>
     );
   }
   if (currentStatus === "scrapped") {
     return (
-      <div style={{ ...card, borderLeftColor: "#a32d2d", background: "#fcebeb" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#791f1f" }}>Unit scrapped</div>
+      <div style={{ ...card, borderLeftColor: "var(--red)", background: "var(--redbg)" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--redink)" }}>Unit scrapped</div>
       </div>
     );
   }

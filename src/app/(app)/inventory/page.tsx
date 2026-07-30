@@ -77,8 +77,8 @@ export default async function InventoryPage({
         {lowStockCount > 0 && (
           <Link href={`${ROUTES.inventory}?low_stock=true`} style={{
             fontSize: 12.5, fontWeight: low_stock === "true" ? 700 : 500,
-            color: low_stock === "true" ? "#a32d2d" : c.muted,
-            background: low_stock === "true" ? "#fef2f2" : c.panel2,
+            color: low_stock === "true" ? "var(--red)" : c.muted,
+            background: low_stock === "true" ? "var(--err-bg)" : c.panel2,
             border: `1px solid ${low_stock === "true" ? "#f5c0c0" : c.line}`,
             borderRadius: 6, padding: "5px 12px", textDecoration: "none",
           }}>
@@ -97,7 +97,7 @@ export default async function InventoryPage({
           style={{
             width: "100%", maxWidth: 420, padding: "8px 12px", borderRadius: 7,
             border: `1px solid ${c.line}`, fontSize: 13.5, color: c.ink,
-            background: "#fff", outline: "none",
+            background: "var(--panel)", outline: "none",
           }}
         />
         {q && (
@@ -146,7 +146,7 @@ export default async function InventoryPage({
                       <td style={{ ...td, color: c.muted, fontSize: 12, fontFamily: "monospace" }}>{i.sku ?? "—"}</td>
                       <td style={{ ...td, color: c.muted, fontSize: 13 }}>{i.category ?? "—"}</td>
                       <td style={td}>
-                        <span style={{ fontWeight: 600, color: low ? "#a32d2d" : c.ink }}>{i.qty_on_hand}</span>
+                        <span style={{ fontWeight: 600, color: low ? "var(--red)" : c.ink }}>{i.qty_on_hand}</span>
                         <span style={{ color: c.hint, fontSize: 11.5 }}> {i.uom}</span>
                         {low && <span style={{ marginLeft: 6 }}><Pill label="Low" tone="red" /></span>}
                       </td>

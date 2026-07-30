@@ -75,7 +75,7 @@ export default function CaseAssetsPanel({ caseId, accountId, assets }: Props) {
     <div style={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 12, padding: 16 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
         Assets
-        {saved && <span style={{ color: "#1d9e75", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3, textTransform: "none" }}><CheckIcon size={11} color="#1d9e75" /> Saved</span>}
+        {saved && <span style={{ color: "var(--teal)", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3, textTransform: "none" }}><CheckIcon size={11} color="var(--teal)" /> Saved</span>}
       </div>
 
       {assetIds.length === 0 && (
@@ -133,7 +133,7 @@ export default function CaseAssetsPanel({ caseId, accountId, assets }: Props) {
       )}
 
       {error && (
-        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "#dc2626", marginTop: 10 }}>
+        <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginTop: 10 }}>
           {error}
         </div>
       )}

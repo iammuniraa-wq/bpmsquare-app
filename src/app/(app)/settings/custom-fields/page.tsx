@@ -229,7 +229,7 @@ export default function CustomFieldsPage() {
       </div>
 
       {error && (
-        <div style={{ marginBottom: 14, padding: "10px 14px", background: "#fcebeb", color: "#791f1f", borderRadius: 8, fontSize: 13, border: "1px solid #f5c5c5" }}>
+        <div style={{ marginBottom: 14, padding: "10px 14px", background: "var(--redbg)", color: "var(--redink)", borderRadius: 8, fontSize: 13, border: "1px solid var(--err-line)" }}>
           {error}
         </div>
       )}
@@ -246,7 +246,7 @@ export default function CustomFieldsPage() {
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "7px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: active ? 600 : 400,
                 border: active ? `2px solid ${accent}` : `1px solid ${c.line}`,
-                background: active ? `${accent}18` : "#fff",
+                background: active ? `${accent}18` : "var(--panel)",
                 color: active ? accent : c.muted,
                 cursor: "pointer", transition: "all 0.12s",
               }}
@@ -304,7 +304,7 @@ export default function CustomFieldsPage() {
                 <select
                   value={form.field_type}
                   onChange={(e) => setForm((f) => ({ ...f, field_type: e.target.value as FieldType }))}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${c.line}`, fontSize: 13, color: c.ink, background: "#fff", boxSizing: "border-box" }}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${c.line}`, fontSize: 13, color: c.ink, background: "var(--panel)", boxSizing: "border-box" }}
                 >
                   {FIELD_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                 </select>
@@ -419,7 +419,7 @@ export default function CustomFieldsPage() {
                 <button
                   onClick={() => toggleRequired(field)}
                   title={field.is_required ? "Required — click to make optional" : "Optional — click to make required"}
-                  style={{ padding: "3px 8px", borderRadius: 5, fontSize: 10.5, fontWeight: 600, border: "1px solid", cursor: "pointer", flexShrink: 0, background: field.is_required ? "#faeeda" : c.panel2, color: field.is_required ? "#633806" : c.hint, borderColor: field.is_required ? "#f0d09e" : c.line, transition: "all 0.12s" }}
+                  style={{ padding: "3px 8px", borderRadius: 5, fontSize: 10.5, fontWeight: 600, border: "1px solid", cursor: "pointer", flexShrink: 0, background: field.is_required ? "var(--amberbg)" : c.panel2, color: field.is_required ? "var(--amberink)" : c.hint, borderColor: field.is_required ? "var(--amberline)" : c.line, transition: "all 0.12s" }}
                 >
                   {field.is_required ? "Required" : "Optional"}
                 </button>
@@ -429,7 +429,7 @@ export default function CustomFieldsPage() {
                   onClick={() => deleteField(field.id)}
                   disabled={deleting === field.id}
                   title="Delete field"
-                  style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${c.line}`, background: "#fff", cursor: "pointer", fontSize: 14, color: "#e05252", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: deleting === field.id ? 0.4 : 1 }}
+                  style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${c.line}`, background: "var(--panel)", cursor: "pointer", fontSize: 14, color: "var(--err-ink)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: deleting === field.id ? 0.4 : 1 }}
                 >
                   ×
                 </button>

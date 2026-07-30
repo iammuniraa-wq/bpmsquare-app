@@ -51,7 +51,7 @@ export default async function ContactsPage({
           style={{
             width: "100%", maxWidth: 380, padding: "7px 12px", borderRadius: 7,
             border: `1px solid ${c.line}`, fontSize: 13, color: c.ink,
-            background: "#fff", outline: "none",
+            background: "var(--panel)", outline: "none",
           }}
         />
         {q && (

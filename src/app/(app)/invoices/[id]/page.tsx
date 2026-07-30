@@ -89,11 +89,11 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             </div>
             <div>
               <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 3 }}>Paid to date</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#1d9e75" }}>{inr(invoice.paid_amount)}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--teal)" }}>{inr(invoice.paid_amount)}</div>
             </div>
             <div>
               <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 3 }}>Balance due</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: balanceDue > 0 ? "#a32d2d" : c.ink }}>{inr(balanceDue)}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: balanceDue > 0 ? "var(--red)" : c.ink }}>{inr(balanceDue)}</div>
             </div>
             {isOverdue && (
               <div style={{ display: "flex", alignItems: "center" }}>

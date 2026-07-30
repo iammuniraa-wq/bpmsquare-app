@@ -61,7 +61,7 @@ function AddRow({ onAdd }: { onAdd: (f: TextFragment) => void }) {
   }
 
   return (
-    <form onSubmit={submit} style={{ background: "#f8fafc", border: `1px solid ${c.line}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+    <form onSubmit={submit} style={{ background: "var(--panel2)", border: `1px solid ${c.line}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: c.ink }}>New text template</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 180px", gap: 10, marginBottom: 10 }}>
         <div>
@@ -84,12 +84,12 @@ function AddRow({ onAdd }: { onAdd: (f: TextFragment) => void }) {
           placeholder="Enter the template text…"
         />
       </div>
-      {err && <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 10 }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: "var(--err-ink)", marginBottom: 10 }}>{err}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <button type="submit" disabled={pending} style={{ padding: "7px 20px", borderRadius: 7, background: c.accent, color: "#fff", border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
           {pending ? "Saving…" : "Save"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} style={{ padding: "7px 16px", borderRadius: 7, background: "#f1f5f9", color: c.muted, border: "none", fontSize: 13, cursor: "pointer" }}>
+        <button type="button" onClick={() => setOpen(false)} style={{ padding: "7px 16px", borderRadius: 7, background: "var(--panel2)", color: c.muted, border: "none", fontSize: 13, cursor: "pointer" }}>
           Cancel
         </button>
       </div>
@@ -133,7 +133,7 @@ function FragmentRow({ frag, onUpdate, onDelete }: { frag: TextFragment; onUpdat
           <button onClick={save} disabled={pending} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, background: c.accent, color: "#fff", border: "none", cursor: "pointer" }}>
             {pending ? "…" : "Save"}
           </button>
-          <button onClick={() => setEditing(false)} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, background: "#f1f5f9", color: c.muted, border: "none", cursor: "pointer" }}>
+          <button onClick={() => setEditing(false)} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, background: "var(--panel2)", color: c.muted, border: "none", cursor: "pointer" }}>
             Cancel
           </button>
         </div>
@@ -147,7 +147,7 @@ function FragmentRow({ frag, onUpdate, onDelete }: { frag: TextFragment; onUpdat
       <div style={{ fontSize: 12.5, color: c.muted, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{frag.text}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         <button onClick={() => setEditing(true)} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: c.accentbg, color: c.accent, border: "none", cursor: "pointer" }}>Edit</button>
-        <button onClick={del} disabled={pending} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer" }}>Delete</button>
+        <button onClick={del} disabled={pending} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: "var(--err-bg)", color: "var(--err-ink)", border: "none", cursor: "pointer" }}>Delete</button>
       </div>
     </div>
   );
@@ -168,7 +168,7 @@ export default function TemplatesClient({ initialFragments }: { initialFragments
         {CATEGORIES.map((cat) => {
           const catFrags = fragments.filter((f) => f.category === cat);
           return (
-            <section key={cat} style={{ background: "#fff", border: `1px solid ${c.line}`, borderRadius: 12, padding: 16 }}>
+            <section key={cat} style={{ background: "var(--panel)", border: `1px solid ${c.line}`, borderRadius: 12, padding: 16 }}>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                   <Pill label={CAT_LABEL[cat]} tone={CAT_TONE[cat]} />

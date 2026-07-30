@@ -125,7 +125,7 @@ export default async function InvoicesPage({
                     />
                   </td>
                   <td style={{ ...td, fontWeight: 700 }}>{inr(inv.total)}</td>
-                  <td style={{ ...td, color: inv.total - inv.paid_amount > 0 ? "#a32d2d" : c.muted, fontWeight: inv.total - inv.paid_amount > 0 ? 600 : 400 }}>
+                  <td style={{ ...td, color: inv.total - inv.paid_amount > 0 ? "var(--red)" : c.muted, fontWeight: inv.total - inv.paid_amount > 0 ? 600 : 400 }}>
                     {inr(Math.max(0, inv.total - inv.paid_amount))}
                   </td>
                   <td style={{ ...td, color: c.muted }}>{inv.issued_at ? fmtDate(inv.issued_at) : "—"}</td>

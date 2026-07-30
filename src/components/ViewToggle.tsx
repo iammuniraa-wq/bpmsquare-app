@@ -18,13 +18,13 @@ function Toggle() {
   return (
     <div style={{
       display: "flex", gap: 2,
-      background: "#eef1f5", borderRadius: 7, padding: 2,
+      background: "var(--panel2)", borderRadius: 7, padding: 2,
       border: "1px solid #dde3ec",
     }}>
       {(["card", "list"] as const).map((v) => (
         <Link key={v} href={href(v)} style={{
           width: 32, height: 28, borderRadius: 5, textDecoration: "none",
-          background: mode === v ? "#fff" : "transparent",
+          background: mode === v ? "var(--panel)" : "transparent",
           color: mode === v ? "#1c2733" : "#9aacbc",
           fontSize: 15,
           display: "flex", alignItems: "center", justifyContent: "center",

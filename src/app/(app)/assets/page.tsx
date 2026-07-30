@@ -68,7 +68,7 @@ export default async function AssetsPage({
           style={{
             padding: "7px 10px", borderRadius: 7,
             border: `1px solid ${c.line}`, fontSize: 13, color: kindFilter ? c.ink : c.hint,
-            background: "#fff", outline: "none", cursor: "pointer",
+            background: "var(--panel)", outline: "none", cursor: "pointer",
           }}
         >
           <option value="">All types</option>
@@ -118,7 +118,7 @@ export default async function AssetsPage({
                   borderTop: `3px solid ${tone.base}`,
                   borderRadius: 10,
                   padding: "12px 14px",
-                  background: tone.bg + "44",
+                  background: `color-mix(in srgb, ${tone.bg} 27%, transparent)`,
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                     <KindIcon kind={asset.kind} size={18} color={tone.base} />

@@ -66,7 +66,7 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
               Stock
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 28, fontWeight: 800, color: low ? "#a32d2d" : c.ink }}>{item.qty_on_hand}</span>
+              <span style={{ fontSize: 28, fontWeight: 800, color: low ? "var(--red)" : c.ink }}>{item.qty_on_hand}</span>
               <span style={{ fontSize: 13, color: c.hint }}>{item.uom} on hand</span>
               {low && <Pill label="Low stock" tone="red" />}
             </div>
@@ -91,7 +91,7 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
                 {transactions.map((t) => (
                   <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5 }}>
                     <div>
-                      <span style={{ fontWeight: 600, color: t.qty_delta > 0 ? "#1d9e75" : "#a32d2d" }}>
+                      <span style={{ fontWeight: 600, color: t.qty_delta > 0 ? "var(--teal)" : "var(--red)" }}>
                         {t.qty_delta > 0 ? "+" : ""}{t.qty_delta} {item.uom}
                       </span>
                       <span style={{ color: c.hint, marginLeft: 8 }}>
