@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
         return {
           tenant_id: tenantId,
           quote_id: quote.id,
-          description: String(l.description).slice(0, 500),
+          description: String(l.description),
           uom: l.uom || null,
           qty,
           rate,

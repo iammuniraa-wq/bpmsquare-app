@@ -73,7 +73,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           return {
             tenant_id: tenantId,
             quote_id: id,
-            description: String(l.description).slice(0, 500),
+            description: String(l.description),
             uom: l.uom || null,
             qty,
             rate,
