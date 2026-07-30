@@ -61,11 +61,16 @@ export async function POST(request: NextRequest) {
     for (const line of quoteLines) {
       rows.push({
         ...header,
+        line_sl_no: line.sl_no ?? "",
         line_description: line.description ?? "",
         line_uom: line.uom ?? "",
         line_qty: line.qty != null ? String(line.qty) : "",
         line_rate: line.rate != null ? String(line.rate) : "",
         line_discount_pct: line.discount_pct != null ? String(line.discount_pct) : "",
+        line_amount: line.amount != null ? String(line.amount) : "",
+        line_category: line.category ?? "",
+        line_deduction: line.deduction != null ? String(line.deduction) : "",
+        line_group: line.group_label ?? "",
       });
     }
   }

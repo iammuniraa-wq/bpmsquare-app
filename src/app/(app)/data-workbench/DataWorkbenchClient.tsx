@@ -139,12 +139,14 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
   // changes aren't supported by bulk Update, matching what each object's own
   // PATCH route accepts in bulk.
   const spec: ObjectSpec = useMemo(() => {
-    if (mode !== "update") return baseSpec;
+    // exportOnly fields (computed values like quote status/total/line amount)
+    // are Export columns only -- never offered for mapping on Import/Update.
+    if (mode !== "update") return { ...baseSpec, fields: baseSpec.fields.filter((f) => !f.exportOnly) };
     // Quotes additionally drop line-item columns and the quote_name grouping
     // key -- bulk Update edits quote header scalars only, one row per quote.
     return {
       ...baseSpec,
-      fields: [ID_FIELD, ...baseSpec.fields.filter((f) => f.type !== "ref" && f.scope !== "line" && f.key !== "quote_name")],
+      fields: [ID_FIELD, ...baseSpec.fields.filter((f) => !f.exportOnly && f.type !== "ref" && f.scope !== "line" && f.key !== "quote_name")],
     };
   }, [baseSpec, mode]);
   const fileRef = useRef<HTMLInputElement>(null);

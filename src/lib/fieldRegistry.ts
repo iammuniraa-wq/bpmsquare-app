@@ -37,6 +37,8 @@ export type StandardFieldDef = {
   hiddenByDefault?: boolean;
   /** False = read-only in the generic edit form (e.g. referred_by_account_id, created_at). Default true. */
   editable?: boolean;
+  /** Data Workbench: exported as a column, but stripped from Import/Update templates (system-computed). */
+  exportOnly?: boolean;
   /** widget === "select" only */
   selectSource?: SelectSource;
   /** widget === "enum" only */
@@ -67,6 +69,7 @@ export type EffectiveField = {
   required: boolean;
   locked: boolean;
   editable: boolean;
+  exportOnly?: boolean;
   kind: "standard" | "custom";
   /** custom_fields.id — only set when kind === "custom" (needed to DELETE the definition). */
   id?: string;
@@ -99,6 +102,17 @@ const DISCOUNT_TYPE_OPTIONS: { value: "pct" | "fixed"; label: string }[] = [
 
 const QUOTE_TYPE_OPTIONS: { value: QuoteOfferType; label: string }[] =
   (Object.keys(OFFER_TYPE_LABEL) as QuoteOfferType[]).map((value) => ({ value, label: OFFER_TYPE_LABEL[value] }));
+
+const QUOTE_BUSINESS_STATUS_OPTIONS: { value: "pending" | "po_received"; label: string }[] = [
+  { value: "pending",     label: "Pending" },
+  { value: "po_received", label: "PO received" },
+];
+
+const QUOTE_OUTCOME_OPTIONS: { value: "open" | "won" | "lost"; label: string }[] = [
+  { value: "open", label: "Open" },
+  { value: "won",  label: "Won" },
+  { value: "lost", label: "Lost" },
+];
 
 const CASE_TYPE_OPTIONS: { value: ServiceCase["type"]; label: string }[] =
   (Object.keys(CASE_TYPE_LABEL) as ServiceCase["type"][]).map((value) => ({ value, label: CASE_TYPE_LABEL[value] }));
@@ -278,8 +292,17 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   quote: {
     sections: ["Identity", "Commercial", "Sales", "Notes"],
     fields: [
-      { key: "ref",         defaultLabel: "Quote ID",     widget: "text",   defaultSection: "Identity", locked: true, editable: false },
+      { key: "ref",         defaultLabel: "Quote ID",     widget: "text",   defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "type",        defaultLabel: "Offer type",   widget: "enum",   defaultSection: "Identity", enumOptions: QUOTE_TYPE_OPTIONS },
+      // Read-only business state -- exported for reporting, never settable
+      // via Import (the import flow computes status/total/revision itself)
+      // or bulk Update (own action UI / dedicated flows).
+      { key: "status",          defaultLabel: "Status",          widget: "text",   defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
+      { key: "business_status", defaultLabel: "Business status", widget: "enum",   defaultSection: "Identity", enumOptions: QUOTE_BUSINESS_STATUS_OPTIONS, locked: true, editable: false, exportOnly: true },
+      { key: "outcome",         defaultLabel: "Outcome",         widget: "enum",   defaultSection: "Identity", enumOptions: QUOTE_OUTCOME_OPTIONS, locked: true, editable: false, exportOnly: true },
+      { key: "total",           defaultLabel: "Total",           widget: "number", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
+      { key: "revision",        defaultLabel: "Revision",        widget: "number", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
+      { key: "created_at",      defaultLabel: "Created",         widget: "date",   defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "valid_until", defaultLabel: "Valid until",  widget: "date",   defaultSection: "Identity" },
       { key: "ref_no",      defaultLabel: "Customer ref", widget: "text",   defaultSection: "Identity" },
       { key: "pr_no",       defaultLabel: "PR number",    widget: "text",   defaultSection: "Identity" },
@@ -301,8 +324,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "terms",         defaultLabel: "Terms",         widget: "textarea", defaultSection: "Notes" },
 
       // name (the workbench's quote_name group field owns naming there; the
-      // form's own header edits it), status/outcome/total/revision (own
-      // status buttons or computed), account_id/contact_id/entity_id/
+      // form's own header edits it) and account_id/contact_id/entity_id/
       // asset_ids/selected_option_id/meta (relationship pointers or
       // internal) are excluded. Line items are fixed columns in
       // registrySchema.ts (QUOTE_LINE_FIELDS), never registry fields.
