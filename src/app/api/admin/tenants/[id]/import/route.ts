@@ -41,6 +41,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const CHUNK = 400;
   const summary: Record<string, number> = {};
   const errors: Record<string, string> = {};
+  // Source environments can carry columns the target schema lacks (ad-hoc
+  // production drift). Rather than failing the whole table, drop the column
+  // PostgREST names and retry -- reported back so the loss is visible.
+  const droppedColumns: Record<string, string[]> = {};
   // service_cases.parent_case_id is a self-FK; a child can precede its parent
   // within the batch, so it's stripped on insert and patched afterwards.
   const casesParentPatch: { id: string; parent_case_id: string }[] = [];
@@ -59,13 +63,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     let inserted = 0;
-    for (let i = 0; i < prepared.length; i += CHUNK) {
-      const chunk = prepared.slice(i, i + CHUNK);
-      const { error } = await admin.from(table).upsert(chunk, { onConflict: "id", ignoreDuplicates: true });
-      if (error) {
+    let rows2 = prepared;
+    for (let i = 0; i < rows2.length; i += CHUNK) {
+      let chunk = rows2.slice(i, i + CHUNK);
+      let retries = 0;
+      for (;;) {
+        const { error } = await admin.from(table).upsert(chunk, { onConflict: "id", ignoreDuplicates: true });
+        if (!error) break;
+        const unknownCol = error.message.match(/Could not find the '([^']+)' column/)?.[1];
+        if (unknownCol && retries++ < 20) {
+          (droppedColumns[table] ??= []).push(unknownCol);
+          rows2 = rows2.map((r) => {
+            const copy = { ...r };
+            delete copy[unknownCol];
+            return copy;
+          });
+          chunk = rows2.slice(i, i + CHUNK);
+          continue;
+        }
         errors[table] = error.message;
         break;
       }
+      if (errors[table]) break;
       inserted += chunk.length;
     }
     summary[table] = inserted;
@@ -84,6 +103,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     tenant: tenant.name,
     totalRows: total,
     tables: summary,
+    ...(Object.keys(droppedColumns).length > 0 ? { droppedColumns } : {}),
     ...(Object.keys(errors).length > 0 ? { errors } : {}),
   });
 }

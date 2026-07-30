@@ -484,7 +484,9 @@ export default function TenantEditor({ tenant, users }: Props) {
                 if (!res.ok) {
                   setImportMsg(json.error ?? `Import failed (${res.status})`);
                 } else if (json.ok) {
-                  setImportMsg(`Imported ${json.totalRows} rows ✓`);
+                  const dropped = Object.entries(json.droppedColumns ?? {})
+                    .map(([t, cs]) => `${t}.${(cs as string[]).join("/")}`).join(", ");
+                  setImportMsg(`Imported ${json.totalRows} rows${dropped ? ` (skipped unknown columns: ${dropped})` : ""} ✓`);
                   router.refresh();
                 } else {
                   const errs = Object.entries(json.errors ?? {}).map(([t, m]) => `${t}: ${m}`).join(" · ");
