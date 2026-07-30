@@ -68,7 +68,7 @@ isn't lost at the next promotion.
 Code side (done by Claude): `develop` branch created from `main`; this
 document committed to both branches.
 
-- [ ] **Supabase**: create a second project (e.g. `bpmsquare-staging`, free
+- [x] **Supabase**: create a second project (e.g. `bpmsquare-staging`, free
       tier) and use **Connect GitHub** on the create screen (or Project
       Settings -> Integrations) pointing at `iammuniraa-wq/bpmsquare-app`,
       branch **`develop`**. The `supabase/migrations/` directory is a valid
@@ -79,10 +79,10 @@ document committed to both branches.
       project -- production migrations stay manual at promotion time.
       (Manual alternative: SQL-editor-run `0000_baseline.sql` then `0030+`
       in order.)
-- [ ] **Supabase staging**: create the `dev` tenant row + a login user for
+- [x] **Supabase staging**: create the `dev` tenant row + a login user for
       yourself (mirror how the demo tenant was seeded), or export/import the
       demo tenant's data via the admin export for realistic test data.
-- [ ] **Vercel**: in the BPMSquare project → Settings → Environment
+- [x] **Vercel**: in the BPMSquare project → Settings → Environment
       Variables, add the staging Supabase URL / anon key / service-role key /
       `FIELD_ENCRYPTION_KEY` etc. scoped to the **Preview** environment
       (Production keeps the current values). Every push to `develop` then
