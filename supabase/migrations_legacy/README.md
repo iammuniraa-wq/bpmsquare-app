@@ -1,9 +1,11 @@
 # Legacy migrations (0001–0029)
 
-These predate the multi-tenant rebuild and/or are already folded into
-`supabase/migrations/0000_baseline.sql` (a snapshot of `schema.sql` as of
-2026-07-19). They are **already applied on the production database** and are
-kept here for historical reference only.
+These are **already applied on the production database** and kept for
+reference. 0001-0006 predate the multi-tenant rebuild (superseded by the
+schema.sql snapshot); 0007-0027 are replayed verbatim inside
+`supabase/migrations/0000_baseline.sql`'s addendum (the snapshot alone was
+missing their changes); 0028/0029's RLS fixes are already reflected in the
+snapshot itself.
 
 Do NOT apply these to a new database — a fresh environment is built from
 `supabase/migrations/` alone: `0000_baseline.sql` first, then `0030+` in
