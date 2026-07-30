@@ -189,7 +189,7 @@ function DraggableSection({
           padding: `${py} 10px`,
           borderRadius: 8, fontSize: 13, marginBottom: 1,
           color: on ? "#fff" : "var(--sb-text)",
-          background: on ? accent : "transparent",
+          background: on ? `var(--sb-active-bg, ${accent})` : "transparent",
           opacity: isDragging ? 0.35 : 1,
           textDecoration: "none",
           userSelect: "none",
@@ -231,7 +231,7 @@ function DraggableSection({
                           padding: `${py} 10px`,
                           borderRadius: 8, fontSize: 12.5, marginBottom: 1,
                           color: childOn ? "#fff" : "var(--sb-text)",
-                          background: childOn ? accent : "transparent",
+                          background: childOn ? `var(--sb-active-bg, ${accent})` : "transparent",
                           textDecoration: "none",
                           transition: "background 0.12s",
                         }}
@@ -265,7 +265,7 @@ function IconRailItem({ item, active, accent, onNavigate }: {
         display: "flex", alignItems: "center", justifyContent: "center",
         width: 36, height: 36, margin: "0 auto 4px", borderRadius: 8,
         color: active ? "#fff" : "var(--sb-text)",
-        background: active ? accent : "transparent",
+        background: active ? `var(--sb-active-bg, ${accent})` : "transparent",
         textDecoration: "none", fontSize: 15,
       }}
     >
@@ -508,7 +508,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
               width: 36, height: 36, margin: "0 auto", borderRadius: 8,
-              background: isActive(ROUTES.settings) ? accent : "transparent",
+              background: isActive(ROUTES.settings) ? `var(--sb-active-bg, ${accent})` : "transparent",
               textDecoration: "none",
             }}
           >
@@ -571,7 +571,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               display: "flex", alignItems: "center", gap: 8, width: "100%",
               padding: "7px 10px", borderRadius: 8, fontSize: 12.5,
               color: isActive(ROUTES.settings) ? "#dce9f6" : "var(--sb-text)",
-              background: isActive(ROUTES.settings) ? accent : "transparent",
+              background: isActive(ROUTES.settings) ? `var(--sb-active-bg, ${accent})` : "transparent",
               textDecoration: "none",
               transition: "background 0.12s",
             }}

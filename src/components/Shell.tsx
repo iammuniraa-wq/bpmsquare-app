@@ -36,7 +36,7 @@ function MobileTopBar() {
       {/* Top bar */}
       <header style={{
         position: "sticky", top: 0, zIndex: 100, flexShrink: 0,
-        background: "var(--sidebar-grad)",
+        background: "var(--sb-bar-bg)",
         height: 48,
         display: "flex", alignItems: "center",
         gap: 8,
@@ -96,7 +96,7 @@ function MobileTopBar() {
       {searchOpen && (
         <div style={{
           position: "sticky", top: 48, zIndex: 99,
-          background: "var(--sidebar-grad)",
+          background: "var(--sb-bar-bg)",
           padding: "8px 14px 10px",
           boxShadow: "0 4px 14px rgba(0,0,0,.3)",
         }}>
@@ -165,7 +165,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "flex-end",
-            background: "var(--sidebar-grad)", borderBottom: "1px solid var(--sb-line)",
+            background: "var(--sb-bar-bg)", borderBottom: "1px solid var(--sb-line)",
             height: 48, minHeight: 48, flexShrink: 0, padding: "0 16px",
           }}>
             <GlobalSearchBar />

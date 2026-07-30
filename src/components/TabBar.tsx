@@ -56,7 +56,7 @@ export default function TabBar() {
     <div style={{
       display: "flex", alignItems: "center",
       borderBottom: "1px solid var(--sb-line)",
-      background: "var(--sidebar-grad)",
+      background: "var(--sb-bar-bg)",
       height: 42, minHeight: 42, flexShrink: 0,
       position: "relative",
     }}>
@@ -88,7 +88,7 @@ export default function TabBar() {
                 minWidth: 110, maxWidth: 180, flexShrink: 0,
                 height: 42,
                 background: active ? "var(--sb-hover-strong)" : "transparent",
-                borderBottom: active ? `2px solid ${c.accent}` : "2px solid transparent",
+                borderBottom: active ? `2px solid var(--sb-tab-underline, ${c.accent})` : "2px solid transparent",
                 cursor: "pointer",
                 borderRight: "1px solid var(--sb-line)",
                 position: "relative",
@@ -110,7 +110,7 @@ export default function TabBar() {
                 </span>
                 {tab.section && (
                   <span style={{
-                    fontSize: 9, color: active ? "var(--modern-accent, #5a8ab0)" : "var(--sb-text-faint)",
+                    fontSize: 9, color: active ? "var(--sb-tab-sub-active, #5a8ab0)" : "var(--sb-text-faint)",
                     textTransform: "uppercase", letterSpacing: "0.04em",
                     lineHeight: "1.2", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>
