@@ -5,8 +5,8 @@ import {
   ACCOUNT_TYPE_LABEL, ASSET_KIND_LABEL, SUPPLIER_TYPE_LABEL, SUPPLIER_STATUS_LABEL,
   CASE_TYPE_LABEL, INVENTORY_ITEM_STATUS_LABEL,
 } from "@/lib/data/labels";
-import { UOM_OPTIONS } from "@/lib/constants";
-import type { AccountType, Asset, Supplier, ServiceCase, InventoryItem } from "@/lib/types";
+import { UOM_OPTIONS, OFFER_TYPE_LABEL } from "@/lib/constants";
+import type { AccountType, Asset, Supplier, ServiceCase, InventoryItem, QuoteOfferType } from "@/lib/types";
 
 // ── Widget types ─────────────────────────────────────────────────────────────
 //
@@ -78,7 +78,7 @@ export type EffectiveField = {
 
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
-  | "case" | "work_order" | "invoice" | "purchase_order" | "inventory";
+  | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -96,6 +96,9 @@ const DISCOUNT_TYPE_OPTIONS: { value: "pct" | "fixed"; label: string }[] = [
   { value: "pct",   label: "Percentage" },
   { value: "fixed", label: "Fixed amount" },
 ];
+
+const QUOTE_TYPE_OPTIONS: { value: QuoteOfferType; label: string }[] =
+  (Object.keys(OFFER_TYPE_LABEL) as QuoteOfferType[]).map((value) => ({ value, label: OFFER_TYPE_LABEL[value] }));
 
 const CASE_TYPE_OPTIONS: { value: ServiceCase["type"]; label: string }[] =
   (Object.keys(CASE_TYPE_LABEL) as ServiceCase["type"][]).map((value) => ({ value, label: CASE_TYPE_LABEL[value] }));
@@ -272,6 +275,40 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
     ],
   },
 
+  quote: {
+    sections: ["Identity", "Commercial", "Sales", "Notes"],
+    fields: [
+      { key: "ref",         defaultLabel: "Quote ID",     widget: "text",   defaultSection: "Identity", locked: true, editable: false },
+      { key: "type",        defaultLabel: "Offer type",   widget: "enum",   defaultSection: "Identity", enumOptions: QUOTE_TYPE_OPTIONS },
+      { key: "valid_until", defaultLabel: "Valid until",  widget: "date",   defaultSection: "Identity" },
+      { key: "ref_no",      defaultLabel: "Customer ref", widget: "text",   defaultSection: "Identity" },
+      { key: "pr_no",       defaultLabel: "PR number",    widget: "text",   defaultSection: "Identity" },
+
+      { key: "po_number",   defaultLabel: "PO number",    widget: "text",   defaultSection: "Commercial" },
+      { key: "po_amount",   defaultLabel: "PO amount",    widget: "number", defaultSection: "Commercial" },
+      // These feed the stored `total`, which only the quote form's own
+      // dedicated flow recalculates -- visible/exportable, never bulk-edited.
+      { key: "discount_type",  defaultLabel: "Discount type",   widget: "enum",   defaultSection: "Commercial", enumOptions: DISCOUNT_TYPE_OPTIONS, editable: false },
+      { key: "discount_pct",   defaultLabel: "Discount %",      widget: "number", defaultSection: "Commercial", editable: false },
+      { key: "discount_fixed", defaultLabel: "Discount amount", widget: "number", defaultSection: "Commercial", editable: false },
+      { key: "gst_rate",       defaultLabel: "GST rate %",      widget: "number", defaultSection: "Commercial", editable: false },
+
+      { key: "territory", defaultLabel: "Territory", widget: "select", defaultSection: "Sales", selectSource: "territory" },
+      { key: "sales_org", defaultLabel: "Sales org", widget: "select", defaultSection: "Sales", selectSource: "sales_org" },
+
+      { key: "scope_of_work", defaultLabel: "Scope of work", widget: "textarea", defaultSection: "Notes" },
+      { key: "notes",         defaultLabel: "Notes",         widget: "textarea", defaultSection: "Notes" },
+      { key: "terms",         defaultLabel: "Terms",         widget: "textarea", defaultSection: "Notes" },
+
+      // name (the workbench's quote_name group field owns naming there; the
+      // form's own header edits it), status/outcome/total/revision (own
+      // status buttons or computed), account_id/contact_id/entity_id/
+      // asset_ids/selected_option_id/meta (relationship pointers or
+      // internal) are excluded. Line items are fixed columns in
+      // registrySchema.ts (QUOTE_LINE_FIELDS), never registry fields.
+    ],
+  },
+
   invoice: {
     sections: ["Identity", "Commercial", "Notes"],
     fields: [
@@ -365,7 +402,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 
 const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
-  "case", "work_order", "invoice", "purchase_order", "inventory",
+  "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getQuote } from "@/lib/data";
-import { getTenant } from "@/lib/tenant";
+import { getTenant, getUserRole } from "@/lib/tenant";
+import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
@@ -13,7 +14,7 @@ export default async function QuotationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [data, tenant] = await Promise.all([getQuote(id), getTenant()]);
+  const [data, tenant, role] = await Promise.all([getQuote(id), getTenant(), getUserRole()]);
   if (!data) notFound();
 
   const { quote, account, contact, lines, workOrders, existingInvoice, assets } = data;
@@ -33,6 +34,7 @@ export default async function QuotationDetailPage({
       <PageHeader
         title={quote.ref}
         subtitle={`Sales · ${offerLabel} · ${account?.name ?? ""}`}
+        action={<AdaptObjectDrawer objectType="quote" objectLabel="Quote" isAdmin={role === "admin"} />}
       />
       <QuoteDetailLayout
         quote={quote as Parameters<typeof QuoteDetailLayout>[0]["quote"]}

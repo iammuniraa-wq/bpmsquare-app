@@ -114,7 +114,11 @@ function customValueDisplay(field: EffectiveField, raw: unknown): React.ReactNod
 
 function buildCustomColumns(fields: EffectiveField[]): ColDef[] {
   return fields
-    .filter((f) => !f.hidden)
+    // kind filter matters since quote became a registry (pilot) object:
+    // field-config now returns standard fields too, and those already have
+    // their own dedicated columns above -- only tenant custom fields become
+    // generated custom_data columns.
+    .filter((f) => f.kind === "custom" && !f.hidden)
     .map((f) => ({
       id: f.field_key,
       label: f.label,

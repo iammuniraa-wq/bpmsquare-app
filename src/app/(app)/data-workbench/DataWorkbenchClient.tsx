@@ -52,9 +52,8 @@ export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) 
   const [activeId, setActiveId] = useState<ImportObjectId>(specs[0]?.id ?? "accounts");
 
   const visibleSpecs = specs.filter((s) => {
-    if (mode === "import") return true;
-    if (mode === "export") return s.id !== "quotes";
-    return s.id !== "quotes" && s.id !== "users"; // update
+    if (mode === "update") return s.id !== "users"; // users have their own invite flow, no bulk update
+    return true;
   });
   const spec = visibleSpecs.find((s) => s.id === activeId) ?? visibleSpecs[0];
 
@@ -141,7 +140,12 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
   // PATCH route accepts in bulk.
   const spec: ObjectSpec = useMemo(() => {
     if (mode !== "update") return baseSpec;
-    return { ...baseSpec, fields: [ID_FIELD, ...baseSpec.fields.filter((f) => f.type !== "ref")] };
+    // Quotes additionally drop line-item columns and the quote_name grouping
+    // key -- bulk Update edits quote header scalars only, one row per quote.
+    return {
+      ...baseSpec,
+      fields: [ID_FIELD, ...baseSpec.fields.filter((f) => f.type !== "ref" && f.scope !== "line" && f.key !== "quote_name")],
+    };
   }, [baseSpec, mode]);
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>("upload");
@@ -161,10 +165,12 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
       values: applyMapping(row, mapping),
       rowNum: sheet.rowNumbers[i],
     }));
-    return spec.id === "quotes"
+    // Grouped header+line validation only applies to quote IMPORT files --
+    // Update files are one flat row per quote, validated like any object.
+    return spec.id === "quotes" && mode === "import"
       ? validateQuoteRows(spec, mapped)
       : mapped.map((m) => validateRow(spec, m.values, m.rowNum));
-  }, [sheet, mapping, spec]);
+  }, [sheet, mapping, spec, mode]);
 
   const readyRows = validated.filter((r) => !hasBlockingIssue(r));
   const problemRows = validated.filter(hasBlockingIssue);
