@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat } from "./constants";
 import { formatQuoteRef } from "./quoteRefFormat";
+import { firstFreeRef } from "./refSeq";
 
 export { formatQuoteRef };
 
@@ -24,7 +25,11 @@ export async function generateNextQuoteRef(
   fmt: QuoteIdFormat = DEFAULT_QUOTE_ID_FORMAT,
   date: Date = new Date()
 ): Promise<string> {
-  let query = supabase.from("quotes").select("ref").eq("tenant_id", tenantId);
+  // Newest first: within a sequence, the highest number is on the most
+  // recently created row, so even if the tenant has more rows than one
+  // select returns (PostgREST caps at 1000), the true max is in this page.
+  let query = supabase.from("quotes").select("ref").eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false }).limit(1000);
 
   if (fmt.reset === "yearly") {
     const yearStart = new Date(date.getFullYear(), 0, 1).toISOString();
@@ -52,5 +57,8 @@ export async function generateNextQuoteRef(
     if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
   }
 
-  return formatQuoteRef(fmt, date, maxSeq + 1);
+  // Probe forward from the candidate until a genuinely free ref is found --
+  // covers refs the pattern didn't match (older/changed ID formats holding
+  // the same numbers) and rows beyond the select's page (see refSeq.ts).
+  return firstFreeRef(supabase, "quotes", tenantId, (seq) => formatQuoteRef(fmt, date, seq), maxSeq + 1);
 }

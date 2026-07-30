@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Derives the next sequence number from existing refs by taking the HIGHEST
@@ -19,4 +20,35 @@ export function nextSeqFromRefs(refs: (string | null | undefined)[], pattern: Re
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
   return max + 1;
+}
+
+/**
+ * Walks forward from `startSeq` until a ref that doesn't exist yet for this
+ * tenant is found, and returns it. Belt-and-braces on top of nextSeqFromRefs:
+ * the max-derived candidate can still collide when (a) the tenant has more
+ * rows than one select returns, or (b) refs from an older/changed ID format
+ * hold numbers the current format's pattern didn't match. A cheap indexed
+ * existence probe per step makes the generator converge on a free ref
+ * regardless -- the DB unique constraint remains the final race arbiter.
+ * Bails out if the formatter ignores the sequence (a template with no {SEQ}
+ * renders the same ref forever -- probing can't disambiguate that).
+ */
+export async function firstFreeRef(
+  supabase: SupabaseClient,
+  table: string,
+  tenantId: string,
+  makeRef: (seq: number) => string,
+  startSeq: number,
+  maxProbes = 200
+): Promise<string> {
+  let seq = startSeq;
+  let ref = makeRef(seq);
+  for (let i = 0; i < maxProbes; i++) {
+    const { data } = await supabase.from(table).select("id").eq("tenant_id", tenantId).eq("ref", ref).limit(1);
+    if (!data || data.length === 0) return ref;
+    const next = makeRef(++seq);
+    if (next === ref) break;
+    ref = next;
+  }
+  return ref;
 }

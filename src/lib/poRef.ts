@@ -1,11 +1,12 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { nextSeqFromRefs } from "./refSeq";
+import { firstFreeRef, nextSeqFromRefs } from "./refSeq";
 
 /**
  * Computes the next sequential Purchase Order ref for a tenant: PO-{YYYY}-{NNNN}, yearly-reset.
  * Fixed format for v1 -- unlike quotes' quote_id_format, no per-tenant template system.
- * Sequence comes from the highest existing ref, not a row count (see refSeq.ts).
+ * Sequence comes from the highest existing ref (not a row count), then probes
+ * forward to a genuinely free ref -- see refSeq.ts for both rationales.
  */
 export async function generateNextPoRef(
   supabase: SupabaseClient,
@@ -20,8 +21,11 @@ export async function generateNextPoRef(
     .select("ref")
     .eq("tenant_id", tenantId)
     .gte("created_at", yearStart)
-    .lt("created_at", yearEnd);
+    .lt("created_at", yearEnd)
+    .order("created_at", { ascending: false })
+    .limit(1000);
 
   const seq = nextSeqFromRefs((data ?? []).map((r) => r.ref as string), /^PO-\d{4}-(\d+)$/);
-  return `PO-${date.getFullYear()}-${String(seq).padStart(4, "0")}`;
+  const makeRef = (s: number) => `PO-${date.getFullYear()}-${String(s).padStart(4, "0")}`;
+  return firstFreeRef(supabase, "purchase_orders", tenantId, makeRef, seq);
 }
