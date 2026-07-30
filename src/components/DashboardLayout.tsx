@@ -579,7 +579,7 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
 
 // ── Sidebar sub-components ────────────────────────────────────────────────────
 
-function QCBtn({ href, label, icon, bg }: { href: string; label: string; icon: React.ReactNode; bg: string }) {
+function QCBtn({ href, label, icon, tint }: { href: string; label: string; icon: React.ReactNode; tint: { fg: string; bg: string; base: string } }) {
   const modern = useUiTheme() !== "classic";
   return (
     <Link
@@ -588,9 +588,9 @@ function QCBtn({ href, label, icon, bg }: { href: string; label: string; icon: R
       style={{
         display: "flex", alignItems: "center", gap: 9, padding: modern ? "9px 12px" : "8px 11px",
         borderRadius: modern ? "var(--card-radius)" : 8,
-        background: modern ? "var(--card-bg)" : bg,
-        border: `1px solid ${modern ? "var(--line)" : c.line}`,
-        textDecoration: "none", fontSize: 12.5, color: c.ink, fontWeight: modern ? 700 : 600,
+        background: tint.bg,
+        border: `1px solid ${modern ? `${tint.base}55` : c.line}`,
+        textDecoration: "none", fontSize: 12.5, color: modern ? tint.fg : c.ink, fontWeight: modern ? 700 : 600,
       }}
     >
       {icon}{label}
@@ -1146,11 +1146,11 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <section style={{ ...cardStyle, padding: "14px 14px 12px" }}>
         <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Quick create</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <QCBtn href={ROUTES.accountNew}   label="New account"    icon={<Globe size={13} color={pillar.purple.base} />}   bg={pillar.purple.bg} />
-          <QCBtn href={ROUTES.caseNew}      label="New case"       icon={<Activity size={13} color={pillar.teal.base} />}  bg={pillar.teal.bg} />
-          <QCBtn href={ROUTES.contactNew}   label="New contact"    icon={<Phone size={13} color={pillar.blue.base} />}     bg={pillar.blue.bg} />
-          <QCBtn href={ROUTES.quotationNew} label="New quotation"  icon={<Package size={13} color={pillar.amber.base} />}  bg={pillar.amber.bg} />
-          <QCBtn href={ROUTES.assetNew}     label="New asset"      icon={<Gear size={13} color={pillar.green.base} />}     bg={pillar.green.bg} />
+          <QCBtn href={ROUTES.accountNew}   label="New account"    icon={<Globe size={13} color={pillar.purple.base} />}   tint={pillar.purple} />
+          <QCBtn href={ROUTES.caseNew}      label="New case"       icon={<Activity size={13} color={pillar.teal.base} />}  tint={pillar.teal} />
+          <QCBtn href={ROUTES.contactNew}   label="New contact"    icon={<Phone size={13} color={pillar.blue.base} />}     tint={pillar.blue} />
+          <QCBtn href={ROUTES.quotationNew} label="New quotation"  icon={<Package size={13} color={pillar.amber.base} />}  tint={pillar.amber} />
+          <QCBtn href={ROUTES.assetNew}     label="New asset"      icon={<Gear size={13} color={pillar.green.base} />}     tint={pillar.green} />
         </div>
       </section>
     );
