@@ -2,12 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isPlatformAdmin } from "@/lib/tenant";
 import { createAdminSupabase } from "@/lib/supabase-server";
 
-const TABLES = [
-  "accounts", "contacts", "sites", "assets", "contracts", "leads",
-  "quotes", "quote_lines", "quote_revisions", "technicians", "technician_leaves",
-  "service_cases", "work_orders", "invoices", "visit_logs",
-  "activities", "case_photos", "inspection_reports", "pricing_items", "text_fragments",
-];
+import { TENANT_TABLES } from "@/lib/tenantExport";
+
+const TABLES = TENANT_TABLES;
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const isAdmin = await isPlatformAdmin();
