@@ -264,7 +264,8 @@
 [data-theme="nextgen"] {
   --panel2: #f7f7f8;               /* the canvas -- html/body + section fills read this */
   --card-radius: 10px;
-  --card-shadow: none;
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --card-shadow-hover: 0 10px 24px rgba(16, 24, 40, 0.10), 0 2px 6px rgba(16, 24, 40, 0.06);
   --line: #e9eaee;
   --sidebar-grad: #ffffff;
   --sb-bar-bg: #f7f7f8;
@@ -337,7 +338,10 @@
   --hint: #7c828c;
   --line: #26282e;
   --accentbg: #1c2740;
-  --card-shadow: none;
+  /* Shadows barely register on a dark canvas at light-mode alphas -- go
+     deeper, and let the hover border emphasis carry most of the affordance. */
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --card-shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.55);
 
   /* Pillar + status families -- light soft-tint surfaces flip to deep tints
      with lightened ink so banners/chips/badges stay readable on dark. */
@@ -449,10 +453,13 @@
   border-color: #b3bfd6;
   box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14);
 }
-/* nextgen: no lift-jump -- a calm border emphasis instead, Attio-style */
+/* nextgen: lift + accent border emphasis + elevated shadow (tokenized so
+   dark mode can deepen the shadow to stay visible on a dark canvas). */
 [data-theme="nextgen"] .modern-lift:hover,
 [data-theme="nextgen"] .modern-lift-gold:hover {
+  transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--modern-accent) 40%, var(--line));
+  box-shadow: var(--card-shadow-hover);
 }
 
 * { box-sizing: border-box; }
