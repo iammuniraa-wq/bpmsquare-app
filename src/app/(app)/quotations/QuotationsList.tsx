@@ -9,7 +9,7 @@ import { ROUTES, OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef }
 import { CheckIcon, XIcon } from "@/components/Icons";
 import QuoteStatusPill from "@/components/QuoteStatusPill";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
-import { useUserRole } from "@/lib/tenant-context";
+import { useUserRole, useUiTheme } from "@/lib/tenant-context";
 import type { EffectiveField } from "@/lib/fieldRegistry";
 import type { QuoteSummary } from "@/lib/data/labels";
 
@@ -139,6 +139,7 @@ const td: React.CSSProperties = {
 export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QUOTE_STATUSES, caseLinkedQuoteIds = [] }: { initialRows: QuoteSummary[]; quoteStatuses?: QuoteStatusDef[]; caseLinkedQuoteIds?: string[] }) {
   const router = useRouter();
   const role = useUserRole();
+  const modern = useUiTheme() !== "classic";
   const isAdmin = role === "admin";
 
   const [rows, setRows]                 = useState<QuoteSummary[]>(initialRows);
@@ -327,26 +328,31 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
 
   return (
     <>
-      {/* Summary strip */}
+      {/* Summary strip -- modern themes get the same pillar-tinted tile
+          treatment as the dashboard KPI tiles; classic keeps flat white. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 14 }}>
         {[
-          { label: "Total quotes",      value: rows.length,                    color: c.ink },
-          { label: "Overall value",     value: inr(totalOverall),               color: c.ink },
-          { label: "Won value",         value: inr(totalWon),                   color: pillar.teal.fg },
-          { label: "Lost value",        value: inr(totalLost),                  color: pillar.red.fg },
-          { label: "In pipeline",       value: inr(totalPipeline),              color: pillar.blue.fg },
-          { label: "Overdue",           value: overdueCount,                    color: overdueCount > 0 ? pillar.amber.fg : c.muted },
-          { label: "Awaiting approval", value: awaitingApprovalCount,           color: c.muted },
-          { label: "From cases",        value: caseLinked.count,                color: pillar.purple.fg, sub: inr(caseLinked.value) },
-          { label: "Standalone",        value: standalone.count,                color: c.muted,          sub: inr(standalone.value) },
+          { label: "Total quotes",      value: rows.length,                    color: c.ink,   tint: pillar.blue },
+          { label: "Overall value",     value: inr(totalOverall),               color: c.ink,   tint: pillar.purple },
+          { label: "Won value",         value: inr(totalWon),                   color: pillar.teal.fg,  tint: pillar.teal },
+          { label: "Lost value",        value: inr(totalLost),                  color: pillar.red.fg,   tint: pillar.red },
+          { label: "In pipeline",       value: inr(totalPipeline),              color: pillar.blue.fg,  tint: pillar.blue },
+          { label: "Overdue",           value: overdueCount,                    color: overdueCount > 0 ? pillar.amber.fg : c.muted, tint: overdueCount > 0 ? pillar.amber : pillar.green },
+          { label: "Awaiting approval", value: awaitingApprovalCount,           color: c.muted, tint: pillar.amber },
+          { label: "From cases",        value: caseLinked.count,                color: pillar.purple.fg, tint: pillar.purple, sub: inr(caseLinked.value) },
+          { label: "Standalone",        value: standalone.count,                color: c.muted, tint: pillar.green,  sub: inr(standalone.value) },
         ].map((s) => (
           <div
             key={s.label}
             className="modern-lift"
-            style={{ background: "var(--card-bg)", border: "1px solid var(--line)", borderRadius: "var(--card-radius)", padding: "12px 14px" }}
+            style={{
+              background: modern ? s.tint.bg : "var(--card-bg)",
+              border: `1px solid ${modern ? `${s.tint.base}55` : "var(--line)"}`,
+              borderRadius: "var(--card-radius)", padding: "12px 14px",
+            }}
           >
-            <div style={{ fontSize: 11, color: c.muted }}>{s.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: s.color, marginTop: 4 }}>{s.value}</div>
+            <div style={{ fontSize: 11, fontWeight: modern ? 700 : 400, color: modern ? s.tint.fg : c.muted, ...(modern ? { textTransform: "uppercase" as const, letterSpacing: 0.5, fontSize: 10 } : {}) }}>{s.label}</div>
+            <div style={{ fontSize: 20, fontWeight: modern ? 700 : 600, color: modern ? s.tint.fg : s.color, marginTop: 4 }}>{s.value}</div>
             {"sub" in s && <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{s.sub}</div>}
           </div>
         ))}
