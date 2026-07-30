@@ -28,7 +28,7 @@ main branch ─────► production deployment ─► production Supabase 
 | | Staging | Production |
 |---|---|---|
 | Git branch | `develop` | `main` |
-| Deployment | Vercel preview of `develop` (optionally pinned to `staging.bpmsquare.com`) | The existing production Vercel project |
+| Deployment | `https://bpmsquare-app-git-develop-munira1.vercel.app` (Vercel preview of `develop`; optionally pin `staging.bpmsquare.com` later) | The existing production Vercel project (renamed `bpmsquare-app`) |
 | Database | **Separate** staging Supabase project | The existing production Supabase |
 | Tenants | `dev` tenant — throwaway data, drastic experiments | `demo` (client-facing showcase) + real clients |
 | Who sees it | Us + QA | Clients |
