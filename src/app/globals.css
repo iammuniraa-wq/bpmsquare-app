@@ -469,6 +469,15 @@ html, body {
   padding: 0;
   background: var(--panel2);
   color: var(--ink);
+}
+
+/* body's color resolves var(--ink) AT the body -- which sits OUTSIDE the
+   Shell wrapper that carries data-theme/data-mode, so in nextgen dark mode
+   unstyled text inherits the LIGHT theme's near-black ink onto dark cards.
+   Re-declaring color on the themed wrapper itself makes inheritance resolve
+   against that wrapper's own (possibly dark-remapped) tokens. */
+[data-theme] {
+  color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
