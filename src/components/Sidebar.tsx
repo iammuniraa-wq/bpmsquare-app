@@ -171,7 +171,7 @@ function DraggableSection({
 
   if (items.length === 0 && isFavSection) {
     return (
-      <div style={{ padding: "5px 10px 8px", fontSize: 11, color: "#3a5166", fontStyle: "italic" }}>
+      <div style={{ padding: "5px 10px 8px", fontSize: 11, color: "var(--sb-text-faint)", fontStyle: "italic" }}>
         Hover an item below · click <StarOutline size={10} color="#f6b23c" /> to pin
       </div>
     );

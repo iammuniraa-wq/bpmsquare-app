@@ -19,7 +19,7 @@ function Toggle() {
     <div style={{
       display: "flex", gap: 2,
       background: "var(--panel2)", borderRadius: 7, padding: 2,
-      border: "1px solid #dde3ec",
+      border: "1px solid var(--line)",
     }}>
       {(["card", "list"] as const).map((v) => (
         <Link key={v} href={href(v)} style={{

@@ -863,11 +863,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       {/* Case carry-over banner */}
       {caseSource && !carryoverDismissed && (
         <div style={{ marginBottom: 14, background: "var(--bluebg)", border: "1px solid var(--blueline)", borderLeft: "3px solid #378ADD", borderRadius: 8, padding: "12px 16px" }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: "#1e3a5f", marginBottom: 6 }}>Creating quotation from case {caseSource.caseRef}</div>
-          <div style={{ fontSize: 12, color: "#3a5a80", marginBottom: 10 }}>Carry over inspection findings to the quotation notes, and pre-select the account?</div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--blueink)", marginBottom: 6 }}>Creating quotation from case {caseSource.caseRef}</div>
+          <div style={{ fontSize: 12, color: "var(--blueink)", marginBottom: 10 }}>Carry over inspection findings to the quotation notes, and pre-select the account?</div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" onClick={applyCarryover} style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#378ADD", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>Yes, carry over</button>
-            <button type="button" onClick={() => setCarryoverDismissed(true)} style={{ fontSize: 12, fontWeight: 500, color: "#3a5a80", background: "none", border: "1px solid var(--blueline)", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>Start fresh</button>
+            <button type="button" onClick={() => setCarryoverDismissed(true)} style={{ fontSize: 12, fontWeight: 500, color: "var(--blueink)", background: "none", border: "1px solid var(--blueline)", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>Start fresh</button>
           </div>
         </div>
       )}

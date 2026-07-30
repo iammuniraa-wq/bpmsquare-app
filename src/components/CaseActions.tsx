@@ -417,7 +417,7 @@ export default function CaseActions({
   if (currentStatus === "ready") {
     return (
       <div style={{ ...card, borderLeftColor: "var(--teal)" }}>
-        <div style={{ fontSize: 12.5, color: "#1d6b4a", marginBottom: 12 }}>Equipment is ready for pickup.</div>
+        <div style={{ fontSize: 12.5, color: "var(--tealink)", marginBottom: 12 }}>Equipment is ready for pickup.</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button style={btnSuccess} onClick={() => patchCase({ status: "closed" })} disabled={pending} type="button">
             {pending ? "…" : "Close — handed to customer ✓"}

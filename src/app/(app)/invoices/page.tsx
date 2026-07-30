@@ -95,7 +95,7 @@ export default async function InvoicesPage({
           , or raise one from a completed work order or an approved quote.
         </div>
       ) : (
-        <div style={cardStyle}>
+        <div style={{ ...cardStyle, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>

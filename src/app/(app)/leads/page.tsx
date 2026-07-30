@@ -93,7 +93,7 @@ export default async function LeadsPage({
           No leads yet. Add your first enquiry to start tracking.
         </div>
       ) : (
-        <div style={cardStyle}>
+        <div style={{ ...cardStyle, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
