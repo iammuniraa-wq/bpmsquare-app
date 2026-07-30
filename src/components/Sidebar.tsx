@@ -453,7 +453,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           {!collapsed && (
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 600, color: "var(--sb-strong)", fontSize: 14 }}>
-                {tenant?.name ?? <span>Vevey<span style={{ color: "#7fb4ec" }}>CRM</span></span>}
+                {tenant?.name ?? <span>BPM<span style={{ color: "#7fb4ec" }}>Square</span></span>}
               </div>
               <div style={{
                 fontSize: 11, color: "var(--sb-text-dimmer)",
