@@ -152,7 +152,7 @@ export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Log
                     </td>
                   </tr>
                 ) : filtered.map((r, i) => (
-                  <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : c.panel2 + "55" }}>
+                  <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "color-mix(in srgb, var(--panel2) 55%, transparent)" }}>
                     <td style={td}>
                       <span style={{
                         display: "inline-block", padding: "2px 9px", borderRadius: 12,

@@ -315,6 +315,73 @@
   --drawer-err-border: #f0c8c0;
 }
 
+/* nextgen dark mode -- per-browser toggle (Shell.tsx stamps data-mode="dark"
+   on the same wrapper that carries data-theme). Only nextgen ships it: the
+   other themes' component styles assume a light content area. The c.* JS
+   neutrals (theme.ts) resolve to these vars, so inline styles follow. Known
+   v1 gap: a few pages hardcode #fff fills (zebra rows, some form panels)
+   and will show light patches in dark mode until they're tokenized. */
+[data-theme="nextgen"][data-mode="dark"] {
+  --panel: #17181c;
+  --panel2: #101114;
+  --ink: #f2f3f5;
+  --muted: #9aa1ac;
+  --hint: #7c828c;
+  --line: #26282e;
+  --accentbg: #1c2740;
+  --card-shadow: none;
+
+  --sidebar-grad: #14151a;
+  --sb-bar-bg: #101114;
+  --modern-accent: #5b8cf0;
+  --modern-accent-bg: #1c2740;
+  --modern-gold: #5b8cf0;
+  --modern-gold-bg: #1c2740;
+  --nextgen-ai: #a18aff;
+  --nextgen-ai-soft: #221c3a;
+  --nextgen-good: #3ecf8e;
+  --nextgen-good-soft: #12291f;
+  --nextgen-bad: #f0705b;
+  --nextgen-bad-soft: #331a15;
+  --nextgen-warn: #e4b34c;
+  --nextgen-warn-soft: #2e2410;
+
+  --sb-text: #c3c6cc;
+  --sb-text-dim: #83878f;
+  --sb-text-dimmer: #74777e;
+  --sb-text-faint: #5a5d64;
+  --sb-strong: #f2f3f5;
+  --sb-icon-muted: #9aa1ac;
+  --sb-line: #26282e;
+  --sb-hover: rgba(255, 255, 255, 0.05);
+  --sb-hover-strong: rgba(255, 255, 255, 0.08);
+  --sb-active-bg: #1c2740;
+  --sb-active-ink: #5b8cf0;
+
+  --sb-panel-bg: #17181c;
+  --sb-panel-border: #2a2d34;
+  --sb-panel-text: #f2f3f5;
+  --sb-panel-text-dim: #9aa1ac;
+  --sb-panel-hover: rgba(255, 255, 255, 0.05);
+
+  --sb-search-bg: #17181c;
+  --sb-search-border: #26282e;
+  --sb-search-text: #f2f3f5;
+  --sb-search-icon: #83878f;
+
+  --drawer-bg: #17181c;
+  --drawer-card: #1c1e24;
+  --drawer-card-alt: #1c2740;
+  --drawer-line: #26282e;
+  --drawer-line-strong: #33363e;
+  --drawer-text: #f2f3f5;
+  --drawer-text-dim: #9aa1ac;
+  --drawer-hint: #83878f;
+  --drawer-hint-faint: #5a5d64;
+  --drawer-err-bg: #331a15;
+  --drawer-err-border: #57291f;
+}
+
 /* Segoe UI first -- a real, checkable Fluent difference on Windows (where it's
    installed), not just a colour choice. Harmlessly falls through to the same
    system-font stack everywhere else. */

@@ -1,17 +1,22 @@
 // VeveyCRM design tokens — single source of truth for colour.
 // Mirrors the prototype palette. Never hardcode hex outside this file.
 
+// Neutrals point at the CSS custom properties defined in globals.css, so a
+// theme (e.g. nextgen's dark mode) can re-map them at runtime -- inline
+// styles built from these follow automatically. `accent`/`amber` stay raw hex
+// because ~20 call sites build alpha variants via string concatenation
+// (`${c.accent}40`), which only works on a hex literal.
 export const c = {
   bg2: "#152233",
   bg: "#0e1a28",
-  panel: "#ffffff",
-  panel2: "#f4f6f9",
-  ink: "#1c2733",
-  muted: "#5f6b7a",
-  hint: "#8a96a5",
-  line: "#e2e7ee",
+  panel: "var(--panel)",
+  panel2: "var(--panel2)",
+  ink: "var(--ink)",
+  muted: "var(--muted)",
+  hint: "var(--hint)",
+  line: "var(--line)",
   accent: "#378add",
-  accentbg: "#e6f1fb",
+  accentbg: "var(--accentbg)",
   amber: "#f6b23c", // the hub dot
 } as const;
 

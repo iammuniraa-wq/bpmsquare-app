@@ -1173,7 +1173,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       <input
                         value={row.group_description}
                         onChange={(e) => updateGroupDescription(row.id, e.target.value)}
-                        style={{ ...inp, fontSize: 12.5, background: "transparent", borderColor: row.group_description ? c.line : `${c.line}60` }}
+                        style={{ ...inp, fontSize: 12.5, background: "transparent", borderColor: row.group_description ? c.line : "color-mix(in srgb, var(--line) 45%, transparent)" }}
                         placeholder="Group description (e.g. Motor Stator Winding)…"
                       />
                     </div>
