@@ -58,6 +58,8 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [inviteRole, setInviteRole]         = useState<"admin" | "member">("admin");
   const [inviting, setInviting]             = useState(false);
   const [inviteMsg, setInviteMsg]           = useState("");
+  const [importing, setImporting]           = useState(false);
+  const [importMsg, setImportMsg]           = useState("");
 
   function toggleFeature(key: keyof TenantFeatures) {
     setFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -444,6 +446,61 @@ export default function TenantEditor({ tenant, users }: Props) {
             ⬇ CSV
           </a>
         </div>
+
+        <h2 style={{ margin: "20px 0 6px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Data import</h2>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280" }}>
+          Upload a JSON export from another tenant/environment to clone its data into <b>this</b> tenant.
+          Row ids are preserved, so this is meant for an <b>empty</b> tenant (staging dev, a fresh demo) —
+          re-running the same file is a safe no-op.
+        </p>
+        <label style={{
+          height: 36, padding: "0 16px", display: "inline-flex", alignItems: "center",
+          background: importing ? "#e0e7ff" : "#eef2ff", color: "#3730a3",
+          border: "1px solid #c7d2fe", borderRadius: 8,
+          fontSize: 12, fontWeight: 600, gap: 6, cursor: importing ? "wait" : "pointer",
+        }}>
+          {importing ? "Importing…" : "⬆ Import JSON"}
+          <input
+            type="file"
+            accept="application/json,.json"
+            style={{ display: "none" }}
+            disabled={importing}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              setImporting(true);
+              setImportMsg("");
+              try {
+                const text = await file.text();
+                const res = await fetch(`/api/admin/tenants/${tenant.id}/import`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: text,
+                });
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                  setImportMsg(json.error ?? `Import failed (${res.status})`);
+                } else if (json.ok) {
+                  setImportMsg(`Imported ${json.totalRows} rows ✓`);
+                  router.refresh();
+                } else {
+                  const errs = Object.entries(json.errors ?? {}).map(([t, m]) => `${t}: ${m}`).join(" · ");
+                  setImportMsg(`Imported ${json.totalRows} rows, with errors — ${errs}`);
+                }
+              } catch {
+                setImportMsg("Import failed — could not read/parse the file");
+              } finally {
+                setImporting(false);
+              }
+            }}
+          />
+        </label>
+        {importMsg && (
+          <div style={{ fontSize: 12, color: importMsg.endsWith("✓") ? "#15803d" : "#b91c1c", marginTop: 8 }}>
+            {importMsg}
+          </div>
+        )}
       </section>
 
       {/* Save */}
