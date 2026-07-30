@@ -92,6 +92,11 @@ document committed to both branches.
       needs the staging tenant's `custom_domain` to match whatever host you use).
 - [ ] Confirm the staging deployment can log in and sees the `dev` tenant.
 
+> Note: the Supabase GitHub integration applies migrations on **push** to the
+> configured branch -- connecting it to an existing branch does not sync
+> retroactively. Any push to `develop` (like the one adding this note)
+> triggers the first full apply.
+
 ## State snapshot at the time this process was adopted (2026-07-30)
 
 For orientation — what was already live on production when this split began:
