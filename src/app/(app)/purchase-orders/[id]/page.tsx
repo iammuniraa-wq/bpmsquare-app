@@ -90,7 +90,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
                     <td style={{ padding: "8px 14px", fontSize: 13 }}>{l.description}</td>
                     <td style={{ padding: "8px 12px", textAlign: "center", fontSize: 12.5, color: c.muted }}>{l.uom ?? ""}</td>
                     <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 12.5 }}>{l.qty_ordered}</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 12.5, color: l.qty_received >= l.qty_ordered ? "#1d9e75" : c.muted, fontWeight: l.qty_received >= l.qty_ordered ? 600 : 400 }}>
+                    <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 12.5, color: l.qty_received >= l.qty_ordered ? "var(--teal)" : c.muted, fontWeight: l.qty_received >= l.qty_ordered ? 600 : 400 }}>
                       {l.qty_received}
                     </td>
                     <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 12.5, color: c.muted }}>{inr(l.rate)}</td>

@@ -19,6 +19,12 @@
   --amberc: #ba7517;      --amberbg: #faeeda;  --amberink: #633806;
   --red: #a32d2d;         --redbg: #fcebeb;    --redink: #791f1f;
   --green: #639922;       --greenbg: #eaf3de;  --greenink: #173404;
+  /* Border companions + the error-banner family (Tailwind-red flavour used by
+     inline save/validation errors app-wide). Tokenized so nextgen dark mode
+     can remap them -- hardcoded, these stay glaring light patches on dark. */
+  --blueline: #c5dbf5;
+  --amberline: #f0d09e;
+  --err-bg: #fef2f2;      --err-line: #fecaca; --err-ink: #dc2626;
 
   /* Structural theme tokens -- the "one stop shop" surface every shared
      chrome component (Sidebar, TabBar, Shell's cardStyle) reads from,
@@ -249,6 +255,157 @@
   --drawer-err-bg: #fdecea;
   --drawer-err-border: #f5c6c0;
 }
+/* "Next-gen" direction (experimental) -- the Attio/Linear-class concept: one
+   flat neutral canvas, hairline borders instead of nested boxes, a white
+   sidebar with real SVG icons (Sidebar.tsx renders NAV_GLYPHS under this
+   theme), no browser-tab strip (Shell.tsx skips TabBar), a single restrained
+   blue accent, and semantic colour reserved for data/status. Dashboard gets
+   the rule-based AI brief + sparkline KPIs (DashboardLayout.tsx). */
+[data-theme="nextgen"] {
+  --panel2: #f7f7f8;               /* the canvas -- html/body + section fills read this */
+  --card-radius: 10px;
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --card-shadow-hover: 0 10px 24px rgba(16, 24, 40, 0.10), 0 2px 6px rgba(16, 24, 40, 0.06);
+  --line: #e9eaee;
+  --sidebar-grad: #ffffff;
+  --sb-bar-bg: #f7f7f8;
+  --modern-accent: #2e6be6;
+  --modern-accent-bg: #eef3fe;
+  --modern-gold: #2e6be6;
+  --modern-gold-bg: #eef3fe;
+  --nextgen-ai: #7a5cff;
+  --nextgen-ai-soft: #f2efff;
+  --nextgen-good: #148a5b;
+  --nextgen-good-soft: #e8f5ef;
+  --nextgen-bad: #c2402f;
+  --nextgen-bad-soft: #faeeec;
+  --nextgen-warn: #a16207;
+  --nextgen-warn-soft: #fdf5e3;
+
+  /* Light chrome, neutral ink (not navy/blue-tinted) */
+  --sb-text: #4b5563;
+  --sb-text-dim: #8a8f98;
+  --sb-text-dimmer: #9aa0a9;
+  --sb-text-faint: #b3b8c0;
+  --sb-strong: #17181c;
+  --sb-icon-muted: #6b7280;
+  --sb-line: #e9eaee;
+  --sb-hover: rgba(23, 24, 28, 0.045);
+  --sb-hover-strong: rgba(23, 24, 28, 0.07);
+  /* Soft accent pill with accent ink -- not a filled block */
+  --sb-active-bg: #eef3fe;
+  --sb-active-ink: #2e6be6;
+  --sb-tab-underline: #2e6be6;
+  --sb-tab-sub-active: #2e6be6;
+
+  --sb-panel-bg: #ffffff;
+  --sb-panel-border: #e9eaee;
+  --sb-panel-text: #17181c;
+  --sb-panel-text-dim: #6b7280;
+  --sb-panel-hover: rgba(23, 24, 28, 0.045);
+
+  --sb-search-bg: #ffffff;
+  --sb-search-border: #e9eaee;
+  --sb-search-text: #17181c;
+  --sb-search-icon: #8a8f98;
+
+  --drawer-bg: #ffffff;
+  --drawer-card: #f7f7f8;
+  --drawer-card-alt: #eef3fe;
+  --drawer-line: #e9eaee;
+  --drawer-line-strong: #d5d8de;
+  --drawer-text: #17181c;
+  --drawer-text-dim: #6b7280;
+  --drawer-hint: #8a8f98;
+  --drawer-hint-faint: #b3b8c0;
+  --drawer-err-bg: #faeeec;
+  --drawer-err-border: #f0c8c0;
+}
+
+/* nextgen dark mode -- per-browser toggle (Shell.tsx stamps data-mode="dark"
+   on the same wrapper that carries data-theme). Only nextgen ships it: the
+   other themes' component styles assume a light content area. The c.* JS
+   neutrals (theme.ts) resolve to these vars, so inline styles follow. */
+[data-theme="nextgen"][data-mode="dark"] {
+  --panel: #17181c;
+  --panel2: #101114;
+  /* :root's --card-bg: var(--panel) resolves against :root's LIGHT --panel
+     and descendants inherit that resolved white -- re-declaring it here, on
+     the same element that overrides --panel, makes it resolve dark. */
+  --card-bg: var(--panel);
+  --ink: #f2f3f5;
+  --muted: #9aa1ac;
+  --hint: #7c828c;
+  --line: #26282e;
+  --accentbg: #1c2740;
+  /* Shadows barely register on a dark canvas at light-mode alphas -- go
+     deeper, and let the hover border emphasis carry most of the affordance. */
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --card-shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.55);
+
+  /* Pillar + status families -- light soft-tint surfaces flip to deep tints
+     with lightened ink so banners/chips/badges stay readable on dark. */
+  --blue: #6aa7e8;        --bluebg: #14243a;   --blueink: #a8c9ef;
+  --purple: #a89bff;      --purplebg: #241f3d; --purpleink: #c7bfff;
+  --teal: #3ecf8e;        --tealbg: #12291f;   --tealink: #8fe2bd;
+  --amberc: #e4b34c;      --amberbg: #2e2410;  --amberink: #ecc87e;
+  --red: #f0705b;         --redbg: #331a15;    --redink: #f5a294;
+  --green: #9ccf58;       --greenbg: #1d2913;  --greenink: #c0e18e;
+  --blueline: #24406a;
+  --amberline: #52401c;
+  --err-bg: #331a15;      --err-line: #5a2d22; --err-ink: #f0705b;
+
+  --sidebar-grad: #14151a;
+  --sb-bar-bg: #101114;
+  --modern-accent: #5b8cf0;
+  --modern-accent-bg: #1c2740;
+  --modern-gold: #5b8cf0;
+  --modern-gold-bg: #1c2740;
+  --nextgen-ai: #a18aff;
+  --nextgen-ai-soft: #221c3a;
+  --nextgen-good: #3ecf8e;
+  --nextgen-good-soft: #12291f;
+  --nextgen-bad: #f0705b;
+  --nextgen-bad-soft: #331a15;
+  --nextgen-warn: #e4b34c;
+  --nextgen-warn-soft: #2e2410;
+
+  --sb-text: #c3c6cc;
+  --sb-text-dim: #83878f;
+  --sb-text-dimmer: #74777e;
+  --sb-text-faint: #5a5d64;
+  --sb-strong: #f2f3f5;
+  --sb-icon-muted: #9aa1ac;
+  --sb-line: #26282e;
+  --sb-hover: rgba(255, 255, 255, 0.05);
+  --sb-hover-strong: rgba(255, 255, 255, 0.08);
+  --sb-active-bg: #1c2740;
+  --sb-active-ink: #5b8cf0;
+
+  --sb-panel-bg: #17181c;
+  --sb-panel-border: #2a2d34;
+  --sb-panel-text: #f2f3f5;
+  --sb-panel-text-dim: #9aa1ac;
+  --sb-panel-hover: rgba(255, 255, 255, 0.05);
+
+  --sb-search-bg: #17181c;
+  --sb-search-border: #26282e;
+  --sb-search-text: #f2f3f5;
+  --sb-search-icon: #83878f;
+
+  --drawer-bg: #17181c;
+  --drawer-card: #1c1e24;
+  --drawer-card-alt: #1c2740;
+  --drawer-line: #26282e;
+  --drawer-line-strong: #33363e;
+  --drawer-text: #f2f3f5;
+  --drawer-text-dim: #9aa1ac;
+  --drawer-hint: #83878f;
+  --drawer-hint-faint: #5a5d64;
+  --drawer-err-bg: #331a15;
+  --drawer-err-border: #57291f;
+}
+
 /* Segoe UI first -- a real, checkable Fluent difference on Windows (where it's
    installed), not just a colour choice. Harmlessly falls through to the same
    system-font stack everywhere else. */
@@ -264,17 +421,21 @@
 [data-theme="modern"] .modern-lift,
 [data-theme="modern2"] .modern-lift,
 [data-theme="modern3"] .modern-lift,
+[data-theme="nextgen"] .modern-lift,
 [data-theme="modern"] .modern-lift-gold,
 [data-theme="modern2"] .modern-lift-gold,
-[data-theme="modern3"] .modern-lift-gold {
+[data-theme="modern3"] .modern-lift-gold,
+[data-theme="nextgen"] .modern-lift-gold {
   transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.16s;
 }
 [data-theme="modern"] .modern-lift,
 [data-theme="modern2"] .modern-lift,
 [data-theme="modern3"] .modern-lift,
+[data-theme="nextgen"] .modern-lift,
 [data-theme="modern"] .modern-lift-gold,
 [data-theme="modern2"] .modern-lift-gold,
-[data-theme="modern3"] .modern-lift-gold { box-shadow: var(--card-shadow); }
+[data-theme="modern3"] .modern-lift-gold,
+[data-theme="nextgen"] .modern-lift-gold { box-shadow: var(--card-shadow); }
 /* .modern-lift-gold used to add a top-accent hairline in whichever hue
    --modern-gold resolved to; dropped everywhere (including modern1) after
    feedback that it read as clutter on cards/KPI tiles -- it now renders
@@ -291,6 +452,14 @@
   transform: translateY(-2px);
   border-color: #b3bfd6;
   box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14);
+}
+/* nextgen: lift + accent border emphasis + elevated shadow (tokenized so
+   dark mode can deepen the shadow to stay visible on a dark canvas). */
+[data-theme="nextgen"] .modern-lift:hover,
+[data-theme="nextgen"] .modern-lift-gold:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--modern-accent) 40%, var(--line));
+  box-shadow: var(--card-shadow-hover);
 }
 
 * { box-sizing: border-box; }

@@ -51,7 +51,7 @@ export default async function AccountsPage({
           style={{
             flex: "1 1 200px", padding: "7px 12px", borderRadius: 7,
             border: `1px solid ${c.line}`, fontSize: 13, color: c.ink,
-            background: "#fff", outline: "none",
+            background: "var(--panel)", outline: "none",
           }}
         />
         <select
@@ -60,7 +60,7 @@ export default async function AccountsPage({
           style={{
             padding: "7px 10px", borderRadius: 7,
             border: `1px solid ${c.line}`, fontSize: 13, color: typeFilter ? c.ink : c.hint,
-            background: "#fff", outline: "none", cursor: "pointer",
+            background: "var(--panel)", outline: "none", cursor: "pointer",
           }}
         >
           <option value="">All types</option>

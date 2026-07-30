@@ -54,7 +54,7 @@ export default function WorkOrderActions({ id, status }: { id: string; status: W
           {pending ? "Creating…" : "⊟ Raise Invoice"}
         </button>
       )}
-      {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
+      {err && <span style={{ fontSize: 12, color: "var(--err-ink)" }}>{err}</span>}
     </div>
   );
 }

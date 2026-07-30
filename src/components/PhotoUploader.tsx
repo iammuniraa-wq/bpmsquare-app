@@ -120,9 +120,9 @@ export default function PhotoUploader({ caseId, stage, existingPhotos, onUploade
           {previews.map((p, i) => (
             <div key={i} style={{
               display: "flex", gap: 10, alignItems: "flex-start",
-              background: p.status === "error" ? "#fef2f2" : c.panel2,
+              background: p.status === "error" ? "var(--err-bg)" : c.panel2,
               borderRadius: 8, padding: 8,
-              border: `1px solid ${p.status === "error" ? "#fecaca" : c.line}`,
+              border: `1px solid ${p.status === "error" ? "var(--err-line)" : c.line}`,
             }}>
               <img
                 src={p.objectUrl}
@@ -149,10 +149,10 @@ export default function PhotoUploader({ caseId, stage, existingPhotos, onUploade
                   <div style={{ fontSize: 12, color: c.accent }}>Uploading…</div>
                 )}
                 {p.status === "done" && (
-                  <div style={{ fontSize: 12, color: "#1d9e75", fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}><CheckIcon size={12} color="#1d9e75" /> Uploaded</div>
+                  <div style={{ fontSize: 12, color: "var(--teal)", fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}><CheckIcon size={12} color="var(--teal)" /> Uploaded</div>
                 )}
                 {p.status === "error" && (
-                  <div style={{ fontSize: 12, color: "#dc2626" }}>{p.errorMsg}</div>
+                  <div style={{ fontSize: 12, color: "var(--err-ink)" }}>{p.errorMsg}</div>
                 )}
               </div>
               {p.status === "pending" && (

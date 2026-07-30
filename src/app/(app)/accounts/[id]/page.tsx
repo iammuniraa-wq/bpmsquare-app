@@ -282,7 +282,7 @@ export default async function AccountHubPage({
               </thead>
               <tbody>
                 {hub.cases.map((sc, i) => (
-                  <tr key={sc.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : "#fff" }}>
+                  <tr key={sc.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
                     <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{sc.ref}</span></td>
                     <td style={td2}><span style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{sc.equipment_label || "—"}</span></td>
                     <td style={{ ...td2, maxWidth: 220 }}>
@@ -326,7 +326,7 @@ export default async function AccountHubPage({
               </thead>
               <tbody>
                 {hub.contacts.map((ct, i) => (
-                  <tr key={ct.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : "#fff" }}>
+                  <tr key={ct.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
                     <td style={td2}><span style={{ fontWeight: 600, fontSize: 13.5, color: c.ink }}>{ct.name}</span></td>
                     <td style={{ ...td2, color: c.muted }}>{ct.role || "—"}</td>
                     <td style={td2}>
@@ -373,7 +373,7 @@ export default async function AccountHubPage({
               </thead>
               <tbody>
                 {hub.assets.map((a, i) => (
-                  <tr key={a.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : "#fff" }}>
+                  <tr key={a.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
                     <td style={td2}><span style={{ fontWeight: 600, fontSize: 13.5, color: c.ink }}>{a.name}</span></td>
                     <td style={{ ...td2, color: c.muted, textTransform: "capitalize" }}>{a.kind}</td>
                     <td style={{ ...td2, color: c.muted }}>{[a.make, a.model].filter(Boolean).join(" · ") || "—"}</td>
@@ -422,14 +422,14 @@ export default async function AccountHubPage({
               </thead>
               <tbody>
                 {hub.quotes.map((q, i) => (
-                  <tr key={q.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : "#fff" }}>
+                  <tr key={q.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
                     <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{q.ref}</span></td>
                     <td style={td2}><QuoteStatusPill status={q.status} statuses={quoteStatuses} /></td>
                     <td style={td2}><span style={{ fontWeight: 600, color: c.ink }}>{fmtINR(q.total)}</span></td>
                     <td style={{ ...td2, color: c.hint, fontSize: 12 }}>{q.valid_until ? fmtDate(q.valid_until) : "—"}</td>
                     <td style={td2}>
                       {q.revision > 1
-                        ? <span style={{ fontSize: 11.5, background: "#faeeda", color: "#633806", borderRadius: 4, padding: "2px 7px", fontWeight: 600 }}>Rev.{q.revision}</span>
+                        ? <span style={{ fontSize: 11.5, background: "var(--amberbg)", color: "var(--amberink)", borderRadius: 4, padding: "2px 7px", fontWeight: 600 }}>Rev.{q.revision}</span>
                         : <span style={{ color: c.hint }}>—</span>}
                     </td>
                     <td style={td2}><OpenLink href={ROUTES.quotation(q.id)} /></td>
@@ -455,7 +455,7 @@ export default async function AccountHubPage({
             />
             {invoiceBalance > 0 && (
               <div style={{ fontSize: 13, color: c.muted }}>
-                Outstanding: <strong style={{ color: "#a32d2d" }}>{fmtINR(invoiceBalance)}</strong>
+                Outstanding: <strong style={{ color: "var(--red)" }}>{fmtINR(invoiceBalance)}</strong>
               </div>
             )}
           </div>
@@ -475,12 +475,12 @@ export default async function AccountHubPage({
               </thead>
               <tbody>
                 {hub.invoices.map((inv, i) => (
-                  <tr key={inv.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : "#fff" }}>
+                  <tr key={inv.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
                     <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{inv.ref}</span></td>
                     <td style={td2}><Pill label={INVOICE_LABEL[inv.status]} tone={INVOICE_TONE[inv.status]} /></td>
                     <td style={td2}><span style={{ fontWeight: 600, color: c.ink }}>{fmtINR(inv.total)}</span></td>
                     <td style={td2}>
-                      <span style={{ fontWeight: 600, color: inv.total - inv.paid_amount > 0 ? "#a32d2d" : c.hint }}>
+                      <span style={{ fontWeight: 600, color: inv.total - inv.paid_amount > 0 ? "var(--red)" : c.hint }}>
                         {fmtINR(Math.max(0, inv.total - inv.paid_amount))}
                       </span>
                     </td>

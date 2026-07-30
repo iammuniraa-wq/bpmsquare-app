@@ -79,7 +79,7 @@ function ListEditor({
             <button type="button" onClick={() => moveDown(idx)} disabled={idx === items.length - 1}
               style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 5, cursor: "pointer", color: c.muted, fontSize: 12, padding: "4px 7px" }}>↓</button>
             <button type="button" onClick={() => remove(idx)}
-              style={{ background: "none", border: "1px solid #fecaca", borderRadius: 5, cursor: "pointer", color: "#dc2626", fontSize: 12, padding: "4px 7px" }}>×</button>
+              style={{ background: "none", border: "1px solid var(--err-line)", borderRadius: 5, cursor: "pointer", color: "var(--err-ink)", fontSize: 12, padding: "4px 7px" }}>×</button>
           </div>
         ))}
       </div>
@@ -148,7 +148,7 @@ export default function SalesConfigClient({
       />
 
       {error && (
-        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "10px 14px", fontSize: 13, color: "#dc2626", marginBottom: 12 }}>
+        <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "10px 14px", fontSize: 13, color: "var(--err-ink)", marginBottom: 12 }}>
           {error}
         </div>
       )}

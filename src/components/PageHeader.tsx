@@ -47,7 +47,7 @@ export default function PageHeader({
             height: 34,
             borderRadius: "50%",
             background: `var(--modern-accent-bg, ${c.accentbg})`,
-            color: "var(--modern-accent, #0c447c)",
+            color: "var(--modern-accent, var(--blueink))",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

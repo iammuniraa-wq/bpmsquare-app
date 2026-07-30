@@ -103,7 +103,7 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
   );
   if (fetchErr) return (
     <section style={cardStyle}>
-      <div style={{ fontSize: 12, color: "#e05252" }}>Custom fields error: {fetchErr}</div>
+      <div style={{ fontSize: 12, color: "var(--err-ink)" }}>Custom fields error: {fetchErr}</div>
     </section>
   );
   if (fields.length === 0) return null;
@@ -145,7 +145,7 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
         <h3 style={{ fontSize: 13, margin: 0, fontWeight: 600 }}>Custom fields</h3>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10.5, color: c.hint }}>⠿ drag to reorder</span>
-          {saved && <span style={{ fontSize: 11, color: "#1d9e75", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckIcon size={11} color="#1d9e75" /> Saved</span>}
+          {saved && <span style={{ fontSize: 11, color: "var(--teal)", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckIcon size={11} color="var(--teal)" /> Saved</span>}
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -171,7 +171,7 @@ export default function CustomFieldsSection({ objectType, recordId: _recordId, c
               <div style={{ fontSize: 10.5, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
                 <span style={{ color: c.hint, opacity: 0.4, fontSize: 12, cursor: "grab" }}>⠿</span>
                 {field.field_label}
-                {field.is_required && <span style={{ color: "#e05252", marginLeft: 3 }}>*</span>}
+                {field.is_required && <span style={{ color: "var(--err-ink)", marginLeft: 3 }}>*</span>}
               </div>
 
               {isEditing ? (

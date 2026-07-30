@@ -68,7 +68,7 @@ export default function ReceivePanel({ poId, lines }: { poId: string; lines: Pur
             style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${c.line}`, fontSize: 13, boxSizing: "border-box" }}
           />
         </div>
-        {error && <div style={{ marginBottom: 8, fontSize: 12, color: "#dc2626" }}>{error}</div>}
+        {error && <div style={{ marginBottom: 8, fontSize: 12, color: "var(--err-ink)" }}>{error}</div>}
         <button
           type="submit" disabled={pending}
           style={{ padding: "8px 18px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: pending ? "wait" : "pointer" }}

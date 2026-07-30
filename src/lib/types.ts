@@ -221,6 +221,10 @@ export type Quote = {
   // already read/written by the API routes and QuoteForm's cfValues editor;
   // was just missing from this type.
   custom_data?: Record<string, unknown> | null;
+  // Free-form quote metadata written by POST /api/quotes and carried through
+  // revise/copy. Existed in the DB (and code) long before this type knew it
+  // -- see 0047_schema_drift_reconcile.sql.
+  meta?: Record<string, unknown> | null;
 };
 
 // One row per revision of a quote — tracks what changed between versions.

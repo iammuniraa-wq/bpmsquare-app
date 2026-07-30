@@ -187,8 +187,8 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
       ) : (
-        <div style={{ ...cardStyle, marginBottom: 16, padding: "13px 16px", background: sc.status === "scrapped" ? "#fcebeb" : "#eeedfe", borderLeft: `3px solid ${sc.status === "scrapped" ? "#a32d2d" : "#7f77dd"}` }}>
-          <span style={{ fontWeight: 600, fontSize: 13.5, color: sc.status === "scrapped" ? "#791f1f" : "#26215c" }}>
+        <div style={{ ...cardStyle, marginBottom: 16, padding: "13px 16px", background: sc.status === "scrapped" ? "var(--redbg)" : "var(--purplebg)", borderLeft: `3px solid ${sc.status === "scrapped" ? "var(--red)" : "var(--purple)"}` }}>
+          <span style={{ fontWeight: 600, fontSize: 13.5, color: sc.status === "scrapped" ? "var(--redink)" : "#26215c" }}>
             {sc.status === "scrapped" ? "Unit scrapped" : "Buyback — unit purchased by Vikas Pioneers"}
           </span>
           {sc.closed_at && (
@@ -406,7 +406,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             {quote && (
               <Link href={ROUTES.quotationPrint(quote.id)} target="_blank" style={{
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                background: c.accentbg, color: "#0c447c", borderRadius: 8, padding: "8px 14px",
+                background: c.accentbg, color: "var(--blueink)", borderRadius: 8, padding: "8px 14px",
                 fontSize: 12.5, fontWeight: 600, textDecoration: "none",
               }}>
                 ↓ Download PDF
@@ -415,26 +415,26 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             {waLink ? (
               <a href={waLink} target="_blank" rel="noopener" style={{
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                background: "#f0faf5", color: "#3d7a5a", borderRadius: 8, padding: "7px 14px",
+                background: "var(--tealbg)", color: "var(--teal)", borderRadius: 8, padding: "7px 14px",
                 fontSize: 12, fontWeight: 500, textDecoration: "none",
               }}>
-                <MessageSquare size={12} color="#3d7a5a" /> WhatsApp
+                <MessageSquare size={12} color="var(--teal)" /> WhatsApp
               </a>
             ) : (
               <span style={{
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                background: "#f0faf5", color: "#3d7a5a", borderRadius: 8, padding: "7px 14px",
+                background: "var(--tealbg)", color: "var(--teal)", borderRadius: 8, padding: "7px 14px",
                 fontSize: 12, fontWeight: 500, cursor: "not-allowed", opacity: 0.6,
               }} title="No phone number on file for this contact/account">
-                <MessageSquare size={12} color="#3d7a5a" /> WhatsApp
+                <MessageSquare size={12} color="var(--teal)" /> WhatsApp
               </span>
             )}
             <span style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              background: "#f0faf5", color: "#3d7a5a", borderRadius: 8, padding: "7px 14px",
+              background: "var(--tealbg)", color: "var(--teal)", borderRadius: 8, padding: "7px 14px",
               fontSize: 12, fontWeight: 500, cursor: "not-allowed",
             }}>
-              <MessageSquare size={12} color="#3d7a5a" /> WhatsApp (embedded) <ComingSoon size="xs" />
+              <MessageSquare size={12} color="var(--teal)" /> WhatsApp (embedded) <ComingSoon size="xs" />
             </span>
 
             <CaseAssetsPanel

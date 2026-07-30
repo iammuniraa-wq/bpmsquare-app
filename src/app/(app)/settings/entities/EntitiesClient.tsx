@@ -36,7 +36,7 @@ const inp: React.CSSProperties = {
   width: "100%", boxSizing: "border-box",
   padding: "8px 10px", borderRadius: 7,
   border: `1px solid ${c.line}`, fontSize: 13,
-  color: c.ink, outline: "none", background: "#fff",
+  color: c.ink, outline: "none", background: "var(--panel)",
 };
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11, fontWeight: 600,
@@ -110,7 +110,7 @@ function LogoUpload({ currentUrl, onUploaded, label = "Logo", size = 64 }: {
               type="button"
               onClick={() => ref.current?.click()}
               disabled={uploading}
-              style={{ fontSize: 12, fontWeight: 600, padding: "6px 14px", borderRadius: 7, border: `1px solid ${c.accent}`, color: c.accent, background: "#fff", cursor: uploading ? "wait" : "pointer" }}
+              style={{ fontSize: 12, fontWeight: 600, padding: "6px 14px", borderRadius: 7, border: `1px solid ${c.accent}`, color: c.accent, background: "var(--panel)", cursor: uploading ? "wait" : "pointer" }}
             >
               {uploading ? "Uploading…" : currentUrl ? "Replace" : "Upload image"}
             </button>
@@ -118,14 +118,14 @@ function LogoUpload({ currentUrl, onUploaded, label = "Logo", size = 64 }: {
               <button
                 type="button"
                 onClick={() => onUploaded("")}
-                style={{ fontSize: 12, padding: "6px 12px", borderRadius: 7, border: `1px solid ${c.line}`, color: "#b91c1c", background: "#fff", cursor: "pointer" }}
+                style={{ fontSize: 12, padding: "6px 12px", borderRadius: 7, border: `1px solid ${c.line}`, color: "var(--err-ink)", background: "var(--panel)", cursor: "pointer" }}
               >
                 Remove
               </button>
             )}
           </div>
           <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>PNG, JPG or WebP · max 2 MB · resized to fit {LOGO_MAX.width}×{LOGO_MAX.height}px</div>
-          {err && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>{err}</div>}
+          {err && <div style={{ fontSize: 11, color: "var(--err-ink)", marginTop: 4 }}>{err}</div>}
           {/* Also allow direct URL paste */}
           <input
             style={{ ...inp, fontSize: 12, marginTop: 8 }}
@@ -201,7 +201,7 @@ function PartnerLogos({ partners, onChange }: {
         <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12, padding: "12px", border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel2 }}>
           {/* Logo preview + upload */}
           <div>
-            <div style={{ width: 56, height: 36, border: `1px solid ${c.line}`, borderRadius: 6, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: 6 }}>
+            <div style={{ width: 56, height: 36, border: `1px solid ${c.line}`, borderRadius: 6, background: "var(--panel)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: 6 }}>
               {partner.logo_url
                 ? <img src={partner.logo_url} alt={partner.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", padding: 2 }} />
                 : <span style={{ fontSize: 9, color: c.hint }}>No logo</span>
@@ -218,11 +218,11 @@ function PartnerLogos({ partners, onChange }: {
               type="button"
               onClick={() => fileRefs.current[i]?.click()}
               disabled={uploading === i}
-              style={{ fontSize: 10.5, fontWeight: 600, padding: "4px 8px", borderRadius: 5, border: `1px solid ${c.accent}`, color: c.accent, background: "#fff", cursor: uploading === i ? "wait" : "pointer", whiteSpace: "nowrap" }}
+              style={{ fontSize: 10.5, fontWeight: 600, padding: "4px 8px", borderRadius: 5, border: `1px solid ${c.accent}`, color: c.accent, background: "var(--panel)", cursor: uploading === i ? "wait" : "pointer", whiteSpace: "nowrap" }}
             >
               {uploading === i ? "…" : partner.logo_url ? "Replace" : "Upload"}
             </button>
-            {errs[i] && <div style={{ fontSize: 10, color: "#dc2626", marginTop: 3, maxWidth: 70 }}>{errs[i]}</div>}
+            {errs[i] && <div style={{ fontSize: 10, color: "var(--err-ink)", marginTop: 3, maxWidth: 70 }}>{errs[i]}</div>}
           </div>
 
           {/* Fields */}
@@ -237,7 +237,7 @@ function PartnerLogos({ partners, onChange }: {
             </div>
           </div>
 
-          <button onClick={() => removePartner(i)} style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 6, color: "#b91c1c", fontSize: 16, cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 16 }}>×</button>
+          <button onClick={() => removePartner(i)} style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 6, color: "var(--err-ink)", fontSize: 16, cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 16 }}>×</button>
         </div>
       ))}
     </div>
@@ -306,7 +306,7 @@ function CertificationLogos({ certifications, onChange }: {
         <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12, padding: "12px", border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel2 }}>
           {/* Logo preview + upload */}
           <div>
-            <div style={{ width: 56, height: 36, border: `1px solid ${c.line}`, borderRadius: 6, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: 6 }}>
+            <div style={{ width: 56, height: 36, border: `1px solid ${c.line}`, borderRadius: 6, background: "var(--panel)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: 6 }}>
               {cert.logo_url
                 ? <img src={cert.logo_url} alt={cert.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", padding: 2 }} />
                 : <span style={{ fontSize: 9, color: c.hint }}>No logo</span>
@@ -323,11 +323,11 @@ function CertificationLogos({ certifications, onChange }: {
               type="button"
               onClick={() => fileRefs.current[i]?.click()}
               disabled={uploading === i}
-              style={{ fontSize: 10.5, fontWeight: 600, padding: "4px 8px", borderRadius: 5, border: `1px solid ${c.accent}`, color: c.accent, background: "#fff", cursor: uploading === i ? "wait" : "pointer", whiteSpace: "nowrap" }}
+              style={{ fontSize: 10.5, fontWeight: 600, padding: "4px 8px", borderRadius: 5, border: `1px solid ${c.accent}`, color: c.accent, background: "var(--panel)", cursor: uploading === i ? "wait" : "pointer", whiteSpace: "nowrap" }}
             >
               {uploading === i ? "…" : cert.logo_url ? "Replace" : "Upload"}
             </button>
-            {errs[i] && <div style={{ fontSize: 10, color: "#dc2626", marginTop: 3, maxWidth: 70 }}>{errs[i]}</div>}
+            {errs[i] && <div style={{ fontSize: 10, color: "var(--err-ink)", marginTop: 3, maxWidth: 70 }}>{errs[i]}</div>}
           </div>
 
           {/* Fields */}
@@ -342,7 +342,7 @@ function CertificationLogos({ certifications, onChange }: {
             </div>
           </div>
 
-          <button onClick={() => removeCert(i)} style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 6, color: "#b91c1c", fontSize: 16, cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 16 }}>×</button>
+          <button onClick={() => removeCert(i)} style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 6, color: "var(--err-ink)", fontSize: 16, cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 16 }}>×</button>
         </div>
       ))}
     </div>
@@ -394,11 +394,11 @@ function EntityCard({ entity, accent, onChange, onRemove, onSetDefault, isDefaul
 
           <div style={{ display: "flex", gap: 10, marginTop: 6, paddingTop: 12, borderTop: `1px solid ${c.line}` }}>
             {!isDefault && (
-              <button onClick={onSetDefault} style={{ fontSize: 12, padding: "6px 14px", borderRadius: 7, border: `1px solid ${accent}`, color: accent, background: "#fff", cursor: "pointer" }}>
+              <button onClick={onSetDefault} style={{ fontSize: 12, padding: "6px 14px", borderRadius: 7, border: `1px solid ${accent}`, color: accent, background: "var(--panel)", cursor: "pointer" }}>
                 Set as default
               </button>
             )}
-            <button onClick={onRemove} style={{ fontSize: 12, padding: "6px 14px", borderRadius: 7, border: `1px solid ${c.line}`, color: "#b91c1c", background: "#fff", cursor: "pointer" }}>
+            <button onClick={onRemove} style={{ fontSize: 12, padding: "6px 14px", borderRadius: 7, border: `1px solid ${c.line}`, color: "var(--err-ink)", background: "var(--panel)", cursor: "pointer" }}>
               Remove
             </button>
           </div>
@@ -425,7 +425,7 @@ function PhoneRow({ phone, onChange, onRemove }: {
         <label style={lbl}>Number</label>
         <input style={inp} value={phone.number} onChange={(e) => onChange({ ...phone, number: e.target.value })} placeholder="+91 98000 00000" />
       </div>
-      <button onClick={onRemove} style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 7, color: "#b91c1c", fontSize: 16, cursor: "pointer", height: 37, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+      <button onClick={onRemove} style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 7, color: "var(--err-ink)", fontSize: 16, cursor: "pointer", height: 37, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
     </div>
   );
 }
@@ -513,7 +513,7 @@ export default function EntitiesClient() {
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, color: "#1d9e75", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>
+          <span style={{ fontSize: 12, color: "var(--teal)", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>
           <button
             onClick={save} disabled={saving}
             style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: accent, color: "#fff", border: "none", cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}
@@ -607,7 +607,7 @@ export default function EntitiesClient() {
             </p>
           </div>
           <button onClick={() => setEntities((prev) => [...prev, blankEntity()])}
-            style={{ fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 8, border: `1px solid ${accent}`, color: accent, background: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}>
+            style={{ fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 8, border: `1px solid ${accent}`, color: accent, background: "var(--panel)", cursor: "pointer", whiteSpace: "nowrap" }}>
             + Add entity
           </button>
         </div>

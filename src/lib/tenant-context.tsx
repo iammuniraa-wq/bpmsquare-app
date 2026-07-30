@@ -44,8 +44,8 @@ export function useTenantFeature(key: keyof Tenant["features"]): boolean {
  * "modern3" (see TenantConfig.appearance.ui_theme). Shell stamps this as a
  * `data-theme` attribute on the app root, which is what the CSS custom
  * property overrides in globals.css key off. */
-export function useUiTheme(): "classic" | "modern" | "modern2" | "modern3" {
+export function useUiTheme(): "classic" | "modern" | "modern2" | "modern3" | "nextgen" {
   const { tenant } = useContext(TenantContext);
   const t = tenant?.config?.appearance?.ui_theme;
-  return t === "modern" || t === "modern2" || t === "modern3" ? t : "classic";
+  return t === "modern" || t === "modern2" || t === "modern3" || t === "nextgen" ? t : "classic";
 }

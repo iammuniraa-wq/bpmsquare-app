@@ -12,8 +12,8 @@ import { useTenant, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
 
 const PILLAR_DOT: Record<string, string> = {
-  blue: "#378ADD", purple: "#7f77dd", teal: "#1d9e75",
-  amber: "#f6b23c", red: "#e05252", green: "#639922",
+  blue: "#378ADD", purple: "var(--purple)", teal: "var(--teal)",
+  amber: "#f6b23c", red: "var(--err-ink)", green: "#639922",
 };
 
 // ── Integration catalogue ─────────────────────────────────────────────────────
@@ -109,9 +109,9 @@ function Section({ title, description, children }: { title: string; description?
 
 function StatusBadge({ status }: { status: "active" | "ready" | "coming-soon" }) {
   const map = {
-    "active":       { label: "Live",          bg: "#e1f5ee", color: "#04342c", border: "#a8dfc9" },
-    "ready":        { label: "Config ready",  bg: "#e6f1fb", color: "#0c447c", border: "#c5dbf5" },
-    "coming-soon":  { label: "Coming Soon",   bg: "#faeeda", color: "#633806", border: "#f0d09e" },
+    "active":       { label: "Live",          bg: "var(--tealbg)", color: "var(--tealink)", border: "var(--teal)" },
+    "ready":        { label: "Config ready",  bg: "var(--bluebg)", color: "var(--blueink)", border: "var(--blueline)" },
+    "coming-soon":  { label: "Coming Soon",   bg: "var(--amberbg)", color: "var(--amberink)", border: "var(--amberline)" },
   }[status];
   return (
     <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, padding: "2px 8px", borderRadius: 6, background: map.bg, color: map.color, border: `1px solid ${map.border}`, whiteSpace: "nowrap" }}>
@@ -334,7 +334,7 @@ export default function SettingsPage() {
           <p style={{ margin: "4px 0 0 12px", fontSize: 12, color: c.muted }}>Admin · workspace preferences · integrations</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, color: "#1d9e75", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>
+          <span style={{ fontSize: 12, color: "var(--teal)", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>
           <button onClick={() => router.push(ROUTES.dashboard)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: accent, color: "#fff", border: "none", cursor: "pointer" }}>
             ← Done
           </button>
@@ -393,7 +393,7 @@ export default function SettingsPage() {
             {(Object.entries(ACCENT_PRESETS) as [AccentPreset, typeof ACCENT_PRESETS[AccentPreset]][]).map(([key, preset]) => {
               const selected = accentColor.toLowerCase() === preset.color.toLowerCase();
               return (
-                <button key={key} onClick={() => !apSaving && saveAccentColor(preset.color)} title={preset.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, cursor: "pointer", border: selected ? `2px solid ${preset.color}` : `2px solid ${c.line}`, background: selected ? preset.colorBg : "#fff", transition: "all 0.15s" }}>
+                <button key={key} onClick={() => !apSaving && saveAccentColor(preset.color)} title={preset.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, cursor: "pointer", border: selected ? `2px solid ${preset.color}` : `2px solid ${c.line}`, background: selected ? preset.colorBg : "var(--panel)", transition: "all 0.15s" }}>
                   <span style={{ width: 14, height: 14, borderRadius: "50%", background: preset.color, flexShrink: 0, boxShadow: selected ? `0 0 0 2px ${preset.color}44` : "none" }} />
                   <span style={{ fontSize: 12.5, fontWeight: selected ? 600 : 400, color: selected ? preset.color : c.muted }}>{preset.label}</span>
                   {selected && <span style={{ fontSize: 12, color: preset.color }}>✓</span>}
@@ -454,14 +454,14 @@ export default function SettingsPage() {
               ) : (
                 <div style={{ fontSize: 12.5, color: c.hint, fontStyle: "italic" }}>No key generated yet</div>
               )}
-              {keyError && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 3 }}>{keyError}</div>}
+              {keyError && <div style={{ fontSize: 11, color: "var(--err-ink)", marginTop: 3 }}>{keyError}</div>}
             </div>
             {apiKey && (
-              <button onClick={copyApiKey} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "#fff", cursor: "pointer", flexShrink: 0, color: copied ? "#1d9e75" : c.muted }}>
+              <button onClick={copyApiKey} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "var(--panel)", cursor: "pointer", flexShrink: 0, color: copied ? "var(--teal)" : c.muted }}>
                 {copied ? "✓ Copied" : "Copy key"}
               </button>
             )}
-            <button onClick={regenerateApiKey} disabled={regenerating} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "#fff", cursor: regenerating ? "not-allowed" : "pointer", flexShrink: 0, color: c.muted }}>
+            <button onClick={regenerateApiKey} disabled={regenerating} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "var(--panel)", cursor: regenerating ? "not-allowed" : "pointer", flexShrink: 0, color: c.muted }}>
               {regenerating ? "…" : apiKey ? "Regenerate" : "Generate key"}
             </button>
           </div>
@@ -474,7 +474,7 @@ export default function SettingsPage() {
           <div style={{ fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Available now</div>
           {API_ENDPOINTS.map((ep) => (
             <div key={ep.path} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${c.line}` }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#0c447c", background: "#e6f1fb", borderRadius: 5, padding: "2px 7px", flexShrink: 0, fontFamily: "monospace" }}>{ep.method}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--blueink)", background: "var(--bluebg)", borderRadius: 5, padding: "2px 7px", flexShrink: 0, fontFamily: "monospace" }}>{ep.method}</span>
               <code style={{ fontSize: 12, color: c.ink, flex: 1, fontFamily: "monospace" }}>{ep.path}</code>
               <span style={{ fontSize: 11, color: c.muted, textAlign: "right" }}>{ep.desc}</span>
             </div>
@@ -506,11 +506,11 @@ export default function SettingsPage() {
                   placeholder="https://your-erp.example.com/webhooks/bpmsquare"
                   style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, color: c.ink, outline: "none" }}
                 />
-                <button onClick={savePushUrl} disabled={pushSaving} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "none", cursor: pushSaving ? "not-allowed" : "pointer", background: pushSaved ? "#1d9e75" : accent, color: "#fff" }}>
+                <button onClick={savePushUrl} disabled={pushSaving} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "none", cursor: pushSaving ? "not-allowed" : "pointer", background: pushSaved ? "var(--teal)" : accent, color: "#fff" }}>
                   {pushSaving ? "Saving…" : pushSaved ? "✓ Saved" : "Save"}
                 </button>
               </div>
-              {pushError && <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 6 }}>{pushError}</div>}
+              {pushError && <div style={{ fontSize: 11.5, color: "var(--err-ink)", marginTop: 6 }}>{pushError}</div>}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}` }}>
@@ -523,7 +523,7 @@ export default function SettingsPage() {
                 )}
                 <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Sent as the X-BPMSquare-Signature header (HMAC-SHA256 of the request body) so your endpoint can verify it's really from BPMSquare.</div>
               </div>
-              <button onClick={regeneratePushSecret} disabled={pushSecretSaving} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "#fff", cursor: pushSecretSaving ? "not-allowed" : "pointer", flexShrink: 0, color: c.muted }}>
+              <button onClick={regeneratePushSecret} disabled={pushSecretSaving} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "var(--panel)", cursor: pushSecretSaving ? "not-allowed" : "pointer", flexShrink: 0, color: c.muted }}>
                 {pushSecretSaving ? "…" : pushSecret ? "Regenerate" : "Generate"}
               </button>
             </div>
@@ -541,7 +541,7 @@ export default function SettingsPage() {
           Restore navigation visibility and compact sidebar to defaults, for the whole workspace. Accent colour and
           workspace name aren't reset since there's no default to go back to. Your data is not affected.
         </p>
-        <button onClick={resetTenantDefaults} disabled={resetting} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: "#fcebeb", color: "#791f1f", border: "1px solid #f5c5c5", cursor: "pointer" }}>
+        <button onClick={resetTenantDefaults} disabled={resetting} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: "var(--redbg)", color: "var(--redink)", border: "1px solid var(--err-line)", cursor: "pointer" }}>
           {resetting ? "Resetting…" : "Reset navigation & layout to defaults"}
         </button>
       </Section>

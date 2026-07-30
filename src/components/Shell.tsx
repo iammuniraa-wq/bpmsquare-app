@@ -131,11 +131,44 @@ function MobileTopBar() {
   );
 }
 
+// ── Dark-mode toggle (nextgen only) ──────────────────────────────────────────
+// Per-browser preference, not tenant config -- each user picks their own mode.
+// Only nextgen defines the [data-mode="dark"] token overrides in globals.css;
+// other themes' content styles assume a light canvas, so no toggle there.
+
+const DARK_MODE_KEY = "bpm_nextgen_dark";
+
+function DarkToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      style={{
+        width: 32, height: 32, borderRadius: 8, flexShrink: 0, marginLeft: 10,
+        border: "1px solid var(--sb-search-border)", background: "var(--sb-search-bg)",
+        display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+      }}
+    >
+      {dark ? (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--sb-search-icon)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </svg>
+      ) : (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--sb-search-icon)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 // ── Shell ─────────────────────────────────────────────────────────────────────
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const [mobile, setMobile] = useState(false);
   const uiTheme = useUiTheme();
+  const [dark, setDark] = useState(false);
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth <= MOBILE_BREAKPOINT);
@@ -144,14 +177,32 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  useEffect(() => {
+    try { setDark(localStorage.getItem(DARK_MODE_KEY) === "1"); } catch { /* ignore */ }
+  }, []);
+  const toggleDark = () => {
+    setDark((d) => {
+      const next = !d;
+      try { localStorage.setItem(DARK_MODE_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  const mode = uiTheme === "nextgen" && dark ? "dark" : undefined;
+
   if (mobile) {
     return (
       <TabsProvider>
-        <div data-theme={uiTheme} style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        <div data-theme={uiTheme} data-mode={mode} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
           <MobileTopBar />
           <main style={{ flex: 1, padding: 12, overflowX: "auto", minWidth: 0 }}>
             {children}
           </main>
+          {uiTheme === "nextgen" && (
+            <div style={{ position: "fixed", left: 16, bottom: 16, zIndex: 90 }}>
+              <DarkToggle dark={dark} onToggle={toggleDark} />
+            </div>
+          )}
           {uiTheme !== "classic" && <AIDock />}
         </div>
       </TabsProvider>
@@ -160,7 +211,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <TabsProvider>
-      <div data-theme={uiTheme} style={{ display: "flex", minHeight: "100vh" }}>
+      <div data-theme={uiTheme} data-mode={mode} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
         <Sidebar />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
@@ -169,8 +220,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             height: 48, minHeight: 48, flexShrink: 0, padding: "0 16px",
           }}>
             <GlobalSearchBar />
+            {uiTheme === "nextgen" && <DarkToggle dark={dark} onToggle={toggleDark} />}
           </div>
-          <TabBar />
+          {/* nextgen drops the browser-tab strip entirely -- navigation is
+              sidebar + global search; every other theme keeps it. */}
+          {uiTheme !== "nextgen" && <TabBar />}
           {/* overflowX:auto, not hidden -- "hidden" silently clips any page whose content
               runs wider than the viewport with no way to reach it (short of zooming the
               browser out). "auto" degrades to a scrollbar instead. */}

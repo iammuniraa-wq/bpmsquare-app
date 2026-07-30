@@ -153,7 +153,7 @@ export default function ObjectSections({ objectType, record, patchUrl, onSaved, 
           </button>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {error && <span style={{ fontSize: 11.5, color: "#dc2626" }}>{error}</span>}
+            {error && <span style={{ fontSize: 11.5, color: "var(--err-ink)" }}>{error}</span>}
             <button type="button" onClick={cancelEdit} disabled={pending} style={{
               padding: "5px 12px", borderRadius: 6, border: `1px solid ${c.line}`,
               background: "none", color: c.muted, fontWeight: 500, fontSize: 12, cursor: "pointer",

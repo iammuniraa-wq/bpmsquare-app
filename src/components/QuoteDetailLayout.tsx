@@ -478,10 +478,10 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           >
             <div style={{ fontSize: 11, color: c.muted, marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
               {field.field_label}
-              {field.is_required && <span style={{ color: "#e05252" }}>*</span>}
+              {field.is_required && <span style={{ color: "var(--err-ink)" }}>*</span>}
               {adaptMode && (
                 <button onClick={e => { e.stopPropagation(); removeFieldFromSection(section.id, field.field_key); }}
-                  style={{ background: "none", border: "none", color: "#e05252", cursor: "pointer", fontSize: 12, lineHeight: 1, padding: "0 2px", marginLeft: 2 }} title="Remove">×</button>
+                  style={{ background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer", fontSize: 12, lineHeight: 1, padding: "0 2px", marginLeft: 2 }} title="Remove">×</button>
               )}
             </div>
             {isEditing ? (
@@ -510,9 +510,9 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           onClick={() => { if (!isEditing && !adaptMode) { setEditingKey(field.field_key); setDraftValue(val ?? ""); } }}
         >
           <div style={{ fontSize: 10.5, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span>{field.field_label}{field.is_required && <span style={{ color: "#e05252", marginLeft: 3 }}>*</span>}</span>
+            <span>{field.field_label}{field.is_required && <span style={{ color: "var(--err-ink)", marginLeft: 3 }}>*</span>}</span>
             {adaptMode && (
-              <button onClick={e => { e.stopPropagation(); removeFieldFromSection(section.id, field.field_key); }} style={{ background: "none", border: "none", color: "#e05252", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }} title="Remove field">×</button>
+              <button onClick={e => { e.stopPropagation(); removeFieldFromSection(section.id, field.field_key); }} style={{ background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }} title="Remove field">×</button>
             )}
           </div>
           {isEditing ? (
@@ -542,7 +542,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
         )}
         {/* Inline add-field form — shown when this section is being edited */}
         {addingFieldTo === section.id && (
-          <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-end", background: "#f0f7ff", borderRadius: 8, padding: "10px 12px", border: `1px dashed ${c.accent}` }}>
+          <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-end", background: "var(--bluebg)", borderRadius: 8, padding: "10px 12px", border: `1px dashed ${c.accent}` }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10.5, color: c.hint, marginBottom: 4 }}>Field label</div>
               <input
@@ -655,7 +655,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             )}
             {quote.terms && (
               <div>
-                <h3 style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600, color: "#92400e" }}>Terms &amp; Conditions</h3>
+                <h3 style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600, color: "var(--amberink)" }}>Terms &amp; Conditions</h3>
                 <p style={{ fontSize: 12.5, color: c.muted, margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{quote.terms}</p>
               </div>
             )}
@@ -690,7 +690,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           <section style={cardStyle}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <h3 style={{ fontSize: 13, margin: 0, fontWeight: 600 }}>{section.label}</h3>
-              {cfSaved && <span style={{ fontSize: 11, color: "#1d9e75", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckIcon size={11} color="#1d9e75" /> Saved</span>}
+              {cfSaved && <span style={{ fontSize: 11, color: "var(--teal)", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckIcon size={11} color="var(--teal)" /> Saved</span>}
             </div>
             {section.field_keys.length === 0 && !adaptMode && (
               <div style={{ fontSize: 12.5, color: c.hint, textAlign: "center", padding: "12px 0" }}>
@@ -712,13 +712,13 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
     <>
       {/* Adapt mode banner */}
       {adaptMode && (
-        <div style={{ background: "var(--modern-accent, #0c447c)", color: "#fff", padding: "10px 16px", borderRadius: 8, marginBottom: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ background: "var(--modern-accent, var(--blueink))", color: "#fff", padding: "10px 16px", borderRadius: 8, marginBottom: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13 }}>⊙ Adapt mode — drag sections to reorder, add custom sections &amp; fields</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <button
               onClick={() => saveLayout()}
               disabled={saving}
-              style={{ padding: "6px 18px", borderRadius: 6, fontSize: 12, fontWeight: 600, background: saving ? "#5a7a9c" : "#fff", color: "#0c447c", border: "none", cursor: "pointer" }}
+              style={{ padding: "6px 18px", borderRadius: 6, fontSize: 12, fontWeight: 600, background: saving ? "#5a7a9c" : "var(--panel)", color: "var(--modern-accent, var(--blueink))", border: "none", cursor: "pointer" }}
             >
               {saving ? "Saving…" : "Save layout"}
             </button>
@@ -755,7 +755,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                 if (res.ok) { const j = await res.json(); router.push(ROUTES.invoice(j.id)); }
               }}
               disabled={converting}
-              style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1d9e75", color: "#fff", borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, border: "none", cursor: converting ? "wait" : "pointer" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--teal)", color: "#fff", borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, border: "none", cursor: converting ? "wait" : "pointer" }}
             >
               {converting ? "Converting…" : "⊟ Convert to Invoice"}
             </button>
@@ -882,9 +882,9 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                 style={{ opacity: isDragging ? 0.45 : 1, borderRadius: 10 }}
               >
                 {/* Adapt header bar */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "#e6f1fb", borderRadius: "8px 8px 0 0", border: "1px dashed #378ADD", borderBottom: "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "var(--bluebg)", borderRadius: "8px 8px 0 0", border: "1px dashed #378ADD", borderBottom: "none" }}>
                   <span style={{ cursor: "grab", color: "#378ADD", fontSize: 16, userSelect: "none" }}>⠿</span>
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0c447c", flex: 1 }}>{section.label}</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--blueink)", flex: 1 }}>{section.label}</span>
                   <button
                     onClick={() => { setAddingFieldTo(addingFieldTo === section.id ? null : section.id); setNewFieldLabel(""); }}
                     style={{ background: addingFieldTo === section.id ? c.accent : "none", border: `1px solid ${addingFieldTo === section.id ? c.accent : "#378ADD"}`, color: addingFieldTo === section.id ? "#fff" : "#378ADD", cursor: "pointer", fontSize: 11.5, fontWeight: 600, padding: "2px 10px", borderRadius: 5 }}
@@ -894,7 +894,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                   {section.kind === "custom_fields" && (
                     <button
                       onClick={() => removeSection(section.id)}
-                      style={{ background: "none", border: "none", color: "#e05252", cursor: "pointer", fontSize: 12, fontWeight: 600, padding: "0 4px" }}
+                      style={{ background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer", fontSize: 12, fontWeight: 600, padding: "0 4px" }}
                     >
                       × Remove
                     </button>

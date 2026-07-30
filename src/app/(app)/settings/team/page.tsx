@@ -20,9 +20,9 @@ function RolePill({ role }: { role: "admin" | "member" }) {
     <span style={{
       fontSize: 11, fontWeight: 600,
       padding: "2px 10px", borderRadius: 20,
-      background: isAdmin ? "#eff6ff" : "#f1f5f9",
+      background: isAdmin ? "#eff6ff" : "var(--panel2)",
       color: isAdmin ? "#1d4ed8" : "#475569",
-      border: `1px solid ${isAdmin ? "#bfdbfe" : "#e2e8f0"}`,
+      border: `1px solid ${isAdmin ? "var(--blueline)" : "#e2e8f0"}`,
     }}>
       {isAdmin ? "Admin" : "Member"}
     </span>
@@ -148,7 +148,7 @@ export default function TeamPage() {
             style={{
               height: 38, padding: "0 10px",
               border: `1px solid ${c.line}`, borderRadius: 8,
-              fontSize: 13, color: c.ink, background: "#fff",
+              fontSize: 13, color: c.ink, background: "var(--panel)",
             }}
           >
             <option value="member">Member</option>
@@ -188,12 +188,12 @@ export default function TeamPage() {
         </div>
 
         {inviteError && (
-          <div style={{ marginTop: 10, fontSize: 12, color: "#dc2626", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 12px" }}>
+          <div style={{ marginTop: 10, fontSize: 12, color: "var(--err-ink)", background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px" }}>
             {inviteError}
           </div>
         )}
         {inviteSuccess && (
-          <div style={{ marginTop: 10, fontSize: 12, color: "#166534", background: "#dcfce7", border: "1px solid #bbf7d0", borderRadius: 7, padding: "8px 12px" }}>
+          <div style={{ marginTop: 10, fontSize: 12, color: "var(--greenink)", background: "var(--greenbg)", border: "1px solid var(--green)", borderRadius: 7, padding: "8px 12px" }}>
             ✓ {inviteSuccess}
           </div>
         )}
@@ -209,7 +209,7 @@ export default function TeamPage() {
           <div style={{ fontSize: 13, color: c.muted, padding: "16px 0", textAlign: "center" }}>Loading…</div>
         )}
         {error && (
-          <div style={{ fontSize: 12, color: "#dc2626" }}>{error}</div>
+          <div style={{ fontSize: 12, color: "var(--err-ink)" }}>{error}</div>
         )}
 
         {!loading && members.length === 0 && (
@@ -249,7 +249,7 @@ export default function TeamPage() {
               style={{
                 height: 32, padding: "0 8px",
                 border: `1px solid ${c.line}`, borderRadius: 7,
-                fontSize: 12, color: c.ink, background: "#fff",
+                fontSize: 12, color: c.ink, background: "var(--panel)",
                 cursor: "pointer",
               }}
               title="Change role"
@@ -263,8 +263,8 @@ export default function TeamPage() {
               title="Remove from workspace"
               style={{
                 height: 32, padding: "0 12px",
-                background: "#fef2f2", color: "#dc2626",
-                border: "1px solid #fecaca", borderRadius: 7,
+                background: "var(--err-bg)", color: "var(--err-ink)",
+                border: "1px solid var(--err-line)", borderRadius: 7,
                 fontSize: 12, cursor: "pointer",
               }}
             >

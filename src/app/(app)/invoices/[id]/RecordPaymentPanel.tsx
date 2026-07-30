@@ -57,7 +57,7 @@ export default function RecordPaymentPanel({
           {payments.map((p) => (
             <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5 }}>
               <div>
-                <span style={{ fontWeight: 600, color: "#1d9e75" }}>{inr(p.amount)}</span>
+                <span style={{ fontWeight: 600, color: "var(--teal)" }}>{inr(p.amount)}</span>
                 <span style={{ color: c.hint, marginLeft: 8 }}>{p.method ?? "—"}{p.reference ? ` · ${p.reference}` : ""}</span>
                 {p.note && <span style={{ color: c.hint }}> — {p.note}</span>}
               </div>
@@ -96,7 +96,7 @@ export default function RecordPaymentPanel({
               {pending ? "…" : "Record payment"}
             </button>
           </div>
-          {error && <div style={{ marginTop: 8, fontSize: 12, color: "#dc2626" }}>{error}</div>}
+          {error && <div style={{ marginTop: 8, fontSize: 12, color: "var(--err-ink)" }}>{error}</div>}
         </form>
       )}
       {!canRecord && (

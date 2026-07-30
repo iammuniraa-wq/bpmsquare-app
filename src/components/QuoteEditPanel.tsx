@@ -48,7 +48,7 @@ export default function QuoteEditPanel({ quote, quoteStatuses = DEFAULT_QUOTE_ST
         >
           <Pencil size={13} color={c.muted} /> {saving ? "Creating…" : "Create new version"}
         </button>
-        {error && <span style={{ fontSize: 12, color: "#dc2626", marginLeft: 8 }}>{error}</span>}
+        {error && <span style={{ fontSize: 12, color: "var(--err-ink)", marginLeft: 8 }}>{error}</span>}
       </>
     );
   }

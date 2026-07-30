@@ -1,28 +1,35 @@
 // VeveyCRM design tokens — single source of truth for colour.
 // Mirrors the prototype palette. Never hardcode hex outside this file.
 
+// Neutrals point at the CSS custom properties defined in globals.css, so a
+// theme (e.g. nextgen's dark mode) can re-map them at runtime -- inline
+// styles built from these follow automatically. `accent`/`amber` stay raw hex
+// because ~20 call sites build alpha variants via string concatenation
+// (`${c.accent}40`), which only works on a hex literal.
 export const c = {
   bg2: "#152233",
   bg: "#0e1a28",
-  panel: "#ffffff",
-  panel2: "#f4f6f9",
-  ink: "#1c2733",
-  muted: "#5f6b7a",
-  hint: "#8a96a5",
-  line: "#e2e7ee",
+  panel: "var(--panel)",
+  panel2: "var(--panel2)",
+  ink: "var(--ink)",
+  muted: "var(--muted)",
+  hint: "var(--hint)",
+  line: "var(--line)",
   accent: "#378add",
-  accentbg: "#e6f1fb",
+  accentbg: "var(--accentbg)",
   amber: "#f6b23c", // the hub dot
 } as const;
 
-// Pillar colours — each customer-journey pillar has a hue.
+// Pillar colours — each customer-journey pillar has a hue. fg/bg resolve to
+// the CSS families in globals.css so nextgen dark mode can remap them; `base`
+// stays hex because several call sites build alpha borders via `${base}55`.
 export const pillar = {
-  blue:   { fg: "#0c447c", bg: "#e6f1fb", base: "#378add" },
-  purple: { fg: "#26215c", bg: "#eeedfe", base: "#7f77dd" },
-  teal:   { fg: "#04342c", bg: "#e1f5ee", base: "#1d9e75" },
-  amber:  { fg: "#633806", bg: "#faeeda", base: "#ba7517" },
-  red:    { fg: "#791f1f", bg: "#fcebeb", base: "#a32d2d" },
-  green:  { fg: "#173404", bg: "#eaf3de", base: "#639922" },
+  blue:   { fg: "var(--blueink)", bg: "var(--bluebg)", base: "#378add" },
+  purple: { fg: "var(--purpleink)", bg: "var(--purplebg)", base: "#7f77dd" },
+  teal:   { fg: "var(--tealink)", bg: "var(--tealbg)", base: "#1d9e75" },
+  amber:  { fg: "var(--amberink)", bg: "var(--amberbg)", base: "#ba7517" },
+  red:    { fg: "var(--redink)", bg: "var(--redbg)", base: "#a32d2d" },
+  green:  { fg: "var(--greenink)", bg: "var(--greenbg)", base: "#639922" },
 } as const;
 
 export type PillarKey = keyof typeof pillar;

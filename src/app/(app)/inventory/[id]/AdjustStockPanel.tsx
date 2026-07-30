@@ -57,7 +57,7 @@ export default function AdjustStockPanel({ itemId, uom }: { itemId: string; uom:
           {pending ? "…" : "Apply"}
         </button>
       </form>
-      {error && <div style={{ marginTop: 8, fontSize: 12, color: "#dc2626" }}>{error}</div>}
+      {error && <div style={{ marginTop: 8, fontSize: 12, color: "var(--err-ink)" }}>{error}</div>}
       <div style={{ marginTop: 8, fontSize: 11, color: c.hint }}>
         Use a negative number to reduce stock (e.g. damaged/lost items), positive to add stock not tied to a purchase order.
       </div>

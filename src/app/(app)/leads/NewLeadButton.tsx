@@ -115,10 +115,10 @@ export default function NewLeadButton({ accounts }: { accounts: AccountLite[] })
               </select>
             </div>
 
-            {error && <div style={{ fontSize: 12.5, color: "#dc2626", marginBottom: 12 }}>{error}</div>}
+            {error && <div style={{ fontSize: 12.5, color: "var(--err-ink)", marginBottom: 12 }}>{error}</div>}
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => { setOpen(false); reset(); }} style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${c.line}`, background: "#fff", color: c.muted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+              <button onClick={() => { setOpen(false); reset(); }} style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${c.line}`, background: "var(--panel)", color: c.muted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Cancel</button>
               <button onClick={save} disabled={saving} style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: saving ? "not-allowed" : "pointer" }}>
                 {saving ? "Saving…" : "Create lead"}
               </button>

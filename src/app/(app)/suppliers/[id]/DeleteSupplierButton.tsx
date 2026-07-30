@@ -29,7 +29,7 @@ export default function DeleteSupplierButton({ supplier }: { supplier: Supplier 
       disabled={pending}
       style={{
         display: "flex", alignItems: "center", justifyContent: "center",
-        background: "none", color: "#a32d2d", borderRadius: 7,
+        background: "none", color: "var(--red)", borderRadius: 7,
         padding: "7px 14px", fontSize: 12, fontWeight: 500,
         border: "1px solid #f5c0c0", cursor: pending ? "default" : "pointer", width: "100%",
         opacity: pending ? 0.6 : 1,

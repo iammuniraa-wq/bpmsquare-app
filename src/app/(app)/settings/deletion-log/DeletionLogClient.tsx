@@ -114,8 +114,8 @@ export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Log
               onClick={clearAll}
               disabled={clearing}
               style={{
-                padding: "6px 14px", borderRadius: 7, border: "1px solid #fecaca",
-                background: "#fef2f2", color: "#dc2626", fontSize: 12, fontWeight: 600,
+                padding: "6px 14px", borderRadius: 7, border: "1px solid var(--err-line)",
+                background: "var(--err-bg)", color: "var(--err-ink)", fontSize: 12, fontWeight: 600,
                 cursor: clearing ? "wait" : "pointer",
               }}
             >
@@ -152,7 +152,7 @@ export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Log
                     </td>
                   </tr>
                 ) : filtered.map((r, i) => (
-                  <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : c.panel2 + "55" }}>
+                  <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "color-mix(in srgb, var(--panel2) 55%, transparent)" }}>
                     <td style={td}>
                       <span style={{
                         display: "inline-block", padding: "2px 9px", borderRadius: 12,
@@ -185,7 +185,7 @@ export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Log
                     <td style={{ ...td, color: c.muted, fontSize: 12 }}>
                       {r.created_at ? fmtDate(r.created_at) : "—"}
                     </td>
-                    <td style={{ ...td, color: "#dc2626", fontSize: 12, fontWeight: 500 }}>
+                    <td style={{ ...td, color: "var(--err-ink)", fontSize: 12, fontWeight: 500 }}>
                       {fmtDate(r.deleted_at)}
                     </td>
                     <td style={{ ...td, color: c.hint, fontSize: 11, fontFamily: "monospace" }}>

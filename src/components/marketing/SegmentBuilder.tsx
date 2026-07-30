@@ -236,7 +236,7 @@ export default function SegmentBuilder({ accounts, initial }: { accounts: Accoun
         </div>
       )}
 
-      {error && <div style={{ fontSize: 12.5, color: "#dc2626" }}>{error}</div>}
+      {error && <div style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}
 
       <div>
         <button onClick={save} disabled={saving} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13.5, cursor: saving ? "not-allowed" : "pointer" }}>

@@ -70,7 +70,7 @@ export function AccountIncludeExclude({
                 <span style={{ fontSize: 13, color: c.ink }}>{a.name} <span style={{ color: c.hint, fontSize: 11 }}>({ACCOUNT_TYPE_LABEL[a.type]})</span></span>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button onClick={() => addManual(a.id, "include")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent, cursor: "pointer" }}>+ Add</button>
-                  <button onClick={() => addManual(a.id, "exclude")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", cursor: "pointer" }}>− Exclude</button>
+                  <button onClick={() => addManual(a.id, "exclude")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, border: "1px solid var(--err-line)", background: "var(--err-bg)", color: "var(--err-ink)", cursor: "pointer" }}>− Exclude</button>
                 </div>
               </div>
             ))}
@@ -87,9 +87,9 @@ export function AccountIncludeExclude({
             </span>
           ))}
           {[...excludeIds].map((id) => (
-            <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, padding: "3px 8px", borderRadius: 5, background: "#fef2f2", color: "#dc2626" }}>
+            <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, padding: "3px 8px", borderRadius: 5, background: "var(--err-bg)", color: "var(--err-ink)" }}>
               − {accountsById.get(id)?.name ?? id}
-              <button onClick={() => removeManual(id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
+              <button onClick={() => removeManual(id)} style={{ background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
             </span>
           ))}
         </div>
@@ -137,7 +137,7 @@ export function ManualEmailChips({
         />
         <button onClick={addManualEmail} style={{ flexShrink: 0, fontSize: 12, padding: "8px 14px", borderRadius: 8, border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent, fontWeight: 600, cursor: "pointer" }}>Add</button>
       </div>
-      {emailError && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>{emailError}</div>}
+      {emailError && <div style={{ fontSize: 11, color: "var(--err-ink)", marginTop: 4 }}>{emailError}</div>}
       {manualEmails.size > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
           {[...manualEmails].map((email) => (

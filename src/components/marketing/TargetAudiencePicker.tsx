@@ -155,7 +155,7 @@ export default function TargetAudiencePicker({
             </select>
           )}
           {selectedGroupId && (
-            <button onClick={() => deleteGroup(selectedGroupId)} style={{ fontSize: 11, color: "#dc2626", background: "none", border: "none", cursor: "pointer" }}>Delete group</button>
+            <button onClick={() => deleteGroup(selectedGroupId)} style={{ fontSize: 11, color: "var(--err-ink)", background: "none", border: "none", cursor: "pointer" }}>Delete group</button>
           )}
           <button onClick={saveAsGroup} disabled={savingGroup} style={{ fontSize: 11.5, padding: "5px 10px", borderRadius: 6, border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent, fontWeight: 600, cursor: "pointer" }}>
             {savingGroup ? "Saving…" : "Save as target group"}

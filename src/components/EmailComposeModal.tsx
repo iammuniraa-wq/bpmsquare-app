@@ -134,7 +134,7 @@ export default function EmailComposeModal({
               </div>
               <div style={{ fontSize: 11, color: c.hint, marginBottom: 12 }}>The quote PDF is attached automatically.</div>
 
-              {error && <div style={{ fontSize: 12.5, color: "#dc2626", marginBottom: 12 }}>{error}</div>}
+              {error && <div style={{ fontSize: 12.5, color: "var(--err-ink)", marginBottom: 12 }}>{error}</div>}
 
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 7, border: `1px solid ${c.line}`, background: "transparent", color: c.muted, fontSize: 13, cursor: "pointer" }}>Cancel</button>

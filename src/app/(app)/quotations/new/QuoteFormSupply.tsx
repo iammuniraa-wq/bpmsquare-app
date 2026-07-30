@@ -216,9 +216,9 @@ export default function QuoteFormSupply({ accounts, contacts }: Props) {
       </div>
 
       {hasDraft && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 14px", fontSize: 12.5 }}>
-          <span style={{ color: "#92400e" }}>⟳ Draft restored.</span>
-          <button onClick={() => { clearDraft(); setHasDraft(false); }} style={{ marginLeft: "auto", fontSize: 11.5, color: "#92400e", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Discard</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, background: "var(--amberbg)", border: "1px solid var(--amberline)", borderRadius: 8, padding: "8px 14px", fontSize: 12.5 }}>
+          <span style={{ color: "var(--amberink)" }}>⟳ Draft restored.</span>
+          <button onClick={() => { clearDraft(); setHasDraft(false); }} style={{ marginLeft: "auto", fontSize: 11.5, color: "var(--amberink)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Discard</button>
         </div>
       )}
 
@@ -404,7 +404,7 @@ export default function QuoteFormSupply({ accounts, contacts }: Props) {
           {/* Save */}
           <section style={cardStyle}>
             {saveError && (
-              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "#dc2626", marginBottom: 12 }}>
+              <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginBottom: 12 }}>
                 {saveError}
               </div>
             )}

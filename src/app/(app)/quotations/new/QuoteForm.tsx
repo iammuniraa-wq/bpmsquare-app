@@ -471,7 +471,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             <div style={{ width: 100 }}>
               <span style={miniLbl}>Deduction (₹)</span>
               <input
-                style={{ ...inp, textAlign: "right", color: "#b91c1c" }} type="number" min="0" step="10"
+                style={{ ...inp, textAlign: "right", color: "var(--err-ink)" }} type="number" min="0" step="10"
                 value={opts.deduction} onChange={(e) => opts.onField("deduction", e.target.value)} placeholder="0"
                 title="Salvage / deduction credited back, subtracted once from the grand total"
               />
@@ -862,19 +862,19 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
       {/* Case carry-over banner */}
       {caseSource && !carryoverDismissed && (
-        <div style={{ marginBottom: 14, background: "#eef4ff", border: "1px solid #bfdbfe", borderLeft: "3px solid #378ADD", borderRadius: 8, padding: "12px 16px" }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: "#1e3a5f", marginBottom: 6 }}>Creating quotation from case {caseSource.caseRef}</div>
-          <div style={{ fontSize: 12, color: "#3a5a80", marginBottom: 10 }}>Carry over inspection findings to the quotation notes, and pre-select the account?</div>
+        <div style={{ marginBottom: 14, background: "var(--bluebg)", border: "1px solid var(--blueline)", borderLeft: "3px solid #378ADD", borderRadius: 8, padding: "12px 16px" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--blueink)", marginBottom: 6 }}>Creating quotation from case {caseSource.caseRef}</div>
+          <div style={{ fontSize: 12, color: "var(--blueink)", marginBottom: 10 }}>Carry over inspection findings to the quotation notes, and pre-select the account?</div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" onClick={applyCarryover} style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#378ADD", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>Yes, carry over</button>
-            <button type="button" onClick={() => setCarryoverDismissed(true)} style={{ fontSize: 12, fontWeight: 500, color: "#3a5a80", background: "none", border: "1px solid #bfdbfe", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>Start fresh</button>
+            <button type="button" onClick={() => setCarryoverDismissed(true)} style={{ fontSize: 12, fontWeight: 500, color: "var(--blueink)", background: "none", border: "1px solid var(--blueline)", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>Start fresh</button>
           </div>
         </div>
       )}
 
       {hasDraft && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 14px", fontSize: 12.5 }}>
-          <span style={{ color: "#92400e" }}>⟳ Draft restored — your unsaved work has been recovered.</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, background: "var(--amberbg)", border: "1px solid var(--amberline)", borderRadius: 8, padding: "8px 14px", fontSize: 12.5 }}>
+          <span style={{ color: "var(--amberink)" }}>⟳ Draft restored — your unsaved work has been recovered.</span>
           <button onClick={() => { clearDraft(); setHasDraft(false); window.location.reload(); }} style={{ marginLeft: "auto", fontSize: 11.5, color: "#b45309", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Discard draft</button>
         </div>
       )}
@@ -1012,7 +1012,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         <button
                           type="button"
                           onClick={() => removeSow(sow.id)}
-                          style={{ fontSize: 11.5, color: "#dc2626", background: "none", border: "1px solid #fecaca", borderRadius: 5, padding: "3px 8px", cursor: "pointer" }}
+                          style={{ fontSize: 11.5, color: "var(--err-ink)", background: "none", border: "1px solid var(--err-line)", borderRadius: 5, padding: "3px 8px", cursor: "pointer" }}
                         >
                           − Remove
                         </button>
@@ -1104,11 +1104,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <h3 style={{ ...sectionTitle, margin: 0 }}>Particulars</h3>
               <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
                 {selectedIds.size >= 2 && (
-                  <button onClick={groupSelected} style={{ fontSize: 12, fontWeight: 600, color: "#0c447c", background: "#e6f1fb", border: "1px solid #c5dbf5", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+                  <button onClick={groupSelected} style={{ fontSize: 12, fontWeight: 600, color: "var(--blueink)", background: "var(--bluebg)", border: "1px solid var(--blueline)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
                     ▦ Group selected ({selectedIds.size})
                   </button>
                 )}
-                <button onClick={addAlternative} style={{ fontSize: 12, fontWeight: 600, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>⊕ Add option</button>
+                <button onClick={addAlternative} style={{ fontSize: 12, fontWeight: 600, color: "var(--amberink)", background: "var(--amberbg)", border: "1px solid var(--amberline)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>⊕ Add option</button>
                 <button onClick={addGroup} style={{ fontSize: 12, fontWeight: 600, color: c.muted, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ Add group</button>
                 <button onClick={addLine} style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ Add line</button>
               </div>
@@ -1137,8 +1137,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 const isAlt = row.group_type === "alternative";
                 const isSelectedAlt = isAlt && row.id === effectiveAltId;
                 const groupColor  = isAlt ? "#d97706" : c.accent;
-                const groupBg     = isAlt ? "#fffbeb" : `${c.accent}06`;
-                const groupBorder = isAlt ? "#fde68a" : `${c.accent}40`;
+                const groupBg     = isAlt ? "var(--amberbg)" : `${c.accent}06`;
+                const groupBorder = isAlt ? "var(--amberline)" : `${c.accent}40`;
                 const groupTotal  = row.items.reduce((s, i) => {
                   const qty  = parseFloat(i.qty) || 0;
                   const rate = parseFloat(i.rate) || 0;
@@ -1151,7 +1151,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                       <span style={{ fontSize: 12, color: groupColor }}>{isAlt ? "⊕" : "▦"}</span>
                       {isAlt && (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" }}>OPTION</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--amberink)", background: "var(--amberbg)", border: "1px solid var(--amberline)", borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" }}>OPTION</span>
                       )}
                       <input
                         value={row.label}
@@ -1161,8 +1161,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       />
                       {isAlt && (
                         isSelectedAlt
-                          ? <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", background: "#d1fae5", border: "1px solid #6ee7b7", borderRadius: 5, padding: "2px 8px", whiteSpace: "nowrap" }}>✓ Selected</span>
-                          : <button onClick={() => setSelectedAltId(row.id)} style={{ fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 5, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>Select this option</button>
+                          ? <span style={{ fontSize: 11, fontWeight: 700, color: "var(--tealink)", background: "var(--tealbg)", border: "1px solid var(--teal)", borderRadius: 5, padding: "2px 8px", whiteSpace: "nowrap" }}>✓ Selected</span>
+                          : <button onClick={() => setSelectedAltId(row.id)} style={{ fontSize: 11, fontWeight: 600, color: "var(--amberink)", background: "var(--amberbg)", border: "1px solid var(--amberline)", borderRadius: 5, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>Select this option</button>
                       )}
                       <button onClick={() => ungroup(row.id)} style={{ fontSize: 11, color: c.muted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", whiteSpace: "nowrap" }}>Ungroup</button>
                       <button onClick={() => removeRow(row.id)} style={{ color: c.hint, background: "none", border: "none", fontSize: 18, cursor: "pointer", lineHeight: 1 }} title="Delete group">×</button>
@@ -1173,7 +1173,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       <input
                         value={row.group_description}
                         onChange={(e) => updateGroupDescription(row.id, e.target.value)}
-                        style={{ ...inp, fontSize: 12.5, background: "transparent", borderColor: row.group_description ? c.line : `${c.line}60` }}
+                        style={{ ...inp, fontSize: 12.5, background: "transparent", borderColor: row.group_description ? c.line : "color-mix(in srgb, var(--line) 45%, transparent)" }}
                         placeholder="Group description (e.g. Motor Stator Winding)…"
                       />
                     </div>
@@ -1418,7 +1418,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           <section style={cardStyle}>
             <h3 style={sectionTitle}>Actions</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {saveError && <div style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", borderRadius: 7, padding: "6px 10px" }}>{saveError}</div>}
+              {saveError && <div style={{ fontSize: 12, color: "var(--err-ink)", background: "var(--err-bg)", borderRadius: 7, padding: "6px 10px" }}>{saveError}</div>}
               <button onClick={handleSave} disabled={!accountId || savePending} style={{ width: "100%", padding: "10px 0", borderRadius: 9, fontSize: 13.5, fontWeight: 700, background: accountId ? `var(--modern-accent, ${c.accent})` : c.line, color: accountId ? "#fff" : c.hint, border: "none", cursor: accountId && !savePending ? "pointer" : "not-allowed" }}>
                 {savePending ? "Saving…" : editQuote ? "Save changes" : "Save as draft"}
               </button>
@@ -1584,7 +1584,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 values={{ ...newAsset, ...newAssetExtra, ...newAssetCustomData }}
                 onChange={setNewAssetExtraField}
               />
-              {createAssetError && <div style={{ fontSize: 12, color: "#dc2626", background: "#fef2f2", borderRadius: 7, padding: "8px 12px" }}>{createAssetError}</div>}
+              {createAssetError && <div style={{ fontSize: 12, color: "var(--err-ink)", background: "var(--err-bg)", borderRadius: 7, padding: "8px 12px" }}>{createAssetError}</div>}
               <div style={{ display: "flex", gap: 8, paddingTop: 4 }}>
                 <button type="submit" disabled={createAssetPending} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13, cursor: createAssetPending ? "wait" : "pointer" }}>
                   {createAssetPending ? "Creating…" : "Create & link asset"}
@@ -1710,7 +1710,7 @@ function AssetGlancePanel({ assetId, onClose }: { assetId: string; onClose: () =
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 20px" }}>
           {loading && <div style={{ color: c.hint, fontSize: 13, textAlign: "center", padding: "40px 0" }}>Loading…</div>}
-          {error && <div style={{ fontSize: 12.5, color: "#dc2626", background: "#fef2f2", borderRadius: 7, padding: "10px 12px" }}>{error}</div>}
+          {error && <div style={{ fontSize: 12.5, color: "var(--err-ink)", background: "var(--err-bg)", borderRadius: 7, padding: "10px 12px" }}>{error}</div>}
           {asset && (
             <ObjectSections
               objectType="asset"

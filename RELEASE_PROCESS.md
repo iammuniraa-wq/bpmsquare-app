@@ -28,7 +28,7 @@ main branch ─────► production deployment ─► production Supabase 
 | | Staging | Production |
 |---|---|---|
 | Git branch | `develop` | `main` |
-| Deployment | Vercel preview of `develop` (optionally pinned to `staging.bpmsquare.com`) | The existing production Vercel project |
+| Deployment | `https://bpmsquare-app-git-develop-munira1.vercel.app` (Vercel preview of `develop`; optionally pin `staging.bpmsquare.com` later) | The existing production Vercel project (renamed `bpmsquare-app`) |
 | Database | **Separate** staging Supabase project | The existing production Supabase |
 | Tenants | `dev` tenant — throwaway data, drastic experiments | `demo` (client-facing showcase) + real clients |
 | Who sees it | Us + QA | Clients |
@@ -68,13 +68,21 @@ isn't lost at the next promotion.
 Code side (done by Claude): `develop` branch created from `main`; this
 document committed to both branches.
 
-- [ ] **Supabase**: create a second project (e.g. `bpmsquare-staging`, free
-      tier). Run `supabase/schema.sql` + every file in `supabase/migrations/`
-      in order against it (SQL editor, or `supabase db push` if using the CLI).
-- [ ] **Supabase staging**: create the `dev` tenant row + a login user for
+- [x] **Supabase**: create a second project (e.g. `bpmsquare-staging`, free
+      tier) and use **Connect GitHub** on the create screen (or Project
+      Settings -> Integrations) pointing at `iammuniraa-wq/bpmsquare-app`,
+      branch **`develop`**. The `supabase/migrations/` directory is a valid
+      from-scratch history (`0000_baseline.sql`, then `0030+`; pre-baseline
+      files are archived in `supabase/migrations_legacy/`), so the
+      integration builds the whole schema automatically and applies future
+      migrations on every push to `develop`. Do NOT connect the production
+      project -- production migrations stay manual at promotion time.
+      (Manual alternative: SQL-editor-run `0000_baseline.sql` then `0030+`
+      in order.)
+- [x] **Supabase staging**: create the `dev` tenant row + a login user for
       yourself (mirror how the demo tenant was seeded), or export/import the
       demo tenant's data via the admin export for realistic test data.
-- [ ] **Vercel**: in the BPMSquare project → Settings → Environment
+- [x] **Vercel**: in the BPMSquare project → Settings → Environment
       Variables, add the staging Supabase URL / anon key / service-role key /
       `FIELD_ENCRYPTION_KEY` etc. scoped to the **Preview** environment
       (Production keeps the current values). Every push to `develop` then
@@ -82,7 +90,12 @@ document committed to both branches.
 - [ ] **Optional**: Vercel → Domains → assign `staging.bpmsquare.com` to the
       `develop` branch for a stable staging URL (host-based tenant resolution
       needs the staging tenant's `custom_domain` to match whatever host you use).
-- [ ] Confirm the staging deployment can log in and sees the `dev` tenant.
+- [x] Confirm the staging deployment can log in and sees the `dev` tenant. (Verified 2026-07-30 -- login OK at the develop branch alias URL.)
+
+> Note: the Supabase GitHub integration applies migrations on **push** to the
+> configured branch -- connecting it to an existing branch does not sync
+> retroactively. Any push to `develop` (like the one adding this note)
+> triggers the first full apply.
 
 ## State snapshot at the time this process was adopted (2026-07-30)
 

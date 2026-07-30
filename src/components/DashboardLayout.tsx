@@ -174,6 +174,25 @@ const daysSince = (iso: string) => Math.floor((Date.now() - new Date(iso).getTim
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
+/** Tiny inline area sparkline -- nextgen KPI tiles. Pure SVG, no library. */
+function Sparkline({ values, stroke }: { values: number[]; stroke: string }) {
+  if (values.length < 2) return null;
+  const w = 200, h = 30, pad = 2;
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = max - min || 1;
+  const pts = values.map((v, i) => [
+    (i / (values.length - 1)) * w,
+    pad + (1 - (v - min) / span) * (h - pad * 2),
+  ]);
+  const line = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display: "block", width: "100%", height: 30, marginTop: 8 }}>
+      <path d={line} fill="none" stroke={stroke} strokeWidth={2} />
+      <path d={`${line} L${w},${h} L0,${h} Z`} fill={stroke} opacity={0.08} />
+    </svg>
+  );
+}
+
 // KPI tiles are narrow (minWidth 150) -- a lakhs/crores figure at the default
 // 25px was overflowing its box instead of shrinking to fit. Scale the font
 // down as the formatted string gets longer rather than fixing one size.
@@ -204,7 +223,7 @@ const serifNum: React.CSSProperties = {
 // News-card monogram themes -- cycled by row index (decorative variety, not an
 // identity channel that needs to stay fixed to a specific source/account).
 const NEWS_THEMES = [
-  { thumb: "linear-gradient(135deg, #0f6b5c, #1d9e75)", pillBg: "#e4efec", pillFg: "#0f6b5c" },
+  { thumb: "linear-gradient(135deg, #0f6b5c, var(--teal))", pillBg: "#e4efec", pillFg: "#0f6b5c" },
   { thumb: "linear-gradient(135deg, #a3651a, #d99a3e)", pillBg: "#fdf1e2", pillFg: "#a3651a" },
   { thumb: "linear-gradient(135deg, #2f5aa8, #5c86e6)", pillBg: "#e8edf9", pillFg: "#2f5aa8" },
   { thumb: "linear-gradient(135deg, #96385a, #c26b8e)", pillBg: "#f8e9ee", pillFg: "#96385a" },
@@ -365,8 +384,8 @@ function BigFunnel({ stages }: { stages: { stage: string; count: number; href?: 
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "0 14px", boxSizing: "border-box",
           }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: i >= 2 ? "#fff" : c.ink }}>{s.stage}</span>
-            <span style={{ ...serifNum, fontSize: 15, fontWeight: 700, color: i >= 2 ? "#fff" : c.ink }}>{s.count}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: i >= 2 ? "#fff" : "#1c2733" }}>{s.stage}</span>
+            <span style={{ ...serifNum, fontSize: 15, fontWeight: 700, color: i >= 2 ? "#fff" : "#1c2733" }}>{s.count}</span>
           </div>
         );
         return (
@@ -580,7 +599,9 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
 // ── Sidebar sub-components ────────────────────────────────────────────────────
 
 function QCBtn({ href, label, icon, tint }: { href: string; label: string; icon: React.ReactNode; tint: { fg: string; bg: string; base: string } }) {
-  const modern = useUiTheme() !== "classic";
+  const uiTheme = useUiTheme();
+  const modern = uiTheme !== "classic";
+  const nextgen = uiTheme === "nextgen";
   return (
     <Link
       className={modern ? "modern-lift" : undefined}
@@ -588,9 +609,9 @@ function QCBtn({ href, label, icon, tint }: { href: string; label: string; icon:
       style={{
         display: "flex", alignItems: "center", gap: 9, padding: modern ? "9px 12px" : "8px 11px",
         borderRadius: modern ? "var(--card-radius)" : 8,
-        background: tint.bg,
-        border: `1px solid ${modern ? `${tint.base}55` : c.line}`,
-        textDecoration: "none", fontSize: 12.5, color: modern ? tint.fg : c.ink, fontWeight: modern ? 700 : 600,
+        background: nextgen ? "var(--card-bg)" : tint.bg,
+        border: `1px solid ${nextgen ? "var(--line)" : modern ? `${tint.base}55` : c.line}`,
+        textDecoration: "none", fontSize: 12.5, color: nextgen ? c.ink : modern ? tint.fg : c.ink, fontWeight: nextgen ? 550 : modern ? 700 : 600,
       }}
     >
       {icon}{label}
@@ -839,7 +860,9 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
 
 export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin }: Props) {
   const router = useRouter();
-  const modern = useUiTheme() !== "classic";
+  const uiTheme = useUiTheme();
+  const modern = uiTheme !== "classic";
+  const nextgen = uiTheme === "nextgen";
   const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout));
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [saving, startSave] = useTransition();
@@ -924,6 +947,61 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     .sort((a, b) => b.value - a.value)
     .slice(0, 6);
 
+  // ── Next-gen AI brief ──────────────────────────────────────────────────────
+  // Rule-based v1, computed from data already on the page -- honest and free.
+  // A real LLM summary can replace the sentence later without changing the UI.
+  function renderNextgenBrief() {
+    const chips: { text: string; color: string; href: string }[] = [];
+    if (analytics.quoteOverdueCount > 0) {
+      chips.push({ text: `${analytics.quoteOverdueCount} quote${analytics.quoteOverdueCount > 1 ? "s" : ""} past validity`, color: "var(--nextgen-warn, #a16207)", href: ROUTES.quotations });
+    }
+    if (overdueInvoiceItems.length > 0) {
+      const due = overdueInvoices.reduce((s, i) => s + Math.max(0, i.total - i.paid_amount), 0);
+      chips.push({ text: `${overdueInvoiceItems.length} overdue invoice${overdueInvoiceItems.length > 1 ? "s" : ""} · ${inr(due)}`, color: "var(--nextgen-bad, #c2402f)", href: ROUTES.invoices });
+    }
+    if (kpis.awaitingApproval > 0) {
+      chips.push({ text: `${kpis.awaitingApproval} quote${kpis.awaitingApproval > 1 ? "s" : ""} awaiting response`, color: "var(--modern-accent, #2e6be6)", href: ROUTES.quotations });
+    }
+    if (overdueWorkOrders.length > 0) {
+      chips.push({ text: `${overdueWorkOrders.length} work order${overdueWorkOrders.length > 1 ? "s" : ""} past schedule`, color: "var(--nextgen-bad, #c2402f)", href: ROUTES.workOrders });
+    }
+    const headline = chips.length > 0
+      ? `${chips.length} thing${chips.length > 1 ? "s" : ""} need${chips.length > 1 ? "" : "s"} your attention today.`
+      : "You're all caught up — nothing needs attention right now.";
+
+    return (
+      <div style={{
+        display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 16,
+        background: "linear-gradient(120deg, var(--nextgen-ai-soft, #f2efff), transparent 70%)",
+        border: "1px solid color-mix(in srgb, var(--nextgen-ai, #7a5cff) 22%, transparent)",
+        borderRadius: "var(--card-radius)", padding: "14px 16px",
+      }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--nextgen-ai, #7a5cff)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2L12 3z" />
+          </svg>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, color: c.ink }}><b style={{ fontWeight: 600 }}>{headline}</b></div>
+          {chips.length > 0 && (
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              {chips.map((ch) => (
+                <Link key={ch.text} href={ch.href} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 550,
+                  border: "1px solid var(--line)", background: "var(--card-bg)", borderRadius: 20,
+                  padding: "4px 11px", color: c.ink, textDecoration: "none",
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: ch.color, flexShrink: 0 }} />
+                  {ch.text}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // ── Block renderers ────────────────────────────────────────────────────────
 
   function renderOverviewStrip() {
@@ -931,7 +1009,8 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     // number/label ink) instead of uniform white -- classic keeps the flat
     // dark-green ledger numbers unchanged.
     const overduePillar = overdueItems.length > 0 ? pillar.red : pillar.green;
-    const numColor = (p: { fg: string }, classicColor: string) => (modern ? p.fg : classicColor);
+    // nextgen: neutral ink numbers, semantic colour only where it means something
+    const numColor = (p: { fg: string }, classicColor: string) => (nextgen ? c.ink : modern ? p.fg : classicColor);
     const tiles: { label: string; href?: string; tint: { fg: string; bg: string; base: string }; content: React.ReactNode }[] = [
       {
         label: "Open pipeline",
@@ -941,6 +1020,9 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
           <>
             <div style={{ ...(modern ? {} : serifNum), fontSize: kpiNumFontSize(inr(kpis.openQuoteValue)), fontWeight: 700, color: numColor(pillar.blue, ledger.accent), lineHeight: 1.15, whiteSpace: "nowrap" }}>{inr(kpis.openQuoteValue)}</div>
             <div style={{ fontSize: 11, color: modern ? c.muted : c.hint, marginTop: 6 }}>{kpis.awaitingApproval} awaiting response</div>
+            {nextgen && analytics.quoteTrend.length > 1 && (
+              <Sparkline values={analytics.quoteTrend.map((t) => t.cumulative)} stroke="var(--modern-accent, #2e6be6)" />
+            )}
           </>
         ),
       },
@@ -950,7 +1032,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         tint: pillar.teal,
         content: (
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <ProgressRing pct={resolutionRate} color={modern ? pillar.teal.base : ledger.accent} size={42} stroke={5} />
+            <ProgressRing pct={resolutionRate} color={nextgen ? "var(--nextgen-good, #148a5b)" : modern ? pillar.teal.base : ledger.accent} size={42} stroke={5} />
             <div style={{ fontSize: 11, color: modern ? c.muted : c.hint, lineHeight: 1.3 }}>{resolvedCases} of {totalCases}<br />resolved</div>
           </div>
         ),
@@ -960,7 +1042,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         tint: overduePillar,
         content: (
           <>
-            <div style={{ ...(modern ? {} : serifNum), fontSize: 25, fontWeight: 700, color: modern ? overduePillar.fg : overdueItems.length > 0 ? "#b5451f" : ledger.accent, lineHeight: 1 }}>{overdueItems.length}</div>
+            <div style={{ ...(modern ? {} : serifNum), fontSize: 25, fontWeight: 700, color: nextgen ? (overdueItems.length > 0 ? "var(--nextgen-bad, #c2402f)" : c.ink) : modern ? overduePillar.fg : overdueItems.length > 0 ? "#b5451f" : ledger.accent, lineHeight: 1 }}>{overdueItems.length}</div>
             <div style={{ fontSize: 11, color: modern ? c.muted : c.hint, marginTop: 6 }}>{overdueItems.length > 0 ? "need attention" : "all caught up"}</div>
           </>
         ),
@@ -981,9 +1063,11 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     // structural difference, not just a recolor) -- classic keeps every tile
     // nested inside one flat bordered strip, unchanged.
     const tileBoxStyle: React.CSSProperties = modern
-      ? { padding: "16px 18px", borderRadius: "var(--card-radius)", border: "1px solid var(--line)", background: "var(--card-bg)" }
+      ? { padding: nextgen ? "16px 16px 12px" : "16px 18px", borderRadius: "var(--card-radius)", border: "1px solid var(--line)", background: "var(--card-bg)" }
       : { padding: "13px 16px", borderRadius: 8, border: `1px solid ${ledger.line}`, background: c.panel2 };
-    const tileLabelStyle: React.CSSProperties = modern
+    const tileLabelStyle: React.CSSProperties = nextgen
+      ? { fontSize: 12.5, fontWeight: 550, color: c.muted, marginBottom: 6 }
+      : modern
       ? { fontSize: 10.5, fontWeight: 700, color: "var(--modern-accent)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }
       : { fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 };
 
@@ -995,10 +1079,10 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
               className={modern ? "modern-lift-gold" : undefined}
               style={{
                 ...tileBoxStyle,
-                ...(modern ? { background: t.tint.bg, borderColor: `${t.tint.base}55` } : {}),
+                ...(modern && !nextgen ? { background: t.tint.bg, borderColor: `${t.tint.base}55` } : {}),
               }}
             >
-              <div style={{ ...tileLabelStyle, ...(modern ? { color: t.tint.fg } : {}) }}>{t.label}</div>
+              <div style={{ ...tileLabelStyle, ...(modern && !nextgen ? { color: t.tint.fg } : {}) }}>{t.label}</div>
               {t.content}
             </div>
           );
@@ -1041,7 +1125,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   function renderRevenueCard() {
     return (
       <section style={cardStyle}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Revenue</div>
+        <div style={nextgen ? { fontSize: 13, fontWeight: 620, color: c.ink, marginBottom: 10 } : { fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Revenue</div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
           <span style={{ ...serifNum, fontSize: kpiNumFontSize(inr(revenueValue)), fontWeight: 700, color: ledger.accent, whiteSpace: "nowrap" }}>{inr(revenueValue)}</span>
           {revenueTarget > 0 && <span style={{ fontSize: 12, color: c.hint }}>of {inr(revenueTarget)} pipeline</span>}
@@ -1144,7 +1228,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   function renderQuickCreate() {
     return (
       <section style={{ ...cardStyle, padding: "14px 14px 12px" }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Quick create</div>
+        <div style={nextgen ? { fontSize: 13, fontWeight: 620, color: c.ink, marginBottom: 10 } : { fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Quick create</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <QCBtn href={ROUTES.accountNew}   label="New account"    icon={<Globe size={13} color={pillar.purple.base} />}   tint={pillar.purple} />
           <QCBtn href={ROUTES.caseNew}      label="New case"       icon={<Activity size={13} color={pillar.teal.base} />}  tint={pillar.teal} />
@@ -1200,6 +1284,8 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
           </button>
         )}
       </div>
+
+      {nextgen && renderNextgenBrief()}
 
       {/* Two-column layout */}
       <div className="dash-outer" style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 14, alignItems: "start" }}>

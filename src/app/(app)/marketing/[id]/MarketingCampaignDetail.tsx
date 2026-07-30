@@ -102,8 +102,8 @@ export default function MarketingCampaignDetail({
       <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 760 }}>
         <section style={cardStyle}>
           <div style={{ display: "flex", gap: 16, marginBottom: 14 }}>
-            <Stat label="Sent" value={campaign.sent_count} color="#1d9e75" />
-            <Stat label="Failed" value={campaign.failed_count} color="#a32d2d" />
+            <Stat label="Sent" value={campaign.sent_count} color="var(--teal)" />
+            <Stat label="Failed" value={campaign.failed_count} color="var(--red)" />
             <Stat label="Skipped" value={campaign.skipped_count} color={c.hint} />
             <Stat label="Leads" value={leadsGenerated} color={c.accent} />
           </div>
@@ -173,10 +173,10 @@ export default function MarketingCampaignDetail({
         match={match} setMatch={setMatch}
       />
 
-      {error && <div style={{ fontSize: 12.5, color: "#dc2626" }}>{error}</div>}
+      {error && <div style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}
 
       <div style={{ display: "flex", gap: 10 }}>
-        <button onClick={saveChanges} disabled={saving || sending} style={{ padding: "10px 20px", borderRadius: 8, border: `1px solid ${c.line}`, background: "#fff", color: c.muted, fontWeight: 600, fontSize: 13.5, cursor: saving ? "not-allowed" : "pointer" }}>
+        <button onClick={saveChanges} disabled={saving || sending} style={{ padding: "10px 20px", borderRadius: 8, border: `1px solid ${c.line}`, background: "var(--panel)", color: c.muted, fontWeight: 600, fontSize: 13.5, cursor: saving ? "not-allowed" : "pointer" }}>
           {saving ? "Saving…" : "Save changes"}
         </button>
         <button onClick={sendNow} disabled={saving || sending} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13.5, cursor: sending ? "not-allowed" : "pointer" }}>
