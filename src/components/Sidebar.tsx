@@ -7,8 +7,8 @@ import { NAV, ROUTES } from "@/lib/constants";
 import type { NavItem } from "@/lib/constants";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
-import { StarFilled, StarOutline, Gear } from "@/components/Icons";
-import { useTenant } from "@/lib/tenant-context";
+import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon } from "@/components/Icons";
+import { useTenant, useUiTheme } from "@/lib/tenant-context";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -64,6 +64,42 @@ function loadNavState(features?: Record<string, boolean>): NavState {
 
 function saveNavState(s: NavState) {
   try { localStorage.setItem(NAV_STATE_KEY, JSON.stringify(s)); } catch {}
+}
+
+// ── Nav glyphs ────────────────────────────────────────────────────────────────
+// Under the "nextgen" theme the sidebar renders a real SVG icon per route
+// instead of the unicode glyphs baked into NAV -- the single loudest
+// dated-look signal in the old chrome. Other themes keep the text glyphs.
+
+const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+  [ROUTES.dashboard]: Monitor,
+  [ROUTES.accounts]: Globe,
+  [ROUTES.contacts]: Phone,
+  [ROUTES.quotations]: FileText,
+  [ROUTES.pipeline]: BarChart2,
+  [ROUTES.invoices]: Clipboard,
+  [ROUTES.cases]: Activity,
+  [ROUTES.amc]: CalendarCheck,
+  [ROUTES.workOrders]: Wrench,
+  [ROUTES.dispatch]: MapPin,
+  [ROUTES.technicians]: Gear,
+  [ROUTES.marketing]: Mail,
+  [ROUTES.marketingSegments]: Package,
+  [ROUTES.leads]: Zap,
+  [ROUTES.partners]: LinkIcon,
+  [ROUTES.assets]: Gear,
+  [ROUTES.suppliers]: Globe,
+  [ROUTES.inventory]: Package,
+  [ROUTES.purchaseOrders]: Clipboard,
+  [ROUTES.reports]: BarChart2,
+  [ROUTES.dataWorkbench]: Clipboard,
+};
+
+function NavGlyph({ href, fallback, size = 14 }: { href: string; fallback: string; size?: number }) {
+  const nextgen = useUiTheme() === "nextgen";
+  const Icon = NAV_GLYPHS[href];
+  if (nextgen && Icon) return <Icon size={size} color="currentColor" />;
+  return <>{fallback}</>;
 }
 
 // ── Drop line ─────────────────────────────────────────────────────────────────
@@ -155,12 +191,12 @@ function DraggableSection({
 
         const rowContent = (
           <>
-            <span style={{ width: 16, textAlign: "center", fontSize: 14, flexShrink: 0 }}>
-              {item.icon}
+            <span style={{ width: 16, textAlign: "center", fontSize: 14, flexShrink: 0, display: "inline-flex", justifyContent: "center" }}>
+              <NavGlyph href={item.href} fallback={item.icon} />
             </span>
             <span style={{ flex: 1 }}>{item.label}</span>
             {hasChildren && (
-              <span style={{ fontSize: 10, flexShrink: 0, color: on ? "#fff" : "var(--sb-text-dim)", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
+              <span style={{ fontSize: 10, flexShrink: 0, color: on ? "var(--sb-active-ink, #fff)" : "var(--sb-text-dim)", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
             )}
             {!hasChildren && (isFavSection || showHover) && (
               <span
@@ -188,7 +224,7 @@ function DraggableSection({
           display: "flex", alignItems: "center", gap: 9,
           padding: `${py} 10px`,
           borderRadius: 8, fontSize: 13, marginBottom: 1,
-          color: on ? "#fff" : "var(--sb-text)",
+          color: on ? "var(--sb-active-ink, #fff)" : "var(--sb-text)",
           background: on ? `var(--sb-active-bg, ${accent})` : "transparent",
           opacity: isDragging ? 0.35 : 1,
           textDecoration: "none",
@@ -230,13 +266,13 @@ function DraggableSection({
                           display: "flex", alignItems: "center", gap: 8,
                           padding: `${py} 10px`,
                           borderRadius: 8, fontSize: 12.5, marginBottom: 1,
-                          color: childOn ? "#fff" : "var(--sb-text)",
+                          color: childOn ? "var(--sb-active-ink, #fff)" : "var(--sb-text)",
                           background: childOn ? `var(--sb-active-bg, ${accent})` : "transparent",
                           textDecoration: "none",
                           transition: "background 0.12s",
                         }}
                       >
-                        <span style={{ width: 14, textAlign: "center", fontSize: 12, flexShrink: 0 }}>{ch.icon}</span>
+                        <span style={{ width: 14, textAlign: "center", fontSize: 12, flexShrink: 0, display: "inline-flex", justifyContent: "center" }}><NavGlyph href={ch.href} fallback={ch.icon} size={12} /></span>
                         <span>{ch.label}</span>
                       </Link>
                     );
@@ -264,12 +300,12 @@ function IconRailItem({ item, active, accent, onNavigate }: {
       style={{
         display: "flex", alignItems: "center", justifyContent: "center",
         width: 36, height: 36, margin: "0 auto 4px", borderRadius: 8,
-        color: active ? "#fff" : "var(--sb-text)",
+        color: active ? "var(--sb-active-ink, #fff)" : "var(--sb-text)",
         background: active ? `var(--sb-active-bg, ${accent})` : "transparent",
         textDecoration: "none", fontSize: 15,
       }}
     >
-      {item.icon}
+      <NavGlyph href={item.href} fallback={item.icon} size={15} />
     </Link>
   );
 }
@@ -512,7 +548,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               textDecoration: "none",
             }}
           >
-            <Gear size={14} color={isActive(ROUTES.settings) ? "#fff" : "var(--sb-icon-muted)"} />
+            <Gear size={14} color={isActive(ROUTES.settings) ? "var(--sb-active-ink, #fff)" : "var(--sb-icon-muted)"} />
           </Link>
         </nav>
       ) : (
@@ -576,7 +612,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               transition: "background 0.12s",
             }}
           >
-            <Gear size={14} color={isActive(ROUTES.settings) ? "#fff" : "var(--sb-icon-muted)"} />
+            <Gear size={14} color={isActive(ROUTES.settings) ? "var(--sb-active-ink, #fff)" : "var(--sb-icon-muted)"} />
             <span>Settings</span>
           </Link>
           <button

@@ -249,6 +249,72 @@
   --drawer-err-bg: #fdecea;
   --drawer-err-border: #f5c6c0;
 }
+/* "Next-gen" direction (experimental) -- the Attio/Linear-class concept: one
+   flat neutral canvas, hairline borders instead of nested boxes, a white
+   sidebar with real SVG icons (Sidebar.tsx renders NAV_GLYPHS under this
+   theme), no browser-tab strip (Shell.tsx skips TabBar), a single restrained
+   blue accent, and semantic colour reserved for data/status. Dashboard gets
+   the rule-based AI brief + sparkline KPIs (DashboardLayout.tsx). */
+[data-theme="nextgen"] {
+  --panel2: #f7f7f8;               /* the canvas -- html/body + section fills read this */
+  --card-radius: 10px;
+  --card-shadow: none;
+  --line: #e9eaee;
+  --sidebar-grad: #ffffff;
+  --sb-bar-bg: #f7f7f8;
+  --modern-accent: #2e6be6;
+  --modern-accent-bg: #eef3fe;
+  --modern-gold: #2e6be6;
+  --modern-gold-bg: #eef3fe;
+  --nextgen-ai: #7a5cff;
+  --nextgen-ai-soft: #f2efff;
+  --nextgen-good: #148a5b;
+  --nextgen-good-soft: #e8f5ef;
+  --nextgen-bad: #c2402f;
+  --nextgen-bad-soft: #faeeec;
+  --nextgen-warn: #a16207;
+  --nextgen-warn-soft: #fdf5e3;
+
+  /* Light chrome, neutral ink (not navy/blue-tinted) */
+  --sb-text: #4b5563;
+  --sb-text-dim: #8a8f98;
+  --sb-text-dimmer: #9aa0a9;
+  --sb-text-faint: #b3b8c0;
+  --sb-strong: #17181c;
+  --sb-icon-muted: #6b7280;
+  --sb-line: #e9eaee;
+  --sb-hover: rgba(23, 24, 28, 0.045);
+  --sb-hover-strong: rgba(23, 24, 28, 0.07);
+  /* Soft accent pill with accent ink -- not a filled block */
+  --sb-active-bg: #eef3fe;
+  --sb-active-ink: #2e6be6;
+  --sb-tab-underline: #2e6be6;
+  --sb-tab-sub-active: #2e6be6;
+
+  --sb-panel-bg: #ffffff;
+  --sb-panel-border: #e9eaee;
+  --sb-panel-text: #17181c;
+  --sb-panel-text-dim: #6b7280;
+  --sb-panel-hover: rgba(23, 24, 28, 0.045);
+
+  --sb-search-bg: #ffffff;
+  --sb-search-border: #e9eaee;
+  --sb-search-text: #17181c;
+  --sb-search-icon: #8a8f98;
+
+  --drawer-bg: #ffffff;
+  --drawer-card: #f7f7f8;
+  --drawer-card-alt: #eef3fe;
+  --drawer-line: #e9eaee;
+  --drawer-line-strong: #d5d8de;
+  --drawer-text: #17181c;
+  --drawer-text-dim: #6b7280;
+  --drawer-hint: #8a8f98;
+  --drawer-hint-faint: #b3b8c0;
+  --drawer-err-bg: #faeeec;
+  --drawer-err-border: #f0c8c0;
+}
+
 /* Segoe UI first -- a real, checkable Fluent difference on Windows (where it's
    installed), not just a colour choice. Harmlessly falls through to the same
    system-font stack everywhere else. */
@@ -264,17 +330,21 @@
 [data-theme="modern"] .modern-lift,
 [data-theme="modern2"] .modern-lift,
 [data-theme="modern3"] .modern-lift,
+[data-theme="nextgen"] .modern-lift,
 [data-theme="modern"] .modern-lift-gold,
 [data-theme="modern2"] .modern-lift-gold,
-[data-theme="modern3"] .modern-lift-gold {
+[data-theme="modern3"] .modern-lift-gold,
+[data-theme="nextgen"] .modern-lift-gold {
   transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.16s;
 }
 [data-theme="modern"] .modern-lift,
 [data-theme="modern2"] .modern-lift,
 [data-theme="modern3"] .modern-lift,
+[data-theme="nextgen"] .modern-lift,
 [data-theme="modern"] .modern-lift-gold,
 [data-theme="modern2"] .modern-lift-gold,
-[data-theme="modern3"] .modern-lift-gold { box-shadow: var(--card-shadow); }
+[data-theme="modern3"] .modern-lift-gold,
+[data-theme="nextgen"] .modern-lift-gold { box-shadow: var(--card-shadow); }
 /* .modern-lift-gold used to add a top-accent hairline in whichever hue
    --modern-gold resolved to; dropped everywhere (including modern1) after
    feedback that it read as clutter on cards/KPI tiles -- it now renders
@@ -291,6 +361,11 @@
   transform: translateY(-2px);
   border-color: #b3bfd6;
   box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14);
+}
+/* nextgen: no lift-jump -- a calm border emphasis instead, Attio-style */
+[data-theme="nextgen"] .modern-lift:hover,
+[data-theme="nextgen"] .modern-lift-gold:hover {
+  border-color: color-mix(in srgb, var(--modern-accent) 40%, var(--line));
 }
 
 * { box-sizing: border-box; }

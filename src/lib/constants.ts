@@ -407,7 +407,7 @@ export type TenantConfig = {
      * takes effect going forward. Platform-admin-only for now
      * (TenantEditor.tsx); intended to become a tenant-facing opt-in once a
      * direction is finalized. */
-    ui_theme?: "classic" | "modern" | "modern2" | "modern3";
+    ui_theme?: "classic" | "modern" | "modern2" | "modern3" | "nextgen";
   };
   // On-demand push to an external system (e.g. an ERP's webhook receiver) --
   // a rep clicks "Push to ERP" on a record; distinct from (and simpler than)

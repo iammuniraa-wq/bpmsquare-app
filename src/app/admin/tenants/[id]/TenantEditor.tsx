@@ -41,10 +41,11 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [status, setStatus]           = useState(tenant.status);
   const [plan, setPlan]               = useState(tenant.plan);
   const [features, setFeatures]       = useState<TenantFeatures>({ ...tenant.features });
-  const [uiTheme, setUiTheme]         = useState<"classic" | "modern" | "modern2" | "modern3">(
+  const [uiTheme, setUiTheme]         = useState<"classic" | "modern" | "modern2" | "modern3" | "nextgen">(
     tenant.config?.appearance?.ui_theme === "modern" ||
     tenant.config?.appearance?.ui_theme === "modern2" ||
-    tenant.config?.appearance?.ui_theme === "modern3"
+    tenant.config?.appearance?.ui_theme === "modern3" ||
+    tenant.config?.appearance?.ui_theme === "nextgen"
       ? tenant.config.appearance.ui_theme
       : "classic"
   );
@@ -249,6 +250,7 @@ export default function TenantEditor({ tenant, users }: Props) {
             { value: "modern" as const, label: "Modern 1 (beta) — default for new tenants", desc: "Structured-Enterprise direction: denser cards, sharper borders, navy sidebar, no card hairline, AI assistant dock." },
             { value: "modern2" as const, label: "Modern 2 (beta)", desc: "Lightning direction: solid Salesforce-blue sidebar/top-bar, white search + panels, no card hairline, AI assistant dock." },
             { value: "modern3" as const, label: "Modern 3 (beta)", desc: "Fluent direction: light neutral-grey sidebar/top-bar (not a solid blue block), blue reserved for accents and buttons, Segoe UI, Fluent's two-layer card shadow, AI assistant dock." },
+            { value: "nextgen" as const, label: "Next-gen (experimental)", desc: "Attio/Linear-class direction: flat neutral canvas, hairline borders, real SVG nav icons, no tab bar, AI daily brief on the dashboard, sparkline KPIs." },
           ]).map((opt) => (
             <label key={opt.value} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",

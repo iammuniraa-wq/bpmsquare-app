@@ -170,7 +170,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           }}>
             <GlobalSearchBar />
           </div>
-          <TabBar />
+          {/* nextgen drops the browser-tab strip entirely -- navigation is
+              sidebar + global search; every other theme keeps it. */}
+          {uiTheme !== "nextgen" && <TabBar />}
           {/* overflowX:auto, not hidden -- "hidden" silently clips any page whose content
               runs wider than the viewport with no way to reach it (short of zooming the
               browser out). "auto" degrades to a scrollbar instead. */}
