@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
             tenant_id: tenantId,
             inventory_item_id: l.inventory_item_id || null,
             sl_no: i + 1,
-            description: String(l.description).slice(0, 500),
+            description: String(l.description),
             uom: l.uom || null,
             qty_ordered: qty,
             rate,
