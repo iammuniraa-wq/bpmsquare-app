@@ -599,7 +599,9 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
 // ── Sidebar sub-components ────────────────────────────────────────────────────
 
 function QCBtn({ href, label, icon, tint }: { href: string; label: string; icon: React.ReactNode; tint: { fg: string; bg: string; base: string } }) {
-  const modern = useUiTheme() !== "classic";
+  const uiTheme = useUiTheme();
+  const modern = uiTheme !== "classic";
+  const nextgen = uiTheme === "nextgen";
   return (
     <Link
       className={modern ? "modern-lift" : undefined}
@@ -607,9 +609,9 @@ function QCBtn({ href, label, icon, tint }: { href: string; label: string; icon:
       style={{
         display: "flex", alignItems: "center", gap: 9, padding: modern ? "9px 12px" : "8px 11px",
         borderRadius: modern ? "var(--card-radius)" : 8,
-        background: tint.bg,
-        border: `1px solid ${modern ? `${tint.base}55` : c.line}`,
-        textDecoration: "none", fontSize: 12.5, color: modern ? tint.fg : c.ink, fontWeight: modern ? 700 : 600,
+        background: nextgen ? "var(--card-bg)" : tint.bg,
+        border: `1px solid ${nextgen ? "var(--line)" : modern ? `${tint.base}55` : c.line}`,
+        textDecoration: "none", fontSize: 12.5, color: nextgen ? c.ink : modern ? tint.fg : c.ink, fontWeight: nextgen ? 550 : modern ? 700 : 600,
       }}
     >
       {icon}{label}
@@ -1123,7 +1125,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   function renderRevenueCard() {
     return (
       <section style={cardStyle}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Revenue</div>
+        <div style={nextgen ? { fontSize: 13, fontWeight: 620, color: c.ink, marginBottom: 10 } : { fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Revenue</div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
           <span style={{ ...serifNum, fontSize: kpiNumFontSize(inr(revenueValue)), fontWeight: 700, color: ledger.accent, whiteSpace: "nowrap" }}>{inr(revenueValue)}</span>
           {revenueTarget > 0 && <span style={{ fontSize: 12, color: c.hint }}>of {inr(revenueTarget)} pipeline</span>}
@@ -1226,7 +1228,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   function renderQuickCreate() {
     return (
       <section style={{ ...cardStyle, padding: "14px 14px 12px" }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Quick create</div>
+        <div style={nextgen ? { fontSize: 13, fontWeight: 620, color: c.ink, marginBottom: 10 } : { fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Quick create</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <QCBtn href={ROUTES.accountNew}   label="New account"    icon={<Globe size={13} color={pillar.purple.base} />}   tint={pillar.purple} />
           <QCBtn href={ROUTES.caseNew}      label="New case"       icon={<Activity size={13} color={pillar.teal.base} />}  tint={pillar.teal} />

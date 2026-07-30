@@ -372,6 +372,7 @@ function UserFooter({ accent, collapsed }: { accent: string; collapsed?: boolean
 }
 
 export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+  const nextgen = useUiTheme() === "nextgen";
   const pathname = usePathname();
   const { settings } = useSettings();
   const tenant = useTenant();
@@ -558,7 +559,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           fontSize: 9.5, letterSpacing: 1.1, fontWeight: 700,
           color: "#f6b23c", paddingLeft: 10, marginBottom: 3,
         }}>
-          <StarFilled size={9} color="#f6b23c" style={{ marginRight: 4 }} /> FAVOURITES
+          <StarFilled size={9} color="#f6b23c" style={{ marginRight: 4 }} /> {nextgen ? "Favourites" : "FAVOURITES"}
         </div>
         <DraggableSection
           items={favItems}
@@ -582,7 +583,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           fontSize: 9.5, letterSpacing: 1.1, fontWeight: 600,
           color: "var(--sb-text-dim)", paddingLeft: 10, marginBottom: 3,
         }}>
-          ALL · drag · <StarOutline size={9} color="var(--sb-text-dim)" /> to pin
+          {nextgen ? "All" : "ALL"} · drag · <StarOutline size={9} color="var(--sb-text-dim)" /> to pin
         </div>
         <DraggableSection
           items={restItems}
