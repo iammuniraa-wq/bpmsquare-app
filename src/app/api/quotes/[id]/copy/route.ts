@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { generateNextQuoteRef } from "@/lib/quoteRef";
+import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig } from "@/lib/constants";
 
-// Duplicate a quote as a brand-new draft with a fresh QT- reference number.
+// Duplicate a quote as a brand-new draft with a fresh reference number.
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
   try {
@@ -24,13 +26,12 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: "Quote not found" }, { status: 404 });
   }
 
-  // Generate a new sequential ref
-  const { count } = await supabase
-    .from("quotes")
-    .select("*", { count: "exact", head: true })
-    .eq("tenant_id", tenantId);
-  const seq = String((count ?? 0) + 1).padStart(4, "0");
-  const newRef = `QT-${new Date().getFullYear()}-${seq}`;
+  // Same generator as POST /api/quotes -- tenant's configured Quote ID format
+  // and max-existing-ref+1 sequencing, instead of the hardcoded QT- format and
+  // count+1 (which collides forever once any quote has been deleted).
+  const { data: tenantRow } = await createAdminSupabase().from("tenants").select("config").eq("id", tenantId).maybeSingle();
+  const quoteIdFormat: QuoteIdFormat = (tenantRow?.config as TenantConfig | null)?.quote_id_format ?? DEFAULT_QUOTE_ID_FORMAT;
+  const newRef = await generateNextQuoteRef(supabase, tenantId, quoteIdFormat);
 
   const { data: created, error: cErr } = await supabase
     .from("quotes")

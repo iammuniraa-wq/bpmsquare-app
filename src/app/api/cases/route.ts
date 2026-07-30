@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { nextSeqFromRefs } from "@/lib/refSeq";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -39,14 +40,16 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Generate ref: CS-YYYY-XXXX (sequential within tenant)
+  // Generate ref: CS-YYYY-XXXX (sequential within tenant). Highest existing
+  // ref + 1, not count + 1 -- a deleted case would otherwise make the
+  // "next" ref collide with a still-existing one forever (see refSeq.ts).
   const year = new Date().getFullYear();
-  const { count } = await supabase
+  const { data: refRows } = await supabase
     .from("service_cases")
-    .select("id", { count: "exact", head: true })
+    .select("ref")
     .eq("tenant_id", tenantId);
-  const seq = String((count ?? 0) + 1).padStart(4, "0");
-  const ref = `CS-${year}-${seq}`;
+  const seq = nextSeqFromRefs((refRows ?? []).map((r) => r.ref as string), /^CS-\d{4}-(\d+)$/);
+  const ref = `CS-${year}-${String(seq).padStart(4, "0")}`;
 
   const { data, error } = await supabase
     .from("service_cases")
