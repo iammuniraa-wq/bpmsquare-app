@@ -927,43 +927,52 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   // ── Block renderers ────────────────────────────────────────────────────────
 
   function renderOverviewStrip() {
-    const tiles: { label: string; href?: string; content: React.ReactNode }[] = [
+    // Modern: each tile gets a pillar tint (soft coloured card + matching
+    // number/label ink) instead of uniform white -- classic keeps the flat
+    // dark-green ledger numbers unchanged.
+    const overduePillar = overdueItems.length > 0 ? pillar.red : pillar.green;
+    const numColor = (p: { fg: string }, classicColor: string) => (modern ? p.fg : classicColor);
+    const tiles: { label: string; href?: string; tint: { fg: string; bg: string; base: string }; content: React.ReactNode }[] = [
       {
         label: "Open pipeline",
         href: ROUTES.quotations,
+        tint: pillar.blue,
         content: (
           <>
-            <div style={{ ...serifNum, fontSize: kpiNumFontSize(inr(kpis.openQuoteValue)), fontWeight: 700, color: ledger.accent, lineHeight: 1.15, whiteSpace: "nowrap" }}>{inr(kpis.openQuoteValue)}</div>
-            <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{kpis.awaitingApproval} awaiting response</div>
+            <div style={{ ...(modern ? {} : serifNum), fontSize: kpiNumFontSize(inr(kpis.openQuoteValue)), fontWeight: 700, color: numColor(pillar.blue, ledger.accent), lineHeight: 1.15, whiteSpace: "nowrap" }}>{inr(kpis.openQuoteValue)}</div>
+            <div style={{ fontSize: 11, color: modern ? c.muted : c.hint, marginTop: 6 }}>{kpis.awaitingApproval} awaiting response</div>
           </>
         ),
       },
       {
         label: "Case resolution",
         href: ROUTES.cases,
+        tint: pillar.teal,
         content: (
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <ProgressRing pct={resolutionRate} color={ledger.accent} size={42} stroke={5} />
-            <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.3 }}>{resolvedCases} of {totalCases}<br />resolved</div>
+            <ProgressRing pct={resolutionRate} color={modern ? pillar.teal.base : ledger.accent} size={42} stroke={5} />
+            <div style={{ fontSize: 11, color: modern ? c.muted : c.hint, lineHeight: 1.3 }}>{resolvedCases} of {totalCases}<br />resolved</div>
           </div>
         ),
       },
       {
         label: "Overdue",
+        tint: overduePillar,
         content: (
           <>
-            <div style={{ ...serifNum, fontSize: 25, fontWeight: 700, color: overdueItems.length > 0 ? "#b5451f" : ledger.accent, lineHeight: 1 }}>{overdueItems.length}</div>
-            <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{overdueItems.length > 0 ? "need attention" : "all caught up"}</div>
+            <div style={{ ...(modern ? {} : serifNum), fontSize: 25, fontWeight: 700, color: modern ? overduePillar.fg : overdueItems.length > 0 ? "#b5451f" : ledger.accent, lineHeight: 1 }}>{overdueItems.length}</div>
+            <div style={{ fontSize: 11, color: modern ? c.muted : c.hint, marginTop: 6 }}>{overdueItems.length > 0 ? "need attention" : "all caught up"}</div>
           </>
         ),
       },
       {
         label: "Active work orders",
         href: ROUTES.workOrders,
+        tint: pillar.purple,
         content: (
           <>
-            <div style={{ ...serifNum, fontSize: 25, fontWeight: 700, color: ledger.accent, lineHeight: 1 }}>{kpis.activeWorkOrders}</div>
-            <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{kpis.inRepair} in repair</div>
+            <div style={{ ...(modern ? {} : serifNum), fontSize: 25, fontWeight: 700, color: numColor(pillar.purple, ledger.accent), lineHeight: 1 }}>{kpis.activeWorkOrders}</div>
+            <div style={{ fontSize: 11, color: modern ? c.muted : c.hint, marginTop: 6 }}>{kpis.inRepair} in repair</div>
           </>
         ),
       },
@@ -982,8 +991,14 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <div style={{ display: "flex", flexWrap: "wrap", gap: modern ? 14 : 10 }}>
         {tiles.map((t) => {
           const box = (
-            <div className={modern ? "modern-lift-gold" : undefined} style={tileBoxStyle}>
-              <div style={tileLabelStyle}>{t.label}</div>
+            <div
+              className={modern ? "modern-lift-gold" : undefined}
+              style={{
+                ...tileBoxStyle,
+                ...(modern ? { background: t.tint.bg, borderColor: `${t.tint.base}55` } : {}),
+              }}
+            >
+              <div style={{ ...tileLabelStyle, ...(modern ? { color: t.tint.fg } : {}) }}>{t.label}</div>
               {t.content}
             </div>
           );

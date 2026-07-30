@@ -126,13 +126,16 @@
   --sb-tab-sub-active: #dcebfa;
 
   /* Sidebar/top-bar chrome text -- light-on-dark again now the sidebar is a
-     solid blue, not the pale wash from the first pass. */
-  --sb-text: #dcebfa;
-  --sb-text-dim: #8fc2ea;
-  --sb-text-dimmer: #a9d0ef;
-  --sb-text-faint: #4d84b8;
+     solid blue. Full-white / near-white, not blue tints: pale-blue text on
+     the saturated blue bar read as washed-out ("too light" feedback) --
+     dark text is the one thing that CAN'T fix that here, so contrast comes
+     from brightness instead. */
+  --sb-text: #ffffff;
+  --sb-text-dim: #ddecfb;
+  --sb-text-dimmer: #e6f2fd;
+  --sb-text-faint: #b7d9f4;
   --sb-strong: #ffffff;
-  --sb-icon-muted: #bfe0f7;
+  --sb-icon-muted: #eef6fe;
   --sb-line: rgba(255, 255, 255, 0.18);
   --sb-hover: rgba(255, 255, 255, 0.1);
   --sb-hover-strong: rgba(255, 255, 255, 0.16);
