@@ -10,6 +10,9 @@ type State = { catalog: ConnectorDef[]; connected: TenantConnectorRow[] } | null
 export default function ConnectorsClient() {
   const [state, setState] = useState<State>(null);
   const [loading, setLoading] = useState(true);
+  // Only one tile is ever expanded at a time -- lifted up here (not local to
+  // each tile) so opening one collapses whichever other one was open.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   // The OAuth callback redirects back here with ?connector_error=... on
   // failure (expired link, provider rejected the request, server not
   // configured) -- there's no other channel to surface that, since the
@@ -43,15 +46,33 @@ export default function ConnectorsClient() {
           <button onClick={() => setOauthError(null)} style={{ background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer", fontWeight: 700 }}>×</button>
         </div>
       )}
-      {state.catalog.map((def) => {
-        const row = state.connected.find((r) => r.connector_id === def.id) ?? null;
-        return <ConnectorCard key={def.id} def={def} row={row} onChange={load} />;
-      })}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
+        {state.catalog.map((def) => {
+          const row = state.connected.find((r) => r.connector_id === def.id) ?? null;
+          const expanded = expandedId === def.id;
+          return (
+            <ConnectorTile
+              key={def.id}
+              def={def}
+              row={row}
+              expanded={expanded}
+              onOpen={() => setExpandedId(def.id)}
+              onClose={() => setExpandedId(null)}
+              onChange={load}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function ConnectorCard({ def, row, onChange }: { def: ConnectorDef; row: TenantConnectorRow | null; onChange: () => void }) {
+function ConnectorTile({
+  def, row, expanded, onOpen, onClose, onChange,
+}: {
+  def: ConnectorDef; row: TenantConnectorRow | null; expanded: boolean;
+  onOpen: () => void; onClose: () => void; onChange: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -60,6 +81,13 @@ function ConnectorCard({ def, row, onChange }: { def: ConnectorDef; row: TenantC
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const connected = !!row;
+
+  // Collapsing (clicking a different tile, or Close) resets any in-progress
+  // edit -- reopening a tile should never resurface a half-filled form or a
+  // stale test result from last time.
+  useEffect(() => {
+    if (!expanded) { setEditing(false); setValues({}); setError(""); setTestMsg(null); }
+  }, [expanded]);
 
   async function connect() {
     setSaving(true);
@@ -98,26 +126,52 @@ function ConnectorCard({ def, row, onChange }: { def: ConnectorDef; row: TenantC
     }
   }
 
+  const badge = (
+    <span style={{
+      fontSize: 10, fontWeight: 700, borderRadius: 6, padding: "2px 7px",
+      background: connected ? "var(--tealbg)" : c.panel2,
+      color: connected ? "var(--tealink)" : c.hint,
+    }}>
+      {connected ? "Connected" : "Not connected"}
+    </span>
+  );
+
+  const icon = (
+    <span style={{
+      width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+      background: pillar.blue.bg, color: pillar.blue.fg,
+      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+    }}>
+      {def.icon}
+    </span>
+  );
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={onOpen}
+        className="modern-lift"
+        style={{
+          ...cardStyle, padding: 16, textAlign: "left", cursor: "pointer",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+          border: `1px solid ${c.line}`, font: "inherit",
+        }}
+      >
+        {icon}
+        <span style={{ fontSize: 13, fontWeight: 700, color: c.ink, textAlign: "center" }}>{def.name}</span>
+        {badge}
+      </button>
+    );
+  }
+
   return (
-    <div style={{ ...cardStyle, padding: 16 }}>
+    <div style={{ ...cardStyle, padding: 16, gridColumn: "1 / -1" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-        <span style={{
-          width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-          background: pillar.blue.bg, color: pillar.blue.fg,
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
-        }}>
-          {def.icon}
-        </span>
+        {icon}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{def.name}</span>
-            <span style={{
-              fontSize: 10.5, fontWeight: 700, borderRadius: 6, padding: "2px 8px",
-              background: connected ? "var(--tealbg)" : c.panel2,
-              color: connected ? "var(--tealink)" : c.hint,
-            }}>
-              {connected ? "Connected" : "Not connected"}
-            </span>
+            {badge}
           </div>
           <div style={{ fontSize: 12, color: c.muted, marginTop: 3 }}>{def.description}</div>
           {row?.connected_at && (
@@ -145,6 +199,7 @@ function ConnectorCard({ def, row, onChange }: { def: ConnectorDef; row: TenantC
           {connected && (
             <button onClick={disconnect} style={connectBtn(c.panel2, "var(--err-ink)")}>Disconnect</button>
           )}
+          <button onClick={onClose} title="Collapse" style={connectBtn(c.panel2, c.hint)}>×</button>
         </div>
       </div>
 
