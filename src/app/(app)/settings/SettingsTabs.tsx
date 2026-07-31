@@ -5,56 +5,32 @@ import { usePathname } from "next/navigation";
 import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 
-const ALL_TABS = [
-  { label: "General",       href: ROUTES.settings,           adminOnly: false },
-  { label: "Team",          href: ROUTES.settingsTeam,       adminOnly: true  },
-  { label: "Entities",      href: ROUTES.settingsEntities,   adminOnly: true  },
-  { label: "Statuses & assets", href: ROUTES.settingsStatuses, adminOnly: true  },
-  { label: "Email templates", href: ROUTES.settingsEmailTemplates, adminOnly: true  },
-  { label: "Sales config",  href: ROUTES.settingsSales,      adminOnly: true  },
-  { label: "Deleted records", href: ROUTES.settingsDeletionLog, adminOnly: true  },
-  { label: "Pricing",       href: ROUTES.configPricing,      adminOnly: false },
-  { label: "Templates",     href: ROUTES.configTemplates,    adminOnly: false },
-  { label: "Custom fields", href: ROUTES.configCustomFields, adminOnly: false },
-];
-
-export default function SettingsTabs({
-  isAdmin,
-  children,
-}: {
-  isAdmin: boolean;
-  children: React.ReactNode;
-}) {
+/**
+ * Settings is a hub (see /settings/page.tsx) — a menu of destinations, each
+ * its own full page. This used to be a horizontal tab strip listing every
+ * destination on every settings page; that grows unbounded as settings
+ * sections are added and starts to look like an afterthought. Replaced with
+ * a small "back to the hub" link, shown on every settings page except the
+ * hub itself.
+ */
+export default function SettingsTabs({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const tabs = ALL_TABS.filter((t) => !t.adminOnly || isAdmin);
+  const isHub = pathname === ROUTES.settings;
 
   return (
     <>
-      <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1px solid ${c.line}`, paddingBottom: 0 }}>
-        {tabs.map((tab) => {
-          const active = tab.href === ROUTES.settings
-            ? pathname === ROUTES.settings
-            : pathname.startsWith(tab.href);
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              style={{
-                padding: "8px 18px",
-                fontSize: 13,
-                fontWeight: active ? 700 : 500,
-                color: active ? c.accent : c.muted,
-                textDecoration: "none",
-                borderBottom: active ? `2px solid ${c.accent}` : "2px solid transparent",
-                marginBottom: -1,
-                transition: "color 0.15s",
-              }}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
-      </div>
+      {!isHub && (
+        <Link
+          href={ROUTES.settings}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            fontSize: 12.5, fontWeight: 500, color: c.muted,
+            textDecoration: "none", marginBottom: 16,
+          }}
+        >
+          ← Settings
+        </Link>
+      )}
       {children}
     </>
   );
