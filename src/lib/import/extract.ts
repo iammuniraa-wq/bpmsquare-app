@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import type { ExtractionInput } from "./parseServer";
 import type { ExtractedRow, ExtractionResponse, FieldSpec, ObjectSpec } from "./types";
 
 export class ExtractionError extends Error {}
@@ -137,13 +138,33 @@ function toRows(spec: ObjectSpec, input: Record<string, unknown>): ExtractionRes
   return { rows, documentNotes };
 }
 
+const INSTRUCTIONS =
+  "Extract only genuine data records -- ignore narrative text, boilerplate scope-of-work/terms/instructions paragraphs, section headers, and computed subtotal/total rows. " +
+  "Never invent a value that isn't in the document; leave a field blank rather than guessing. " +
+  "If something is ambiguous (an unclear label, a total that doesn't match its inputs, a name spelled inconsistently across the document), extract your best reading and add a short note explaining the ambiguity rather than silently picking one.";
+
+function buildContent(input: ExtractionInput, spec: ObjectSpec, fileName: string): Anthropic.MessageParam["content"] {
+  const intro = `The following is "${fileName}", a real customer document (a quote letter, invoice, spreadsheet, etc.) that needs to become ${spec.label} records in a CRM.\n\n${INSTRUCTIONS}`;
+
+  if (input.kind === "pdf") {
+    // Document block goes before the text per Claude's PDF support -- Claude
+    // reads it natively (text + layout), no separate OCR step to run first.
+    return [
+      { type: "document", source: { type: "base64", media_type: "application/pdf", data: input.base64 } },
+      { type: "text", text: intro },
+    ];
+  }
+
+  return `${intro}\n\n--- DOCUMENT DUMP ---\n${input.text}`;
+}
+
 /**
  * Turns a raw document dump (see parseServer.ts) into rows shaped exactly
  * like a Data Workbench import file -- keyed by the same field keys
  * ColumnMapper/validateRow already understand, so the result can go straight
  * into the existing review-and-import pipeline with no separate commit path.
  */
-export async function extractRowsFromDocument(spec: ObjectSpec, documentText: string, fileName: string): Promise<ExtractionResponse> {
+export async function extractRowsFromDocument(spec: ObjectSpec, input: ExtractionInput, fileName: string): Promise<ExtractionResponse> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new ExtractionError("Document extraction isn't configured yet (missing ANTHROPIC_API_KEY).");
   }
@@ -158,17 +179,7 @@ export async function extractRowsFromDocument(spec: ObjectSpec, documentText: st
       max_tokens: 8000,
       tools: [tool],
       tool_choice: { type: "tool", name: "submit_extraction" },
-      messages: [
-        {
-          role: "user",
-          content:
-            `The following is a full row-by-row dump of "${fileName}", a real customer document (a quote letter, invoice, spreadsheet, etc.) that needs to become ${spec.label} records in a CRM.\n\n` +
-            "Extract only genuine data records -- ignore narrative text, boilerplate scope-of-work/terms/instructions paragraphs, section headers, and computed subtotal/total rows. " +
-            "Never invent a value that isn't in the document; leave a field blank rather than guessing. " +
-            "If something is ambiguous (an unclear label, a total that doesn't match its inputs, a name spelled inconsistently across the document), extract your best reading and add a short note explaining the ambiguity rather than silently picking one.\n\n" +
-            `--- DOCUMENT DUMP ---\n${documentText}`,
-        },
-      ],
+      messages: [{ role: "user", content: buildContent(input, spec, fileName) }],
     });
   } catch (e) {
     console.error("Document extraction request failed:", e);

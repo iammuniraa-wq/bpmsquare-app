@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This object doesn't support document extraction." }, { status: 400 });
   }
 
-  let documentText: string;
+  let documentInput;
   try {
-    documentText = await dumpDocumentForExtraction(file);
+    documentInput = await dumpDocumentForExtraction(file);
   } catch (e) {
     const message = e instanceof DumpParseError ? e.message : "Could not read that file.";
     return NextResponse.json({ error: message }, { status: 400 });
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   const spec = buildObjectSpec(objectId as ImportObjectId, fieldConfig, salesConfig);
 
   try {
-    const result = await extractRowsFromDocument(spec, documentText, file.name);
+    const result = await extractRowsFromDocument(spec, documentInput, file.name);
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ExtractionError) return NextResponse.json({ error: e.message }, { status: 422 });

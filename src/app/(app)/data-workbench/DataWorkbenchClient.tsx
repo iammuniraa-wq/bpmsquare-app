@@ -560,7 +560,7 @@ function UploadStep({
         <div style={card}>
           <SectionTitle
             title="Or extract from a messy document"
-            subtitle={`Have a quote letter, invoice, or spreadsheet that isn't already in this shape? Upload it and AI will pull out the ${spec.label.toLowerCase()} data for you to review before anything is imported.`}
+            subtitle={`Have a quote letter, invoice, or spreadsheet — PDF, Word, or Excel — that isn't already in this shape? Upload it and AI will pull out the ${spec.label.toLowerCase()} data for you to review before anything is imported.`}
           />
           <div
             onClick={() => !extracting && extractRef.current?.click()}
@@ -578,11 +578,11 @@ function UploadStep({
             <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>
               {extracting ? "Reading your document…" : "Click to upload a document to extract"}
             </div>
-            <div style={{ fontSize: 12, color: c.hint, marginTop: 5 }}>Excel (.xlsx) or CSV · up to 15 MB</div>
+            <div style={{ fontSize: 12, color: c.hint, marginTop: 5 }}>PDF, Word, Excel, or CSV · up to 15 MB</div>
             <input
               ref={extractRef}
               type="file"
-              accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".csv,.xlsx,.xlsm,.pdf,.docx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               disabled={extracting}
               onChange={(e) => {
                 const file = e.target.files?.[0];
