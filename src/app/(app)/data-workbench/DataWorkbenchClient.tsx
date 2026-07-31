@@ -477,10 +477,51 @@ function UploadStep({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {onExtractFile && (
+        <div style={{ ...card, border: `1px solid ${c.accent}40` }}>
+          <SectionTitle
+            title="Upload any document"
+            subtitle={`A quote letter, invoice, or spreadsheet — PDF, Word, Excel, or CSV, in whatever shape it already comes in. AI pulls out the ${spec.label.toLowerCase()} data and you review it before anything is imported — no reformatting needed first.`}
+          />
+          <div
+            onClick={() => !extracting && extractRef.current?.click()}
+            style={{
+              border: `2px dashed ${c.accent}`,
+              borderRadius: 10,
+              padding: "30px 24px",
+              textAlign: "center",
+              cursor: extracting ? "wait" : "pointer",
+              background: c.accentbg,
+              opacity: extracting ? 0.7 : 1,
+              transition: "all .15s",
+            }}
+          >
+            <div style={{ fontSize: 24, marginBottom: 8 }}>{extracting ? "⏳" : "✨"}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>
+              {extracting ? "Reading your document…" : "Drop a file here, or click to browse"}
+            </div>
+            <div style={{ fontSize: 12, color: c.hint, marginTop: 5 }}>PDF, Word, Excel, or CSV · up to 15 MB</div>
+            <input
+              ref={extractRef}
+              type="file"
+              accept=".csv,.xlsx,.xlsm,.pdf,.docx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              disabled={extracting}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onExtractFile(file);
+                e.target.value = "";
+              }}
+              style={{ display: "none" }}
+            />
+          </div>
+          {extractError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{extractError}</div>}
+        </div>
+      )}
+
       {mode === "update" ? (
         <div style={card}>
           <SectionTitle
-            title="Use a file you exported"
+            title="Or use a file you exported"
             subtitle="Update matches rows by Record ID, so it needs a file that already has that column — go to Export, download a CSV, edit the values you want to change, then upload it here."
           />
           {required.length > 0 && (
@@ -493,8 +534,8 @@ function UploadStep({
       ) : (
         <div style={card}>
           <SectionTitle
-            title="Start from the template"
-            subtitle="Pre-filled with example rows and every column this import understands. Replace the examples with your data."
+            title="Or start from the template"
+            subtitle="Already have your data in a spreadsheet? Download the template — pre-filled with example rows and every column this import understands — and replace the examples with your data."
           />
           {required.length > 0 && (
             <div style={{ ...banner(tone.warn), marginBottom: 14 }}>
@@ -555,46 +596,6 @@ function UploadStep({
         </div>
         {parseError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{parseError}</div>}
       </div>
-
-      {onExtractFile && (
-        <div style={card}>
-          <SectionTitle
-            title="Or extract from a messy document"
-            subtitle={`Have a quote letter, invoice, or spreadsheet — PDF, Word, or Excel — that isn't already in this shape? Upload it and AI will pull out the ${spec.label.toLowerCase()} data for you to review before anything is imported.`}
-          />
-          <div
-            onClick={() => !extracting && extractRef.current?.click()}
-            style={{
-              border: `2px dashed ${c.line}`,
-              borderRadius: 10,
-              padding: "22px 24px",
-              textAlign: "center",
-              cursor: extracting ? "wait" : "pointer",
-              background: c.panel2,
-              opacity: extracting ? 0.7 : 1,
-            }}
-          >
-            <div style={{ fontSize: 22, marginBottom: 6 }}>{extracting ? "⏳" : "✨"}</div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>
-              {extracting ? "Reading your document…" : "Click to upload a document to extract"}
-            </div>
-            <div style={{ fontSize: 12, color: c.hint, marginTop: 5 }}>PDF, Word, Excel, or CSV · up to 15 MB</div>
-            <input
-              ref={extractRef}
-              type="file"
-              accept=".csv,.xlsx,.xlsm,.pdf,.docx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              disabled={extracting}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) onExtractFile(file);
-                e.target.value = "";
-              }}
-              style={{ display: "none" }}
-            />
-          </div>
-          {extractError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{extractError}</div>}
-        </div>
-      )}
     </div>
   );
 }
