@@ -34,18 +34,18 @@ function StatusPill({ status }: { status: Tenant["status"] }) {
 
 function PlanPill({ plan }: { plan: Tenant["plan"] }) {
   const map = {
-    free:       { bg: "#f1f5f9", color: "#475569" },
-    pro:        { bg: "#eff6ff", color: "#1d4ed8" },
-    enterprise: { bg: "#faf5ff", color: "#7e22ce" },
+    personal:       { bg: "#f1f5f9", color: "#475569", label: "Personal" },
+    small_business: { bg: "#eff6ff", color: "#1d4ed8", label: "Small business" },
+    enterprise:     { bg: "#faf5ff", color: "#7e22ce", label: "Enterprise" },
   };
   const s = map[plan];
   return (
     <span style={{
       background: s.bg, color: s.color,
       borderRadius: 20, padding: "2px 10px",
-      fontSize: 11, fontWeight: 600, textTransform: "capitalize",
+      fontSize: 11, fontWeight: 600,
     }}>
-      {plan}
+      {s.label}
     </span>
   );
 }

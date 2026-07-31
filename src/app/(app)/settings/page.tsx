@@ -47,6 +47,12 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
       { label: "Deleted records", description: "Audit log of permanently deleted objects", href: ROUTES.settingsDeletionLog, icon: "⌫", pillarKey: "red", adminOnly: true },
     ],
   },
+  {
+    group: "Integrations",
+    items: [
+      { label: "Connectors", description: "Connect BPMSquare to other systems — Slack today, more on the way", href: ROUTES.settingsConnectors, icon: "⇄", pillarKey: "blue", adminOnly: true },
+    ],
+  },
 ];
 
 function SettingsTile({ item }: { item: SettingsCard }) {

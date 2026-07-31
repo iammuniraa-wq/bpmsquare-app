@@ -48,7 +48,11 @@ export type Tenant = {
   logo_url: string | null;
   accent_color: string;
   status: "active" | "suspended" | "trial";
-  plan: "free" | "pro" | "enterprise";
+  /** Business-size segment, platform-admin-set at provisioning -- kept as a
+   * first-class, trackable dimension (not yet read by any feature/connector
+   * gating logic, but that's the point: a clean place to hang it later
+   * without another rename). */
+  plan: "personal" | "small_business" | "enterprise";
   features: TenantFeatures;
   company_info: CompanyInfo;
   config: TenantConfig;

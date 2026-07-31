@@ -377,3 +377,16 @@ a { color: inherit; text-decoration: none; }
   from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
+
+/* Connector tile -- the actual expand/collapse morph is a Framer Motion
+   `layout` animation (see ConnectorsClient.tsx), not CSS; this is just the
+   tactile press-down on the still-compact tile before that happens.
+   Respects prefers-reduced-motion (a hard cut is still correct there --
+   just no motion, not no state change; Framer Motion's own animations are
+   separately gated via <MotionConfig reducedMotion="user">). */
+.connector-tile { transition: transform 0.1s ease, box-shadow 0.16s ease; }
+.connector-tile:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .connector-tile:active { transform: none; }
+}
