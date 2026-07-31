@@ -197,7 +197,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   if (mobile) {
     return (
-      <TabsProvider>
+      <TabsProvider trackTabs={false}>
         <div data-theme={uiTheme} data-mode={mode} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
           <MobileTopBar />
           <main style={{ flex: 1, padding: 12, overflowX: "auto", minWidth: 0 }}>
