@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { c } from "@/lib/theme";
 import { ImportParseError, parseImportFile } from "@/lib/import/parse";
 import { applyMapping, suggestMapping } from "@/lib/import/mapping";
@@ -47,6 +47,42 @@ const ID_FIELD: FieldSpec = {
   hint: "The record's internal ID — comes from a file you exported from this workbench.",
   aliases: ["record id", "recordid", "id"],
 };
+
+// Extraction calls a paid, non-instant AI request -- losing that work because
+// the user clicked to another screen (or hit back) would mean redoing it.
+// sessionStorage survives a route change within the tab; it does not survive
+// closing the tab, which is the right lifetime for "in-progress import work."
+type ExtractSnapshot = { fileName: string; rows: ExtractedRow[]; documentNotes: string[]; step: "extract-review" | "review" };
+
+function extractStorageKey(objectId: string): string {
+  return `dw-extract:${objectId}`;
+}
+
+function saveExtractSnapshot(objectId: string, snapshot: ExtractSnapshot) {
+  try {
+    sessionStorage.setItem(extractStorageKey(objectId), JSON.stringify(snapshot));
+  } catch {
+    // Storage can be unavailable (private browsing, quota) -- losing the
+    // restore convenience isn't worth failing the import over.
+  }
+}
+
+function loadExtractSnapshot(objectId: string): ExtractSnapshot | null {
+  try {
+    const raw = sessionStorage.getItem(extractStorageKey(objectId));
+    return raw ? (JSON.parse(raw) as ExtractSnapshot) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearExtractSnapshot(objectId: string) {
+  try {
+    sessionStorage.removeItem(extractStorageKey(objectId));
+  } catch {
+    // no-op
+  }
+}
 
 export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) {
   const [mode, setMode] = useState<Mode>("import");
@@ -170,6 +206,20 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState("");
 
+  // Restore an in-progress extraction if the user navigated away and came
+  // back -- see the ExtractSnapshot helpers above. Runs once per mount
+  // (ImportFlow remounts on object/mode switch via its `key`, so this never
+  // fires on a stale spec).
+  useEffect(() => {
+    const snapshot = loadExtractSnapshot(spec.id);
+    if (!snapshot) return;
+    setFileName(snapshot.fileName);
+    setExtractedRows(snapshot.rows);
+    setExtractionNotes(snapshot.documentNotes);
+    setStep(snapshot.step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const validated: ValidatedRow[] = useMemo(() => {
     if (extractedRows) {
       return spec.id === "quotes" && mode === "import"
@@ -242,9 +292,11 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
         setExtractError("No records could be found in that document. Try the file upload instead, or enter this record manually.");
         return;
       }
+      const documentNotes = (json.documentNotes as string[]) ?? [];
       setExtractedRows(rows);
-      setExtractionNotes((json.documentNotes as string[]) ?? []);
+      setExtractionNotes(documentNotes);
       setStep("extract-review");
+      saveExtractSnapshot(spec.id, { fileName: file.name, rows, documentNotes, step: "extract-review" });
     } catch {
       setExtractError("Could not reach the server. Check your connection and try again.");
     } finally {
@@ -264,6 +316,7 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
     setExtractedRows(null);
     setExtractionNotes([]);
     setExtractError("");
+    clearExtractSnapshot(spec.id);
   }
 
   function runImport() {
@@ -287,6 +340,7 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
         }
         setResult(json as ImportResponse | UpdateResponse);
         setStep("done");
+        clearExtractSnapshot(spec.id);
       } catch {
         setServerError("Could not reach the server. Check your connection and try again.");
       }
@@ -316,7 +370,10 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
           fileRef={fileRef}
           onFile={handleFile}
           parseError={parseError}
-          onExtractFile={mode === "import" ? handleExtractFile : undefined}
+          // Extraction quality is only proven for Quotes so far (real
+          // line-item documents) -- keep it scoped there until the other
+          // objects get the same real-document testing before widening it.
+          onExtractFile={mode === "import" && spec.id === "quotes" ? handleExtractFile : undefined}
           extracting={extracting}
           extractError={extractError}
         />
@@ -328,8 +385,14 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
           fileName={fileName}
           rows={extractedRows}
           notes={extractionNotes}
-          onRowsChange={setExtractedRows}
-          onContinue={() => setStep("review")}
+          onRowsChange={(rows) => {
+            setExtractedRows(rows);
+            saveExtractSnapshot(spec.id, { fileName, rows, documentNotes: extractionNotes, step: "extract-review" });
+          }}
+          onContinue={() => {
+            setStep("review");
+            saveExtractSnapshot(spec.id, { fileName, rows: extractedRows, documentNotes: extractionNotes, step: "review" });
+          }}
           onBack={reset}
         />
       )}
@@ -621,28 +684,34 @@ function ExtractReviewStep({
   }
 
   return (
-    <div style={card}>
-      <SectionTitle
-        title="Review what was extracted"
-        subtitle={`${fileName} — ${rows.length} record${rows.length === 1 ? "" : "s"} found. Fix anything wrong before continuing — nothing is imported yet.`}
-      />
+    // A bounded panel, not a page section that grows with row count -- with
+    // 40+ extracted rows the title and the Continue button used to scroll
+    // out of reach along with the table. Only the table body scrolls now;
+    // the context above it and the actions below it never move.
+    <div style={{ ...card, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 220px)", minHeight: 320 }}>
+      <div style={{ flexShrink: 0 }}>
+        <SectionTitle
+          title="Review what was extracted"
+          subtitle={`${fileName} — ${rows.length} record${rows.length === 1 ? "" : "s"} found. Fix anything wrong before continuing — nothing is imported yet.`}
+        />
 
-      {notes.length > 0 && (
-        <div style={{ ...banner(tone.info), marginBottom: 14 }}>
-          <strong>About this extraction:</strong>
-          <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-            {notes.map((n, i) => <li key={i}>{n}</li>)}
-          </ul>
-        </div>
-      )}
+        {notes.length > 0 && (
+          <div style={{ ...banner(tone.info), marginBottom: 14 }}>
+            <strong>About this extraction:</strong>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              {notes.map((n, i) => <li key={i}>{n}</li>)}
+            </ul>
+          </div>
+        )}
 
-      {flaggedCount > 0 && (
-        <div style={{ ...banner(tone.warn), marginBottom: 14 }}>
-          <strong>{flaggedCount}</strong> row{flaggedCount === 1 ? "" : "s"} flagged for a closer look — see the Notes column below.
-        </div>
-      )}
+        {flaggedCount > 0 && (
+          <div style={{ ...banner(tone.warn), marginBottom: 14 }}>
+            <strong>{flaggedCount}</strong> row{flaggedCount === 1 ? "" : "s"} flagged for a closer look — see the Notes column below.
+          </div>
+        )}
+      </div>
 
-      <div style={{ overflowX: "auto", border: `1px solid ${c.line}`, borderRadius: 9, maxHeight: 460, overflowY: "auto" }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: "auto", border: `1px solid ${c.line}`, borderRadius: 9 }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
             <tr>
@@ -676,7 +745,7 @@ function ExtractReviewStep({
         </table>
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "center" }}>
+      <div style={{ flexShrink: 0, display: "flex", gap: 10, marginTop: 16, paddingTop: 16, alignItems: "center", borderTop: `1px solid ${c.line}` }}>
         <button onClick={onContinue} style={btn()}>Looks good — continue to review →</button>
         <button onClick={onBack} style={btnGhost}>Choose a different file</button>
       </div>
