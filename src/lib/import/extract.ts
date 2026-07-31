@@ -23,6 +23,12 @@ function propsFor(fields: FieldSpec[]): { props: JsonSchemaProps; required: stri
  * an extraction never asks for a field this tenant doesn't have and never
  * hallucinates one it does. Quote-shaped objects (a grouping key + line
  * items) get a "groups" schema; everything else gets a flat "rows" schema.
+ *
+ * Deliberately not `strict: true` -- a tenant with many custom fields (or a
+ * quote's header+line nesting) pushes the compiled schema over the API's
+ * strict-mode complexity limit ("Schema is too complex", a 400). Ordinary
+ * tool use has no such ceiling, and every row still gets re-validated by
+ * validateRow/validateQuoteRows downstream regardless.
  */
 function buildTool(spec: ObjectSpec) {
   const lineFields = spec.fields.filter((f) => f.scope === "line" && !f.exportOnly);
@@ -46,7 +52,6 @@ function buildTool(spec: ObjectSpec) {
         required: ["rows", "document_notes"],
         additionalProperties: false,
       },
-      strict: true as const,
     };
   }
 
@@ -79,7 +84,6 @@ function buildTool(spec: ObjectSpec) {
       required: ["groups", "document_notes"],
       additionalProperties: false,
     },
-    strict: true as const,
   };
 }
 
