@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { c, pillar } from "@/lib/theme";
+import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { CONNECTOR_ICONS } from "@/components/connectorIcons";
 import type { ConnectorDef, TenantConnectorRow } from "@/lib/connectors/types";
 
 type State = { catalog: ConnectorDef[]; connected: TenantConnectorRow[] } | null;
@@ -46,7 +47,7 @@ export default function ConnectorsClient() {
           <button onClick={() => setOauthError(null)} style={{ background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer", fontWeight: 700 }}>×</button>
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
         {state.catalog.map((def) => {
           const row = state.connected.find((r) => r.connector_id === def.id) ?? null;
           const expanded = expandedId === def.id;
@@ -136,13 +137,14 @@ function ConnectorTile({
     </span>
   );
 
+  const iconDef = CONNECTOR_ICONS[def.id];
   const icon = (
     <span style={{
-      width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-      background: pillar.blue.bg, color: pillar.blue.fg,
+      width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+      background: iconDef?.bg ?? c.panel2, color: iconDef?.fg ?? c.ink,
       display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
     }}>
-      {def.icon}
+      {iconDef ? iconDef.Glyph() : def.icon}
     </span>
   );
 
@@ -153,13 +155,15 @@ function ConnectorTile({
         className="modern-lift"
         style={{
           ...cardStyle, padding: 16, textAlign: "left", cursor: "pointer",
-          display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+          display: "flex", alignItems: "center", gap: 12,
           border: `1px solid ${c.line}`, font: "inherit",
         }}
       >
         {icon}
-        <span style={{ fontSize: 13, fontWeight: 700, color: c.ink, textAlign: "center" }}>{def.name}</span>
-        {badge}
+        <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{def.name}</span>
+          {badge}
+        </span>
       </button>
     );
   }
