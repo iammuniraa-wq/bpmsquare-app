@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { c } from "@/lib/theme";
-import { downloadCsv } from "@/lib/import/template";
+import { csvCell, downloadCsv } from "@/lib/import/template";
 
 // Mirrors the objectType strings src/lib/changeLog.ts records -- kept as its
 // own small list rather than importing ImportObjectId, since not every
@@ -52,10 +52,6 @@ const ACTION_TONE: Record<ChangeLogRow["action"], { bg: string; fg: string }> = 
   delete: { bg: "#fbe9e7", fg: "#c62828" },
 };
 
-function csvEscape(v: string): string {
-  return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-}
-
 export default function ChangeHistoryClient() {
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
@@ -90,7 +86,7 @@ export default function ChangeHistoryClient() {
     const header = ["Date", "Action", "Object Type", "Object ID", "Record", "Changed by", "Changes"];
     const body = rows.map((r) =>
       [r.created_at, r.action, r.object_type, r.object_id, r.object_label ?? "", r.actor_email ?? "", summarizeChanges(r)]
-        .map((v) => csvEscape(String(v)))
+        .map((v) => csvCell(String(v)))
         .join(",")
     );
     const csv = "﻿" + [header.join(","), ...body].join("\r\n") + "\r\n";

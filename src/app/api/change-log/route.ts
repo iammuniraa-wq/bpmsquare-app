@@ -12,12 +12,20 @@ const MAX_ROWS = 5000;
  * recent changes (bulk/CSV-style pull), capped at MAX_ROWS.
  */
 export async function GET(request: NextRequest) {
-  let supabase, tenantId;
+  let supabase, tenantId, role;
   try {
-    ({ supabase, tenantId } = await requireTenantUser());
+    ({ supabase, tenantId, role } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  // Change History is an admin-only surface -- the /administration page
+  // already redirects non-admins, but that's UI-only; this route needs its
+  // own gate, same as every other admin-scoped API route in this codebase
+  // (e.g. /api/settings/api-key). Without it, any tenant member could read
+  // the full audit trail -- including other users' actions -- directly.
+  if (role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
