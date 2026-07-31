@@ -8,10 +8,8 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   // Members cannot access settings at all — redirect to dashboard
   if (role === "member") redirect("/");
 
-  const isAdmin = role === "admin";
-
   return (
-    <SettingsTabs isAdmin={isAdmin}>
+    <SettingsTabs>
       {children}
     </SettingsTabs>
   );
