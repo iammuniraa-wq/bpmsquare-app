@@ -204,13 +204,15 @@ function DraggableSection({
               <NavGlyph href={item.href} fallback={item.icon} />
             </span>
             <span style={{ flex: 1 }}>{item.label}</span>
-            {hasChildren && (
-              <span style={{ fontSize: 10, flexShrink: 0, color: on ? "var(--sb-active-ink, #fff)" : "var(--sb-text-dim)", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
-            )}
-            {/* On mobile, showHover never becomes true (no mouse) -- always
-                show the star there, or the "All" list's favorite toggle is
+            {/* A "bundled" nav item (Sales, Service, Marketing, Master data --
+                anything with children) can be favourited as a whole just like
+                any leaf item; stopPropagation keeps the click from also
+                toggling expand/collapse (its own row-level onClick) or, for a
+                leaf item, triggering the Link's navigation. On mobile,
+                showHover never becomes true (no mouse) -- always show the
+                star there, or the "All" list's favorite toggle is
                 permanently unreachable on touch. */}
-            {!hasChildren && (isFavSection || showHover || isMobile) && (
+            {(isFavSection || showHover || isMobile) && (
               <span
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFav(item.href); }}
                 title={isFavSection ? "Remove from favourites" : "Add to favourites"}
@@ -221,6 +223,9 @@ function DraggableSection({
               >
                 {isFavSection ? <StarFilled size={12} color="#f6b23c" /> : <StarOutline size={12} color="#f6b23c99" />}
               </span>
+            )}
+            {hasChildren && (
+              <span style={{ fontSize: 10, flexShrink: 0, color: on ? "var(--sb-active-ink, #fff)" : "var(--sb-text-dim)", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
             )}
             {!hasChildren && (
               <span style={{
