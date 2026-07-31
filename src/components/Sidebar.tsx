@@ -136,6 +136,15 @@ function DraggableSection({
   const [dropAt, setDropAt]   = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const dragIdx               = useRef<number | null>(null);
+  // Shell only passes onNavigate when this Sidebar renders inside the mobile
+  // drawer -- desktop reordering relies on the wrapper's draggable=true, but
+  // on a touch device that same attribute makes the browser treat a tap as an
+  // ambiguous drag-vs-tap gesture (worse the deeper a link sits, which is
+  // exactly why nested children under an expanded group were the least
+  // reliable to tap): a normal tap can get silently swallowed instead of
+  // navigating. There's no drag-to-reorder UI on mobile anyway, so it's
+  // switched off there entirely rather than tuned.
+  const isMobile = !!onNavigate;
 
   const onDragStart = (e: React.DragEvent, idx: number) => {
     dragIdx.current = idx;
@@ -198,7 +207,10 @@ function DraggableSection({
             {hasChildren && (
               <span style={{ fontSize: 10, flexShrink: 0, color: on ? "var(--sb-active-ink, #fff)" : "var(--sb-text-dim)", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
             )}
-            {!hasChildren && (isFavSection || showHover) && (
+            {/* On mobile, showHover never becomes true (no mouse) -- always
+                show the star there, or the "All" list's favorite toggle is
+                permanently unreachable on touch. */}
+            {!hasChildren && (isFavSection || showHover || isMobile) && (
               <span
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFav(item.href); }}
                 title={isFavSection ? "Remove from favourites" : "Add to favourites"}
@@ -236,10 +248,10 @@ function DraggableSection({
         return (
           <div
             key={item.href}
-            draggable
-            onDragStart={(e) => onDragStart(e, idx)}
-            onDragOver={(e) => onDragOver(e, idx)}
-            onDragEnd={onDragEnd}
+            draggable={!isMobile}
+            onDragStart={isMobile ? undefined : (e) => onDragStart(e, idx)}
+            onDragOver={isMobile ? undefined : (e) => onDragOver(e, idx)}
+            onDragEnd={isMobile ? undefined : onDragEnd}
             onMouseEnter={() => setHovered(idx)}
             onMouseLeave={() => setHovered(null)}
           >

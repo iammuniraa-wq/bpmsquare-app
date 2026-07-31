@@ -152,7 +152,7 @@ export default function AdaptObjectDrawer({ objectType, objectLabel, isAdmin }: 
             style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 200 }}
           />
           <div style={{
-            position: "fixed", top: 0, right: 0, width: 380, height: "100vh",
+            position: "fixed", top: 0, right: 0, width: "min(380px, 100vw)", height: "100vh",
             background: "var(--drawer-bg)", zIndex: 201, display: "flex", flexDirection: "column",
             boxShadow: "-4px 0 24px rgba(0,0,0,0.45)",
           }}>
