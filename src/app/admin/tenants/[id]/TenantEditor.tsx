@@ -41,12 +41,16 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [status, setStatus]           = useState(tenant.status);
   const [plan, setPlan]               = useState(tenant.plan);
   const [features, setFeatures]       = useState<TenantFeatures>({ ...tenant.features });
-  const [uiTheme, setUiTheme]         = useState<"classic" | "modern" | "modern2" | "modern3" | "nextgen">(
-    tenant.config?.appearance?.ui_theme === "modern" ||
-    tenant.config?.appearance?.ui_theme === "modern2" ||
-    tenant.config?.appearance?.ui_theme === "modern3" ||
-    tenant.config?.appearance?.ui_theme === "nextgen"
-      ? tenant.config.appearance.ui_theme
+  // Retired directions ("modern2" Lightning-blue, "modern3" Fluent) may still
+  // be stored on an older tenant's config (as an arbitrary string, hence the
+  // cast -- the type itself no longer allows those values) -- degrade to
+  // "modern" here rather than defaulting the radio group to a value it no
+  // longer offers.
+  const storedTheme = tenant.config?.appearance?.ui_theme as string | undefined;
+  const [uiTheme, setUiTheme]         = useState<"classic" | "modern" | "nextgen">(
+    storedTheme === "nextgen" ? "nextgen"
+      : storedTheme === "modern" || storedTheme === "modern2" || storedTheme === "modern3"
+      ? "modern"
       : "classic"
   );
   const [apiKey, setApiKey]           = useState(tenant.api_key ?? "");
@@ -242,17 +246,15 @@ export default function TenantEditor({ tenant, users }: Props) {
 
       {/* Appearance / theme direction */}
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
-        <h2 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Theme direction</h2>
+        <h2 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Starting theme</h2>
         <p style={{ margin: "0 0 14px", fontSize: 12, color: "#6b7280" }}>
-          Internal rollout control for the new visual direction (not yet exposed to tenant admins). Only set this for tenants explicitly testing the new UI.
+          Sets what this tenant sees on day one. Their own workspace admin can change it anytime from Settings → General → Appearance — this is just the provisioning default, not a lock.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {([
-            { value: "classic" as const, label: "Classic", desc: "The current, stable look — still available for any tenant, but no longer the default for newly created ones." },
-            { value: "modern" as const, label: "Modern 1 (beta) — default for new tenants", desc: "Structured-Enterprise direction: denser cards, sharper borders, navy sidebar, no card hairline, AI assistant dock." },
-            { value: "modern2" as const, label: "Modern 2 (beta)", desc: "Lightning direction: solid Salesforce-blue sidebar/top-bar, white search + panels, no card hairline, AI assistant dock." },
-            { value: "modern3" as const, label: "Modern 3 (beta)", desc: "Fluent direction: light neutral-grey sidebar/top-bar (not a solid blue block), blue reserved for accents and buttons, Segoe UI, Fluent's two-layer card shadow, AI assistant dock." },
-            { value: "nextgen" as const, label: "Next-gen (experimental)", desc: "Attio/Linear-class direction: flat neutral canvas, hairline borders, real SVG nav icons, no tab bar, AI daily brief on the dashboard, sparkline KPIs." },
+            { value: "classic" as const, label: "Classic", desc: "The original look — dark navy sidebar, no card shadows." },
+            { value: "modern" as const, label: "Modern — default for new tenants", desc: "Structured-Enterprise direction: denser cards, sharper borders, navy sidebar, no card hairline, AI assistant dock." },
+            { value: "nextgen" as const, label: "Next-gen", desc: "Attio/Linear-class direction: flat neutral canvas, hairline borders, real SVG nav icons, no tab bar, AI daily brief on the dashboard, sparkline KPIs, dark mode." },
           ]).map((opt) => (
             <label key={opt.value} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",

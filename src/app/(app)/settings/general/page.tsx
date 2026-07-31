@@ -8,7 +8,7 @@ import { NAV, ROUTES, QUOTE_TYPES } from "@/lib/constants";
 import type { QuoteTypeId, TenantConfig } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useTenant, useUserRole } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
 
 const PILLAR_DOT: Record<string, string> = {
@@ -243,6 +243,24 @@ export default function GeneralSettingsPage() {
   const [apSaving, startApSave] = useTransition();
   const [compactSidebar, setCompactSidebar] = useState<boolean>(() => tenant?.config?.appearance?.compact_sidebar ?? false);
   const [accentColor, setAccentColor] = useState<string>(() => tenant?.accent_color || ACCENT_PRESETS.blue.color);
+  // Provisioning sets the STARTING theme (TenantEditor.tsx); from here on it's
+  // this workspace's own call, same as accent colour. useUiTheme() already
+  // degrades a retired "modern2"/"modern3" value to "modern".
+  const [theme, setTheme] = useState<"classic" | "modern" | "nextgen">(useUiTheme());
+  const [themeSaving, startThemeSave] = useTransition();
+
+  const saveTheme = (v: "classic" | "modern" | "nextgen") => {
+    setTheme(v);
+    startThemeSave(async () => {
+      await fetch("/api/settings/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appearance: { ...tenant?.config?.appearance, ui_theme: v } }),
+      });
+      flashSaved();
+      router.refresh();
+    });
+  };
 
   const saveAccentColor = (hex: string) => {
     setAccentColor(hex);
@@ -260,10 +278,13 @@ export default function GeneralSettingsPage() {
   const saveCompactSidebar = (v: boolean) => {
     setCompactSidebar(v);
     startApSave(async () => {
+      // The route replaces config.appearance wholesale (it's a shallow merge
+      // at the config-root level) -- spread the current object in, or this
+      // silently drops whatever theme was just chosen above.
       await fetch("/api/settings/entities", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appearance: { compact_sidebar: v } }),
+        body: JSON.stringify({ appearance: { ...tenant?.config?.appearance, compact_sidebar: v } }),
       });
       flashSaved();
       router.refresh();
@@ -291,14 +312,17 @@ export default function GeneralSettingsPage() {
   // ── Reset ────────────────────────────────────────────────────────────────────
   const [resetting, startReset] = useTransition();
   const resetTenantDefaults = () => {
-    if (!window.confirm("Reset navigation visibility and compact sidebar to defaults? Accent colour and workspace name are not affected.")) return;
+    if (!window.confirm("Reset navigation visibility and compact sidebar to defaults? Accent colour, workspace name and theme are not affected.")) return;
     setNavHidden([]);
     setCompactSidebar(false);
     startReset(async () => {
+      // appearance is replaced wholesale by the route -- keep the theme
+      // choice by carrying it forward explicitly, or this silently reverts
+      // it to classic along with the things actually meant to be reset.
       await fetch("/api/settings/entities", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nav_hidden_hrefs: [], appearance: {} }),
+        body: JSON.stringify({ nav_hidden_hrefs: [], appearance: { ui_theme: tenant?.config?.appearance?.ui_theme } }),
       });
       reset();
       flashSaved();
@@ -388,6 +412,36 @@ export default function GeneralSettingsPage() {
       {/* ── 3. Appearance ── */}
       <Section title="Appearance" description="Applies to your whole workspace — every user, every device.">
         <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Theme</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+            {([
+              { value: "classic" as const, label: "Classic", desc: "Dark navy sidebar, the original look.", swatch: "linear-gradient(135deg, #152233, #0e1a28)" },
+              { value: "modern" as const, label: "Modern", desc: "Denser cards, sharper borders, navy + gold.", swatch: "linear-gradient(135deg, #14294b, #0a1830)" },
+              { value: "nextgen" as const, label: "Next-gen", desc: "Flat, minimal, real icons — with dark mode.", swatch: "linear-gradient(135deg, #ffffff, #eef3fe)" },
+            ]).map((opt) => {
+              const selected = theme === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => !themeSaving && saveTheme(opt.value)}
+                  style={{
+                    display: "flex", flexDirection: "column", gap: 8, padding: 12, borderRadius: 10,
+                    border: selected ? `2px solid ${accent}` : `1px solid ${c.line}`,
+                    background: c.panel, cursor: themeSaving ? "wait" : "pointer", textAlign: "left",
+                  }}
+                >
+                  <span style={{ height: 34, borderRadius: 6, background: opt.swatch, border: `1px solid ${c.line}` }} />
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: selected ? accent : c.ink }}>{opt.label}</span>
+                    {selected && <span style={{ fontSize: 11, color: accent }}>✓</span>}
+                  </span>
+                  <span style={{ fontSize: 11, color: c.hint, lineHeight: 1.4 }}>{opt.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Accent colour</div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {(Object.entries(ACCENT_PRESETS) as [AccentPreset, typeof ACCENT_PRESETS[AccentPreset]][]).map(([key, preset]) => {
