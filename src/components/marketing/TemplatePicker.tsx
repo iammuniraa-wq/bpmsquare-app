@@ -49,30 +49,50 @@ export default function TemplatePicker({
     `linear-gradient(90deg, ${templates.map((t) => t.swatch.match(/#[0-9a-fA-F]{3,8}/g)?.[0] ?? t.swatch).join(", ")})`;
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+  // Collapsed by default -- the folder grid is a browse affordance, not
+  // something every new-campaign visit needs open; the arrow expands it.
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   if (!template) {
     if (!openCategory) {
       return (
         <section style={cardStyle}>
-          <div style={lbl}>Start from a template</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
-            {categories.map((cat) => (
-              <button
-                key={cat.category}
-                onClick={() => setOpenCategory(cat.category)}
-                style={{
-                  display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 6,
-                  padding: "18px 12px", borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel2,
-                  cursor: "pointer",
-                }}
-              >
-                <span style={{ fontSize: 28 }}>{cat.emoji}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{cat.category}</span>
-                <span style={{ fontSize: 11, color: c.hint }}>{cat.templates.length} designs</span>
-                {swatchStrip(folderPreviewGradient(cat.templates))}
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={() => setBrowseOpen((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+              background: "none", border: "none", cursor: "pointer", padding: 0,
+              marginBottom: browseOpen ? 10 : 0,
+            }}
+          >
+            <span style={{ ...lbl, marginBottom: 0 }}>Start from a template</span>
+            <span style={{
+              fontSize: 12, color: c.hint, transform: browseOpen ? "rotate(90deg)" : "none",
+              transition: "transform 0.15s", display: "inline-block",
+            }}>
+              ▸
+            </span>
+          </button>
+          {browseOpen && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
+              {categories.map((cat) => (
+                <button
+                  key={cat.category}
+                  onClick={() => setOpenCategory(cat.category)}
+                  style={{
+                    display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 6,
+                    padding: "18px 12px", borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel2,
+                    cursor: "pointer",
+                  }}
+                >
+                  <span style={{ fontSize: 28 }}>{cat.emoji}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{cat.category}</span>
+                  <span style={{ fontSize: 11, color: c.hint }}>{cat.templates.length} designs</span>
+                  {swatchStrip(folderPreviewGradient(cat.templates))}
+                </button>
+              ))}
+            </div>
+          )}
         </section>
       );
     }
