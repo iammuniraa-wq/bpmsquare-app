@@ -99,7 +99,7 @@ function save(tabs: Tab[]) {
 
 // ── Provider ─────────────────────────────────────────────────────────────────
 
-export function TabsProvider({ children }: { children: React.ReactNode }) {
+export function TabsProvider({ children, trackTabs = true }: { children: React.ReactNode; trackTabs?: boolean }) {
   const pathname = usePathname();
   const router   = useRouter();
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -110,16 +110,23 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
 
   // Load from localStorage on first mount
   useEffect(() => {
-    if (initRef.current) return;
+    if (!trackTabs || initRef.current) return;
     initRef.current = true;
     const stored = load();
     tabsRef.current = stored.length ? stored : [];
     setTabs(tabsRef.current);
-  }, []);
+  }, [trackTabs]);
 
-  // Auto-register every page visit as a tab
+  // Auto-register every page visit as a tab. Mobile never renders TabBar (no
+  // strip, no "close a tab" UI at all -- see MobileTopBar), so trackTabs is
+  // false there: without it, a phone that had accumulated MAX_TABS distinct
+  // routes over time (tabs persist in localStorage indefinitely) would hit
+  // the cap below and have router.replace() silently bounce every NEW page
+  // back to whatever the last one was -- exactly "opens, then falls back",
+  // with no toast or way to close a tab to explain why, since that UI only
+  // exists on desktop.
   useEffect(() => {
-    if (!pathname) return;
+    if (!trackTabs || !pathname) return;
     setTabs((prev) => {
       const exists = prev.find((t) => t.href === pathname);
       if (exists) {
@@ -140,7 +147,7 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
       lastValidHref.current = pathname;
       return next;
     });
-  }, [pathname, router]);
+  }, [pathname, router, trackTabs]);
 
   // Prefetch all open tab routes so switching is instant
   useEffect(() => {
