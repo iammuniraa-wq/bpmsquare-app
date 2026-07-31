@@ -1,30 +1,28 @@
-import type { ConnectorDef, OAuthProvider } from "./types";
+import type { ConnectorDef } from "./types";
 
 /**
  * The connector catalog -- add an entry here to make a new connector
  * available in Settings -> Connectors. Client-safe (no secrets, no
  * server-only imports) since the UI reads it directly.
  *
- * Slack is api_key: no OAuth app registration needed (a Slack workspace
- * admin generates the webhook URL themselves, in Slack, and pastes it in
- * here), so it works end to end with zero external setup.
+ * Every entry here is api_key: the tenant admin copies one value out of a
+ * settings page THEY already have (Slack's own Incoming Webhook setup,
+ * Google Calendar's own "secret address in iCal format," a Gmail App
+ * Password) and pastes it in -- zero registration with us, zero external
+ * developer console, connects in under a minute.
  *
- * Google Calendar and Gmail are oauth2, sharing one Google Cloud OAuth
- * client (GOOGLE_CLIENT_ID/SECRET) but consenting to different scopes
- * separately -- connecting one never asks for the other's access. Requires
- * that OAuth app to actually exist before either can be tested; see
- * RELEASE_PROCESS.md or ask for the setup steps.
+ * A genuine OAuth2 "click a Connect button, land on the real provider's
+ * consent screen" flow is also fully built (lib/connectors/oauthState.ts,
+ * /api/connectors/[id]/oauth/{start,callback}, ConnectorDef.oauth) and
+ * still the right answer eventually -- but it requires BPMSquare itself
+ * (the platform, not the tenant) to register an OAuth app with each
+ * provider ONE TIME, which is real setup work with its own console, its
+ * own redirect URIs, its own client secret. That's a one-time platform
+ * cost that then makes every tenant's own connect one click forever --
+ * not a per-tenant cost -- but it's still a real setup step someone has to
+ * do first, so no catalog entry uses it today. Add an `oauth` field to a
+ * future entry once that setup is worth doing for a specific connector.
  */
-const GOOGLE_PROVIDER: OAuthProvider = {
-  authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-  tokenUrl: "https://oauth2.googleapis.com/token",
-  clientIdEnv: "GOOGLE_CLIENT_ID",
-  clientSecretEnv: "GOOGLE_CLIENT_SECRET",
-  // offline + consent guarantees a refresh_token comes back every time --
-  // without them Google only issues one on a user's very first-ever consent.
-  extraAuthParams: { access_type: "offline", prompt: "consent" },
-};
-
 export const CONNECTOR_CATALOG: ConnectorDef[] = [
   {
     id: "slack",
@@ -40,21 +38,24 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
   {
     id: "google_calendar",
     name: "Google Calendar",
-    description: "Read upcoming events on the connected Google account's calendar — a first step toward technician scheduling.",
+    description: "Read upcoming events from a calendar's private iCal feed — Calendar settings → \"Integrate calendar\" → \"Secret address in iCal format.\"",
     icon: "⇄",
-    authType: "oauth2",
-    fields: [],
-    oauth: { provider: GOOGLE_PROVIDER, scopes: ["https://www.googleapis.com/auth/calendar.readonly"] },
+    authType: "api_key",
+    fields: [
+      { key: "ical_url", label: "Secret iCal URL", placeholder: "https://calendar.google.com/calendar/ical/…/private-…/basic.ics", secret: true },
+    ],
     testable: true,
   },
   {
     id: "gmail",
     name: "Gmail",
-    description: "Send email from the connected Gmail account — send-only access plus the account's own address (to address test messages), nothing is ever read from the mailbox.",
+    description: "Send email via Gmail using an App Password — Google Account → Security → 2-Step Verification → App passwords (requires 2-Step Verification to be turned on).",
     icon: "⇄",
-    authType: "oauth2",
-    fields: [],
-    oauth: { provider: GOOGLE_PROVIDER, scopes: ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/userinfo.email"] },
+    authType: "api_key",
+    fields: [
+      { key: "email", label: "Gmail address", placeholder: "you@gmail.com" },
+      { key: "app_password", label: "App password", placeholder: "16-character app password", secret: true },
+    ],
     testable: true,
   },
 ];
