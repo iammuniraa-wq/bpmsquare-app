@@ -148,15 +148,15 @@ export default function TabBar() {
         <div style={{
           position: "absolute", top: "calc(100% + 6px)", left: "50%",
           transform: "translateX(-50%)",
-          background: "#1e2e3e", border: "1px solid #e09a2a",
+          background: "var(--amberbg)", border: "1px solid var(--amberline)",
           borderRadius: 8, padding: "8px 14px",
           display: "flex", alignItems: "center", gap: 10,
-          boxShadow: "0 4px 20px rgba(0,0,0,.5)",
+          boxShadow: "0 4px 20px rgba(0,0,0,.25)",
           zIndex: 500, whiteSpace: "nowrap",
           animation: "vvcrm-fadein .18s ease",
         }}>
-          <AlertTriangle size={14} color="#e09a2a" />
-          <span style={{ fontSize: 12.5, color: "#e2c97e", fontWeight: 500 }}>
+          <AlertTriangle size={14} color="var(--amberc)" />
+          <span style={{ fontSize: 12.5, color: "var(--amberink)", fontWeight: 500 }}>
             Maximum {MAX_TABS} tabs open — close a tab to open a new one.
           </span>
           <button
@@ -218,20 +218,25 @@ export default function TabBar() {
                     style={{
                       width: "100%", textAlign: "left",
                       padding: "8px 14px", border: "none",
-                      background: active ? "rgba(55,138,221,.2)" : "transparent",
+                      // Derived from --modern-accent (falls back to the base --accent
+                      // token for classic/modern1) rather than --sb-active-bg -- that
+                      // token is tuned for a translucent pill on the solid modern2 blue
+                      // BAR and goes near-invisible reused here, against this dropdown's
+                      // own (white/panel-coloured) background.
+                      background: active ? "color-mix(in srgb, var(--modern-accent, var(--accent)) 20%, transparent)" : "transparent",
                       color: active ? "var(--sb-panel-text)" : "var(--sb-panel-text-dim)",
                       fontSize: 12.5, fontWeight: active ? 600 : 400,
                       cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
                     }}
                     onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--sb-panel-hover)"; }}
-                    onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = active ? "rgba(55,138,221,.2)" : "transparent"; }}
+                    onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = active ? "color-mix(in srgb, var(--modern-accent, var(--accent)) 20%, transparent)" : "transparent"; }}
                   >
                     <span style={{ fontSize: 11, opacity: 0.7, flexShrink: 0 }}>{tab.icon}</span>
                     <span style={{ flex: 1, overflow: "hidden" }}>
                       <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tab.title}</span>
                       {tab.section && <span style={{ display: "block", fontSize: 10, color: "var(--sb-panel-text-dim)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{tab.section}</span>}
                     </span>
-                    {active && <Dot size={8} color={c.accent} />}
+                    {active && <Dot size={8} color="var(--modern-accent, var(--accent))" />}
                     <span
                       onClick={(e) => { e.stopPropagation(); closeTab(tab.href); setDropOpen(false); }}
                       style={{ color: "var(--sb-panel-text-dim)", fontSize: 14, lineHeight: 1, padding: "0 2px" }}
