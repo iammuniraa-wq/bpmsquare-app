@@ -377,3 +377,26 @@ a { color: inherit; text-decoration: none; }
   from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
+
+/* Connector tile + modal -- a considered "open" moment (scale + fade,
+   ease-out) instead of an instant snap, plus a tactile press-down on the
+   tile itself. Respects prefers-reduced-motion (a hard cut is still
+   correct there -- just no motion, not no state change). */
+.connector-tile { transition: transform 0.1s ease, box-shadow 0.16s ease; }
+.connector-tile:active { transform: scale(0.97); }
+
+@keyframes connector-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes connector-modal-in {
+  from { opacity: 0; transform: scale(0.94) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.connector-backdrop { animation: connector-backdrop-in 0.16s ease; }
+.connector-modal { animation: connector-modal-in 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .connector-tile:active { transform: none; }
+  .connector-backdrop, .connector-modal { animation: none; }
+}
