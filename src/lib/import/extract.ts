@@ -183,7 +183,28 @@ export async function extractRowsFromDocument(spec: ObjectSpec, input: Extractio
     });
   } catch (e) {
     console.error("Document extraction request failed:", e);
-    throw new ExtractionError("Could not reach the extraction service. Try again in a moment.");
+    // Most-specific first -- a bare network failure and "the key is wrong"
+    // need different fixes, and burying both under one message makes this
+    // undebuggable from the outside.
+    if (e instanceof Anthropic.AuthenticationError) {
+      throw new ExtractionError("The extraction service rejected ANTHROPIC_API_KEY. Check it's set correctly (no extra spaces/newlines) and redeploy.");
+    }
+    if (e instanceof Anthropic.PermissionDeniedError) {
+      throw new ExtractionError("This API key doesn't have access to the extraction model. Check the key's plan/permissions in the Anthropic console.");
+    }
+    if (e instanceof Anthropic.NotFoundError) {
+      throw new ExtractionError("The extraction model isn't available for this account.");
+    }
+    if (e instanceof Anthropic.RateLimitError) {
+      throw new ExtractionError("The extraction service is rate-limited right now. Try again in a moment.");
+    }
+    if (e instanceof Anthropic.APIConnectionError) {
+      throw new ExtractionError("Could not reach the extraction service. Try again in a moment.");
+    }
+    if (e instanceof Anthropic.APIError) {
+      throw new ExtractionError(`Extraction service error (${e.status}): ${e.message}`);
+    }
+    throw new ExtractionError("Extraction failed. Try again, or enter this record manually.");
   }
 
   if (response.stop_reason === "refusal") {
