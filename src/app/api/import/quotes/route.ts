@@ -16,7 +16,7 @@ import {
 import type { RowOutcome } from "@/lib/import/types";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
 
-type Line = { description: string; uom: string | null; qty: number; rate: number; discount_pct: number; amount: number };
+type Line = { sl_no: string | null; description: string; uom: string | null; qty: number; rate: number; discount_pct: number; amount: number };
 
 type Group = {
   name: string;
@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
       const rate = Math.max(0, num(row.values.line_rate, 0));
       const discount = clamp(num(row.values.line_discount_pct, 0), 0, 100);
       group.lines.push({
+        sl_no: row.values.line_sl_no?.trim() || null,
         description,
         uom: row.values.line_uom ?? null,
         qty,
@@ -197,6 +198,7 @@ export async function POST(request: NextRequest) {
       group.lines.map((l) => ({
         tenant_id: tenantId,
         quote_id: quoteId,
+        sl_no: l.sl_no,
         description: l.description,
         uom: l.uom,
         qty: l.qty,

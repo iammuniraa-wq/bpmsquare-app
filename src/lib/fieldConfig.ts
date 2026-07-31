@@ -70,6 +70,7 @@ export async function getEffectiveFieldConfig(
         required: false,
         locked: def.locked ?? false,
         editable: def.editable ?? true,
+        exportOnly: def.exportOnly,
         kind: "standard",
         selectSource: def.selectSource,
         enumOptions: def.enumOptions,

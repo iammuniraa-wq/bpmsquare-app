@@ -38,6 +38,8 @@ export type FieldSpec = {
   custom?: boolean;
   /** Quote line-item columns repeat per row; header columns only read from a group's first row. */
   scope?: "header" | "line";
+  /** In Export column lists but stripped from Import/Update specs — system-computed values an importer can't set. */
+  exportOnly?: boolean;
   example?: string;
 };
 

@@ -108,11 +108,19 @@ const REQUIRED_KEYS: Partial<Record<ImportObjectId, string[]>> = {
 
 /** Quote line items — fixed shape, one row per line, never tenant-customizable. */
 export const QUOTE_LINE_FIELDS: FieldSpec[] = [
+  { key: "line_sl_no", label: "Line S.No", type: "text", scope: "line", hint: "Optional serial label shown on the printed quote, e.g. 1 · 1a · A", aliases: ["sl no", "sl.no", "s.no", "sno", "serial no", "serial"] },
   { key: "line_description", label: "Line description", type: "text", required: true, scope: "line", hint: "Line item description — required on every row", aliases: ["description", "item", "particulars", "work description", "line item"] },
   { key: "line_uom", label: "Line UOM", type: "text", scope: "line", hint: "Nos · Job · Set · Mtr · Kg", aliases: ["uom", "unit", "units"] },
   { key: "line_qty", label: "Line qty", type: "number", scope: "line", hint: "Quantity — defaults to 1", aliases: ["qty", "quantity", "nos"] },
   { key: "line_rate", label: "Line rate", type: "number", scope: "line", hint: "Rate in INR", aliases: ["rate", "price", "unit price", "unit rate"] },
   { key: "line_discount_pct", label: "Line discount %", type: "number", scope: "line", hint: "Line discount 0-100", aliases: ["line discount", "item discount"] },
+  // Export-only line columns — computed or structural values the flat
+  // import format can't set (amount is recomputed; groups/options and
+  // repair categories are built in the quote form, not via CSV).
+  { key: "line_amount", label: "Line amount", type: "number", scope: "line", exportOnly: true, hint: "Computed qty × rate − discount" },
+  { key: "line_category", label: "Line category", type: "text", scope: "line", exportOnly: true, hint: "labour · material · testing · transport" },
+  { key: "line_deduction", label: "Line deduction", type: "number", scope: "line", exportOnly: true, hint: "Material deduction amount" },
+  { key: "line_group", label: "Line group", type: "text", scope: "line", exportOnly: true, hint: "Group / option label this line belongs to" },
 ];
 
 /** quote_name is the grouping key that ties header + line rows together — structural, not a DB column. */
@@ -179,6 +187,7 @@ export function buildObjectSpec(
         options,
         aliases: [f.label],
         custom: f.kind === "custom",
+        exportOnly: f.exportOnly,
         scope: id === "quotes" ? "header" : undefined,
       } satisfies FieldSpec;
     });
