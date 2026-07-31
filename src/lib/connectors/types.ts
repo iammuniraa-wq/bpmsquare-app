@@ -24,6 +24,24 @@ export type ConnectorField = {
   secret?: boolean;
 };
 
+/** One OAuth app registration (e.g. one Google Cloud project's OAuth client)
+ * can back several connectors that each request different scopes -- Google
+ * Calendar and Gmail share GOOGLE_CLIENT_ID/SECRET below but consent
+ * separately, per the principle of least privilege (connecting Calendar
+ * never asks for Gmail access and vice versa). clientIdEnv/clientSecretEnv
+ * are env var NAMES, not the secret values themselves -- safe to send to
+ * the client along with the rest of the catalog. */
+export type OAuthProvider = {
+  authorizeUrl: string;
+  tokenUrl: string;
+  clientIdEnv: string;
+  clientSecretEnv: string;
+  /** Provider-specific params always added to the authorize request, e.g.
+   * Google's access_type=offline + prompt=consent to guarantee a refresh
+   * token comes back on every connect, not just the very first one. */
+  extraAuthParams?: Record<string, string>;
+};
+
 export type ConnectorDef = {
   id: string;
   name: string;
@@ -33,6 +51,8 @@ export type ConnectorDef = {
   /** What the tenant admin fills in to connect (api_key connectors only --
    * oauth2 connectors instead redirect to the provider). */
   fields: ConnectorField[];
+  /** oauth2 connectors only. */
+  oauth?: { provider: OAuthProvider; scopes: string[] };
   /** Shown after connecting -- a lightweight way to confirm it actually
    * works, not just that credentials were saved. */
   testable: boolean;

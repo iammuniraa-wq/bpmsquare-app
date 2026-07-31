@@ -10,6 +10,12 @@ type State = { catalog: ConnectorDef[]; connected: TenantConnectorRow[] } | null
 export default function ConnectorsClient() {
   const [state, setState] = useState<State>(null);
   const [loading, setLoading] = useState(true);
+  // The OAuth callback redirects back here with ?connector_error=... on
+  // failure (expired link, provider rejected the request, server not
+  // configured) -- there's no other channel to surface that, since the
+  // whole point of a redirect-based flow is the browser navigates away and
+  // back, not an in-page fetch this component could catch directly.
+  const [oauthError, setOauthError] = useState<string | null>(null);
 
   function load() {
     fetch("/api/connectors")
@@ -18,12 +24,25 @@ export default function ConnectorsClient() {
       .finally(() => setLoading(false));
   }
   useEffect(load, []);
+  useEffect(() => {
+    const err = new URLSearchParams(window.location.search).get("connector_error");
+    if (err) {
+      setOauthError(err);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   if (loading) return <div style={{ color: c.muted, fontSize: 13 }}>Loading…</div>;
   if (!state) return <div style={{ color: "var(--err-ink)", fontSize: 13 }}>Could not load connectors.</div>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {oauthError && (
+        <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", color: "var(--err-ink)", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, display: "flex", justifyContent: "space-between", gap: 10 }}>
+          <span>{oauthError}</span>
+          <button onClick={() => setOauthError(null)} style={{ background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer", fontWeight: 700 }}>×</button>
+        </div>
+      )}
       {state.catalog.map((def) => {
         const row = state.connected.find((r) => r.connector_id === def.id) ?? null;
         return <ConnectorCard key={def.id} def={def} row={row} onChange={load} />;
@@ -73,7 +92,7 @@ function ConnectorCard({ def, row, onChange }: { def: ConnectorDef; row: TenantC
     try {
       const res = await fetch(`/api/connectors/${def.id}/test`, { method: "POST" });
       const json = await res.json();
-      setTestMsg(res.ok ? { ok: true, text: "Test succeeded ✓" } : { ok: false, text: json.error ?? "Test failed" });
+      setTestMsg(res.ok ? { ok: true, text: json.message ?? "Test succeeded ✓" } : { ok: false, text: json.error ?? "Test failed" });
     } finally {
       setTesting(false);
     }
@@ -108,7 +127,14 @@ function ConnectorCard({ def, row, onChange }: { def: ConnectorDef; row: TenantC
           )}
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-          {!connected && !editing && (
+          {!connected && def.authType === "oauth2" && (
+            // A real browser navigation, not fetch -- it has to end in an
+            // actual redirect to the provider's own consent screen.
+            <a href={`/api/connectors/${def.id}/oauth/start`} style={{ ...connectBtn(c.accent), textDecoration: "none", display: "inline-flex" }}>
+              Connect
+            </a>
+          )}
+          {!connected && def.authType === "api_key" && !editing && (
             <button onClick={() => setEditing(true)} style={connectBtn(c.accent)}>Connect</button>
           )}
           {connected && def.testable && (
