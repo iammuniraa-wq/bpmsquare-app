@@ -145,11 +145,14 @@ function cellToString(value: unknown): string {
 
 async function parseXlsxFile(file: File): Promise<ParsedSheet> {
   const { default: readXlsxFile } = await import("read-excel-file/browser");
-  const raw = (await readXlsxFile(file)) as unknown as unknown[][];
-  const records = raw
+  // The default export returns EVERY sheet -- [{ sheet: name, data: rows }, ...] --
+  // not the rows of one sheet, so the first sheet has to be picked out explicitly.
+  const sheets = (await readXlsxFile(file)) as unknown as { sheet: string; data: unknown[][] }[];
+  const first = sheets[0];
+  const records = (first?.data ?? [])
     .map((row) => row.map(cellToString))
     .filter((row) => row.some((cell) => cell !== ""));
-  return toSheet(records, "xlsx");
+  return toSheet(records, "xlsx", first?.sheet);
 }
 
 export class ImportParseError extends Error {}

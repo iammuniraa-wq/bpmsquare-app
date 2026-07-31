@@ -115,3 +115,20 @@ export type ExportResponse = {
   /** Every field value as a display string, keyed by field key — always includes "id". */
   rows: Record<string, string>[];
 };
+
+// ── Document extraction ─────────────────────────────────────────────────────
+
+/** One record an AI extraction pulled out of an uploaded document, keyed by
+ * the same field keys as everything else in the import pipeline — so it can
+ * go straight into validateRow/validateQuoteRows with no separate shape. */
+export type ExtractedRow = {
+  rowNum: number;
+  values: Record<string, string>;
+  /** Something the extraction was unsure about — shown to the user for review before import. */
+  note?: string;
+};
+
+export type ExtractionResponse = {
+  rows: ExtractedRow[];
+  documentNotes: string[];
+};
