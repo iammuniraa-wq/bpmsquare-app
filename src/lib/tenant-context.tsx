@@ -39,13 +39,16 @@ export function useTenantFeature(key: keyof Tenant["features"]): boolean {
   return tenant?.features?.[key] ?? false;
 }
 
-/** The active visual theme direction -- "classic" for every tenant unless a
- * platform admin has explicitly opted this one into "modern", "modern2" or
- * "modern3" (see TenantConfig.appearance.ui_theme). Shell stamps this as a
- * `data-theme` attribute on the app root, which is what the CSS custom
- * property overrides in globals.css key off. */
-export function useUiTheme(): "classic" | "modern" | "modern2" | "modern3" | "nextgen" {
+/** The active visual theme direction (see TenantConfig.appearance.ui_theme).
+ * Shell stamps this as a `data-theme` attribute on the app root, which is
+ * what the CSS custom property overrides in globals.css key off. The retired
+ * "modern2"/"modern3" directions may still be stored on older tenants --
+ * their CSS blocks are gone, so they degrade to "modern" here rather than
+ * silently falling through to an unstyled data-theme value. */
+export function useUiTheme(): "classic" | "modern" | "nextgen" {
   const { tenant } = useContext(TenantContext);
-  const t = tenant?.config?.appearance?.ui_theme;
-  return t === "modern" || t === "modern2" || t === "modern3" || t === "nextgen" ? t : "classic";
+  const t = tenant?.config?.appearance?.ui_theme as string | undefined;
+  if (t === "nextgen") return "nextgen";
+  if (t === "modern" || t === "modern2" || t === "modern3") return "modern";
+  return "classic";
 }

@@ -39,7 +39,7 @@
 
   /* Sidebar/tab-bar chrome tokens -- Sidebar.tsx, TabBar.tsx and Shell.tsx's
      MobileTopBar read these instead of hardcoding light-on-dark colours, so a
-     theme with a LIGHT sidebar (see modern2 below) can flip them to
+     theme with a LIGHT sidebar (see nextgen below) can flip them to
      dark-on-light without touching those components again. Values here are
      the classic/modern1 defaults (both use a dark sidebar). */
   --sb-text: #cdd8e6;
@@ -56,8 +56,8 @@
   /* Floating panels (TabBar's "all tabs" dropdown, GlobalSearchBar's results
      list) -- kept as separate tokens from --sb-text/--sb-strong because a
      theme can have its panel background land at a different lightness than
-     its sidebar/top-bar background (see modern2, where the sidebar is a
-     solid blue but panels stay white). */
+     its sidebar/top-bar background (a retired direction needed exactly
+     that split; kept since it costs nothing and preserves the option). */
   --sb-panel-text: #e2e7ee;
   --sb-panel-text-dim: #8fa8be;
   --sb-panel-hover: rgba(255, 255, 255, 0.05);
@@ -72,19 +72,19 @@
      SEPARATE token from --sidebar-grad: each bar element restarts a vertical
      gradient over its own 48px height, so sharing the sidebar's full-height
      gradient produces visible mismatched "bands" of colour where the bars
-     stack (clearly visible on the saturated modern2 blue; subtle but present
+     stack (subtle but present
      on classic's dark navy too). Bars get a solid colour per theme instead. */
   --sb-bar-bg: #152233;
   /* Active-tab affordances on the bar -- the classic sky-blue underline/label
-     reads on a dark navy bar but vanishes on modern2's blue and modern3's
-     light grey, so themes override these. */
+     reads on a dark navy bar but vanishes on a light bar (nextgen), so
+     themes override these. */
   --sb-tab-underline: #378add;
   --sb-tab-sub-active: #5a8ab0;
 
   /* Adapt drawers (AdaptObjectDrawer, dashboard AdaptDrawer) -- the
-     slide-in config panels. Dark by design on classic/modern1; the light
-     modern2/3 directions flip them to a light panel so the config surface
-     no longer looks like a different product bolted on. */
+     slide-in config panels. Dark by design on classic/modern1; nextgen
+     flips them to a light panel so the config surface no longer looks
+     like a different product bolted on. */
   --drawer-bg: #0e1a28;
   --drawer-card: #0a1520;
   --drawer-card-alt: #132335;
@@ -122,139 +122,6 @@
   --modern-gold-bg: #faf3e6;
 }
 
-/* "Modern 2" direction (Lightning Blue) -- a second, independent modern
-   option a tenant can be opted into instead of "modern": a SOLID saturated
-   blue sidebar/top-bar (Salesforce/Microsoft-style, not a pale wash) with a
-   white search pill and white floating panels, styled after Lightning's
-   blue-and-white identity. The sidebar and the floating panels/search pill
-   land at different lightness here (dark blue vs. white), which is why
-   panel/search text get their own tokens instead of reusing --sb-strong. */
-[data-theme="modern2"] {
-  --card-radius: 8px;
-  --card-shadow: 0 1px 2px rgba(15, 50, 92, 0.07);
-  --line: #dde6f0;
-  --sidebar-grad: linear-gradient(180deg, #0176d3 0%, #014486 100%);
-  --sb-bar-bg: #0176d3;
-  --modern-accent: #0176d3;
-  --modern-accent-bg: #eaf3fd;
-  --modern-gold: #0176d3;
-  --modern-gold-bg: #eaf3fd;
-  /* On a saturated blue sidebar, a tenant's arbitrary brand accent (green,
-     orange, ...) as the active-pill fill clashes badly -- active states in
-     this direction use a neutral translucent white pill instead. Classic and
-     modern1 keep the tenant accent (no token set -> JS falls back to it). */
-  --sb-active-bg: rgba(255, 255, 255, 0.22);
-  --sb-tab-underline: #ffffff;
-  --sb-tab-sub-active: #dcebfa;
-
-  /* Sidebar/top-bar chrome text -- light-on-dark again now the sidebar is a
-     solid blue. Full-white / near-white, not blue tints: pale-blue text on
-     the saturated blue bar read as washed-out ("too light" feedback) --
-     dark text is the one thing that CAN'T fix that here, so contrast comes
-     from brightness instead. */
-  --sb-text: #ffffff;
-  --sb-text-dim: #ddecfb;
-  --sb-text-dimmer: #e6f2fd;
-  --sb-text-faint: #b7d9f4;
-  --sb-strong: #ffffff;
-  --sb-icon-muted: #eef6fe;
-  --sb-line: rgba(255, 255, 255, 0.18);
-  --sb-hover: rgba(255, 255, 255, 0.1);
-  --sb-hover-strong: rgba(255, 255, 255, 0.16);
-
-  /* Floating panels stay white (matching the page content, not the blue
-     chrome), so their text goes back to dark-on-light. */
-  --sb-panel-bg: #ffffff;
-  --sb-panel-border: #d8e8fa;
-  --sb-panel-text: #16325c;
-  --sb-panel-text-dim: #5b6b85;
-  --sb-panel-hover: rgba(15, 40, 80, 0.05);
-
-  /* Search pill: near-solid white on the blue bar (Lightning/Fluent style),
-     so its own content needs dark text, not the chrome's light text. */
-  --sb-search-bg: rgba(255, 255, 255, 0.92);
-  --sb-search-border: rgba(255, 255, 255, 0.6);
-  --sb-search-text: #16325c;
-  --sb-search-icon: #5b6b85;
-
-  --drawer-bg: #ffffff;
-  --drawer-card: #f7fafd;
-  --drawer-card-alt: #eaf3fd;
-  --drawer-line: #dde6f0;
-  --drawer-line-strong: #c9d8ea;
-  --drawer-text: #16325c;
-  --drawer-text-dim: #5b6b85;
-  --drawer-hint: #7c8aa0;
-  --drawer-hint-faint: #9aa7ba;
-  --drawer-err-bg: #fdecea;
-  --drawer-err-border: #f5c6c0;
-}
-
-/* "Modern 3" direction (Microsoft Fluent) -- deliberately NOT a re-hued
-   Modern 2. Real Fluent/Windows-11-style chrome is light neutral grey, not a
-   solid brand-colour block -- blue is reserved for accents/active states/
-   buttons, same as Outlook, Teams (light theme) and SharePoint. So unlike
-   modern2, the sidebar/top-bar flip back to a light background here, using
-   Fluent's actual neutral-grey ramp (neutralLighter/neutralLight) and text
-   scale (neutralPrimary/neutralSecondary greys, not navy) rather than blue-
-   tinted tokens. Card shadow uses Fluent's two-layer "depth" shadow shape,
-   and the theme opts into Segoe UI first (see the font-family rule below)
-   since that's a real, checkable difference on Windows, not just a colour. */
-[data-theme="modern3"] {
-  --card-radius: 6px;
-  --card-shadow: 0 1.6px 3.6px rgba(0, 0, 0, 0.11), 0 0.3px 0.9px rgba(0, 0, 0, 0.09);
-  --line: #edebe9;
-  --sidebar-grad: linear-gradient(180deg, #faf9f8 0%, #f3f2f1 100%);
-  --sb-bar-bg: #faf9f8;
-  --modern-accent: #0078d4;
-  --modern-accent-bg: #deecf9;
-  --modern-gold: #0078d4;
-  --modern-gold-bg: #deecf9;
-  /* Fluent-style active states: solid brand-blue pill with white text --
-     tenant accents stay off the light-grey chrome for the same clash reason
-     as modern2. White underline would vanish on a light bar, so blue. */
-  --sb-active-bg: #0078d4;
-  --sb-tab-underline: #0078d4;
-  --sb-tab-sub-active: #0078d4;
-
-  /* Fluent's neutral text ramp -- grey-black, not the blue-tinted navy the
-     solid-blue directions use, since the chrome itself is light grey now. */
-  --sb-text: #323130;
-  --sb-text-dim: #605e5c;
-  --sb-text-dimmer: #797775;
-  --sb-text-faint: #a19f9d;
-  --sb-strong: #201f1e;
-  --sb-icon-muted: #605e5c;
-  --sb-line: #edebe9;
-  --sb-hover: rgba(0, 0, 0, 0.04);
-  --sb-hover-strong: rgba(0, 0, 0, 0.06);
-
-  --sb-panel-bg: #ffffff;
-  --sb-panel-border: #edebe9;
-  --sb-panel-text: #201f1e;
-  --sb-panel-text-dim: #605e5c;
-  --sb-panel-hover: rgba(0, 0, 0, 0.04);
-
-  /* A filled light-grey pill (Fluent's neutralLighter), distinct from both
-     the sidebar's own light grey and the white floating panels -- the same
-     subtle layering an actual Teams/Outlook search box uses. */
-  --sb-search-bg: #f3f2f1;
-  --sb-search-border: #e1dfdd;
-  --sb-search-text: #201f1e;
-  --sb-search-icon: #605e5c;
-
-  --drawer-bg: #ffffff;
-  --drawer-card: #faf9f8;
-  --drawer-card-alt: #f3f2f1;
-  --drawer-line: #edebe9;
-  --drawer-line-strong: #d2d0ce;
-  --drawer-text: #201f1e;
-  --drawer-text-dim: #605e5c;
-  --drawer-hint: #797775;
-  --drawer-hint-faint: #a19f9d;
-  --drawer-err-bg: #fdecea;
-  --drawer-err-border: #f5c6c0;
-}
 /* "Next-gen" direction (experimental) -- the Attio/Linear-class concept: one
    flat neutral canvas, hairline borders instead of nested boxes, a white
    sidebar with real SVG icons (Sidebar.tsx renders NAV_GLYPHS under this
@@ -406,11 +273,6 @@
   --drawer-err-border: #57291f;
 }
 
-/* Segoe UI first -- a real, checkable Fluent difference on Windows (where it's
-   installed), not just a colour choice. Harmlessly falls through to the same
-   system-font stack everywhere else. */
-[data-theme="modern3"] { font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; }
-
 /* Real interaction states -- the whole reason this can't just be inline
    styles (React inline style objects can't express :hover/transition).
    Opt a card into this class (only in modern mode) for a genuine hover-lift
@@ -419,36 +281,24 @@
    inline style's box-shadow always beats a stylesheet :hover rule for the
    same property, which would otherwise silently cancel the lift. */
 [data-theme="modern"] .modern-lift,
-[data-theme="modern2"] .modern-lift,
-[data-theme="modern3"] .modern-lift,
 [data-theme="nextgen"] .modern-lift,
 [data-theme="modern"] .modern-lift-gold,
-[data-theme="modern2"] .modern-lift-gold,
-[data-theme="modern3"] .modern-lift-gold,
 [data-theme="nextgen"] .modern-lift-gold {
   transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.16s;
 }
 [data-theme="modern"] .modern-lift,
-[data-theme="modern2"] .modern-lift,
-[data-theme="modern3"] .modern-lift,
 [data-theme="nextgen"] .modern-lift,
 [data-theme="modern"] .modern-lift-gold,
-[data-theme="modern2"] .modern-lift-gold,
-[data-theme="modern3"] .modern-lift-gold,
 [data-theme="nextgen"] .modern-lift-gold { box-shadow: var(--card-shadow); }
 /* .modern-lift-gold used to add a top-accent hairline in whichever hue
    --modern-gold resolved to; dropped everywhere (including modern1) after
    feedback that it read as clutter on cards/KPI tiles -- it now renders
-   identically to plain .modern-lift across all three modern directions.
+   identically to plain .modern-lift across the modern directions.
    Left as a distinct class name (rather than merged into .modern-lift)
    since DashboardLayout.tsx still references it by name and reintroducing
    a hairline for one direction later would only need a CSS change here. */
 [data-theme="modern"] .modern-lift:hover,
-[data-theme="modern2"] .modern-lift:hover,
-[data-theme="modern3"] .modern-lift:hover,
-[data-theme="modern"] .modern-lift-gold:hover,
-[data-theme="modern2"] .modern-lift-gold:hover,
-[data-theme="modern3"] .modern-lift-gold:hover {
+[data-theme="modern"] .modern-lift-gold:hover {
   transform: translateY(-2px);
   border-color: #b3bfd6;
   box-shadow: 0 8px 22px rgba(20, 40, 80, 0.14);
