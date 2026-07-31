@@ -49,9 +49,16 @@ function validDate(year: number, month: number, day: number): string | null {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/** Normalizing only `raw` and comparing it against un-normalized options meant
+ * an option containing a space or hyphen (freeform ones like a tenant's own
+ * territory/sales_org list, e.g. "South-IN") could never match itself --
+ * "south-in".replace(/[\s-]+/g,"_") -> "south_in", but "south-in" (the
+ * option, untouched) never equals it. Normalizing both sides fixes exact
+ * matches and still tolerates spacing/case/hyphen-vs-underscore variants. */
 export function matchEnum(raw: string, options: readonly string[]): string | null {
-  const v = raw.trim().toLowerCase().replace(/[\s-]+/g, "_");
-  return options.find((o) => o.toLowerCase() === v) ?? null;
+  const normalize = (s: string) => s.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const v = normalize(raw);
+  return options.find((o) => normalize(o) === v) ?? null;
 }
 
 /**
@@ -77,7 +84,9 @@ export function validateField(field: FieldSpec, raw: string): { value: string; i
           issue: {
             field: field.key,
             message: `${field.label} must be one of: ${(field.options ?? []).join(", ")} — got "${trimmed}"`,
-            severity: "error",
+            // An optional field with an unrecognized value shouldn't block
+            // the whole row -- drop it and let the row through, same as email.
+            severity: field.required ? "error" : "warning",
           },
         };
       }
