@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -45,6 +46,12 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       deleted_by: userId,
     });
     await admin.from("tenants").update({ config: { ...cfg, deleted_quotes: log } }).eq("id", tenantId);
+
+    const user = await getAuthUser();
+    await logChange(supabase, {
+      tenantId, objectType: "quotes", objectId: id, objectLabel: snap.ref,
+      action: "delete", actorId: user?.id, actorEmail: user?.email,
+    });
   }
 
   return new NextResponse(null, { status: 204 });
@@ -79,6 +86,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     patch.outcome = def?.is_terminal ? (def.is_lost ? "lost" : "won") : "open";
   }
 
+  const { data: before } = await admin
+    .from("quotes")
+    .select("*")
+    .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+
   const { data, error } = await admin
     .from("quotes")
     .update(patch)
@@ -88,5 +100,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .single();
 
   if (error) { console.error("[quotes PATCH] update failed", error); return NextResponse.json({ error: error.message }, { status: 500 }); }
+
+  const user = await getAuthUser();
+  const changes = diffForLog("quotes", (before as Record<string, unknown>) ?? {}, patch);
+  if (changes.length > 0) {
+    await logChange(supabase, {
+      tenantId, objectType: "quotes", objectId: id, objectLabel: (data as { ref?: string }).ref ?? null,
+      action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+    });
+  }
+
   return NextResponse.json(data);
 }

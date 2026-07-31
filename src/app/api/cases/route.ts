@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { firstFreeRef, nextSeqFromRefs } from "@/lib/refSeq";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -79,5 +80,13 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   revalidateTag("accounts", { expire: 0 });
   revalidateTag("cases", { expire: 0 });
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "cases", objectId: data.id, objectLabel: data.ref,
+    action: "create", actorId: user?.id, actorEmail: user?.email,
+    changes: diffForLog("cases", {}, { account_id, type, equipment_label, complaint, symptom, assigned_to }),
+  });
+
   return NextResponse.json(data, { status: 201 });
 }

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { generateNextPoRef } from "@/lib/poRef";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -118,6 +119,13 @@ export async function POST(request: NextRequest) {
       .insert(cleanLines.map((l) => ({ ...l, po_id: po!.id })));
     if (linesErr) return NextResponse.json({ error: linesErr.message }, { status: 500 });
   }
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "purchase_orders", objectId: po.id, objectLabel: po.ref,
+    action: "create", actorId: user?.id, actorEmail: user?.email,
+    changes: diffForLog("purchase_orders", {}, { supplier_id, quote_id, case_id, order_date, expected_date, total }),
+  });
 
   return NextResponse.json(po, { status: 201 });
 }

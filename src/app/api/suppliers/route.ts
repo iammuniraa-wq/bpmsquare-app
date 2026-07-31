@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET() {
   let supabase, tenantId;
@@ -53,5 +54,13 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "suppliers", objectId: data.id, objectLabel: data.name,
+    action: "create", actorId: user?.id, actorEmail: user?.email,
+    changes: diffForLog("suppliers", {}, { name: name.trim(), type: type ?? "vendor", city, phone, email, gstin, notes }),
+  });
+
   return NextResponse.json(data, { status: 201 });
 }

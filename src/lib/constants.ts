@@ -99,6 +99,8 @@ export const ROUTES = {
   purchaseOrderNew: "/purchase-orders/new",
   purchaseOrder: (id: string) => `/purchase-orders/${id}`,
   dataWorkbench: "/data-workbench",
+  administration: "/administration",
+  administrationChangeHistory: "/administration/change-history",
 } as const;
 
 export type NavItem = {
@@ -197,6 +199,7 @@ export const NAV: NavGroup[] = [
     group: "ADMIN",
     items: [
       { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal" },
+      { label: "Administrator", href: ROUTES.administration, icon: "🛠", pillar: "teal" },
     ],
   },
 ];

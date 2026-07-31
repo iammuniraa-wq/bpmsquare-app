@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { encrypt } from "@/lib/encryption";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET() {
   let supabase, tenantId;
@@ -83,5 +84,16 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   revalidateTag("accounts", { expire: 0 });
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "contacts", objectId: data.id, objectLabel: data.name,
+    action: "create", actorId: user?.id, actorEmail: user?.email,
+    changes: diffForLog("contacts", {}, {
+      account_id, name, role, department, phone, phone2, phone3, email, email2,
+      website, linkedin_url, birthday, address_line1, address_line2, city, state, postal_code, country, notes,
+    }),
+  });
+
   return NextResponse.json(data, { status: 201 });
 }

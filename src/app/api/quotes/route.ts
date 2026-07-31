@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { generateNextQuoteRef } from "@/lib/quoteRef";
 import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig } from "@/lib/constants";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -163,6 +164,16 @@ export async function POST(request: NextRequest) {
     rev: 1,
     date: new Date().toISOString().split("T")[0],
     description: "Initial draft",
+  });
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "quotes", objectId: quote.id, objectLabel: quote.ref,
+    action: "create", actorId: user?.id, actorEmail: user?.email,
+    changes: diffForLog("quotes", {}, {
+      account_id, type: type ?? "quotation", name, contact_id, total: total ?? 0,
+      valid_until, ref_no, po_number, po_amount, gst_rate,
+    }),
   });
 
   return NextResponse.json({ id: quote.id, ref: quote.ref }, { status: 201 });
