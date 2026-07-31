@@ -8,6 +8,7 @@ import { hasBlockingIssue, validateQuoteRows, validateRow } from "@/lib/import/v
 import { buildErrorReportCsv, buildTemplateCsv, downloadCsv } from "@/lib/import/template";
 import type {
   ColumnMapping,
+  ExtractedRow,
   FieldSpec,
   ImportObjectId,
   ImportResponse,
@@ -20,7 +21,7 @@ import ColumnMapper from "./ColumnMapper";
 import ExportFlow from "./ExportFlow";
 import { banner, btn, btnGhost, card, mono, pill, stepDot, td, th, tone } from "./ui";
 
-type Step = "upload" | "map" | "review" | "done";
+type Step = "upload" | "extract-review" | "map" | "review" | "done";
 type Mode = "import" | "export" | "update";
 
 const MODES: { id: Mode; label: string }[] = [
@@ -161,7 +162,20 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
   const [showOnlyProblems, setShowOnlyProblems] = useState(false);
   const [pending, startImport] = useTransition();
 
+  // Extraction path: bypasses parse/mapping entirely -- the extraction
+  // endpoint already returns rows keyed by spec field keys, so once the
+  // user confirms them here they feed validateRow/validateQuoteRows directly.
+  const [extractedRows, setExtractedRows] = useState<ExtractedRow[] | null>(null);
+  const [extractionNotes, setExtractionNotes] = useState<string[]>([]);
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState("");
+
   const validated: ValidatedRow[] = useMemo(() => {
+    if (extractedRows) {
+      return spec.id === "quotes" && mode === "import"
+        ? validateQuoteRows(spec, extractedRows)
+        : extractedRows.map((r) => validateRow(spec, r.values, r.rowNum));
+    }
     if (!sheet) return [];
     const mapped = sheet.rows.map((row, i) => ({
       values: applyMapping(row, mapping),
@@ -172,13 +186,19 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
     return spec.id === "quotes" && mode === "import"
       ? validateQuoteRows(spec, mapped)
       : mapped.map((m) => validateRow(spec, m.values, m.rowNum));
-  }, [sheet, mapping, spec, mode]);
+  }, [sheet, mapping, spec, mode, extractedRows]);
 
   const readyRows = validated.filter((r) => !hasBlockingIssue(r));
   const problemRows = validated.filter(hasBlockingIssue);
 
   const claimed = new Set(Object.values(mapping).filter(Boolean) as string[]);
   const canProceedFromMapping = spec.fields.every((f) => !f.required || claimed.has(f.key));
+
+  // Mapped-column import shows only columns the user actually mapped;
+  // extraction has no column mapping, so show every field any row populated.
+  const reviewColumns = extractedRows
+    ? spec.fields.filter((f) => validated.some((r) => r.values[f.key] !== undefined))
+    : spec.fields.filter((f) => claimed.has(f.key));
 
   async function handleFile(file: File) {
     setParseError("");
@@ -201,6 +221,37 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
     }
   }
 
+  async function handleExtractFile(file: File) {
+    setExtractError("");
+    setResult(null);
+    setFileName(file.name);
+    setExtracting(true);
+
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("object", spec.id);
+      const res = await fetch("/api/import/extract", { method: "POST", body });
+      const json = await res.json();
+      if (!res.ok) {
+        setExtractError(json.error ?? `Extraction failed (${res.status})`);
+        return;
+      }
+      const rows = json.rows as ExtractedRow[];
+      if (rows.length === 0) {
+        setExtractError("No records could be found in that document. Try the file upload instead, or enter this record manually.");
+        return;
+      }
+      setExtractedRows(rows);
+      setExtractionNotes((json.documentNotes as string[]) ?? []);
+      setStep("extract-review");
+    } catch {
+      setExtractError("Could not reach the server. Check your connection and try again.");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
   function reset() {
     setStep("upload");
     setSheet(null);
@@ -210,6 +261,9 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
     setServerError("");
     setResult(null);
     setShowOnlyProblems(false);
+    setExtractedRows(null);
+    setExtractionNotes([]);
+    setExtractError("");
   }
 
   function runImport() {
@@ -262,6 +316,21 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
           fileRef={fileRef}
           onFile={handleFile}
           parseError={parseError}
+          onExtractFile={mode === "import" ? handleExtractFile : undefined}
+          extracting={extracting}
+          extractError={extractError}
+        />
+      )}
+
+      {step === "extract-review" && extractedRows && (
+        <ExtractReviewStep
+          spec={spec}
+          fileName={fileName}
+          rows={extractedRows}
+          notes={extractionNotes}
+          onRowsChange={setExtractedRows}
+          onContinue={() => setStep("review")}
+          onBack={reset}
         />
       )}
 
@@ -285,7 +354,7 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
         </div>
       )}
 
-      {step === "review" && sheet && (
+      {step === "review" && (sheet || extractedRows) && (
         <div style={card}>
           <SectionTitle
             title={mode === "update" ? "Review before updating" : "Review before importing"}
@@ -308,9 +377,8 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
           </div>
 
           <ReviewTable
-            spec={spec}
             rows={showOnlyProblems ? problemRows : validated}
-            mapping={mapping}
+            columns={reviewColumns}
           />
 
           {serverError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{serverError}</div>}
@@ -360,7 +428,10 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
 }
 
 function StepBar({ step }: { step: Step }) {
-  const index = STEPS.findIndex((s) => s.id === step);
+  // "extract-review" isn't one of the fixed steps -- it stands in for "map"
+  // (both sit between choosing a file and reviewing it) so the dots don't
+  // go blank while the user is on the extraction path.
+  const index = step === "extract-review" ? 1 : STEPS.findIndex((s) => s.id === step);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       {STEPS.map((s, i) => (
@@ -387,6 +458,7 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
 
 function UploadStep({
   spec, mode, dragging, setDragging, fileRef, onFile, parseError,
+  onExtractFile, extracting, extractError,
 }: {
   spec: ObjectSpec;
   mode: "import" | "update";
@@ -395,8 +467,13 @@ function UploadStep({
   fileRef: React.RefObject<HTMLInputElement | null>;
   onFile: (f: File) => void;
   parseError: string;
+  /** Only offered for Import — Update matches against an exported file's Record ID, which no document has. */
+  onExtractFile?: (f: File) => void;
+  extracting?: boolean;
+  extractError?: string;
 }) {
   const required = spec.fields.filter((f) => f.required);
+  const extractRef = useRef<HTMLInputElement>(null);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -478,19 +555,140 @@ function UploadStep({
         </div>
         {parseError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{parseError}</div>}
       </div>
+
+      {onExtractFile && (
+        <div style={card}>
+          <SectionTitle
+            title="Or extract from a messy document"
+            subtitle={`Have a quote letter, invoice, or spreadsheet that isn't already in this shape? Upload it and AI will pull out the ${spec.label.toLowerCase()} data for you to review before anything is imported.`}
+          />
+          <div
+            onClick={() => !extracting && extractRef.current?.click()}
+            style={{
+              border: `2px dashed ${c.line}`,
+              borderRadius: 10,
+              padding: "22px 24px",
+              textAlign: "center",
+              cursor: extracting ? "wait" : "pointer",
+              background: c.panel2,
+              opacity: extracting ? 0.7 : 1,
+            }}
+          >
+            <div style={{ fontSize: 22, marginBottom: 6 }}>{extracting ? "⏳" : "✨"}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>
+              {extracting ? "Reading your document…" : "Click to upload a document to extract"}
+            </div>
+            <div style={{ fontSize: 12, color: c.hint, marginTop: 5 }}>Excel (.xlsx) or CSV · up to 15 MB</div>
+            <input
+              ref={extractRef}
+              type="file"
+              accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              disabled={extracting}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onExtractFile(file);
+                e.target.value = "";
+              }}
+              style={{ display: "none" }}
+            />
+          </div>
+          {extractError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{extractError}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExtractReviewStep({
+  spec, fileName, rows, notes, onRowsChange, onContinue, onBack,
+}: {
+  spec: ObjectSpec;
+  fileName: string;
+  rows: ExtractedRow[];
+  notes: string[];
+  onRowsChange: (rows: ExtractedRow[]) => void;
+  onContinue: () => void;
+  onBack: () => void;
+}) {
+  const columns = spec.fields.filter((f) => !f.exportOnly);
+  const flaggedCount = rows.filter((r) => r.note).length;
+
+  function setCell(rowIndex: number, key: string, value: string) {
+    const next = rows.slice();
+    next[rowIndex] = { ...next[rowIndex], values: { ...next[rowIndex].values, [key]: value } };
+    onRowsChange(next);
+  }
+
+  return (
+    <div style={card}>
+      <SectionTitle
+        title="Review what was extracted"
+        subtitle={`${fileName} — ${rows.length} record${rows.length === 1 ? "" : "s"} found. Fix anything wrong before continuing — nothing is imported yet.`}
+      />
+
+      {notes.length > 0 && (
+        <div style={{ ...banner(tone.info), marginBottom: 14 }}>
+          <strong>About this extraction:</strong>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+            {notes.map((n, i) => <li key={i}>{n}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {flaggedCount > 0 && (
+        <div style={{ ...banner(tone.warn), marginBottom: 14 }}>
+          <strong>{flaggedCount}</strong> row{flaggedCount === 1 ? "" : "s"} flagged for a closer look — see the Notes column below.
+        </div>
+      )}
+
+      <div style={{ overflowX: "auto", border: `1px solid ${c.line}`, borderRadius: 9, maxHeight: 460, overflowY: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
+            <tr>
+              <th style={{ ...th, width: 52 }}>Row</th>
+              {columns.map((f) => (
+                <th key={f.key} style={th}>{f.label}{f.required ? " *" : ""}</th>
+              ))}
+              <th style={th}>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={row.rowNum} style={{ background: row.note ? tone.warn.bg : "transparent" }}>
+                <td style={{ ...td, ...mono, color: c.hint }}>{row.rowNum}</td>
+                {columns.map((f) => (
+                  <td key={f.key} style={td}>
+                    <input
+                      value={row.values[f.key] ?? ""}
+                      onChange={(e) => setCell(i, f.key, e.target.value)}
+                      style={{
+                        width: "100%", minWidth: 100, border: `1px solid ${c.line}`, borderRadius: 6,
+                        padding: "4px 7px", fontSize: 12.5, background: c.panel, color: c.ink,
+                      }}
+                    />
+                  </td>
+                ))}
+                <td style={{ ...td, color: tone.warn.fg, fontSize: 11.5, maxWidth: 220 }}>{row.note ?? ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "center" }}>
+        <button onClick={onContinue} style={btn()}>Looks good — continue to review →</button>
+        <button onClick={onBack} style={btnGhost}>Choose a different file</button>
+      </div>
     </div>
   );
 }
 
 function ReviewTable({
-  spec, rows, mapping,
+  rows, columns,
 }: {
-  spec: ObjectSpec;
   rows: ValidatedRow[];
-  mapping: ColumnMapping;
+  columns: FieldSpec[];
 }) {
-  const mappedKeys = new Set(Object.values(mapping).filter(Boolean) as string[]);
-  const columns = spec.fields.filter((f) => mappedKeys.has(f.key));
   const visible = rows.slice(0, 200);
 
   return (
