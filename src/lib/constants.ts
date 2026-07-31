@@ -85,6 +85,7 @@ export const ROUTES = {
   settingsEmailTemplates: "/settings/email-templates",
   settingsSales: "/settings/sales",
   settingsDeletionLog: "/settings/deletion-log",
+  settingsConnectors: "/settings/connectors",
   reports: "/reports",
   admin: "/admin",
   adminTenant: (id: string) => `/admin/tenants/${id}`,

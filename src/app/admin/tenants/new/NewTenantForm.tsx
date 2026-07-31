@@ -39,7 +39,7 @@ export default function NewTenantForm() {
   const [customDomain, setCustomDomain] = useState("");
   const [accentColor, setAccentColor] = useState("#3b82f6");
   const [logoUrl, setLogoUrl]         = useState("");
-  const [plan, setPlan]               = useState<"free" | "pro" | "enterprise">("free");
+  const [plan, setPlan]               = useState<"personal" | "small_business" | "enterprise">("personal");
   const [adminEmail, setAdminEmail]   = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [features, setFeatures]       = useState<TenantFeatures>({ ...DEFAULT_FEATURES });
@@ -162,13 +162,13 @@ export default function NewTenantForm() {
 
       {/* Plan + first admin */}
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
-        <h2 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Plan & first admin</h2>
+        <h2 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Business size & first admin</h2>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Plan</label>
+            <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Business size</label>
             <select style={inputStyle} value={plan} onChange={(e) => setPlan(e.target.value as typeof plan)}>
-              <option value="free">Free</option>
-              <option value="pro">Pro</option>
+              <option value="personal">Personal</option>
+              <option value="small_business">Small business</option>
               <option value="enterprise">Enterprise</option>
             </select>
           </div>

@@ -3,7 +3,12 @@
 // routes so a tenant data file always round-trips completely. Deliberately
 // excludes auth-coupled tables (tenant_users, platform_admins): user ids
 // don't exist across environments, and the import target already has its
-// own memberships.
+// own memberships. Also deliberately excludes tenant_connectors: unlike
+// business records, a connector credential is a LIVE key to an external
+// system (a real Slack webhook, eventually a real ERP token) -- cloning it
+// into another environment would let that environment's test traffic hit
+// production infrastructure, which is a materially different risk than
+// cloning a quote or an account.
 export const TENANT_TABLES = [
   "accounts", "contacts", "sites", "technicians", "suppliers",
   "assets", "contracts", "pricing_items", "text_fragments",
