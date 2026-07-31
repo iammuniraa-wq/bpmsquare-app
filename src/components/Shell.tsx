@@ -178,7 +178,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    try { setDark(localStorage.getItem(DARK_MODE_KEY) === "1"); } catch { /* ignore */ }
+    // Nextgen defaults to dark for a first-time visitor (no stored
+    // preference yet) -- an explicit "0" from a past toggle still wins.
+    try {
+      const stored = localStorage.getItem(DARK_MODE_KEY);
+      setDark(stored === null ? true : stored === "1");
+    } catch { setDark(true); }
   }, []);
   const toggleDark = () => {
     setDark((d) => {
