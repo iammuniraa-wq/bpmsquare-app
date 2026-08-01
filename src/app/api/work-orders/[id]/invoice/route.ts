@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { generateNextInvoiceRef } from "@/lib/invoiceRef";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -96,6 +97,20 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
   }
 
   await supabase.from("work_orders").update({ status: "invoiced" }).eq("id", id).eq("tenant_id", tenantId);
+
+  const user = await getAuthUser();
+  await Promise.all([
+    logChange(supabase, {
+      tenantId, objectType: "invoices", objectId: invoice.id, objectLabel: invoice.ref,
+      action: "create", actorId: user?.id, actorEmail: user?.email,
+      changes: diffForLog("invoices", {}, { total, work_order_id: id }),
+    }),
+    logChange(supabase, {
+      tenantId, objectType: "work_orders", objectId: id, objectLabel: (wo as { ref?: string }).ref ?? null,
+      action: "update", actorId: user?.id, actorEmail: user?.email,
+      changes: diffForLog("work_orders", wo as Record<string, unknown>, { status: "invoiced" }),
+    }),
+  ]);
 
   return NextResponse.json({ id: invoice.id, ref: invoice.ref }, { status: 201 });
 }

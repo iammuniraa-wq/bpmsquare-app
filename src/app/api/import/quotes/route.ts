@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { diffForLog, logChangeBatch, type ChangeLogEntryParams } from "@/lib/changeLog";
 import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig } from "@/lib/constants";
 import { formatQuoteRef } from "@/lib/quoteRefFormat";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
@@ -115,6 +116,8 @@ export async function POST(request: NextRequest) {
 
   const now = new Date();
   let seq = await nextSequence(supabase, tenantId, quoteFormat, now);
+  const user = await getAuthUser();
+  const logRows: ChangeLogEntryParams[] = [];
 
   for (const key of order) {
     const group = groups.get(key)!;
@@ -172,6 +175,7 @@ export async function POST(request: NextRequest) {
     };
 
     let quoteId: string | null = null;
+    let quoteRef: string | null = null;
     let lastError = "";
 
     // A concurrent import or UI-created quote can claim the same ref; step past it.
@@ -184,7 +188,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       seq++;
-      if (data?.id) { quoteId = data.id; break; }
+      if (data?.id) { quoteId = data.id; quoteRef = ref; break; }
       lastError = describeDbError(error);
       if (error?.code !== "23505") break;
     }
@@ -229,7 +233,15 @@ export async function POST(request: NextRequest) {
     for (const rowNum of group.rowNums.slice(1)) {
       outcomes.push({ rowNum, status: "skipped", reason: `line item of "${group.name}"` });
     }
+
+    logRows.push({
+      tenantId, objectType: "quotes", objectId: quoteId, objectLabel: quoteRef,
+      action: "create", actorId: user?.id, actorEmail: user?.email,
+      changes: diffForLog("quotes", {}, { ...record, ref: quoteRef, line_count: group.lines.length }),
+    });
   }
+
+  if (logRows.length > 0) await logChangeBatch(supabase, logRows);
 
   return NextResponse.json(summarise(outcomes));
 }

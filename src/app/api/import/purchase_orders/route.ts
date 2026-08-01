@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { buildObjectSpec } from "@/lib/import/registrySchema";
 import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
@@ -101,5 +101,8 @@ export async function POST(request: NextRequest) {
   }
 
   if (prepared.length === 0) return NextResponse.json(summarise(outcomes));
-  return NextResponse.json(await insertRows(supabase, "purchase_orders", prepared, outcomes));
+  const user = await getAuthUser();
+  return NextResponse.json(await insertRows(supabase, "purchase_orders", prepared, outcomes, {
+    objectType: "purchase_orders", labelField: "ref", actorId: user?.id, actorEmail: user?.email,
+  }));
 }

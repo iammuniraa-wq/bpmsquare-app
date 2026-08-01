@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { logChange } from "@/lib/changeLog";
 
 async function recomputeTotal(supabase: Awaited<ReturnType<typeof requireTenantUser>>["supabase"], poId: string, tenantId: string) {
   const { data: lines } = await supabase.from("purchase_order_lines").select("amount").eq("po_id", poId);
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const { id } = await params;
-  const { data: po } = await supabase.from("purchase_orders").select("status").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: po } = await supabase.from("purchase_orders").select("ref, status").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!po) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (po.status !== "draft") return NextResponse.json({ error: "Only draft purchase orders can have lines added" }, { status: 409 });
 
@@ -47,5 +48,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   await recomputeTotal(supabase, id, tenantId);
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "purchase_orders", objectId: id, objectLabel: po.ref,
+    action: "update", actorId: user?.id, actorEmail: user?.email,
+    changes: [{ field: "Line added", from: null, to: `${data.description}: qty ${data.qty_ordered} × rate ${data.rate} = ${data.amount}` }],
+  });
+
   return NextResponse.json(data, { status: 201 });
 }

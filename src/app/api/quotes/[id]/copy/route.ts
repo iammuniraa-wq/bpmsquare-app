@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { generateNextQuoteRef } from "@/lib/quoteRef";
 import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig } from "@/lib/constants";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 // Duplicate a quote as a brand-new draft with a fresh reference number.
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -86,6 +87,13 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     rev:       1,
     date:      new Date().toISOString().split("T")[0],
     description: `Copied from ${original.ref}`,
+  });
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "quotes", objectId: created.id, objectLabel: created.ref,
+    action: "create", actorId: user?.id, actorEmail: user?.email,
+    changes: diffForLog("quotes", {}, { copied_from: original.ref }),
   });
 
   return NextResponse.json({ id: created.id, ref: created.ref }, { status: 201 });

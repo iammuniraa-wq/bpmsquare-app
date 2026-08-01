@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { logChange } from "@/lib/changeLog";
 
 // The only place qty_on_hand is ever incremented from a purchase order -- one qty_received
 // update per line, plus an adjust_inventory_qty RPC call (ledgered) for any line that's
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "lines is required" }, { status: 400 });
   }
 
-  const { data: po } = await supabase.from("purchase_orders").select("id, status").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: po } = await supabase.from("purchase_orders").select("id, ref, status").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!po) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (po.status === "cancelled" || po.status === "received") {
     return NextResponse.json({ error: `Cannot receive against a ${po.status} purchase order` }, { status: 409 });
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: allLines } = await supabase.from("purchase_order_lines").select("*").eq("po_id", id);
   const lineById = new Map((allLines ?? []).map((l) => [l.id, l]));
+  const receivedEntries: { field: string; from: unknown; to: unknown }[] = [];
 
   for (const rl of receiveLines) {
     const line = lineById.get(rl.line_id);
@@ -43,6 +45,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .update({ qty_received: line.qty_received + qtyNow })
       .eq("id", line.id);
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+
+    receivedEntries.push({ field: `Received: ${line.description}`, from: line.qty_received, to: line.qty_received + qtyNow });
 
     if (line.inventory_item_id) {
       const { error: rpcErr } = await supabase.rpc("adjust_inventory_qty", {
@@ -73,6 +77,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .select("*")
     .single();
   if (statusErr) return NextResponse.json({ error: statusErr.message }, { status: 500 });
+
+  if (newStatus !== po.status) receivedEntries.push({ field: "status", from: po.status, to: newStatus });
+  if (receivedEntries.length > 0) {
+    const user = await getAuthUser();
+    await logChange(supabase, {
+      tenantId, objectType: "purchase_orders", objectId: id, objectLabel: po.ref,
+      action: "update", actorId: user?.id, actorEmail: user?.email, changes: receivedEntries,
+    });
+  }
 
   return NextResponse.json(updatedPo);
 }

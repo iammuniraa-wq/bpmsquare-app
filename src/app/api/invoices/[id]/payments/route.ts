@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { logChange } from "@/lib/changeLog";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "amount is required and must be positive" }, { status: 400 });
   }
 
-  const { data: invoice } = await supabase.from("invoices").select("status, total").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: invoice } = await supabase.from("invoices").select("ref, status, total").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (invoice.status === "draft" || invoice.status === "cancelled") {
     return NextResponse.json({ error: `Cannot record a payment against a ${invoice.status} invoice` }, { status: 409 });
@@ -69,5 +70,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .single();
 
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+
+  const user = await getAuthUser();
+  const changes: { field: string; from: unknown; to: unknown }[] = [
+    { field: "Payment recorded", from: null, to: `₹${amount} on ${body.paid_on || new Date().toISOString().slice(0, 10)}${body.method ? ` via ${body.method}` : ""}` },
+  ];
+  if (newStatus !== invoice.status) changes.push({ field: "status", from: invoice.status, to: newStatus });
+  await logChange(supabase, {
+    tenantId, objectType: "invoices", objectId: id, objectLabel: invoice.ref,
+    action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+  });
+
   return NextResponse.json(updated, { status: 201 });
 }

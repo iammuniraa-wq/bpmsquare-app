@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { encrypt } from "@/lib/encryption";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { buildObjectSpec } from "@/lib/import/registrySchema";
@@ -93,5 +93,8 @@ export async function POST(request: NextRequest) {
   }
 
   if (prepared.length === 0) return NextResponse.json(summarise(outcomes));
-  return NextResponse.json(await insertRows(supabase, "contacts", prepared, outcomes));
+  const user = await getAuthUser();
+  return NextResponse.json(await insertRows(supabase, "contacts", prepared, outcomes, {
+    objectType: "contacts", labelField: "name", actorId: user?.id, actorEmail: user?.email,
+  }));
 }

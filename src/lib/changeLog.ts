@@ -53,6 +53,40 @@ export function diffForLog(
   return changes;
 }
 
+export type LineSnapshot = { label: string; qty: number; rate: number; amount: number };
+
+function formatLine(l: LineSnapshot): string {
+  return `${l.label}: qty ${l.qty} × rate ${l.rate} = ${l.amount}`;
+}
+
+/**
+ * Diffs a wholesale-replaced line-item array (quote/invoice/PO lines are
+ * always delete-all-then-insert-all on edit, so there's no stable line id
+ * to match on across a save) by position. A line whose content differs at
+ * the same index is one "changed" entry; a length mismatch produces
+ * added/removed entries for the extra positions. Good enough for "what
+ * changed" without needing a real diff/LCS algorithm -- edits in the UI
+ * table overwhelmingly keep existing rows in place and add/remove at the end.
+ */
+export function diffLineItems(before: LineSnapshot[], after: LineSnapshot[]): ChangeEntry[] {
+  const changes: ChangeEntry[] = [];
+  const max = Math.max(before.length, after.length);
+  for (let i = 0; i < max; i++) {
+    const b = before[i];
+    const a = after[i];
+    if (b && a) {
+      if (b.label !== a.label || b.qty !== a.qty || b.rate !== a.rate || b.amount !== a.amount) {
+        changes.push({ field: `Line ${i + 1}`, from: formatLine(b), to: formatLine(a) });
+      }
+    } else if (b && !a) {
+      changes.push({ field: `Line ${i + 1} removed`, from: formatLine(b), to: null });
+    } else if (a && !b) {
+      changes.push({ field: `Line ${i + 1} added`, from: null, to: formatLine(a) });
+    }
+  }
+  return changes;
+}
+
 /**
  * Records one change_log row. Never throws -- a logging failure must not
  * fail the mutation it's describing. Call this with the tenant-scoped
@@ -87,5 +121,43 @@ export async function logChange(
     if (error) console.error(`[changeLog] insert failed for ${params.objectType}/${params.objectId}`, error.message);
   } catch (e) {
     console.error(`[changeLog] failed to record ${params.action} on ${params.objectType}/${params.objectId}`, e);
+  }
+}
+
+export type ChangeLogEntryParams = {
+  tenantId: string;
+  objectType: string;
+  objectId: string;
+  objectLabel?: string | null;
+  action: ChangeLogAction;
+  actorId?: string | null;
+  actorEmail?: string | null;
+  changes?: ChangeEntry[];
+};
+
+/**
+ * Same contract as logChange() (never throws, session client only, call
+ * after the real mutation succeeds) but for bulk operations -- Data
+ * Workbench import/update can touch hundreds of rows in one request, and
+ * one round trip beats one logChange() call per row.
+ */
+export async function logChangeBatch(supabase: SupabaseClient, rows: ChangeLogEntryParams[]): Promise<void> {
+  if (rows.length === 0) return;
+  try {
+    const { error } = await supabase.from("change_log").insert(
+      rows.map((r) => ({
+        tenant_id: r.tenantId,
+        object_type: r.objectType,
+        object_id: r.objectId,
+        object_label: r.objectLabel ?? null,
+        action: r.action,
+        changes: r.changes ?? [],
+        actor_id: r.actorId ?? null,
+        actor_email: r.actorEmail ?? null,
+      }))
+    );
+    if (error) console.error(`[changeLog] batch insert failed (${rows.length} rows)`, error.message);
+  } catch (e) {
+    console.error(`[changeLog] batch insert threw (${rows.length} rows)`, e);
   }
 }

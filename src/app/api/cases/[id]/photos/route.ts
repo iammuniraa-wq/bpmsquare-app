@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
+import { logChange } from "@/lib/changeLog";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -24,9 +25,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  let tenantId, userId;
+  let supabase, tenantId, userId;
   try {
-    ({ tenantId, userId } = await requireTenantUser());
+    ({ supabase, tenantId, userId } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Verify case belongs to this tenant
   const { data: sc } = await admin
     .from("service_cases")
-    .select("id")
+    .select("id, ref")
     .eq("id", caseId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -95,13 +96,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .single();
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "cases", objectId: caseId, objectLabel: sc.ref,
+    action: "update", actorId: user?.id, actorEmail: user?.email,
+    changes: [{ field: "Photo added", from: null, to: `${stage}${caption ? `: ${caption}` : ""}` }],
+  });
+
   return NextResponse.json(photo, { status: 201 });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  let tenantId;
+  let supabase, tenantId;
   try {
-    ({ tenantId } = await requireTenantUser());
+    ({ supabase, tenantId } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
@@ -114,7 +123,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const { data: photo } = await admin
     .from("case_photos")
-    .select("url")
+    .select("url, stage, caption")
     .eq("id", photoId)
     .eq("case_id", caseId)
     .eq("tenant_id", tenantId)
@@ -130,6 +139,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   }
 
   await admin.from("case_photos").delete().eq("id", photoId).eq("tenant_id", tenantId);
+
+  const { data: sc } = await admin.from("service_cases").select("ref").eq("id", caseId).eq("tenant_id", tenantId).maybeSingle();
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "cases", objectId: caseId, objectLabel: sc?.ref ?? null,
+    action: "update", actorId: user?.id, actorEmail: user?.email,
+    changes: [{ field: "Photo removed", from: `${photo.stage}${photo.caption ? `: ${photo.caption}` : ""}`, to: null }],
+  });
 
   return NextResponse.json({ ok: true });
 }
