@@ -5,6 +5,7 @@ import { getTenant } from "@/lib/tenant";
 import { renderTemplate } from "@/lib/emailTemplates";
 import { logEmail } from "@/lib/emailLog";
 import { Resend } from "resend";
+import { getGmailConnectorCredentials, findOriginalMessage, sendViaGmail, stripReplyPrefixes, buildReplySubject } from "@/lib/connectors/gmailReply";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -74,19 +75,54 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ? reqBody.body
     : renderTemplate("Dear {{customer_name}},\n\nPlease find attached our quotation {{quote_ref}}.\n\nRegards,\n{{company_name}}", vars);
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const { error: sendError } = await resend.emails.send({
-    from: fromAddress,
-    to: recipient,
-    replyTo,
-    subject,
-    text,
-    attachments: [{ filename: `${quote.ref}.pdf`, content: pdfBuffer }],
-  });
+  // Same best-effort Gmail reply-threading as api/quotes/[id]/email/route.ts
+  // -- see gmailReply.ts. Falls back to Resend on no connector/no match/any
+  // failure.
+  let sendError: { message: string } | null = null;
+  let sentViaGmail = false;
+  let finalSubject = subject;
+
+  const gmailCreds = await getGmailConnectorCredentials(supabase, tenantId);
+  if (gmailCreds) {
+    try {
+      const original = await findOriginalMessage(gmailCreds, recipient, subject);
+      if (original) {
+        const threadedSubject = buildReplySubject(stripReplyPrefixes(original.subject) || stripReplyPrefixes(subject));
+        const result = await sendViaGmail(gmailCreds, {
+          fromDisplayName: companyName,
+          to: recipient,
+          subject: threadedSubject,
+          text,
+          attachments: [{ filename: `${quote.ref}.pdf`, content: pdfBuffer }],
+          inReplyTo: original.messageId,
+          references: original.messageId,
+        });
+        if (result.ok) {
+          sentViaGmail = true;
+          finalSubject = threadedSubject;
+        }
+      }
+    } catch (e) {
+      console.error("[standard-quotes/email] Gmail threaded send failed, falling back to Resend", e);
+    }
+  }
+
+  if (!sentViaGmail) {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const result = await resend.emails.send({
+      from: fromAddress,
+      to: recipient,
+      replyTo,
+      subject,
+      text,
+      attachments: [{ filename: `${quote.ref}.pdf`, content: pdfBuffer }],
+    });
+    sendError = result.error ?? null;
+  }
 
   const user = await getAuthUser();
   await logEmail(supabase, {
-    tenantId, kind: "quote", toEmail: recipient, subject,
+    tenantId, kind: "quote", toEmail: recipient, subject: sentViaGmail ? finalSubject : subject,
     status: sendError ? "failed" : "sent",
     error: sendError?.message,
     relatedObjectType: "standard_quotes", relatedObjectId: quote.id, relatedObjectLabel: quote.ref,
@@ -94,7 +130,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   if (sendError) {
-    console.error("[standard-quotes/email] resend send failed", sendError);
+    console.error("[standard-quotes/email] send failed", sendError);
     return NextResponse.json({ error: "Failed to send email" }, { status: 502 });
   }
 

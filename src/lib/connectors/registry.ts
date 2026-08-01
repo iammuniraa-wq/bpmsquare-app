@@ -49,7 +49,7 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
   {
     id: "gmail",
     name: "Gmail",
-    description: "Send email via Gmail using an App Password — Google Account → Security → 2-Step Verification → App passwords (requires 2-Step Verification to be turned on).",
+    description: "Send quote emails via your own Gmail account using an App Password — Google Account → Security → 2-Step Verification → App passwords (requires 2-Step Verification to be turned on). When a customer's original email is found in your inbox with a matching subject, the quote sends as a real reply in that same thread instead of a new email.",
     icon: "⇄",
     authType: "api_key",
     fields: [

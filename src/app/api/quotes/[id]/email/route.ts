@@ -5,6 +5,7 @@ import { getTenant } from "@/lib/tenant";
 import { renderTemplate, DEFAULT_EMAIL_TEMPLATES } from "@/lib/emailTemplates";
 import { logEmail } from "@/lib/emailLog";
 import { Resend } from "resend";
+import { getGmailConnectorCredentials, findOriginalMessage, sendViaGmail, stripReplyPrefixes, buildReplySubject } from "@/lib/connectors/gmailReply";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -102,19 +103,60 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     text = text || renderTemplate(fallback.body, vars);
   }
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const { error: sendError } = await resend.emails.send({
-    from: fromAddress,
-    to: recipient,
-    replyTo,
-    subject,
-    text,
-    attachments: [{ filename: `${quote.ref}.pdf`, content: pdfBuffer }],
-  });
+  // If this tenant has a connected Gmail account, try to thread this send
+  // into the customer's original email as a real reply -- same App Password
+  // the connector already uses to send its test email, just also used here
+  // to read (IMAP) before sending (SMTP). Best-effort only: any failure at
+  // any step (not connected, no match found, IMAP/SMTP error) silently falls
+  // back to the existing Resend send below, which is always the safety net.
+  let sendError: { message: string } | null = null;
+  let sentViaGmail = false;
+  let finalSubject = subject;
+
+  const gmailCreds = await getGmailConnectorCredentials(supabase, tenantId);
+  if (gmailCreds) {
+    try {
+      const original = await findOriginalMessage(gmailCreds, recipient, subject);
+      if (original) {
+        const threadedSubject = buildReplySubject(stripReplyPrefixes(original.subject) || stripReplyPrefixes(subject));
+        const result = await sendViaGmail(gmailCreds, {
+          fromDisplayName: companyName,
+          to: recipient,
+          subject: threadedSubject,
+          text,
+          attachments: [{ filename: `${quote.ref}.pdf`, content: pdfBuffer }],
+          inReplyTo: original.messageId,
+          references: original.messageId,
+        });
+        if (result.ok) {
+          sentViaGmail = true;
+          finalSubject = threadedSubject;
+        }
+        // A found-but-failed Gmail send (e.g. an app password that's since
+        // been revoked) still falls through to the Resend attempt below --
+        // getting the quote out unthreaded beats not sending it at all.
+      }
+    } catch (e) {
+      console.error("[quotes/email] Gmail threaded send failed, falling back to Resend", e);
+    }
+  }
+
+  if (!sentViaGmail) {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const result = await resend.emails.send({
+      from: fromAddress,
+      to: recipient,
+      replyTo,
+      subject,
+      text,
+      attachments: [{ filename: `${quote.ref}.pdf`, content: pdfBuffer }],
+    });
+    sendError = result.error ?? null;
+  }
 
   const user = await getAuthUser();
   await logEmail(supabase, {
-    tenantId, kind: "quote", toEmail: recipient, subject,
+    tenantId, kind: "quote", toEmail: recipient, subject: sentViaGmail ? finalSubject : subject,
     status: sendError ? "failed" : "sent",
     error: sendError?.message,
     relatedObjectType: "quotes", relatedObjectId: quote.id, relatedObjectLabel: quote.ref,
@@ -122,7 +164,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   if (sendError) {
-    console.error("[quotes/email] resend send failed", sendError);
+    console.error("[quotes/email] send failed", sendError);
     return NextResponse.json({ error: "Failed to send email" }, { status: 502 });
   }
 
