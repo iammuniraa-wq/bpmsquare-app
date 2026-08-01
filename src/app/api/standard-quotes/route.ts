@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { account_id, contact_id, valid_until, terms, notes, lines } = body;
+  const { account_id, contact_id, valid_until, terms, notes, lines, template_id } = body;
 
   if (!account_id) {
     return NextResponse.json({ error: "account_id is required" }, { status: 400 });
@@ -47,6 +47,16 @@ export async function POST(request: NextRequest) {
   if (contact_id) {
     const { data: contact } = await supabase.from("contacts").select("id").eq("id", contact_id).eq("tenant_id", tenantId).maybeSingle();
     if (!contact) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+  }
+
+  let templateId: string | null = null;
+  if (template_id) {
+    const { data: tmpl } = await supabase.from("standard_quote_templates").select("id").eq("id", template_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!tmpl) return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    templateId = tmpl.id;
+  } else {
+    const { data: defaultTmpl } = await supabase.from("standard_quote_templates").select("id").eq("tenant_id", tenantId).eq("is_default", true).maybeSingle();
+    templateId = defaultTmpl?.id ?? null;
   }
 
   const cleanLines = Array.isArray(lines)
@@ -83,6 +93,7 @@ export async function POST(request: NextRequest) {
     subtotal,
     total: subtotal,
     created_by: userId,
+    template_id: templateId,
   };
 
   let quote: { id: string; ref: string } | null = null;

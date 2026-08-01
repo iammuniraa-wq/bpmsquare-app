@@ -339,6 +339,7 @@ export type StandardQuote = {
   created_at: string;
   updated_at: string;
   sent_at: string | null;
+  template_id: string | null;
 };
 
 export type StandardQuoteLine = {
@@ -352,6 +353,38 @@ export type StandardQuoteLine = {
   rate: number;
   discount_pct: number;
   amount: number;
+};
+
+// Standard Quote branded templates -- an ordered list of blocks a tenant can
+// reorder, show/hide, and (for the two free-text ones) author content for.
+// "letterhead"/"quote_meta"/"bill_to"/"line_items"/"totals" are structural --
+// always rendered, reorder only, no visibility toggle -- everything else is
+// optional. See supabase/migrations/0054_standard_quote_templates.sql.
+export type StandardQuoteTemplateBlockType =
+  | "letterhead" | "quote_meta" | "bill_to" | "intro_text" | "line_items"
+  | "totals" | "notes" | "terms" | "signature" | "footer_text";
+
+export const STANDARD_QUOTE_REQUIRED_BLOCKS: StandardQuoteTemplateBlockType[] = [
+  "letterhead", "quote_meta", "bill_to", "line_items", "totals",
+];
+
+export type StandardQuoteTemplateBlock = {
+  id: string;
+  type: StandardQuoteTemplateBlockType;
+  visible: boolean;
+  content?: string;
+};
+
+export type StandardQuoteTemplate = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  is_default: boolean;
+  accent_color: string | null;
+  logo_position: "left" | "center" | "right";
+  blocks: StandardQuoteTemplateBlock[];
+  created_at: string;
+  updated_at: string;
 };
 
 export type InvoicePayment = {

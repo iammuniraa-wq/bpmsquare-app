@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { requireTenantUser } from "@/lib/supabase-server";
 import { listStandardQuotes } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -37,7 +38,7 @@ export default async function StandardQuotesPage({
 }) {
   await requireWorkcenterView("standard_quotes");
   const { status: statusFilter } = await searchParams;
-  const quotes = await listStandardQuotes();
+  const [quotes, { role }] = await Promise.all([listStandardQuotes(), requireTenantUser()]);
 
   const summary = SUMMARY_STATUSES.map((s) => ({
     status: s,
@@ -53,16 +54,26 @@ export default async function StandardQuotesPage({
         title="Standard Quotes"
         subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as StandardQuoteStatus] ?? statusFilter}` : ""} of ${quotes.length} total`}
         action={
-          <Link
-            href={ROUTES.standardQuoteNew}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-              background: c.accent, color: "#fff", textDecoration: "none",
-            }}
-          >
-            + New Standard Quote
-          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {role === "admin" && (
+              <Link
+                href={ROUTES.standardQuoteTemplates}
+                style={{ fontSize: 12.5, fontWeight: 600, color: c.muted, textDecoration: "none", border: `1px solid ${c.line}`, borderRadius: 8, padding: "8px 14px" }}
+              >
+                Manage Templates
+              </Link>
+            )}
+            <Link
+              href={ROUTES.standardQuoteNew}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                background: c.accent, color: "#fff", textDecoration: "none",
+              }}
+            >
+              + New Standard Quote
+            </Link>
+          </div>
         }
       />
 

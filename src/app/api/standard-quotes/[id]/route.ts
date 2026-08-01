@@ -48,13 +48,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!contact) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
   }
 
+  if (body.template_id) {
+    const { data: tmpl } = await supabase.from("standard_quote_templates").select("id").eq("id", body.template_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!tmpl) return NextResponse.json({ error: "Template not found" }, { status: 404 });
+  }
+
   const { data: beforeLines } = await supabase
     .from("standard_quote_lines")
     .select("description, qty, rate, amount")
     .eq("standard_quote_id", id)
     .order("sl_no");
 
-  const allowed = ["contact_id", "valid_until", "terms", "notes", "status"];
+  const allowed = ["contact_id", "valid_until", "terms", "notes", "status", "template_id"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key] || null;
   if ("status" in body) patch.status = body.status;

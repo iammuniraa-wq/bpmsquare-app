@@ -40,14 +40,16 @@ type EditQuote = {
   valid_until: string | null;
   notes: string | null;
   terms: string | null;
+  template_id: string | null;
   lines: { sl_no: string | null; description: string; uom: string | null; qty: number; rate: number; discount_pct: number }[];
 };
 
 export default function StandardQuoteForm({
-  accounts, contacts, editQuote,
+  accounts, contacts, templates, editQuote,
 }: {
   accounts: { id: string; name: string }[];
   contacts: { id: string; name: string; account_id: string }[];
+  templates: { id: string; name: string; is_default: boolean }[];
   editQuote?: EditQuote;
 }) {
   const router = useRouter();
@@ -59,6 +61,9 @@ export default function StandardQuoteForm({
   const [validUntil, setValidUntil] = useState(editQuote?.valid_until ?? "");
   const [notes, setNotes] = useState(editQuote?.notes ?? "");
   const [terms, setTerms] = useState(editQuote?.terms ?? "");
+  const [templateId, setTemplateId] = useState(
+    editQuote?.template_id ?? templates.find((t) => t.is_default)?.id ?? ""
+  );
   const [lines, setLines] = useState<Line[]>(
     editQuote && editQuote.lines.length > 0
       ? editQuote.lines.map((l) => ({
@@ -93,6 +98,7 @@ export default function StandardQuoteForm({
               valid_until: validUntil || null,
               notes: notes || null,
               terms: terms || null,
+              template_id: templateId || null,
               lines: linePayload,
             }),
           })
@@ -105,6 +111,7 @@ export default function StandardQuoteForm({
               valid_until: validUntil || null,
               notes: notes || null,
               terms: terms || null,
+              template_id: templateId || null,
               lines: linePayload,
             }),
           });
@@ -155,9 +162,18 @@ export default function StandardQuoteForm({
                   </select>
                 </div>
               </div>
-              <div>
-                <label style={lbl}>Valid until</label>
-                <input style={{ ...inp, maxWidth: 200 }} type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={lbl}>Valid until</label>
+                  <input style={inp} type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+                </div>
+                <div>
+                  <label style={lbl}>Template</label>
+                  <select style={inp} value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+                    <option value="">Default layout</option>
+                    {templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.is_default ? " (default)" : ""}</option>)}
+                  </select>
+                </div>
               </div>
             </section>
 

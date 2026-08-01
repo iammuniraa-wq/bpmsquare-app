@@ -56,6 +56,8 @@ export const ROUTES = {
   standardQuoteEdit: (id: string) => `/standard-quotes/${id}/edit`,
   standardQuoteNew: "/standard-quotes/new",
   standardQuotePrint: (id: string) => `/standard-quotes/${id}/print`,
+  standardQuoteTemplates: "/standard-quotes/templates",
+  standardQuoteTemplate: (id: string) => `/standard-quotes/templates/${id}`,
   configPricing: "/settings/pricing",
   configTemplates: "/settings/templates",
   configCustomFields: "/settings/custom-fields",

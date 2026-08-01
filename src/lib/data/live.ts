@@ -13,7 +13,7 @@ import type {
   VisitLog, PricingItem, TextFragment, CaseStatus, CasePhoto, InspectionReport,
   Supplier, InventoryItem, PurchaseOrder, PurchaseOrderLine, InvoiceLine, InvoicePayment,
   MarketingCampaign, MarketingCampaignRecipient, MarketingTargetGroup, AccountType,
-  StandardQuote, StandardQuoteLine,
+  StandardQuote, StandardQuoteLine, StandardQuoteTemplate,
 } from "@/lib/types";
 import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
@@ -71,6 +71,17 @@ export async function listStandardQuotes(): Promise<StandardQuoteRow[]> {
   }));
 }
 
+export async function listStandardQuoteTemplates(): Promise<StandardQuoteTemplate[]> {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase()
+    .from("standard_quote_templates")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .order("name");
+  return (data ?? []) as StandardQuoteTemplate[];
+}
+
 export async function getStandardQuoteLive(id: string) {
   const tenantId = await currentTenantId();
   if (!tenantId) return null;
@@ -84,11 +95,14 @@ export async function getStandardQuoteLive(id: string) {
     .maybeSingle();
   if (!quote) return null;
 
-  const [{ data: lines }, { data: account }, { data: contact }] = await Promise.all([
+  const [{ data: lines }, { data: account }, { data: contact }, { data: template }] = await Promise.all([
     supabase.from("standard_quote_lines").select("*").eq("standard_quote_id", id).order("sl_no"),
     supabase.from("accounts").select("*").eq("id", quote.account_id).maybeSingle(),
     quote.contact_id
       ? supabase.from("contacts").select("*").eq("id", quote.contact_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    quote.template_id
+      ? supabase.from("standard_quote_templates").select("*").eq("id", quote.template_id).eq("tenant_id", tenantId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -100,6 +114,7 @@ export async function getStandardQuoteLive(id: string) {
     lines: (lines ?? []) as StandardQuoteLine[],
     account: decryptedAccount,
     contact: decryptedContact,
+    template: (template as StandardQuoteTemplate | null) ?? null,
   };
 }
 

@@ -8,7 +8,7 @@ export default async function StandardQuotePrintPage({ params }: { params: Promi
   const [data, tenant] = await Promise.all([getStandardQuoteLive(id), getTenant()]);
   if (!data) notFound();
 
-  const { quote, lines, account, contact } = data;
+  const { quote, lines, account, contact, template } = data;
 
   return (
     <StandardQuotePrint
@@ -18,6 +18,7 @@ export default async function StandardQuotePrintPage({ params }: { params: Promi
       contact={contact}
       companyInfo={tenant?.company_info ?? {}}
       logoUrl={tenant?.logo_url ?? null}
+      template={template}
     />
   );
 }
