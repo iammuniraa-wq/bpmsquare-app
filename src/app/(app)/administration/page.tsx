@@ -22,6 +22,7 @@ const SECTIONS: { group: string; items: AdminCard[] }[] = [
     group: "Audit",
     items: [
       { label: "Change History", description: "Every create, update, and delete across your records — who, when, and what changed", href: ROUTES.administrationChangeHistory, icon: "🕘", pillarKey: "teal" },
+      { label: "Outbound Emails", description: "Every quote email and campaign send — recipient, subject, and whether it succeeded", href: ROUTES.administrationOutboundEmails, icon: "✉️", pillarKey: "blue" },
     ],
   },
 ];

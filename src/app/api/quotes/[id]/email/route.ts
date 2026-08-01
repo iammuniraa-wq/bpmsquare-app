@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { getQuote } from "@/lib/data";
 import { getTenant } from "@/lib/tenant";
 import { renderTemplate, DEFAULT_EMAIL_TEMPLATES } from "@/lib/emailTemplates";
+import { logEmail } from "@/lib/emailLog";
 import { Resend } from "resend";
 
 export const runtime = "nodejs";
@@ -109,6 +110,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     subject,
     text,
     attachments: [{ filename: `${quote.ref}.pdf`, content: pdfBuffer }],
+  });
+
+  const user = await getAuthUser();
+  await logEmail(supabase, {
+    tenantId, kind: "quote", toEmail: recipient, subject,
+    status: sendError ? "failed" : "sent",
+    error: sendError?.message,
+    relatedObjectType: "quotes", relatedObjectId: quote.id, relatedObjectLabel: quote.ref,
+    actorId: user?.id, actorEmail: user?.email,
   });
 
   if (sendError) {

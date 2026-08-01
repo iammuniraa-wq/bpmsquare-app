@@ -101,6 +101,7 @@ export const ROUTES = {
   dataWorkbench: "/data-workbench",
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
+  administrationOutboundEmails: "/administration/outbound-emails",
 } as const;
 
 export type NavItem = {
