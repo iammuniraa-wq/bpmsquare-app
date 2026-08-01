@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (!(await tenantHasFeature(supabase, tenantId, "standard_quotes"))) {
+    return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { id } = await params;

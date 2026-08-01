@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { getQuote } from "@/lib/data";
-import { getTenant } from "@/lib/tenant";
+import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { renderTemplate, DEFAULT_EMAIL_TEMPLATES } from "@/lib/emailTemplates";
 import { logEmail } from "@/lib/emailLog";
 import { Resend } from "resend";
@@ -113,7 +113,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   let sentViaGmail = false;
   let finalSubject = subject;
 
-  const gmailCreds = await getGmailConnectorCredentials(supabase, tenantId);
+  const gmailCreds = (await tenantHasFeature(supabase, tenantId, "gmail_reply_threading"))
+    ? await getGmailConnectorCredentials(supabase, tenantId)
+    : null;
   if (gmailCreds) {
     try {
       const original = await findOriginalMessage(gmailCreds, recipient, subject);

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 import { applyFilters } from "@/lib/import/exportServer";
 import { fetchAllRows } from "@/lib/import/server";
 import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
@@ -13,6 +14,9 @@ export async function POST(request: NextRequest) {
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (!(await tenantHasFeature(supabase, tenantId, "quote_lines_dw"))) {
+    return NextResponse.json({ error: "Quote Lines isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { filters = [] } = (await request.json()) as { filters?: ExportFilter[] };

@@ -1,12 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { requireFeature } from "@/lib/tenant";
 import { getStandardQuoteLive, listStandardQuoteTemplates } from "@/lib/data/live";
 import { ROUTES } from "@/lib/constants";
 import StandardQuoteForm from "../../new/StandardQuoteForm";
 
 export default async function EditStandardQuotePage({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkcenterView("standard_quotes");
+  await requireFeature("standard_quotes");
   const { id } = await params;
   const { supabase, tenantId } = await requireTenantUser();
 

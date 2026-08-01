@@ -20,6 +20,7 @@ export default async function StandardQuoteTemplateBuilderPage({ params }: { par
     supabase.from("standard_quote_templates").select("*").eq("id", id).eq("tenant_id", tenantId).maybeSingle(),
     getTenant(),
   ]);
+  if (!tenant?.features?.standard_quotes) redirect(ROUTES.dashboard);
   if (!template) notFound();
 
   return (

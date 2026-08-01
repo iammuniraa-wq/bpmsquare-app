@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { ROUTES } from "@/lib/constants";
+import { getTenant } from "@/lib/tenant";
+import { ROUTES, type TenantFeatures } from "@/lib/constants";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
@@ -15,20 +16,20 @@ import TabTitle from "@/components/TabTitle";
 // here as more audit/ops surfaces ship (outbound email log, etc.) instead of
 // piling into Settings.
 
-type AdminCard = { label: string; description: string; href: string; icon: string; pillarKey: PillarKey };
+type AdminCard = { label: string; description: string; href: string; icon: string; pillarKey: PillarKey; featureKey: keyof TenantFeatures };
 
 const SECTIONS: { group: string; items: AdminCard[] }[] = [
   {
     group: "Audit",
     items: [
-      { label: "Change History", description: "Every create, update, and delete across your records — who, when, and what changed", href: ROUTES.administrationChangeHistory, icon: "🕘", pillarKey: "teal" },
-      { label: "Outbound Emails", description: "Every quote email and campaign send — recipient, subject, and whether it succeeded", href: ROUTES.administrationOutboundEmails, icon: "✉️", pillarKey: "blue" },
+      { label: "Change History", description: "Every create, update, and delete across your records — who, when, and what changed", href: ROUTES.administrationChangeHistory, icon: "🕘", pillarKey: "teal", featureKey: "change_history" },
+      { label: "Outbound Emails", description: "Every quote email and campaign send — recipient, subject, and whether it succeeded", href: ROUTES.administrationOutboundEmails, icon: "✉️", pillarKey: "blue", featureKey: "outbound_email" },
     ],
   },
   {
     group: "Access",
     items: [
-      { label: "Business Roles", description: "Define named roles, grant them specific workcenters, and assign roles to team members", href: ROUTES.administrationBusinessRoles, icon: "🔐", pillarKey: "purple" },
+      { label: "Business Roles", description: "Define named roles, grant them specific workcenters, and assign roles to team members", href: ROUTES.administrationBusinessRoles, icon: "🔐", pillarKey: "purple", featureKey: "business_roles" },
     ],
   },
 ];
@@ -71,12 +72,20 @@ export default async function AdministrationHubPage() {
   }
   if (role !== "admin") redirect(ROUTES.dashboard);
 
+  const tenant = await getTenant();
+  const features = tenant?.features;
+  const visibleSections = SECTIONS
+    .map((section) => ({ ...section, items: section.items.filter((item) => features?.[item.featureKey] === true) }))
+    .filter((section) => section.items.length > 0);
+
+  if (visibleSections.length === 0) redirect(ROUTES.dashboard);
+
   return (
     <>
       <TabTitle title="Administrator" />
       <PageHeader title="Administrator" subtitle="Audit trails and operations tooling for your workspace" />
       <div style={{ maxWidth: 780 }}>
-        {SECTIONS.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.group} style={{ marginBottom: 22 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>
               {section.group}

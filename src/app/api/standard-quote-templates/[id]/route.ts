@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 import { sanitizeStandardQuoteBlocks, HEX_COLOR_RE, LOGO_POSITIONS } from "@/lib/standardQuoteTemplateBlocks";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -9,6 +10,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (!(await tenantHasFeature(supabase, tenantId, "standard_quotes"))) {
+    return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -27,6 +31,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await tenantHasFeature(supabase, tenantId, "standard_quotes"))) {
+    return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
+  }
 
   const { id } = await params;
   const { data: existing } = await supabase.from("standard_quote_templates").select("id").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
@@ -81,6 +88,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await tenantHasFeature(supabase, tenantId, "standard_quotes"))) {
+    return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
+  }
 
   const { id } = await params;
   const { data: existing } = await supabase.from("standard_quote_templates").select("id").eq("id", id).eq("tenant_id", tenantId).maybeSingle();

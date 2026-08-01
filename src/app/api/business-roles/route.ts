@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 import { WORKCENTERS, type WorkcenterKey } from "@/lib/permissions";
 
 const VALID_WORKCENTERS = new Set<string>(WORKCENTERS.map((w) => w.key));
@@ -51,6 +52,12 @@ export async function GET() {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+  // Degrade to "no roles" rather than an error when the feature is off --
+  // Settings -> Team calls this to populate its role-assignment picker, and
+  // an empty list there is the correct "nothing to assign yet" state.
+  if (!(await tenantHasFeature(supabase, tenantId, "business_roles"))) {
+    return NextResponse.json({ roles: [] });
+  }
 
   const { data: roles, error } = await supabase
     .from("business_roles")
@@ -85,6 +92,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await tenantHasFeature(supabase, tenantId, "business_roles"))) {
+    return NextResponse.json({ error: "Business Roles isn't enabled for your workspace" }, { status: 403 });
+  }
 
   const body = await request.json();
   const name = (body.name ?? "").trim();

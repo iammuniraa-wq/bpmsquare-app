@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 import {
   defaultStandardQuoteBlocks, sanitizeStandardQuoteBlocks, HEX_COLOR_RE, LOGO_POSITIONS,
 } from "@/lib/standardQuoteTemplateBlocks";
@@ -11,6 +12,9 @@ export async function GET() {
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (!(await tenantHasFeature(supabase, tenantId, "standard_quotes"))) {
+    return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { data, error } = await supabase
@@ -34,6 +38,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await tenantHasFeature(supabase, tenantId, "standard_quotes"))) {
+    return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
+  }
 
   const body = await request.json();
   const name = (body.name ?? "").trim();

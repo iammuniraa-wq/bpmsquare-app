@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 
 // PUT /api/settings/team/[id]/roles -- replace a member's full set of
 // Business Role assignments wholesale (the UI always sends the complete
@@ -16,6 +17,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await tenantHasFeature(supabase, tenantId, "business_roles"))) {
+    return NextResponse.json({ error: "Business Roles isn't enabled for your workspace" }, { status: 403 });
+  }
 
   const { id: targetUserId } = await params;
   const body = await request.json();

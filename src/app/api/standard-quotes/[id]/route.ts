@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 
@@ -12,6 +13,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (!(await tenantHasFeature(supabase, tenantId, "standard_quotes"))) {
+    return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -32,6 +36,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (!(await tenantHasFeature(supabase, tenantId, "standard_quotes"))) {
+    return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -143,6 +150,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (!(await tenantHasFeature(supabase, tenantId, "standard_quotes"))) {
+    return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { id } = await params;

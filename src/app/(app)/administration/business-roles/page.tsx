@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { requireFeature } from "@/lib/tenant";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { ROUTES } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
@@ -15,6 +16,7 @@ export default async function BusinessRolesPage() {
     redirect(ROUTES.dashboard);
   }
   if (role !== "admin") redirect(ROUTES.dashboard);
+  await requireFeature("business_roles");
 
   const salesConfig = await getSalesConfig(supabase, tenantId);
 

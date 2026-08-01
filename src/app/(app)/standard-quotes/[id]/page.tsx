@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { requireFeature } from "@/lib/tenant";
 import { getStandardQuoteLive } from "@/lib/data/live";
 import { c, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -40,6 +41,7 @@ function CtxLabel({ children }: { children: React.ReactNode }) {
 
 export default async function StandardQuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkcenterView("standard_quotes");
+  await requireFeature("standard_quotes");
   const { id } = await params;
   const data = await getStandardQuoteLive(id);
   if (!data) notFound();

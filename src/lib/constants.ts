@@ -153,7 +153,7 @@ export const NAV: NavGroup[] = [
         label: "Sales", href: ROUTES.quotations, icon: "₹", pillar: "blue",
         children: [
           { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", workcenterKey: "quotations" },
-          { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", workcenterKey: "standard_quotes" },
+          { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
         ],
@@ -339,6 +339,15 @@ export type TenantFeatures = {
   db_export: boolean;
   purchasing: boolean;
   marketing: boolean;
+  // Rolled out to the demo tenant only for now -- off by default everywhere
+  // else (including existing clients) until explicitly turned on per tenant
+  // via /admin/tenants/[id].
+  change_history: boolean;
+  outbound_email: boolean;
+  business_roles: boolean;
+  standard_quotes: boolean;
+  gmail_reply_threading: boolean;
+  quote_lines_dw: boolean;
 };
 
 // All metric IDs available in the Analytics page.

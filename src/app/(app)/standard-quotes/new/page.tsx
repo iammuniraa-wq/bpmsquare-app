@@ -1,10 +1,12 @@
 import { requireTenantUser } from "@/lib/supabase-server";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { requireFeature } from "@/lib/tenant";
 import { listStandardQuoteTemplates } from "@/lib/data/live";
 import StandardQuoteForm from "./StandardQuoteForm";
 
 export default async function NewStandardQuotePage() {
   await requireWorkcenterView("standard_quotes");
+  await requireFeature("standard_quotes");
   const { supabase, tenantId } = await requireTenantUser();
 
   const [{ data: accounts }, { data: contacts }, templates] = await Promise.all([

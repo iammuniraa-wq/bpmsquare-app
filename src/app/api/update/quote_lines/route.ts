@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 import { readImportBody } from "@/lib/import/server";
 import { summariseUpdate, updateRows, type PreparedUpdate } from "@/lib/import/updateServer";
 import { logChangeBatch, type ChangeLogEntryParams } from "@/lib/changeLog";
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (!(await tenantHasFeature(supabase, tenantId, "quote_lines_dw"))) {
+    return NextResponse.json({ error: "Quote Lines isn't enabled for your workspace" }, { status: 403 });
   }
 
   const rows = readImportBody(await request.json());

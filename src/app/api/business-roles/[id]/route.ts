@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 import { WORKCENTERS, type WorkcenterKey } from "@/lib/permissions";
 import type { GrantInput } from "../route";
 
@@ -39,6 +40,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await tenantHasFeature(supabase, tenantId, "business_roles"))) {
+    return NextResponse.json({ error: "Business Roles isn't enabled for your workspace" }, { status: 403 });
+  }
 
   const { id } = await params;
   const { data: existing } = await supabase.from("business_roles").select("id").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
@@ -82,6 +86,9 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await tenantHasFeature(supabase, tenantId, "business_roles"))) {
+    return NextResponse.json({ error: "Business Roles isn't enabled for your workspace" }, { status: 403 });
+  }
 
   const { id } = await params;
   const { error } = await supabase.from("business_roles").delete().eq("id", id).eq("tenant_id", tenantId);

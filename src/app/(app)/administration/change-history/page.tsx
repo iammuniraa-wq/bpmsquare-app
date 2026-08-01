@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { requireFeature } from "@/lib/tenant";
 import { ROUTES } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
@@ -13,6 +14,7 @@ export default async function ChangeHistoryPage() {
     redirect(ROUTES.dashboard);
   }
   if (role !== "admin") redirect(ROUTES.dashboard);
+  await requireFeature("change_history");
 
   return (
     <>

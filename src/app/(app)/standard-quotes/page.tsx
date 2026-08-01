@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { requireFeature } from "@/lib/tenant";
 import { listStandardQuotes } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -37,6 +38,7 @@ export default async function StandardQuotesPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   await requireWorkcenterView("standard_quotes");
+  await requireFeature("standard_quotes");
   const { status: statusFilter } = await searchParams;
   const [quotes, { role }] = await Promise.all([listStandardQuotes(), requireTenantUser()]);
 

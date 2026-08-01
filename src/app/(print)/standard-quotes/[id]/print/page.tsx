@@ -6,7 +6,7 @@ import StandardQuotePrint from "@/components/StandardQuotePrint";
 export default async function StandardQuotePrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [data, tenant] = await Promise.all([getStandardQuoteLive(id), getTenant()]);
-  if (!data) notFound();
+  if (!data || !tenant?.features?.standard_quotes) notFound();
 
   const { quote, lines, account, contact, template } = data;
 

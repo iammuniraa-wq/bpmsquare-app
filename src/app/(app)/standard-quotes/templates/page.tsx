@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { requireFeature } from "@/lib/tenant";
 import { listStandardQuoteTemplates } from "@/lib/data/live";
 import { ROUTES } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
@@ -13,6 +14,7 @@ export default async function StandardQuoteTemplatesPage() {
     redirect(ROUTES.dashboard);
   }
   if (role !== "admin") redirect(ROUTES.standardQuotes);
+  await requireFeature("standard_quotes");
 
   const templates = await listStandardQuoteTemplates();
 
