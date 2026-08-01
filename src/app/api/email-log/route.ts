@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 
 const MAX_ROWS = 5000;
 
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
   // address and message the tenant has ever emailed via a bare fetch.
   if (role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!(await tenantHasFeature(supabase, tenantId, "outbound_email"))) {
+    return NextResponse.json({ error: "Outbound Emails isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);

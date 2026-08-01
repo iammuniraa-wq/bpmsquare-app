@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 
 const MAX_ROWS = 5000;
 
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
   // the full audit trail -- including other users' actions -- directly.
   if (role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!(await tenantHasFeature(supabase, tenantId, "change_history"))) {
+    return NextResponse.json({ error: "Change History isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
