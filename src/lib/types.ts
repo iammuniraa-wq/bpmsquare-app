@@ -318,6 +318,42 @@ export type InvoiceLine = {
   amount: number;
 };
 
+// Standard Quote -- a deliberately independent object, not the (separate)
+// Quotation object's type/status/config system. See supabase/migrations/
+// 0053_standard_quotes.sql for why it's kept apart.
+export type StandardQuoteStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
+
+export type StandardQuote = {
+  id: string;
+  tenant_id: string;
+  ref: string;
+  account_id: string;
+  contact_id: string | null;
+  status: StandardQuoteStatus;
+  valid_until: string | null;
+  terms: string | null;
+  notes: string | null;
+  subtotal: number;
+  total: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  sent_at: string | null;
+};
+
+export type StandardQuoteLine = {
+  id: string;
+  tenant_id: string;
+  standard_quote_id: string;
+  sl_no: string | null;
+  description: string;
+  uom: string | null;
+  qty: number;
+  rate: number;
+  discount_pct: number;
+  amount: number;
+};
+
 export type InvoicePayment = {
   id: string;
   tenant_id: string;

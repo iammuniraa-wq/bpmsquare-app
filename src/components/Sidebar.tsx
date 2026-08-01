@@ -140,12 +140,13 @@ type SectionProps = {
   compact: boolean;
   features?: Record<string, boolean>;
   viewable: ViewableWorkcenters;
+  hidden: Set<string>;
   expanded: Record<string, boolean>;
   onToggleExpand: (href: string) => void;
 };
 
 function DraggableSection({
-  items, isFavSection, isActive, onToggleFav, onReorder, onNavigate, accent, compact, features, viewable, expanded, onToggleExpand,
+  items, isFavSection, isActive, onToggleFav, onReorder, onNavigate, accent, compact, features, viewable, hidden, expanded, onToggleExpand,
 }: SectionProps) {
   const [dropAt, setDropAt]   = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
@@ -285,7 +286,7 @@ function DraggableSection({
             {hasChildren && isOpen && (
               <div style={{ marginLeft: 10 }}>
                 {item.children!
-                  .filter((ch) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable))
+                  .filter((ch) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable) && !hidden.has(ch.href))
                   .map((ch) => {
                     const childOn = isActive(ch.href);
                     return (
@@ -604,6 +605,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           compact={compact}
           features={features}
           viewable={viewable}
+          hidden={hidden}
           expanded={expandedMap}
           onToggleExpand={toggleExpand}
         />
@@ -629,6 +631,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           compact={compact}
           features={features}
           viewable={viewable}
+          hidden={hidden}
           expanded={expandedMap}
           onToggleExpand={toggleExpand}
         />

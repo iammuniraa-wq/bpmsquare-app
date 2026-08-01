@@ -13,6 +13,7 @@ import type {
   VisitLog, PricingItem, TextFragment, CaseStatus, CasePhoto, InspectionReport,
   Supplier, InventoryItem, PurchaseOrder, PurchaseOrderLine, InvoiceLine, InvoicePayment,
   MarketingCampaign, MarketingCampaignRecipient, MarketingTargetGroup, AccountType,
+  StandardQuote, StandardQuoteLine,
 } from "@/lib/types";
 import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
@@ -49,6 +50,57 @@ export async function listInvoices(): Promise<InvoiceRow[]> {
     ...(r as Invoice),
     account_name: (Array.isArray(r.accounts) ? r.accounts[0]?.name : r.accounts?.name) ?? "—",
   }));
+}
+
+// ── Standard Quotes ──────────────────────────────────────────────────────────
+
+export type StandardQuoteRow = StandardQuote & { account_name: string };
+
+export async function listStandardQuotes(): Promise<StandardQuoteRow[]> {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  const { data } = await createAdminSupabase()
+    .from("standard_quotes")
+    .select("*, accounts(name)")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => ({
+    ...(r as StandardQuote),
+    account_name: (Array.isArray(r.accounts) ? r.accounts[0]?.name : r.accounts?.name) ?? "—",
+  }));
+}
+
+export async function getStandardQuoteLive(id: string) {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return null;
+  const supabase = createAdminSupabase();
+
+  const { data: quote } = await supabase
+    .from("standard_quotes")
+    .select("*")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!quote) return null;
+
+  const [{ data: lines }, { data: account }, { data: contact }] = await Promise.all([
+    supabase.from("standard_quote_lines").select("*").eq("standard_quote_id", id).order("sl_no"),
+    supabase.from("accounts").select("*").eq("id", quote.account_id).maybeSingle(),
+    quote.contact_id
+      ? supabase.from("contacts").select("*").eq("id", quote.contact_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const decryptedAccount = account ? decryptAccount(account as Account) : null;
+  const decryptedContact = contact ? decryptContact(contact as Contact) : null;
+
+  return {
+    quote: quote as StandardQuote,
+    lines: (lines ?? []) as StandardQuoteLine[],
+    account: decryptedAccount,
+    contact: decryptedContact,
+  };
 }
 
 // ── Leads ─────────────────────────────────────────────────────────────────────
