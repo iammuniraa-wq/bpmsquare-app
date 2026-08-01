@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
-import { encrypt } from "@/lib/encryption";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { encrypt, decryptAccount } from "@/lib/encryption";
 import { readImportBody } from "@/lib/import/server";
 import { summariseUpdate, updateRows, type PreparedUpdate } from "@/lib/import/updateServer";
 import type { RowOutcome } from "@/lib/import/types";
+import type { Account } from "@/lib/types";
 
 // Mirrors src/app/api/accounts/[id]/route.ts PATCH exactly — same fields, same PII handling.
 const ALLOWED = [
@@ -38,8 +39,12 @@ export async function POST(request: NextRequest) {
     }
 
     const patch: Record<string, unknown> = {};
+    const diffPatch: Record<string, unknown> = {};
     for (const key of ALLOWED) {
-      if (key in values) patch[key] = PII_FIELDS.has(key) ? encrypt(values[key] || null) : (values[key] || null);
+      if (!(key in values)) continue;
+      const value = values[key] || null;
+      patch[key] = PII_FIELDS.has(key) ? encrypt(value) : value;
+      diffPatch[key] = value;
     }
 
     if (Object.keys(patch).length === 0) {
@@ -47,9 +52,13 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    prepared.push({ rowNum, id, patch });
+    prepared.push({ rowNum, id, patch, diffPatch });
   }
 
   if (prepared.length === 0) return NextResponse.json(summariseUpdate(outcomes));
-  return NextResponse.json(await updateRows(supabase, "accounts", tenantId, prepared, outcomes));
+  const user = await getAuthUser();
+  return NextResponse.json(await updateRows(supabase, "accounts", tenantId, prepared, outcomes, {
+    objectType: "accounts", labelField: "name", actorId: user?.id, actorEmail: user?.email,
+    decryptBefore: (row) => decryptAccount(row as unknown as Account) as unknown as Record<string, unknown>,
+  }));
 }

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -43,6 +44,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
 
+  const { data: before } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+
   const { data, error } = await supabase
     .from("invoices")
     .update(patch)
@@ -52,6 +58,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const user = await getAuthUser();
+  const changes = diffForLog("invoices", (before as Record<string, unknown>) ?? {}, patch);
+  if (changes.length > 0) {
+    await logChange(supabase, {
+      tenantId, objectType: "invoices", objectId: id, objectLabel: (data as { ref?: string }).ref ?? null,
+      action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+    });
+  }
+
   return NextResponse.json(data);
 }
 
@@ -65,7 +81,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id } = await params;
-  const { data: invoice } = await supabase.from("invoices").select("status").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: invoice } = await supabase.from("invoices").select("ref, status").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (invoice.status !== "draft") {
     return NextResponse.json({ error: "Only draft invoices can be deleted" }, { status: 409 });
@@ -73,5 +89,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { error } = await supabase.from("invoices").delete().eq("id", id).eq("tenant_id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "invoices", objectId: id, objectLabel: invoice.ref,
+    action: "delete", actorId: user?.id, actorEmail: user?.email,
+  });
+
   return new NextResponse(null, { status: 204 });
 }

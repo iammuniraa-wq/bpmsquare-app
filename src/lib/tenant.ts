@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase, getAuthUser, resolveHostTenant } from "./supabase-server";
 import type { TenantConfig, TenantFeatures } from "./constants";
 
@@ -105,6 +106,25 @@ export const getTenant = cache(async (): Promise<Tenant | null> => {
 export async function requireFeature(key: keyof TenantFeatures): Promise<void> {
   const tenant = await getTenant();
   if (!tenant?.features?.[key]) redirect("/");
+}
+
+/**
+ * API-route counterpart to requireFeature() -- no existing route in this
+ * codebase checked a feature flag before this (every prior TenantFeatures
+ * flag is enforced page-side only), so this is a new, deliberately explicit
+ * pattern for features that need a hard server-side gate, not just a hidden
+ * nav link. Queries by the ALREADY-authenticated tenantId (from
+ * requireTenantUser()), not getTenant()'s own host-based resolution, so it
+ * can never disagree with the tenant scope the rest of the route already
+ * uses.
+ */
+export async function tenantHasFeature(
+  supabase: SupabaseClient,
+  tenantId: string,
+  key: keyof TenantFeatures
+): Promise<boolean> {
+  const { data } = await supabase.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  return !!(data?.features as TenantFeatures | undefined)?.[key];
 }
 
 /**

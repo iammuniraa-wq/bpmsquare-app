@@ -2,9 +2,11 @@ import { listQuotes, getAnalyticsData } from "@/lib/data";
 import { getTenant, getUserRole } from "@/lib/tenant";
 import PageHeader from "@/components/PageHeader";
 import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
+import { requireWorkcenterView } from "@/lib/permissions";
 import ReportsClient from "./ReportsClient";
 
 export default async function ReportsPage() {
+  await requireWorkcenterView("reports");
   const [rows, analytics, tenant, role] = await Promise.all([
     listQuotes(), getAnalyticsData(), getTenant(), getUserRole(),
   ]);

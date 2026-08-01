@@ -6,6 +6,7 @@ import { c } from "@/lib/theme";
 import PageHeader from "@/components/PageHeader";
 import { ROUTES } from "@/lib/constants";
 import AccountsTable from "@/components/AccountsTable";
+import { requireWorkcenterView } from "@/lib/permissions";
 
 const ALL_TYPES: Account["type"][] = ["prospect", "oem", "direct", "end_customer"];
 
@@ -14,6 +15,7 @@ export default async function AccountsPage({
 }: {
   searchParams: Promise<{ q?: string; type?: string; territory?: string }>;
 }) {
+  await requireWorkcenterView("accounts");
   const { q, type: typeFilter } = await searchParams;
   const allRows = await listAccountsLive();
 

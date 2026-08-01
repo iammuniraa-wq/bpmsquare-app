@@ -177,10 +177,22 @@ export default function GeneralSettingsPage() {
 
   // Only show nav items whose feature is enabled at the tenant (platform admin) level.
   // If platform admin turns off a feature, local admin cannot see or re-enable it here.
+  // Flattens children too (e.g. Quotations/Standard Quotes/Pipeline/Invoices under the
+  // "Sales" parent) -- each gets its own row and its own toggle, keyed by its own href
+  // in the same nav_hidden_hrefs array a parent-level toggle already uses. Previously
+  // only top-level items were listed here, so there was no way to hide just one child
+  // while keeping its siblings visible; hiding the parent hid all of them together.
   const allNavItems = NAV.flatMap((grp) =>
     grp.items
       .filter((item) => !item.featureKey || tenantFeatures?.[item.featureKey] === true)
-      .map((item) => ({ ...item, group: grp.group }))
+      .flatMap((item) => {
+        const parentRow = { ...item, group: grp.group, indent: false };
+        if (!item.children?.length) return [parentRow];
+        const childRows = item.children
+          .filter((ch) => !ch.featureKey || tenantFeatures?.[ch.featureKey] === true)
+          .map((ch) => ({ ...ch, group: `${grp.group} · ${item.label}`, indent: true }));
+        return [parentRow, ...childRows];
+      })
   );
 
   // ── Navigation visibility — tenant-wide (tenants.config), not per-browser ──
@@ -371,7 +383,7 @@ export default function GeneralSettingsPage() {
           {allNavItems.map((item, idx) => {
             const visible = isVisible(item.href);
             return (
-              <div key={item.href} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderTop: idx > 0 ? `1px solid ${c.line}` : "none", opacity: visible ? 1 : 0.4, transition: "opacity 0.15s" }}>
+              <div key={item.href} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", paddingLeft: item.indent ? 28 : 4, borderTop: idx > 0 ? `1px solid ${c.line}` : "none", opacity: visible ? 1 : 0.4, transition: "opacity 0.15s" }}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: PILLAR_DOT[item.pillar] ?? "#378ADD" }} />
                 <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{item.icon}</span>
                 <div style={{ flex: 1 }}>

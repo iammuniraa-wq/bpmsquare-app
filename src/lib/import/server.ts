@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ImportResponse, RowOutcome } from "./types";
+import { diffForLog, logChangeBatch, type ChangeLogEntryParams } from "@/lib/changeLog";
 
 type PgError = { code?: string; message?: string; details?: string; hint?: string };
 
@@ -73,36 +74,75 @@ export type PreparedRow = {
 
 const CHUNK_SIZE = 200;
 
+export type InsertChangeLogContext = {
+  objectType: string;
+  labelField: string;
+  actorId?: string | null;
+  actorEmail?: string | null;
+};
+
 /**
  * Inserts in chunks for speed, then falls back to per-row inserts for any chunk
  * that fails so a single bad row cannot discard the whole import.
+ *
+ * When `changeLog` is passed, every inserted row also gets a change_log
+ * "create" entry (batched into one insert at the end) -- Data Workbench
+ * import is a real write path for these objects, same reasoning as
+ * updateRows()'s bulk-update logging. `record` already carries every field
+ * being written (including re-encrypted PII for accounts/contacts), and
+ * diffForLog's redaction of PII_FIELDS applies regardless of value content,
+ * so no plaintext/ciphertext distinction is needed here the way updateRows
+ * needs one for diffing against an existing row.
  */
 export async function insertRows(
   supabase: SupabaseClient,
   table: string,
   prepared: PreparedRow[],
-  presetOutcomes: RowOutcome[] = []
+  presetOutcomes: RowOutcome[] = [],
+  changeLog?: InsertChangeLogContext
 ): Promise<ImportResponse> {
   const outcomes: RowOutcome[] = [...presetOutcomes];
+  const logRows: ChangeLogEntryParams[] = [];
+
+  const recordCreate = (record: Record<string, unknown>, id: string) => {
+    if (!changeLog) return;
+    logRows.push({
+      tenantId: record.tenant_id as string,
+      objectType: changeLog.objectType,
+      objectId: id,
+      objectLabel: (record[changeLog.labelField] as string | undefined) ?? null,
+      action: "create",
+      actorId: changeLog.actorId,
+      actorEmail: changeLog.actorEmail,
+      changes: diffForLog(changeLog.objectType, {}, record),
+    });
+  };
 
   for (let i = 0; i < prepared.length; i += CHUNK_SIZE) {
     const chunk = prepared.slice(i, i + CHUNK_SIZE);
-    const { error } = await supabase.from(table).insert(chunk.map((r) => r.record));
+    const { data, error } = await supabase.from(table).insert(chunk.map((r) => r.record)).select("id");
 
     if (!error) {
-      for (const row of chunk) outcomes.push({ rowNum: row.rowNum, status: "inserted" });
+      chunk.forEach((row, idx) => {
+        outcomes.push({ rowNum: row.rowNum, status: "inserted" });
+        const id = (data?.[idx] as { id?: string } | undefined)?.id;
+        if (id) recordCreate(row.record, id);
+      });
       continue;
     }
 
     for (const row of chunk) {
-      const { error: rowError } = await supabase.from(table).insert(row.record);
+      const { data: rowData, error: rowError } = await supabase.from(table).insert(row.record).select("id").single();
       if (rowError) {
         outcomes.push({ rowNum: row.rowNum, status: "failed", reason: describeDbError(rowError) });
       } else {
         outcomes.push({ rowNum: row.rowNum, status: "inserted" });
+        if (rowData?.id) recordCreate(row.record, rowData.id);
       }
     }
   }
+
+  if (logRows.length > 0) await logChangeBatch(supabase, logRows);
 
   return summarise(outcomes);
 }

@@ -6,6 +6,7 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import { listAssetsLive } from "@/lib/data/live";
 import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
+import { requireWorkcenterView } from "@/lib/permissions";
 
 function KindIcon({ kind, size = 18, color }: { kind: string; size?: number; color?: string }) {
   const p = { size, color: color ?? "currentColor" };
@@ -32,6 +33,7 @@ export default async function AssetsPage({
 }: {
   searchParams: Promise<{ kind?: string }>;
 }) {
+  await requireWorkcenterView("assets");
   const { kind: kindFilter } = await searchParams;
   const { customerAssets: allCustomerAssets, loanerStock } = await listAssetsLive();
 

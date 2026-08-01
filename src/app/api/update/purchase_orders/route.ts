@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { readImportBody } from "@/lib/import/server";
 import { summariseUpdate, updateRows, type PreparedUpdate } from "@/lib/import/updateServer";
 import type { RowOutcome } from "@/lib/import/types";
@@ -41,5 +41,8 @@ export async function POST(request: NextRequest) {
   }
 
   if (prepared.length === 0) return NextResponse.json(summariseUpdate(outcomes));
-  return NextResponse.json(await updateRows(supabase, "purchase_orders", tenantId, prepared, outcomes));
+  const user = await getAuthUser();
+  return NextResponse.json(await updateRows(supabase, "purchase_orders", tenantId, prepared, outcomes, {
+    objectType: "purchase_orders", labelField: "ref", actorId: user?.id, actorEmail: user?.email,
+  }));
 }

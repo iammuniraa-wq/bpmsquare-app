@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Resend } from "resend";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { resolveMarketingRecipients } from "@/lib/data";
 import { renderTemplate, escapeHtml } from "@/lib/emailTemplates";
 import { richTextToPlainText } from "@/lib/sanitizeHtml";
@@ -8,6 +8,7 @@ import { signUnsubscribeToken } from "@/lib/marketingUnsubscribe";
 import { signCampaignInterestToken } from "@/lib/campaignInterestLink";
 import { buildAbsoluteUrl } from "@/lib/quotePublicLink";
 import { ROUTES } from "@/lib/constants";
+import { logEmail } from "@/lib/emailLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   const resend = new Resend(process.env.RESEND_API_KEY);
+  const user = await getAuthUser();
   let sent = 0, failed = 0, skipped = 0;
 
   for (const candidate of candidates) {
@@ -116,16 +118,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     if (sendError) {
-      await supabase.from("marketing_campaign_recipients").insert({
-        tenant_id: tenantId, campaign_id: id, ...target,
-        email: candidate.email, status: "failed", error: sendError.message,
-      });
+      await Promise.all([
+        supabase.from("marketing_campaign_recipients").insert({
+          tenant_id: tenantId, campaign_id: id, ...target,
+          email: candidate.email, status: "failed", error: sendError.message,
+        }),
+        logEmail(supabase, {
+          tenantId, kind: "campaign", toEmail: candidate.email, subject,
+          status: "failed", error: sendError.message,
+          relatedObjectType: "marketing_campaigns", relatedObjectId: id, relatedObjectLabel: campaign.name,
+          actorId: user?.id, actorEmail: user?.email,
+        }),
+      ]);
       failed++;
     } else {
-      await supabase.from("marketing_campaign_recipients").insert({
-        tenant_id: tenantId, campaign_id: id, ...target,
-        email: candidate.email, status: "sent", sent_at: new Date().toISOString(),
-      });
+      await Promise.all([
+        supabase.from("marketing_campaign_recipients").insert({
+          tenant_id: tenantId, campaign_id: id, ...target,
+          email: candidate.email, status: "sent", sent_at: new Date().toISOString(),
+        }),
+        logEmail(supabase, {
+          tenantId, kind: "campaign", toEmail: candidate.email, subject,
+          status: "sent",
+          relatedObjectType: "marketing_campaigns", relatedObjectId: id, relatedObjectLabel: campaign.name,
+          actorId: user?.id, actorEmail: user?.email,
+        }),
+      ]);
       sent++;
     }
     await sleep(SEND_DELAY_MS);

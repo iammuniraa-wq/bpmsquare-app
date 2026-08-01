@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
+import { requireWorkcenterView } from "@/lib/permissions";
 import { listInvoices } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -35,6 +36,7 @@ export default async function InvoicesPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  await requireWorkcenterView("invoices");
   await requireFeature("invoices");
   const { status: statusFilter } = await searchParams;
   const invoices = await listInvoices();

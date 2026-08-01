@@ -126,6 +126,9 @@ export default function EmailComposeModal({
               <div style={{ marginBottom: 12 }}>
                 <label style={lbl}>Subject</label>
                 <input style={inp} value={subject} onChange={(e) => setSubject(e.target.value)} />
+                <div style={{ fontSize: 10.5, color: c.hint, marginTop: 4 }}>
+                  If Gmail is connected (Settings → Connectors) and you use the same subject as the customer&apos;s original email, this send threads as a reply instead of starting a new conversation.
+                </div>
               </div>
 
               <div style={{ marginBottom: 4 }}>

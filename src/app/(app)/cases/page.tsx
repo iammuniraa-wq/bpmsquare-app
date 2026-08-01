@@ -6,6 +6,7 @@ import PageHeader from "@/components/PageHeader";
 import { ROUTES } from "@/lib/constants";
 import CasesTable from "@/components/CasesTable";
 import BreakdownBar from "@/components/BreakdownBar";
+import { requireWorkcenterView } from "@/lib/permissions";
 
 const OPEN_STATUSES: ServiceCase["status"][] = [
   "intake","inspection","report_sent","report_approved",
@@ -27,6 +28,7 @@ export default async function CasesPage({
 }: {
   searchParams: Promise<{ q?: string; filter?: string }>;
 }) {
+  await requireWorkcenterView("cases");
   const { q, filter: rawFilter } = await searchParams;
   const filter = (FILTERS.find((f) => f.id === rawFilter)?.id) ?? "open";
 

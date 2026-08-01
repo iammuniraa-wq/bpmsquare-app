@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -26,6 +27,12 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     const log = Array.isArray(cfg.deleted_work_orders) ? (cfg.deleted_work_orders as unknown[]) : [];
     log.push({ id, ref: snap.ref, status: snap.status, account_id: snap.account_id, created_at: snap.created_at, deleted_at: new Date().toISOString(), deleted_by: userId });
     await admin.from("tenants").update({ config: { ...cfg, deleted_work_orders: log } }).eq("id", tenantId);
+
+    const user = await getAuthUser();
+    await logChange(supabase, {
+      tenantId, objectType: "work_orders", objectId: id, objectLabel: snap.ref,
+      action: "delete", actorId: user?.id, actorEmail: user?.email,
+    });
   }
   return new NextResponse(null, { status: 204 });
 }
@@ -46,6 +53,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
 
+  const { data: before } = await supabase
+    .from("work_orders")
+    .select("*")
+    .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+
   const { data, error } = await supabase
     .from("work_orders")
     .update(patch)
@@ -55,5 +67,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const user = await getAuthUser();
+  const changes = diffForLog("work_orders", (before as Record<string, unknown>) ?? {}, patch);
+  if (changes.length > 0) {
+    await logChange(supabase, {
+      tenantId, objectType: "work_orders", objectId: id, objectLabel: (data as { ref?: string }).ref ?? null,
+      action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+    });
+  }
+
   return NextResponse.json(data);
 }

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { encrypt, decrypt, decryptAccount } from "@/lib/encryption";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -27,6 +28,12 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     const log = Array.isArray(cfg.deleted_accounts) ? (cfg.deleted_accounts as unknown[]) : [];
     log.push({ id, name: snap.name, status: snap.type, account_id: null, created_at: snap.created_at, deleted_at: new Date().toISOString(), deleted_by: userId });
     await admin.from("tenants").update({ config: { ...cfg, deleted_accounts: log } }).eq("id", tenantId);
+
+    const user = await getAuthUser();
+    await logChange(supabase, {
+      tenantId, objectType: "accounts", objectId: id, objectLabel: snap.name,
+      action: "delete", actorId: user?.id, actorEmail: user?.email,
+    });
   }
   return new NextResponse(null, { status: 204 });
 }
@@ -53,8 +60,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   ];
   const PII_FIELDS = new Set(["phone", "phone2", "email", "email2", "gstin"]);
   const patch: Record<string, unknown> = {};
+  const patchPlaintext: Record<string, unknown> = {};
   for (const key of allowed) {
-    if (key in body) patch[key] = PII_FIELDS.has(key) ? encrypt(body[key] as string | null) : body[key];
+    if (key in body) {
+      patch[key] = PII_FIELDS.has(key) ? encrypt(body[key] as string | null) : body[key];
+      patchPlaintext[key] = body[key];
+    }
   }
 
   // referred_by_account_id comes straight from the request body -- verify it
@@ -63,6 +74,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { data: referrer } = await supabase.from("accounts").select("id").eq("id", patch.referred_by_account_id as string).eq("tenant_id", tenantId).maybeSingle();
     if (!referrer) return NextResponse.json({ error: "Referring account not found" }, { status: 404 });
   }
+
+  // Pre-update snapshot for the audit diff -- decrypted, since diffing
+  // ciphertext against plaintext (or ciphertext against ciphertext, which
+  // is non-deterministic per write) would misreport every PII patch as a
+  // change even when the value didn't move. See diffForLog in changeLog.ts.
+  const { data: before } = await supabase
+    .from("accounts")
+    .select("*")
+    .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const beforePlaintext = before ? decryptAccount(before as import("@/lib/types").Account) as unknown as Record<string, unknown> : {};
 
   const { data, error } = await supabase
     .from("accounts")
@@ -73,5 +94,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const user = await getAuthUser();
+  const changes = diffForLog("accounts", beforePlaintext, patchPlaintext);
+  if (changes.length > 0) {
+    await logChange(supabase, {
+      tenantId, objectType: "accounts", objectId: id, objectLabel: (data as { name?: string }).name ?? null,
+      action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+    });
+  }
+
   return NextResponse.json(decryptAccount(data as import("@/lib/types").Account));
 }

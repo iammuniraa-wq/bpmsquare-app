@@ -318,6 +318,80 @@ export type InvoiceLine = {
   amount: number;
 };
 
+// Standard Quote -- a deliberately independent object, not the (separate)
+// Quotation object's type/status/config system. See supabase/migrations/
+// 0053_standard_quotes.sql for why it's kept apart.
+export type StandardQuoteStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
+
+export type StandardQuote = {
+  id: string;
+  tenant_id: string;
+  ref: string;
+  account_id: string;
+  contact_id: string | null;
+  status: StandardQuoteStatus;
+  valid_until: string | null;
+  terms: string | null;
+  notes: string | null;
+  subtotal: number;
+  total: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  sent_at: string | null;
+  template_id: string | null;
+  header_discount_pct: number;
+  tax_pct: number;
+  shipping_amount: number;
+  intro_text: string | null;
+};
+
+export type StandardQuoteLine = {
+  id: string;
+  tenant_id: string;
+  standard_quote_id: string;
+  sl_no: string | null;
+  description: string;
+  uom: string | null;
+  qty: number;
+  rate: number;
+  discount_pct: number;
+  amount: number;
+};
+
+// Standard Quote branded templates -- an ordered list of blocks a tenant can
+// reorder, show/hide, and (for the two free-text ones) author content for.
+// "letterhead"/"quote_meta"/"bill_to"/"line_items"/"totals" are structural --
+// always rendered, reorder only, no visibility toggle -- everything else is
+// optional. See supabase/migrations/0054_standard_quote_templates.sql.
+export type StandardQuoteTemplateBlockType =
+  | "letterhead" | "quote_meta" | "bill_to" | "intro_text" | "line_items"
+  | "totals" | "notes" | "terms" | "signature" | "footer_text"
+  | "specs_table" | "cta_banner";
+
+export const STANDARD_QUOTE_REQUIRED_BLOCKS: StandardQuoteTemplateBlockType[] = [
+  "letterhead", "quote_meta", "bill_to", "line_items", "totals",
+];
+
+export type StandardQuoteTemplateBlock = {
+  id: string;
+  type: StandardQuoteTemplateBlockType;
+  visible: boolean;
+  content?: string;
+};
+
+export type StandardQuoteTemplate = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  is_default: boolean;
+  accent_color: string | null;
+  logo_position: "left" | "center" | "right";
+  blocks: StandardQuoteTemplateBlock[];
+  created_at: string;
+  updated_at: string;
+};
+
 export type InvoicePayment = {
   id: string;
   tenant_id: string;

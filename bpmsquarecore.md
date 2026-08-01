@@ -71,7 +71,41 @@ ext.extraCustomFields("asset")
 
 ---
 
-## 3. Do not hallucinate
+## 3. Record identity — every record has a real ID
+
+Every record this product creates — standard object or custom, and this
+applies to every future object family too, not just the ten current ones —
+gets a database-generated UUID (`id` column) the instant it's created. That
+ID is the only reference contract that's ever safe to build on:
+
+- **Create (Import)** never needs or accepts a client-supplied `id` — the ID
+  doesn't exist yet. Creation resolves relationships by a business key
+  instead (a name, a ref, an email) — see `REFERENCE_FIELDS` in
+  `src/lib/import/registrySchema.ts` for the established pattern
+  (`account_name`, `quote_ref`, ...).
+- **Update, Delete, and any other API access** must always key off the real
+  `id` — never a business key alone. A name/ref can collide, get renamed, or
+  (critically in a multi-tenant system) coincidentally match a *different*
+  tenant's differently-owned record; the UUID cannot. This is why Data
+  Workbench's Update mode always requires a synthetic "Record ID" column
+  (`ID_FIELD` in `DataWorkbenchClient.tsx`) that only an Export ever
+  populates — a file for Update must come from a prior Export of real IDs,
+  never be hand-typed from a business key.
+- Every mutation query pairs the two: `.eq("id", x).eq("tenant_id",
+  tenantId)`. The `tenant_id` filter is what stops a cross-tenant id from
+  ever matching (see `MULTI_TENANT_GUARDRAILS.md`); matching by `id` rather
+  than name/ref is what stops an update from silently landing on the wrong
+  record when two records share a similar name.
+- This also governs parent/child object families (e.g. Quote Lines, and any
+  future one — account team, involved parties, ...): the child's own `id`
+  is what its Update/Delete match on. A parent-referencing field like
+  `quote_ref` is only ever used to *resolve the relationship at create
+  time* — once a child record exists, its own ID is the contract, not the
+  parent's ref.
+
+---
+
+## 4. Do not hallucinate
 
 Before writing ANY code, verify:
 - **API routes** — only routes listed in `src/app/api/` exist. Do not invent paths.
@@ -82,7 +116,7 @@ Before writing ANY code, verify:
 
 ---
 
-## 4. Project structure
+## 5. Project structure
 
 ```
 src/
@@ -101,7 +135,7 @@ src/
 
 ---
 
-## 5. Styling rules
+## 6. Styling rules
 
 - No hardcoded hex colours in components. Use CSS variables or the theme tokens defined in
   `src/app/globals.css` and Tailwind config.
@@ -110,7 +144,7 @@ src/
 
 ---
 
-## 6. Security rules
+## 7. Security rules
 
 - PII fields (phone, email, GSTIN on accounts; phone, email on contacts) are encrypted at rest
   via `src/lib/encryption.ts`. All writes must go through `encrypt()`, all reads through
@@ -120,7 +154,7 @@ src/
 
 ---
 
-## 7. What NOT to do
+## 8. What NOT to do
 
 - Do not add `console.log` — use `console.error` only for genuine errors.
 - Do not hardcode tenant slugs or names in standard product files (see section 1).

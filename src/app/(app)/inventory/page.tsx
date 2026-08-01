@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { requireWorkcenterView } from "@/lib/permissions";
 import type { InventoryItem, Supplier } from "@/lib/types";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -20,6 +21,7 @@ export default async function InventoryPage({
 }: {
   searchParams: Promise<{ q?: string; low_stock?: string }>;
 }) {
+  await requireWorkcenterView("inventory");
   await requireFeature("purchasing");
   const { supabase, tenantId } = await requireTenantUser();
   const { q, low_stock } = await searchParams;

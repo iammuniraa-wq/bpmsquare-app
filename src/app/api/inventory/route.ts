@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -85,5 +86,13 @@ export async function POST(request: NextRequest) {
     if (error.code === "23505") return NextResponse.json({ error: "A SKU with that value already exists" }, { status: 409 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "inventory", objectId: data.id, objectLabel: data.name,
+    action: "create", actorId: user?.id, actorEmail: user?.email,
+    changes: diffForLog("inventory", {}, { sku, name: name.trim(), category, uom, supplier_id, reorder_level, unit_cost }),
+  });
+
   return NextResponse.json(data, { status: 201 });
 }

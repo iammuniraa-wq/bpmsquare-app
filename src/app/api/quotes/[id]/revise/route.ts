@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 // Clone a quote (and its lines) into a new draft revision.
 // Used when the original is already sent/approved and must not be edited in place.
@@ -72,6 +73,13 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     rev: newRev,
     date: new Date().toISOString().split("T")[0],
     description: `Revised from ${original.ref}`,
+  });
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "quotes", objectId: created.id, objectLabel: created.ref,
+    action: "create", actorId: user?.id, actorEmail: user?.email,
+    changes: diffForLog("quotes", {}, { revised_from: original.ref, revision: newRev }),
   });
 
   return NextResponse.json({ id: created.id, ref: created.ref }, { status: 201 });

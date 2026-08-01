@@ -1,4 +1,5 @@
 import { requireFeature } from "@/lib/tenant";
+import { requireWorkcenterView } from "@/lib/permissions";
 import { listDispatch } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -30,6 +31,7 @@ const td: React.CSSProperties = {
 };
 
 export default async function DispatchPage() {
+  await requireWorkcenterView("dispatch");
   await requireFeature("dispatch");
   const jobs = await listDispatch();
   const scheduled = jobs.filter((j) => j.status === "scheduled");

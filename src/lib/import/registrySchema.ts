@@ -30,6 +30,7 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   assets: "asset",
   suppliers: "supplier",
   quotes: "quote",
+  quote_lines: null,
   cases: "case",
   work_orders: "work_order",
   invoices: "invoice",
@@ -142,6 +143,11 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   assets: { label: "Assets", icon: "⚙", description: "Motors, transformers, pumps and panels — owned by an account or held as loaner stock", dependsOn: ["accounts"] },
   suppliers: { label: "Suppliers", icon: "◫", description: "Vendors and subcontractors", dependsOn: [] },
   quotes: { label: "Quotes", icon: "₹", description: "Quotations with line items — one row per line, header fields on the first row of each quote", dependsOn: ["accounts", "contacts"] },
+  // Never read -- quote_lines is null in REGISTRY_OBJECT_TYPE above, so
+  // buildObjectSpec() is never called for it (see data-workbench/page.tsx's
+  // STATIC_SPECS branch, same as "users"). Present only because OBJECT_META
+  // is typed Record<ImportObjectId, ...>, not Partial.
+  quote_lines: { label: "Quote Lines", icon: "≣", description: "", dependsOn: ["quotes"] },
   cases: { label: "Cases", icon: "◉", description: "Service cases — repair jobs tracked from intake to close", dependsOn: ["accounts", "assets"] },
   work_orders: { label: "Work Orders", icon: "▤", description: "Field/workshop jobs authorized by a quote or contract", dependsOn: ["accounts", "cases", "assets", "quotes"] },
   invoices: { label: "Invoices", icon: "⊟", description: "Billing documents against a quote or work order", dependsOn: ["accounts", "contacts", "quotes", "work_orders"] },

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -46,6 +47,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
 
+  const { data: before } = await supabase
+    .from("assets")
+    .select("*")
+    .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+
   const { data, error } = await supabase
     .from("assets")
     .update(patch)
@@ -55,5 +61,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const user = await getAuthUser();
+  const changes = diffForLog("assets", (before as Record<string, unknown>) ?? {}, patch);
+  if (changes.length > 0) {
+    await logChange(supabase, {
+      tenantId, objectType: "assets", objectId: id, objectLabel: (data as { name?: string }).name ?? null,
+      action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+    });
+  }
+
   return NextResponse.json(data);
 }

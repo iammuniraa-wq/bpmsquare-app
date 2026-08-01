@@ -12,7 +12,10 @@ type Member = {
   email: string | null;
   name: string | null;
   created_at: string;
+  business_role_ids: string[];
 };
+
+type BusinessRole = { id: string; name: string };
 
 function RolePill({ role }: { role: "admin" | "member" }) {
   const isAdmin = role === "admin";
@@ -51,6 +54,10 @@ export default function TeamPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [businessRoles, setBusinessRoles] = useState<BusinessRole[]>([]);
+  const [editingRolesFor, setEditingRolesFor] = useState<string | null>(null);
+  const [roleDraft, setRoleDraft] = useState<string[]>([]);
+  const [savingRoles, setSavingRoles] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitePassword, setInvitePassword] = useState("");
@@ -63,17 +70,47 @@ export default function TeamPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    const res = await fetch("/api/settings/team");
-    if (res.ok) {
-      const json = await res.json();
+    const [teamRes, rolesRes] = await Promise.all([
+      fetch("/api/settings/team"),
+      fetch("/api/business-roles"),
+    ]);
+    if (teamRes.ok) {
+      const json = await teamRes.json();
       setMembers(json.members ?? []);
     } else {
       setError("Failed to load team members.");
+    }
+    if (rolesRes.ok) {
+      const json = await rolesRes.json();
+      setBusinessRoles((json.roles ?? []).map((r: BusinessRole) => ({ id: r.id, name: r.name })));
     }
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  function startEditRoles(m: Member) {
+    setEditingRolesFor(m.user_id);
+    setRoleDraft(m.business_role_ids);
+  }
+
+  function toggleRoleDraft(roleId: string) {
+    setRoleDraft((cur) => cur.includes(roleId) ? cur.filter((r) => r !== roleId) : [...cur, roleId]);
+  }
+
+  async function saveRoles(userId: string) {
+    setSavingRoles(true);
+    const res = await fetch(`/api/settings/team/${userId}/roles`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role_ids: roleDraft }),
+    });
+    setSavingRoles(false);
+    if (res.ok) {
+      setEditingRolesFor(null);
+      load();
+    }
+  }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -219,57 +256,94 @@ export default function TeamPage() {
         )}
 
         {!loading && members.map((m, idx) => (
-          <div
-            key={m.user_id}
-            style={{
-              display: "flex", alignItems: "center", gap: 12,
-              padding: "12px 0",
-              borderTop: idx > 0 ? `1px solid ${c.line}` : "none",
-            }}
-          >
-            <Avatar email={m.email} accent={accent} />
+          <div key={m.user_id} style={{ borderTop: idx > 0 ? `1px solid ${c.line}` : "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0" }}>
+              <Avatar email={m.email} accent={accent} />
 
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {m.name && (
-                <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {m.name}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {m.name && (
+                  <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {m.name}
+                  </div>
+                )}
+                <div style={{ fontSize: 12, color: c.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {m.email ?? m.user_id}
                 </div>
-              )}
-              <div style={{ fontSize: 12, color: c.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {m.email ?? m.user_id}
               </div>
+
+              <RolePill role={m.role} />
+
+              {/* Change role */}
+              <select
+                value={m.role}
+                onChange={(e) => changeRole(m.user_id, e.target.value as "admin" | "member")}
+                style={{
+                  height: 32, padding: "0 8px",
+                  border: `1px solid ${c.line}`, borderRadius: 7,
+                  fontSize: 12, color: c.ink, background: "var(--panel)",
+                  cursor: "pointer",
+                }}
+                title="Change role"
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+
+              <button
+                onClick={() => removeMember(m.user_id, m.email)}
+                title="Remove from workspace"
+                style={{
+                  height: 32, padding: "0 12px",
+                  background: "var(--err-bg)", color: "var(--err-ink)",
+                  border: "1px solid var(--err-line)", borderRadius: 7,
+                  fontSize: 12, cursor: "pointer",
+                }}
+              >
+                Remove
+              </button>
             </div>
 
-            <RolePill role={m.role} />
-
-            {/* Change role */}
-            <select
-              value={m.role}
-              onChange={(e) => changeRole(m.user_id, e.target.value as "admin" | "member")}
-              style={{
-                height: 32, padding: "0 8px",
-                border: `1px solid ${c.line}`, borderRadius: 7,
-                fontSize: 12, color: c.ink, background: "var(--panel)",
-                cursor: "pointer",
-              }}
-              title="Change role"
-            >
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
-
-            <button
-              onClick={() => removeMember(m.user_id, m.email)}
-              title="Remove from workspace"
-              style={{
-                height: 32, padding: "0 12px",
-                background: "var(--err-bg)", color: "var(--err-ink)",
-                border: "1px solid var(--err-line)", borderRadius: 7,
-                fontSize: 12, cursor: "pointer",
-              }}
-            >
-              Remove
-            </button>
+            {/* Business Roles -- admins bypass Business Roles entirely, so this
+                only matters for members. */}
+            {m.role === "member" && (
+              <div style={{ padding: "0 0 12px 46px" }}>
+                {editingRolesFor === m.user_id ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
+                    {businessRoles.length === 0 ? (
+                      <div style={{ fontSize: 12, color: c.muted }}>No Business Roles exist yet — create one in Administrator → Business Roles first.</div>
+                    ) : (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {businessRoles.map((br) => (
+                          <label key={br.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: c.ink, border: `1px solid ${c.line}`, borderRadius: 6, padding: "4px 9px", cursor: "pointer", background: c.panel }}>
+                            <input type="checkbox" checked={roleDraft.includes(br.id)} onChange={() => toggleRoleDraft(br.id)} />
+                            {br.name}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => saveRoles(m.user_id)} disabled={savingRoles} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11.5, fontWeight: 600, background: accent, color: "#fff", border: "none", cursor: savingRoles ? "wait" : "pointer" }}>
+                        {savingRoles ? "Saving…" : "Save"}
+                      </button>
+                      <button onClick={() => setEditingRolesFor(null)} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11.5, background: "none", color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: c.hint }}>
+                    <span>
+                      {m.business_role_ids.length === 0
+                        ? "Full access (no Business Role assigned)"
+                        : `Roles: ${m.business_role_ids.map((id) => businessRoles.find((br) => br.id === id)?.name ?? "—").join(", ")}`}
+                    </span>
+                    <button onClick={() => startEditRoles(m)} style={{ padding: "2px 9px", borderRadius: 5, fontSize: 11, background: "none", color: accent, border: `1px solid ${c.line}`, cursor: "pointer" }}>
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </section>

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -89,6 +90,17 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "assets", objectId: asset.id, objectLabel: asset.name,
+    action: "create", actorId: user?.id, actorEmail: user?.email,
+    changes: diffForLog("assets", {}, {
+      account_id, name, kind, make, model, rating, serial, notes, is_loaner,
+      rpm, frame_type, insulation_class, connection, duty, ambient_temp,
+      output_kw, stator_voltage, stator_current, excitation_voltage, excitation_current, frequency,
+    }),
+  });
 
   return NextResponse.json(asset, { status: 201 });
 }

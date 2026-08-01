@@ -7,6 +7,7 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { Technician } from "@/lib/types";
 import { AlertTriangle } from "@/components/Icons";
+import { requireWorkcenterView } from "@/lib/permissions";
 
 const STATUS_TONE: Record<Technician["status"], PillarKey> = {
   active: "green", on_leave: "amber", inactive: "red",
@@ -31,6 +32,7 @@ export default async function TechniciansPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  await requireWorkcenterView("technicians");
   const { status: statusFilter } = await searchParams;
   const allTechs = await listTechnicians();
   const techs = statusFilter ? allTechs.filter((t) => t.technician.status === statusFilter) : allTechs;

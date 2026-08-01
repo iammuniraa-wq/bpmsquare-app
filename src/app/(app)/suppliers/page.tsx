@@ -6,6 +6,7 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
+import { requireWorkcenterView } from "@/lib/permissions";
 
 const TYPE_LABEL: Record<Supplier["type"], string> = {
   vendor: "Vendor", subcontractor: "Subcontractor", both: "Vendor & Sub",
@@ -26,6 +27,7 @@ export default async function SuppliersPage({
 }: {
   searchParams: Promise<{ q?: string; type?: string }>;
 }) {
+  await requireWorkcenterView("suppliers");
   const { supabase, tenantId } = await requireTenantUser();
   const { q, type: typeFilter } = await searchParams;
 

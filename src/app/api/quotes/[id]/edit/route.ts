@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
+import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
 
 // Full edit of a DRAFT quote: header fields + line items (replaced wholesale).
 // Server enforces draft-only; sent/approved quotes must use /revise instead.
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: quote, error: qErr } = await supabase
     .from("quotes")
-    .select("id, status, discount_type, discount_pct, discount_fixed, selected_option_id")
+    .select("*")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .single();
@@ -32,6 +33,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (qErr || !quote) {
     return NextResponse.json({ error: "Quote not found" }, { status: 404 });
   }
+
+  const { data: beforeLines } = await supabase
+    .from("quote_lines")
+    .select("description, qty, rate, amount")
+    .eq("quote_id", id)
+    .eq("tenant_id", tenantId)
+    .order("sl_no", { ascending: true, nullsFirst: false });
 
   if (account_id !== undefined) {
     const { data: acct } = await supabase
@@ -162,6 +170,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (cleanLines.length > 0) {
     const { error: iErr } = await admin.from("quote_lines").insert(cleanLines);
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
+  }
+
+  const headerChanges = diffForLog("quotes", quote as Record<string, unknown>, headerPatch);
+  const beforeLineSnapshots: LineSnapshot[] = (beforeLines ?? []).map((l) => ({
+    label: l.description, qty: l.qty, rate: l.rate, amount: l.amount,
+  }));
+  const afterLineSnapshots: LineSnapshot[] = cleanLines.map((l) => ({
+    label: l.description, qty: l.qty, rate: l.rate, amount: l.amount,
+  }));
+  const changes = [...headerChanges, ...diffLineItems(beforeLineSnapshots, afterLineSnapshots)];
+  if (changes.length > 0) {
+    const user = await getAuthUser();
+    await logChange(supabase, {
+      tenantId, objectType: "quotes", objectId: id, objectLabel: (quote as { ref?: string }).ref ?? null,
+      action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+    });
   }
 
   return NextResponse.json({ id, total }, { status: 200 });

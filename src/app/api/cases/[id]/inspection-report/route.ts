@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { logChange } from "@/lib/changeLog";
 
 export async function POST(
   request: NextRequest,
@@ -26,7 +27,7 @@ export async function POST(
   // Verify case belongs to this tenant before touching it
   const { data: existingCase, error: caseErr } = await supabase
     .from("service_cases")
-    .select("id")
+    .select("id, ref, status")
     .eq("id", caseId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -89,6 +90,16 @@ export async function POST(
       return NextResponse.json({ error: caseUpdateErr.message }, { status: 500 });
     }
   }
+
+  const user = await getAuthUser();
+  const changes: { field: string; from: unknown; to: unknown }[] = [
+    { field: existing?.id ? "Inspection report updated" : "Inspection report created", from: null, to: action === "send" ? "sent" : "draft" },
+  ];
+  if (action === "send" && existingCase.status !== "report_sent") changes.push({ field: "status", from: existingCase.status, to: "report_sent" });
+  await logChange(supabase, {
+    tenantId, objectType: "cases", objectId: caseId, objectLabel: existingCase.ref,
+    action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+  });
 
   return NextResponse.json(reportData);
 }

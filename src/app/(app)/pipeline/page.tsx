@@ -1,7 +1,9 @@
 import { requireFeature } from "@/lib/tenant";
+import { requireWorkcenterView } from "@/lib/permissions";
 import Placeholder from "@/components/Placeholder";
 
 export default async function PipelinePage() {
+  await requireWorkcenterView("pipeline");
   await requireFeature("pipeline");
   return (
     <Placeholder

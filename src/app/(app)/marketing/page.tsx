@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
+import { requireWorkcenterView } from "@/lib/permissions";
 import { listMarketingCampaigns } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -28,6 +29,7 @@ const td: React.CSSProperties = {
 };
 
 export default async function MarketingPage() {
+  await requireWorkcenterView("marketing");
   await requireFeature("marketing");
   const campaigns = await listMarketingCampaigns();
 

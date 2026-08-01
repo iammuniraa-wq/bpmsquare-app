@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { logChange } from "@/lib/changeLog";
 
 async function recomputeTotal(supabase: Awaited<ReturnType<typeof requireTenantUser>>["supabase"], invoiceId: string, tenantId: string) {
   const { data: lines } = await supabase.from("invoice_lines").select("amount").eq("invoice_id", invoiceId);
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const { id } = await params;
-  const { data: invoice } = await supabase.from("invoices").select("status").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: invoice } = await supabase.from("invoices").select("ref, status").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (invoice.status !== "draft") return NextResponse.json({ error: "Only draft invoices can have lines added" }, { status: 409 });
 
@@ -46,5 +47,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   await recomputeTotal(supabase, id, tenantId);
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "invoices", objectId: id, objectLabel: invoice.ref,
+    action: "update", actorId: user?.id, actorEmail: user?.email,
+    changes: [{ field: "Line added", from: null, to: `${data.description}: qty ${data.qty} × rate ${data.rate} = ${data.amount}` }],
+  });
+
   return NextResponse.json(data, { status: 201 });
 }

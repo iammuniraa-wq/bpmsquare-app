@@ -1,6 +1,6 @@
 import type { ObjectSpec } from "./types";
 
-function csvCell(value: string): string {
+export function csvCell(value: string): string {
   let v = value ?? "";
   // CSV/formula injection: a cell starting with =, +, -, @ (or tab/CR) is run
   // as a formula by Excel/LibreOffice on open. This backs every Data

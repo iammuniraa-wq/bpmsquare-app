@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { generateNextInvoiceRef } from "@/lib/invoiceRef";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -139,6 +140,13 @@ export async function POST(request: NextRequest) {
       .insert(cleanLines.map((l) => ({ ...l, invoice_id: invoice!.id })));
     if (linesErr) return NextResponse.json({ error: linesErr.message }, { status: 500 });
   }
+
+  const user = await getAuthUser();
+  await logChange(supabase, {
+    tenantId, objectType: "invoices", objectId: invoice.id, objectLabel: invoice.ref,
+    action: "create", actorId: user?.id, actorEmail: user?.email,
+    changes: diffForLog("invoices", {}, { account_id, contact_id, quote_id, case_id, contract_id, due_date, total }),
+  });
 
   return NextResponse.json(invoice, { status: 201 });
 }
