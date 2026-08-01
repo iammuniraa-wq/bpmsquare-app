@@ -20,20 +20,31 @@ export async function GET() {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     // Fetch email + name from auth.users via admin API
-    const members = await Promise.all(
-      (rows ?? []).map(async (row) => {
-        const { data } = await admin.auth.admin.getUserById(row.user_id);
-        return {
-          user_id: row.user_id,
-          role: row.role,
-          created_at: row.created_at,
-          email: data.user?.email ?? null,
-          name: (data.user?.user_metadata?.full_name as string | undefined) ?? null,
-        };
-      })
-    );
+    const [members, { data: assignments }] = await Promise.all([
+      Promise.all(
+        (rows ?? []).map(async (row) => {
+          const { data } = await admin.auth.admin.getUserById(row.user_id);
+          return {
+            user_id: row.user_id,
+            role: row.role,
+            created_at: row.created_at,
+            email: data.user?.email ?? null,
+            name: (data.user?.user_metadata?.full_name as string | undefined) ?? null,
+          };
+        })
+      ),
+      admin.from("business_user_roles").select("user_id, role_id").eq("tenant_id", tenantId),
+    ]);
 
-    return NextResponse.json({ members });
+    const roleIdsByUser = new Map<string, string[]>();
+    for (const a of assignments ?? []) {
+      const list = roleIdsByUser.get(a.user_id);
+      if (list) list.push(a.role_id); else roleIdsByUser.set(a.user_id, [a.role_id]);
+    }
+
+    return NextResponse.json({
+      members: members.map((m) => ({ ...m, business_role_ids: roleIdsByUser.get(m.user_id) ?? [] })),
+    });
   } catch (e: unknown) {
     const err = e as { status?: number; message?: string };
     return NextResponse.json({ error: err.message ?? "Error" }, { status: err.status ?? 500 });

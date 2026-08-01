@@ -9,6 +9,7 @@ import BreakdownBar from "@/components/BreakdownBar";
 import { ROUTES } from "@/lib/constants";
 import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
+import { requireWorkcenterView } from "@/lib/permissions";
 
 const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
   scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
@@ -37,6 +38,7 @@ export default async function WorkOrdersPage({
 }: {
   searchParams: Promise<{ status?: string; view?: string }>;
 }) {
+  await requireWorkcenterView("work_orders");
   const { status: statusFilter, view } = await searchParams;
   const isCard = view !== "list";
   const vp = view ? `&view=${view}` : "";

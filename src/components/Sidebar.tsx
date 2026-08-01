@@ -8,8 +8,9 @@ import type { NavItem } from "@/lib/constants";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon } from "@/components/Icons";
-import { useTenant, useUiTheme } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useViewableWorkcenters } from "@/lib/tenant-context";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
+import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
 
@@ -33,32 +34,44 @@ type NavState = {
 type FlatItem = NavItem & { group: string };
 
 
-function flattenNav(features?: Record<string, boolean>): FlatItem[] {
+// A parent "toggle" row (Sales/Service/Marketing/Master data -- anything
+// with children) has no workcenterKey of its own; it's viewable whenever at
+// least one child is. A leaf item with no workcenterKey at all (shouldn't
+// happen for anything in NAV today) defaults to viewable, same as before
+// this feature existed.
+function isItemViewable(item: NavItem, viewable: ViewableWorkcenters): boolean {
+  if (viewable === "all") return true;
+  if (item.children?.length) return item.children.some((ch) => isItemViewable(ch, viewable));
+  if (!item.workcenterKey) return true;
+  return viewable.includes(item.workcenterKey as WorkcenterKey);
+}
+
+function flattenNav(features?: Record<string, boolean>, viewable: ViewableWorkcenters = "all"): FlatItem[] {
   return NAV.flatMap((grp) =>
     grp.items
-      .filter((item) => !item.featureKey || features?.[item.featureKey] === true)
+      .filter((item) => (!item.featureKey || features?.[item.featureKey] === true) && isItemViewable(item, viewable))
       .map((item) => ({ ...item, group: grp.group }))
   );
 }
 
-function defaultNavState(features?: Record<string, boolean>): NavState {
-  return { favs: [], rest: flattenNav(features).map((i) => i.href) };
+function defaultNavState(features?: Record<string, boolean>, viewable: ViewableWorkcenters = "all"): NavState {
+  return { favs: [], rest: flattenNav(features, viewable).map((i) => i.href) };
 }
 
-function loadNavState(features?: Record<string, boolean>): NavState {
-  if (typeof window === "undefined") return defaultNavState(features);
+function loadNavState(features?: Record<string, boolean>, viewable: ViewableWorkcenters = "all"): NavState {
+  if (typeof window === "undefined") return defaultNavState(features, viewable);
   try {
     const raw = localStorage.getItem(NAV_STATE_KEY);
-    if (!raw) return defaultNavState(features);
+    if (!raw) return defaultNavState(features, viewable);
     const saved: NavState = JSON.parse(raw);
-    const all = flattenNav(features).map((i) => i.href);
+    const all = flattenNav(features, viewable).map((i) => i.href);
     const validFavs = saved.favs.filter((h) => all.includes(h));
     const validRest = saved.rest.filter((h) => all.includes(h));
     const known = new Set([...validFavs, ...validRest]);
     const fresh = all.filter((h) => !known.has(h));
     return { favs: validFavs, rest: [...validRest, ...fresh] };
   } catch {
-    return defaultNavState();
+    return defaultNavState(features, viewable);
   }
 }
 
@@ -126,12 +139,13 @@ type SectionProps = {
   accent: string;
   compact: boolean;
   features?: Record<string, boolean>;
+  viewable: ViewableWorkcenters;
   expanded: Record<string, boolean>;
   onToggleExpand: (href: string) => void;
 };
 
 function DraggableSection({
-  items, isFavSection, isActive, onToggleFav, onReorder, onNavigate, accent, compact, features, expanded, onToggleExpand,
+  items, isFavSection, isActive, onToggleFav, onReorder, onNavigate, accent, compact, features, viewable, expanded, onToggleExpand,
 }: SectionProps) {
   const [dropAt, setDropAt]   = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
@@ -271,7 +285,7 @@ function DraggableSection({
             {hasChildren && isOpen && (
               <div style={{ marginLeft: 10 }}>
                 {item.children!
-                  .filter((ch) => !ch.featureKey || features?.[ch.featureKey] === true)
+                  .filter((ch) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable))
                   .map((ch) => {
                     const childOn = isActive(ch.href);
                     return (
@@ -393,6 +407,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { settings } = useSettings();
   const tenant = useTenant();
+  const viewable = useViewableWorkcenters();
 
   // Per-browser preference to fully collapse the sidebar to an icon-only rail,
   // separate from the tenant-wide "compact" width setting (which just narrows it
@@ -418,8 +433,8 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const accent  = tenant?.accent_color || ACCENT_PRESETS[settings.accentPreset].color;
   const compact = appearance?.compact_sidebar ?? settings.compactSidebar;
 
-  const [navState, setNavState] = useState<NavState>(() => defaultNavState(features));
-  useEffect(() => { setNavState(loadNavState(features)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [navState, setNavState] = useState<NavState>(() => defaultNavState(features, viewable));
+  useEffect(() => { setNavState(loadNavState(features, viewable)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   useEffect(() => { setExpandedMap(loadExpanded()); }, []);
@@ -431,7 +446,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     });
   };
 
-  const allMap  = new Map(flattenNav(features).map((i) => [i.href, i]));
+  const allMap  = new Map(flattenNav(features, viewable).map((i) => [i.href, i]));
   // Tenant-wide hidden nav items (Settings → General), not a per-browser preference.
   const hidden  = new Set(tenant?.config?.nav_hidden_hrefs ?? settings.hiddenNavHrefs);
 
@@ -588,6 +603,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           accent={accent}
           compact={compact}
           features={features}
+          viewable={viewable}
           expanded={expandedMap}
           onToggleExpand={toggleExpand}
         />
@@ -612,6 +628,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           accent={accent}
           compact={compact}
           features={features}
+          viewable={viewable}
           expanded={expandedMap}
           onToggleExpand={toggleExpand}
         />

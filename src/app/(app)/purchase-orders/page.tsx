@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
+import { requireWorkcenterView } from "@/lib/permissions";
 import { listPurchaseOrdersLive } from "@/lib/data/live";
 import { c, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -31,6 +32,7 @@ export default async function PurchaseOrdersPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  await requireWorkcenterView("purchase_orders");
   await requireFeature("purchasing");
   const { status: statusFilter } = await searchParams;
   const rows = await listPurchaseOrdersLive();

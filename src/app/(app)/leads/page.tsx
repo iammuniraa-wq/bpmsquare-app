@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
+import { requireWorkcenterView } from "@/lib/permissions";
 import { listLeadsLive } from "@/lib/data/live";
 import { listAccounts } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
@@ -41,6 +42,7 @@ export default async function LeadsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  await requireWorkcenterView("leads");
   await requireFeature("leads");
   const { status: statusFilter } = await searchParams;
   const leads = await listLeadsLive();

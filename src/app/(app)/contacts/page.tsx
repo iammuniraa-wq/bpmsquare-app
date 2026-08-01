@@ -4,12 +4,14 @@ import { c } from "@/lib/theme";
 import PageHeader from "@/components/PageHeader";
 import { ROUTES } from "@/lib/constants";
 import ContactsTable from "@/components/ContactsTable";
+import { requireWorkcenterView } from "@/lib/permissions";
 
 export default async function ContactsPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  await requireWorkcenterView("contacts");
   const { q } = await searchParams;
   const allRows = await listContacts();
 

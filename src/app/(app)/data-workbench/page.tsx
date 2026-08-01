@@ -6,6 +6,7 @@ import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { REGISTRY_OBJECT_TYPE, buildObjectSpec } from "@/lib/import/registrySchema";
 import { USERS_SPEC } from "@/lib/import/usersSchema";
 import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
+import { requireWorkcenterView } from "@/lib/permissions";
 import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 
 const OBJECT_ORDER: ImportObjectId[] = [
@@ -22,6 +23,7 @@ const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
 };
 
 export default async function DataWorkbenchPage() {
+  await requireWorkcenterView("data_workbench");
   const { supabase, tenantId } = await requireTenantUser();
 
   const salesConfig = await getSalesConfig(supabase, tenantId);

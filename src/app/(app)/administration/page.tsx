@@ -25,6 +25,12 @@ const SECTIONS: { group: string; items: AdminCard[] }[] = [
       { label: "Outbound Emails", description: "Every quote email and campaign send — recipient, subject, and whether it succeeded", href: ROUTES.administrationOutboundEmails, icon: "✉️", pillarKey: "blue" },
     ],
   },
+  {
+    group: "Access",
+    items: [
+      { label: "Business Roles", description: "Define named roles, grant them specific workcenters, and assign roles to team members", href: ROUTES.administrationBusinessRoles, icon: "🔐", pillarKey: "purple" },
+    ],
+  },
 ];
 
 function AdminTile({ item }: { item: AdminCard }) {

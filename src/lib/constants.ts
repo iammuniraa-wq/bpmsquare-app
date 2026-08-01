@@ -102,6 +102,7 @@ export const ROUTES = {
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
+  administrationBusinessRoles: "/administration/business-roles",
 } as const;
 
 export type NavItem = {
@@ -112,6 +113,10 @@ export type NavItem = {
   pillar: PillarKey;
   /** If set, item is hidden unless the tenant has this feature enabled. */
   featureKey?: string;
+  /** Matches a WorkcenterKey (src/lib/permissions.ts) -- absent on pure
+   * expand/collapse toggle rows (Sales/Service/Marketing/Master data), which
+   * have no access of their own and are hidden only when every child is. */
+  workcenterKey?: string;
   /** Sub-items shown when this item is expanded in the sidebar -- the item
    * itself becomes an expand/collapse toggle rather than a direct link. */
   children?: NavItem[];
@@ -129,9 +134,9 @@ export const NAV: NavGroup[] = [
   {
     group: "WORKSPACE",
     items: [
-      { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue" },
-      { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue" },
-      { label: "Contacts",  href: ROUTES.contacts,  icon: "◉", pillar: "blue" },
+      { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue", workcenterKey: "dashboard" },
+      { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue", workcenterKey: "accounts" },
+      { label: "Contacts",  href: ROUTES.contacts,  icon: "◉", pillar: "blue", workcenterKey: "contacts" },
     ],
   },
   {
@@ -140,9 +145,9 @@ export const NAV: NavGroup[] = [
       {
         label: "Sales", href: ROUTES.quotations, icon: "₹", pillar: "blue",
         children: [
-          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue" },
-          { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline" },
-          { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices" },
+          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", workcenterKey: "quotations" },
+          { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
+          { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
         ],
       },
     ],
@@ -153,11 +158,11 @@ export const NAV: NavGroup[] = [
       {
         label: "Service", href: ROUTES.cases, icon: "☎", pillar: "teal",
         children: [
-          { label: "Cases",         href: ROUTES.cases,       icon: "☎", pillar: "teal" },
-          { label: "AMC contracts", href: ROUTES.amc,         icon: "▥", pillar: "teal", featureKey: "amc" },
-          { label: "Work orders",   href: ROUTES.workOrders,  icon: "▤", pillar: "amber" },
-          { label: "Dispatch",      href: ROUTES.dispatch,    icon: "◷", pillar: "amber", featureKey: "dispatch" },
-          { label: "Technicians",   href: ROUTES.technicians, icon: "◍", pillar: "amber" },
+          { label: "Cases",         href: ROUTES.cases,       icon: "☎", pillar: "teal", workcenterKey: "cases" },
+          { label: "AMC contracts", href: ROUTES.amc,         icon: "▥", pillar: "teal", featureKey: "amc", workcenterKey: "amc" },
+          { label: "Work orders",   href: ROUTES.workOrders,  icon: "▤", pillar: "amber", workcenterKey: "work_orders" },
+          { label: "Dispatch",      href: ROUTES.dispatch,    icon: "◷", pillar: "amber", featureKey: "dispatch", workcenterKey: "dispatch" },
+          { label: "Technicians",   href: ROUTES.technicians, icon: "◍", pillar: "amber", workcenterKey: "technicians" },
         ],
       },
     ],
@@ -168,10 +173,10 @@ export const NAV: NavGroup[] = [
       {
         label: "Marketing", href: ROUTES.marketing, icon: "📣", pillar: "purple",
         children: [
-          { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing" },
-          { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing" },
-          { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads" },
-          { label: "Partners", href: ROUTES.partners, icon: "⌂", pillar: "purple", featureKey: "partners" },
+          { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
+          { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
+          { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
+          { label: "Partners", href: ROUTES.partners, icon: "⌂", pillar: "purple", featureKey: "partners", workcenterKey: "partners" },
         ],
       },
     ],
@@ -182,10 +187,10 @@ export const NAV: NavGroup[] = [
       {
         label: "Master data", href: ROUTES.assets, icon: "⚙", pillar: "green",
         children: [
-          { label: "Assets",          href: ROUTES.assets,         icon: "⚙", pillar: "green" },
-          { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green" },
-          { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing" },
-          { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "green", featureKey: "purchasing" },
+          { label: "Assets",          href: ROUTES.assets,         icon: "⚙", pillar: "green", workcenterKey: "assets" },
+          { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", workcenterKey: "suppliers" },
+          { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
+          { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "green", featureKey: "purchasing", workcenterKey: "purchase_orders" },
         ],
       },
     ],
@@ -193,14 +198,14 @@ export const NAV: NavGroup[] = [
   {
     group: "ANALYTICS",
     items: [
-      { label: "Analytics", href: ROUTES.reports, icon: "◫", pillar: "purple" },
+      { label: "Analytics", href: ROUTES.reports, icon: "◫", pillar: "purple", workcenterKey: "reports" },
     ],
   },
   {
     group: "ADMIN",
     items: [
-      { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal" },
-      { label: "Administrator", href: ROUTES.administration, icon: "🛠", pillar: "teal" },
+      { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal", workcenterKey: "data_workbench" },
+      { label: "Administrator", href: ROUTES.administration, icon: "🛠", pillar: "teal", workcenterKey: "administration" },
     ],
   },
 ];

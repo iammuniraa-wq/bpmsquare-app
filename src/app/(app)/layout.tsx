@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import Shell from "@/components/Shell";
 import { getTenant, getUserRole, isPlatformAdmin, redactTenantForRole } from "@/lib/tenant";
 import { TenantProvider } from "@/lib/tenant-context";
-import { getAuthUser } from "@/lib/supabase-server";
+import { getAuthUser, createServerSupabase } from "@/lib/supabase-server";
+import { resolvePermissions, toViewableWorkcenters } from "@/lib/permissions";
 import { LinkIcon } from "@/components/Icons";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -52,8 +53,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
 
+  const supabase = await createServerSupabase();
+  const perms = await resolvePermissions(supabase, tenant.id, user.id, userRole ?? "member");
+
   return (
-    <TenantProvider tenant={redactTenantForRole(tenant, userRole)} userRole={userRole}>
+    <TenantProvider tenant={redactTenantForRole(tenant, userRole)} userRole={userRole} viewableWorkcenters={toViewableWorkcenters(perms)}>
       <style>{`:root { --tenant-accent: ${tenant.accent_color}; }`}</style>
       <Shell>{children}</Shell>
     </TenantProvider>
