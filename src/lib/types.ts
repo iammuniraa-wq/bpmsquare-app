@@ -340,6 +340,10 @@ export type StandardQuote = {
   updated_at: string;
   sent_at: string | null;
   template_id: string | null;
+  header_discount_pct: number;
+  tax_pct: number;
+  shipping_amount: number;
+  intro_text: string | null;
 };
 
 export type StandardQuoteLine = {
@@ -362,7 +366,8 @@ export type StandardQuoteLine = {
 // optional. See supabase/migrations/0054_standard_quote_templates.sql.
 export type StandardQuoteTemplateBlockType =
   | "letterhead" | "quote_meta" | "bill_to" | "intro_text" | "line_items"
-  | "totals" | "notes" | "terms" | "signature" | "footer_text";
+  | "totals" | "notes" | "terms" | "signature" | "footer_text"
+  | "specs_table" | "cta_banner";
 
 export const STANDARD_QUOTE_REQUIRED_BLOCKS: StandardQuoteTemplateBlockType[] = [
   "letterhead", "quote_meta", "bill_to", "line_items", "totals",

@@ -2,6 +2,7 @@ import type { StandardQuote, StandardQuoteLine, Account, Contact, StandardQuoteT
 import type { CompanyInfo } from "@/lib/tenant";
 import { Mail, Globe, MapPin } from "@/components/Icons";
 import { defaultStandardQuoteBlocks } from "@/lib/standardQuoteTemplateBlocks";
+import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
 
 export type StandardQuotePrintDocumentProps = {
   quote: StandardQuote;
@@ -31,6 +32,29 @@ function SectionLabel({ children, accent }: { children: React.ReactNode; accent:
   );
 }
 
+function TotalsRow({ label, value }: { label: string; value: string }) {
+  return (
+    <tr>
+      <td style={{ padding: "2px 0", fontSize: 12, color: "#5f6b7a" }}>{label}</td>
+      <td style={{ padding: "2px 0", fontSize: 12, color: "#5f6b7a", textAlign: "right" }}>{value}</td>
+    </tr>
+  );
+}
+
+/** "Label: Value" per line -- the free-form shape a specs_table block's
+ * content is authored in (by hand or via AI), parsed at render time. Lines
+ * without a colon render as a bare label with no value column. */
+function parseSpecs(content: string): { label: string; value: string }[] {
+  return content
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const i = line.indexOf(":");
+      return i === -1 ? { label: line, value: "" } : { label: line.slice(0, i).trim(), value: line.slice(i + 1).trim() };
+    });
+}
+
 // Standard Quote's own print layout -- deliberately not QuotePrintDocument.tsx
 // or InvoicePrintDocument.tsx (both carry customization this object is meant
 // to stay free of). Shared only with the generic tenant letterhead data
@@ -56,7 +80,9 @@ export default function StandardQuotePrintDocument({
   const logoPosition = template?.logo_position ?? "left";
   const blocks = template?.blocks?.length ? template.blocks : defaultStandardQuoteBlocks();
 
-  const total = lines.reduce((s, l) => s + l.amount, 0);
+  const subtotal = lines.reduce((s, l) => s + l.amount, 0);
+  const totals = computeStandardQuoteTotals(subtotal, quote.header_discount_pct, quote.tax_pct, quote.shipping_amount);
+  const hasBreakdown = quote.header_discount_pct > 0 || quote.tax_pct > 0 || quote.shipping_amount > 0;
   const logoIni = initials(co.name || "?");
 
   const logoBlock = co.logo_url ? (
@@ -145,13 +171,15 @@ export default function StandardQuotePrintDocument({
           </div>
         );
 
-      case "intro_text":
-        if (!block.content?.trim()) return null;
+      case "intro_text": {
+        const introText = quote.intro_text?.trim() || block.content?.trim();
+        if (!introText) return null;
         return (
           <div key={block.id} style={{ margin: "12px 28px 0", color: "#3a4652", fontSize: 12.5, lineHeight: 1.6, whiteSpace: "pre-wrap", breakInside: "avoid" }}>
-            {block.content}
+            {introText}
           </div>
         );
+      }
 
       case "line_items":
         return (
@@ -186,11 +214,25 @@ export default function StandardQuotePrintDocument({
           <div key={block.id} style={{ borderTop: `1px solid ${brand.line}`, padding: "9px 28px", display: "flex", justifyContent: "flex-end", breakInside: "avoid" }}>
             <table style={{ width: 300 }}>
               <tbody>
+                {hasBreakdown && (
+                  <>
+                    <TotalsRow label="Subtotal" value={inr(totals.subtotal)} />
+                    {quote.header_discount_pct > 0 && (
+                      <TotalsRow label={`Discount (${quote.header_discount_pct}%)`} value={`− ${inr(totals.discountAmount)}`} />
+                    )}
+                    {quote.tax_pct > 0 && (
+                      <TotalsRow label={`Tax (${quote.tax_pct}%)`} value={inr(totals.taxAmount)} />
+                    )}
+                    {quote.shipping_amount > 0 && (
+                      <TotalsRow label="Shipping / Handling" value={inr(totals.shipping)} />
+                    )}
+                  </>
+                )}
                 <tr>
                   <td colSpan={2} style={{ paddingTop: 6 }}>
                     <div style={{ background: brand.dark, color: "#fff", borderRadius: 6, padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>Total</span>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: accent }}>{inr(total)}</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: accent }}>{inr(totals.total)}</span>
                     </div>
                   </td>
                 </tr>
@@ -231,6 +273,34 @@ export default function StandardQuotePrintDocument({
         if (!block.content?.trim()) return null;
         return (
           <div key={block.id} style={{ margin: "0 28px 12px", color: "#5f6b7a", fontSize: 11.5, lineHeight: 1.6, whiteSpace: "pre-wrap", textAlign: "center", breakInside: "avoid" }}>
+            {block.content}
+          </div>
+        );
+
+      case "specs_table": {
+        const specs = parseSpecs(block.content ?? "");
+        if (specs.length === 0) return null;
+        return (
+          <div key={block.id} style={{ margin: "0 28px 12px", breakInside: "avoid" }}>
+            <SectionLabel accent={accent}>Specifications</SectionLabel>
+            <table style={{ width: "100%" }}>
+              <tbody>
+                {specs.map((s, i) => (
+                  <tr key={i} style={{ borderBottom: i < specs.length - 1 ? `1px solid ${brand.line}` : "none" }}>
+                    <td style={{ padding: "5px 10px 5px 0", fontSize: 12, color: "#5f6b7a", width: "40%" }}>{s.label}</td>
+                    {s.value && <td style={{ padding: "5px 0", fontSize: 12.5, color: brand.dark, fontWeight: 500 }}>{s.value}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+
+      case "cta_banner":
+        if (!block.content?.trim()) return null;
+        return (
+          <div key={block.id} style={{ margin: "0 28px 12px", background: accent, color: "#fff", borderRadius: 6, padding: "10px 16px", textAlign: "center", fontSize: 12.5, fontWeight: 600, breakInside: "avoid" }}>
             {block.content}
           </div>
         );

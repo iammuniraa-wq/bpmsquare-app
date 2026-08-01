@@ -6,6 +6,7 @@ import Link from "next/link";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
+import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
 
 type Line = { id: string; description: string; uom: string; qty: string; rate: string; discount_pct: string };
 
@@ -41,6 +42,10 @@ type EditQuote = {
   notes: string | null;
   terms: string | null;
   template_id: string | null;
+  header_discount_pct: number;
+  tax_pct: number;
+  shipping_amount: number;
+  intro_text: string | null;
   lines: { sl_no: string | null; description: string; uom: string | null; qty: number; rate: number; discount_pct: number }[];
 };
 
@@ -61,6 +66,10 @@ export default function StandardQuoteForm({
   const [validUntil, setValidUntil] = useState(editQuote?.valid_until ?? "");
   const [notes, setNotes] = useState(editQuote?.notes ?? "");
   const [terms, setTerms] = useState(editQuote?.terms ?? "");
+  const [introText, setIntroText] = useState(editQuote?.intro_text ?? "");
+  const [headerDiscountPct, setHeaderDiscountPct] = useState(String(editQuote?.header_discount_pct ?? 0));
+  const [taxPct, setTaxPct] = useState(String(editQuote?.tax_pct ?? 0));
+  const [shippingAmount, setShippingAmount] = useState(String(editQuote?.shipping_amount ?? 0));
   const [templateId, setTemplateId] = useState(
     editQuote?.template_id ?? templates.find((t) => t.is_default)?.id ?? ""
   );
@@ -74,11 +83,68 @@ export default function StandardQuoteForm({
       : [newLine()]
   );
 
+  const [aiJobDesc, setAiJobDesc] = useState("");
+  const [aiDrafting, setAiDrafting] = useState(false);
+  const [aiIntroDrafting, setAiIntroDrafting] = useState(false);
+
   const accountContacts = contacts.filter((ct) => ct.account_id === accountId);
-  const total = lines.reduce((s, l) => s + lineAmount(l), 0);
+  const subtotal = lines.reduce((s, l) => s + lineAmount(l), 0);
+  const totals = computeStandardQuoteTotals(
+    subtotal,
+    Math.max(0, Math.min(100, parseFloat(headerDiscountPct) || 0)),
+    Math.max(0, Math.min(100, parseFloat(taxPct) || 0)),
+    Math.max(0, parseFloat(shippingAmount) || 0)
+  );
 
   function updateLine(id: string, patch: Partial<Line>) {
     setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  }
+
+  function draftLinesWithAI() {
+    if (!aiJobDesc.trim()) return;
+    setAiDrafting(true);
+    setError("");
+    fetch("/api/standard-quotes/ai-draft-lines", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: aiJobDesc }),
+    })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) { setError(json.error ?? "AI drafting failed"); return; }
+        const drafted: Line[] = (json.lines as { description: string; uom: string; qty: string }[]).map((l) => ({
+          id: Math.random().toString(36).slice(2),
+          description: l.description, uom: l.uom || "Nos", qty: l.qty || "1", rate: "0", discount_pct: "0",
+        }));
+        if (drafted.length === 0) { setError("AI didn't return any line items — try a more specific description"); return; }
+        setLines((ls) => (ls.length === 1 && !ls[0].description.trim() ? drafted : [...ls, ...drafted]));
+      })
+      .catch(() => setError("Could not reach the AI drafting service"))
+      .finally(() => setAiDrafting(false));
+  }
+
+  function draftIntroWithAI() {
+    if (!accountId) { setError("Select an account first"); return; }
+    const cleanLines = lines.filter((l) => l.description.trim());
+    if (cleanLines.length === 0) { setError("Add at least one line item first"); return; }
+    setAiIntroDrafting(true);
+    setError("");
+    fetch("/api/standard-quotes/ai-intro", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        account_id: accountId,
+        lines: cleanLines.map((l) => ({ description: l.description, qty: l.qty, rate: l.rate })),
+        notes,
+      }),
+    })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) { setError(json.error ?? "AI drafting failed"); return; }
+        setIntroText(json.intro_text ?? "");
+      })
+      .catch(() => setError("Could not reach the AI drafting service"))
+      .finally(() => setAiIntroDrafting(false));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -89,6 +155,10 @@ export default function StandardQuoteForm({
     setError("");
     const linePayload = cleanLines.map((l) => ({ description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct }));
     startTransition(async () => {
+      const commercial = {
+        header_discount_pct: headerDiscountPct, tax_pct: taxPct, shipping_amount: shippingAmount,
+        intro_text: introText || null,
+      };
       const res = editQuote
         ? await fetch(`/api/standard-quotes/${editQuote.id}`, {
             method: "PATCH",
@@ -100,6 +170,7 @@ export default function StandardQuoteForm({
               terms: terms || null,
               template_id: templateId || null,
               lines: linePayload,
+              ...commercial,
             }),
           })
         : await fetch("/api/standard-quotes", {
@@ -113,6 +184,7 @@ export default function StandardQuoteForm({
               terms: terms || null,
               template_id: templateId || null,
               lines: linePayload,
+              ...commercial,
             }),
           });
       const json = await res.json();
@@ -131,7 +203,7 @@ export default function StandardQuoteForm({
 
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>{editQuote ? `Edit ${editQuote.ref}` : "New Standard Quote"}</h1>
-        <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>A plain quote for an account — description, quantity, rate</p>
+        <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>A plain quote for an account — line items, discount, tax, shipping</p>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -175,6 +247,28 @@ export default function StandardQuoteForm({
                   </select>
                 </div>
               </div>
+            </section>
+
+            <section style={cardStyle}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 10px" }}>Draft line items with AI</h3>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  style={inp}
+                  value={aiJobDesc}
+                  onChange={(e) => setAiJobDesc(e.target.value)}
+                  placeholder="Describe the job — e.g. install 3 split ACs and set up an annual AMC"
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); draftLinesWithAI(); } }}
+                />
+                <button
+                  type="button" disabled={aiDrafting || !aiJobDesc.trim()} onClick={draftLinesWithAI}
+                  style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 8, padding: "0 16px", cursor: aiDrafting ? "wait" : "pointer" }}
+                >
+                  {aiDrafting ? "Drafting…" : "✨ Draft with AI"}
+                </button>
+              </div>
+              <p style={{ fontSize: 11.5, color: c.hint, margin: "6px 0 0" }}>
+                AI suggests description, UOM, and quantity — rates are left at ₹0 for you to price.
+              </p>
             </section>
 
             <section style={cardStyle}>
@@ -229,8 +323,28 @@ export default function StandardQuoteForm({
                   </div>
                 ))}
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>Total: {inr(total)}</div>
+
+              <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 14, paddingTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <div>
+                  <label style={lbl}>Discount %</label>
+                  <input style={inp} type="number" min="0" max="100" step="0.1" value={headerDiscountPct} onChange={(e) => setHeaderDiscountPct(e.target.value)} />
+                </div>
+                <div>
+                  <label style={lbl}>Tax %</label>
+                  <input style={inp} type="number" min="0" max="100" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} />
+                </div>
+                <div>
+                  <label style={lbl}>Shipping / Handling (₹)</label>
+                  <input style={inp} type="number" min="0" step="0.01" value={shippingAmount} onChange={(e) => setShippingAmount(e.target.value)} />
+                </div>
+              </div>
+
+              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                <TotalLine label="Subtotal" value={inr(totals.subtotal)} />
+                {totals.discountAmount > 0 && <TotalLine label={`Discount (${headerDiscountPct}%)`} value={`− ${inr(totals.discountAmount)}`} />}
+                {totals.taxAmount > 0 && <TotalLine label={`Tax (${taxPct}%)`} value={inr(totals.taxAmount)} />}
+                {totals.shipping > 0 && <TotalLine label="Shipping" value={inr(totals.shipping)} />}
+                <div style={{ fontSize: 15, fontWeight: 700, color: c.ink, marginTop: 4 }}>Total: {inr(totals.total)}</div>
               </div>
             </section>
 
@@ -239,9 +353,21 @@ export default function StandardQuoteForm({
                 <label style={lbl}>Notes</label>
                 <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
-              <div>
+              <div style={fw}>
                 <label style={lbl}>Terms</label>
                 <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms…" />
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                  <label style={{ ...lbl, marginBottom: 0 }}>Intro text (overrides the template&apos;s intro block for this quote)</label>
+                  <button
+                    type="button" disabled={aiIntroDrafting} onClick={draftIntroWithAI}
+                    style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: aiIntroDrafting ? "wait" : "pointer" }}
+                  >
+                    {aiIntroDrafting ? "Writing…" : "✨ Generate with AI"}
+                  </button>
+                </div>
+                <textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={introText} onChange={(e) => setIntroText(e.target.value)} placeholder="A short, personalized cover note for this quote…" />
               </div>
             </section>
           </div>
@@ -273,5 +399,14 @@ export default function StandardQuoteForm({
         </div>
       </form>
     </>
+  );
+}
+
+function TotalLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", gap: 16, fontSize: 12.5, color: c.muted }}>
+      <span>{label}</span>
+      <span style={{ minWidth: 90, textAlign: "right" }}>{value}</span>
+    </div>
   );
 }

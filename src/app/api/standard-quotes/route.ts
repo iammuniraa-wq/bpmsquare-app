@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { generateNextStandardQuoteRef } from "@/lib/standardQuoteRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -35,7 +36,10 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { account_id, contact_id, valid_until, terms, notes, lines, template_id } = body;
+  const { account_id, contact_id, valid_until, terms, notes, lines, template_id, intro_text } = body;
+  const headerDiscountPct = clampPct(body.header_discount_pct);
+  const taxPct = clampPct(body.tax_pct);
+  const shippingAmount = clampAmount(body.shipping_amount);
 
   if (!account_id) {
     return NextResponse.json({ error: "account_id is required" }, { status: 400 });
@@ -81,6 +85,7 @@ export async function POST(request: NextRequest) {
     : [];
 
   const subtotal = cleanLines.reduce((s, l) => s + l.amount, 0);
+  const totals = computeStandardQuoteTotals(subtotal, headerDiscountPct, taxPct, shippingAmount);
 
   const baseInsert = {
     tenant_id: tenantId,
@@ -90,8 +95,12 @@ export async function POST(request: NextRequest) {
     valid_until: valid_until || null,
     terms: terms || null,
     notes: notes || null,
+    intro_text: intro_text || null,
+    header_discount_pct: headerDiscountPct,
+    tax_pct: taxPct,
+    shipping_amount: shippingAmount,
     subtotal,
-    total: subtotal,
+    total: totals.total,
     created_by: userId,
     template_id: templateId,
   };

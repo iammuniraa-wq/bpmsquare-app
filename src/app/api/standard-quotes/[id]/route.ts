@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
+import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -59,11 +60,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .eq("standard_quote_id", id)
     .order("sl_no");
 
-  const allowed = ["contact_id", "valid_until", "terms", "notes", "status", "template_id"];
+  const allowed = ["contact_id", "valid_until", "terms", "notes", "status", "template_id", "intro_text"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key] || null;
   if ("status" in body) patch.status = body.status;
   if (body.status === "sent" && before.status !== "sent") patch.sent_at = new Date().toISOString();
+
+  if ("header_discount_pct" in body) patch.header_discount_pct = clampPct(body.header_discount_pct);
+  if ("tax_pct" in body) patch.tax_pct = clampPct(body.tax_pct);
+  if ("shipping_amount" in body) patch.shipping_amount = clampAmount(body.shipping_amount);
 
   type CleanLine = { tenant_id: string; standard_quote_id: string; sl_no: string; description: string; uom: string | null; qty: number; rate: number; discount_pct: number; amount: number };
   let cleanLines: CleanLine[] | null = null;
@@ -86,9 +91,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         };
       });
     cleanLines = built;
-    const subtotal = built.reduce((s, l) => s + l.amount, 0);
-    patch.subtotal = subtotal;
-    patch.total = subtotal;
+    patch.subtotal = built.reduce((s, l) => s + l.amount, 0);
+  }
+
+  if ("header_discount_pct" in patch || "tax_pct" in patch || "shipping_amount" in patch || "subtotal" in patch) {
+    const effectiveSubtotal = (patch.subtotal as number | undefined) ?? before.subtotal;
+    const effectiveDiscountPct = (patch.header_discount_pct as number | undefined) ?? before.header_discount_pct;
+    const effectiveTaxPct = (patch.tax_pct as number | undefined) ?? before.tax_pct;
+    const effectiveShipping = (patch.shipping_amount as number | undefined) ?? before.shipping_amount;
+    patch.total = computeStandardQuoteTotals(effectiveSubtotal, effectiveDiscountPct, effectiveTaxPct, effectiveShipping).total;
   }
 
   const { error: uErr } = await supabase.from("standard_quotes").update(patch).eq("id", id).eq("tenant_id", tenantId);

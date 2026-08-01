@@ -23,10 +23,14 @@ const BLOCK_LABELS: Record<StandardQuoteTemplateBlockType, string> = {
   terms: "Terms & conditions",
   signature: "Signature block",
   footer_text: "Footer text",
+  specs_table: "Specifications table",
+  cta_banner: "Call-to-action banner",
 };
 const HAS_CONTENT: Partial<Record<StandardQuoteTemplateBlockType, string>> = {
-  intro_text: "Shown above the line items — e.g. a short cover note.",
+  intro_text: "Shown above the line items — e.g. a short cover note. Can be overridden per-quote.",
   footer_text: "Shown near the bottom, above the company footer — e.g. legal boilerplate.",
+  specs_table: "One \"Label: Value\" per line, e.g. \"Warranty: 1 year\".",
+  cta_banner: "A single highlighted line, e.g. \"Questions? Call us at +91 98765 43210\".",
 };
 
 // Fabricated, non-persisted data so admins can see how a template actually
@@ -51,6 +55,7 @@ function mockQuote(): StandardQuote {
     notes: "Please confirm site access before the installation date.",
     subtotal: 43000, total: 43000, created_by: null,
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(), sent_at: null, template_id: null,
+    header_discount_pct: 5, tax_pct: 18, shipping_amount: 500, intro_text: null,
   };
 }
 
@@ -75,6 +80,9 @@ export default function TemplateBuilderClient({
 
   const [dropAt, setDropAt] = useState<number | null>(null);
   const dragIdx = useRef<number | null>(null);
+
+  const [aiDesc, setAiDesc] = useState("");
+  const [aiDesigning, setAiDesigning] = useState(false);
 
   function onDragStart(e: React.DragEvent, idx: number) {
     dragIdx.current = idx;
@@ -111,6 +119,26 @@ export default function TemplateBuilderClient({
     setBlocks((bs) => bs.map((b, i) => (i === idx ? { ...b, content } : b)));
   }
 
+  function designWithAI() {
+    if (!aiDesc.trim()) return;
+    setAiDesigning(true);
+    setError("");
+    fetch("/api/standard-quote-templates/ai-design", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: aiDesc }),
+    })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) { setError(json.error ?? "AI design failed"); return; }
+        if (json.accent_color) setAccentColor(json.accent_color);
+        if (json.logo_position) setLogoPosition(json.logo_position);
+        if (Array.isArray(json.blocks) && json.blocks.length > 0) setBlocks(json.blocks);
+      })
+      .catch(() => setError("Could not reach the AI design service"))
+      .finally(() => setAiDesigning(false));
+  }
+
   function save() {
     if (!name.trim()) { setError("Name is required"); return; }
     setError("");
@@ -141,6 +169,28 @@ export default function TemplateBuilderClient({
             ✓ Saved
           </div>
         )}
+
+        <section style={cardStyle}>
+          <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 10px" }}>Design with AI</h3>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              style={fieldInput}
+              value={aiDesc}
+              onChange={(e) => setAiDesc(e.target.value)}
+              placeholder="Describe the style — e.g. formal, navy and gold, for enterprise clients"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); designWithAI(); } }}
+            />
+            <button
+              type="button" disabled={aiDesigning || !aiDesc.trim()} onClick={designWithAI}
+              style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 8, padding: "0 16px", cursor: aiDesigning ? "wait" : "pointer" }}
+            >
+              {aiDesigning ? "Designing…" : "✨ Design with AI"}
+            </button>
+          </div>
+          <p style={{ fontSize: 11.5, color: c.hint, margin: "6px 0 0" }}>
+            Sets accent color, logo position, and block order/content below — review before saving.
+          </p>
+        </section>
 
         <section style={cardStyle}>
           <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 14px" }}>Template settings</h3>
