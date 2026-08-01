@@ -5,13 +5,21 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { REGISTRY_OBJECT_TYPE, buildObjectSpec } from "@/lib/import/registrySchema";
 import { USERS_SPEC } from "@/lib/import/usersSchema";
+import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
 import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 
 const OBJECT_ORDER: ImportObjectId[] = [
-  "accounts", "contacts", "assets", "suppliers", "quotes",
+  "accounts", "contacts", "assets", "suppliers", "quotes", "quote_lines",
   "cases", "work_orders", "invoices", "purchase_orders", "inventory",
   "users",
 ];
+
+// Objects with no FIELD_REGISTRY entry (REGISTRY_OBJECT_TYPE[id] === null) use
+// a static, hand-authored spec instead of buildObjectSpec()'s field-config path.
+const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
+  users: USERS_SPEC,
+  quote_lines: QUOTE_LINES_SPEC,
+};
 
 export default async function DataWorkbenchPage() {
   const { supabase, tenantId } = await requireTenantUser();
@@ -21,7 +29,7 @@ export default async function DataWorkbenchPage() {
   const specs: ObjectSpec[] = await Promise.all(
     OBJECT_ORDER.map(async (id): Promise<ObjectSpec> => {
       const registryType = REGISTRY_OBJECT_TYPE[id];
-      if (!registryType) return USERS_SPEC;
+      if (!registryType) return STATIC_SPECS[id]!;
       const fieldConfig = await getEffectiveFieldConfig(supabase, tenantId, registryType);
       return buildObjectSpec(id, fieldConfig, salesConfig);
     })

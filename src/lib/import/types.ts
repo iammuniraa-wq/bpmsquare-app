@@ -1,5 +1,5 @@
 export type ImportObjectId =
-  | "accounts" | "contacts" | "assets" | "suppliers" | "quotes"
+  | "accounts" | "contacts" | "assets" | "suppliers" | "quotes" | "quote_lines"
   | "cases" | "work_orders" | "invoices" | "purchase_orders" | "inventory"
   | "users";
 
