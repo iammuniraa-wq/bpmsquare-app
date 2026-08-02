@@ -62,3 +62,10 @@ alter table tenant_users
   add column valid_from   date,
   add column valid_to     date,
   add column counted      boolean not null default true;
+
+-- One business user per employee, enforced by the database (the API also
+-- checks, but a check-then-insert race would otherwise allow duplicates --
+-- which would double-count a seat once "counted" becomes billing-relevant).
+create unique index tenant_users_employee_uniq
+  on tenant_users (tenant_id, employee_id)
+  where employee_id is not null;

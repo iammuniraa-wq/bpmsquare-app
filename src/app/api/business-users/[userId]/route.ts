@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
+import { isMembershipActive } from "@/lib/constants";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const cleanDate = (v: unknown) => (typeof v === "string" && DATE_RE.test(v) ? v : null);
@@ -28,21 +29,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: member } = await admin
     .from("tenant_users")
-    .select("id, role")
+    .select("id, role, is_locked, valid_from, valid_to")
     .eq("tenant_id", tenantId)
     .eq("user_id", targetUserId)
     .maybeSingle();
   if (!member) return NextResponse.json({ error: "Business user not found" }, { status: 404 });
 
   const body = await request.json();
-
-  // Locking yourself out mid-session would be confusing at best; locking
-  // another ADMIN is allowed (that's a legitimate offboarding action), but
-  // your own row is off-limits, same rule as Settings -> Team's self-removal
-  // block.
-  if (body.is_locked === true && targetUserId === userId) {
-    return NextResponse.json({ error: "You can't lock your own account" }, { status: 400 });
-  }
 
   const patch: Record<string, unknown> = {};
   if ("display_name" in body) {
@@ -53,6 +46,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ("valid_from" in body) patch.valid_from = cleanDate(body.valid_from);
   if ("valid_to" in body) patch.valid_to = cleanDate(body.valid_to);
   if ("counted" in body) patch.counted = !!body.counted;
+
+  // Locking yourself out mid-session would be confusing at best; deactivating
+  // another ADMIN is allowed (that's legitimate offboarding, and platform
+  // admins can always recover a tenant), but your own row must stay active --
+  // same rule as Settings -> Team's self-removal block. Checked against the
+  // MERGED prospective state, so a self-set past valid_to (or future
+  // valid_from) is caught the same as is_locked -- middleware treats every
+  // inactive membership identically, so this guard has to as well.
+  if (targetUserId === userId) {
+    const prospective = { ...member, ...patch } as { is_locked?: boolean | null; valid_from?: string | null; valid_to?: string | null };
+    if (!isMembershipActive(prospective)) {
+      return NextResponse.json({ error: "You can't lock your own account or set your own validity to exclude today" }, { status: 400 });
+    }
+  }
 
   if (Object.keys(patch).length > 0) {
     const { error } = await admin.from("tenant_users").update(patch).eq("id", member.id).eq("tenant_id", tenantId);
