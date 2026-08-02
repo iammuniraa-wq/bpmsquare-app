@@ -70,6 +70,7 @@ export const ROUTES = {
   standardQuotePrint: (id: string) => `/standard-quotes/${id}/print`,
   standardQuoteTemplates: "/standard-quotes/templates",
   standardQuoteTemplate: (id: string) => `/standard-quotes/templates/${id}`,
+  employees: "/employees",
   configPricing: "/settings/pricing",
   configTemplates: "/settings/templates",
   configCustomFields: "/settings/custom-fields",
@@ -212,6 +213,10 @@ export const NAV: NavGroup[] = [
           { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", workcenterKey: "suppliers" },
           { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "green", featureKey: "purchasing", workcenterKey: "purchase_orders" },
+          // Employees ships as part of the Business Roles/Business Users
+          // bundle, so it shares that bundle's rollout flag rather than
+          // getting its own.
+          { label: "Employees",       href: ROUTES.employees,      icon: "⚇", pillar: "green", featureKey: "business_roles", workcenterKey: "employees" },
         ],
       },
     ],

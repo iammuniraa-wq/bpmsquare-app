@@ -8,14 +8,17 @@ const cleanDate = (v: unknown) => (typeof v === "string" && DATE_RE.test(v) ? v 
 const cleanText = (v: unknown, max = 200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
 
 export async function GET() {
-  let supabase, tenantId, role;
+  let supabase, tenantId;
   try {
-    ({ supabase, tenantId, role } = await requireTenantUser());
+    ({ supabase, tenantId } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Read is open to any tenant member -- Employees is now an ordinary Master
+  // data workcenter (a company directory), gated by Business Role view
+  // grants like every other workcenter, not by admin role. Mutations below
+  // stay admin-only.
   if (!(await tenantHasFeature(supabase, tenantId, "business_roles"))) {
     return NextResponse.json({ error: "Business Roles isn't enabled for your workspace" }, { status: 403 });
   }

@@ -11,6 +11,9 @@ import { EMPLOYEES_SPEC } from "@/lib/import/employeesSchema";
 import { requireWorkcenterView } from "@/lib/permissions";
 import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 
+// Display order is alphabetical by label (sorted after specs are built,
+// since labels are tenant-configurable) -- this list only defines WHICH
+// objects exist, not their order.
 const OBJECT_ORDER: ImportObjectId[] = [
   "accounts", "contacts", "assets", "suppliers", "quotes", "quote_lines",
   "cases", "work_orders", "invoices", "purchase_orders", "inventory",
@@ -36,14 +39,16 @@ export default async function DataWorkbenchPage() {
     return true;
   });
 
-  const specs: ObjectSpec[] = await Promise.all(
-    objectOrder.map(async (id): Promise<ObjectSpec> => {
-      const registryType = REGISTRY_OBJECT_TYPE[id];
-      if (!registryType) return STATIC_SPECS[id]!;
-      const fieldConfig = await getEffectiveFieldConfig(supabase, tenantId, registryType);
-      return buildObjectSpec(id, fieldConfig, salesConfig);
-    })
-  );
+  const specs: ObjectSpec[] = (
+    await Promise.all(
+      objectOrder.map(async (id): Promise<ObjectSpec> => {
+        const registryType = REGISTRY_OBJECT_TYPE[id];
+        if (!registryType) return STATIC_SPECS[id]!;
+        const fieldConfig = await getEffectiveFieldConfig(supabase, tenantId, registryType);
+        return buildObjectSpec(id, fieldConfig, salesConfig);
+      })
+    )
+  ).sort((a, b) => a.label.localeCompare(b.label));
 
   return (
     <>
