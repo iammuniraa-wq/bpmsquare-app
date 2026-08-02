@@ -91,10 +91,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if (Object.keys(patch).length > 0) {
-    const { error } = await admin.from("tenant_users").update(patch).eq("id", member.id).eq("tenant_id", tenantId);
+    let update = admin.from("tenant_users").update(patch).eq("id", member.id).eq("tenant_id", tenantId);
+    // When linking, the earlier read-then-check on member.employee_id isn't
+    // atomic -- two concurrent links to the same membership could both see
+    // null and the second would silently swap the first. Re-assert the
+    // precondition inside the UPDATE itself (only-null-or-same), and treat
+    // zero rows updated as the same 409 the pre-check gives.
+    if (typeof patch.employee_id === "string") {
+      update = update.or(`employee_id.is.null,employee_id.eq.${patch.employee_id}`);
+    }
+    const { data: updatedRows, error } = await update.select("id");
     if (error) {
       if (error.code === "23505") return NextResponse.json({ error: "That employee already has a business user" }, { status: 409 });
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!updatedRows || updatedRows.length === 0) {
+      return NextResponse.json({ error: "This login is already linked to a different employee" }, { status: 409 });
     }
   }
 
