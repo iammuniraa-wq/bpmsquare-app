@@ -37,6 +37,7 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   purchase_orders: "purchase_order",
   inventory: "inventory",
   users: null,
+  employees: null,
 };
 
 export type ReferenceFieldDef = {
@@ -154,6 +155,9 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   purchase_orders: { label: "Purchase Orders", icon: "◫", description: "Orders placed with suppliers", dependsOn: ["suppliers", "quotes"] },
   inventory: { label: "Inventory", icon: "◧", description: "Stocked parts and spares", dependsOn: ["suppliers"] },
   users: { label: "Users", icon: "◍", description: "Invite team members and assign roles — each person receives an email invite", dependsOn: [] },
+  // Never read -- employees is null in REGISTRY_OBJECT_TYPE (static spec,
+  // same as users/quote_lines). Present only for the Record type.
+  employees: { label: "Employees", icon: "👥", description: "", dependsOn: [] },
 };
 
 function resolveOptions(field: FieldConfigResult["sections"][number]["fields"][number], salesConfig: SalesConfig): string[] | undefined {

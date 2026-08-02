@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient, type User } from "@supabase/supabase
 import { cookies, headers } from "next/headers";
 import { cache } from "react";
 import {
-  PRIMARY_HOST,
+  PRIMARY_HOST, isMembershipActive,
   TRUSTED_USER_ID_HEADER, TRUSTED_EMAIL_HEADER, TRUSTED_TENANT_ID_HEADER, TRUSTED_ROLE_HEADER,
   SUPABASE_COOKIE_OPTIONS,
 } from "./constants";
@@ -179,28 +179,30 @@ export const resolveHostTenant = cache(async (): Promise<HostTenantResult> => {
     return { kind: "resolved", tenantId: targetTenantId, role: "admin" };
   }
 
-  // Everyone else: must be a member of THIS host's tenant. No fallback.
+  // Everyone else: must be a member of THIS host's tenant, and that
+  // membership must be active (not admin-locked, inside its validity window
+  // -- see 0057). No fallback.
   const { data: membership } = await admin
     .from("tenant_users")
-    .select("role")
+    .select("role, is_locked, valid_from, valid_to")
     .eq("user_id", user.id)
     .eq("tenant_id", targetTenantId)
     .maybeSingle();
-  if (!membership) return { kind: "denied" };
+  if (!membership || !isMembershipActive(membership)) return { kind: "denied" };
 
   return { kind: "resolved", tenantId: targetTenantId, role: (membership.role as "admin" | "member") ?? "member" };
 });
 
-/** The current user's oldest tenant_users membership (tenant_id + role). Used only as the localhost/dev fallback. */
+/** The current user's oldest ACTIVE tenant_users membership (tenant_id + role). Used only as the localhost/dev fallback. */
 async function oldestMembership(userId: string): Promise<{ tenant_id: string; role: "admin" | "member" } | null> {
   const { data } = await createAdminSupabase()
     .from("tenant_users")
-    .select("tenant_id, role")
+    .select("tenant_id, role, is_locked, valid_from, valid_to")
     .eq("user_id", userId)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (!data?.tenant_id) return null;
+  if (!data?.tenant_id || !isMembershipActive(data)) return null;
   return { tenant_id: data.tenant_id as string, role: (data.role as "admin" | "member") ?? "member" };
 }
 

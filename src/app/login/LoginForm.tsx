@@ -29,11 +29,16 @@ function LoginFormInner({ branding }: { branding: Branding }) {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState(() =>
-    searchParams.get("error") === "wrong_workspace"
-      ? `This account doesn't have access to ${branding?.name ?? "this workspace"}. Sign in with an account that belongs here.`
-      : ""
-  );
+  const [error, setError]       = useState(() => {
+    const err = searchParams.get("error");
+    if (err === "wrong_workspace") {
+      return `This account doesn't have access to ${branding?.name ?? "this workspace"}. Sign in with an account that belongs here.`;
+    }
+    if (err === "account_locked") {
+      return "Your account is locked or outside its validity period. Contact your workspace administrator.";
+    }
+    return "";
+  });
   const [resetSent, setResetSent] = useState(false);
   const [mode, setMode]         = useState<"login" | "forgot">("login");
 

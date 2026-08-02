@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  isPrimaryOrDevHost, PRIMARY_HOST,
+  isPrimaryOrDevHost, PRIMARY_HOST, isMembershipActive,
   TRUSTED_USER_ID_HEADER, TRUSTED_EMAIL_HEADER, TRUSTED_TENANT_ID_HEADER, TRUSTED_ROLE_HEADER,
   SUPABASE_COOKIE_OPTIONS,
 } from "@/lib/constants";
@@ -86,15 +86,22 @@ export async function middleware(request: NextRequest) {
   // app.bpmsquare.com (that was the cross-tenant routing bug this closes).
   const host = (request.headers.get("host") ?? "").split(":")[0];
 
-  const denyWrongWorkspace = async () => {
+  const denyWithError = async (error: string) => {
     await supabase.auth.signOut();
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
-    loginUrl.searchParams.set("error", "wrong_workspace");
+    loginUrl.searchParams.set("error", error);
     const redirect = NextResponse.redirect(loginUrl);
     response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
     return redirect;
   };
+  const denyWrongWorkspace = () => denyWithError("wrong_workspace");
+  // Business-user enforcement (0057): a locked or out-of-validity membership
+  // is cut off here, on every request -- not just at login -- so an admin
+  // locking a user takes effect on their very next click, even mid-session.
+  // Platform admins never hit this (they resolve via platform_admins above,
+  // not a tenant_users row).
+  const denyLocked = () => denyWithError("account_locked");
 
   // Populated only when this middleware itself reaches a firm "resolved"
   // conclusion (concrete tenant + role) — left null on the pre-existing
@@ -125,11 +132,12 @@ export async function middleware(request: NextRequest) {
     } else if (demoTenant) {
       const { data: membership } = await admin
         .from("tenant_users")
-        .select("role")
+        .select("role, is_locked, valid_from, valid_to")
         .eq("user_id", user.id)
         .eq("tenant_id", demoTenant.id)
         .maybeSingle();
       if (!membership) return denyWrongWorkspace();
+      if (!isMembershipActive(membership)) return denyLocked();
       resolvedTenantId = demoTenant.id;
       resolvedRole = (membership.role as "admin" | "member") ?? "member";
     }
@@ -164,7 +172,7 @@ export async function middleware(request: NextRequest) {
         // a user can belong to more than one tenant now (see invite routes).
         const { data: membership } = await admin
           .from("tenant_users")
-          .select("role")
+          .select("role, is_locked, valid_from, valid_to")
           .eq("user_id", user.id)
           .eq("tenant_id", hostTenant.id)
           .maybeSingle();
@@ -172,6 +180,7 @@ export async function middleware(request: NextRequest) {
           // Session belongs to a different tenant than this domain resolves to — hard isolation.
           return denyWrongWorkspace();
         }
+        if (!isMembershipActive(membership)) return denyLocked();
         resolvedTenantId = hostTenant.id;
         resolvedRole = (membership.role as "admin" | "member") ?? "member";
       }

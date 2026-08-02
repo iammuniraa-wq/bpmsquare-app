@@ -24,6 +24,18 @@ export const TRUSTED_EMAIL_HEADER = "x-bpmsquare-email";
 export const TRUSTED_TENANT_ID_HEADER = "x-bpmsquare-tenant-id";
 export const TRUSTED_ROLE_HEADER = "x-bpmsquare-role";
 
+/** Business-user gate (0057): a membership is usable only if it isn't
+ * admin-locked and today falls inside its validity window (null bounds are
+ * open-ended). Lives here (not supabase-server.ts) so middleware.ts can
+ * import it too -- both enforcement points must agree exactly. */
+export function isMembershipActive(m: { is_locked?: boolean | null; valid_from?: string | null; valid_to?: string | null }): boolean {
+  if (m.is_locked) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  if (m.valid_from && today < m.valid_from) return false;
+  if (m.valid_to && today > m.valid_to) return false;
+  return true;
+}
+
 // @supabase/ssr's own cookie defaults set no `secure` flag at all (httpOnly:
 // false is required by its architecture -- the browser client reads the same
 // cookie via document.cookie -- so that one isn't overridden here). Passed as
@@ -110,6 +122,7 @@ export const ROUTES = {
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
   administrationBusinessRoles: "/administration/business-roles",
+  administrationBusinessUsers: "/administration/business-users",
 } as const;
 
 export type NavItem = {
