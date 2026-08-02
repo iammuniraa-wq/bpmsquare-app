@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: member } = await admin
     .from("tenant_users")
-    .select("id, role, is_locked, valid_from, valid_to")
+    .select("id, role, is_locked, valid_from, valid_to, employee_id, display_name")
     .eq("tenant_id", tenantId)
     .eq("user_id", targetUserId)
     .maybeSingle();
@@ -38,6 +38,35 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json();
 
   const patch: Record<string, unknown> = {};
+
+  // Link an existing login to an employee record after the fact -- resolves
+  // the "same person exists as an employee AND as an 'other login'" split.
+  // Only ever links (employee_id is never cleared or swapped through this
+  // route); the unique index on (tenant_id, employee_id) backstops the
+  // one-login-per-employee rule against races.
+  if (typeof body.employee_id === "string" && body.employee_id) {
+    if (member.employee_id && member.employee_id !== body.employee_id) {
+      return NextResponse.json({ error: "This login is already linked to a different employee" }, { status: 409 });
+    }
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id, first_name, last_name")
+      .eq("id", body.employee_id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (!employee) return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    const { data: taken } = await admin
+      .from("tenant_users")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("employee_id", employee.id)
+      .neq("id", member.id)
+      .maybeSingle();
+    if (taken) return NextResponse.json({ error: "That employee already has a business user" }, { status: 409 });
+    patch.employee_id = employee.id;
+    if (!member.display_name) patch.display_name = `${employee.first_name} ${employee.last_name}`.trim();
+  }
+
   if ("display_name" in body) {
     const v = typeof body.display_name === "string" ? body.display_name.trim().slice(0, 200) : "";
     patch.display_name = v || null;
@@ -63,7 +92,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (Object.keys(patch).length > 0) {
     const { error } = await admin.from("tenant_users").update(patch).eq("id", member.id).eq("tenant_id", tenantId);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      if (error.code === "23505") return NextResponse.json({ error: "That employee already has a business user" }, { status: 409 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 
   // Optional password reset, admin-set -- e.g. after an employee forgets

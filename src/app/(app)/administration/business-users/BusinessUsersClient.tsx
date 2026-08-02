@@ -60,6 +60,10 @@ export default function BusinessUsersClient() {
   const [editRoleIds, setEditRoleIds] = useState<string[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
 
+  const [linkingUser, setLinkingUser] = useState<string | null>(null);
+  const [linkEmployeeId, setLinkEmployeeId] = useState("");
+  const [savingLink, setSavingLink] = useState(false);
+
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([
@@ -117,10 +121,37 @@ export default function BusinessUsersClient() {
       if (!res.ok) { setError(json.error ?? "Failed to create business user"); return; }
       setCreatingUserFor(null);
       setUserDraft({ email: "", password: "", counted: true });
-      flash(json.passwordSet ? "Business user created with the initial password" : "Business user created — invite email sent");
+      flash(
+        json.linkedExisting
+          ? "Linked the existing login to this employee — its password is unchanged"
+          : json.passwordSet
+            ? "Business user created with the initial password"
+            : "Business user created — invite email sent"
+      );
       load();
     } finally {
       setSavingUser(false);
+    }
+  }
+
+  async function linkToEmployee(u: BusinessUser) {
+    if (!linkEmployeeId) return;
+    setError("");
+    setSavingLink(true);
+    try {
+      const res = await fetch(`/api/business-users/${u.user_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employee_id: linkEmployeeId }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "Failed to link"); return; }
+      setLinkingUser(null);
+      setLinkEmployeeId("");
+      flash("Login linked to employee");
+      load();
+    } finally {
+      setSavingLink(false);
     }
   }
 
@@ -254,22 +285,46 @@ export default function BusinessUsersClient() {
                     )}
                   </div>
 
-                  {creatingUserFor === emp.id && !bu && (
-                    <div style={{ marginTop: 10, background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-                        <div><label style={lbl}>Login email</label><input style={inp} type="email" value={userDraft.email} onChange={(e) => setUserDraft((d) => ({ ...d, email: e.target.value }))} /></div>
-                        <div><label style={lbl}>Initial password (blank = send invite email)</label><input style={inp} type="password" value={userDraft.password} onChange={(e) => setUserDraft((d) => ({ ...d, password: e.target.value }))} placeholder="min 8 characters" /></div>
+                  {creatingUserFor === emp.id && !bu && (() => {
+                    // Same email already a login here? Creating will LINK that
+                    // login, not make a second one -- say so up front, and
+                    // don't show a password field that would be silently
+                    // ignored (an existing account's password is never
+                    // overwritten from here).
+                    const emailKey = userDraft.email.trim().toLowerCase();
+                    const existing = emailKey ? users.find((u) => u.email?.toLowerCase() === emailKey) : undefined;
+                    const conflicting = existing?.employee_id ? employees.find((e2) => e2.id === existing.employee_id) : undefined;
+                    return (
+                      <div style={{ marginTop: 10, background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                          <div><label style={lbl}>Login email</label><input style={inp} type="email" value={userDraft.email} onChange={(e) => setUserDraft((d) => ({ ...d, email: e.target.value }))} /></div>
+                          {!existing && (
+                            <div><label style={lbl}>Initial password (blank = send invite email)</label><input style={inp} type="password" value={userDraft.password} onChange={(e) => setUserDraft((d) => ({ ...d, password: e.target.value }))} placeholder="min 8 characters" /></div>
+                          )}
+                        </div>
+                        {existing && !conflicting && (
+                          <div style={{ background: "var(--bluebg, var(--panel))", border: `1px solid ${c.line}`, borderRadius: 7, padding: "9px 12px", fontSize: 12.5, color: c.ink, marginBottom: 10 }}>
+                            This email is already a login in this workspace ({existing.role}). Saving will <strong>link that existing login</strong> to {name} — no new account, and its password stays unchanged.
+                          </div>
+                        )}
+                        {conflicting && (
+                          <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "9px 12px", fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>
+                            This email&apos;s login is already linked to {conflicting.first_name} {conflicting.last_name} — one login can only belong to one employee. Use a different email.
+                          </div>
+                        )}
+                        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: c.ink, marginBottom: 10, cursor: "pointer" }}>
+                          <input type="checkbox" checked={userDraft.counted} onChange={(e) => setUserDraft((d) => ({ ...d, counted: e.target.checked }))} />
+                          Counted user (occupies a license seat)
+                        </label>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button style={{ ...btnPrimary, opacity: conflicting ? 0.5 : 1 }} disabled={savingUser || !!conflicting} onClick={() => createBusinessUser(emp.id)}>
+                            {savingUser ? "Saving…" : existing ? "Link existing login" : "Create"}
+                          </button>
+                          <button style={btnGhost} onClick={() => setCreatingUserFor(null)}>Cancel</button>
+                        </div>
                       </div>
-                      <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: c.ink, marginBottom: 10, cursor: "pointer" }}>
-                        <input type="checkbox" checked={userDraft.counted} onChange={(e) => setUserDraft((d) => ({ ...d, counted: e.target.checked }))} />
-                        Counted user (occupies a license seat)
-                      </label>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button style={btnPrimary} disabled={savingUser} onClick={() => createBusinessUser(emp.id)}>{savingUser ? "Creating…" : "Create"}</button>
-                        <button style={btnGhost} onClick={() => setCreatingUserFor(null)}>Cancel</button>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {bu && editingUser === bu.user_id && (
                     <EditPanel
@@ -319,9 +374,33 @@ export default function BusinessUsersClient() {
                     roleIds={editRoleIds} setRoleIds={setEditRoleIds}
                     saving={savingEdit} onSave={() => saveEdit(u)} onCancel={() => setEditingUser(null)}
                   />
+                ) : linkingUser === u.user_id ? (
+                  <div style={{ marginTop: 10, background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
+                    <label style={lbl}>Link this login to an employee</label>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <select style={{ ...inp, maxWidth: 320 }} value={linkEmployeeId} onChange={(e) => setLinkEmployeeId(e.target.value)}>
+                        <option value="">— Select employee —</option>
+                        {employees.filter((e2) => !userByEmployee.has(e2.id)).map((e2) => (
+                          <option key={e2.id} value={e2.id}>
+                            {e2.first_name} {e2.last_name}{e2.employee_code ? ` (${e2.employee_code})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <button style={btnPrimary} disabled={savingLink || !linkEmployeeId} onClick={() => linkToEmployee(u)}>
+                        {savingLink ? "Linking…" : "Link"}
+                      </button>
+                      <button style={btnGhost} onClick={() => { setLinkingUser(null); setLinkEmployeeId(""); }}>Cancel</button>
+                    </div>
+                    <p style={{ fontSize: 11.5, color: c.hint, margin: "8px 0 0" }}>
+                      The login and its password are untouched — this only ties it to the employee record, moving it up into the Employees list above.
+                    </p>
+                  </div>
                 ) : (
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <button style={btnGhost} onClick={() => startEdit(u)}>Edit user</button>
+                    <button style={btnGhost} onClick={() => { setLinkingUser(u.user_id); setLinkEmployeeId(""); setError(""); }}>
+                      Link to employee
+                    </button>
                     <button
                       style={{ ...btnGhost, color: u.is_locked ? "var(--greenink)" : "var(--red)", borderColor: u.is_locked ? "var(--green)" : "#f5c0c0" }}
                       onClick={() => toggleLock(u)}
