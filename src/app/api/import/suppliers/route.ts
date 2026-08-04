@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { nextMasterRefSeq, formatMasterRef } from "@/lib/masterRef";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { buildObjectSpec } from "@/lib/import/registrySchema";
 import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
@@ -33,6 +34,10 @@ export async function POST(request: NextRequest) {
   const prepared: PreparedRow[] = [];
   const outcomes: RowOutcome[] = [];
 
+  // Bulk ref assignment (0061): one seq query, then contiguous in-memory
+  // numbering -- the partial unique index backstops concurrent imports.
+  let refSeq = await nextMasterRefSeq(supabase, "suppliers", tenantId);
+
   for (const { rowNum, values } of rows) {
     const validated = validateRow(spec, values, rowNum);
     if (hasBlockingIssue(validated)) {
@@ -51,6 +56,7 @@ export async function POST(request: NextRequest) {
       rowNum,
       record: {
         tenant_id: tenantId,
+        ref: formatMasterRef("suppliers", refSeq++),
         name: v.name,
         type: v.type || "vendor",
         city: v.city ?? null,

@@ -132,6 +132,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   account: {
     sections: ["Identity", "Address", "Communication", "Sales", "Business", "Notes"],
     fields: [
+      { key: "ref", defaultLabel: "Account ID", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "name", defaultLabel: "Name", widget: "text", defaultSection: "Identity", locked: true },
       { key: "type", defaultLabel: "Type", widget: "enum", defaultSection: "Identity", enumOptions: ACCOUNT_TYPE_OPTIONS },
 
@@ -166,6 +167,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   contact: {
     sections: ["Identity", "Phone numbers", "Email & web", "Address", "Sales", "Notes"],
     fields: [
+      { key: "ref", defaultLabel: "Contact ID", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "name", defaultLabel: "Name", widget: "text", defaultSection: "Identity", locked: true },
       { key: "role", defaultLabel: "Role", widget: "text", defaultSection: "Identity" },
       { key: "department", defaultLabel: "Department", widget: "text", defaultSection: "Identity" },
@@ -197,6 +199,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   asset: {
     sections: ["Identity", "Specifications", "Nameplate", "Notes"],
     fields: [
+      { key: "ref", defaultLabel: "Asset ID", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "name", defaultLabel: "Name", widget: "text", defaultSection: "Identity", locked: true },
       { key: "kind", defaultLabel: "Kind", widget: "enum", defaultSection: "Identity", enumOptions: ASSET_KIND_OPTIONS },
 
@@ -234,6 +237,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   supplier: {
     sections: ["Identity", "Contact", "Notes"],
     fields: [
+      { key: "ref", defaultLabel: "Supplier ID", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "name",   defaultLabel: "Name",   widget: "text", defaultSection: "Identity", locked: true },
       { key: "type",   defaultLabel: "Type",   widget: "enum", defaultSection: "Identity", enumOptions: SUPPLIER_TYPE_OPTIONS },
       { key: "status", defaultLabel: "Status", widget: "enum", defaultSection: "Identity", enumOptions: SUPPLIER_STATUS_OPTIONS },
@@ -376,6 +380,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   inventory: {
     sections: ["Identity", "Stock", "Notes"],
     fields: [
+      { key: "ref", defaultLabel: "Item ID", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "name",     defaultLabel: "Name",     widget: "text", defaultSection: "Identity", locked: true },
       { key: "sku",      defaultLabel: "SKU",      widget: "text", defaultSection: "Identity" },
       { key: "category", defaultLabel: "Category", widget: "text", defaultSection: "Identity" },

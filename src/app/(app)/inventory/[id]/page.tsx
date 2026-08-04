@@ -54,7 +54,7 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
 
       <PageHeader
         title={item.name}
-        subtitle={`${item.sku ? `SKU ${item.sku} · ` : ""}${item.category ?? "Uncategorised"}`}
+        subtitle={`${item.ref ? `${item.ref} · ` : ""}${item.sku ? `SKU ${item.sku} · ` : ""}${item.category ?? "Uncategorised"}`}
         action={<AdaptObjectDrawer objectType="inventory" objectLabel="Inventory Item" isAdmin={role === "admin"} />}
       />
 

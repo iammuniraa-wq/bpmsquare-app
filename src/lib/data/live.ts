@@ -1900,13 +1900,13 @@ type SearchSpec = {
 
 const SEARCH_SPECS: SearchSpec[] = [
   {
-    type: "account", table: "accounts", columns: "id, name, city, type",
-    textCols: ["name"],
+    type: "account", table: "accounts", columns: "id, ref, name, city, type",
+    textCols: ["name", "ref"],
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.city, r.type].filter(Boolean).join(" · ") || "Account", href: ROUTES.account(r.id), matched: "name" }),
   },
   {
-    type: "contact", table: "contacts", columns: "id, name, role",
-    textCols: ["name"],
+    type: "contact", table: "contacts", columns: "id, ref, name, role",
+    textCols: ["name", "ref"],
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: r.role || "Contact", href: ROUTES.contact(r.id), matched: "name" }),
   },
   {
@@ -1937,19 +1937,19 @@ const SEARCH_SPECS: SearchSpec[] = [
     featureKey: "purchasing",
   },
   {
-    type: "asset", table: "assets", columns: "id, name, serial, make, model",
-    textCols: ["name", "serial", "make", "model"],
+    type: "asset", table: "assets", columns: "id, ref, name, serial, make, model",
+    textCols: ["name", "serial", "make", "model", "ref"],
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.make, r.model, r.serial ? `SN ${r.serial}` : null].filter(Boolean).join(" · ") || "Asset", href: ROUTES.asset(r.id), matched: "name/serial" }),
   },
   {
-    type: "inventory_item", table: "inventory_items", columns: "id, name, sku, category",
-    textCols: ["name", "sku"],
+    type: "inventory_item", table: "inventory_items", columns: "id, ref, name, sku, category",
+    textCols: ["name", "sku", "ref"],
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.sku, r.category].filter(Boolean).join(" · ") || "Inventory item", href: ROUTES.inventoryItem(r.id), matched: "name/sku" }),
     featureKey: "purchasing",
   },
   {
-    type: "supplier", table: "suppliers", columns: "id, name, city, type",
-    textCols: ["name"],
+    type: "supplier", table: "suppliers", columns: "id, ref, name, city, type",
+    textCols: ["name", "ref"],
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.city, r.type].filter(Boolean).join(" · ") || "Supplier", href: ROUTES.supplier(r.id), matched: "name" }),
   },
   {

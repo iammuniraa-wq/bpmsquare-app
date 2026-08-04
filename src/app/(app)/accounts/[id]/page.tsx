@@ -175,6 +175,7 @@ export default async function AccountHubPage({
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: c.ink }}>{account.name}</h1>
+            {account.ref && <span style={{ fontSize: 11.5, color: c.hint, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", border: `1px solid ${c.line}`, borderRadius: 6, padding: "2px 8px" }}>{account.ref}</span>}
             <Pill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", fontSize: 13, color: c.muted }}>

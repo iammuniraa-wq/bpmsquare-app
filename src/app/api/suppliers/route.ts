@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { insertWithMasterRef } from "@/lib/masterRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET() {
@@ -37,9 +38,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
-    .from("suppliers")
-    .insert({
+  const { data, error } = await insertWithMasterRef(supabase, "suppliers", tenantId, {
       tenant_id: tenantId,
       name: name.trim(),
       type: type ?? "vendor",
@@ -49,11 +48,9 @@ export async function POST(request: NextRequest) {
       gstin: gstin || null,
       notes: notes || null,
       status: "active",
-    })
-    .select("*")
-    .single();
+    }, "*");
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error || !data) return NextResponse.json({ error: error?.message ?? "Insert failed" }, { status: 500 });
 
   const user = await getAuthUser();
   await logChange(supabase, {

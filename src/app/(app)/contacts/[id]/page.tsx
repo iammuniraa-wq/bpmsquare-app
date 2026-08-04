@@ -58,7 +58,7 @@ export default async function ContactDetailPage({
 
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 6px", color: c.ink }}>{contact.name}</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 6px", color: c.ink, display: "flex", alignItems: "center", gap: 10 }}>{contact.name} {contact.ref && <span style={{ fontSize: 11.5, color: c.hint, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", border: `1px solid ${c.line}`, borderRadius: 6, padding: "2px 8px" }}>{contact.ref}</span>}</h1>
             {contact.role && <div style={{ fontSize: 13, color: c.muted }}>{contact.role}</div>}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: c.muted, textAlign: "right" }}>

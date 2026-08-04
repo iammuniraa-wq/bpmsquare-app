@@ -7,6 +7,8 @@ export type AccountType = "prospect" | "oem" | "direct" | "end_customer";
 
 export type Account = {
   id: string;
+  /** Tenant-scoped business ID (ACC-0001, 0061) -- display/reference only, never a mutation key. */
+  ref?: string | null;
   name: string;
   type: AccountType;
   // Address
@@ -95,6 +97,8 @@ export type MarketingTargetGroup = {
 
 export type Contact = {
   id: string;
+  /** CON-0001 (0061) -- display/reference only. */
+  ref?: string | null;
   account_id: string;
   name: string;
   role: string | null;
@@ -129,6 +133,8 @@ export type Site = {
 
 export type Asset = {
   id: string;
+  /** AST-0001 (0061) -- display/reference only. */
+  ref?: string | null;
   account_id: string | null; // null = company-owned loaner stock
   kind: "motor" | "transformer" | "pump" | "generator" | "panel";
   name: string;
@@ -627,6 +633,8 @@ export type SupplierStatus = "active" | "inactive";
 
 export type Supplier = {
   id: string;
+  /** SUP-0001 (0061) -- display/reference only. */
+  ref?: string | null;
   tenant_id: string;
   name: string;
   type: SupplierType;
@@ -646,6 +654,8 @@ export type InventoryItemStatus = "active" | "inactive";
 
 export type InventoryItem = {
   id: string;
+  /** INV-0001 (0061) -- display/reference only. */
+  ref?: string | null;
   tenant_id: string;
   sku: string | null;
   name: string;

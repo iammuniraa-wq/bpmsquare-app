@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { nextMasterRefSeq, formatMasterRef } from "@/lib/masterRef";
 import { encrypt } from "@/lib/encryption";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { buildObjectSpec } from "@/lib/import/registrySchema";
@@ -38,6 +39,10 @@ export async function POST(request: NextRequest) {
   const prepared: PreparedRow[] = [];
   const outcomes: RowOutcome[] = [];
   const claimedInFile = new Set<string>();
+
+  // Bulk ref assignment (0061): one seq query, then contiguous in-memory
+  // numbering -- the partial unique index backstops concurrent imports.
+  let refSeq = await nextMasterRefSeq(supabase, "accounts", tenantId);
 
   for (const { rowNum, values } of rows) {
     const validated = validateRow(spec, values, rowNum);
@@ -87,6 +92,7 @@ export async function POST(request: NextRequest) {
       rowNum,
       record: {
         tenant_id: tenantId,
+        ref: formatMasterRef("accounts", refSeq++),
         name,
         type: v.type,
         address_line1: v.address_line1 ?? null,

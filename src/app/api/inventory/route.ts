@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { insertWithMasterRef, isMasterRefCollision } from "@/lib/masterRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET(request: NextRequest) {
@@ -64,9 +65,7 @@ export async function POST(request: NextRequest) {
     if (!supplier) return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
   }
 
-  const { data, error } = await supabase
-    .from("inventory_items")
-    .insert({
+  const { data, error } = await insertWithMasterRef(supabase, "inventory_items", tenantId, {
       tenant_id: tenantId,
       sku: sku || null,
       name: name.trim(),
@@ -78,13 +77,16 @@ export async function POST(request: NextRequest) {
       unit_cost: unit_cost ? parseFloat(unit_cost) : null,
       notes: notes || null,
       status: "active",
-    })
-    .select("*")
-    .single();
+    }, "*");
 
-  if (error) {
-    if (error.code === "23505") return NextResponse.json({ error: "A SKU with that value already exists" }, { status: 409 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error || !data) {
+    // insertWithMasterRef already retried ref collisions -- a surviving 23505
+    // here is either the SKU uniqueness constraint or a truly persistent ref
+    // race, and the two deserve different messages.
+    if (error?.code === "23505" && !isMasterRefCollision(error)) {
+      return NextResponse.json({ error: "A SKU with that value already exists" }, { status: 409 });
+    }
+    return NextResponse.json({ error: error?.message ?? "Insert failed" }, { status: 500 });
   }
 
   const user = await getAuthUser();

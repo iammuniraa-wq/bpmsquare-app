@@ -130,7 +130,7 @@ export default async function AssetsPage({
                     )}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
-                    <span style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{asset.name}</span>
+                    <span style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{asset.name}{asset.ref && <span style={{ fontWeight: 400, fontSize: 10.5, color: c.hint, fontFamily: "monospace", marginLeft: 6 }}>{asset.ref}</span>}</span>
                     <Link
                       href={ROUTES.asset(asset.id)}
                       style={{ fontSize: 11, fontWeight: 600, color: tone.base, textDecoration: "none", flexShrink: 0, whiteSpace: "nowrap" }}
@@ -206,6 +206,7 @@ export default async function AssetsPage({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 13, color: c.ink, marginBottom: 2 }}>
                     {asset.name}
+                    {asset.ref && <span style={{ fontWeight: 400, fontSize: 10.5, color: c.hint, fontFamily: "monospace", marginLeft: 6 }}>{asset.ref}</span>}
                   </div>
                   {(asset.make || asset.model) && (
                     <div style={{ fontSize: 12, color: c.muted, marginBottom: 2 }}>
