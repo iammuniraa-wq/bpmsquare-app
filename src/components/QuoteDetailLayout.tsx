@@ -674,8 +674,12 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           <div style={{ ...cardStyle, display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <CoreField label="Quote ID" value={<span style={{ fontSize: 16, fontWeight: 600, fontFamily: "monospace", color: c.ink }}>{quote.ref}</span>} />
             {quote.ref_no && <CoreField label="Ref no." value={quote.ref_no} />}
+            {quote.inquiry_date && <CoreField label="Inquiry" value={fmtDate(quote.inquiry_date)} />}
             <CoreField label="Issued"       value={fmtDate(quote.quote_date ?? quote.created_at)} />
+            {quote.submitted_at && <CoreField label="Submitted" value={fmtDate(quote.submitted_at)} />}
             <CoreField label="Valid until"  value={quote.valid_until ? fmtDate(quote.valid_until) : "—"} />
+            {quote.closed_at && <CoreField label="Closed" value={fmtDate(quote.closed_at)} />}
+            <CoreField label="Changed on"   value={fmtDate(quote.updated_at)} />
             <CoreField label="Status"       value={<StatusPill status={currentStatus} statuses={quoteStatuses} />} />
             {renderCfCards(section, "inline")}
           </div>

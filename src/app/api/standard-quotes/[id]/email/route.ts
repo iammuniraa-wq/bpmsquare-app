@@ -29,7 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
 
-  const { data: quoteRow } = await supabase.from("standard_quotes").select("id").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: quoteRow } = await supabase.from("standard_quotes").select("id, sent_at").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!quoteRow) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
 
   const [data, tenant] = await Promise.all([getStandardQuoteLive(id), getTenant()]);
@@ -137,6 +137,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (sendError) {
     console.error("[standard-quotes/email] send failed", sendError);
     return NextResponse.json({ error: "Failed to send email" }, { status: 502 });
+  }
+
+  // Submitted-to-customer stamp (0059): an actual successful send is the
+  // authoritative event -- "Mark as sent" also stamps it, first one wins.
+  if (!quoteRow.sent_at) {
+    await supabase
+      .from("standard_quotes")
+      .update({ sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("tenant_id", tenantId);
   }
 
   if (account) {

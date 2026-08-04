@@ -39,6 +39,7 @@ type EditQuote = {
   account_id: string;
   contact_id: string | null;
   valid_until: string | null;
+  inquiry_date: string | null;
   notes: string | null;
   terms: string | null;
   template_id: string | null;
@@ -64,6 +65,7 @@ export default function StandardQuoteForm({
   const [accountId, setAccountId] = useState(editQuote?.account_id ?? "");
   const [contactId, setContactId] = useState(editQuote?.contact_id ?? "");
   const [validUntil, setValidUntil] = useState(editQuote?.valid_until ?? "");
+  const [inquiryDate, setInquiryDate] = useState(editQuote?.inquiry_date ?? "");
   const [notes, setNotes] = useState(editQuote?.notes ?? "");
   const [terms, setTerms] = useState(editQuote?.terms ?? "");
   const [introText, setIntroText] = useState(editQuote?.intro_text ?? "");
@@ -158,6 +160,7 @@ export default function StandardQuoteForm({
       const commercial = {
         header_discount_pct: headerDiscountPct, tax_pct: taxPct, shipping_amount: shippingAmount,
         intro_text: introText || null,
+        inquiry_date: inquiryDate || null,
       };
       const res = editQuote
         ? await fetch(`/api/standard-quotes/${editQuote.id}`, {
@@ -234,7 +237,11 @@ export default function StandardQuoteForm({
                   </select>
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={lbl}>Inquiry date</label>
+                  <input style={inp} type="date" value={inquiryDate} onChange={(e) => setInquiryDate(e.target.value)} title="When the customer asked for this quote" />
+                </div>
                 <div>
                   <label style={lbl}>Valid until</label>
                   <input style={inp} type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />

@@ -142,8 +142,11 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
             )}
 
             <CtxLabel>Dates</CtxLabel>
+            <CtxRow label="Inquiry" value={fmtDate(quote.inquiry_date)} />
             <CtxRow label="Created" value={fmtDate(quote.created_at)} />
-            <CtxRow label="Sent" value={fmtDate(quote.sent_at)} />
+            <CtxRow label="Submitted" value={fmtDate(quote.sent_at)} />
+            <CtxRow label="Changed on" value={fmtDate(quote.updated_at)} />
+            <CtxRow label="Closed" value={fmtDate(quote.closed_at)} />
           </section>
 
           <StandardQuoteActionsPanel quote={quote} />

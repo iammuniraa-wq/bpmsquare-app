@@ -71,7 +71,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key] || null;
   if ("status" in body) patch.status = body.status;
-  if (body.status === "sent" && before.status !== "sent") patch.sent_at = new Date().toISOString();
+
+  // Date profile (0059). Manual overrides first -- a date-only string or
+  // null, anything else dropped -- then auto-stamps, which never fight an
+  // explicit override in the same request.
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  if ("inquiry_date" in body) patch.inquiry_date = typeof body.inquiry_date === "string" && DATE_RE.test(body.inquiry_date) ? body.inquiry_date : null;
+  if ("sent_at" in body) patch.sent_at = typeof body.sent_at === "string" && DATE_RE.test(body.sent_at) ? new Date(body.sent_at).toISOString() : null;
+  if ("closed_at" in body) patch.closed_at = typeof body.closed_at === "string" && DATE_RE.test(body.closed_at) ? new Date(body.closed_at).toISOString() : null;
+
+  if (!("sent_at" in body) && body.status === "sent" && before.status !== "sent" && !before.sent_at) {
+    patch.sent_at = new Date().toISOString();
+  }
+  const TERMINAL = new Set(["accepted", "rejected", "expired"]);
+  if ("status" in body && !("closed_at" in body)) {
+    if (TERMINAL.has(body.status) && !TERMINAL.has(before.status)) patch.closed_at = new Date().toISOString();
+    else if (!TERMINAL.has(body.status) && TERMINAL.has(before.status)) patch.closed_at = null;
+  }
+  patch.updated_at = new Date().toISOString();
 
   if ("header_discount_pct" in body) patch.header_discount_pct = clampPct(body.header_discount_pct);
   if ("tax_pct" in body) patch.tax_pct = clampPct(body.tax_pct);
@@ -123,7 +140,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: updated } = await supabase.from("standard_quotes").select("*").eq("id", id).eq("tenant_id", tenantId).single();
 
-  const headerChanges = diffForLog("standard_quotes", before as Record<string, unknown>, patch);
+  // updated_at changes on every save by definition -- keep it out of the audit diff.
+  const { updated_at: _updatedAt, ...diffPatch } = patch;
+  const headerChanges = diffForLog("standard_quotes", before as Record<string, unknown>, diffPatch);
   const lineChanges = cleanLines
     ? diffLineItems(
         (beforeLines ?? []).map((l): LineSnapshot => ({ label: l.description, qty: l.qty, rate: l.rate, amount: l.amount })),

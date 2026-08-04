@@ -185,6 +185,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [quoteName, setQuoteName]   = useState(eq?.name ?? "");
   const [quoteDate, setQuoteDate]   = useState((eq?.quote_date ?? eq?.created_at)?.slice(0, 10) ?? today);
   const [validUntil, setValidUntil] = useState(eq?.valid_until ? eq.valid_until.slice(0, 10) : defaultValid);
+  const [inquiryDate, setInquiryDate] = useState(eq?.inquiry_date ? eq.inquiry_date.slice(0, 10) : "");
   const [refNo, setRefNo]           = useState(eq?.ref_no ?? "");
   const [prNo, setPrNo]             = useState(eq?.pr_no ?? "");
   const [poNumber, setPoNumber]     = useState(eq?.po_number ?? "");
@@ -791,6 +792,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           total,
           quote_date:      quoteDate || null,
           valid_until:     validUntil || null,
+          inquiry_date:    inquiryDate || null,
           notes,
           terms,
           scope_of_work,
@@ -944,6 +946,10 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 <div>
                   <span style={lbl}>Valid until</span>
                   <input style={inp} type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+                </div>
+                <div>
+                  <span style={lbl}>Inquiry date</span>
+                  <input style={inp} type="date" value={inquiryDate} onChange={(e) => setInquiryDate(e.target.value)} title="When the customer asked for this quote" />
                 </div>
               </div>
               <div className="fg3">

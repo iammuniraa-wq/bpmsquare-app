@@ -21,6 +21,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     territory, sales_org, gst_rate, account_id, contact_id,
     name, entity_id, ref_no, pr_no, po_number, po_amount,
     discount_type, discount_pct, discount_fixed, asset_ids, custom_data,
+    inquiry_date,
   } = body;
 
   const { data: quote, error: qErr } = await supabase
@@ -123,6 +124,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // Update header
   const headerPatch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    ...(inquiry_date !== undefined ? { inquiry_date: typeof inquiry_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(inquiry_date) ? inquiry_date : null } : {}),
     valid_until: valid_until || null,
     notes: notes ?? null,
     terms: terms ?? null,
@@ -173,7 +176,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
   }
 
-  const headerChanges = diffForLog("quotes", quote as Record<string, unknown>, headerPatch);
+  const { updated_at: _updatedAt, ...headerDiffPatch } = headerPatch;
+  const headerChanges = diffForLog("quotes", quote as Record<string, unknown>, headerDiffPatch);
   const beforeLineSnapshots: LineSnapshot[] = (beforeLines ?? []).map((l) => ({
     label: l.description, qty: l.qty, rate: l.rate, amount: l.amount,
   }));

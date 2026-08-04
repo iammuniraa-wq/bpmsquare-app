@@ -199,6 +199,13 @@ export type Quote = {
   // The business date on the quote, back-datable by the user. Falls back to
   // created_at on rows written before the column existed.
   quote_date?: string | null;
+  // Date profile (0059): inquiry_date is business-entered; submitted_at and
+  // closed_at auto-stamp on first send / terminal transition but accept
+  // manual override; updated_at is system-maintained on every edit.
+  inquiry_date: string | null;
+  submitted_at: string | null;
+  closed_at: string | null;
+  updated_at: string;
   valid_until: string | null;
   notes: string | null;
   terms?: string | null;
@@ -368,6 +375,8 @@ export type StandardQuote = {
   tax_pct: number;
   shipping_amount: number;
   intro_text: string | null;
+  inquiry_date: string | null;
+  closed_at: string | null;
 };
 
 export type StandardQuoteLine = {

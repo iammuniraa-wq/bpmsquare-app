@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { account_id, contact_id, valid_until, terms, notes, lines, template_id, intro_text } = body;
+  const { account_id, contact_id, valid_until, terms, notes, lines, template_id, intro_text, inquiry_date } = body;
   const headerDiscountPct = clampPct(body.header_discount_pct);
   const taxPct = clampPct(body.tax_pct);
   const shippingAmount = clampAmount(body.shipping_amount);
@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
     contact_id: contact_id || null,
     status: "draft",
     valid_until: valid_until || null,
+    inquiry_date: typeof inquiry_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(inquiry_date) ? inquiry_date : null,
     terms: terms || null,
     notes: notes || null,
     intro_text: intro_text || null,
