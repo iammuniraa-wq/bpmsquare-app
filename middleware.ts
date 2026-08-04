@@ -43,7 +43,19 @@ export async function middleware(request: NextRequest) {
     // Signed, no-login "I'm interested" campaign click-through link (see
     // lib/campaignInterestLink.ts) -- same reasoning as the unsubscribe link.
     /^\/marketing\/interest\/[^/]+\/[^/]+\/[^/]+$/.test(pathname) ||
-    /^\/api\/marketing\/interest\/[^/]+\/[^/]+\/[^/]+$/.test(pathname)
+    /^\/api\/marketing\/interest\/[^/]+\/[^/]+\/[^/]+$/.test(pathname) ||
+    // Public REST API. These carry their own auth -- a per-tenant bearer key
+    // (tenants.api_key), resolved by resolveTenantFromBearer() in every single
+    // route under /api/v1, which also decides the tenant. Same reasoning as the
+    // signed links above: the credential is in the request, not a session
+    // cookie, so bouncing to /login would make the API unusable to any client
+    // that isn't a logged-in browser -- which is every API client.
+    //
+    // The session gate below must not apply here, but note it is the ONLY thing
+    // being skipped: each route still 401s without a valid key, and every query
+    // behind them is tenant-scoped by the tenant that key resolves to.
+    pathname === "/api/v1" ||
+    pathname.startsWith("/api/v1/")
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
