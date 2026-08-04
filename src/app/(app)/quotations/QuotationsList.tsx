@@ -68,7 +68,7 @@ function buildStandardColumns(quoteStatuses: QuoteStatusDef[]): ColDef[] {
     { id: "total",       label: "Total",           defaultOn: true,  group: "standard", align: "right",
       render: (r) => inr(r.quote.total), cellStyle: { fontWeight: 600 } },
     { id: "date",        label: "Date",            defaultOn: true,  group: "standard",
-      render: (r) => muted(fmtDate(r.quote.created_at)) },
+      render: (r) => muted(fmtDate(r.quote.quote_date ?? r.quote.created_at)) },
     { id: "valid_until", label: "Valid until",     defaultOn: false, group: "standard",
       render: (r) => muted(r.quote.valid_until ? fmtDate(r.quote.valid_until) : "—") },
     { id: "territory",   label: "Territory",       defaultOn: false, group: "standard",
