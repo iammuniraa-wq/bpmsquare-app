@@ -65,7 +65,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const { data: before } = await loadQuote(supabase, id, tenantId);
   if (!before) return jsonError(404, "Quotation not found");
 
-  const relErr = await verifyQuoteRelations(supabase, tenantId, header.values);
+  const relErr = await verifyQuoteRelations(supabase, tenantId, header.values, linesGiven ? lines.values : undefined);
   if (relErr) return jsonError(404, relErr);
 
   const values = sanitizeQuoteValues({ ...header.values });
@@ -73,11 +73,15 @@ export async function PATCH(req: Request, { params }: Ctx) {
   // Effective header values: what the caller sent, falling back to what is
   // already stored -- the total has to stay consistent with the discount and
   // selected option actually in force, not just the fields in this request.
+  // Presence-checked (`in`), not nullish-coalesced: an explicit null is a
+  // real value ("clear the selected option") and must price the total as
+  // cleared, not silently resurrect the stored value for the computation
+  // while writing null to the row.
   const effective = {
-    discount_type: (values.discount_type ?? before.discount_type) as string | null,
-    discount_pct: (values.discount_pct ?? before.discount_pct) as number | null,
-    discount_fixed: (values.discount_fixed ?? before.discount_fixed) as number | null,
-    selected_option_id: (values.selected_option_id ?? before.selected_option_id) as string | null,
+    discount_type: ("discount_type" in values ? values.discount_type : before.discount_type) as string | null,
+    discount_pct: ("discount_pct" in values ? values.discount_pct : before.discount_pct) as number | null,
+    discount_fixed: ("discount_fixed" in values ? values.discount_fixed : before.discount_fixed) as number | null,
+    selected_option_id: ("selected_option_id" in values ? values.selected_option_id : before.selected_option_id) as string | null,
   };
 
   // Lines are replaced wholesale when supplied; left alone when omitted. Either

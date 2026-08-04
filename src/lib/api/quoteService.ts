@@ -17,7 +17,8 @@ export const API_ACTOR_EMAIL = "api:v1";
 export async function verifyQuoteRelations(
   supabase: SupabaseClient,
   tenantId: string,
-  v: { account_id?: unknown; contact_id?: unknown; asset_ids?: unknown }
+  v: { account_id?: unknown; contact_id?: unknown; asset_ids?: unknown },
+  lines?: Record<string, unknown>[]
 ): Promise<string | null> {
   if (typeof v.account_id === "string") {
     const { data } = await supabase.from("accounts").select("id").eq("id", v.account_id).eq("tenant_id", tenantId).maybeSingle();
@@ -31,6 +32,17 @@ export async function verifyQuoteRelations(
     const ids = v.asset_ids as string[];
     const { data } = await supabase.from("assets").select("id").in("id", ids).eq("tenant_id", tenantId);
     if (!data || data.length !== new Set(ids).size) return "One or more assets not found in this tenant";
+  }
+  // Line-level inventory references get the same treatment as header foreign
+  // ids -- API_V1.md promises this check, and without it a foreign key that
+  // merely exists SOMEWHERE would be accepted (a cross-tenant UUID-existence
+  // oracle at best, a stored foreign reference at worst).
+  if (lines) {
+    const invIds = [...new Set(lines.map((l) => l.inventory_item_id).filter((x): x is string => typeof x === "string"))];
+    if (invIds.length > 0) {
+      const { data } = await supabase.from("inventory_items").select("id").in("id", invIds).eq("tenant_id", tenantId);
+      if (!data || data.length !== invIds.length) return "One or more inventory items not found in this tenant";
+    }
   }
   return null;
 }

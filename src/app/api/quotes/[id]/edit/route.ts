@@ -101,6 +101,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })
     : [];
 
+  // Line-level inventory references are foreign ids from the body like any
+  // other -- verify they belong to this tenant before they are written (same
+  // check the v1 API's verifyQuoteRelations makes).
+  const invIds = [...new Set(cleanLines.map((l) => l.inventory_item_id).filter((x): x is string => typeof x === "string"))];
+  if (invIds.length > 0) {
+    const { data: invRows } = await supabase.from("inventory_items").select("id").in("id", invIds).eq("tenant_id", tenantId);
+    if (!invRows || invRows.length !== invIds.length) {
+      return NextResponse.json({ error: "One or more inventory items were not found" }, { status: 404 });
+    }
+  }
+
   // selected_option_id marks which "alternative" (Option A/B) group counts toward the total;
   // items in other alternative groups are kept (so the option can be switched later) but excluded here.
   const effectiveAltId: string | null = selected_option_id !== undefined ? selected_option_id : (quote.selected_option_id ?? null);

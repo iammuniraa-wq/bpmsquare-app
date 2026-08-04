@@ -74,7 +74,7 @@ export async function POST(req: Request) {
 
   const supabase = createAdminSupabase();
 
-  const relErr = await verifyQuoteRelations(supabase, tenantId, header.values);
+  const relErr = await verifyQuoteRelations(supabase, tenantId, header.values, lines.values);
   if (relErr) return jsonError(404, relErr);
 
   const { data: account } = await supabase
