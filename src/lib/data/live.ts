@@ -15,6 +15,7 @@ import type {
   MarketingCampaign, MarketingCampaignRecipient, MarketingTargetGroup, AccountType,
   StandardQuote, StandardQuoteLine, StandardQuoteTemplate,
 } from "@/lib/types";
+import { sortBySlNo } from "@/lib/lineOrder";
 import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
 
@@ -821,7 +822,7 @@ async function getQuoteForTenant(id: string, tenantId: string) {
     account: acc,
     contact,
     site: null,
-    lines: (lines ?? []) as QuoteLine[],
+    lines: sortBySlNo((lines ?? []) as QuoteLine[]),
     revisions: (revisions ?? []) as QuoteRevision[],
     workOrders: mappedWOs,
     assets,

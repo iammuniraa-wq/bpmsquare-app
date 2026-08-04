@@ -241,7 +241,7 @@ export default function QuotePrintDocument({
         {quote.ref_no && (
           <span style={{ fontSize: 12.5 }}>Ref No: <strong>{quote.ref_no}</strong></span>
         )}
-        <span style={{ fontSize: 12.5 }}>Date: <strong>{fmtDate(quote.created_at)}</strong>{quote.valid_until ? <span style={{ marginLeft: 24, color: "#5f6b7a" }}>Valid until: {fmtDate(quote.valid_until)}</span> : ""}</span>
+        <span style={{ fontSize: 12.5 }}>Date: <strong>{fmtDate(quote.quote_date ?? quote.created_at)}</strong>{quote.valid_until ? <span style={{ marginLeft: 24, color: "#5f6b7a" }}>Valid until: {fmtDate(quote.valid_until)}</span> : ""}</span>
       </div>
 
       {/* Bill To / Attention */}

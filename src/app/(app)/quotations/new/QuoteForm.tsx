@@ -183,7 +183,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
 
   // Quote meta
   const [quoteName, setQuoteName]   = useState(eq?.name ?? "");
-  const [quoteDate, setQuoteDate]   = useState(eq?.created_at ? eq.created_at.slice(0, 10) : today);
+  const [quoteDate, setQuoteDate]   = useState((eq?.quote_date ?? eq?.created_at)?.slice(0, 10) ?? today);
   const [validUntil, setValidUntil] = useState(eq?.valid_until ? eq.valid_until.slice(0, 10) : defaultValid);
   const [refNo, setRefNo]           = useState(eq?.ref_no ?? "");
   const [prNo, setPrNo]             = useState(eq?.pr_no ?? "");
@@ -789,6 +789,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           account_id:      accountId,
           type:            offerType,
           total,
+          quote_date:      quoteDate || null,
           valid_until:     validUntil || null,
           notes,
           terms,

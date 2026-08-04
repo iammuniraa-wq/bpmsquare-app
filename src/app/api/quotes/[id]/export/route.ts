@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { richTextToPlainText } from "@/lib/sanitizeHtml";
+import { sortBySlNo } from "@/lib/lineOrder";
 
 function esc(v: string | number | null | undefined): string {
   let s = v == null ? "" : String(v);
@@ -38,7 +39,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const [{ data: lines }, { data: contact }, { data: assets }] = await Promise.all([
     supabase
       .from("quote_lines")
-      .select("description, uom, qty, rate, discount_pct, amount, group_label")
+      .select("sl_no, description, uom, qty, rate, discount_pct, amount, group_label")
       .eq("quote_id", id)
       .eq("tenant_id", tenantId)
       .order("sl_no"),
@@ -84,7 +85,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   // Line items table
   rows.push(`#,Description,Group,UOM,Qty,Rate (INR),Disc %,Amount (INR)`);
-  (lines ?? []).forEach((l, i) => {
+  sortBySlNo(lines ?? []).forEach((l, i) => {
     rows.push([
       i + 1,
       esc(l.description),

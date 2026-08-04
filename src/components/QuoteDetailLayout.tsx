@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { Quote, QuoteLine, Account, Contact, Asset, LayoutSection } from "@/lib/types";
 import type { TenantTaxConfig, QuoteStatusDef } from "@/lib/constants";
 import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES } from "@/lib/constants";
-import { c } from "@/lib/theme";
+import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import QuoteStatusPill from "@/components/QuoteStatusPill";
@@ -258,7 +258,11 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const hasGst      = quote.gst_rate !== null && quote.gst_rate !== undefined;
   const taxRate     = quote.gst_rate ?? 0;
   const taxLabel    = tenantTax?.label ?? "GST";
-  const subtotal    = lines.reduce((s, l) => s + l.amount, 0);
+  // Lines in an unselected alternative group are quoted but not sold — the print
+  // document already excludes them from the totals, so the summary must too.
+  const selectedAltId  = quote.selected_option_id ?? null;
+  const effectiveLines = lines.filter((l) => !l.group_id || l.group_type !== "alternative" || l.group_id === selectedAltId);
+  const subtotal    = effectiveLines.reduce((s, l) => s + l.amount, 0);
   const gst         = hasGst ? Math.round(subtotal * taxRate / 100) : 0;
   const grandTotal  = subtotal + gst;
 
@@ -573,6 +577,94 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
     );
   };
 
+  // Line rows, grouped exactly the way the create/edit form and the print document
+  // present them: a header row per group, the group's own subtotal after its last
+  // line, and alternative groups marked selected / not selected.
+  const renderLineRows = (): React.ReactNode[] => {
+    const out: React.ReactNode[] = [];
+    const seenGroups = new Set<string>();
+    const closedGroups = new Set<string>();
+    const groupItemCount: Record<string, number> = {};
+    const groupTotals: Record<string, number> = {};
+    for (const l of lines) {
+      if (l.group_id) groupTotals[l.group_id] = (groupTotals[l.group_id] ?? 0) + l.amount;
+    }
+    let standaloneNum = 0;
+
+    for (let idx = 0; idx < lines.length; idx++) {
+      const line = lines[idx];
+      const nextLine = lines[idx + 1];
+
+      if (!line.group_id) {
+        standaloneNum++;
+        out.push(
+          <tr key={line.id}>
+            <td style={{ ...td, color: c.hint, fontSize: 11 }}>{line.sl_no || standaloneNum}</td>
+            <td style={td}>{line.description}</td>
+            <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.qty}</td>
+            <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.rate.toLocaleString("en-IN")}</td>
+            <td style={{ ...td, textAlign: "right", fontWeight: 500 }}>{inr(line.amount)}</td>
+          </tr>
+        );
+        continue;
+      }
+
+      const isAlt      = line.group_type === "alternative";
+      const isSelected = !isAlt || line.group_id === selectedAltId;
+      const tone       = isAlt ? pillar.amber : pillar.blue;
+      const headerBg   = isSelected ? tone.bg : c.panel2;
+      const headerFg   = isSelected ? tone.fg : c.hint;
+
+      if (!seenGroups.has(line.group_id)) {
+        seenGroups.add(line.group_id);
+        standaloneNum++;
+        groupItemCount[line.group_id] = 0;
+        out.push(
+          <tr key={`gh-${line.group_id}`} style={{ background: headerBg }}>
+            <td colSpan={5} style={{ ...td, fontWeight: 700, fontSize: 11.5, color: headerFg, letterSpacing: 0.3 }}>
+              {isAlt ? (isSelected ? "✓ " : "✗ ") : ""}{line.group_label ?? (isAlt ? "Option" : "Group")}
+              {line.group_description && (
+                <span style={{ fontWeight: 400, marginLeft: 8, fontSize: 11 }}>— {line.group_description}</span>
+              )}
+              {isAlt && !isSelected && (
+                <span style={{ fontWeight: 400, marginLeft: 8, fontSize: 10 }}>(not selected)</span>
+              )}
+            </td>
+          </tr>
+        );
+      }
+
+      groupItemCount[line.group_id] = (groupItemCount[line.group_id] ?? 0) + 1;
+      out.push(
+        <tr key={line.id} style={{ opacity: isSelected ? 1 : 0.45 }}>
+          <td style={{ ...td, color: c.hint, fontSize: 11, paddingLeft: 22 }}>
+            {line.sl_no || `${standaloneNum}.${groupItemCount[line.group_id]}`}
+          </td>
+          <td style={td}>{line.description}</td>
+          <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.qty}</td>
+          <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.rate.toLocaleString("en-IN")}</td>
+          <td style={{ ...td, textAlign: "right", fontWeight: 500 }}>{inr(line.amount)}</td>
+        </tr>
+      );
+
+      const isLastInGroup = !nextLine || nextLine.group_id !== line.group_id;
+      if (isLastInGroup && !closedGroups.has(line.group_id) && !isTechnical) {
+        closedGroups.add(line.group_id);
+        out.push(
+          <tr key={`gt-${line.group_id}`} style={{ background: headerBg }}>
+            <td colSpan={4} style={{ ...td, textAlign: "right", fontSize: 11.5, fontWeight: 600, color: headerFg }}>
+              {line.group_label ?? "Group"} total
+            </td>
+            <td style={{ ...td, textAlign: "right", fontWeight: 700, color: headerFg }}>
+              {inr(groupTotals[line.group_id] ?? 0)}
+            </td>
+          </tr>
+        );
+      }
+    }
+    return out;
+  };
+
   // ── Section content renderers (builtin content only — cf cards added separately) ──
   const renderSectionContent = (section: LayoutSection): React.ReactNode => {
     switch (section.id) {
@@ -582,7 +674,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           <div style={{ ...cardStyle, display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <CoreField label="Quote ID" value={<span style={{ fontSize: 16, fontWeight: 600, fontFamily: "monospace", color: c.ink }}>{quote.ref}</span>} />
             {quote.ref_no && <CoreField label="Ref no." value={quote.ref_no} />}
-            <CoreField label="Issued"       value={fmtDate(quote.created_at)} />
+            <CoreField label="Issued"       value={fmtDate(quote.quote_date ?? quote.created_at)} />
             <CoreField label="Valid until"  value={quote.valid_until ? fmtDate(quote.valid_until) : "—"} />
             <CoreField label="Status"       value={<StatusPill status={currentStatus} statuses={quoteStatuses} />} />
             {renderCfCards(section, "inline")}
@@ -606,15 +698,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line, i) => (
-                  <tr key={line.id}>
-                    <td style={{ ...td, color: c.hint, fontSize: 11 }}>{i + 1}</td>
-                    <td style={td}>{line.description}</td>
-                    <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.qty}</td>
-                    <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.rate.toLocaleString("en-IN")}</td>
-                    <td style={{ ...td, textAlign: "right", fontWeight: 500 }}>{inr(line.amount)}</td>
-                  </tr>
-                ))}
+                {renderLineRows()}
               </tbody>
             </table>
             {!isTechnical && (

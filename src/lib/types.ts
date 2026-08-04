@@ -196,6 +196,9 @@ export type Quote = {
   outcome: "open" | "won" | "lost";
   total: number;
   created_at: string;
+  // The business date on the quote, back-datable by the user. Falls back to
+  // created_at on rows written before the column existed.
+  quote_date?: string | null;
   valid_until: string | null;
   notes: string | null;
   terms?: string | null;

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const {
-    account_id, type, total, valid_until, notes, terms, scope_of_work,
+    account_id, type, total, quote_date, valid_until, notes, terms, scope_of_work,
     entity_id, lines, selected_option_id, meta,
     name, contact_id, pr_no, po_number, po_amount, ref_no,
     discount_type, discount_pct, discount_fixed, gst_rate, asset_ids,
@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
     type: type ?? "quotation",
     status: "draft",
     total: total ?? 0,
+    quote_date: quote_date || null,
     valid_until: valid_until || null,
     notes: notes || null,
     terms: terms || null,
