@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
-import { generateNextMasterRef } from "@/lib/masterRef";
+import { insertWithMasterRef } from "@/lib/masterRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET(request: NextRequest) {
@@ -59,13 +59,8 @@ export async function POST(request: NextRequest) {
     if (!acct) return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
-  const ref = await generateNextMasterRef(supabase, "assets", tenantId);
-
-  const { data: asset, error } = await supabase
-    .from("assets")
-    .insert({
+  const { data: asset, error } = await insertWithMasterRef(supabase, "assets", tenantId, {
       tenant_id: tenantId,
-      ref,
       account_id: account_id || null,
       name,
       kind,
@@ -89,11 +84,9 @@ export async function POST(request: NextRequest) {
       is_loaner: Boolean(is_loaner),
       loaner_status: is_loaner ? "available" : null,
       ...(custom_data && Object.keys(custom_data).length ? { custom_data } : {}),
-    })
-    .select("*")
-    .single();
+    }, "*");
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error || !asset) return NextResponse.json({ error: error?.message ?? "Insert failed" }, { status: 500 });
 
   const user = await getAuthUser();
   await logChange(supabase, {

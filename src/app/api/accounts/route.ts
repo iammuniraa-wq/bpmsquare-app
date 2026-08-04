@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
-import { generateNextMasterRef } from "@/lib/masterRef";
+import { insertWithMasterRef } from "@/lib/masterRef";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
 
@@ -61,13 +61,8 @@ export async function POST(request: NextRequest) {
     if (!referrer) return NextResponse.json({ error: "Referring account not found" }, { status: 404 });
   }
 
-  const ref = await generateNextMasterRef(supabase, "accounts", tenantId);
-
-  const { data, error } = await supabase
-    .from("accounts")
-    .insert({
+  const { data, error } = await insertWithMasterRef(supabase, "accounts", tenantId, {
       tenant_id: tenantId,
-      ref,
       name, type,
       address_line1: address_line1 || null,
       address_line2: address_line2 || null,
@@ -89,11 +84,9 @@ export async function POST(request: NextRequest) {
       sales_org: sales_org || null,
       referred_by_account_id: referred_by_account_id || null,
       ...(custom_data && Object.keys(custom_data).length > 0 ? { custom_data } : {}),
-    })
-    .select("id, name")
-    .single();
+    }, "id, name");
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error || !data) return NextResponse.json({ error: error?.message ?? "Insert failed" }, { status: 500 });
 
   const user = await getAuthUser();
   await logChange(supabase, {
