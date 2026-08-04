@@ -1,0 +1,794 @@
+{
+  "info": {
+    "name": "BPMSquare API v1 - Quotations",
+    "description": "Full CRUD over quotations on the BPMSquare v1 API.\n\n## Setup\n1. Import the environment file alongside this collection.\n2. Generate a tenant API key: **Admin -> Tenants -> *your tenant* -> External API key**.\n3. Paste it into the environment's `api_key` variable (marked secret).\n4. Point `base_url` at the environment you mean to test.\n\nAuth is set once at collection level, so every request inherits it.\n\n## Running\nRun the folders in order. **Setup** captures `account_id`; **CRUD** captures `quote_id` and cleans up after itself; **Validation** documents the failure modes.\n\nThe whole collection is safe to run in the Collection Runner - it deletes the quotations it creates.\n\n## About the key\nThe tenant API key grants **writes as well as reads** - it can create and delete quotations. Treat it like a password: keep it in the environment, never in the collection body, and regenerate it in Admin if it leaks.\n\nFull reference: `API_V1.md` in the repo, or `GET /api/v1/metadata/quotations`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{api_key}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Setup",
+      "description": "Run these first - the last one captures {{account_id}}.",
+      "item": [
+        {
+          "name": "1. API index",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": []
+            },
+            "description": "Endpoint list and conventions. Confirms base_url and the API key are both correct."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('is BPMSquare v1', () => pm.expect(pm.response.json().version).to.eql('1.0'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Metadata - all entities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/metadata",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "metadata"
+              ]
+            },
+            "description": "Which entities have write support and field-level metadata."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Metadata - quotation fields",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/metadata/quotations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "metadata",
+                "quotations"
+              ]
+            },
+            "description": "Every quotation field: type, description, allowed values, required-on-create, writable. Read this before scripting anything."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('describes fields', () => pm.expect(d.fields.length).to.be.above(20));",
+                  "pm.test('total is computed', () => pm.expect(d.fields.find(f => f.field === 'total').computed).to.be.true);",
+                  "console.log('Writable fields:', d.fields.filter(f => f.writable).map(f => f.field).join(', '));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Pick an account id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/accounts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "accounts"
+              ]
+            },
+            "description": "Grabs the first account and stores it as {{account_id}}, so the create requests below run without a manual lookup."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json().data;",
+                  "pm.test('tenant has at least one account', () => pm.expect(rows.length).to.be.above(0));",
+                  "if (rows.length) {",
+                  "  pm.environment.set('account_id', rows[0].id);",
+                  "  console.log('Using account:', rows[0].name, rows[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CRUD",
+      "description": "Create -> read -> update -> delete, in order. Cleans up after itself.",
+      "item": [
+        {
+          "name": "1. Create quotation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations"
+              ]
+            },
+            "description": "Minimal realistic create. Only account_id is required; everything else has a default.\n\nNote sl_no \"10\" - the response proves it sorts after \"2\", not between \"1\" and \"2\".\n\nExpected total: 145000 + (18000 - 10%) + 7500 = 168700",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"name\": \"Rewinding of 180 kW motor\",\n  \"type\": \"quotation\",\n  \"quote_date\": \"2026-04-09\",\n  \"valid_until\": \"2026-05-09\",\n  \"inquiry_date\": \"2026-04-01\",\n  \"gst_rate\": 18,\n  \"terms\": \"GST @ 18% applicable. Delivery 3-4 weeks from receipt of PO.\",\n  \"lines\": [\n    {\n      \"sl_no\": \"1\",\n      \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 145000\n    },\n    {\n      \"sl_no\": \"2\",\n      \"description\": \"Dynamic balancing of rotor\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 18000,\n      \"discount_pct\": 10\n    },\n    {\n      \"sl_no\": \"10\",\n      \"description\": \"Testing and commissioning\",\n      \"uom\": \"Job\",\n      \"qty\": 1,\n      \"rate\": 7500\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const q = pm.response.json().data;",
+                  "pm.environment.set('quote_id', q.id);",
+                  "pm.test('got a server-generated Quote ID', () => pm.expect(q.ref).to.be.a('string'));",
+                  "pm.test('total computed server-side', () => pm.expect(q.total).to.eql(168700));",
+                  "pm.test('back-dated quote_date kept', () => pm.expect(q.quote_date).to.eql('2026-04-09'));",
+                  "pm.test('lines sort naturally (1, 2, 10)', () => pm.expect(q.lines.map(l => l.sl_no)).to.eql(['1','2','10']));",
+                  "console.log('Created', q.ref, '->', q.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Create with groups and alternatives",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations"
+              ]
+            },
+            "description": "The harder shape: an alternative Option A / Option B pair plus a material salvage deduction.\n\nOnly the selected option counts toward the total:\n  12000 (base) + 145000 (Option A) - 18000 (salvage) = 139000\n\nOption B's 78000 is quoted but excluded.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"name\": \"Motor repair - options quote\",\n  \"selected_option_id\": \"opt-a\",\n  \"lines\": [\n    {\n      \"sl_no\": \"1\",\n      \"description\": \"Dismantling and inspection\",\n      \"uom\": \"Job\",\n      \"qty\": 1,\n      \"rate\": 12000\n    },\n    {\n      \"sl_no\": \"2.1\",\n      \"description\": \"Full rewind with F-class insulation\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 145000,\n      \"group_id\": \"opt-a\",\n      \"group_label\": \"Option A - Full rewind\",\n      \"group_type\": \"alternative\"\n    },\n    {\n      \"sl_no\": \"2.2\",\n      \"description\": \"Partial rewind, damaged coils only\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 78000,\n      \"group_id\": \"opt-b\",\n      \"group_label\": \"Option B - Partial rewind\",\n      \"group_type\": \"alternative\"\n    },\n    {\n      \"sl_no\": \"3\",\n      \"description\": \"Copper scrap recovered\",\n      \"uom\": \"Kg\",\n      \"qty\": 40,\n      \"rate\": 0,\n      \"category\": \"material\",\n      \"deduction\": 18000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const q = pm.response.json().data;",
+                  "pm.environment.set('grouped_quote_id', q.id);",
+                  "pm.test('unselected option excluded from total', () => pm.expect(q.total).to.eql(139000));",
+                  "pm.test('totals breakdown present', () => pm.expect(q.totals.deductions).to.eql(18000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Get quotation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{quote_id}}"
+              ]
+            },
+            "description": "Full detail: lines, account, contact, and a totals breakdown you can reconcile against."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data;",
+                  "pm.test('has lines', () => pm.expect(q.lines.length).to.eql(3));",
+                  "pm.test('totals reconcile', () => pm.expect(q.totals.subtotal - q.totals.discount - q.totals.deductions).to.eql(q.totals.total));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. List quotations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/quotations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations"
+              ]
+            },
+            "description": "All quotations for the tenant. Filterable by status and account_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('created quote appears', () => pm.expect(pm.response.json().data.map(q => q.id)).to.include(pm.environment.get('quote_id')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. List - filtered by status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/quotations?status=draft",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "draft"
+                }
+              ]
+            },
+            "description": "Same endpoint with a filter applied."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Update - send to customer",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{quote_id}}"
+              ]
+            },
+            "description": "Header-only update. Leaving `lines` out means the lines are untouched.\n\nMoving off the initial status auto-stamps submitted_at.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"sent\",\n  \"valid_until\": \"2026-06-30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data;",
+                  "pm.test('status changed', () => pm.expect(q.status).to.eql('sent'));",
+                  "pm.test('submitted_at auto-stamped', () => pm.expect(q.submitted_at).to.not.be.null);",
+                  "pm.test('lines untouched', () => pm.expect(q.lines.length).to.eql(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Update - replace lines",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{quote_id}}"
+              ]
+            },
+            "description": "Sending `lines` replaces the whole set. Always send the complete array, never a partial one.\n\nNew total: 100000 + 25000 = 125000",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lines\": [\n    {\n      \"sl_no\": \"1\",\n      \"description\": \"Rewinding of 180 kW motor (revised scope)\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 100000\n    },\n    {\n      \"sl_no\": \"2\",\n      \"description\": \"Bearing replacement - both ends\",\n      \"uom\": \"Set\",\n      \"qty\": 1,\n      \"rate\": 25000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data;",
+                  "pm.test('lines replaced wholesale', () => pm.expect(q.lines.length).to.eql(2));",
+                  "pm.test('total recomputed', () => pm.expect(q.total).to.eql(125000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Update - mark won",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{quote_id}}"
+              ]
+            },
+            "description": "Setting outcome away from \"open\" auto-stamps closed_at.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"won\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('closed_at auto-stamped', () => pm.expect(pm.response.json().data.closed_at).to.not.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Delete quotation",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{quote_id}}"
+              ]
+            },
+            "description": "Removes the quotation. Recorded in the tenant deletion log and in Change History as actor api:v1."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('confirms deletion', () => pm.expect(pm.response.json().data.deleted).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Delete the grouped quotation",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{grouped_quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{grouped_quote_id}}"
+              ]
+            },
+            "description": "Tidies up the second quote so a Runner pass leaves no test data behind."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Validation (expected failures)",
+      "description": "Every request here is SUPPOSED to fail. They document the error contract.",
+      "item": [
+        {
+          "name": "Unknown field is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations"
+              ]
+            },
+            "description": "A typo (\"quote_dat\") fails loudly with 422 instead of silently dropping the column. This is what makes bulk loads safe.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"quote_dat\": \"2026-04-09\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));",
+                  "pm.test('names the bad field', () => pm.expect(pm.response.json().details[0].field).to.eql('quote_dat'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Computed total is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations"
+              ]
+            },
+            "description": "Money is always calculated server-side. Asserting a total is an error, not a silent override.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"total\": 999999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Missing account_id is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations"
+              ]
+            },
+            "description": "account_id is the only required field on a quotation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"No account\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));",
+                  "pm.test('flags account_id', () => pm.expect(JSON.stringify(pm.response.json().details)).to.include('account_id'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bad enum lists the allowed values",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations"
+              ]
+            },
+            "description": "Error messages carry the accepted values, so you do not have to go looking for them.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"type\": \"invoice\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));",
+                  "pm.test('suggests valid values', () => pm.expect(pm.response.json().details[0].message).to.include('quotation'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Line without description is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations"
+              ]
+            },
+            "description": "Row-level errors name the index, so a failing row in a large payload is easy to find.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"lines\": [\n    {\n      \"description\": \"fine\"\n    },\n    {\n      \"qty\": 1,\n      \"rate\": 100\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));",
+                  "pm.test('names the offending row', () => pm.expect(pm.response.json().details[0].field).to.include('lines[1]'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown quotation is 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/quotations/00000000-0000-4000-8000-000000000000",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "00000000-0000-4000-8000-000000000000"
+              ]
+            },
+            "description": "Ids outside your tenant are indistinguishable from ids that do not exist."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://vikas.bpmsquare.com/api/v1"
+    }
+  ]
+}
