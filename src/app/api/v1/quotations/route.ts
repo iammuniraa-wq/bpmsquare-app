@@ -122,6 +122,13 @@ export async function POST(req: Request) {
     selected_option_id: values.selected_option_id ?? null,
     custom_data: values.custom_data ?? null,
     meta: values.meta ?? null,
+    // Date profile: only what the caller states. submitted_at/closed_at are
+    // never auto-stamped at creation -- a historical import must be able to
+    // land its own dates without the server overwriting them.
+    inquiry_date: values.inquiry_date ?? null,
+    submitted_at: values.submitted_at ?? null,
+    closed_at: values.closed_at ?? null,
+    updated_at: new Date().toISOString(),
     ...(values.business_status !== undefined ? { business_status: values.business_status } : {}),
     territory: values.territory ?? account?.territory ?? null,
     sales_org: values.sales_org ?? account?.sales_org ?? null,

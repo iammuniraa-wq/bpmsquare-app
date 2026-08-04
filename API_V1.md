@@ -148,6 +148,21 @@ thousand rows.
 **Line ordering is natural, not lexicographic.** `sl_no` is text (so `"1a"` and
 `"2.10"` work), but reads sort it numerically — `1, 2, 10`, not `1, 10, 2`.
 
+**Date profile.** A quotation carries five dates beyond `created_at`, and they
+behave differently:
+
+| Field | Behaviour |
+|---|---|
+| `quote_date` | The business date on the document. Yours to set; back-dating is fine. |
+| `inquiry_date` | When the customer asked. Never auto-stamped — it precedes the quotation. |
+| `submitted_at` | Auto-stamped the first time the quote leaves its initial status, and on an actual email send. **Send a value to override.** |
+| `closed_at` | Auto-stamped when `outcome` leaves `open`; cleared if it returns to `open`. **Send a value to override.** |
+| `updated_at` | System-maintained on every write. Read-only, including on import. |
+
+The auto-stamps fire on `PATCH` only, never on `POST` — so a historical import
+can state its own `submitted_at` and `closed_at` and the server will not
+overwrite them. An explicit value always beats the auto-stamp.
+
 **Every write is audited.** Creates, updates and deletes appear in
 Administration → Change History with actor `api:v1`.
 

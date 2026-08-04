@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { sortBySlNo } from "@/lib/lineOrder";
+import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { computeQuoteTotals, lineAmount, type ComputableLine } from "./quotes";
 
 /** Change-log actor for API-key writes -- there is no signed-in user to attribute. */
@@ -90,6 +91,44 @@ export function sanitizeQuoteValues(values: Record<string, unknown>): Record<str
   return values;
 }
 
+/**
+ * The date-profile rules from migration 0059, applied identically here to the
+ * way the in-app routes apply them -- a quote moved through the API must end up
+ * with the same submitted/closed stamps as one moved through the UI.
+ *
+ * An explicit value from the caller always wins: a quote handed over on
+ * WhatsApp or closed verbally happened outside the system, and historical
+ * imports need to state their own dates.
+ */
+export async function applyDateProfile(
+  supabase: SupabaseClient,
+  tenantId: string,
+  before: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Promise<void> {
+  if ("status" in patch) {
+    const { data: tenant } = await supabase.from("tenants").select("config").eq("id", tenantId).maybeSingle();
+    const statuses: QuoteStatusDef[] =
+      (tenant?.config as { quote_statuses?: QuoteStatusDef[] } | null)?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
+    const def = statuses.find((s) => s.value === patch.status);
+
+    if (!("outcome" in patch)) {
+      patch.outcome = def?.is_terminal ? (def.is_lost ? "lost" : "won") : "open";
+    }
+    if (!before.submitted_at && !("submitted_at" in patch) && def && !def.is_initial) {
+      patch.submitted_at = new Date().toISOString();
+    }
+  }
+
+  const effectiveOutcome = ("outcome" in patch ? patch.outcome : before.outcome) as string;
+  if (!("closed_at" in patch)) {
+    if (effectiveOutcome !== "open" && before.outcome === "open") patch.closed_at = new Date().toISOString();
+    else if (effectiveOutcome === "open" && before.outcome !== "open") patch.closed_at = null;
+  }
+
+  patch.updated_at = new Date().toISOString();
+}
+
 type QuoteRow = Record<string, unknown>;
 
 export function serializeLine(l: QuoteRow) {
@@ -144,6 +183,10 @@ export function serializeQuote(
     po_amount: q.po_amount,
     quote_date: q.quote_date ?? null,
     valid_until: q.valid_until,
+    inquiry_date: q.inquiry_date ?? null,
+    submitted_at: q.submitted_at ?? null,
+    closed_at: q.closed_at ?? null,
+    updated_at: q.updated_at ?? null,
     notes: q.notes,
     terms: q.terms,
     scope_of_work: q.scope_of_work,

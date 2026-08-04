@@ -120,6 +120,23 @@ const QUOTE_FIELDS: FieldDef[] = [
     example: "2026-04-09",
   },
   { key: "valid_until", type: "date", label: "Valid until", description: "Expiry date shown on the quotation.", example: "2026-05-09" },
+  {
+    key: "inquiry_date", type: "date", label: "Inquiry date",
+    description: "When the customer asked — which is usually before the quotation existed, so it is never auto-stamped. Set it yourself, including on historical imports.",
+    example: "2026-04-01",
+  },
+  {
+    key: "submitted_at", type: "datetime", label: "Submitted at",
+    description: "When the quotation reached the customer. Auto-stamped the first time it leaves its initial status, and by an actual email send. Send a value to override — useful for backfilling quotes that went out by WhatsApp or in person. An explicit value always wins over the auto-stamp.",
+  },
+  {
+    key: "closed_at", type: "datetime", label: "Closed at",
+    description: "When the quotation was won or lost. Auto-stamped when outcome leaves \"open\", and cleared if it returns to \"open\". Send a value to override.",
+  },
+  {
+    key: "updated_at", type: "datetime", label: "Updated at", readOnly: true,
+    description: "Last modification, maintained by the server on every write. Not settable, including on import.",
+  },
   { key: "notes", type: "text", label: "Notes", description: "Internal or customer-facing notes." },
   { key: "terms", type: "text", label: "Terms & conditions", description: "Terms printed on the quotation." },
   {

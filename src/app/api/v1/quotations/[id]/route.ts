@@ -3,7 +3,7 @@ import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/c
 import { QUOTE_ENTITY } from "@/lib/api/quotes";
 import { validateBody, validateChildren } from "@/lib/api/schema";
 import {
-  API_ACTOR_EMAIL, buildLineRows, sanitizeQuoteValues, serializeQuote, totalsFor, verifyQuoteRelations,
+  API_ACTOR_EMAIL, applyDateProfile, buildLineRows, sanitizeQuoteValues, serializeQuote, totalsFor, verifyQuoteRelations,
 } from "@/lib/api/quoteService";
 import {
   resolveTenantFromBearer, ERR_401_TENANT, jsonOk, jsonError, jsonValidationError,
@@ -92,6 +92,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const totals = totalsFor(nextLines, effective);
 
   const patch: Record<string, unknown> = { ...values, total: totals.total };
+  await applyDateProfile(supabase, tenantId, before as Record<string, unknown>, patch);
 
   const { data: updated, error: uErr } = await supabase
     .from("quotes").update(patch).eq("id", id).eq("tenant_id", tenantId).select("*").single();
@@ -113,8 +114,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const snap = (rows: Record<string, unknown>[]): LineSnapshot[] =>
     rows.map((l) => ({ label: String(l.description), qty: Number(l.qty), rate: Number(l.rate), amount: Number(l.amount) }));
 
+  // updated_at moves on every save by definition -- logging it would put a
+  // meaningless entry on every change. Same exclusion the in-app route makes.
+  const { updated_at: _updatedAt, ...diffPatch } = patch;
   const changes = [
-    ...diffForLog("quotes", before as Record<string, unknown>, patch),
+    ...diffForLog("quotes", before as Record<string, unknown>, diffPatch),
     ...(linesGiven ? diffLineItems(snap((existingLines ?? []) as Record<string, unknown>[]), snap(finalLines)) : []),
   ];
   if (changes.length > 0) {
