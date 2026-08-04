@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
+import { parseDateOverride } from "@/lib/dateProfile";
 
 // Full edit of a DRAFT quote: header fields + line items (replaced wholesale).
 // Server enforces draft-only; sent/approved quotes must use /revise instead.
@@ -122,10 +123,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     : Math.round(subtotal * effectiveDiscountPct / 100);
   const total = subtotal - discAmount - totalDeductions;
 
+  const inquiryParse = inquiry_date !== undefined ? parseDateOverride(inquiry_date) : { ok: true as const, date: null };
+  if (!inquiryParse.ok) return NextResponse.json({ error: "inquiry_date must be a valid YYYY-MM-DD date" }, { status: 400 });
+  const inquiryDateParsed = inquiryParse.ok ? inquiryParse.date : null;
+
   // Update header
   const headerPatch: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
-    ...(inquiry_date !== undefined ? { inquiry_date: typeof inquiry_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(inquiry_date) ? inquiry_date : null } : {}),
+    ...(inquiry_date !== undefined ? { inquiry_date: inquiryDateParsed } : {}),
     valid_until: valid_until || null,
     notes: notes ?? null,
     terms: terms ?? null,

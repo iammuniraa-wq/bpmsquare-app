@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -69,16 +70,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const allowed = ["status", "notes", "custom_data", "ref_no", "outcome"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
 
-  // Date-profile manual overrides (0059) -- a date-only string or null;
-  // anything else is dropped rather than stored malformed.
-  if ("inquiry_date" in body) patch.inquiry_date = typeof body.inquiry_date === "string" && DATE_RE.test(body.inquiry_date) ? body.inquiry_date : null;
-  if ("submitted_at" in body) patch.submitted_at = typeof body.submitted_at === "string" && DATE_RE.test(body.submitted_at) ? new Date(body.submitted_at).toISOString() : null;
-  if ("closed_at" in body) patch.closed_at = typeof body.closed_at === "string" && DATE_RE.test(body.closed_at) ? new Date(body.closed_at).toISOString() : null;
+  // Date-profile manual overrides (0059) -- null clears, a valid YYYY-MM-DD
+  // sets, anything malformed is a 400 (never a silent clear of an existing
+  // business timestamp).
+  if ("inquiry_date" in body) {
+    const r = parseDateOverride(body.inquiry_date);
+    if (!r.ok) return NextResponse.json({ error: "inquiry_date must be a valid YYYY-MM-DD date" }, { status: 400 });
+    patch.inquiry_date = r.date;
+  }
+  if ("submitted_at" in body) {
+    const r = parseTimestampOverride(body.submitted_at);
+    if (!r.ok) return NextResponse.json({ error: "submitted_at must be a valid YYYY-MM-DD date" }, { status: 400 });
+    patch.submitted_at = r.iso;
+  }
+  if ("closed_at" in body) {
+    const r = parseTimestampOverride(body.closed_at);
+    if (!r.ok) return NextResponse.json({ error: "closed_at must be a valid YYYY-MM-DD date" }, { status: 400 });
+    patch.closed_at = r.iso;
+  }
 
   const admin = createAdminSupabase();
 
