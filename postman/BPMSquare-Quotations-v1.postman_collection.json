@@ -291,6 +291,626 @@
       ]
     },
     {
+      "name": "Quotation lifecycle — header + lines together",
+      "description": "**Start here.** Seven requests, run top to bottom, covering the whole life of one quotation: create, read, update, delete.\n\nThe thing to take away: **a quotation is one object.** Header fields and line items travel together in a single request body — there is no separate line-item endpoint, and never a second call to attach lines.\n\n| Step | Request | Effect |\n| --- | --- | --- |\n| 1 | `POST` | Header + 3 lines created in one call — total 175000 |\n| 2 | `GET` | Read back as one object |\n| 3 | `PATCH` | Header only — `lines` omitted, so lines untouched |\n| 4 | `PATCH` | Header **and** lines together — discount + a 4th line |\n| 5 | `PATCH` | Remove a line by sending the array without it |\n| 6 | `PATCH` | Clear all lines — quotation survives, total 0 |\n| 7 | `DELETE` | Quotation and its lines, gone |\n\n⚠️ **`lines` replaces the whole set — it never appends.** To add one line to a three-line quote, send all four. To remove one, send the remaining three. Omit `lines` entirely and they are left alone.\n\nCleans up after itself, so it is safe to run repeatedly.",
+      "item": [
+        {
+          "name": "Step 1 — POST: create header + lines in one request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations"
+              ]
+            },
+            "description": "**One request creates the whole quotation.** The header fields sit at the top level and the line items go in the `lines` array — there is no separate line-item endpoint and no second call.\n\nIt is atomic: if any line is rejected, the quotation is not created either.\n\n```\nheader ─┬─ account_id, name, quote_date, valid_until, gst_rate, terms ...\n        └─ lines[] ─┬─ 1. Rewinding             145000\n                    ├─ 2. VPI                    22000\n                    └─ 3. Testing                 8000\n                                        total = 175000\n```\n\nStores the new id as `{{lc_quote_id}}` for the rest of this folder.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"name\": \"Rewinding of 180 kW motor\",\n  \"quote_date\": \"2026-04-09\",\n  \"valid_until\": \"2026-05-09\",\n  \"inquiry_date\": \"2026-04-01\",\n  \"gst_rate\": 18,\n  \"terms\": \"GST @ 18% applicable.\",\n  \"lines\": [\n    {\n      \"sl_no\": \"1\",\n      \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 145000\n    },\n    {\n      \"sl_no\": \"2\",\n      \"description\": \"Vacuum pressure impregnation\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 22000\n    },\n    {\n      \"sl_no\": \"3\",\n      \"description\": \"Testing and commissioning\",\n      \"uom\": \"Job\",\n      \"qty\": 1,\n      \"rate\": 8000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const q = pm.response.json().data;",
+                  "pm.environment.set('lc_quote_id', q.id);",
+                  "pm.test('header saved', () => pm.expect(q.name).to.eql('Rewinding of 180 kW motor'));",
+                  "pm.test('3 lines saved in the same call', () => pm.expect(q.lines.length).to.eql(3));",
+                  "pm.test('total computed from the lines', () => pm.expect(q.total).to.eql(175000));",
+                  "console.log('Created', q.ref, 'with', q.line_count, 'lines, total', q.total);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/quotations",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quotations"
+                  ]
+                },
+                "description": "**One request creates the whole quotation.** The header fields sit at the top level and the line items go in the `lines` array — there is no separate line-item endpoint and no second call.\n\nIt is atomic: if any line is rejected, the quotation is not created either.\n\n```\nheader ─┬─ account_id, name, quote_date, valid_until, gst_rate, terms ...\n        └─ lines[] ─┬─ 1. Rewinding             145000\n                    ├─ 2. VPI                    22000\n                    └─ 3. Testing                 8000\n                                        total = 175000\n```\n\nStores the new id as `{{lc_quote_id}}` for the rest of this folder.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"name\": \"Rewinding of 180 kW motor\",\n  \"quote_date\": \"2026-04-09\",\n  \"valid_until\": \"2026-05-09\",\n  \"inquiry_date\": \"2026-04-01\",\n  \"gst_rate\": 18,\n  \"terms\": \"GST @ 18% applicable.\",\n  \"lines\": [\n    {\n      \"sl_no\": \"1\",\n      \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 145000\n    },\n    {\n      \"sl_no\": \"2\",\n      \"description\": \"Vacuum pressure impregnation\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 22000\n    },\n    {\n      \"sl_no\": \"3\",\n      \"description\": \"Testing and commissioning\",\n      \"uom\": \"Job\",\n      \"qty\": 1,\n      \"rate\": 8000\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n    \"ref\": \"QT-2026-0042\",\n    \"account_id\": \"8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n    \"contact_id\": null,\n    \"entity_id\": null,\n    \"type\": \"quotation\",\n    \"status\": \"draft\",\n    \"business_status\": null,\n    \"outcome\": \"open\",\n    \"name\": \"Rewinding of 180 kW motor\",\n    \"ref_no\": null,\n    \"pr_no\": null,\n    \"po_number\": null,\n    \"po_amount\": null,\n    \"quote_date\": \"2026-04-09\",\n    \"valid_until\": \"2026-05-09\",\n    \"inquiry_date\": \"2026-04-01\",\n    \"submitted_at\": null,\n    \"closed_at\": null,\n    \"updated_at\": \"2026-08-04T18:20:00.000Z\",\n    \"notes\": null,\n    \"terms\": \"GST @ 18% applicable.\",\n    \"scope_of_work\": null,\n    \"discount_type\": \"pct\",\n    \"discount_pct\": 0,\n    \"discount_fixed\": 0,\n    \"gst_rate\": 18,\n    \"asset_ids\": [],\n    \"selected_option_id\": null,\n    \"territory\": \"Karnataka\",\n    \"sales_org\": \"VP-South\",\n    \"custom_data\": null,\n    \"meta\": null,\n    \"total\": 175000,\n    \"revision\": 1,\n    \"created_at\": \"2026-08-04T18:19:12.000Z\",\n    \"lines\": [\n      {\n        \"id\": \"l1\",\n        \"sl_no\": \"1\",\n        \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n        \"uom\": \"Nos\",\n        \"qty\": 1,\n        \"rate\": 145000,\n        \"discount_pct\": 0,\n        \"amount\": 145000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l2\",\n        \"sl_no\": \"2\",\n        \"description\": \"Vacuum pressure impregnation\",\n        \"uom\": \"Nos\",\n        \"qty\": 1,\n        \"rate\": 22000,\n        \"discount_pct\": 0,\n        \"amount\": 22000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l3\",\n        \"sl_no\": \"3\",\n        \"description\": \"Testing and commissioning\",\n        \"uom\": \"Job\",\n        \"qty\": 1,\n        \"rate\": 8000,\n        \"discount_pct\": 0,\n        \"amount\": 8000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      }\n    ],\n    \"line_count\": 3,\n    \"totals\": {\n      \"subtotal\": 175000,\n      \"discount\": 0,\n      \"deductions\": 0,\n      \"total\": 175000\n    },\n    \"_links\": {\n      \"self\": \"/api/v1/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n      \"account\": \"/api/v1/accounts/8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n      \"pdf\": \"/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31/print\"\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Step 2 — GET: read it back",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{lc_quote_id}}"
+              ]
+            },
+            "description": "Confirms header and lines came back as one object, with a `totals` breakdown you can reconcile."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data;",
+                  "pm.test('header and lines returned together', () => { pm.expect(q.name).to.be.a('string'); pm.expect(q.lines.length).to.eql(3); });",
+                  "pm.test('totals reconcile', () => pm.expect(q.totals.subtotal - q.totals.discount - q.totals.deductions).to.eql(q.total));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quotations",
+                    "{{lc_quote_id}}"
+                  ]
+                },
+                "description": "Confirms header and lines came back as one object, with a `totals` breakdown you can reconcile."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n    \"ref\": \"QT-2026-0042\",\n    \"account_id\": \"8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n    \"contact_id\": null,\n    \"entity_id\": null,\n    \"type\": \"quotation\",\n    \"status\": \"draft\",\n    \"business_status\": null,\n    \"outcome\": \"open\",\n    \"name\": \"Rewinding of 180 kW motor\",\n    \"ref_no\": null,\n    \"pr_no\": null,\n    \"po_number\": null,\n    \"po_amount\": null,\n    \"quote_date\": \"2026-04-09\",\n    \"valid_until\": \"2026-05-09\",\n    \"inquiry_date\": \"2026-04-01\",\n    \"submitted_at\": null,\n    \"closed_at\": null,\n    \"updated_at\": \"2026-08-04T18:20:00.000Z\",\n    \"notes\": null,\n    \"terms\": \"GST @ 18% applicable.\",\n    \"scope_of_work\": null,\n    \"discount_type\": \"pct\",\n    \"discount_pct\": 0,\n    \"discount_fixed\": 0,\n    \"gst_rate\": 18,\n    \"asset_ids\": [],\n    \"selected_option_id\": null,\n    \"territory\": \"Karnataka\",\n    \"sales_org\": \"VP-South\",\n    \"custom_data\": null,\n    \"meta\": null,\n    \"total\": 175000,\n    \"revision\": 1,\n    \"created_at\": \"2026-08-04T18:19:12.000Z\",\n    \"lines\": [\n      {\n        \"id\": \"l1\",\n        \"sl_no\": \"1\",\n        \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n        \"uom\": \"Nos\",\n        \"qty\": 1,\n        \"rate\": 145000,\n        \"discount_pct\": 0,\n        \"amount\": 145000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l2\",\n        \"sl_no\": \"2\",\n        \"description\": \"Vacuum pressure impregnation\",\n        \"uom\": \"Nos\",\n        \"qty\": 1,\n        \"rate\": 22000,\n        \"discount_pct\": 0,\n        \"amount\": 22000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l3\",\n        \"sl_no\": \"3\",\n        \"description\": \"Testing and commissioning\",\n        \"uom\": \"Job\",\n        \"qty\": 1,\n        \"rate\": 8000,\n        \"discount_pct\": 0,\n        \"amount\": 8000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      }\n    ],\n    \"line_count\": 3,\n    \"totals\": {\n      \"subtotal\": 175000,\n      \"discount\": 0,\n      \"deductions\": 0,\n      \"total\": 175000\n    },\n    \"_links\": {\n      \"self\": \"/api/v1/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n      \"account\": \"/api/v1/accounts/8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n      \"pdf\": \"/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31/print\"\n    },\n    \"account\": {\n      \"id\": \"8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n      \"name\": \"JSW Steel Ltd\"\n    },\n    \"contact\": null\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Step 3 — PATCH: header only (lines untouched)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{lc_quote_id}}"
+              ]
+            },
+            "description": "**Omit `lines` and the lines are left completely alone.** This is the safe way to move a quote through its pipeline without risking its content.\n\nThe total is unchanged at 175000 because nothing affecting it moved.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"sent\",\n  \"valid_until\": \"2026-06-30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data;",
+                  "pm.test('header updated', () => pm.expect(q.status).to.eql('sent'));",
+                  "pm.test('lines survived untouched', () => pm.expect(q.lines.length).to.eql(3));",
+                  "pm.test('total unchanged', () => pm.expect(q.total).to.eql(175000));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quotations",
+                    "{{lc_quote_id}}"
+                  ]
+                },
+                "description": "**Omit `lines` and the lines are left completely alone.** This is the safe way to move a quote through its pipeline without risking its content.\n\nThe total is unchanged at 175000 because nothing affecting it moved.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"sent\",\n  \"valid_until\": \"2026-06-30\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n    \"ref\": \"QT-2026-0042\",\n    \"account_id\": \"8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n    \"contact_id\": null,\n    \"entity_id\": null,\n    \"type\": \"quotation\",\n    \"status\": \"sent\",\n    \"business_status\": null,\n    \"outcome\": \"open\",\n    \"name\": \"Rewinding of 180 kW motor\",\n    \"ref_no\": null,\n    \"pr_no\": null,\n    \"po_number\": null,\n    \"po_amount\": null,\n    \"quote_date\": \"2026-04-09\",\n    \"valid_until\": \"2026-06-30\",\n    \"inquiry_date\": \"2026-04-01\",\n    \"submitted_at\": \"2026-08-04T18:21:30.000Z\",\n    \"closed_at\": null,\n    \"updated_at\": \"2026-08-04T18:20:00.000Z\",\n    \"notes\": null,\n    \"terms\": \"GST @ 18% applicable.\",\n    \"scope_of_work\": null,\n    \"discount_type\": \"pct\",\n    \"discount_pct\": 0,\n    \"discount_fixed\": 0,\n    \"gst_rate\": 18,\n    \"asset_ids\": [],\n    \"selected_option_id\": null,\n    \"territory\": \"Karnataka\",\n    \"sales_org\": \"VP-South\",\n    \"custom_data\": null,\n    \"meta\": null,\n    \"total\": 175000,\n    \"revision\": 1,\n    \"created_at\": \"2026-08-04T18:19:12.000Z\",\n    \"lines\": [\n      {\n        \"id\": \"l1\",\n        \"sl_no\": \"1\",\n        \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n        \"uom\": \"Nos\",\n        \"qty\": 1,\n        \"rate\": 145000,\n        \"discount_pct\": 0,\n        \"amount\": 145000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l2\",\n        \"sl_no\": \"2\",\n        \"description\": \"Vacuum pressure impregnation\",\n        \"uom\": \"Nos\",\n        \"qty\": 1,\n        \"rate\": 22000,\n        \"discount_pct\": 0,\n        \"amount\": 22000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l3\",\n        \"sl_no\": \"3\",\n        \"description\": \"Testing and commissioning\",\n        \"uom\": \"Job\",\n        \"qty\": 1,\n        \"rate\": 8000,\n        \"discount_pct\": 0,\n        \"amount\": 8000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      }\n    ],\n    \"line_count\": 3,\n    \"totals\": {\n      \"subtotal\": 175000,\n      \"discount\": 0,\n      \"deductions\": 0,\n      \"total\": 175000\n    },\n    \"_links\": {\n      \"self\": \"/api/v1/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n      \"account\": \"/api/v1/accounts/8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n      \"pdf\": \"/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31/print\"\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Step 4 — PATCH: header + lines together, adding a line",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{lc_quote_id}}"
+              ]
+            },
+            "description": "**Header and lines in the same request.** Here a 5% header discount is applied *and* a fourth line added, in one call.\n\n⚠️ To add one line you send **all four** — `lines` replaces the whole set, it does not append. There is no add-a-line endpoint.\n\n```\n  145000 + 22000 + 8000 + 12000 = 187000  subtotal\n                       − 5%     =   9350  header discount\n                                 = 177650  total\n```",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rewinding of 180 kW motor (rev. 2)\",\n  \"discount_type\": \"pct\",\n  \"discount_pct\": 5,\n  \"lines\": [\n    {\n      \"sl_no\": \"1\",\n      \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 145000\n    },\n    {\n      \"sl_no\": \"2\",\n      \"description\": \"Vacuum pressure impregnation\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 22000\n    },\n    {\n      \"sl_no\": \"3\",\n      \"description\": \"Testing and commissioning\",\n      \"uom\": \"Job\",\n      \"qty\": 1,\n      \"rate\": 8000\n    },\n    {\n      \"sl_no\": \"4\",\n      \"description\": \"Bearing replacement \\u2014 both ends\",\n      \"uom\": \"Set\",\n      \"qty\": 1,\n      \"rate\": 12000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data;",
+                  "pm.test('header change applied', () => pm.expect(q.discount_pct).to.eql(5));",
+                  "pm.test('line added — now 4', () => pm.expect(q.lines.length).to.eql(4));",
+                  "pm.test('discount applied on top of the new lines', () => pm.expect(q.total).to.eql(177650));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quotations",
+                    "{{lc_quote_id}}"
+                  ]
+                },
+                "description": "**Header and lines in the same request.** Here a 5% header discount is applied *and* a fourth line added, in one call.\n\n⚠️ To add one line you send **all four** — `lines` replaces the whole set, it does not append. There is no add-a-line endpoint.\n\n```\n  145000 + 22000 + 8000 + 12000 = 187000  subtotal\n                       − 5%     =   9350  header discount\n                                 = 177650  total\n```",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Rewinding of 180 kW motor (rev. 2)\",\n  \"discount_type\": \"pct\",\n  \"discount_pct\": 5,\n  \"lines\": [\n    {\n      \"sl_no\": \"1\",\n      \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 145000\n    },\n    {\n      \"sl_no\": \"2\",\n      \"description\": \"Vacuum pressure impregnation\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 22000\n    },\n    {\n      \"sl_no\": \"3\",\n      \"description\": \"Testing and commissioning\",\n      \"uom\": \"Job\",\n      \"qty\": 1,\n      \"rate\": 8000\n    },\n    {\n      \"sl_no\": \"4\",\n      \"description\": \"Bearing replacement \\u2014 both ends\",\n      \"uom\": \"Set\",\n      \"qty\": 1,\n      \"rate\": 12000\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n    \"ref\": \"QT-2026-0042\",\n    \"account_id\": \"8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n    \"contact_id\": null,\n    \"entity_id\": null,\n    \"type\": \"quotation\",\n    \"status\": \"sent\",\n    \"business_status\": null,\n    \"outcome\": \"open\",\n    \"name\": \"Rewinding of 180 kW motor (rev. 2)\",\n    \"ref_no\": null,\n    \"pr_no\": null,\n    \"po_number\": null,\n    \"po_amount\": null,\n    \"quote_date\": \"2026-04-09\",\n    \"valid_until\": \"2026-06-30\",\n    \"inquiry_date\": \"2026-04-01\",\n    \"submitted_at\": \"2026-08-04T18:21:30.000Z\",\n    \"closed_at\": null,\n    \"updated_at\": \"2026-08-04T18:20:00.000Z\",\n    \"notes\": null,\n    \"terms\": \"GST @ 18% applicable.\",\n    \"scope_of_work\": null,\n    \"discount_type\": \"pct\",\n    \"discount_pct\": 5,\n    \"discount_fixed\": 0,\n    \"gst_rate\": 18,\n    \"asset_ids\": [],\n    \"selected_option_id\": null,\n    \"territory\": \"Karnataka\",\n    \"sales_org\": \"VP-South\",\n    \"custom_data\": null,\n    \"meta\": null,\n    \"total\": 177650,\n    \"revision\": 1,\n    \"created_at\": \"2026-08-04T18:19:12.000Z\",\n    \"lines\": [\n      {\n        \"id\": \"l1\",\n        \"sl_no\": \"1\",\n        \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n        \"uom\": \"Nos\",\n        \"qty\": 1,\n        \"rate\": 145000,\n        \"discount_pct\": 0,\n        \"amount\": 145000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l2\",\n        \"sl_no\": \"2\",\n        \"description\": \"Vacuum pressure impregnation\",\n        \"uom\": \"Nos\",\n        \"qty\": 1,\n        \"rate\": 22000,\n        \"discount_pct\": 0,\n        \"amount\": 22000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l3\",\n        \"sl_no\": \"3\",\n        \"description\": \"Testing and commissioning\",\n        \"uom\": \"Job\",\n        \"qty\": 1,\n        \"rate\": 8000,\n        \"discount_pct\": 0,\n        \"amount\": 8000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l4\",\n        \"sl_no\": \"4\",\n        \"description\": \"Bearing replacement \\u2014 both ends\",\n        \"uom\": \"Set\",\n        \"qty\": 1,\n        \"rate\": 12000,\n        \"discount_pct\": 0,\n        \"amount\": 12000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      }\n    ],\n    \"line_count\": 4,\n    \"totals\": {\n      \"subtotal\": 187000,\n      \"discount\": 9350,\n      \"deductions\": 0,\n      \"total\": 177650\n    },\n    \"_links\": {\n      \"self\": \"/api/v1/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n      \"account\": \"/api/v1/accounts/8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n      \"pdf\": \"/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31/print\"\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Step 5 — PATCH: remove a line",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{lc_quote_id}}"
+              ]
+            },
+            "description": "Removing a line follows the same rule: send the array **without** it. Testing is dropped here, so three lines go up and three come back.\n\n```\n  145000 + 22000 + 12000 = 179000  subtotal\n                  − 5%   =   8950  discount (still in force from step 4)\n                         = 170050  total\n```\n\nNote the discount persists — it lives on the header and was not part of this request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lines\": [\n    {\n      \"sl_no\": \"1\",\n      \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 145000\n    },\n    {\n      \"sl_no\": \"2\",\n      \"description\": \"Vacuum pressure impregnation\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 22000\n    },\n    {\n      \"sl_no\": \"4\",\n      \"description\": \"Bearing replacement \\u2014 both ends\",\n      \"uom\": \"Set\",\n      \"qty\": 1,\n      \"rate\": 12000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data;",
+                  "pm.test('line removed — back to 3', () => pm.expect(q.lines.length).to.eql(3));",
+                  "pm.test('header discount still in force', () => pm.expect(q.discount_pct).to.eql(5));",
+                  "pm.test('total recomputed', () => pm.expect(q.total).to.eql(170050));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quotations",
+                    "{{lc_quote_id}}"
+                  ]
+                },
+                "description": "Removing a line follows the same rule: send the array **without** it. Testing is dropped here, so three lines go up and three come back.\n\n```\n  145000 + 22000 + 12000 = 179000  subtotal\n                  − 5%   =   8950  discount (still in force from step 4)\n                         = 170050  total\n```\n\nNote the discount persists — it lives on the header and was not part of this request.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"lines\": [\n    {\n      \"sl_no\": \"1\",\n      \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 145000\n    },\n    {\n      \"sl_no\": \"2\",\n      \"description\": \"Vacuum pressure impregnation\",\n      \"uom\": \"Nos\",\n      \"qty\": 1,\n      \"rate\": 22000\n    },\n    {\n      \"sl_no\": \"4\",\n      \"description\": \"Bearing replacement \\u2014 both ends\",\n      \"uom\": \"Set\",\n      \"qty\": 1,\n      \"rate\": 12000\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n    \"ref\": \"QT-2026-0042\",\n    \"account_id\": \"8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n    \"contact_id\": null,\n    \"entity_id\": null,\n    \"type\": \"quotation\",\n    \"status\": \"sent\",\n    \"business_status\": null,\n    \"outcome\": \"open\",\n    \"name\": \"Rewinding of 180 kW motor (rev. 2)\",\n    \"ref_no\": null,\n    \"pr_no\": null,\n    \"po_number\": null,\n    \"po_amount\": null,\n    \"quote_date\": \"2026-04-09\",\n    \"valid_until\": \"2026-06-30\",\n    \"inquiry_date\": \"2026-04-01\",\n    \"submitted_at\": \"2026-08-04T18:21:30.000Z\",\n    \"closed_at\": null,\n    \"updated_at\": \"2026-08-04T18:20:00.000Z\",\n    \"notes\": null,\n    \"terms\": \"GST @ 18% applicable.\",\n    \"scope_of_work\": null,\n    \"discount_type\": \"pct\",\n    \"discount_pct\": 5,\n    \"discount_fixed\": 0,\n    \"gst_rate\": 18,\n    \"asset_ids\": [],\n    \"selected_option_id\": null,\n    \"territory\": \"Karnataka\",\n    \"sales_org\": \"VP-South\",\n    \"custom_data\": null,\n    \"meta\": null,\n    \"total\": 170050,\n    \"revision\": 1,\n    \"created_at\": \"2026-08-04T18:19:12.000Z\",\n    \"lines\": [\n      {\n        \"id\": \"l1\",\n        \"sl_no\": \"1\",\n        \"description\": \"Rewinding of 180 kW squirrel cage motor\",\n        \"uom\": \"Nos\",\n        \"qty\": 1,\n        \"rate\": 145000,\n        \"discount_pct\": 0,\n        \"amount\": 145000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l2\",\n        \"sl_no\": \"2\",\n        \"description\": \"Vacuum pressure impregnation\",\n        \"uom\": \"Nos\",\n        \"qty\": 1,\n        \"rate\": 22000,\n        \"discount_pct\": 0,\n        \"amount\": 22000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      },\n      {\n        \"id\": \"l4\",\n        \"sl_no\": \"4\",\n        \"description\": \"Bearing replacement \\u2014 both ends\",\n        \"uom\": \"Set\",\n        \"qty\": 1,\n        \"rate\": 12000,\n        \"discount_pct\": 0,\n        \"amount\": 12000,\n        \"group_id\": null,\n        \"group_label\": null,\n        \"group_type\": null,\n        \"group_description\": null,\n        \"category\": null,\n        \"deduction\": 0,\n        \"inventory_item_id\": null\n      }\n    ],\n    \"line_count\": 3,\n    \"totals\": {\n      \"subtotal\": 179000,\n      \"discount\": 8950,\n      \"deductions\": 0,\n      \"total\": 170050\n    },\n    \"_links\": {\n      \"self\": \"/api/v1/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n      \"account\": \"/api/v1/accounts/8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n      \"pdf\": \"/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31/print\"\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Step 6 — PATCH: clear all lines",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{lc_quote_id}}"
+              ]
+            },
+            "description": "Sending an empty array removes every line. The quotation itself survives — header intact, total 0.\n\nThis is the difference between emptying a quotation and deleting it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lines\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data;",
+                  "pm.test('all lines cleared', () => pm.expect(q.lines.length).to.eql(0));",
+                  "pm.test('quotation still exists', () => pm.expect(q.ref).to.be.a('string'));",
+                  "pm.test('total is zero', () => pm.expect(q.total).to.eql(0));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quotations",
+                    "{{lc_quote_id}}"
+                  ]
+                },
+                "description": "Sending an empty array removes every line. The quotation itself survives — header intact, total 0.\n\nThis is the difference between emptying a quotation and deleting it.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"lines\": []\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n    \"ref\": \"QT-2026-0042\",\n    \"account_id\": \"8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n    \"contact_id\": null,\n    \"entity_id\": null,\n    \"type\": \"quotation\",\n    \"status\": \"sent\",\n    \"business_status\": null,\n    \"outcome\": \"open\",\n    \"name\": \"Rewinding of 180 kW motor (rev. 2)\",\n    \"ref_no\": null,\n    \"pr_no\": null,\n    \"po_number\": null,\n    \"po_amount\": null,\n    \"quote_date\": \"2026-04-09\",\n    \"valid_until\": \"2026-06-30\",\n    \"inquiry_date\": \"2026-04-01\",\n    \"submitted_at\": \"2026-08-04T18:21:30.000Z\",\n    \"closed_at\": null,\n    \"updated_at\": \"2026-08-04T18:20:00.000Z\",\n    \"notes\": null,\n    \"terms\": \"GST @ 18% applicable.\",\n    \"scope_of_work\": null,\n    \"discount_type\": \"pct\",\n    \"discount_pct\": 5,\n    \"discount_fixed\": 0,\n    \"gst_rate\": 18,\n    \"asset_ids\": [],\n    \"selected_option_id\": null,\n    \"territory\": \"Karnataka\",\n    \"sales_org\": \"VP-South\",\n    \"custom_data\": null,\n    \"meta\": null,\n    \"total\": 0,\n    \"revision\": 1,\n    \"created_at\": \"2026-08-04T18:19:12.000Z\",\n    \"lines\": [],\n    \"line_count\": 0,\n    \"totals\": {\n      \"subtotal\": 0,\n      \"discount\": 0,\n      \"deductions\": 0,\n      \"total\": 0\n    },\n    \"_links\": {\n      \"self\": \"/api/v1/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n      \"account\": \"/api/v1/accounts/8f976825-3c11-4a7e-9b2d-5e6f7a8b9c01\",\n      \"pdf\": \"/quotations/3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31/print\"\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Step 7 — DELETE: remove the quotation",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quotations",
+                "{{lc_quote_id}}"
+              ]
+            },
+            "description": "Deletes the quotation **and its lines** in one call — you never delete lines separately.\n\nRecorded in the tenant deletion log and in Change History as actor `api:v1`. There is no undelete."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('confirms deletion', () => pm.expect(pm.response.json().data.deleted).to.be.true);",
+                  "pm.environment.unset('lc_quote_id');"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quotations",
+                    "{{lc_quote_id}}"
+                  ]
+                },
+                "description": "Deletes the quotation **and its lines** in one call — you never delete lines separately.\n\nRecorded in the tenant deletion log and in Change History as actor `api:v1`. There is no undelete."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"3f2a9c14-77bd-4c8e-9a11-2b6d5e8f0a31\",\n    \"ref\": \"QT-2026-0042\",\n    \"deleted\": true\n  }\n}"
+            },
+            {
+              "name": "404 — already deleted",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quotations/{{lc_quote_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quotations",
+                    "{{lc_quote_id}}"
+                  ]
+                },
+                "description": "Deletes the quotation **and its lines** in one call — you never delete lines separately.\n\nRecorded in the tenant deletion log and in Change History as actor `api:v1`. There is no undelete."
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Quotation not found\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Quotations — CRUD",
       "description": "Create → read → update → delete, in order.\n\nFive create variants show the range: minimal, typical, every-writable-field, grouped/alternatives, and a technical (no-pricing) offer.\n\nSafe to run repeatedly — the last two requests delete what the folder created.",
       "item": [
