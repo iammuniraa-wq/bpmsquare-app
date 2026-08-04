@@ -57,7 +57,7 @@ export default function AssetHeaderCard({ asset, account, casesCount, openCasesC
           <KindIcon kind={asset.kind} size={24} color={pillar.green.fg} />
         </div>
         <div style={{ flex: 1 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px", color: c.ink }}>{asset.name}</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px", color: c.ink }}>{asset.name}{asset.ref && <span style={{ fontWeight: 400, fontSize: 12, color: c.hint, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", marginLeft: 10 }}>{asset.ref}</span>}</h1>
           <div style={{ fontSize: 12.5, color: c.muted, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <span style={{ textTransform: "capitalize" }}>{asset.kind}</span>
             {asset.make  && <span>· {asset.make}</span>}

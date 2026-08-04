@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { generateNextMasterRef } from "@/lib/masterRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET(request: NextRequest) {
@@ -58,10 +59,13 @@ export async function POST(request: NextRequest) {
     if (!acct) return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
+  const ref = await generateNextMasterRef(supabase, "assets", tenantId);
+
   const { data: asset, error } = await supabase
     .from("assets")
     .insert({
       tenant_id: tenantId,
+      ref,
       account_id: account_id || null,
       name,
       kind,

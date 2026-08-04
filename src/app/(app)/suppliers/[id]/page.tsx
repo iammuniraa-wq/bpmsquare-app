@@ -62,7 +62,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
 
       <PageHeader
         title={supplier.name}
-        subtitle={`${TYPE_LABEL[supplier.type]}${supplier.city ? ` · ${supplier.city}` : ""}`}
+        subtitle={`${supplier.ref ? `${supplier.ref} · ` : ""}${TYPE_LABEL[supplier.type]}${supplier.city ? ` · ${supplier.city}` : ""}`}
         action={<AdaptObjectDrawer objectType="supplier" objectLabel="Supplier" isAdmin={role === "admin"} />}
       />
 

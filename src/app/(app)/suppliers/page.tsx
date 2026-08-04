@@ -142,6 +142,7 @@ export default async function SuppliersPage({
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${c.line}` }}>
+                  <th style={{ ...th, width: 88 }}>ID</th>
                   <th style={th}>Name</th>
                   <th style={th}>Type</th>
                   <th style={th}>City</th>
@@ -155,6 +156,7 @@ export default async function SuppliersPage({
               <tbody>
                 {filtered.map((s) => (
                   <tr key={s.id} style={{ borderBottom: `1px solid ${c.line}` }}>
+                    <td style={{ ...td, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>{s.ref ?? "—"}</td>
                     <td style={td}>
                       <Link href={ROUTES.supplier(s.id)} style={{ fontWeight: 600, color: c.ink, textDecoration: "none", fontSize: 13.5 }}>
                         {s.name}

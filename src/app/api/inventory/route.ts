@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { generateNextMasterRef } from "@/lib/masterRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET(request: NextRequest) {
@@ -64,10 +65,13 @@ export async function POST(request: NextRequest) {
     if (!supplier) return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
   }
 
+  const ref = await generateNextMasterRef(supabase, "inventory_items", tenantId);
+
   const { data, error } = await supabase
     .from("inventory_items")
     .insert({
       tenant_id: tenantId,
+      ref,
       sku: sku || null,
       name: name.trim(),
       description: description || null,

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { generateNextMasterRef } from "@/lib/masterRef";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
 
@@ -60,10 +61,13 @@ export async function POST(request: NextRequest) {
     if (!referrer) return NextResponse.json({ error: "Referring account not found" }, { status: 404 });
   }
 
+  const ref = await generateNextMasterRef(supabase, "accounts", tenantId);
+
   const { data, error } = await supabase
     .from("accounts")
     .insert({
       tenant_id: tenantId,
+      ref,
       name, type,
       address_line1: address_line1 || null,
       address_line2: address_line2 || null,

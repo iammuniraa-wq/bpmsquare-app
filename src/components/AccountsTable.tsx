@@ -181,6 +181,7 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${c.line}` }}>
+              <th style={{ ...th, width: 88 }}>ID</th>
               <th style={th}>Account</th>
               {visibleDefs.map((col) => (
                 <th key={col.id} style={{ ...th, textAlign: col.align ?? "left" }}>{col.label}</th>
@@ -197,6 +198,9 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
                   className="acc-row"
                   style={{ borderBottom: `1px solid ${c.line}` }}
                 >
+                  <td style={{ ...td, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>
+                    {account.ref ?? "—"}
+                  </td>
                   {/* Account name — always visible */}
                   <td style={td}>
                     <Link href={ROUTES.account(account.id)}

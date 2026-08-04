@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { generateNextMasterRef } from "@/lib/masterRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 
 export async function GET() {
@@ -37,10 +38,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
   }
 
+  const ref = await generateNextMasterRef(supabase, "suppliers", tenantId);
+
   const { data, error } = await supabase
     .from("suppliers")
     .insert({
       tenant_id: tenantId,
+      ref,
       name: name.trim(),
       type: type ?? "vendor",
       city: city || null,

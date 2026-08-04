@@ -108,6 +108,7 @@ export default function ContactsTable({ rows }: Props) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${c.line}` }}>
+              <th style={{ ...th, width: 88 }}>ID</th>
               <th style={th}>Name</th>
               {visibleDefs.map((col) => (
                 <th key={col.id} style={th}>{col.label}</th>
@@ -121,6 +122,9 @@ export default function ContactsTable({ rows }: Props) {
               const p = pillar[tone];
               return (
                 <tr key={contact.id} className="ct-row" style={{ borderBottom: `1px solid ${c.line}` }}>
+                  <td style={{ ...td, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>
+                    {contact.ref ?? "—"}
+                  </td>
                   {/* Name — always visible */}
                   <td style={td}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

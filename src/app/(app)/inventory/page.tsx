@@ -126,6 +126,7 @@ export default async function InventoryPage({
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${c.line}` }}>
+                  <th style={{ ...th, width: 88 }}>ID</th>
                   <th style={th}>Name</th>
                   <th style={th}>SKU</th>
                   <th style={th}>Category</th>
@@ -140,6 +141,7 @@ export default async function InventoryPage({
                   const low = i.reorder_level != null && i.qty_on_hand <= i.reorder_level;
                   return (
                     <tr key={i.id} style={{ borderBottom: `1px solid ${c.line}` }}>
+                      <td style={{ ...td, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>{i.ref ?? "—"}</td>
                       <td style={td}>
                         <Link href={ROUTES.inventoryItem(i.id)} style={{ fontWeight: 600, color: c.ink, textDecoration: "none", fontSize: 13.5 }}>
                           {i.name}

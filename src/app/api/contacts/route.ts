@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { generateNextMasterRef } from "@/lib/masterRef";
 import { encrypt } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
 
@@ -55,10 +56,13 @@ export async function POST(request: NextRequest) {
 
   if (!acct) return NextResponse.json({ error: "Account not found" }, { status: 404 });
 
+  const ref = await generateNextMasterRef(supabase, "contacts", tenantId);
+
   const { data, error } = await supabase
     .from("contacts")
     .insert({
       tenant_id: tenantId,
+      ref,
       account_id, name,
       role: role || null,
       department: department || null,
