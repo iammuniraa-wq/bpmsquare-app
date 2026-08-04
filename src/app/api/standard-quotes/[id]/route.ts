@@ -3,6 +3,7 @@ import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
+import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -71,7 +72,35 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key] || null;
   if ("status" in body) patch.status = body.status;
-  if (body.status === "sent" && before.status !== "sent") patch.sent_at = new Date().toISOString();
+
+  // Date profile (0059). Manual overrides first -- null clears, a valid
+  // YYYY-MM-DD sets, anything malformed is a 400 -- then auto-stamps, which
+  // never fight an explicit override in the same request.
+  if ("inquiry_date" in body) {
+    const r = parseDateOverride(body.inquiry_date);
+    if (!r.ok) return NextResponse.json({ error: "inquiry_date must be a valid YYYY-MM-DD date" }, { status: 400 });
+    patch.inquiry_date = r.date;
+  }
+  if ("sent_at" in body) {
+    const r = parseTimestampOverride(body.sent_at);
+    if (!r.ok) return NextResponse.json({ error: "sent_at must be a valid YYYY-MM-DD date" }, { status: 400 });
+    patch.sent_at = r.iso;
+  }
+  if ("closed_at" in body) {
+    const r = parseTimestampOverride(body.closed_at);
+    if (!r.ok) return NextResponse.json({ error: "closed_at must be a valid YYYY-MM-DD date" }, { status: 400 });
+    patch.closed_at = r.iso;
+  }
+
+  if (!("sent_at" in body) && body.status === "sent" && before.status !== "sent" && !before.sent_at) {
+    patch.sent_at = new Date().toISOString();
+  }
+  const TERMINAL = new Set(["accepted", "rejected", "expired"]);
+  if ("status" in body && !("closed_at" in body)) {
+    if (TERMINAL.has(body.status) && !TERMINAL.has(before.status)) patch.closed_at = new Date().toISOString();
+    else if (!TERMINAL.has(body.status) && TERMINAL.has(before.status)) patch.closed_at = null;
+  }
+  patch.updated_at = new Date().toISOString();
 
   if ("header_discount_pct" in body) patch.header_discount_pct = clampPct(body.header_discount_pct);
   if ("tax_pct" in body) patch.tax_pct = clampPct(body.tax_pct);
@@ -123,7 +152,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: updated } = await supabase.from("standard_quotes").select("*").eq("id", id).eq("tenant_id", tenantId).single();
 
-  const headerChanges = diffForLog("standard_quotes", before as Record<string, unknown>, patch);
+  // updated_at changes on every save by definition -- keep it out of the audit diff.
+  const { updated_at: _updatedAt, ...diffPatch } = patch;
+  const headerChanges = diffForLog("standard_quotes", before as Record<string, unknown>, diffPatch);
   const lineChanges = cleanLines
     ? diffLineItems(
         (beforeLines ?? []).map((l): LineSnapshot => ({ label: l.description, qty: l.qty, rate: l.rate, amount: l.amount })),

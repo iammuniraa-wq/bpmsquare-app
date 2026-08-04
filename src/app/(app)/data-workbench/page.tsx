@@ -7,13 +7,17 @@ import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { REGISTRY_OBJECT_TYPE, buildObjectSpec } from "@/lib/import/registrySchema";
 import { USERS_SPEC } from "@/lib/import/usersSchema";
 import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
+import { EMPLOYEES_SPEC } from "@/lib/import/employeesSchema";
 import { requireWorkcenterView } from "@/lib/permissions";
 import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 
+// Display order is alphabetical by label (sorted after specs are built,
+// since labels are tenant-configurable) -- this list only defines WHICH
+// objects exist, not their order.
 const OBJECT_ORDER: ImportObjectId[] = [
   "accounts", "contacts", "assets", "suppliers", "quotes", "quote_lines",
   "cases", "work_orders", "invoices", "purchase_orders", "inventory",
-  "users",
+  "users", "employees",
 ];
 
 // Objects with no FIELD_REGISTRY entry (REGISTRY_OBJECT_TYPE[id] === null) use
@@ -21,6 +25,7 @@ const OBJECT_ORDER: ImportObjectId[] = [
 const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
   users: USERS_SPEC,
   quote_lines: QUOTE_LINES_SPEC,
+  employees: EMPLOYEES_SPEC,
 };
 
 export default async function DataWorkbenchPage() {
@@ -28,16 +33,22 @@ export default async function DataWorkbenchPage() {
   const { supabase, tenantId } = await requireTenantUser();
 
   const [salesConfig, tenant] = await Promise.all([getSalesConfig(supabase, tenantId), getTenant()]);
-  const objectOrder = tenant?.features?.quote_lines_dw ? OBJECT_ORDER : OBJECT_ORDER.filter((id) => id !== "quote_lines");
+  const objectOrder = OBJECT_ORDER.filter((id) => {
+    if (id === "quote_lines") return tenant?.features?.quote_lines_dw === true;
+    if (id === "employees") return tenant?.features?.business_roles === true;
+    return true;
+  });
 
-  const specs: ObjectSpec[] = await Promise.all(
-    objectOrder.map(async (id): Promise<ObjectSpec> => {
-      const registryType = REGISTRY_OBJECT_TYPE[id];
-      if (!registryType) return STATIC_SPECS[id]!;
-      const fieldConfig = await getEffectiveFieldConfig(supabase, tenantId, registryType);
-      return buildObjectSpec(id, fieldConfig, salesConfig);
-    })
-  );
+  const specs: ObjectSpec[] = (
+    await Promise.all(
+      objectOrder.map(async (id): Promise<ObjectSpec> => {
+        const registryType = REGISTRY_OBJECT_TYPE[id];
+        if (!registryType) return STATIC_SPECS[id]!;
+        const fieldConfig = await getEffectiveFieldConfig(supabase, tenantId, registryType);
+        return buildObjectSpec(id, fieldConfig, salesConfig);
+      })
+    )
+  ).sort((a, b) => a.label.localeCompare(b.label));
 
   return (
     <>

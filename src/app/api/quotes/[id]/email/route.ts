@@ -32,7 +32,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // trusting getQuote()'s internal resolution alone.
   const { data: quoteRow } = await supabase
     .from("quotes")
-    .select("id")
+    .select("id, submitted_at")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -168,6 +168,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (sendError) {
     console.error("[quotes/email] send failed", sendError);
     return NextResponse.json({ error: "Failed to send email" }, { status: 502 });
+  }
+
+  // Submitted-to-customer stamp (0059): an actual successful send is the
+  // authoritative event -- a status change out of draft also stamps it,
+  // first one wins.
+  if (!(quoteRow as { submitted_at?: string | null }).submitted_at) {
+    await supabase
+      .from("quotes")
+      .update({ submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("tenant_id", tenantId);
   }
 
   if (account) {

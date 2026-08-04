@@ -20,6 +20,7 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "invoices", label: "Invoices" },
   { value: "purchase_orders", label: "Purchase Orders" },
   { value: "inventory", label: "Inventory" },
+  { value: "employees", label: "Employees" },
 ];
 
 type ChangeEntry = { field: string; from: unknown; to: unknown; redacted?: boolean };

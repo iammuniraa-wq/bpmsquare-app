@@ -55,7 +55,7 @@ function mockQuote(): StandardQuote {
     notes: "Please confirm site access before the installation date.",
     subtotal: 43000, total: 43000, created_by: null,
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(), sent_at: null, template_id: null,
-    header_discount_pct: 5, tax_pct: 18, shipping_amount: 500, intro_text: null,
+    header_discount_pct: 5, tax_pct: 18, shipping_amount: 500, intro_text: null, inquiry_date: null, closed_at: null,
   };
 }
 

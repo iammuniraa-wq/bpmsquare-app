@@ -31,7 +31,7 @@ export default async function EditStandardQuotePage({ params }: { params: Promis
       templates={templates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
       editQuote={{
         id: quote.id, ref: quote.ref, account_id: quote.account_id, contact_id: quote.contact_id,
-        valid_until: quote.valid_until, notes: quote.notes, terms: quote.terms, template_id: quote.template_id,
+        valid_until: quote.valid_until, inquiry_date: quote.inquiry_date, notes: quote.notes, terms: quote.terms, template_id: quote.template_id,
         header_discount_pct: quote.header_discount_pct, tax_pct: quote.tax_pct,
         shipping_amount: quote.shipping_amount, intro_text: quote.intro_text,
         lines: lines.map((l) => ({ sl_no: l.sl_no, description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct })),

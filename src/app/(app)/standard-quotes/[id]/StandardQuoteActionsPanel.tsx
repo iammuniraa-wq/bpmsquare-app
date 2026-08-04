@@ -6,11 +6,36 @@ import { c } from "@/lib/theme";
 import type { StandardQuote } from "@/lib/types";
 import { ROUTES } from "@/lib/constants";
 
+const toDateInput = (v: string | null) => (v ? v.slice(0, 10) : "");
+
 export default function StandardQuoteActionsPanel({ quote }: { quote: StandardQuote }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [emailSent, setEmailSent] = useState("");
+  const [editingDates, setEditingDates] = useState(false);
+  const [dates, setDates] = useState({
+    inquiry_date: toDateInput(quote.inquiry_date),
+    sent_at: toDateInput(quote.sent_at),
+    closed_at: toDateInput(quote.closed_at),
+  });
+
+  function saveDates() {
+    setError("");
+    startTransition(async () => {
+      const res = await fetch(`/api/standard-quotes/${quote.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inquiry_date: dates.inquiry_date || null,
+          sent_at: dates.sent_at || null,
+          closed_at: dates.closed_at || null,
+        }),
+      });
+      if (res.ok) { setEditingDates(false); router.refresh(); }
+      else { const j = await res.json(); setError(j.error ?? "Failed to save dates"); }
+    });
+  }
 
   function setStatus(status: "sent" | "accepted" | "rejected") {
     setError("");
@@ -100,6 +125,45 @@ export default function StandardQuoteActionsPanel({ quote }: { quote: StandardQu
           Delete draft
         </button>
       )}
+
+      {editingDates ? (
+        <div style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          <DateField label="Inquiry date" value={dates.inquiry_date} onChange={(v) => setDates((d) => ({ ...d, inquiry_date: v }))} />
+          <DateField label="Submitted to customer" value={dates.sent_at} onChange={(v) => setDates((d) => ({ ...d, sent_at: v }))} />
+          <DateField label="Closed date" value={dates.closed_at} onChange={(v) => setDates((d) => ({ ...d, closed_at: v }))} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" disabled={pending} onClick={saveDates} style={{ ...btn("primary"), width: "auto", padding: "7px 14px" }}>
+              {pending ? "Saving…" : "Save dates"}
+            </button>
+            <button type="button" onClick={() => setEditingDates(false)} style={{ ...btn("ghost"), width: "auto" }}>
+              Cancel
+            </button>
+          </div>
+          <p style={{ fontSize: 10.5, color: c.hint, margin: 0 }}>
+            These normally stamp themselves (on send, on close) — override them when it happened outside BPMSquare.
+          </p>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setEditingDates(true)} style={btn("ghost")}>
+          Edit dates
+        </button>
+      )}
+    </div>
+  );
+}
+
+function DateField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 3 }}>
+        {label}
+      </label>
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 7, border: `1px solid ${c.line}`, fontSize: 12.5, background: c.panel, color: c.ink, outline: "none" }}
+      />
     </div>
   );
 }

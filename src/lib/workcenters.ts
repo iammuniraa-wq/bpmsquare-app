@@ -6,7 +6,7 @@ export type WorkcenterKey =
   | "dashboard" | "accounts" | "contacts" | "quotations" | "standard_quotes" | "pipeline" | "invoices"
   | "cases" | "amc" | "work_orders" | "dispatch" | "technicians"
   | "marketing" | "marketing_segments" | "leads" | "partners"
-  | "assets" | "suppliers" | "inventory" | "purchase_orders"
+  | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
   | "reports" | "data_workbench" | "administration";
 
 /**
@@ -37,6 +37,7 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string; territoryScopable
   { key: "suppliers", label: "Suppliers" },
   { key: "inventory", label: "Inventory" },
   { key: "purchase_orders", label: "Purchase Orders" },
+  { key: "employees", label: "Employees" },
   { key: "reports", label: "Analytics" },
   { key: "data_workbench", label: "Data Workbench" },
   { key: "administration", label: "Administrator" },

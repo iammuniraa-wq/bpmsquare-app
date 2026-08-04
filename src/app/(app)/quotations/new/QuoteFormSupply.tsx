@@ -64,6 +64,7 @@ export default function QuoteFormSupply({ accounts, contacts }: Props) {
   const [contactId,  setContactId]  = useState("");
   const [quoteDate,  setQuoteDate]  = useState(today);
   const [validUntil, setValidUntil] = useState(defaultValid);
+  const [inquiryDate, setInquiryDate] = useState("");
   const [poNumber,   setPoNumber]   = useState("");
   const [shipTo,     setShipTo]     = useState("");
   const [notes,      setNotes]      = useState("");
@@ -158,6 +159,7 @@ export default function QuoteFormSupply({ accounts, contacts }: Props) {
           type: "supply",
           total: grandTotal,
           valid_until: validUntil || null,
+          inquiry_date: inquiryDate || null,
           notes,
           terms,
           meta: { ship_to: shipTo, po_number: poNumber },
@@ -265,6 +267,10 @@ export default function QuoteFormSupply({ accounts, contacts }: Props) {
               <div style={fw}>
                 <label style={lbl}>Valid until</label>
                 <input style={inp} type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+              </div>
+              <div style={fw}>
+                <label style={lbl}>Inquiry date</label>
+                <input style={inp} type="date" value={inquiryDate} onChange={(e) => setInquiryDate(e.target.value)} title="When the customer asked for this quote" />
               </div>
               <div style={fw}>
                 <label style={lbl}>Customer PO no.</label>

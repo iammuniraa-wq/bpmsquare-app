@@ -199,6 +199,13 @@ export type Quote = {
   // The business date on the quote, back-datable by the user. Falls back to
   // created_at on rows written before the column existed.
   quote_date?: string | null;
+  // Date profile (0059): inquiry_date is business-entered; submitted_at and
+  // closed_at auto-stamp on first send / terminal transition but accept
+  // manual override; updated_at is system-maintained on every edit.
+  inquiry_date: string | null;
+  submitted_at: string | null;
+  closed_at: string | null;
+  updated_at: string;
   valid_until: string | null;
   notes: string | null;
   terms?: string | null;
@@ -321,6 +328,27 @@ export type InvoiceLine = {
   amount: number;
 };
 
+// Employee -- pure master data (0057). A person on the org's books; may or
+// may not have a Business User (login). Deliberately NOT the Technician
+// object, which is a field-service work record -- an office/sales employee
+// is not a technician, and conflating them was explicitly rejected.
+export type Employee = {
+  id: string;
+  tenant_id: string;
+  first_name: string;
+  last_name: string;
+  employee_code: string | null;
+  email: string | null;
+  phone: string | null;
+  department: string | null;
+  designation: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  status: "active" | "inactive";
+  created_at: string;
+  updated_at: string;
+};
+
 // Standard Quote -- a deliberately independent object, not the (separate)
 // Quotation object's type/status/config system. See supabase/migrations/
 // 0053_standard_quotes.sql for why it's kept apart.
@@ -347,6 +375,8 @@ export type StandardQuote = {
   tax_pct: number;
   shipping_amount: number;
   intro_text: string | null;
+  inquiry_date: string | null;
+  closed_at: string | null;
 };
 
 export type StandardQuoteLine = {

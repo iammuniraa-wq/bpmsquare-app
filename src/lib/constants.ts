@@ -24,6 +24,18 @@ export const TRUSTED_EMAIL_HEADER = "x-bpmsquare-email";
 export const TRUSTED_TENANT_ID_HEADER = "x-bpmsquare-tenant-id";
 export const TRUSTED_ROLE_HEADER = "x-bpmsquare-role";
 
+/** Business-user gate (0057): a membership is usable only if it isn't
+ * admin-locked and today falls inside its validity window (null bounds are
+ * open-ended). Lives here (not supabase-server.ts) so middleware.ts can
+ * import it too -- both enforcement points must agree exactly. */
+export function isMembershipActive(m: { is_locked?: boolean | null; valid_from?: string | null; valid_to?: string | null }): boolean {
+  if (m.is_locked) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  if (m.valid_from && today < m.valid_from) return false;
+  if (m.valid_to && today > m.valid_to) return false;
+  return true;
+}
+
 // @supabase/ssr's own cookie defaults set no `secure` flag at all (httpOnly:
 // false is required by its architecture -- the browser client reads the same
 // cookie via document.cookie -- so that one isn't overridden here). Passed as
@@ -58,6 +70,7 @@ export const ROUTES = {
   standardQuotePrint: (id: string) => `/standard-quotes/${id}/print`,
   standardQuoteTemplates: "/standard-quotes/templates",
   standardQuoteTemplate: (id: string) => `/standard-quotes/templates/${id}`,
+  employees: "/employees",
   configPricing: "/settings/pricing",
   configTemplates: "/settings/templates",
   configCustomFields: "/settings/custom-fields",
@@ -110,6 +123,7 @@ export const ROUTES = {
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
   administrationBusinessRoles: "/administration/business-roles",
+  administrationBusinessUsers: "/administration/business-users",
 } as const;
 
 export type NavItem = {
@@ -199,6 +213,10 @@ export const NAV: NavGroup[] = [
           { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", workcenterKey: "suppliers" },
           { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "green", featureKey: "purchasing", workcenterKey: "purchase_orders" },
+          // Employees ships as part of the Business Roles/Business Users
+          // bundle, so it shares that bundle's rollout flag rather than
+          // getting its own.
+          { label: "Employees",       href: ROUTES.employees,      icon: "⚇", pillar: "green", featureKey: "business_roles", workcenterKey: "employees" },
         ],
       },
     ],

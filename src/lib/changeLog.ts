@@ -16,6 +16,11 @@ export type ChangeEntry = { field: string; from: unknown; to: unknown; redacted?
 const PII_FIELDS: Record<string, Set<string>> = {
   accounts: new Set(["phone", "phone2", "email", "email2", "gstin"]),
   contacts: new Set(["phone", "phone2", "phone3", "email", "email2"]),
+  // employees stores these plaintext (bpmsquarecore.md §7's encryption scope
+  // is accounts/contacts only), but the audit log redacts them anyway --
+  // consistent treatment of a person's contact details regardless of which
+  // table they live in.
+  employees: new Set(["phone", "email"]),
 };
 
 function deepEqual(a: unknown, b: unknown): boolean {

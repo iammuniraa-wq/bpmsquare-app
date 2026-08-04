@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     entity_id, lines, selected_option_id, meta,
     name, contact_id, pr_no, po_number, po_amount, ref_no,
     discount_type, discount_pct, discount_fixed, gst_rate, asset_ids,
-    case_id, custom_data,
+    case_id, custom_data, inquiry_date,
   } = body;
 
   if (!account_id) {
@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
     total: total ?? 0,
     quote_date: quote_date || null,
     valid_until: valid_until || null,
+    inquiry_date: typeof inquiry_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(inquiry_date) ? inquiry_date : null,
     notes: notes || null,
     terms: terms || null,
     scope_of_work: sanitizeRichText(scope_of_work),

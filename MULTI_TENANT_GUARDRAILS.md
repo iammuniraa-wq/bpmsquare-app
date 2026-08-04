@@ -112,6 +112,21 @@ the rest exposed.
 
 ## Known tracked debt (update this list as items are fixed)
 
+- **v1 quotations API, two non-blocking findings from the 2026-08-04 review**
+  of the CRUD expansion (both LOW/LOW-MEDIUM, promotion not blocked; the two
+  MEDIUMs from the same review — unverified line `inventory_item_id`, and
+  PATCH-null discount fields corrupting `total` — were fixed same-day):
+  1. v1 validates `status` against a hardcoded copy of the DEFAULT statuses
+     (`src/lib/api/quotes.ts`), not the tenant's configured
+     `config.quote_statuses` — tenant-custom statuses 422 despite the field
+     description saying they're accepted, and removed statuses still pass.
+  2. v1 PATCH line replacement is non-atomic (header commits, then lines
+     delete+reinsert) — a mid-replace insert failure leaves a quote with zero
+     lines, a stale total, and no change_log entry. Same shape as the in-app
+     edit route but far likelier on the machine/bulk surface. Also: line
+     qty/rate have no upper bound, so numeric(12,2) overflow is the easiest
+     trigger.
+
 - ~~**Legacy v1 API routes** (`src/app/api/v1/{accounts,cases,quotations}`)
   don't actually bind to a tenant via the bearer API key~~ — **Fixed
   2026-07-26.** `listAccountsLive`/`getAccountHubLive`/`listCasesLive`/

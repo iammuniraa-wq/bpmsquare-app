@@ -29,6 +29,7 @@ const SECTIONS: { group: string; items: AdminCard[] }[] = [
   {
     group: "Access",
     items: [
+      { label: "Business Users", description: "Employees and their logins — initial password, validity, lock, licensing, and role assignment in one place", href: ROUTES.administrationBusinessUsers, icon: "👥", pillarKey: "blue", featureKey: "business_roles" },
       { label: "Business Roles", description: "Define named roles, grant them specific workcenters, and assign roles to team members", href: ROUTES.administrationBusinessRoles, icon: "🔐", pillarKey: "purple", featureKey: "business_roles" },
     ],
   },

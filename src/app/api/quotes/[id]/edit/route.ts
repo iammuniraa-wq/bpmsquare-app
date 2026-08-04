@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
+import { parseDateOverride } from "@/lib/dateProfile";
 
 // Full edit of a DRAFT quote: header fields + line items (replaced wholesale).
 // Server enforces draft-only; sent/approved quotes must use /revise instead.
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     territory, sales_org, gst_rate, account_id, contact_id,
     name, entity_id, ref_no, pr_no, po_number, po_amount,
     discount_type, discount_pct, discount_fixed, asset_ids, custom_data,
+    inquiry_date,
   } = body;
 
   const { data: quote, error: qErr } = await supabase
@@ -99,6 +101,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })
     : [];
 
+  // Line-level inventory references are foreign ids from the body like any
+  // other -- verify they belong to this tenant before they are written (same
+  // check the v1 API's verifyQuoteRelations makes).
+  const invIds = [...new Set(cleanLines.map((l) => l.inventory_item_id).filter((x): x is string => typeof x === "string"))];
+  if (invIds.length > 0) {
+    const { data: invRows } = await supabase.from("inventory_items").select("id").in("id", invIds).eq("tenant_id", tenantId);
+    if (!invRows || invRows.length !== invIds.length) {
+      return NextResponse.json({ error: "One or more inventory items were not found" }, { status: 404 });
+    }
+  }
+
   // selected_option_id marks which "alternative" (Option A/B) group counts toward the total;
   // items in other alternative groups are kept (so the option can be switched later) but excluded here.
   const effectiveAltId: string | null = selected_option_id !== undefined ? selected_option_id : (quote.selected_option_id ?? null);
@@ -121,8 +134,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     : Math.round(subtotal * effectiveDiscountPct / 100);
   const total = subtotal - discAmount - totalDeductions;
 
+  const inquiryParse = inquiry_date !== undefined ? parseDateOverride(inquiry_date) : { ok: true as const, date: null };
+  if (!inquiryParse.ok) return NextResponse.json({ error: "inquiry_date must be a valid YYYY-MM-DD date" }, { status: 400 });
+  const inquiryDateParsed = inquiryParse.ok ? inquiryParse.date : null;
+
   // Update header
   const headerPatch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    ...(inquiry_date !== undefined ? { inquiry_date: inquiryDateParsed } : {}),
     valid_until: valid_until || null,
     notes: notes ?? null,
     terms: terms ?? null,
@@ -173,7 +192,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
   }
 
-  const headerChanges = diffForLog("quotes", quote as Record<string, unknown>, headerPatch);
+  const { updated_at: _updatedAt, ...headerDiffPatch } = headerPatch;
+  const headerChanges = diffForLog("quotes", quote as Record<string, unknown>, headerDiffPatch);
   const beforeLineSnapshots: LineSnapshot[] = (beforeLines ?? []).map((l) => ({
     label: l.description, qty: l.qty, rate: l.rate, amount: l.amount,
   }));
