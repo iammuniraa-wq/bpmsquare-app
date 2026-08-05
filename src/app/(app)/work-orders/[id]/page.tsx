@@ -2,6 +2,7 @@
 import { notFound } from "next/navigation";
 import { getWorkOrder, CASE_STATUS_LABEL } from "@/lib/data";
 import { getUserRole, getTenant } from "@/lib/tenant";
+import { createAdminSupabase } from "@/lib/supabase-server";
 import { getTechnicianAttendanceForDate, dateKeyInTz } from "@/lib/wfm/server";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -63,6 +64,28 @@ export default async function WorkOrderDetailPage({
           dateKeyInTz(new Date(wo.scheduled_for), tenant.config?.wfm?.timezone ?? "Asia/Kolkata")
         )
       : null;
+
+  // Quoted labour vs. actual WFM hours -- category/deduction on quote_lines
+  // is real (0000_baseline.sql "legacy 0017_quote_line_category_deduction.sql"),
+  // but uom is free text (Nos/Job/Set/Mtr/Kg/Hrs...), so a numeric variance
+  // is only shown when the labour line is actually quoted in hours.
+  let quotedLabour: { qty: number; uom: string | null; value: number } | null = null;
+  if (tenant?.features?.wfm && quote && attendance) {
+    const { data: lines } = await createAdminSupabase()
+      .from("quote_lines")
+      .select("qty, uom, amount")
+      .eq("tenant_id", tenant.id)
+      .eq("quote_id", quote.id)
+      .eq("category", "labour");
+    if (lines && lines.length > 0) {
+      quotedLabour = {
+        qty: lines.reduce((s, l) => s + (l.qty ?? 0), 0),
+        uom: lines.find((l) => l.uom)?.uom ?? null,
+        value: lines.reduce((s, l) => s + (l.amount ?? 0), 0),
+      };
+    }
+  }
+  const laborUomIsHours = !!quotedLabour?.uom && /^h(ou)?rs?\.?$/i.test(quotedLabour.uom.trim());
 
   return (
     <>
@@ -190,6 +213,24 @@ export default async function WorkOrderDetailPage({
                   />
                   {attendance.hours.break_minutes > 0 && (
                     <Detail label="Break time" value={`${Math.floor(attendance.hours.break_minutes / 60)}h ${attendance.hours.break_minutes % 60}m`} />
+                  )}
+                  {quotedLabour && (
+                    <>
+                      <Detail
+                        label="Quoted labour"
+                        value={`${quotedLabour.qty}${quotedLabour.uom ? " " + quotedLabour.uom : ""} (₹${quotedLabour.value.toLocaleString("en-IN")})`}
+                      />
+                      {laborUomIsHours && (
+                        <Detail
+                          label="Variance"
+                          value={
+                            <span style={{ color: attendance.hours.net_minutes / 60 > quotedLabour.qty ? pillar.red.base : pillar.green.base, fontWeight: 600 }}>
+                              {(attendance.hours.net_minutes / 60 - quotedLabour.qty).toFixed(1)}h {attendance.hours.net_minutes / 60 > quotedLabour.qty ? "over" : "under"} quote
+                            </span>
+                          }
+                        />
+                      )}
+                    </>
                   )}
                 </>
               )}
