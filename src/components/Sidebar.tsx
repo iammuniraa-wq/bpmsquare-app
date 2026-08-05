@@ -8,7 +8,7 @@ import type { NavItem } from "@/lib/constants";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon } from "@/components/Icons";
-import { useTenant, useUiTheme, useViewableWorkcenters } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/tenant-context";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
@@ -106,6 +106,7 @@ const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; color?: st
   [ROUTES.purchaseOrders]: Clipboard,
   [ROUTES.reports]: BarChart2,
   [ROUTES.dataWorkbench]: Clipboard,
+  [ROUTES.wfmMe]: Clock,
   [ROUTES.wfmLiveBoard]: Clock,
   [ROUTES.wfmEmployees]: Users,
   [ROUTES.wfmCorrections]: CheckIcon,
@@ -146,10 +147,11 @@ type SectionProps = {
   hidden: Set<string>;
   expanded: Record<string, boolean>;
   onToggleExpand: (href: string) => void;
+  isWfmSupervisor: boolean;
 };
 
 function DraggableSection({
-  items, isFavSection, isActive, onToggleFav, onReorder, onNavigate, accent, compact, features, viewable, hidden, expanded, onToggleExpand,
+  items, isFavSection, isActive, onToggleFav, onReorder, onNavigate, accent, compact, features, viewable, hidden, expanded, onToggleExpand, isWfmSupervisor,
 }: SectionProps) {
   const [dropAt, setDropAt]   = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
@@ -289,7 +291,7 @@ function DraggableSection({
             {hasChildren && isOpen && (
               <div style={{ marginLeft: 10 }}>
                 {item.children!
-                  .filter((ch) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable) && !hidden.has(ch.href))
+                  .filter((ch) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable) && !hidden.has(ch.href) && (!ch.supervisorOnly || isWfmSupervisor))
                   .map((ch) => {
                     const childOn = isActive(ch.href);
                     return (
@@ -412,6 +414,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { settings } = useSettings();
   const tenant = useTenant();
   const viewable = useViewableWorkcenters();
+  const isWfmSupervisor = useIsWfmSupervisor();
 
   // Per-browser preference to fully collapse the sidebar to an icon-only rail,
   // separate from the tenant-wide "compact" width setting (which just narrows it
@@ -615,6 +618,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           hidden={hidden}
           expanded={expandedMap}
           onToggleExpand={toggleExpand}
+          isWfmSupervisor={isWfmSupervisor}
         />
 
         {/* Divider */}
@@ -641,6 +645,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           hidden={hidden}
           expanded={expandedMap}
           onToggleExpand={toggleExpand}
+          isWfmSupervisor={isWfmSupervisor}
         />
 
         {/* Settings link + reset -- Settings itself is hidden for a member

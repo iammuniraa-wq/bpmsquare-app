@@ -1,13 +1,10 @@
 import { redirect } from "next/navigation";
-import { getTenant } from "@/lib/tenant";
-import PunchClient from "./PunchClient";
 
-// Employee punch app — deliberately OUTSIDE the (app) CRM shell: employees
-// get a focused mobile screen, not the desktop sidebar. Auth is enforced by
-// middleware (unauthenticated → /login?next=/wfm-app).
-export default async function WfmAppPage() {
-  const tenant = await getTenant();
-  if (!tenant?.features?.wfm) redirect("/");
-
-  return <PunchClient tenantName={tenant.name} accentColor={tenant.accent_color ?? "#378ADD"} />;
+// /wfm-app is retired in favour of My Workforce (/wfm/me), living inside the
+// normal CRM shell instead of a separate standalone mini-app -- see
+// src/app/(app)/wfm/me/page.tsx. Kept as a redirect (not deleted outright)
+// so old bookmarks, "Add to Home Screen" shortcuts, and any invite link
+// already sent still land somewhere useful.
+export default function WfmAppRedirect() {
+  redirect("/wfm/me");
 }

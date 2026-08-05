@@ -6,9 +6,8 @@ import { isPrimaryOrDevHost } from "@/lib/constants";
 import { getTenantBrandingByHost } from "@/lib/tenant";
 
 // viewportFit: "cover" is what makes env(safe-area-inset-*) resolve to a
-// real value on notched iPhones instead of always 0 -- required for the
-// wfm-app bottom tab bar's safe-area padding (src/app/wfm-app/layout.tsx)
-// to actually do anything in standalone/installed mode.
+// real value on notched iPhones instead of always 0 -- kept for any
+// safe-area padding used across the app in standalone/installed mode.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,

@@ -1,8 +1,9 @@
 import "server-only";
 
+import { redirect } from "next/navigation";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
-import { DEFAULT_WFM_CONFIG, type TenantConfig, type WfmConfig } from "@/lib/constants";
+import { DEFAULT_WFM_CONFIG, ROUTES, type TenantConfig, type WfmConfig } from "@/lib/constants";
 import type { WfmEmployee, PresenceKind, PunchState } from "./types";
 import { deriveState } from "./types";
 import { computeDayHours, shiftDayKey, type DayHours } from "./hours";
@@ -78,6 +79,25 @@ export async function requireWfmSupervisor(): Promise<WfmContext> {
   const ctx = await requireWfm();
   if (!ctx.isSupervisor) throw { status: 403, message: "Forbidden" };
   return ctx;
+}
+
+/**
+ * Page-level guard for WFM's 5 supervisor-only screens (Live board,
+ * Employees, Corrections, Leave & Holidays, Monthly Summary). A plain
+ * wfm_role=employee login now holds the "wfm" workcenter grant too (needed
+ * so My Workforce is reachable) -- requireWorkcenterView("wfm") alone no
+ * longer excludes them, so this is the actual enforcement boundary against
+ * manual URL access, mirroring requireWorkcenterView's redirect-not-throw
+ * shape since it runs in a page server component, not an API route.
+ */
+export async function requireWfmSupervisorPage(): Promise<void> {
+  let ctx: WfmContext | undefined;
+  try {
+    ctx = await requireWfm();
+  } catch {
+    redirect(ROUTES.dashboard);
+  }
+  if (!ctx.isSupervisor) redirect(ROUTES.wfmMe);
 }
 
 /** Tenant WFM config with defaults filled in. */

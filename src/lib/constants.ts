@@ -119,6 +119,7 @@ export const ROUTES = {
   purchaseOrderNew: "/purchase-orders/new",
   purchaseOrder: (id: string) => `/purchase-orders/${id}`,
   dataWorkbench: "/data-workbench",
+  wfmMe: "/wfm/me",
   wfmLiveBoard: "/wfm/live-board",
   wfmEmployees: "/wfm/employees",
   wfmCorrections: "/wfm/corrections",
@@ -144,6 +145,12 @@ export type NavItem = {
    * expand/collapse toggle rows (Sales/Service/Marketing/Master data), which
    * have no access of their own and are hidden only when every child is. */
   workcenterKey?: string;
+  /** Hidden from a WFM login unless it's a supervisor (wfm_role=supervisor
+   * or tenant admin) -- for items that share the "wfm" workcenter grant with
+   * a plain employee's My Workforce page but aren't meant for them. The real
+   * enforcement is server-side (requireWfmSupervisorPage); this only keeps
+   * the sidebar from advertising a link that would redirect away. */
+  supervisorOnly?: boolean;
   /** Sub-items shown when this item is expanded in the sidebar -- the item
    * itself becomes an expand/collapse toggle rather than a direct link. */
   children?: NavItem[];
@@ -231,13 +238,14 @@ export const NAV: NavGroup[] = [
     group: "WORKFORCE",
     items: [
       {
-        label: "Workforce", href: ROUTES.wfmLiveBoard, icon: "⧖", pillar: "amber",
+        label: "Workforce", href: ROUTES.wfmMe, icon: "⧖", pillar: "amber",
         children: [
-          { label: "Live board",   href: ROUTES.wfmLiveBoard,   icon: "◉", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
-          { label: "Employees",    href: ROUTES.wfmEmployees,   icon: "⚇", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
-          { label: "Corrections", href: ROUTES.wfmCorrections, icon: "✓", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
-          { label: "Leave & Holidays", href: ROUTES.wfmLeave, icon: "☀", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
-          { label: "Monthly Summary", href: ROUTES.wfmSummary, icon: "▤", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
+          { label: "My Workforce", href: ROUTES.wfmMe, icon: "◈", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
+          { label: "Live board",   href: ROUTES.wfmLiveBoard,   icon: "◉", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Employees",    href: ROUTES.wfmEmployees,   icon: "⚇", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Corrections", href: ROUTES.wfmCorrections, icon: "✓", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Leave & Holidays", href: ROUTES.wfmLeave, icon: "☀", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Monthly Summary", href: ROUTES.wfmSummary, icon: "▤", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
         ],
       },
     ],

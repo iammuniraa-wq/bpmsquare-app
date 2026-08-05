@@ -1,15 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { requireWfm, requireWfmSupervisor } from "@/lib/wfm/server";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const APPLIES_TO = ["all", "full_time", "contractor"];
 
 // GET /api/wfm/holidays — the tenant holiday calendar, optionally ?year=YYYY.
+// Any WFM-linked login can read it (not just supervisors) -- a holiday
+// calendar isn't sensitive, and employees need it for "next holiday" on
+// their own Workforce home.
 export async function GET(request: NextRequest) {
   let ctx;
   try {
-    ctx = await requireWfmSupervisor();
+    ctx = await requireWfm();
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });

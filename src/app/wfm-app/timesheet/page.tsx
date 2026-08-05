@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation";
-import { getTenant } from "@/lib/tenant";
-import TimesheetClient from "./TimesheetClient";
 
-export default async function WfmTimesheetPage() {
-  const tenant = await getTenant();
-  if (!tenant?.features?.wfm) redirect("/");
-  return <TimesheetClient accentColor={tenant.accent_color ?? "#378ADD"} />;
+// See src/app/wfm-app/page.tsx -- the whole /wfm-app tree redirects to
+// My Workforce (/wfm/me), which now includes this month's hours inline.
+export default function WfmAppTimesheetRedirect() {
+  redirect("/wfm/me");
 }

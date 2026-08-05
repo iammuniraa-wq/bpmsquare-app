@@ -5,13 +5,16 @@ import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { PRIMARY_HOST } from "@/lib/constants";
 
 // Canonical, auto-provisioned Business Roles for a WFM login's default CRM
-// access -- found-or-created by name per tenant. A supervisor gets the wfm
-// workcenter (Live board, Employees, Corrections queue, Leave & Holidays,
-// Monthly Summary); a plain employee gets NONE -- their whole job is
-// punching in via /wfm-app, so there is nothing in the CRM for them (see
-// the (app) layout's redirect for that). Only applied when the login has
-// no Business Role configured yet at all, so it never overrides a tenant
-// admin's own manual role assignment.
+// access -- found-or-created by name per tenant. Both employee and
+// supervisor get the "wfm" workcenter granted -- that's what makes My
+// Workforce (/wfm/me) reachable, and it's the whole CRM footprint a plain
+// employee needs. The 5 supervisor-only screens (Live board, Employees,
+// Corrections queue, Leave & Holidays, Monthly Summary) are gated
+// separately by wfm_role via requireWfmSupervisorPage/requireWfmSupervisor,
+// not by a finer-grained workcenter -- so an employee holding the same
+// "wfm" grant still can't reach them, by URL or otherwise. Only applied
+// when the login has no Business Role configured yet at all, so it never
+// overrides a tenant admin's own manual role assignment.
 async function ensureDefaultWfmRoleAssigned(
   admin: SupabaseClient,
   tenantId: string,
@@ -22,7 +25,7 @@ async function ensureDefaultWfmRoleAssigned(
     .from("business_user_roles").select("id").eq("tenant_id", tenantId).eq("user_id", userId).limit(1);
   if (existing && existing.length > 0) return;
 
-  const roleName = wfmRole === "supervisor" ? "WFM Supervisor" : "WFM Employee (No CRM Access)";
+  const roleName = wfmRole === "supervisor" ? "WFM Supervisor" : "WFM Employee";
   const { data: existingRole } = await admin
     .from("business_roles").select("id").eq("tenant_id", tenantId).eq("name", roleName).maybeSingle();
 
@@ -32,12 +35,9 @@ async function ensureDefaultWfmRoleAssigned(
       .from("business_roles").insert({ tenant_id: tenantId, name: roleName }).select("id").single();
     if (roleErr) { console.error("ensureDefaultWfmRoleAssigned: create role failed", roleErr.message); return; }
     roleId = role.id;
-    if (wfmRole === "supervisor") {
-      const { error: grantErr } = await admin
-        .from("business_role_grants").insert({ tenant_id: tenantId, role_id: roleId, workcenter: "wfm", can_view: true });
-      if (grantErr) console.error("ensureDefaultWfmRoleAssigned: grant failed", grantErr.message);
-    }
-    // wfm_role === "employee": zero grants, intentionally nothing to insert.
+    const { error: grantErr } = await admin
+      .from("business_role_grants").insert({ tenant_id: tenantId, role_id: roleId, workcenter: "wfm", can_view: true });
+    if (grantErr) console.error("ensureDefaultWfmRoleAssigned: grant failed", grantErr.message);
   }
 
   const { error: assignErr } = await admin
@@ -121,7 +121,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const result = await findOrCreateUserForInvite(admin, email, {
       inviteData: { full_name: [employee.first_name, employee.last_name].filter(Boolean).join(" ") },
-      redirectTo: `https://${PRIMARY_HOST}/wfm-app`,
+      redirectTo: `https://${PRIMARY_HOST}/wfm/me`,
     });
     if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
 

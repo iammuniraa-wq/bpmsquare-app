@@ -21,7 +21,7 @@ export async function POST() {
   const now = new Date().toISOString();
   const admin = createAdminSupabase();
   const { error } = await admin
-    .from("wfm_employees")
+    .from("employees")
     .update({ consent_recorded_at: now })
     .eq("id", employee.id)
     .eq("tenant_id", tenantId)

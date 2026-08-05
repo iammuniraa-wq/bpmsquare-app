@@ -57,16 +57,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const perms = await resolvePermissions(supabase, tenant.id, user.id, userRole ?? "member");
   const viewable = toViewableWorkcenters(perms);
 
-  // A Business Role granting ZERO workcenters means "nothing in the CRM is
-  // relevant to this login" -- for a WFM field employee (their whole job is
-  // punching in via /wfm-app), landing on an empty CRM shell with nothing to
-  // click is a dead end. Bounce them straight there instead, on every (app)
-  // route, not just "/" -- this layout wraps the whole CRM shell regardless
-  // of device, so the same redirect applies on PC and mobile alike. Safe
-  // against a redirect loop: /wfm-app itself only exists outside this route
-  // group's layout, and its own page bounces back to "/" only when
-  // features.wfm is off, which is exactly the condition checked below.
-  if (Array.isArray(viewable) && viewable.length === 0 && tenant.features?.wfm) {
+  let isWfmSupervisor = false;
+  let wfmEmployeeActive = false;
+  if (tenant.features?.wfm) {
     const { data: membership } = await supabase
       .from("tenant_users")
       .select("employee_id")
@@ -76,17 +69,40 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (membership?.employee_id) {
       const { data: employee } = await supabase
         .from("employees")
-        .select("id")
+        .select("id, wfm_role")
         .eq("tenant_id", tenant.id)
         .eq("id", membership.employee_id)
         .eq("status", "active")
         .maybeSingle();
-      if (employee) redirect("/wfm-app");
+      if (employee) {
+        wfmEmployeeActive = true;
+        isWfmSupervisor = userRole === "admin" || employee.wfm_role === "supervisor";
+      }
     }
   }
 
+  // Every WFM login lands on My Workforce by default -- it's the useful home
+  // page when WFM is this login's whole reason to be in the CRM, whether
+  // that's a plain employee punching in or a supervisor whose Business Role
+  // grants nothing beyond "wfm". A login with broader CRM access (viewable
+  // === "all", or workcenters beyond wfm) still lands on the normal
+  // dashboard -- My Workforce stays one click away via the sidebar. Applies
+  // on every (app) route, not just "/", on PC and mobile alike, since this
+  // layout wraps the whole CRM shell regardless of device. Safe against a
+  // redirect loop: /wfm/me lives outside this condition's own gate
+  // (requireWorkcenterView("wfm"), which passes here by construction).
+  const restrictedToWfmOnly = Array.isArray(viewable) && viewable.every((wc) => wc === "wfm");
+  if (wfmEmployeeActive && restrictedToWfmOnly) {
+    redirect("/wfm/me");
+  }
+
   return (
-    <TenantProvider tenant={redactTenantForRole(tenant, userRole)} userRole={userRole} viewableWorkcenters={toViewableWorkcenters(perms)}>
+    <TenantProvider
+      tenant={redactTenantForRole(tenant, userRole)}
+      userRole={userRole}
+      viewableWorkcenters={viewable}
+      isWfmSupervisor={isWfmSupervisor}
+    >
       <style>{`:root { --tenant-accent: ${tenant.accent_color}; }`}</style>
       <Shell>{children}</Shell>
     </TenantProvider>
