@@ -8,6 +8,9 @@ import { ROUTES } from "@/lib/constants";
 import type { Technician } from "@/lib/types";
 import { AlertTriangle } from "@/components/Icons";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { getTenant } from "@/lib/tenant";
+import { getTechnicianLiveStates } from "@/lib/wfm/server";
+import TechnicianLiveBadge from "@/components/wfm/TechnicianLiveBadge";
 
 const STATUS_TONE: Record<Technician["status"], PillarKey> = {
   active: "green", on_leave: "amber", inactive: "red",
@@ -34,8 +37,11 @@ export default async function TechniciansPage({
 }) {
   await requireWorkcenterView("technicians");
   const { status: statusFilter } = await searchParams;
-  const allTechs = await listTechnicians();
+  const [allTechs, tenant] = await Promise.all([listTechnicians(), getTenant()]);
   const techs = statusFilter ? allTechs.filter((t) => t.technician.status === statusFilter) : allTechs;
+  const liveStates = tenant?.features?.wfm
+    ? await getTechnicianLiveStates(tenant.id, allTechs.map((t) => t.technician.id))
+    : new Map();
   const activeCt   = allTechs.filter((t) => t.technician.status === "active").length;
   const onLeaveCt  = allTechs.filter((t) => t.technician.status === "on_leave").length;
   const totalSlots = techs
@@ -130,8 +136,9 @@ export default async function TechniciansPage({
                   <div style={{ fontSize: 11.5, color: c.muted, marginTop: 1 }}>{tech.base_location}</div>
                 </div>
 
-                <div style={{ flexShrink: 0 }}>
+                <div style={{ flexShrink: 0, display: "flex", gap: 6 }}>
                   <Pill label={TECH_STATUS_LABEL[tech.status]} tone={tone} />
+                  <TechnicianLiveBadge state={liveStates.get(tech.id)} />
                 </div>
 
                 {/* Skills — single truncated line */}

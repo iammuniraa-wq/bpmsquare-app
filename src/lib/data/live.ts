@@ -241,6 +241,7 @@ export type DispatchRow = {
   scheduled_for: string | null;
   description: string | null;
   account_name: string;
+  technician_id: string | null;
   technician_name: string | null;
   case_ref: string | null;
 };
@@ -250,7 +251,7 @@ export async function listDispatch(): Promise<DispatchRow[]> {
   if (!tenantId) return [];
   const { data } = await createAdminSupabase()
     .from("work_orders")
-    .select("id, ref, status, scheduled_for, description, accounts(name), technicians(name), service_cases(ref)")
+    .select("id, ref, status, scheduled_for, description, technician_id, accounts(name), technicians(name), service_cases(ref)")
     .eq("tenant_id", tenantId)
     .in("status", ["scheduled", "in_progress"])
     .order("scheduled_for", { ascending: true });
@@ -262,6 +263,7 @@ export async function listDispatch(): Promise<DispatchRow[]> {
     scheduled_for: r.scheduled_for as string | null,
     description: r.description as string | null,
     account_name: (Array.isArray(r.accounts) ? r.accounts[0]?.name : r.accounts?.name) ?? "—",
+    technician_id: r.technician_id as string | null,
     technician_name: (Array.isArray(r.technicians) ? r.technicians[0]?.name : r.technicians?.name) ?? null,
     case_ref: (Array.isArray(r.service_cases) ? r.service_cases[0]?.ref : r.service_cases?.ref) ?? null,
   }));

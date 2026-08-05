@@ -3,7 +3,8 @@ import "server-only";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { DEFAULT_WFM_CONFIG, type TenantConfig, type WfmConfig } from "@/lib/constants";
-import type { WfmEmployee, WfmSite } from "./types";
+import type { WfmEmployee, WfmSite, PresenceKind, PunchState } from "./types";
+import { deriveState } from "./types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WfmContext = {
@@ -153,4 +154,66 @@ export function dateKeyInTz(ts: Date, timezone: string): string {
     month: "2-digit",
     day: "2-digit",
   }).format(ts);
+}
+
+// ── FSM bridge ───────────────────────────────────────────────────────────
+// The presence-event stream was deliberately designed source-agnostic (see
+// 0062_wfm_module.sql) so the Field module could read it without WFM ever
+// coupling to `source=web_selfie`. This is the first consumer: technicians
+// (src/lib/types.ts Technician) get a live in/break/out signal wherever
+// their `employees.technician_id` link exists, alongside their existing
+// static `status` field -- which stays untouched, since it's a separate,
+// manually-set concept (active/on_leave/inactive as an HR state, not "is
+// this person clocked in right now").
+
+/**
+ * Current WFM punch state for every technician that has a linked, active
+ * employee record. Technicians with no link (or whose tenant has wfm off)
+ * simply have no entry in the returned map -- callers should treat a
+ * missing key as "no live signal available", not "out".
+ */
+export async function getTechnicianLiveStates(
+  tenantId: string,
+  technicianIds: string[]
+): Promise<Map<string, PunchState>> {
+  const ids = [...new Set(technicianIds)].filter(Boolean);
+  if (ids.length === 0) return new Map();
+
+  const admin = createAdminSupabase();
+  const { data: employees } = await admin
+    .from("employees")
+    .select("id, technician_id")
+    .eq("tenant_id", tenantId)
+    .eq("status", "active")
+    .in("technician_id", ids);
+
+  const empIdByTechId = new Map(
+    (employees ?? [])
+      .filter((e) => e.technician_id)
+      .map((e) => [e.technician_id as string, e.id as string])
+  );
+  if (empIdByTechId.size === 0) return new Map();
+
+  const since = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString();
+  const { data: events } = await admin
+    .from("wfm_presence_events")
+    .select("employee_id, kind, ts")
+    .eq("tenant_id", tenantId)
+    .in("employee_id", [...empIdByTechId.values()])
+    .is("superseded_by", null)
+    .gte("ts", since)
+    .order("ts", { ascending: true });
+
+  const eventsByEmployee = new Map<string, { kind: PresenceKind }[]>();
+  for (const e of events ?? []) {
+    const key = e.employee_id as string;
+    if (!eventsByEmployee.has(key)) eventsByEmployee.set(key, []);
+    eventsByEmployee.get(key)!.push({ kind: e.kind as PresenceKind });
+  }
+
+  const result = new Map<string, PunchState>();
+  for (const [techId, empId] of empIdByTechId) {
+    result.set(techId, deriveState(eventsByEmployee.get(empId) ?? []));
+  }
+  return result;
 }

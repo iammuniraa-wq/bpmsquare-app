@@ -1,10 +1,12 @@
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenant } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { listDispatch } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
+import { getTechnicianLiveStates } from "@/lib/wfm/server";
+import TechnicianLiveBadge from "@/components/wfm/TechnicianLiveBadge";
 
 type WOStatus = "scheduled" | "in_progress";
 
@@ -33,9 +35,16 @@ const td: React.CSSProperties = {
 export default async function DispatchPage() {
   await requireWorkcenterView("dispatch");
   await requireFeature("dispatch");
-  const jobs = await listDispatch();
+  const [jobs, tenant] = await Promise.all([listDispatch(), getTenant()]);
   const scheduled = jobs.filter((j) => j.status === "scheduled");
   const inProgress = jobs.filter((j) => j.status === "in_progress");
+
+  const liveStates = tenant?.features?.wfm
+    ? await getTechnicianLiveStates(
+        tenant.id,
+        jobs.map((j) => j.technician_id).filter((id): id is string => !!id)
+      )
+    : new Map();
 
   return (
     <>
@@ -79,7 +88,14 @@ export default async function DispatchPage() {
                     </span>
                   </td>
                   <td style={td}>{job.account_name}</td>
-                  <td style={{ ...td, fontWeight: 500 }}>{job.technician_name ?? "Unassigned"}</td>
+                  <td style={{ ...td, fontWeight: 500 }}>
+                    {job.technician_name ?? "Unassigned"}
+                    {job.technician_id && (
+                      <span style={{ marginLeft: 8 }}>
+                        <TechnicianLiveBadge state={liveStates.get(job.technician_id)} />
+                      </span>
+                    )}
+                  </td>
                   <td style={td}>
                     <Pill
                       label={STATUS_LABEL[job.status as WOStatus] ?? job.status}
