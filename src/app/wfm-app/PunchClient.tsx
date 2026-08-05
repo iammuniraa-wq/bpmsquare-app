@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PresenceKind, PunchState } from "@/lib/wfm/types";
+import { applyPunch, type PresenceKind, type PunchState } from "@/lib/wfm/types";
+import { enqueuePunch, flushQueue, listQueuedPunches } from "./offlineQueue";
 
 // The consent copy ships separately (bilingual EN + regional). Placeholder
 // per requirements: CONSENT_TEXT_DE_EN_PLACEHOLDER.
@@ -73,6 +74,7 @@ export default function PunchClient({ tenantName, accentColor }: { tenantName: s
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+  const [queuedCount, setQueuedCount] = useState(0);
 
   // camera flow: which punch kind the camera was opened for
   const [cameraFor, setCameraFor] = useState<PresenceKind | null>(null);
@@ -91,7 +93,29 @@ export default function PunchClient({ tenantName, accentColor }: { tenantName: s
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const trySync = useCallback(async () => {
+    try {
+      const { synced, remaining } = await flushQueue();
+      setQueuedCount(remaining);
+      if (synced > 0) await load();
+    } catch {
+      // IndexedDB unavailable or still offline -- fine, will retry later
+    }
+  }, [load]);
+
+  useEffect(() => {
+    load();
+    listQueuedPunches().then((q) => setQueuedCount(q.length)).catch(() => {});
+    trySync();
+    const onOnline = () => trySync();
+    const onVisible = () => { if (document.visibilityState === "visible") trySync(); };
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [load, trySync]);
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -156,7 +180,22 @@ export default function PunchClient({ tenantName, accentColor }: { tenantName: s
       }
       await load();
     } catch {
-      setNotice({ tone: "err", text: "Network error — punch not recorded. Try again." });
+      // Network failure (not a server rejection) -- queue it. Timestamped
+      // at capture (ts, already set above), synced automatically once back
+      // online. The button state updates optimistically via applyPunch so
+      // the next tap is still the right one.
+      try {
+        await enqueuePunch({ id, kind, ts, geo, selfie, queuedAt: new Date().toISOString() });
+        const q = await listQueuedPunches();
+        setQueuedCount(q.length);
+        const nextState = me ? applyPunch(me.state, kind) : null;
+        if (me && nextState) {
+          setMe({ ...me, state: nextState, today: [...me.today, { id, kind, ts }] });
+        }
+        setNotice({ tone: "warn", text: `${KIND_LABEL[kind]} saved offline — will sync automatically when you're back online.` });
+      } catch {
+        setNotice({ tone: "err", text: "Network error and offline storage failed — punch not recorded. Try again." });
+      }
     } finally {
       setBusy(false);
     }
@@ -210,7 +249,13 @@ export default function PunchClient({ tenantName, accentColor }: { tenantName: s
   const header = (
     <div style={S.header}>
       <div style={{ fontSize: 15, fontWeight: 700 }}>{tenantName}</div>
-      <div style={{ fontSize: 12, color: "#8fa1b3" }}>Attendance</div>
+      {queuedCount > 0 ? (
+        <div style={{ fontSize: 11.5, color: "#f6b23c", fontWeight: 600 }}>
+          {queuedCount} pending sync
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: "#8fa1b3" }}>Attendance</div>
+      )}
     </div>
   );
 
