@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Shell from "@/components/Shell";
 import { getTenant, getUserRole, isPlatformAdmin, redactTenantForRole } from "@/lib/tenant";
 import { TenantProvider } from "@/lib/tenant-context";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase-server";
 import { resolvePermissions, toViewableWorkcenters } from "@/lib/permissions";
 import { LinkIcon } from "@/components/Icons";
+import { ROUTES, PATHNAME_HEADER } from "@/lib/constants";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getAuthUser();
@@ -88,12 +90,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // === "all", or workcenters beyond wfm) still lands on the normal
   // dashboard -- My Workforce stays one click away via the sidebar. Applies
   // on every (app) route, not just "/", on PC and mobile alike, since this
-  // layout wraps the whole CRM shell regardless of device. Safe against a
-  // redirect loop: /wfm/me lives outside this condition's own gate
-  // (requireWorkcenterView("wfm"), which passes here by construction).
+  // layout wraps the whole CRM shell regardless of device.
+  //
+  // /wfm/me itself lives INSIDE this same (app) route group, so this layout
+  // re-runs (and this condition re-evaluates) on every visit to /wfm/me too
+  // -- without excluding it, that's an immediate infinite redirect loop, not
+  // a hypothetical one. PATHNAME_HEADER is set once by middleware.ts (a
+  // Server Component layout has no other way to know the current pathname).
+  const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
   const restrictedToWfmOnly = Array.isArray(viewable) && viewable.every((wc) => wc === "wfm");
-  if (wfmEmployeeActive && restrictedToWfmOnly) {
-    redirect("/wfm/me");
+  if (wfmEmployeeActive && restrictedToWfmOnly && pathname !== ROUTES.wfmMe) {
+    redirect(ROUTES.wfmMe);
   }
 
   return (

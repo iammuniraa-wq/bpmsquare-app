@@ -23,6 +23,14 @@ export const TRUSTED_USER_ID_HEADER = "x-bpmsquare-user-id";
 export const TRUSTED_EMAIL_HEADER = "x-bpmsquare-email";
 export const TRUSTED_TENANT_ID_HEADER = "x-bpmsquare-tenant-id";
 export const TRUSTED_ROLE_HEADER = "x-bpmsquare-role";
+// Not identity-sensitive like the four above, but set the same way (stripped
+// of any client-supplied value, then set once by middleware) so a Server
+// Component layout can know the current request's pathname -- next/navigation
+// has no built-in way to read that outside a page's own params. Used by the
+// (app) layout's WFM-only redirect to avoid redirecting a request that's
+// already for the redirect target (an infinite-redirect bug otherwise, since
+// /wfm/me lives inside the same (app) route group the layout wraps).
+export const PATHNAME_HEADER = "x-bpmsquare-pathname";
 
 /** Business-user gate (0057): a membership is usable only if it isn't
  * admin-locked and today falls inside its validity window (null bounds are

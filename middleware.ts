@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   isPrimaryOrDevHost, PRIMARY_HOST, isMembershipActive,
   TRUSTED_USER_ID_HEADER, TRUSTED_EMAIL_HEADER, TRUSTED_TENANT_ID_HEADER, TRUSTED_ROLE_HEADER,
-  SUPABASE_COOKIE_OPTIONS,
+  PATHNAME_HEADER, SUPABASE_COOKIE_OPTIONS,
 } from "@/lib/constants";
 
 export async function middleware(request: NextRequest) {
@@ -19,6 +19,8 @@ export async function middleware(request: NextRequest) {
   requestHeaders.delete(TRUSTED_EMAIL_HEADER);
   requestHeaders.delete(TRUSTED_TENANT_ID_HEADER);
   requestHeaders.delete(TRUSTED_ROLE_HEADER);
+  requestHeaders.delete(PATHNAME_HEADER);
+  requestHeaders.set(PATHNAME_HEADER, pathname);
 
   // Public paths — never intercept
   if (
