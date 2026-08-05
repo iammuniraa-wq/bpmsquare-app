@@ -119,6 +119,9 @@ export const ROUTES = {
   purchaseOrderNew: "/purchase-orders/new",
   purchaseOrder: (id: string) => `/purchase-orders/${id}`,
   dataWorkbench: "/data-workbench",
+  wfmLiveBoard: "/wfm/live-board",
+  wfmEmployees: "/wfm/employees",
+  wfmSetup: "/wfm/setup",
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
@@ -217,6 +220,19 @@ export const NAV: NavGroup[] = [
           // bundle, so it shares that bundle's rollout flag rather than
           // getting its own.
           { label: "Employees",       href: ROUTES.employees,      icon: "⚇", pillar: "green", featureKey: "business_roles", workcenterKey: "employees" },
+        ],
+      },
+    ],
+  },
+  {
+    group: "WORKFORCE",
+    items: [
+      {
+        label: "Workforce", href: ROUTES.wfmLiveBoard, icon: "⧖", pillar: "amber",
+        children: [
+          { label: "Live board",     href: ROUTES.wfmLiveBoard, icon: "◉", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
+          { label: "Employees",      href: ROUTES.wfmEmployees, icon: "⚇", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
+          { label: "Sites & Shifts", href: ROUTES.wfmSetup,     icon: "⌖", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
         ],
       },
     ],
