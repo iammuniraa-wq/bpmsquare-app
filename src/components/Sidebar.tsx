@@ -573,20 +573,24 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           {[...favItems, ...restItems].map((item) => (
             <IconRailItem key={item.href} item={item} active={isActive(item.href)} accent={accent} onNavigate={onNavigate} />
           ))}
-          <div style={{ borderTop: "1px solid var(--sb-line)", margin: "8px 4px" }} />
-          <Link
-            href={ROUTES.settings}
-            onClick={onNavigate}
-            title="Settings"
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: 36, height: 36, margin: "0 auto", borderRadius: 8,
-              background: isActive(ROUTES.settings) ? `var(--sb-active-bg, ${accent})` : "transparent",
-              textDecoration: "none",
-            }}
-          >
-            <Gear size={14} color={isActive(ROUTES.settings) ? "var(--sb-active-ink, #fff)" : "var(--sb-icon-muted)"} />
-          </Link>
+          {viewable === "all" && (
+            <>
+              <div style={{ borderTop: "1px solid var(--sb-line)", margin: "8px 4px" }} />
+              <Link
+                href={ROUTES.settings}
+                onClick={onNavigate}
+                title="Settings"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 36, height: 36, margin: "0 auto", borderRadius: 8,
+                  background: isActive(ROUTES.settings) ? `var(--sb-active-bg, ${accent})` : "transparent",
+                  textDecoration: "none",
+                }}
+              >
+                <Gear size={14} color={isActive(ROUTES.settings) ? "var(--sb-active-ink, #fff)" : "var(--sb-icon-muted)"} />
+              </Link>
+            </>
+          )}
         </nav>
       ) : (
       <nav>
@@ -639,23 +643,30 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           onToggleExpand={toggleExpand}
         />
 
-        {/* Settings link + reset */}
+        {/* Settings link + reset -- Settings itself is hidden for a member
+            restricted to specific workcenters by a Business Role (nothing
+            in it is scoped to any workcenter, so it was previously shown
+            to everyone regardless of restriction); "Reset nav order" is
+            just a personal nav-layout preference, so it stays available
+            either way. */}
         <div style={{ borderTop: "1px solid var(--sb-line)", marginTop: 10, paddingTop: 8 }}>
-          <Link
-            href={ROUTES.settings}
-            onClick={onNavigate}
-            style={{
-              display: "flex", alignItems: "center", gap: 8, width: "100%",
-              padding: "7px 10px", borderRadius: 8, fontSize: 12.5,
-              color: isActive(ROUTES.settings) ? "#dce9f6" : "var(--sb-text)",
-              background: isActive(ROUTES.settings) ? `var(--sb-active-bg, ${accent})` : "transparent",
-              textDecoration: "none",
-              transition: "background 0.12s",
-            }}
-          >
-            <Gear size={14} color={isActive(ROUTES.settings) ? "var(--sb-active-ink, #fff)" : "var(--sb-icon-muted)"} />
-            <span>Settings</span>
-          </Link>
+          {viewable === "all" && (
+            <Link
+              href={ROUTES.settings}
+              onClick={onNavigate}
+              style={{
+                display: "flex", alignItems: "center", gap: 8, width: "100%",
+                padding: "7px 10px", borderRadius: 8, fontSize: 12.5,
+                color: isActive(ROUTES.settings) ? "#dce9f6" : "var(--sb-text)",
+                background: isActive(ROUTES.settings) ? `var(--sb-active-bg, ${accent})` : "transparent",
+                textDecoration: "none",
+                transition: "background 0.12s",
+              }}
+            >
+              <Gear size={14} color={isActive(ROUTES.settings) ? "var(--sb-active-ink, #fff)" : "var(--sb-icon-muted)"} />
+              <span>Settings</span>
+            </Link>
+          )}
           <button
             onClick={resetNav}
             style={{
