@@ -5,6 +5,7 @@ import { tenantHasFeature } from "@/lib/tenant";
 import { DEFAULT_WFM_CONFIG, type TenantConfig, type WfmConfig } from "@/lib/constants";
 import type { WfmEmployee, WfmSite, PresenceKind, PunchState } from "./types";
 import { deriveState } from "./types";
+import { computeDayHours, type DayHours } from "./hours";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WfmContext = {
@@ -216,4 +217,54 @@ export async function getTechnicianLiveStates(
     result.set(techId, deriveState(eventsByEmployee.get(empId) ?? []));
   }
   return result;
+}
+
+export type TechnicianDayAttendance = {
+  events: { kind: PresenceKind; ts: string; within_geofence: boolean | null }[];
+  hours: DayHours;
+};
+
+/**
+ * A linked technician's actual WFM punches for one calendar day (tenant
+ * timezone) -- e.g. a work order's scheduled_for date. Lets a Work Order
+ * cross-check its manually-entered VisitLog against tamper-evident
+ * attendance data. Returns null when the technician has no linked, active
+ * WFM employee (nothing to show, not an error).
+ */
+export async function getTechnicianAttendanceForDate(
+  tenantId: string,
+  technicianId: string,
+  dateKey: string
+): Promise<TechnicianDayAttendance | null> {
+  const admin = createAdminSupabase();
+  const { data: employee } = await admin
+    .from("employees")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("technician_id", technicianId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!employee) return null;
+
+  const config = await getWfmConfig(admin, tenantId);
+  const dayStart = zonedTimestamp(dateKey, "00:00", config.timezone);
+  const windowStart = new Date(dayStart.getTime() - 12 * 60 * 60 * 1000);
+  const windowEnd = new Date(dayStart.getTime() + 36 * 60 * 60 * 1000);
+
+  const { data: events } = await admin
+    .from("wfm_presence_events")
+    .select("kind, ts, within_geofence")
+    .eq("tenant_id", tenantId)
+    .eq("employee_id", employee.id)
+    .is("superseded_by", null)
+    .gte("ts", windowStart.toISOString())
+    .lte("ts", windowEnd.toISOString())
+    .order("ts", { ascending: true });
+
+  const dayEvents = (events ?? []).filter(
+    (e) => dateKeyInTz(new Date(e.ts as string), config.timezone) === dateKey
+  ) as TechnicianDayAttendance["events"];
+
+  const endRef = dayEvents.length > 0 ? new Date(dayEvents[dayEvents.length - 1].ts) : dayStart;
+  return { events: dayEvents, hours: computeDayHours(dayEvents, endRef) };
 }

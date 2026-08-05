@@ -1,7 +1,8 @@
 ﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getWorkOrder, CASE_STATUS_LABEL } from "@/lib/data";
-import { getUserRole } from "@/lib/tenant";
+import { getUserRole, getTenant } from "@/lib/tenant";
+import { getTechnicianAttendanceForDate, dateKeyInTz } from "@/lib/wfm/server";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
@@ -49,10 +50,19 @@ export default async function WorkOrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [data, role] = await Promise.all([getWorkOrder(id), getUserRole()]);
+  const [data, role, tenant] = await Promise.all([getWorkOrder(id), getUserRole(), getTenant()]);
   if (!data) notFound();
 
   const { workOrder: wo, account, asset, technician, serviceCase, quote, contract, loanerAsset } = data;
+
+  const attendance =
+    tenant?.features?.wfm && technician && wo.scheduled_for
+      ? await getTechnicianAttendanceForDate(
+          tenant.id,
+          technician.id,
+          dateKeyInTz(new Date(wo.scheduled_for), tenant.config?.wfm?.timezone ?? "Asia/Kolkata")
+        )
+      : null;
 
   return (
     <>
@@ -150,6 +160,44 @@ export default async function WorkOrderDetailPage({
             {technician?.skills && <Detail label="Skills" value={<span style={{ fontSize: 11.5, color: c.muted }}>{technician.skills}</span>} />}
             {wo.scheduled_for && <Detail label="Scheduled" value={fmtDate(wo.scheduled_for)} />}
           </section>
+
+          {attendance && (
+            <section style={cardStyle}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 6px" }}>Technician attendance</h3>
+              {attendance.events.length === 0 ? (
+                <div style={{ fontSize: 12, color: c.hint }}>No punches recorded for the scheduled date.</div>
+              ) : (
+                <>
+                  {attendance.events.map((e, i) => (
+                    <Detail
+                      key={i}
+                      label={
+                        e.kind === "check_in" ? "Check in" :
+                        e.kind === "check_out" ? "Check out" :
+                        e.kind === "break_start" ? "Break start" : "Break end"
+                      }
+                      value={
+                        <>
+                          {new Date(e.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          {e.within_geofence === false && <span style={{ color: pillar.amber.base, marginLeft: 6 }}>outside geofence</span>}
+                        </>
+                      }
+                    />
+                  ))}
+                  <Detail
+                    label="Net hours"
+                    value={<strong>{Math.floor(attendance.hours.net_minutes / 60)}h {attendance.hours.net_minutes % 60}m</strong>}
+                  />
+                  {attendance.hours.break_minutes > 0 && (
+                    <Detail label="Break time" value={`${Math.floor(attendance.hours.break_minutes / 60)}h ${attendance.hours.break_minutes % 60}m`} />
+                  )}
+                </>
+              )}
+              <div style={{ fontSize: 10.5, color: c.hint, marginTop: 8 }}>
+                From WFM attendance — cross-check against the technician&apos;s own visit log below.
+              </div>
+            </section>
+          )}
 
           <section style={cardStyle}>
             <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 6px" }}>Authorization</h3>
