@@ -366,6 +366,37 @@ export type TenantFeatures = {
   standard_quotes: boolean;
   gmail_reply_threading: boolean;
   quote_lines_dw: boolean;
+  wfm: boolean;
+};
+
+// WfmConfig — tenant-level WFM (attendance) settings, stored in
+// tenants.config.wfm. Per-shift settings (grace, night allowance) live on
+// wfm_shifts rows, not here.
+export type WfmConfig = {
+  // IANA timezone all attendance day-boundary/lateness logic runs in.
+  timezone: string;
+  // Every N late marks in a calendar month = 1 half-day deduction (counted
+  // in the CA summary only — no money math).
+  late_marks_per_half_day: number;
+  // Unused leave carries into next year (false = lapses).
+  leave_carry_forward: boolean;
+  // Punch selfies purged after this many days (enrollment photos are kept
+  // until employee deletion — DPDP).
+  selfie_retention_days: number;
+  // flag_only: async face compare vs enrolled photo sets a face_mismatch
+  // flag; never blocks a punch.
+  face_verification_mode: "off" | "flag_only";
+  // Weekly off days, 0 = Sunday … 6 = Saturday.
+  week_off_days: number[];
+};
+
+export const DEFAULT_WFM_CONFIG: WfmConfig = {
+  timezone: "Asia/Kolkata",
+  late_marks_per_half_day: 3,
+  leave_carry_forward: false,
+  selfie_retention_days: 90,
+  face_verification_mode: "off",
+  week_off_days: [0],
 };
 
 // All metric IDs available in the Analytics page.
@@ -461,6 +492,9 @@ export type TenantConfig = {
     webhook_url?: string;
     webhook_secret?: string;
   };
+  // WFM module settings (only meaningful when features.wfm is on). Absent
+  // keys fall back to DEFAULT_WFM_CONFIG.
+  wfm?: Partial<WfmConfig>;
 };
 
 // QuoteIdFormat — per-tenant Quote ID naming convention.

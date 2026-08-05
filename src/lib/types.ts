@@ -353,6 +353,14 @@ export type Employee = {
   status: "active" | "inactive";
   created_at: string;
   updated_at: string;
+  // WFM columns (0062) — only meaningful when the tenant's wfm feature is on.
+  employment_type: "full_time" | "contractor";
+  shift_id: string | null;
+  site_id: string | null;
+  wfm_role: "employee" | "supervisor";
+  technician_id: string | null;
+  enrolled_photo_path: string | null;
+  consent_recorded_at: string | null;
 };
 
 // Standard Quote -- a deliberately independent object, not the (separate)

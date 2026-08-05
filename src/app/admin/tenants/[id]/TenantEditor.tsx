@@ -27,6 +27,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "standard_quotes",        label: "Standard Quotes" },
   { key: "gmail_reply_threading",  label: "Gmail reply-threading" },
   { key: "quote_lines_dw",         label: "Quote Lines (Data Workbench)" },
+  { key: "wfm",                    label: "Workforce (Attendance & Leave)" },
 ];
 
 const inputStyle: React.CSSProperties = {

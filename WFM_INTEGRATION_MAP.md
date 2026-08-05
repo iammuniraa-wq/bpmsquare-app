@@ -58,18 +58,24 @@ Mapping of WFM's three roles:
   No other coupling — WFM's employee/supervisor distinction stays on the employee row, because
   Business Roles is demo-gated and grants *workcenter visibility*, not domain semantics.
 
-## 3. Employee / person model — ⚠️ new table, not an extension
+## 3. Employee / person model — REVISED at build time: extend `employees` (0057)
 
-Closest existing table is `technicians` (`0000_baseline.sql:195`) — but it is an **FSM resource
-object** (skills, certifications, `max_visits_per_day`), has **no `user_id`** (technicians don't
-log in today), and only covers field techs. WFM covers *all* staff — office, workshop, contractors.
-Extending it would force every office employee to appear in Dispatch/Technicians FSM screens.
+> Original decision (made against `main`) was a new `wfm_employees` table, because the closest
+> thing on main was `technicians` — an FSM resource object, not a people table. At build start
+> the work moved to `develop`, which has migration `0057_employees_business_users.sql`: a real
+> `employees` master-data table (first/last name, employee_code, department, status) with a
+> login link via `tenant_users.employee_id` (Business Users). That is exactly the "existing
+> person model" the spec says to EXTEND — so WFM does.
 
-**Decision: create `wfm_employees`** with the §3 fields from the spec plus:
-- `user_id uuid null references auth.users` — login link (null until invited)
-- `wfm_role text check (wfm_role in ('employee','supervisor')) default 'employee'`
-- `technician_id uuid null references technicians(id)` — optional link so a field tech can be
-  both; this is the future FSM↔WFM join (spec §2: Field module shares `presence_events`).
+**Decision (final): extend `employees`** (migration 0062) with `employment_type`, `shift_id`,
+`site_id`, `wfm_role` (`employee`/`supervisor`), `technician_id` (optional FSM bridge),
+`enrolled_photo_path`, `consent_recorded_at`. A login resolves to its employee record through
+the existing `tenant_users.employee_id` link — no new user_id column.
+
+Consequence: 0062 also **tightens the `employees` RLS** from 0057's `for all` to
+member-read / admin-write — employees now carries fields that feed lateness and consent logic,
+and every legitimate mutation path (api/employees, api/business-users, Data Workbench) is
+already admin-gated, so nothing breaks.
 
 `technician_leaves` (existing, FSM vacation blocking for dispatch) stays untouched; WFM
 `leave_records` is a separate concern (quota/CA accounting). Not merged in v1.
