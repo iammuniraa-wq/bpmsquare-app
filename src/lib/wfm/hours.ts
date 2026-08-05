@@ -60,3 +60,47 @@ export function computeDayHours(events: Ev[], endRef: Date): DayHours {
   const brk = Math.min(gross, Math.round(breakMs / 60000));
   return { gross_minutes: gross, break_minutes: brk, net_minutes: gross - brk, open };
 }
+
+// ── Shift-day attribution ──────────────────────────────────────────────────
+// Requirements §6: "for crosses_midnight shifts, all events attribute to
+// the shift's START date." A naive calendar-day match (dateKeyInTz(ts) ===
+// today) splits a night shift's check-in (e.g. 22:00) and check-out (e.g.
+// 06:00 the next calendar day) across two different "days," which is
+// wrong for both attendance totals and the late/absent computation.
+
+function calendarDateKey(ts: Date, timezone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(ts);
+}
+
+function localHHMM(ts: Date, timezone: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(ts);
+}
+
+function addDays(dateKey: string, delta: number): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  return dt.toISOString().slice(0, 10);
+}
+
+export type ShiftDayInfo = { start_time: string; crosses_midnight: boolean } | null | undefined;
+
+/**
+ * Which shift-day (YYYY-MM-DD, tenant timezone) an event belongs to. For a
+ * non-crossing shift (or no shift at all), this is just the event's own
+ * calendar day. For a crosses_midnight shift, an event whose local
+ * time-of-day falls before the shift's start time is the tail end of the
+ * PREVIOUS day's shift (e.g. a 21:00→06:00 shift's 05:40 check-out is
+ * attributed to yesterday, not today).
+ */
+export function shiftDayKey(ts: Date, timezone: string, shift: ShiftDayInfo): string {
+  const calendarDay = calendarDateKey(ts, timezone);
+  if (!shift?.crosses_midnight) return calendarDay;
+  const local = localHHMM(ts, timezone);
+  const startHHMM = shift.start_time.slice(0, 5);
+  return local < startHHMM ? addDays(calendarDay, -1) : calendarDay;
+}

@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { requireWfmEmployee, getWfmConfig, matchSite, dateKeyInTz } from "@/lib/wfm/server";
+import { requireWfmEmployee, getWfmConfig, matchSite } from "@/lib/wfm/server";
 import { applyPunch, type PresenceKind, type PunchState, type WfmSite } from "@/lib/wfm/types";
-import { computeDayHours } from "@/lib/wfm/hours";
+import { computeDayHours, shiftDayKey } from "@/lib/wfm/hours";
 
 const KINDS: PresenceKind[] = ["check_in", "check_out", "break_start", "break_end"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -143,8 +143,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Today's running total (tenant timezone): now − first check_in of today.
-  const config = await getWfmConfig(admin, tenantId);
-  const todayKey = dateKeyInTz(tsDate, config.timezone);
+  const [config, { data: shift }] = await Promise.all([
+    getWfmConfig(admin, tenantId),
+    employee.shift_id
+      ? admin.from("wfm_shifts").select("start_time, crosses_midnight").eq("id", employee.shift_id).eq("tenant_id", tenantId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const todayKey = shiftDayKey(tsDate, config.timezone, shift);
   const dayStart = new Date(tsDate.getTime() - 36 * 60 * 60 * 1000).toISOString();
   const { data: recent } = await admin
     .from("wfm_presence_events")
@@ -155,7 +160,7 @@ export async function POST(request: NextRequest) {
     .gte("ts", dayStart)
     .order("ts", { ascending: true });
 
-  const todays = (recent ?? []).filter((e) => dateKeyInTz(new Date(e.ts), config.timezone) === todayKey);
+  const todays = (recent ?? []).filter((e) => shiftDayKey(new Date(e.ts), config.timezone, shift) === todayKey);
   const hours = computeDayHours(todays as { kind: PresenceKind; ts: string }[], tsDate);
 
   return NextResponse.json({

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { requireWfm, getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
+import { requireWfm, getWfmConfig } from "@/lib/wfm/server";
 import type { PresenceKind, PunchState } from "@/lib/wfm/types";
-import { computeDayHours } from "@/lib/wfm/hours";
+import { computeDayHours, shiftDayKey } from "@/lib/wfm/hours";
 
 function stateFromLastKind(kind: PresenceKind | null): PunchState {
   if (kind === "check_in" || kind === "break_end") return "in";
@@ -29,7 +29,6 @@ export async function GET() {
   const admin = createAdminSupabase();
   const config = await getWfmConfig(admin, tenantId);
   const now = new Date();
-  const todayKey = dateKeyInTz(now, config.timezone);
 
   const [{ data: recent }, { data: shift }, { data: site }] = await Promise.all([
     admin
@@ -43,7 +42,7 @@ export async function GET() {
     employee.shift_id
       ? admin
           .from("wfm_shifts")
-          .select("id, name, start_time, end_time, grace_minutes, is_night_shift")
+          .select("id, name, start_time, end_time, grace_minutes, is_night_shift, crosses_midnight")
           .eq("id", employee.shift_id)
           .eq("tenant_id", tenantId)
           .maybeSingle()
@@ -62,7 +61,10 @@ export async function GET() {
   const lastKind = (events[events.length - 1]?.kind as PresenceKind) ?? null;
   const state = stateFromLastKind(lastKind);
 
-  const todays = events.filter((e) => dateKeyInTz(new Date(e.ts), config.timezone) === todayKey);
+  // "Today" from THIS employee's shift perspective -- at 2am mid-way
+  // through a night shift, that's still yesterday's shift-day.
+  const todayKey = shiftDayKey(now, config.timezone, shift);
+  const todays = events.filter((e) => shiftDayKey(new Date(e.ts), config.timezone, shift) === todayKey);
   const hours = computeDayHours(todays as { kind: PresenceKind; ts: string }[], now);
   const runningMinutes = config.deduct_breaks ? hours.net_minutes : hours.gross_minutes;
 

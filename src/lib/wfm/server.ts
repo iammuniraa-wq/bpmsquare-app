@@ -3,9 +3,9 @@ import "server-only";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { DEFAULT_WFM_CONFIG, type TenantConfig, type WfmConfig } from "@/lib/constants";
-import type { WfmEmployee, WfmSite, PresenceKind, PunchState } from "./types";
+import type { WfmEmployee, PresenceKind, PunchState } from "./types";
 import { deriveState } from "./types";
-import { computeDayHours, type DayHours } from "./hours";
+import { computeDayHours, shiftDayKey, type DayHours } from "./hours";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WfmContext = {
@@ -88,42 +88,10 @@ export async function getWfmConfig(supabase: SupabaseClient, tenantId: string): 
 }
 
 // ── Geofence ─────────────────────────────────────────────────────────────
-
-export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-/**
- * Match a punch location against the tenant's active sites. Policy: outside
- * every geofence is flagged, never rejected.
- */
-export function matchSite(
-  sites: WfmSite[],
-  lat: number | null,
-  lng: number | null
-): { site: WfmSite | null; within: boolean | null } {
-  if (lat == null || lng == null) return { site: null, within: null };
-  let nearest: WfmSite | null = null;
-  let nearestDist = Infinity;
-  for (const s of sites) {
-    if (!s.active) continue;
-    const d = haversineMeters(lat, lng, s.lat, s.lng);
-    if (d < nearestDist) {
-      nearest = s;
-      nearestDist = d;
-    }
-  }
-  if (nearest && nearestDist <= nearest.radius_m) return { site: nearest, within: true };
-  // outside all radii: still report the nearest site for supervisor context
-  return { site: nearest, within: false };
-}
+// Pure math lives in ./geofence (no server deps, directly unit-testable);
+// re-exported here so every existing `from "@/lib/wfm/server"` import keeps
+// working unchanged.
+export { haversineMeters, matchSite } from "./geofence";
 
 function tzOffsetMs(timezone: string, utcDate: Date): number {
   const dtf = new Intl.DateTimeFormat("en-US", {
@@ -239,14 +207,19 @@ export async function getTechnicianAttendanceForDate(
   const admin = createAdminSupabase();
   const { data: employee } = await admin
     .from("employees")
-    .select("id")
+    .select("id, shift_id")
     .eq("tenant_id", tenantId)
     .eq("technician_id", technicianId)
     .eq("status", "active")
     .maybeSingle();
   if (!employee) return null;
 
-  const config = await getWfmConfig(admin, tenantId);
+  const [config, { data: shift }] = await Promise.all([
+    getWfmConfig(admin, tenantId),
+    employee.shift_id
+      ? admin.from("wfm_shifts").select("start_time, crosses_midnight").eq("id", employee.shift_id).eq("tenant_id", tenantId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
   const dayStart = zonedTimestamp(dateKey, "00:00", config.timezone);
   const windowStart = new Date(dayStart.getTime() - 12 * 60 * 60 * 1000);
   const windowEnd = new Date(dayStart.getTime() + 36 * 60 * 60 * 1000);
@@ -262,7 +235,7 @@ export async function getTechnicianAttendanceForDate(
     .order("ts", { ascending: true });
 
   const dayEvents = (events ?? []).filter(
-    (e) => dateKeyInTz(new Date(e.ts as string), config.timezone) === dateKey
+    (e) => shiftDayKey(new Date(e.ts as string), config.timezone, shift) === dateKey
   ) as TechnicianDayAttendance["events"];
 
   const endRef = dayEvents.length > 0 ? new Date(dayEvents[dayEvents.length - 1].ts) : dayStart;
@@ -357,15 +330,19 @@ export async function getWfmLiveBoardSnapshot(tenantId: string): Promise<WfmLive
   const isWeekOff = config.week_off_days.includes(weekday);
 
   const rows: WfmLiveBoardRow[] = (employees ?? []).map((emp) => {
+    const shift = emp.shift_id ? shiftById.get(emp.shift_id) : null;
+    // Shift-day attribution (§6): a night shift's events all belong to the
+    // shift's START date, not their own raw calendar date -- otherwise a
+    // 22:00 check-in and a 06:00-next-day check-out would land on two
+    // different "days" and neither would show a complete shift.
     const empEvents = (eventsByEmp.get(emp.id) ?? []).filter(
-      (e) => dateKeyInTz(new Date(e.ts), config.timezone) === todayKey
+      (e) => shiftDayKey(new Date(e.ts), config.timezone, shift) === todayKey
     );
     const lastKind = (empEvents[empEvents.length - 1]?.kind as PresenceKind) ?? null;
     const state = stateFromLastKind(lastKind);
     const firstIn = empEvents.find((e) => e.kind === "check_in") ?? null;
     const lastOut = [...empEvents].reverse().find((e) => e.kind === "check_out") ?? null;
 
-    const shift = emp.shift_id ? shiftById.get(emp.shift_id) : null;
     const onLeave = leavesByEmp.has(emp.id);
     const holiday = (holidays ?? []).some(
       (h) => h.applies_to === "all" || h.applies_to === emp.employment_type

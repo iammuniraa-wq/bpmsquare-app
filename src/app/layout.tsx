@@ -1,9 +1,19 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
 import ThemeApplier from "@/components/ThemeApplier";
 import { isPrimaryOrDevHost } from "@/lib/constants";
 import { getTenantBrandingByHost } from "@/lib/tenant";
+
+// viewportFit: "cover" is what makes env(safe-area-inset-*) resolve to a
+// real value on notched iPhones instead of always 0 -- required for the
+// wfm-app bottom tab bar's safe-area padding (src/app/wfm-app/layout.tsx)
+// to actually do anything in standalone/installed mode.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const host = (await headers()).get("host")?.split(":")[0] ?? "";
