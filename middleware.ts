@@ -55,7 +55,12 @@ export async function middleware(request: NextRequest) {
     // being skipped: each route still 401s without a valid key, and every query
     // behind them is tenant-scoped by the tenant that key resolves to.
     pathname === "/api/v1" ||
-    pathname.startsWith("/api/v1/")
+    pathname.startsWith("/api/v1/") ||
+    // Vercel Cron invocations carry no user session -- just their own
+    // CRON_SECRET bearer token, checked inside the route itself (same
+    // reasoning as /api/v1 above: a credential in the request, not a
+    // cookie, so the session gate would make it uncallable).
+    pathname === "/api/wfm/cron/retention"
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
