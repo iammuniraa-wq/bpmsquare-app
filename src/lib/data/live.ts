@@ -4,6 +4,7 @@ import { createAdminSupabase, resolveViewerTenantId, getAuthUser } from "@/lib/s
 import { decryptAccount, decryptContact, decrypt } from "@/lib/encryption";
 import { getAccountNews, type AccountNewsItem } from "@/lib/data/news";
 import { getTenant } from "@/lib/tenant";
+import { getWfmLiveBoardSnapshot } from "@/lib/wfm/server";
 import type { CompanyInfo } from "@/lib/tenant";
 import { DEFAULT_QUOTE_STATUSES, ROUTES } from "@/lib/constants";
 import type { TenantConfig } from "@/lib/constants";
@@ -1477,6 +1478,8 @@ export type AnalyticsData = {
   contractStats: { activeCount: number; totalValue: number };
   recentActivity: Array<{ text: string; at: string; pillar: Activity["pillar"]; accountName: string }>;
   accountNews: AccountNewsItem[];
+  wfmAttendanceBySite: Array<{ site: string; onTime: number; late: number; absent: number }>;
+  wfmNightShiftCost: { count: number; amount: number };
 };
 
 const CASE_STATUS_LABEL_MAP: Record<string, string> = {
@@ -1502,6 +1505,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       contractStats: { activeCount: 0, totalValue: 0 },
       recentActivity: [],
       accountNews: [],
+      wfmAttendanceBySite: [],
+      wfmNightShiftCost: { count: 0, amount: 0 },
     };
   }
   const supabase = createAdminSupabase();
@@ -1717,12 +1722,36 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     accountName: (Array.isArray(act.accounts) ? act.accounts[0]?.name : act.accounts?.name) ?? act.account_id,
   }));
 
+  let wfmAttendanceBySite: AnalyticsData["wfmAttendanceBySite"] = [];
+  let wfmNightShiftCost: AnalyticsData["wfmNightShiftCost"] = { count: 0, amount: 0 };
+  if (tenant?.features?.wfm) {
+    const snapshot = await getWfmLiveBoardSnapshot(tenantId);
+    const bySite = new Map<string, { onTime: number; late: number; absent: number }>();
+    for (const r of snapshot.rows) {
+      const key = r.home_site_name ?? "No site assigned";
+      const bucket = bySite.get(key) ?? { onTime: 0, late: 0, absent: 0 };
+      if (r.absent) bucket.absent += 1;
+      else if (r.late) bucket.late += 1;
+      else if (r.state !== "out" || r.punches > 0) bucket.onTime += 1;
+      bySite.set(key, bucket);
+    }
+    wfmAttendanceBySite = [...bySite.entries()].map(([site, v]) => ({ site, ...v }));
+
+    for (const r of snapshot.rows) {
+      if (r.is_night_shift && r.punches > 0) {
+        wfmNightShiftCost.count += 1;
+        wfmNightShiftCost.amount += r.night_allowance_amount;
+      }
+    }
+  }
+
   return {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
     quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOverdueCount, quoteSource,
     casesByStatus, workOrdersByStatus,
     techniciansByStatus, invoicesByStatus, invoiceTotals, topAccountsByRevenue,
     contractStats, recentActivity, accountNews,
+    wfmAttendanceBySite, wfmNightShiftCost,
   };
 }
 

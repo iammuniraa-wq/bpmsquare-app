@@ -430,7 +430,8 @@ export type AnalyticsMetricId =
   | "technician_availability" | "revenue_overview"
   | "invoices_by_status" | "loaner_availability" | "recent_activity"
   | "account_news"
-  | "quote_outcomes" | "quote_overdue" | "quote_source";
+  | "quote_outcomes" | "quote_overdue" | "quote_source"
+  | "wfm_attendance_today" | "wfm_night_shift_cost";
 
 // Dashboard layout block — covers native cards and analytics widgets.
 // id is a NativeDashBlockId or AnalyticsMetricId string.

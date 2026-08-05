@@ -333,6 +333,8 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   quote_outcomes:         { label: "Quote won/lost value" },
   quote_overdue:          { label: "Quote overdue" },
   quote_source:           { label: "Quote source (cases vs standalone)" },
+  wfm_attendance_today:   { label: "Attendance by site (today)", feature: "wfm" },
+  wfm_night_shift_cost:   { label: "Night shift cost (today)",   feature: "wfm" },
 };
 
 export default function ReportsClient({
@@ -695,6 +697,37 @@ export default function ReportsClient({
               <div style={{ fontSize: 10, color: c.hint }}>Total AMC value</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: pillar.green.fg }}>{inr(a.contractStats.totalValue)}</div>
             </Link>
+          </div>
+        </ChartCard>}
+      </div>
+      )}
+
+      {/* ── Row 3b: WFM attendance by site · Night shift cost ── */}
+      {(isVisible("wfm_attendance_today") || isVisible("wfm_night_shift_cost")) && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
+
+        {isVisible("wfm_attendance_today") && <ChartCard title="Attendance by site (today)" href={ROUTES.wfmLiveBoard}>
+          {a.wfmAttendanceBySite.length === 0 ? (
+            <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No employees yet.</div>
+          ) : (
+            a.wfmAttendanceBySite.map((s) => (
+              <div key={s.site} style={{ padding: "8px 0", borderBottom: `1px solid ${c.line}` }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: c.ink, marginBottom: 4 }}>{s.site}</div>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <span style={{ fontSize: 11, color: pillar.green.fg }}>{s.onTime} on time</span>
+                  <span style={{ fontSize: 11, color: pillar.amber.fg }}>{s.late} late</span>
+                  <span style={{ fontSize: 11, color: pillar.red.fg }}>{s.absent} absent</span>
+                </div>
+              </div>
+            ))
+          )}
+        </ChartCard>}
+
+        {isVisible("wfm_night_shift_cost") && <ChartCard title="Night shift cost (today)" href={ROUTES.wfmLiveBoard}>
+          <GaugeChart value={a.wfmNightShiftCost.count} max={Math.max(a.wfmNightShiftCost.count, 1)} color={pillar.purple.base} label="on night shift" />
+          <div style={{ textAlign: "center", marginTop: 8 }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: pillar.purple.fg }}>{inr(a.wfmNightShiftCost.amount)}</div>
+            <div style={{ fontSize: 10, color: c.hint }}>allowance today</div>
           </div>
         </ChartCard>}
       </div>

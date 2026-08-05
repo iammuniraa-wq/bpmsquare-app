@@ -126,6 +126,10 @@ export type AnalyticsData = {
   contractStats: { activeCount: number; totalValue: number };
   recentActivity: Array<{ text: string; at: string; pillar: Activity["pillar"]; accountName: string }>;
   accountNews: Array<{ title: string; url: string; source: string; publishedAt: string; accountName: string }>;
+  // WFM (only populated when the tenant has features.wfm on) -- today's
+  // snapshot, not a historical trend (see getWfmLiveBoardSnapshot).
+  wfmAttendanceBySite: Array<{ site: string; onTime: number; late: number; absent: number }>;
+  wfmNightShiftCost: { count: number; amount: number };
 };
 
 // ── Display label maps ────────────────────────────────────────────────────────
