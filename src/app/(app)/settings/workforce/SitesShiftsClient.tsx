@@ -32,7 +32,7 @@ const btnPrimary: React.CSSProperties = {
 
 const hhmm = (t: string) => t.slice(0, 5);
 
-export default function WfmSetupClient({ canEdit }: { canEdit: boolean }) {
+export default function SitesShiftsClient({ canEdit }: { canEdit: boolean }) {
   const [sites, setSites] = useState<WfmSite[]>([]);
   const [shifts, setShifts] = useState<WfmShift[]>([]);
   const [error, setError] = useState("");

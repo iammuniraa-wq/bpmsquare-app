@@ -108,7 +108,6 @@ const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; color?: st
   [ROUTES.dataWorkbench]: Clipboard,
   [ROUTES.wfmLiveBoard]: Activity,
   [ROUTES.wfmEmployees]: Phone,
-  [ROUTES.wfmSetup]: MapPin,
 };
 
 function NavGlyph({ href, fallback, size = 14 }: { href: string; fallback: string; size?: number }) {

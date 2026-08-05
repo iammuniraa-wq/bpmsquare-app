@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ROUTES } from "@/lib/constants";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useUserRole } from "@/lib/tenant-context";
+import { useUserRole, useTenantFeature } from "@/lib/tenant-context";
 
 // ── Settings hub — a menu of destinations, not a growing list of tabs ───────
 //
@@ -19,6 +19,8 @@ type SettingsCard = {
   icon: string;
   pillarKey: PillarKey;
   adminOnly: boolean;
+  /** Hidden entirely when this tenant feature is off (module not enabled). */
+  featureKey?: "wfm";
 };
 
 const SECTIONS: { group: string; items: SettingsCard[] }[] = [
@@ -35,6 +37,7 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
       { label: "Entities & Tax", description: "Legal entities, print branding, and tax settings for quotations and PDFs", href: ROUTES.settingsEntities, icon: "⌂", pillarKey: "teal", adminOnly: true },
       { label: "Statuses & assets", description: "Configure pipeline stages and equipment print fields", href: ROUTES.settingsStatuses, icon: "▦", pillarKey: "teal", adminOnly: true },
       { label: "Sales config", description: "Manage territory and sales org picklist values", href: ROUTES.settingsSales, icon: "▤", pillarKey: "teal", adminOnly: true },
+      { label: "Workforce", description: "Attendance rules, timezone, break deduction, leave and retention — plus punch sites and shifts", href: ROUTES.settingsWorkforce, icon: "⧖", pillarKey: "amber", adminOnly: true, featureKey: "wfm" },
     ],
   },
   {
@@ -87,6 +90,7 @@ function SettingsTile({ item }: { item: SettingsCard }) {
 export default function SettingsHubPage() {
   const role = useUserRole();
   const isAdmin = role === "admin";
+  const wfmEnabled = useTenantFeature("wfm");
 
   return (
     <div style={{ maxWidth: 780 }}>
@@ -98,7 +102,9 @@ export default function SettingsHubPage() {
       </div>
 
       {SECTIONS.map((section) => {
-        const items = section.items.filter((i) => !i.adminOnly || isAdmin);
+        const items = section.items.filter(
+          (i) => (!i.adminOnly || isAdmin) && (!i.featureKey || wfmEnabled)
+        );
         if (items.length === 0) return null;
         return (
           <div key={section.group} style={{ marginBottom: 22 }}>

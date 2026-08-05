@@ -121,7 +121,7 @@ export const ROUTES = {
   dataWorkbench: "/data-workbench",
   wfmLiveBoard: "/wfm/live-board",
   wfmEmployees: "/wfm/employees",
-  wfmSetup: "/wfm/setup",
+  settingsWorkforce: "/settings/workforce",
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
@@ -230,9 +230,8 @@ export const NAV: NavGroup[] = [
       {
         label: "Workforce", href: ROUTES.wfmLiveBoard, icon: "⧖", pillar: "amber",
         children: [
-          { label: "Live board",     href: ROUTES.wfmLiveBoard, icon: "◉", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
-          { label: "Employees",      href: ROUTES.wfmEmployees, icon: "⚇", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
-          { label: "Sites & Shifts", href: ROUTES.wfmSetup,     icon: "⌖", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
+          { label: "Live board", href: ROUTES.wfmLiveBoard, icon: "◉", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
+          { label: "Employees",  href: ROUTES.wfmEmployees, icon: "⚇", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
         ],
       },
     ],
