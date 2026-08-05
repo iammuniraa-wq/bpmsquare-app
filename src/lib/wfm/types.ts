@@ -110,6 +110,26 @@ export type WfmCorrectionRequest = {
   created_at: string;
 };
 
+// Employee-initiated leave requests (0064) -- same request/approve shape as
+// corrections above; approving inserts a real wfm_leave_records row rather
+// than editing anything in place (see 0064's own header comment).
+export type LeaveRequestStatus = "pending" | "approved" | "rejected";
+
+export type WfmLeaveRequest = {
+  id: string;
+  employee_id: string;
+  leave_type_id: string;
+  date_from: string; // YYYY-MM-DD
+  date_to: string;
+  half_day: boolean;
+  reason_text: string;
+  status: LeaveRequestStatus;
+  supervisor_remark: string | null;
+  resolved_at: string | null;
+  leave_record_id: string | null;
+  created_at: string;
+};
+
 // ── Punch state machine: out → in → [break ↔ in]* → out ──────────────────
 
 export type PunchState = "out" | "in" | "break";

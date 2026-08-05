@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import type { LeaveRequestStatus, WfmLeaveRequest } from "@/lib/wfm/types";
 
 type LeaveType = { id: string; name: string; category: "paid" | "unpaid" | "half_day"; active: boolean; annual_quota: number };
 type Holiday = { id: string; date: string; name: string; applies_to: "all" | "full_time" | "contractor" };
@@ -14,6 +15,14 @@ type LeaveRecord = {
   wfm_leave_types: { name: string; category: string } | null;
 };
 type EmployeeOpt = { id: string; first_name: string; last_name: string; employee_code: string | null };
+type LeaveRequestRow = WfmLeaveRequest & {
+  employees: { first_name: string; last_name: string; employee_code: string | null } | null;
+  wfm_leave_types: { name: string; category: string } | null;
+};
+
+const REQUEST_STATUS_TONE: Record<LeaveRequestStatus, "amber" | "green" | "red"> = {
+  pending: "amber", approved: "green", rejected: "red",
+};
 
 const lbl: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box" };
@@ -21,6 +30,8 @@ const th: React.CSSProperties = { textAlign: "left", color: c.hint, fontWeight: 
 const td: React.CSSProperties = { padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12.5, verticalAlign: "middle" };
 const btn: React.CSSProperties = { padding: "7px 12px", fontSize: 12, fontWeight: 600, borderRadius: 8, border: `1px solid ${c.line}`, background: c.panel, color: c.ink, cursor: "pointer" };
 const btnPrimary: React.CSSProperties = { ...btn, background: "var(--tenant-accent, #378ADD)", borderColor: "transparent", color: "#fff" };
+const btnGreen: React.CSSProperties = { ...btn, background: "#10b981", borderColor: "transparent", color: "#fff" };
+const btnRed: React.CSSProperties = { ...btn, background: "#ef4444", borderColor: "transparent", color: "#fff" };
 const fmtDate = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 export default function LeaveClient() {
@@ -28,24 +39,51 @@ export default function LeaveClient() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [records, setRecords] = useState<LeaveRecord[]>([]);
   const [employees, setEmployees] = useState<EmployeeOpt[]>([]);
+  const [requests, setRequests] = useState<LeaveRequestRow[]>([]);
+  const [requestFilter, setRequestFilter] = useState<"pending" | "all">("pending");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [remark, setRemark] = useState("");
 
   const [typeForm, setTypeForm] = useState({ name: "", category: "paid" as LeaveType["category"], annual_quota: "12" });
   const [holidayForm, setHolidayForm] = useState({ date: "", name: "", applies_to: "all" as Holiday["applies_to"] });
   const [recordForm, setRecordForm] = useState({ employee_id: "", leave_type_id: "", date_from: "", date_to: "", half_day: false, remarks: "" });
 
   const load = useCallback(async () => {
-    const [t, h, r, e] = await Promise.all([
+    const [t, h, r, e, q] = await Promise.all([
       fetch("/api/wfm/leave-types"), fetch("/api/wfm/holidays"), fetch("/api/wfm/leave-records"), fetch("/api/wfm/employees"),
+      fetch(requestFilter === "pending" ? "/api/wfm/leave-requests?status=pending" : "/api/wfm/leave-requests"),
     ]);
     if (t.ok) setTypes(await t.json()); else setError((await t.json()).error ?? "Failed to load");
     if (h.ok) setHolidays(await h.json());
     if (r.ok) setRecords(await r.json());
     if (e.ok) setEmployees(await e.json());
-  }, []);
+    if (q.ok) setRequests(await q.json());
+  }, [requestFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function resolveRequest(id: string, action: "approve" | "reject", supervisor_remark?: string) {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/wfm/leave-requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, supervisor_remark }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "Request failed"); return; }
+      setRejecting(null);
+      setRemark("");
+      await load();
+    } catch {
+      setError("Network error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function post(url: string, body: unknown, method = "POST") {
     setBusy(true);
@@ -99,6 +137,67 @@ export default function LeaveClient() {
   return (
     <>
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
+
+      <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: `1px solid ${c.line}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Leave requests</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={requestFilter === "pending" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setRequestFilter("pending")}>Pending</button>
+            <button style={requestFilter === "all" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setRequestFilter("all")}>All</button>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={th}>Employee</th><th style={th}>Type</th><th style={th}>From</th><th style={th}>To</th>
+              <th style={th}>Reason</th><th style={th}>Status</th><th style={th}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map((r) => (
+              <tr key={r.id}>
+                <td style={{ ...td, fontWeight: 600, color: c.ink }}>
+                  {r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}
+                  {r.employees?.employee_code && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>{r.employees.employee_code}</span>}
+                </td>
+                <td style={td}>{r.wfm_leave_types?.name ?? "—"}{r.half_day && <span style={{ color: c.hint }}> (half-day)</span>}</td>
+                <td style={td}>{fmtDate(r.date_from)}</td>
+                <td style={td}>{fmtDate(r.date_to)}</td>
+                <td style={{ ...td, maxWidth: 220, color: c.muted }}>{r.reason_text}</td>
+                <td style={td}>
+                  <Pill label={r.status} tone={REQUEST_STATUS_TONE[r.status]} />
+                  {r.supervisor_remark && <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>{r.supervisor_remark}</div>}
+                </td>
+                <td style={{ ...td, whiteSpace: "nowrap" }}>
+                  {r.status === "pending" && (
+                    rejecting === r.id ? (
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <input
+                          autoFocus
+                          value={remark}
+                          onChange={(e) => setRemark(e.target.value)}
+                          placeholder="Reason (required)"
+                          style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: `1px solid ${c.line}`, width: 130 }}
+                        />
+                        <button style={btnRed} disabled={busy || !remark.trim()} onClick={() => resolveRequest(r.id, "reject", remark)}>Confirm</button>
+                        <button style={btn} disabled={busy} onClick={() => { setRejecting(null); setRemark(""); }}>Cancel</button>
+                      </div>
+                    ) : (
+                      <>
+                        <button style={btnGreen} disabled={busy} onClick={() => resolveRequest(r.id, "approve")}>Approve</button>{" "}
+                        <button style={btnRed} disabled={busy} onClick={() => setRejecting(r.id)}>Reject</button>
+                      </>
+                    )
+                  )}
+                </td>
+              </tr>
+            ))}
+            {requests.length === 0 && (
+              <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No {requestFilter === "pending" ? "pending" : ""} requests.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </section>
 
       <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
         <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Leave types</div>

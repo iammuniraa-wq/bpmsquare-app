@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
-import type { PresenceKind, PunchState } from "@/lib/wfm/types";
+import type { PresenceKind, PunchState, LeaveRequestStatus } from "@/lib/wfm/types";
 import { enqueuePunch, flushQueue, listQueuedPunches } from "@/lib/wfm/offlineQueue";
 
 // The consent copy ships separately (bilingual EN + regional). Placeholder
@@ -20,11 +20,8 @@ By tapping "I agree", you consent to this collection under India's DPDP Act.`;
 
 type MeState = {
   employee: {
-    id: string;
-    full_name: string;
-    employee_code: string | null;
-    wfm_role: "employee" | "supervisor";
-    consent_recorded_at: string | null;
+    id: string; full_name: string; employee_code: string | null;
+    wfm_role: "employee" | "supervisor"; consent_recorded_at: string | null;
   } | null;
   is_supervisor: boolean;
   state: PunchState;
@@ -37,23 +34,47 @@ type MeState = {
 };
 
 type MonthTotals = {
-  days_present: number;
-  working_minutes: number;
-  late_marks: number;
-  half_day_deductions: number;
-  paid_leave_days: number;
-  unpaid_leave_days: number;
-  holiday_days: number;
+  days_present: number; working_minutes: number; late_marks: number;
+  half_day_deductions: number; paid_leave_days: number; unpaid_leave_days: number;
+  holiday_days: number; night_shifts: number; night_allowance_total: number; incomplete_days: number;
 };
-
-type LeaveBalance = { name: string; category: string; quota: number; used: number; balance: number };
+type DayRecord = {
+  date: string; first_in: string | null; last_out: string | null;
+  net_minutes: number; gross_minutes: number; late: boolean; absent: boolean;
+  incomplete: boolean; on_leave: { name: string; category: string } | null;
+  holiday: string | null; is_week_off: boolean; punches: number;
+};
+type LeaveBalance = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number };
 type Holiday = { id: string; date: string; name: string; applies_to: string };
 type CorrectionRequest = {
   id: string; target_date: string; status: "pending" | "approved" | "rejected";
   requested_change: { issue: string }; reason_text: string; supervisor_remark: string | null;
 };
+type LeaveRequest = {
+  id: string; date_from: string; date_to: string; half_day: boolean;
+  reason_text: string; status: LeaveRequestStatus; supervisor_remark: string | null;
+  wfm_leave_types: { name: string; category: string } | null;
+};
+type TrendPoint = {
+  month: string; working_minutes: number; days_present: number;
+  late_marks: number; paid_leave_days: number; unpaid_leave_days: number; incomplete_days: number;
+};
+type Analytics = {
+  month: string; is_supervisor: boolean; trend: TrendPoint[];
+  current: TrendPoint; previous: TrendPoint | null; on_time_rate: number | null;
+  team: { employee_count: number; avg_working_minutes: number; avg_days_present: number; avg_late_marks: number; total_incomplete_days: number } | null;
+};
 
 type Geo = { lat: number; lng: number; accuracy_m: number } | null;
+type Tab = "home" | "time" | "leave" | "calendar" | "analytics";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "home", label: "Home" },
+  { key: "time", label: "Time" },
+  { key: "leave", label: "Leave" },
+  { key: "calendar", label: "Calendar" },
+  { key: "analytics", label: "Analytics" },
+];
 
 const KIND_LABEL: Record<PresenceKind, string> = {
   check_in: "Check in", check_out: "Check out", break_start: "Break", break_end: "End break",
@@ -64,9 +85,12 @@ const ISSUE_LABEL: Record<string, string> = {
 };
 const STATUS_TONE: Record<string, "amber" | "green" | "red"> = { pending: "amber", approved: "green", rejected: "red" };
 
-const fmtHM = (mins: number) => `${Math.floor(mins / 60)}h ${String(Math.abs(mins) % 60).padStart(2, "0")}m`;
+const fmtHM = (mins: number) => `${Math.floor(mins / 60)}h ${String(Math.abs(Math.round(mins)) % 60).padStart(2, "0")}m`;
 const fmtTime = (s: string) => new Date(s).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 const fmtDate = (s: string) => new Date(s + (s.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+const fmtMonth = (m: string) => new Date(m + "-01T00:00:00").toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
+const todayKey = () => new Date().toISOString().slice(0, 10);
+const thisMonth = () => new Date().toISOString().slice(0, 7);
 
 function getGeo(timeoutMs: number): Promise<Geo> {
   return new Promise((resolve) => {
@@ -92,24 +116,78 @@ function frameToBlob(video: HTMLVideoElement): Promise<Blob | null> {
 }
 
 const btn: React.CSSProperties = {
-  padding: "10px 16px", fontSize: 13, fontWeight: 600, borderRadius: 10,
+  padding: "9px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 9,
   border: `1px solid ${c.line}`, background: c.panel, color: c.ink, cursor: "pointer",
 };
 const btnPrimary: React.CSSProperties = { ...btn, background: "var(--tenant-accent, #378ADD)", borderColor: "transparent", color: "#fff" };
+const inp: React.CSSProperties = {
+  width: "100%", padding: "8px 11px", fontSize: 12.5, border: `1px solid ${c.line}`,
+  borderRadius: 8, background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
+};
+const lbl: React.CSSProperties = { display: "block", fontSize: 11, color: c.muted, marginBottom: 4 };
+const capStyle: React.CSSProperties = {
+  fontSize: 11.5, fontWeight: 700, color: c.hint, textTransform: "uppercase",
+  letterSpacing: 0.4, marginBottom: 8,
+};
+const th: React.CSSProperties = { textAlign: "left", color: c.hint, fontWeight: 500, padding: "8px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 11.5, whiteSpace: "nowrap" };
+const td: React.CSSProperties = { padding: "8px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12.5 };
+const grid = (min: number): React.CSSProperties => ({
+  display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))`, gap: 14,
+});
+
+function Stat({ value, label, tone }: { value: string; label: string; tone?: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 21, fontWeight: 700, color: tone ?? c.ink }}>{value}</div>
+      <div style={{ fontSize: 11.5, color: c.muted }}>{label}</div>
+    </div>
+  );
+}
+
+function Bars({ points, valueOf, format }: { points: TrendPoint[]; valueOf: (p: TrendPoint) => number; format: (n: number) => string }) {
+  const max = Math.max(1, ...points.map(valueOf));
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110, marginTop: 6 }}>
+      {points.map((p) => {
+        const v = valueOf(p);
+        return (
+          <div key={p.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+            <div style={{ fontSize: 10, color: c.hint, whiteSpace: "nowrap" }}>{format(v)}</div>
+            <div
+              title={`${fmtMonth(p.month)}: ${format(v)}`}
+              style={{
+                width: "100%", maxWidth: 46, borderRadius: "5px 5px 0 0",
+                height: `${Math.max(3, (v / max) * 100)}%`,
+                background: "var(--tenant-accent, #378ADD)", opacity: v === 0 ? 0.25 : 1,
+              }}
+            />
+            <div style={{ fontSize: 10.5, color: c.muted, whiteSpace: "nowrap" }}>{fmtMonth(p.month)}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function MeClient() {
+  const [tab, setTab] = useState<Tab>("home");
   const [me, setMe] = useState<MeState | null>(null);
   const [monthTotals, setMonthTotals] = useState<MonthTotals | null>(null);
+  const [days, setDays] = useState<DayRecord[]>([]);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance[]>([]);
-  const [nextHoliday, setNextHoliday] = useState<Holiday | null>(null);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [corrections, setCorrections] = useState<CorrectionRequest[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
   const [cameraFor, setCameraFor] = useState<PresenceKind | null>(null);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
-  const [correctionDraft, setCorrectionDraft] = useState({ target_date: new Date().toISOString().slice(0, 10), issue: "missing_check_out", proposed_ts: "", reason_text: "" });
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [correctionDraft, setCorrectionDraft] = useState({ target_date: todayKey(), issue: "missing_check_out", proposed_ts: "", reason_text: "" });
+  const [leaveDraft, setLeaveDraft] = useState({ leave_type_id: "", date_from: todayKey(), date_to: todayKey(), half_day: false, reason_text: "" });
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -120,27 +198,25 @@ export default function MeClient() {
       if (!res.ok) { setLoadError(json.error ?? "Could not load"); return; }
       setMe(json);
       setLoadError("");
+      if (!json.employee?.consent_recorded_at) return;
 
-      if (json.employee?.consent_recorded_at) {
-        const month = new Date().toISOString().slice(0, 7);
-        const [tsRes, holRes, corrRes] = await Promise.all([
-          fetch(`/api/wfm/me/timesheet?month=${month}`),
-          fetch("/api/wfm/holidays"),
-          fetch("/api/wfm/corrections"),
-        ]);
-        if (tsRes.ok) {
-          const ts = await tsRes.json();
-          setMonthTotals(ts.summary?.totals ?? null);
-          setLeaveBalance(ts.leave_balance ?? []);
-        }
-        if (holRes.ok) {
-          const holidays: Holiday[] = await holRes.json();
-          const today = new Date().toISOString().slice(0, 10);
-          const upcoming = holidays.filter((h) => h.date >= today).sort((a, b) => a.date.localeCompare(b.date));
-          setNextHoliday(upcoming[0] ?? null);
-        }
-        if (corrRes.ok) setCorrections((await corrRes.json()).slice(0, 5));
+      const [tsRes, holRes, corrRes, leaveRes, anRes] = await Promise.all([
+        fetch(`/api/wfm/me/timesheet?month=${thisMonth()}`),
+        fetch("/api/wfm/holidays"),
+        fetch("/api/wfm/corrections"),
+        fetch("/api/wfm/leave-requests"),
+        fetch("/api/wfm/me/analytics"),
+      ]);
+      if (tsRes.ok) {
+        const ts = await tsRes.json();
+        setMonthTotals(ts.summary?.totals ?? null);
+        setDays(ts.summary?.days ?? []);
+        setLeaveBalance(ts.leave_balance ?? []);
       }
+      if (holRes.ok) setHolidays(await holRes.json());
+      if (corrRes.ok) setCorrections(await corrRes.json());
+      if (leaveRes.ok) setLeaveRequests(await leaveRes.json());
+      if (anRes.ok) setAnalytics(await anRes.json());
     } catch {
       setLoadError("Network error — check your connection");
     }
@@ -199,9 +275,8 @@ export default function MeClient() {
       });
       const json = await res.json();
       if (!res.ok) { setNotice({ tone: "err", text: json.error ?? "Punch failed" }); return; }
-      const t = fmtTime(ts);
       const where = json.site_name ? `at ${json.site_name}` : json.within_geofence === false ? "— location noted" : "";
-      setNotice({ tone: json.within_geofence === false ? "warn" : "ok", text: `${KIND_LABEL[kind]} recorded at ${t} ${where}.` });
+      setNotice({ tone: json.within_geofence === false ? "warn" : "ok", text: `${KIND_LABEL[kind]} recorded at ${fmtTime(ts)} ${where}.` });
       if (selfie) {
         const form = new FormData();
         form.append("event_id", id);
@@ -252,12 +327,13 @@ export default function MeClient() {
         : undefined;
       const res = await fetch("/api/wfm/corrections", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_date: correctionDraft.target_date, issue: correctionDraft.issue, proposed_ts, reason_text: correctionDraft.reason_text.trim() }),
+        body: JSON.stringify({ ...correctionDraft, proposed_ts, reason_text: correctionDraft.reason_text.trim() }),
       });
       const json = await res.json();
       if (!res.ok) { setNotice({ tone: "err", text: json.error ?? "Could not submit" }); return; }
       setShowCorrectionForm(false);
-      setCorrectionDraft({ target_date: new Date().toISOString().slice(0, 10), issue: "missing_check_out", proposed_ts: "", reason_text: "" });
+      setCorrectionDraft({ target_date: todayKey(), issue: "missing_check_out", proposed_ts: "", reason_text: "" });
+      setNotice({ tone: "ok", text: "Correction request submitted — your supervisor will review it." });
       await load();
     } catch {
       setNotice({ tone: "err", text: "Network error" });
@@ -266,12 +342,32 @@ export default function MeClient() {
     }
   }
 
-  if (loadError) {
-    return <div style={{ ...cardStyle, color: "#ef4444", fontSize: 13 }}>{loadError}</div>;
+  async function submitLeaveRequest() {
+    if (!leaveDraft.leave_type_id) { setNotice({ tone: "err", text: "Please choose a leave type" }); return; }
+    if (!leaveDraft.reason_text.trim()) { setNotice({ tone: "err", text: "Please give a reason" }); return; }
+    if (leaveDraft.date_to < leaveDraft.date_from) { setNotice({ tone: "err", text: "End date can't be before start date" }); return; }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/wfm/leave-requests", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...leaveDraft, reason_text: leaveDraft.reason_text.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setNotice({ tone: "err", text: json.error ?? "Could not submit" }); return; }
+      setShowLeaveForm(false);
+      setLeaveDraft({ leave_type_id: "", date_from: todayKey(), date_to: todayKey(), half_day: false, reason_text: "" });
+      setNotice({ tone: "ok", text: "Leave request submitted — your supervisor will review it." });
+      await load();
+    } catch {
+      setNotice({ tone: "err", text: "Network error" });
+    } finally {
+      setBusy(false);
+    }
   }
-  if (!me) {
-    return <div style={{ ...cardStyle, color: c.hint, fontSize: 13 }}>Loading…</div>;
-  }
+
+  if (loadError) return <div style={{ ...cardStyle, color: "#ef4444", fontSize: 13 }}>{loadError}</div>;
+  if (!me) return <div style={{ ...cardStyle, color: c.hint, fontSize: 13 }}>Loading…</div>;
+
   if (!me.employee) {
     return (
       <div style={cardStyle}>
@@ -293,8 +389,6 @@ export default function MeClient() {
     );
   }
 
-  const tone = { ok: "#10b981", warn: c.amber, err: "#ef4444" };
-
   if (cameraFor) {
     return (
       <div style={{ ...cardStyle, maxWidth: 440 }}>
@@ -311,148 +405,360 @@ export default function MeClient() {
     );
   }
 
+  const toneColor = { ok: "#10b981", warn: c.amber, err: "#ef4444" };
+  const upcoming = holidays.filter((h) => h.date >= todayKey()).sort((a, b) => a.date.localeCompare(b.date));
+  const nextHoliday = upcoming[0] ?? null;
+  const pendingLeave = leaveRequests.filter((r) => r.status === "pending").length;
+  const pendingCorr = corrections.filter((r) => r.status === "pending").length;
+
+  // The punch card is one tile among several, and check in/out happens
+  // straight from it -- no separate punch screen (the ADP pattern the
+  // client asked for).
+  const punchTile = (
+    <section style={{ ...cardStyle, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+      <div>
+        <div style={capStyle}>Punch</div>
+        <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1, color: c.ink }}>{fmtHM(me.running_minutes)}</div>
+        <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
+          {me.state === "out" && me.today.length === 0 && "Not checked in yet"}
+          {me.state === "out" && me.today.length > 0 && "Checked out for today"}
+          {me.state === "in" && "You're checked in"}
+          {me.state === "break" && "On break"}
+          {me.break_minutes > 0 && ` · breaks ${fmtHM(me.break_minutes)} (not counted)`}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        {me.state === "out" && <button style={{ ...btnPrimary, background: "#10b981", padding: "12px 24px", fontSize: 14 }} disabled={busy} onClick={() => openCamera("check_in")}>Check in</button>}
+        {me.state === "in" && (
+          <>
+            <button style={{ ...btnPrimary, background: "#ef4444", padding: "12px 24px", fontSize: 14 }} disabled={busy} onClick={() => openCamera("check_out")}>Check out</button>
+            <button style={btn} disabled={busy} onClick={() => submitPunch("break_start", null)}>☕ Break</button>
+          </>
+        )}
+        {me.state === "break" && (
+          <>
+            <button style={{ ...btnPrimary, padding: "12px 24px", fontSize: 14 }} disabled={busy} onClick={() => submitPunch("break_end", null)}>End break</button>
+            <button style={btn} disabled={busy} onClick={() => openCamera("check_out")}>Check out</button>
+          </>
+        )}
+      </div>
+      {notice && <div style={{ marginTop: 12, fontSize: 12.5, color: toneColor[notice.tone] }}>{notice.text}</div>}
+    </section>
+  );
+
   return (
     <>
+      <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap" }}>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={tab === t.key ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn}
+          >
+            {t.label}
+            {t.key === "leave" && pendingLeave > 0 && <span style={{ marginLeft: 6, opacity: 0.85 }}>({pendingLeave})</span>}
+          </button>
+        ))}
+      </div>
+
       {queuedCount > 0 && (
         <div style={{ ...cardStyle, marginBottom: 14, color: c.amber, fontSize: 12.5 }}>{queuedCount} punch(es) pending sync</div>
       )}
 
-      {/* Punch card */}
-      <section style={{ ...cardStyle, textAlign: "center", marginBottom: 14 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: c.ink }}>{me.employee.full_name}</div>
-        <div style={{ fontSize: 12, color: c.muted, marginTop: 3 }}>
-          {me.employee.employee_code}
-          {me.shift && <> · {me.shift.name} ({me.shift.start_time.slice(0, 5)}–{me.shift.end_time.slice(0, 5)})</>}
-          {me.home_site && <> · {me.home_site.name}</>}
-        </div>
+      {tab === "home" && (
+        <>
+          <div style={{ ...grid(260), marginBottom: 14 }}>
+            {punchTile}
 
-        <div style={{ margin: "16px 0 4px", fontSize: 36, fontWeight: 800, letterSpacing: -1, color: c.ink }}>{fmtHM(me.running_minutes)}</div>
-        {me.break_minutes > 0 && <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 4 }}>breaks: {fmtHM(me.break_minutes)} (not counted)</div>}
-        <div style={{ fontSize: 12, color: c.muted, marginBottom: 16 }}>
-          {me.state === "out" && me.today.length === 0 && "Not checked in yet"}
-          {me.state === "out" && me.today.length > 0 && "Checked out — see you tomorrow"}
-          {me.state === "in" && "You're checked in"}
-          {me.state === "break" && "On break"}
-        </div>
+            <section style={cardStyle}>
+              <div style={capStyle}>This month</div>
+              {monthTotals ? (
+                <>
+                  <Stat value={fmtHM(monthTotals.working_minutes)} label={`working hours · ${monthTotals.days_present} days present`} />
+                  <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 11.5, color: c.muted, flexWrap: "wrap" }}>
+                    <span style={{ color: monthTotals.late_marks > 0 ? pillar.amber.fg : undefined }}>{monthTotals.late_marks} late</span>
+                    <span>{monthTotals.paid_leave_days + monthTotals.unpaid_leave_days} leave</span>
+                    <span>{monthTotals.holiday_days} holidays</span>
+                  </div>
+                </>
+              ) : <div style={{ fontSize: 12, color: c.hint }}>—</div>}
+              <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("time")}>View timesheet</button>
+            </section>
 
-        {me.state === "out" && <button style={{ ...btnPrimary, background: "#10b981", padding: "14px 32px", fontSize: 15 }} disabled={busy} onClick={() => openCamera("check_in")}>Check in</button>}
-        {me.state === "in" && (
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-            <button style={{ ...btnPrimary, background: "#ef4444", padding: "14px 32px", fontSize: 15 }} disabled={busy} onClick={() => openCamera("check_out")}>Check out</button>
-            <button style={btn} disabled={busy} onClick={() => submitPunch("break_start", null)}>☕ Start break</button>
+            <section style={cardStyle}>
+              <div style={capStyle}>Leave</div>
+              {leaveBalance.length === 0 ? (
+                <div style={{ fontSize: 12, color: c.hint }}>No leave types configured.</div>
+              ) : (
+                leaveBalance.slice(0, 3).map((lb) => (
+                  <div key={lb.leave_type_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "3px 0" }}>
+                    <span style={{ color: c.ink }}>{lb.name}</span>
+                    <span style={{ color: lb.balance <= 0 ? "#ef4444" : c.muted }}>{lb.balance} / {lb.quota}</span>
+                  </div>
+                ))
+              )}
+              {pendingLeave > 0 && <div style={{ fontSize: 11.5, color: c.amber, marginTop: 8 }}>{pendingLeave} request(s) awaiting approval</div>}
+              <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("leave")}>Request leave</button>
+            </section>
+
+            <section style={cardStyle}>
+              <div style={capStyle}>Next holiday</div>
+              {nextHoliday ? (
+                <>
+                  <Stat value={fmtDate(nextHoliday.date)} label={nextHoliday.name} />
+                  <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8 }}>
+                    in {Math.max(0, Math.round((new Date(nextHoliday.date + "T00:00:00").getTime() - new Date(todayKey() + "T00:00:00").getTime()) / 86_400_000))} day(s)
+                  </div>
+                </>
+              ) : <div style={{ fontSize: 12, color: c.hint }}>None scheduled.</div>}
+              <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View calendar</button>
+            </section>
           </div>
-        )}
-        {me.state === "break" && (
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-            <button style={{ ...btnPrimary, padding: "14px 32px", fontSize: 15 }} disabled={busy} onClick={() => submitPunch("break_end", null)}>End break</button>
-            <button style={btn} disabled={busy} onClick={() => openCamera("check_out")}>Check out</button>
+
+          {me.today.length > 0 && (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <div style={capStyle}>Today&apos;s punches</div>
+              {me.today.map((e) => (
+                <div key={e.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5 }}>
+                  <span style={{ color: c.ink }}>{KIND_LABEL[e.kind]}</span>
+                  <span style={{ color: c.hint }}>{fmtTime(e.ts)}</span>
+                </div>
+              ))}
+              <div style={{ fontSize: 11.5, color: c.hint, marginTop: 10 }}>
+                {me.employee.employee_code}
+                {me.shift && <> · {me.shift.name} ({me.shift.start_time.slice(0, 5)}–{me.shift.end_time.slice(0, 5)})</>}
+                {me.home_site && <> · {me.home_site.name}</>}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {tab === "time" && (
+        <>
+          <div style={{ ...grid(200), marginBottom: 14 }}>
+            <section style={cardStyle}><div style={capStyle}>Hours</div><Stat value={fmtHM(monthTotals?.working_minutes ?? 0)} label="this month" /></section>
+            <section style={cardStyle}><div style={capStyle}>Days present</div><Stat value={String(monthTotals?.days_present ?? 0)} label="this month" /></section>
+            <section style={cardStyle}><div style={capStyle}>Late marks</div><Stat value={String(monthTotals?.late_marks ?? 0)} label={`${monthTotals?.half_day_deductions ?? 0} half-day deduction(s)`} tone={(monthTotals?.late_marks ?? 0) > 0 ? pillar.amber.fg : undefined} /></section>
+            <section style={cardStyle}><div style={capStyle}>Incomplete</div><Stat value={String(monthTotals?.incomplete_days ?? 0)} label="days missing a check-out" tone={(monthTotals?.incomplete_days ?? 0) > 0 ? "#ef4444" : undefined} /></section>
           </div>
-        )}
 
-        {notice && <div style={{ marginTop: 14, fontSize: 12.5, color: tone[notice.tone] }}>{notice.text}</div>}
-      </section>
+          <section style={{ ...cardStyle, padding: 0, marginBottom: 14, overflowX: "auto" }}>
+            <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Daily record — {fmtMonth(thisMonth())}</div>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead><tr><th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th><th style={th}>Hours</th><th style={th}>Status</th></tr></thead>
+              <tbody>
+                {days.filter((d) => d.date <= todayKey()).reverse().map((d) => (
+                  <tr key={d.date}>
+                    <td style={{ ...td, color: c.ink, fontWeight: 600 }}>{fmtDate(d.date)}</td>
+                    <td style={td}>{d.first_in ? fmtTime(d.first_in) : "—"}</td>
+                    <td style={td}>{d.last_out ? fmtTime(d.last_out) : "—"}</td>
+                    <td style={td}>{d.punches > 0 ? fmtHM(d.net_minutes) : "—"}</td>
+                    <td style={td}>
+                      {d.holiday ? <Pill label={d.holiday} tone="blue" />
+                        : d.on_leave ? <Pill label={d.on_leave.name} tone="purple" />
+                        : d.is_week_off ? <span style={{ color: c.hint }}>Week off</span>
+                        : d.incomplete ? <Pill label="Incomplete" tone="red" />
+                        : d.absent ? <Pill label="Absent" tone="red" />
+                        : d.late ? <Pill label="Late" tone="amber" />
+                        : d.punches > 0 ? <Pill label="Present" tone="green" />
+                        : <span style={{ color: c.hint }}>—</span>}
+                    </td>
+                  </tr>
+                ))}
+                {days.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={5}>No records this month.</td></tr>}
+              </tbody>
+            </table>
+          </section>
 
-      {/* Today */}
-      {me.today.length > 0 && (
-        <section style={{ ...cardStyle, marginBottom: 14 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink, marginBottom: 8 }}>Today</div>
-          {me.today.map((e) => (
-            <div key={e.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5 }}>
-              <span style={{ color: c.ink }}>{KIND_LABEL[e.kind]}</span>
-              <span style={{ color: c.hint }}>{fmtTime(e.ts)}</span>
+          <section style={cardStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Correction requests{pendingCorr > 0 && <span style={{ color: c.amber, fontWeight: 500 }}> · {pendingCorr} pending</span>}</div>
+              <button style={btn} onClick={() => setShowCorrectionForm((s) => !s)}>{showCorrectionForm ? "Cancel" : "+ Request correction"}</button>
             </div>
-          ))}
+
+            {showCorrectionForm && (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", padding: "10px 0", borderBottom: `1px solid ${c.line}`, marginBottom: 10 }}>
+                <div style={{ flex: "0 1 140px" }}>
+                  <label style={lbl}>Date</label>
+                  <input style={inp} type="date" max={todayKey()} value={correctionDraft.target_date} onChange={(e) => setCorrectionDraft({ ...correctionDraft, target_date: e.target.value })} />
+                </div>
+                <div style={{ flex: "0 1 160px" }}>
+                  <label style={lbl}>Issue</label>
+                  <select style={inp} value={correctionDraft.issue} onChange={(e) => setCorrectionDraft({ ...correctionDraft, issue: e.target.value })}>
+                    {Object.entries(ISSUE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                {correctionDraft.issue !== "other" && (
+                  <div style={{ flex: "0 1 120px" }}>
+                    <label style={lbl}>Correct time</label>
+                    <input style={inp} type="time" value={correctionDraft.proposed_ts} onChange={(e) => setCorrectionDraft({ ...correctionDraft, proposed_ts: e.target.value })} />
+                  </div>
+                )}
+                <div style={{ flex: "1 1 180px" }}>
+                  <label style={lbl}>Reason</label>
+                  <input style={inp} value={correctionDraft.reason_text} onChange={(e) => setCorrectionDraft({ ...correctionDraft, reason_text: e.target.value })} placeholder="e.g. Phone died before I could check out" />
+                </div>
+                <button style={btnPrimary} disabled={busy} onClick={submitCorrection}>Submit</button>
+              </div>
+            )}
+
+            {corrections.length === 0 && !showCorrectionForm && <div style={{ fontSize: 12, color: c.hint }}>No requests yet.</div>}
+            {corrections.map((r) => (
+              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5 }}>
+                <div>
+                  <span style={{ color: c.ink, fontWeight: 600 }}>{fmtDate(r.target_date)}</span>
+                  <span style={{ color: c.muted, marginLeft: 8 }}>{ISSUE_LABEL[r.requested_change.issue] ?? r.requested_change.issue}</span>
+                  {r.supervisor_remark && <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{r.supervisor_remark}</div>}
+                </div>
+                <Pill label={r.status} tone={STATUS_TONE[r.status]} />
+              </div>
+            ))}
+          </section>
+        </>
+      )}
+
+      {tab === "leave" && (
+        <>
+          <div style={{ ...grid(200), marginBottom: 14 }}>
+            {leaveBalance.length === 0 && <section style={cardStyle}><div style={{ fontSize: 12, color: c.hint }}>No leave types configured yet — ask your admin to set them up in Workforce → Leave &amp; Holidays.</div></section>}
+            {leaveBalance.map((lb) => (
+              <section key={lb.leave_type_id} style={cardStyle}>
+                <div style={capStyle}>{lb.name}</div>
+                <Stat value={String(lb.balance)} label={`of ${lb.quota} days left · ${lb.used} used`} tone={lb.balance <= 0 ? "#ef4444" : undefined} />
+                <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{lb.category}</div>
+              </section>
+            ))}
+          </div>
+
+          <section style={cardStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>My leave requests</div>
+              <button style={leaveBalance.length === 0 ? { ...btn, opacity: 0.5 } : btnPrimary} disabled={leaveBalance.length === 0} onClick={() => setShowLeaveForm((s) => !s)}>
+                {showLeaveForm ? "Cancel" : "+ Request leave"}
+              </button>
+            </div>
+
+            {showLeaveForm && (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", padding: "10px 0", borderBottom: `1px solid ${c.line}`, marginBottom: 10 }}>
+                <div style={{ flex: "1 1 150px" }}>
+                  <label style={lbl}>Leave type</label>
+                  <select style={inp} value={leaveDraft.leave_type_id} onChange={(e) => setLeaveDraft({ ...leaveDraft, leave_type_id: e.target.value })}>
+                    <option value="">— select —</option>
+                    {leaveBalance.map((lb) => <option key={lb.leave_type_id} value={lb.leave_type_id}>{lb.name} ({lb.balance} left)</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: "0 1 140px" }}><label style={lbl}>From</label><input style={inp} type="date" value={leaveDraft.date_from} onChange={(e) => setLeaveDraft({ ...leaveDraft, date_from: e.target.value })} /></div>
+                <div style={{ flex: "0 1 140px" }}><label style={lbl}>To</label><input style={inp} type="date" value={leaveDraft.date_to} onChange={(e) => setLeaveDraft({ ...leaveDraft, date_to: e.target.value })} /></div>
+                <div style={{ flex: "0 1 100px" }}>
+                  <label style={lbl}>Half-day</label>
+                  <select style={inp} value={leaveDraft.half_day ? "yes" : "no"} onChange={(e) => setLeaveDraft({ ...leaveDraft, half_day: e.target.value === "yes" })}>
+                    <option value="no">No</option><option value="yes">Yes</option>
+                  </select>
+                </div>
+                <div style={{ flex: "1 1 180px" }}><label style={lbl}>Reason</label><input style={inp} value={leaveDraft.reason_text} onChange={(e) => setLeaveDraft({ ...leaveDraft, reason_text: e.target.value })} placeholder="e.g. Family function" /></div>
+                <button style={btnPrimary} disabled={busy} onClick={submitLeaveRequest}>Submit</button>
+              </div>
+            )}
+
+            {leaveRequests.length === 0 && !showLeaveForm && <div style={{ fontSize: 12, color: c.hint }}>No leave requests yet.</div>}
+            {leaveRequests.map((r) => (
+              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5, gap: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ color: c.ink, fontWeight: 600 }}>{r.wfm_leave_types?.name ?? "Leave"}</span>
+                  <span style={{ color: c.muted, marginLeft: 8 }}>
+                    {fmtDate(r.date_from)}{r.date_to !== r.date_from && ` – ${fmtDate(r.date_to)}`}{r.half_day && " (half-day)"}
+                  </span>
+                  <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{r.reason_text}</div>
+                  {r.supervisor_remark && <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Supervisor: {r.supervisor_remark}</div>}
+                </div>
+                <Pill label={r.status} tone={STATUS_TONE[r.status]} />
+              </div>
+            ))}
+          </section>
+        </>
+      )}
+
+      {tab === "calendar" && (
+        <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
+          <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Company holidays</div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr><th style={th}>Date</th><th style={th}>Holiday</th><th style={th}>Applies to</th><th style={th}></th></tr></thead>
+            <tbody>
+              {holidays.map((h) => {
+                const past = h.date < todayKey();
+                return (
+                  <tr key={h.id} style={{ opacity: past ? 0.5 : 1 }}>
+                    <td style={{ ...td, color: c.ink, fontWeight: 600 }}>{new Date(h.date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                    <td style={td}>{h.name}</td>
+                    <td style={{ ...td, color: c.muted }}>{h.applies_to === "all" ? "Everyone" : h.applies_to === "full_time" ? "Full-time" : "Contractors"}</td>
+                    <td style={td}>{h.date === todayKey() ? <Pill label="Today" tone="green" /> : past ? <span style={{ color: c.hint, fontSize: 11 }}>past</span> : <span style={{ color: c.hint, fontSize: 11 }}>upcoming</span>}</td>
+                  </tr>
+                );
+              })}
+              {holidays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>No holidays configured.</td></tr>}
+            </tbody>
+          </table>
         </section>
       )}
 
-      {/* This month + leave + holiday */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginBottom: 14 }}>
-        <section style={cardStyle}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>This month</div>
-          {monthTotals ? (
-            <>
-              <div style={{ fontSize: 22, fontWeight: 700, color: c.ink }}>{fmtHM(monthTotals.working_minutes)}</div>
-              <div style={{ fontSize: 11.5, color: c.muted, marginBottom: 8 }}>working hours · {monthTotals.days_present} days present</div>
-              <div style={{ display: "flex", gap: 12, fontSize: 11.5, color: c.muted, flexWrap: "wrap" }}>
-                <span style={{ color: monthTotals.late_marks > 0 ? pillar.amber.fg : undefined }}>{monthTotals.late_marks} late</span>
-                <span>{monthTotals.paid_leave_days + monthTotals.unpaid_leave_days} leave</span>
-                <span>{monthTotals.holiday_days} holidays</span>
-              </div>
-            </>
-          ) : <div style={{ fontSize: 12, color: c.hint }}>—</div>}
-        </section>
-
-        <section style={cardStyle}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>Leave balance</div>
-          {leaveBalance.length === 0 ? <div style={{ fontSize: 12, color: c.hint }}>No leave types configured.</div> : leaveBalance.map((lb) => (
-            <div key={lb.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "3px 0" }}>
-              <span style={{ color: c.ink }}>{lb.name}</span>
-              <span style={{ color: lb.balance <= 0 ? "#ef4444" : c.muted }}>{lb.balance} / {lb.quota}</span>
+      {tab === "analytics" && (
+        analytics ? (
+          <>
+            <div style={{ ...grid(200), marginBottom: 14 }}>
+              <section style={cardStyle}>
+                <div style={capStyle}>On-time rate</div>
+                <Stat
+                  value={analytics.on_time_rate === null ? "—" : `${analytics.on_time_rate}%`}
+                  label="of attended days this month"
+                  tone={analytics.on_time_rate !== null && analytics.on_time_rate < 80 ? pillar.amber.fg : "#10b981"}
+                />
+              </section>
+              <section style={cardStyle}>
+                <div style={capStyle}>Hours vs last month</div>
+                {analytics.previous ? (() => {
+                  const diff = analytics.current.working_minutes - analytics.previous.working_minutes;
+                  return <Stat value={`${diff >= 0 ? "+" : "−"}${fmtHM(Math.abs(diff))}`} label={`vs ${fmtMonth(analytics.previous.month)}`} tone={diff >= 0 ? "#10b981" : pillar.amber.fg} />;
+                })() : <Stat value="—" label="no prior month" />}
+              </section>
+              <section style={cardStyle}>
+                <div style={capStyle}>Days present</div>
+                <Stat value={String(analytics.current.days_present)} label="this month" />
+              </section>
+              <section style={cardStyle}>
+                <div style={capStyle}>Leave taken</div>
+                <Stat value={String(analytics.current.paid_leave_days + analytics.current.unpaid_leave_days)} label={`${analytics.current.paid_leave_days} paid · ${analytics.current.unpaid_leave_days} unpaid`} />
+              </section>
             </div>
-          ))}
-        </section>
 
-        <section style={cardStyle}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>Next holiday</div>
-          {nextHoliday ? (
-            <>
-              <div style={{ fontSize: 18, fontWeight: 700, color: c.ink }}>{fmtDate(nextHoliday.date)}</div>
-              <div style={{ fontSize: 12, color: c.muted }}>{nextHoliday.name}</div>
-            </>
-          ) : <div style={{ fontSize: 12, color: c.hint }}>None scheduled.</div>}
-        </section>
-      </div>
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <div style={capStyle}>Working hours — last 6 months</div>
+              <Bars points={analytics.trend} valueOf={(p) => p.working_minutes} format={(n) => (n > 0 ? `${Math.round(n / 60)}h` : "0")} />
+            </section>
 
-      {/* Corrections */}
-      <section style={cardStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Recent corrections</div>
-          <button style={btn} onClick={() => setShowCorrectionForm((s) => !s)}>{showCorrectionForm ? "Cancel" : "+ Request correction"}</button>
-        </div>
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <div style={capStyle}>Late marks — last 6 months</div>
+              <Bars points={analytics.trend} valueOf={(p) => p.late_marks} format={(n) => String(n)} />
+            </section>
 
-        {showCorrectionForm && (
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", padding: "10px 0", borderBottom: `1px solid ${c.line}`, marginBottom: 10 }}>
-            <div style={{ flex: "0 1 140px" }}>
-              <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 4 }}>Date</label>
-              <input type="date" max={new Date().toISOString().slice(0, 10)} value={correctionDraft.target_date}
-                onChange={(e) => setCorrectionDraft({ ...correctionDraft, target_date: e.target.value })}
-                style={{ padding: "7px 10px", fontSize: 12.5, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink }} />
-            </div>
-            <div style={{ flex: "0 1 160px" }}>
-              <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 4 }}>Issue</label>
-              <select value={correctionDraft.issue} onChange={(e) => setCorrectionDraft({ ...correctionDraft, issue: e.target.value })}
-                style={{ padding: "7px 10px", fontSize: 12.5, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, width: "100%" }}>
-                {Object.entries(ISSUE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-            {correctionDraft.issue !== "other" && (
-              <div style={{ flex: "0 1 120px" }}>
-                <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 4 }}>Correct time</label>
-                <input type="time" value={correctionDraft.proposed_ts} onChange={(e) => setCorrectionDraft({ ...correctionDraft, proposed_ts: e.target.value })}
-                  style={{ padding: "7px 10px", fontSize: 12.5, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink }} />
-              </div>
+            {analytics.team && (
+              <section style={cardStyle}>
+                <div style={capStyle}>Team this month · supervisor view</div>
+                <div style={grid(150)}>
+                  <Stat value={String(analytics.team.employee_count)} label="active employees" />
+                  <Stat value={fmtHM(analytics.team.avg_working_minutes)} label="avg hours per employee" />
+                  <Stat value={String(analytics.team.avg_days_present)} label="avg days present" />
+                  <Stat value={String(analytics.team.avg_late_marks)} label="avg late marks" tone={analytics.team.avg_late_marks > 0 ? pillar.amber.fg : undefined} />
+                  <Stat value={String(analytics.team.total_incomplete_days)} label="incomplete days (team)" tone={analytics.team.total_incomplete_days > 0 ? "#ef4444" : undefined} />
+                </div>
+                <div style={{ fontSize: 11.5, color: c.hint, marginTop: 12 }}>
+                  Your own hours this month: {fmtHM(analytics.current.working_minutes)} · team average {fmtHM(analytics.team.avg_working_minutes)}.
+                </div>
+              </section>
             )}
-            <div style={{ flex: "1 1 180px" }}>
-              <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 4 }}>Reason</label>
-              <input value={correctionDraft.reason_text} onChange={(e) => setCorrectionDraft({ ...correctionDraft, reason_text: e.target.value })}
-                placeholder="e.g. Phone died before I could check out"
-                style={{ padding: "7px 10px", fontSize: 12.5, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, width: "100%", boxSizing: "border-box" }} />
-            </div>
-            <button style={btnPrimary} disabled={busy} onClick={submitCorrection}>Submit</button>
-          </div>
-        )}
-
-        {corrections.length === 0 && !showCorrectionForm && <div style={{ fontSize: 12, color: c.hint }}>No requests yet.</div>}
-        {corrections.map((r) => (
-          <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5 }}>
-            <div>
-              <span style={{ color: c.ink, fontWeight: 600 }}>{fmtDate(r.target_date)}</span>
-              <span style={{ color: c.muted, marginLeft: 8 }}>{ISSUE_LABEL[r.requested_change.issue] ?? r.requested_change.issue}</span>
-            </div>
-            <Pill label={r.status} tone={STATUS_TONE[r.status]} />
-          </div>
-        ))}
-      </section>
+          </>
+        ) : <div style={{ ...cardStyle, color: c.hint, fontSize: 13 }}>Loading analytics…</div>
+      )}
     </>
   );
 }
