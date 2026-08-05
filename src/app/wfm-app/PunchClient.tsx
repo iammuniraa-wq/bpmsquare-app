@@ -25,6 +25,7 @@ type MeState = {
   state: PunchState;
   today: { id: string; kind: PresenceKind; ts: string }[];
   running_minutes: number;
+  break_minutes: number;
   home_site: { id: string; name: string } | null;
   shift: { name: string; start_time: string; end_time: string } | null;
   timezone: string;
@@ -325,6 +326,11 @@ export default function PunchClient({ tenantName, accentColor }: { tenantName: s
         <div style={{ margin: "18px 0 6px", fontSize: 40, fontWeight: 800, letterSpacing: -1 }}>
           {fmtHM(me.running_minutes)}
         </div>
+        {me.break_minutes > 0 && (
+          <div style={{ fontSize: 12, color: "#8fa1b3", marginBottom: 4 }}>
+            breaks: {fmtHM(me.break_minutes)} (not counted)
+          </div>
+        )}
         <div style={{ fontSize: 12, color: "#8fa1b3", marginBottom: 18 }}>
           {me.state === "out" && me.today.length === 0 && "Not checked in yet"}
           {me.state === "out" && me.today.length > 0 && "Checked out — see you tomorrow"}
@@ -386,7 +392,7 @@ export default function PunchClient({ tenantName, accentColor }: { tenantName: s
             </div>
           ))}
           <div style={{ fontSize: 11.5, color: "#5f7286", marginTop: 10 }}>
-            Breaks are informational — they are not deducted from your working hours.
+            Break time is recorded and excluded from your working-hours total.
           </div>
         </div>
       )}

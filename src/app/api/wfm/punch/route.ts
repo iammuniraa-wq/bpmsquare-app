@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmEmployee, getWfmConfig, matchSite, dateKeyInTz } from "@/lib/wfm/server";
 import { applyPunch, type PresenceKind, type PunchState, type WfmSite } from "@/lib/wfm/types";
+import { computeDayHours } from "@/lib/wfm/hours";
 
 const KINDS: PresenceKind[] = ["check_in", "check_out", "break_start", "break_end"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -155,10 +156,7 @@ export async function POST(request: NextRequest) {
     .order("ts", { ascending: true });
 
   const todays = (recent ?? []).filter((e) => dateKeyInTz(new Date(e.ts), config.timezone) === todayKey);
-  const firstIn = todays.find((e) => e.kind === "check_in");
-  const runningMinutes = firstIn
-    ? Math.max(0, Math.round((tsDate.getTime() - new Date(firstIn.ts).getTime()) / 60000))
-    : 0;
+  const hours = computeDayHours(todays as { kind: PresenceKind; ts: string }[], tsDate);
 
   return NextResponse.json({
     ok: true,
@@ -166,6 +164,7 @@ export async function POST(request: NextRequest) {
     state: next,
     site_name: within ? site!.name : null,
     within_geofence: within,
-    running_minutes: runningMinutes,
+    running_minutes: config.deduct_breaks ? hours.net_minutes : hours.gross_minutes,
+    break_minutes: hours.break_minutes,
   });
 }

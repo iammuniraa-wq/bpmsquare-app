@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
 import type { PresenceKind, PunchState } from "@/lib/wfm/types";
+import { computeDayHours } from "@/lib/wfm/hours";
 
 function stateFromLastKind(kind: PresenceKind | null): PunchState {
   if (kind === "check_in" || kind === "break_end") return "in";
@@ -62,17 +63,8 @@ export async function GET() {
   const state = stateFromLastKind(lastKind);
 
   const todays = events.filter((e) => dateKeyInTz(new Date(e.ts), config.timezone) === todayKey);
-  const firstIn = todays.find((e) => e.kind === "check_in");
-  const lastOut = [...todays].reverse().find((e) => e.kind === "check_out");
-  const runningMinutes = firstIn
-    ? Math.max(
-        0,
-        Math.round(
-          ((state === "out" && lastOut ? new Date(lastOut.ts).getTime() : now.getTime()) -
-            new Date(firstIn.ts).getTime()) / 60000
-        )
-      )
-    : 0;
+  const hours = computeDayHours(todays as { kind: PresenceKind; ts: string }[], now);
+  const runningMinutes = config.deduct_breaks ? hours.net_minutes : hours.gross_minutes;
 
   return NextResponse.json({
     employee: {
@@ -86,6 +78,7 @@ export async function GET() {
     state,
     today: todays,
     running_minutes: runningMinutes,
+    break_minutes: hours.break_minutes,
     home_site: site ?? null,
     shift: shift ?? null,
     timezone: config.timezone,

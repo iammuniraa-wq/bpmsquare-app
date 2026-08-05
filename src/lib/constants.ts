@@ -391,6 +391,10 @@ export type TenantFeatures = {
 export type WfmConfig = {
   // IANA timezone all attendance day-boundary/lateness logic runs in.
   timezone: string;
+  // Working hours exclude break time (net = out − in − breaks). Client
+  // decision 2026-08-05, overriding the original spec's "breaks are
+  // informational only"; kept as config so a tenant can revert to gross.
+  deduct_breaks: boolean;
   // Every N late marks in a calendar month = 1 half-day deduction (counted
   // in the CA summary only — no money math).
   late_marks_per_half_day: number;
@@ -408,6 +412,7 @@ export type WfmConfig = {
 
 export const DEFAULT_WFM_CONFIG: WfmConfig = {
   timezone: "Asia/Kolkata",
+  deduct_breaks: true,
   late_marks_per_half_day: 3,
   leave_carry_forward: false,
   selfie_retention_days: 90,

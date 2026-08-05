@@ -158,6 +158,13 @@ DashboardLayout, pillar-grouped nav, per-tenant theming via `tenants.config.appe
 (`wfm_` prefix per spec §1's module-identifier directive; `tenant_wfm_config` is JSONB config,
 not a table — §5.)
 
+## 8b. Post-approval spec overrides (client decisions during build)
+
+- **Breaks ARE deducted from working hours** (Abdul, 2026-08-05) — overrides requirements v1.0
+  §4.1/§6 ("breaks are informational only, never deducted"). Implemented in
+  `src/lib/wfm/hours.ts` (`computeDayHours`: net = gross − breaks) behind tenant config
+  `wfm.deduct_breaks` (default **true**); setting it false restores the original spec behaviour.
+
 ## 9. Decisions needing approval (recap)
 
 1. **§1** — WFM tables: read-only RLS for session clients, all writes via API/admin client.
