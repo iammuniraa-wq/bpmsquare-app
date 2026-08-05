@@ -1,7 +1,49 @@
 import { NextResponse, type NextRequest } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { PRIMARY_HOST } from "@/lib/constants";
+
+// Canonical, auto-provisioned Business Roles for a WFM login's default CRM
+// access -- found-or-created by name per tenant. A supervisor gets the wfm
+// workcenter (Live board, Employees, Corrections queue, Leave & Holidays,
+// Monthly Summary); a plain employee gets NONE -- their whole job is
+// punching in via /wfm-app, so there is nothing in the CRM for them (see
+// the (app) layout's redirect for that). Only applied when the login has
+// no Business Role configured yet at all, so it never overrides a tenant
+// admin's own manual role assignment.
+async function ensureDefaultWfmRoleAssigned(
+  admin: SupabaseClient,
+  tenantId: string,
+  userId: string,
+  wfmRole: "employee" | "supervisor"
+): Promise<void> {
+  const { data: existing } = await admin
+    .from("business_user_roles").select("id").eq("tenant_id", tenantId).eq("user_id", userId).limit(1);
+  if (existing && existing.length > 0) return;
+
+  const roleName = wfmRole === "supervisor" ? "WFM Supervisor" : "WFM Employee (No CRM Access)";
+  const { data: existingRole } = await admin
+    .from("business_roles").select("id").eq("tenant_id", tenantId).eq("name", roleName).maybeSingle();
+
+  let roleId = existingRole?.id as string | undefined;
+  if (!roleId) {
+    const { data: role, error: roleErr } = await admin
+      .from("business_roles").insert({ tenant_id: tenantId, name: roleName }).select("id").single();
+    if (roleErr) { console.error("ensureDefaultWfmRoleAssigned: create role failed", roleErr.message); return; }
+    roleId = role.id;
+    if (wfmRole === "supervisor") {
+      const { error: grantErr } = await admin
+        .from("business_role_grants").insert({ tenant_id: tenantId, role_id: roleId, workcenter: "wfm", can_view: true });
+      if (grantErr) console.error("ensureDefaultWfmRoleAssigned: grant failed", grantErr.message);
+    }
+    // wfm_role === "employee": zero grants, intentionally nothing to insert.
+  }
+
+  const { error: assignErr } = await admin
+    .from("business_user_roles").insert({ tenant_id: tenantId, user_id: userId, role_id: roleId });
+  if (assignErr) console.error("ensureDefaultWfmRoleAssigned: assign failed", assignErr.message);
+}
 
 // PATCH /api/wfm/employees/[id] — edit WFM fields, activate/deactivate, or
 // link a login: pass invite_email to invite/attach an auth user as a tenant
@@ -25,7 +67,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: employee } = await admin
     .from("employees")
-    .select("id, first_name, last_name")
+    .select("id, first_name, last_name, wfm_role")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -112,6 +154,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: "Could not add tenant membership" }, { status: 500 });
       }
     }
+
+    const effectiveWfmRole = (patch.wfm_role as "employee" | "supervisor" | undefined) ?? employee.wfm_role;
+    await ensureDefaultWfmRoleAssigned(admin, tenantId, result.userId, effectiveWfmRole);
   }
 
   if (Object.keys(patch).length === 0) {

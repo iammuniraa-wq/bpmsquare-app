@@ -55,6 +55,35 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const supabase = await createServerSupabase();
   const perms = await resolvePermissions(supabase, tenant.id, user.id, userRole ?? "member");
+  const viewable = toViewableWorkcenters(perms);
+
+  // A Business Role granting ZERO workcenters means "nothing in the CRM is
+  // relevant to this login" -- for a WFM field employee (their whole job is
+  // punching in via /wfm-app), landing on an empty CRM shell with nothing to
+  // click is a dead end. Bounce them straight there instead, on every (app)
+  // route, not just "/" -- this layout wraps the whole CRM shell regardless
+  // of device, so the same redirect applies on PC and mobile alike. Safe
+  // against a redirect loop: /wfm-app itself only exists outside this route
+  // group's layout, and its own page bounces back to "/" only when
+  // features.wfm is off, which is exactly the condition checked below.
+  if (Array.isArray(viewable) && viewable.length === 0 && tenant.features?.wfm) {
+    const { data: membership } = await supabase
+      .from("tenant_users")
+      .select("employee_id")
+      .eq("tenant_id", tenant.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (membership?.employee_id) {
+      const { data: employee } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("tenant_id", tenant.id)
+        .eq("id", membership.employee_id)
+        .eq("status", "active")
+        .maybeSingle();
+      if (employee) redirect("/wfm-app");
+    }
+  }
 
   return (
     <TenantProvider tenant={redactTenantForRole(tenant, userRole)} userRole={userRole} viewableWorkcenters={toViewableWorkcenters(perms)}>
