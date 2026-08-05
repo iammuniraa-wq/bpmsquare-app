@@ -1,6 +1,12 @@
-import { jsonOk } from "./_auth";
+import { jsonOk, resolveTenantFromBearer, ERR_401_TENANT } from "./_auth";
 
-export async function GET() {
+export async function GET(req: Request) {
+  // The index is behind the key like every other v1 route. It exposes no tenant
+  // data, but /api/v1 is exempt from the middleware session gate, and an
+  // exemption should not quietly add a new unauthenticated public surface.
+  const tenantId = await resolveTenantFromBearer(req);
+  if (!tenantId) return ERR_401_TENANT();
+
   return jsonOk({
     name: "BPMSquare REST API",
     version: "1.0",
