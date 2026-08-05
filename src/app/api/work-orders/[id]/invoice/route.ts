@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { generateNextInvoiceRef } from "@/lib/invoiceRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { tenantHasFeature } from "@/lib/tenant";
+import { getTechnicianAttendanceForDate, dateKeyInTz, getWfmConfig } from "@/lib/wfm/server";
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -49,7 +51,39 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
     // one completed WO has no natural fractional claim on that value, so we don't fabricate a
     // total. The invoice lands in draft with 0 lines; finance adds lines reflecting the actual
     // billing arrangement before sending.
+    //
+    // Where WFM is on, we pre-fill ONE real line from the assigned technician's actual logged
+    // hours for the visit date -- time-and-materials style -- instead of leaving finance with a
+    // totally blank slate. This never fabricates a number: it only fires when there's a linked
+    // technician, a scheduled date, actual WFM hours > 0, and a labour rate to apply. Finance
+    // still reviews the draft before sending, same as always.
     contractId = wo.auth_id;
+
+    if (wo.technician_id && wo.scheduled_for && (await tenantHasFeature(supabase, tenantId, "wfm"))) {
+      const config = await getWfmConfig(supabase, tenantId);
+      const [attendance, { data: labourRate }] = await Promise.all([
+        getTechnicianAttendanceForDate(
+          tenantId,
+          wo.technician_id,
+          dateKeyInTz(new Date(wo.scheduled_for), config.timezone)
+        ),
+        supabase.from("pricing_items").select("rate").eq("tenant_id", tenantId).eq("category", "labour").limit(1).maybeSingle(),
+      ]);
+
+      const netHours = attendance ? Math.round((attendance.hours.net_minutes / 60) * 100) / 100 : 0;
+      if (netHours > 0 && labourRate?.rate) {
+        const amount = Math.round(netHours * labourRate.rate * 100) / 100;
+        lineRows = [{
+          sl_no: null,
+          description: `Labour (WFM logged hours, ${wo.scheduled_for.slice(0, 10)})`,
+          uom: "Hrs",
+          qty: netHours,
+          rate: labourRate.rate,
+          amount,
+        }];
+        total = amount;
+      }
+    }
   }
 
   // Retry a few times on a (tenant_id, ref) collision -- same pattern as quotes/purchase-orders.
