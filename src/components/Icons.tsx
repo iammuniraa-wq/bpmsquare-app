@@ -264,6 +264,26 @@ export function BarChart2(p: P) {
   );
 }
 
+export function Clock(p: P) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15.5 14" />
+    </Svg>
+  );
+}
+
+export function Users(p: P) {
+  return (
+    <Svg {...p}>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </Svg>
+  );
+}
+
 export function Dot({ size = 8, color = "currentColor", style }: P) {
   return (
     <svg width={size} height={size} viewBox="0 0 8 8" style={{ display: "inline-block", verticalAlign: "middle", flexShrink: 0, ...style }}>

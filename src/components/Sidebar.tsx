@@ -7,7 +7,7 @@ import { NAV, ROUTES } from "@/lib/constants";
 import type { NavItem } from "@/lib/constants";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
-import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon } from "@/components/Icons";
+import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users } from "@/components/Icons";
 import { useTenant, useUiTheme, useViewableWorkcenters } from "@/lib/tenant-context";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
@@ -106,8 +106,8 @@ const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; color?: st
   [ROUTES.purchaseOrders]: Clipboard,
   [ROUTES.reports]: BarChart2,
   [ROUTES.dataWorkbench]: Clipboard,
-  [ROUTES.wfmLiveBoard]: Activity,
-  [ROUTES.wfmEmployees]: Phone,
+  [ROUTES.wfmLiveBoard]: Clock,
+  [ROUTES.wfmEmployees]: Users,
 };
 
 function NavGlyph({ href, fallback, size = 14 }: { href: string; fallback: string; size?: number }) {
