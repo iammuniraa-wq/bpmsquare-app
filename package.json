@@ -19,6 +19,7 @@
     "@tiptap/react": "^3.29.0",
     "@tiptap/starter-kit": "^3.29.0",
     "@types/nodemailer": "^8.0.1",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.43.0",
     "imapflow": "^1.6.5",
     "mammoth": "^1.12.0",

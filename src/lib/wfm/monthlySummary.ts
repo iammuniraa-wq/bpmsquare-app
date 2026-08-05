@@ -38,6 +38,8 @@ export type EmployeeMonthSummary = {
   full_name: string;
   employment_type: "full_time" | "contractor";
   shift_name: string | null;
+  site_id: string | null;
+  site_name: string | null;
   days: EmployeeDayRecord[];
   totals: {
     days_present: number;
@@ -83,13 +85,14 @@ export async function getMonthlySummary(
 
   let employeeQuery = admin
     .from("employees")
-    .select("id, employee_code, first_name, last_name, employment_type, shift_id, status")
+    .select("id, employee_code, first_name, last_name, employment_type, shift_id, site_id, status")
     .eq("tenant_id", tenantId)
     .eq("status", "active");
   if (employeeIds && employeeIds.length > 0) employeeQuery = employeeQuery.in("id", employeeIds);
 
-  const [{ data: employees }, { data: shifts }, { data: holidays }, { data: leaves }] = await Promise.all([
+  const [{ data: employees }, { data: sites }, { data: shifts }, { data: holidays }, { data: leaves }] = await Promise.all([
     employeeQuery,
+    admin.from("wfm_sites").select("id, name").eq("tenant_id", tenantId),
     admin.from("wfm_shifts").select("*").eq("tenant_id", tenantId),
     admin.from("wfm_holidays").select("date, name, applies_to").eq("tenant_id", tenantId)
       .gte("date", dates[0]).lte("date", dates[dates.length - 1]),
@@ -104,6 +107,7 @@ export async function getMonthlySummary(
   if (employeeRows.length === 0) return [];
 
   const shiftById = new Map((shifts ?? []).map((s) => [s.id, s]));
+  const siteById = new Map((sites ?? []).map((s) => [s.id, s.name as string]));
 
   // Fetch presence events with 24h padding on each side of the month so
   // night-shift boundary days (last day of prev month, first of next) can
@@ -221,6 +225,8 @@ export async function getMonthlySummary(
       full_name: [emp.first_name, emp.last_name].filter(Boolean).join(" "),
       employment_type: emp.employment_type,
       shift_name: shift?.name ?? null,
+      site_id: emp.site_id ?? null,
+      site_name: emp.site_id ? (siteById.get(emp.site_id) ?? null) : null,
       days,
       totals: {
         days_present: days.filter((d) => d.punches > 0).length,
