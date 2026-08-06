@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeDayHours, shiftDayKey } from "./hours";
+import { breakSegments, computeDayHours, shiftDayKey } from "./hours";
 
 const TZ = "Asia/Kolkata"; // UTC+5:30, no DST -- deterministic for tests
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -61,6 +61,54 @@ describe("computeDayHours", () => {
     const r = computeDayHours([{ kind: "check_in", ts: T(0) }], end);
     expect(r.open).toBe(true);
     expect(r.gross_minutes).toBe(20);
+  });
+});
+
+describe("breakSegments", () => {
+  const T = (m: number) => ist(2026, 8, 5, 9, m).toISOString();
+  const end = ist(2026, 8, 5, 9, 40);
+
+  it("returns every booked break in order", () => {
+    const events = [
+      { kind: "check_in" as const, ts: T(0) },
+      { kind: "break_start" as const, ts: T(10) },
+      { kind: "break_end" as const, ts: T(15) },
+      { kind: "break_start" as const, ts: T(25) },
+      { kind: "break_end" as const, ts: T(32) },
+      { kind: "check_out" as const, ts: T(40) },
+    ];
+    const segs = breakSegments(events, end);
+    expect(segs.map((s) => s.minutes)).toEqual([5, 7]);
+    expect(segs[0]).toEqual({ start: T(10), end: T(15), minutes: 5 });
+    // Always consistent with the single figure computeDayHours reports.
+    expect(segs.reduce((s, x) => s + x.minutes, 0)).toBe(computeDayHours(events, end).break_minutes);
+  });
+
+  it("a break still open at check-out is closed at the check-out instant", () => {
+    const segs = breakSegments(
+      [
+        { kind: "check_in", ts: T(0) },
+        { kind: "break_start", ts: T(30) },
+        { kind: "check_out", ts: T(40) },
+      ],
+      end
+    );
+    expect(segs).toEqual([{ start: T(30), end: T(40), minutes: 10 }]);
+  });
+
+  it("a still-running break has a null end and counts up to the end reference", () => {
+    const segs = breakSegments(
+      [
+        { kind: "check_in", ts: T(0) },
+        { kind: "break_start", ts: T(30) },
+      ],
+      end
+    );
+    expect(segs).toEqual([{ start: T(30), end: null, minutes: 10 }]);
+  });
+
+  it("no check-in means no breaks to report", () => {
+    expect(breakSegments([{ kind: "break_start", ts: T(10) }], end)).toEqual([]);
   });
 });
 

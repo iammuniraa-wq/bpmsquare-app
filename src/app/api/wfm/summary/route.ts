@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { getMonthlySummary } from "@/lib/wfm/monthlySummary";
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
@@ -23,6 +24,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "month (YYYY-MM) is required" }, { status: 400 });
   }
 
-  const summaries = await getMonthlySummary(tenantId, month);
-  return NextResponse.json({ month, employees: summaries });
+  const [summaries, config] = await Promise.all([
+    getMonthlySummary(tenantId, month),
+    getWfmConfig(createAdminSupabase(), tenantId),
+  ]);
+  return NextResponse.json({
+    month,
+    employees: summaries,
+    deduct_breaks: config.deduct_breaks,
+    timezone: config.timezone,
+  });
 }

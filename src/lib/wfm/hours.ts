@@ -61,6 +61,53 @@ export function computeDayHours(events: Ev[], endRef: Date): DayHours {
   return { gross_minutes: gross, break_minutes: brk, net_minutes: gross - brk, open };
 }
 
+export type BreakSegment = {
+  start: string;      // ISO ts of break_start
+  end: string | null; // ISO ts of break_end, or null if still open at endRef
+  minutes: number;
+};
+
+/**
+ * The individual break_start→break_end pairs of one day, in order — the
+ * detail behind computeDayHours' single `break_minutes` figure, for a
+ * timesheet that has to show every break the employee actually booked.
+ * Kept separate from computeDayHours rather than folded into its return so
+ * that function's shape (and its tests) stay unchanged. Same interval rules
+ * as computeDayHours, so the segment minutes always sum to its
+ * break_minutes: breaks outside the in→out window are ignored, a check_out
+ * closes an open break, and a still-open break runs to `endRef`.
+ */
+export function breakSegments(events: Ev[], endRef: Date): BreakSegment[] {
+  const firstIn = events.find((e) => e.kind === "check_in");
+  if (!firstIn) return [];
+
+  const start = new Date(firstIn.ts).getTime();
+  const lastOut = [...events].reverse().find(
+    (e) => e.kind === "check_out" && new Date(e.ts).getTime() >= start
+  );
+  const end = Math.max(start, lastOut ? new Date(lastOut.ts).getTime() : endRef.getTime());
+
+  const segments: BreakSegment[] = [];
+  let openBreak: number | null = null;
+  for (const e of events) {
+    const t = new Date(e.ts).getTime();
+    if (t < start || t > end) continue;
+    if (e.kind === "break_start") {
+      openBreak = t;
+    } else if (e.kind === "break_end" && openBreak !== null) {
+      segments.push({ start: new Date(openBreak).toISOString(), end: e.ts, minutes: Math.round((t - openBreak) / 60000) });
+      openBreak = null;
+    } else if (e.kind === "check_out" && openBreak !== null) {
+      segments.push({ start: new Date(openBreak).toISOString(), end: e.ts, minutes: Math.round((t - openBreak) / 60000) });
+      openBreak = null;
+    }
+  }
+  if (openBreak !== null) {
+    segments.push({ start: new Date(openBreak).toISOString(), end: null, minutes: Math.round((end - openBreak) / 60000) });
+  }
+  return segments;
+}
+
 // ── Shift-day attribution ──────────────────────────────────────────────────
 // Requirements §6: "for crosses_midnight shifts, all events attribute to
 // the shift's START date." A naive calendar-day match (dateKeyInTz(ts) ===

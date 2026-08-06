@@ -1,4 +1,4 @@
-import type { EmployeeMonthSummary } from "./monthlySummary";
+import type { EmployeeDayRecord, EmployeeMonthSummary } from "./monthlySummary";
 
 // The ONE place the CA export's column layout lives. Requirements §5.6:
 // "[ASSUMPTION] placeholder layout until sample received; build the export
@@ -28,4 +28,67 @@ export const MONTHLY_SUMMARY_COLUMNS: SummaryColumn[] = [
   { header: "Night Shifts", width: 12, accessor: (r) => r.totals.night_shifts },
   { header: "Night Allowance", width: 15, accessor: (r) => r.totals.night_allowance_total },
   { header: "Incomplete Days", width: 14, accessor: (r) => r.totals.incomplete_days },
+];
+
+// ── Daily detail sheet ────────────────────────────────────────────────────
+// One row per employee per day, with every break the employee actually
+// booked spelled out — the backing evidence for the monthly roll-up above,
+// so a CA (or the employee disputing a figure) can see exactly which punches
+// produced it. `deductBreaks` is the tenant's config switch: it decides
+// whether "Total Worked" is gross or gross − breaks, matching what
+// getMonthlySummary already used to build the monthly Working Hours figure.
+
+export type DailyDetailContext = {
+  employee: EmployeeMonthSummary;
+  day: EmployeeDayRecord;
+  deductBreaks: boolean;
+  timezone: string;
+};
+
+const hhmm = (iso: string, timezone: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+
+const hours = (minutes: number) => Math.round((minutes / 60) * 100) / 100;
+
+function dayStatus(d: EmployeeDayRecord): string {
+  if (d.holiday) return `Holiday — ${d.holiday}`;
+  if (d.on_leave) return `Leave — ${d.on_leave.name}`;
+  if (d.is_week_off) return "Week off";
+  if (d.incomplete) return "Incomplete";
+  if (d.absent) return "Absent";
+  if (d.late) return "Late";
+  if (d.punches > 0) return "Present";
+  return "";
+}
+
+export type DailyDetailColumn = {
+  header: string;
+  width: number;
+  accessor: (ctx: DailyDetailContext) => string | number;
+};
+
+export const DAILY_DETAIL_COLUMNS: DailyDetailColumn[] = [
+  { header: "Employee Code", width: 14, accessor: ({ employee }) => employee.employee_code ?? "" },
+  { header: "Name", width: 24, accessor: ({ employee }) => employee.full_name },
+  { header: "Site", width: 18, accessor: ({ employee }) => employee.site_name ?? "" },
+  { header: "Date", width: 12, accessor: ({ day }) => day.date },
+  { header: "Check In", width: 10, accessor: ({ day, timezone }) => (day.first_in ? hhmm(day.first_in, timezone) : "") },
+  { header: "Check Out", width: 10, accessor: ({ day, timezone }) => (day.last_out ? hhmm(day.last_out, timezone) : "") },
+  { header: "Breaks Taken", width: 12, accessor: ({ day }) => day.breaks.length },
+  {
+    header: "Break Times",
+    width: 40,
+    accessor: ({ day, timezone }) =>
+      day.breaks
+        .map((b, i) => `${i + 1}) ${hhmm(b.start, timezone)}-${b.end ? hhmm(b.end, timezone) : "open"} (${b.minutes}m)`)
+        .join("  "),
+  },
+  { header: "Break Hours", width: 12, accessor: ({ day }) => hours(day.break_minutes) },
+  { header: "Gross Hours", width: 12, accessor: ({ day }) => hours(day.gross_minutes) },
+  {
+    header: "Total Worked",
+    width: 13,
+    accessor: ({ day, deductBreaks }) => hours(deductBreaks ? day.net_minutes : day.gross_minutes),
+  },
+  { header: "Status", width: 20, accessor: ({ day }) => dayStatus(day) },
 ];

@@ -1,14 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import ExcelJS from "exceljs";
-import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { getMonthlySummary, type EmployeeMonthSummary } from "@/lib/wfm/monthlySummary";
-import { MONTHLY_SUMMARY_COLUMNS } from "@/lib/wfm/summaryExportTemplate";
+import { MONTHLY_SUMMARY_COLUMNS, DAILY_DETAIL_COLUMNS } from "@/lib/wfm/summaryExportTemplate";
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF152233" } };
 
 function writeSection(sheet: ExcelJS.Worksheet, title: string, rows: EmployeeMonthSummary[]) {
-  sheet.columns = MONTHLY_SUMMARY_COLUMNS.map((c) => ({ header: c.header, width: c.width }));
+  // Width only, never `header` -- assigning a header here makes ExcelJS
+  // auto-insert its own header row, which duplicated the explicit one added
+  // below (the stray first row in every export until this fix).
+  sheet.columns = MONTHLY_SUMMARY_COLUMNS.map((c) => ({ width: c.width }));
 
   const titleRow = sheet.addRow([title]);
   titleRow.font = { bold: true, size: 13 };
@@ -27,6 +31,46 @@ function writeSection(sheet: ExcelJS.Worksheet, title: string, rows: EmployeeMon
     sheet.addRow(MONTHLY_SUMMARY_COLUMNS.map((c) => c.accessor(r)));
   }
   sheet.addRow([]); // spacer before the next section, if any
+}
+
+function writeDailyDetail(
+  sheet: ExcelJS.Worksheet,
+  title: string,
+  rows: EmployeeMonthSummary[],
+  deductBreaks: boolean,
+  timezone: string
+) {
+  sheet.columns = DAILY_DETAIL_COLUMNS.map((c) => ({ width: c.width }));
+
+  const titleRow = sheet.addRow([title]);
+  titleRow.font = { bold: true, size: 13 };
+  sheet.mergeCells(titleRow.number, 1, titleRow.number, DAILY_DETAIL_COLUMNS.length);
+
+  const noteRow = sheet.addRow([
+    deductBreaks
+      ? "Total Worked = Check Out − Check In − break time (tenant setting: breaks are deducted)."
+      : "Total Worked = Check Out − Check In (tenant setting: breaks are NOT deducted).",
+  ]);
+  noteRow.font = { italic: true, size: 10 };
+  sheet.mergeCells(noteRow.number, 1, noteRow.number, DAILY_DETAIL_COLUMNS.length);
+
+  const headerRow = sheet.addRow(DAILY_DETAIL_COLUMNS.map((c) => c.header));
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = HEADER_FILL;
+  });
+
+  let wrote = 0;
+  for (const employee of rows) {
+    // Skip days with nothing to report -- an untouched future/week-off day
+    // per employee would bury the real rows.
+    const days = employee.days.filter((d) => d.punches > 0 || d.on_leave || d.holiday || d.absent);
+    for (const day of days) {
+      sheet.addRow(DAILY_DETAIL_COLUMNS.map((c) => c.accessor({ employee, day, deductBreaks, timezone })));
+      wrote++;
+    }
+  }
+  if (wrote === 0) sheet.addRow(["No attendance recorded for the selected month."]);
 }
 
 // GET /api/wfm/summary/export?month=YYYY-MM — the CA-facing Excel export
@@ -48,7 +92,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "month (YYYY-MM) is required" }, { status: 400 });
   }
 
-  const summaries = await getMonthlySummary(tenantId, month);
+  const [summaries, config] = await Promise.all([
+    getMonthlySummary(tenantId, month),
+    getWfmConfig(createAdminSupabase(), tenantId),
+  ]);
   const fullTime = summaries.filter((s) => s.employment_type === "full_time");
   const contractors = summaries.filter((s) => s.employment_type === "contractor");
 
@@ -58,6 +105,13 @@ export async function GET(request: NextRequest) {
 
   writeSection(workbook.addWorksheet("Full-Time"), `Attendance Summary — ${month} — Full-Time`, fullTime);
   writeSection(workbook.addWorksheet("Contractors"), `Attendance Summary — ${month} — Contractors`, contractors);
+  writeDailyDetail(
+    workbook.addWorksheet("Daily Detail"),
+    `Daily Attendance Detail — ${month}`,
+    summaries,
+    config.deduct_breaks,
+    config.timezone
+  );
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new NextResponse(buffer as unknown as BodyInit, {

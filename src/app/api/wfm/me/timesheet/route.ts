@@ -18,14 +18,12 @@ export async function GET(request: NextRequest) {
   }
   const { tenantId, employee } = ctx;
 
+  const config = await getWfmConfig(createAdminSupabase(), tenantId);
+
   const requested = request.nextUrl.searchParams.get("month");
-  let month = requested;
-  if (!month) {
-    const admin = createAdminSupabase();
-    const config = await getWfmConfig(admin, tenantId);
-    month = new Intl.DateTimeFormat("en-CA", { timeZone: config.timezone, year: "numeric", month: "2-digit" })
+  const month = requested
+    ?? new Intl.DateTimeFormat("en-CA", { timeZone: config.timezone, year: "numeric", month: "2-digit" })
       .format(new Date()).slice(0, 7);
-  }
   if (!MONTH_RE.test(month)) {
     return NextResponse.json({ error: "month must be YYYY-MM" }, { status: 400 });
   }
@@ -39,5 +37,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Employee record not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ month, summary: summaries[0], leave_balance: leaveBalance });
+  // deduct_breaks tells the UI which figure IS "total worked" for this
+  // tenant (net vs gross) -- the same switch getMonthlySummary already
+  // applies to the monthly total, surfaced so the daily rows agree with it.
+  return NextResponse.json({
+    month,
+    summary: summaries[0],
+    leave_balance: leaveBalance,
+    deduct_breaks: config.deduct_breaks,
+    timezone: config.timezone,
+  });
 }

@@ -38,9 +38,12 @@ type MonthTotals = {
   half_day_deductions: number; paid_leave_days: number; unpaid_leave_days: number;
   holiday_days: number; night_shifts: number; night_allowance_total: number; incomplete_days: number;
 };
+type BreakSegment = { start: string; end: string | null; minutes: number };
 type DayRecord = {
   date: string; first_in: string | null; last_out: string | null;
-  net_minutes: number; gross_minutes: number; late: boolean; absent: boolean;
+  breaks: BreakSegment[];
+  net_minutes: number; gross_minutes: number; break_minutes: number;
+  late: boolean; absent: boolean;
   incomplete: boolean; on_leave: { name: string; category: string } | null;
   holiday: string | null; is_week_off: boolean; punches: number;
 };
@@ -67,6 +70,7 @@ type Analytics = {
 
 type Geo = { lat: number; lng: number; accuracy_m: number } | null;
 type Tab = "home" | "time" | "leave" | "calendar" | "analytics";
+type TimeView = "daily" | "monthly";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "home", label: "Home" },
@@ -171,9 +175,11 @@ function Bars({ points, valueOf, format }: { points: TrendPoint[]; valueOf: (p: 
 
 export default function MeClient() {
   const [tab, setTab] = useState<Tab>("home");
+  const [timeView, setTimeView] = useState<TimeView>("daily");
   const [me, setMe] = useState<MeState | null>(null);
   const [monthTotals, setMonthTotals] = useState<MonthTotals | null>(null);
   const [days, setDays] = useState<DayRecord[]>([]);
+  const [deductBreaks, setDeductBreaks] = useState(true);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [corrections, setCorrections] = useState<CorrectionRequest[]>([]);
@@ -212,6 +218,7 @@ export default function MeClient() {
         setMonthTotals(ts.summary?.totals ?? null);
         setDays(ts.summary?.days ?? []);
         setLeaveBalance(ts.leave_balance ?? []);
+        setDeductBreaks(ts.deduct_breaks !== false);
       }
       if (holRes.ok) setHolidays(await holRes.json());
       if (corrRes.ok) setCorrections(await corrRes.json());
@@ -536,40 +543,93 @@ export default function MeClient() {
 
       {tab === "time" && (
         <>
-          <div style={{ ...grid(200), marginBottom: 14 }}>
-            <section style={cardStyle}><div style={capStyle}>Hours</div><Stat value={fmtHM(monthTotals?.working_minutes ?? 0)} label="this month" /></section>
-            <section style={cardStyle}><div style={capStyle}>Days present</div><Stat value={String(monthTotals?.days_present ?? 0)} label="this month" /></section>
-            <section style={cardStyle}><div style={capStyle}>Late marks</div><Stat value={String(monthTotals?.late_marks ?? 0)} label={`${monthTotals?.half_day_deductions ?? 0} half-day deduction(s)`} tone={(monthTotals?.late_marks ?? 0) > 0 ? pillar.amber.fg : undefined} /></section>
-            <section style={cardStyle}><div style={capStyle}>Incomplete</div><Stat value={String(monthTotals?.incomplete_days ?? 0)} label="days missing a check-out" tone={(monthTotals?.incomplete_days ?? 0) > 0 ? "#ef4444" : undefined} /></section>
+          <div style={{ display: "flex", gap: 7, marginBottom: 14 }}>
+            <button style={timeView === "daily" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setTimeView("daily")}>Daily — detailed</button>
+            <button style={timeView === "monthly" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setTimeView("monthly")}>Monthly summary</button>
           </div>
 
-          <section style={{ ...cardStyle, padding: 0, marginBottom: 14, overflowX: "auto" }}>
-            <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Daily record — {fmtMonth(thisMonth())}</div>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr><th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th><th style={th}>Hours</th><th style={th}>Status</th></tr></thead>
-              <tbody>
-                {days.filter((d) => d.date <= todayKey()).reverse().map((d) => (
-                  <tr key={d.date}>
-                    <td style={{ ...td, color: c.ink, fontWeight: 600 }}>{fmtDate(d.date)}</td>
-                    <td style={td}>{d.first_in ? fmtTime(d.first_in) : "—"}</td>
-                    <td style={td}>{d.last_out ? fmtTime(d.last_out) : "—"}</td>
-                    <td style={td}>{d.punches > 0 ? fmtHM(d.net_minutes) : "—"}</td>
-                    <td style={td}>
-                      {d.holiday ? <Pill label={d.holiday} tone="blue" />
-                        : d.on_leave ? <Pill label={d.on_leave.name} tone="purple" />
-                        : d.is_week_off ? <span style={{ color: c.hint }}>Week off</span>
-                        : d.incomplete ? <Pill label="Incomplete" tone="red" />
-                        : d.absent ? <Pill label="Absent" tone="red" />
-                        : d.late ? <Pill label="Late" tone="amber" />
-                        : d.punches > 0 ? <Pill label="Present" tone="green" />
-                        : <span style={{ color: c.hint }}>—</span>}
-                    </td>
+          {timeView === "daily" && (
+            <section style={{ ...cardStyle, padding: 0, marginBottom: 14, overflowX: "auto" }}>
+              <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}` }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Daily record — {fmtMonth(thisMonth())}</div>
+                <div style={{ fontSize: 11.5, color: c.hint, marginTop: 3 }}>
+                  Every punch as booked. Total worked ={" "}
+                  {deductBreaks ? "check-out − check-in − breaks" : "check-out − check-in (breaks not deducted)"}.
+                </div>
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th>
+                    <th style={th}>Breaks taken</th><th style={th}>Break total</th>
+                    <th style={th}>Gross</th><th style={th}>Total worked</th><th style={th}>Status</th>
                   </tr>
-                ))}
-                {days.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={5}>No records this month.</td></tr>}
-              </tbody>
-            </table>
-          </section>
+                </thead>
+                <tbody>
+                  {days.filter((d) => d.date <= todayKey()).reverse().map((d) => (
+                    <tr key={d.date}>
+                      <td style={{ ...td, color: c.ink, fontWeight: 600, whiteSpace: "nowrap" }}>{fmtDate(d.date)}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap" }}>{d.first_in ? fmtTime(d.first_in) : "—"}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap" }}>{d.last_out ? fmtTime(d.last_out) : d.incomplete ? <span style={{ color: "#ef4444" }}>missing</span> : "—"}</td>
+                      <td style={td}>
+                        {d.breaks.length === 0 ? <span style={{ color: c.hint }}>—</span> : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            {d.breaks.map((b, i) => (
+                              <span key={b.start} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
+                                <span style={{ color: c.hint }}>{i + 1}.</span>{" "}
+                                {fmtTime(b.start)} – {b.end ? fmtTime(b.end) : <span style={{ color: c.amber }}>running</span>}
+                                <span style={{ color: c.hint }}> ({b.minutes}m)</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ ...td, whiteSpace: "nowrap" }}>{d.break_minutes > 0 ? fmtHM(d.break_minutes) : "—"}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap", color: c.muted }}>{d.punches > 0 ? fmtHM(d.gross_minutes) : "—"}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap", fontWeight: 700, color: c.ink }}>
+                        {d.punches > 0 ? fmtHM(deductBreaks ? d.net_minutes : d.gross_minutes) : "—"}
+                      </td>
+                      <td style={td}>
+                        {d.holiday ? <Pill label={d.holiday} tone="blue" />
+                          : d.on_leave ? <Pill label={d.on_leave.name} tone="purple" />
+                          : d.is_week_off ? <span style={{ color: c.hint }}>Week off</span>
+                          : d.incomplete ? <Pill label="Incomplete" tone="red" />
+                          : d.absent ? <Pill label="Absent" tone="red" />
+                          : d.late ? <Pill label="Late" tone="amber" />
+                          : d.punches > 0 ? <Pill label="Present" tone="green" />
+                          : <span style={{ color: c.hint }}>—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  {days.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={8}>No records this month.</td></tr>}
+                </tbody>
+                {monthTotals && (
+                  <tfoot>
+                    <tr>
+                      <td style={{ ...td, fontWeight: 700, color: c.ink }} colSpan={4}>Month total</td>
+                      <td style={{ ...td, fontWeight: 700 }}>{fmtHM(days.reduce((s, d) => s + d.break_minutes, 0))}</td>
+                      <td style={{ ...td, fontWeight: 700, color: c.muted }}>{fmtHM(days.reduce((s, d) => s + d.gross_minutes, 0))}</td>
+                      <td style={{ ...td, fontWeight: 700, color: c.ink }}>{fmtHM(monthTotals.working_minutes)}</td>
+                      <td style={td}></td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </section>
+          )}
+
+          {timeView === "monthly" && (
+            <div style={{ ...grid(200), marginBottom: 14 }}>
+              <section style={cardStyle}><div style={capStyle}>Total worked</div><Stat value={fmtHM(monthTotals?.working_minutes ?? 0)} label={deductBreaks ? "breaks deducted" : "breaks not deducted"} /></section>
+              <section style={cardStyle}><div style={capStyle}>Days present</div><Stat value={String(monthTotals?.days_present ?? 0)} label="days with a punch" /></section>
+              <section style={cardStyle}><div style={capStyle}>Break time</div><Stat value={fmtHM(days.reduce((s, d) => s + d.break_minutes, 0))} label="total this month" /></section>
+              <section style={cardStyle}><div style={capStyle}>Late marks</div><Stat value={String(monthTotals?.late_marks ?? 0)} label={`${monthTotals?.half_day_deductions ?? 0} half-day deduction(s)`} tone={(monthTotals?.late_marks ?? 0) > 0 ? pillar.amber.fg : undefined} /></section>
+              <section style={cardStyle}><div style={capStyle}>Leave</div><Stat value={String((monthTotals?.paid_leave_days ?? 0) + (monthTotals?.unpaid_leave_days ?? 0))} label={`${monthTotals?.paid_leave_days ?? 0} paid · ${monthTotals?.unpaid_leave_days ?? 0} unpaid`} /></section>
+              <section style={cardStyle}><div style={capStyle}>Holidays</div><Stat value={String(monthTotals?.holiday_days ?? 0)} label="this month" /></section>
+              <section style={cardStyle}><div style={capStyle}>Night shifts</div><Stat value={String(monthTotals?.night_shifts ?? 0)} label={monthTotals?.night_allowance_total ? `₹${monthTotals.night_allowance_total.toLocaleString("en-IN")} allowance` : "no allowance"} /></section>
+              <section style={cardStyle}><div style={capStyle}>Incomplete</div><Stat value={String(monthTotals?.incomplete_days ?? 0)} label="days missing a check-out" tone={(monthTotals?.incomplete_days ?? 0) > 0 ? "#ef4444" : undefined} /></section>
+            </div>
+          )}
 
           <section style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>

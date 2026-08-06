@@ -2,7 +2,7 @@ import "server-only";
 
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { getWfmConfig, dateKeyInTz } from "./server";
-import { computeDayHours, shiftDayKey } from "./hours";
+import { breakSegments, computeDayHours, shiftDayKey, type BreakSegment } from "./hours";
 import type { PresenceKind } from "./types";
 
 // Shared per-employee-per-month aggregation — the one place the "rules
@@ -18,6 +18,9 @@ export type EmployeeDayRecord = {
   date: string; // YYYY-MM-DD, shift-day
   first_in: string | null;
   last_out: string | null;
+  /** Every break the employee actually booked that day, in order — the
+   * detail behind break_minutes, for the detailed daily timesheet. */
+  breaks: BreakSegment[];
   gross_minutes: number;
   break_minutes: number;
   net_minutes: number;
@@ -162,7 +165,9 @@ export async function getMonthlySummary(
 
     const days: EmployeeDayRecord[] = dates.map((date) => {
       const dayEvents = allEvents.filter((e) => shiftDayKey(new Date(e.ts), config.timezone, shift) === date);
-      const hours = computeDayHours(dayEvents, dayEvents.length > 0 ? new Date(dayEvents[dayEvents.length - 1].ts) : new Date(`${date}T00:00:00Z`));
+      const endRef = dayEvents.length > 0 ? new Date(dayEvents[dayEvents.length - 1].ts) : new Date(`${date}T00:00:00Z`);
+      const hours = computeDayHours(dayEvents, endRef);
+      const breaks = breakSegments(dayEvents, endRef);
       const firstIn = dayEvents.find((e) => e.kind === "check_in") ?? null;
       const lastOut = [...dayEvents].reverse().find((e) => e.kind === "check_out") ?? null;
 
@@ -201,6 +206,7 @@ export async function getMonthlySummary(
         date,
         first_in: firstIn?.ts ?? null,
         last_out: lastOut?.ts ?? null,
+        breaks,
         gross_minutes: hours.gross_minutes,
         break_minutes: hours.break_minutes,
         net_minutes: hours.net_minutes,
