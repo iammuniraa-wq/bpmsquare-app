@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 ﻿import Link from "next/link";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -35,6 +36,7 @@ export default async function AssetsPage({
   searchParams: Promise<{ kind?: string; q?: string }>;
 }) {
   await requireWorkcenterView("assets");
+  await requireFeature("assets");
   const { kind: kindFilter, q } = await searchParams;
   const { customerAssets: allCustomerAssets, loanerStock } = await listAssetsLive();
 

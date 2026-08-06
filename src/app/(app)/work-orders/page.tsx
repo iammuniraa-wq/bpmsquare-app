@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { listWorkOrders } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
@@ -39,6 +40,7 @@ export default async function WorkOrdersPage({
   searchParams: Promise<{ status?: string; view?: string }>;
 }) {
   await requireWorkcenterView("work_orders");
+  await requireFeature("work_orders");
   const { status: statusFilter, view } = await searchParams;
   const isCard = view !== "list";
   const vp = view ? `&view=${view}` : "";

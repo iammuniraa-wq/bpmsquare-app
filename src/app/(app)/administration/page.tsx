@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { getTenant } from "@/lib/tenant";
+import { getTenant, requireFeature } from "@/lib/tenant";
 import { ROUTES, type TenantFeatures } from "@/lib/constants";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -72,6 +72,10 @@ export default async function AdministrationHubPage() {
     redirect(ROUTES.dashboard);
   }
   if (role !== "admin") redirect(ROUTES.dashboard);
+  // Master gate for the hub (0067). The per-card featureKey filtering below
+  // still applies -- and the existing "no visible sections" redirect means a
+  // tenant with the hub on but every card off still lands on the dashboard.
+  await requireFeature("administration");
 
   const tenant = await getTenant();
   const features = tenant?.features;

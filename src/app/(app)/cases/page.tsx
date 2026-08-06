@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { listCases } from "@/lib/data";
 import type { ServiceCase } from "@/lib/types";
@@ -29,6 +30,7 @@ export default async function CasesPage({
   searchParams: Promise<{ q?: string; filter?: string }>;
 }) {
   await requireWorkcenterView("cases");
+  await requireFeature("cases");
   const { q, filter: rawFilter } = await searchParams;
   const filter = (FILTERS.find((f) => f.id === rawFilter)?.id) ?? "open";
 

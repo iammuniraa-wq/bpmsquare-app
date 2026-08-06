@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ROUTES } from "@/lib/constants";
+import { ROUTES, type TenantFeatures } from "@/lib/constants";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useUserRole, useTenantFeature } from "@/lib/tenant-context";
+import { useUserRole, useTenant } from "@/lib/tenant-context";
 
 // ── Settings hub — a menu of destinations, not a growing list of tabs ───────
 //
@@ -19,8 +19,11 @@ type SettingsCard = {
   icon: string;
   pillarKey: PillarKey;
   adminOnly: boolean;
-  /** Hidden entirely when this tenant feature is off (module not enabled). */
-  featureKey?: "wfm";
+  /** Hidden entirely when this tenant feature is off (module not enabled).
+   * Was hardcoded to "wfm"; widened in 0067 so every settings tile can be
+   * tied to the module it configures -- a Workforce-only client shouldn't
+   * be offered Sales config or Entities & Tax. */
+  featureKey?: keyof TenantFeatures;
 };
 
 const SECTIONS: { group: string; items: SettingsCard[] }[] = [
@@ -34,18 +37,18 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
   {
     group: "Sales & service setup",
     items: [
-      { label: "Entities & Tax", description: "Legal entities, print branding, and tax settings for quotations and PDFs", href: ROUTES.settingsEntities, icon: "⌂", pillarKey: "teal", adminOnly: true },
-      { label: "Statuses & assets", description: "Configure pipeline stages and equipment print fields", href: ROUTES.settingsStatuses, icon: "▦", pillarKey: "teal", adminOnly: true },
-      { label: "Sales config", description: "Manage territory and sales org picklist values", href: ROUTES.settingsSales, icon: "▤", pillarKey: "teal", adminOnly: true },
+      { label: "Entities & Tax", description: "Legal entities, print branding, and tax settings for quotations and PDFs", href: ROUTES.settingsEntities, icon: "⌂", pillarKey: "teal", adminOnly: true, featureKey: "quotations" },
+      { label: "Statuses & assets", description: "Configure pipeline stages and equipment print fields", href: ROUTES.settingsStatuses, icon: "▦", pillarKey: "teal", adminOnly: true, featureKey: "assets" },
+      { label: "Sales config", description: "Manage territory and sales org picklist values", href: ROUTES.settingsSales, icon: "▤", pillarKey: "teal", adminOnly: true, featureKey: "quotations" },
       { label: "Workforce", description: "Attendance rules, timezone, break deduction, leave and retention — plus punch sites and shifts", href: ROUTES.settingsWorkforce, icon: "⧖", pillarKey: "amber", adminOnly: true, featureKey: "wfm" },
     ],
   },
   {
     group: "Content & data",
     items: [
-      { label: "Email templates", description: "Subject and body pairs your team can pick between when emailing a quote", href: ROUTES.settingsEmailTemplates, icon: "✉", pillarKey: "purple", adminOnly: true },
-      { label: "Pricing catalogue", description: "Standard rates for labour, materials, testing and transport", href: ROUTES.configPricing, icon: "₹", pillarKey: "amber", adminOnly: false },
-      { label: "Text templates", description: "Saved snippets for line items, notes and terms", href: ROUTES.configTemplates, icon: "❑", pillarKey: "amber", adminOnly: false },
+      { label: "Email templates", description: "Subject and body pairs your team can pick between when emailing a quote", href: ROUTES.settingsEmailTemplates, icon: "✉", pillarKey: "purple", adminOnly: true, featureKey: "quotations" },
+      { label: "Pricing catalogue", description: "Standard rates for labour, materials, testing and transport", href: ROUTES.configPricing, icon: "₹", pillarKey: "amber", adminOnly: false, featureKey: "quotations" },
+      { label: "Text templates", description: "Saved snippets for line items, notes and terms", href: ROUTES.configTemplates, icon: "❑", pillarKey: "amber", adminOnly: false, featureKey: "quotations" },
       { label: "Custom fields", description: "Add fields to any object — included automatically in the API and MCP", href: ROUTES.configCustomFields, icon: "✦", pillarKey: "amber", adminOnly: false },
       { label: "Deleted records", description: "Audit log of permanently deleted objects", href: ROUTES.settingsDeletionLog, icon: "⌫", pillarKey: "red", adminOnly: true },
     ],
@@ -90,7 +93,7 @@ function SettingsTile({ item }: { item: SettingsCard }) {
 export default function SettingsHubPage() {
   const role = useUserRole();
   const isAdmin = role === "admin";
-  const wfmEnabled = useTenantFeature("wfm");
+  const features = useTenant()?.features as Partial<TenantFeatures> | undefined;
 
   return (
     <div style={{ maxWidth: 780 }}>
@@ -103,7 +106,7 @@ export default function SettingsHubPage() {
 
       {SECTIONS.map((section) => {
         const items = section.items.filter(
-          (i) => (!i.adminOnly || isAdmin) && (!i.featureKey || wfmEnabled)
+          (i) => (!i.adminOnly || isAdmin) && (!i.featureKey || features?.[i.featureKey] === true)
         );
         if (items.length === 0) return null;
         return (

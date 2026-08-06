@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { requireTenantUser } from "@/lib/supabase-server";
 import type { Supplier } from "@/lib/types";
@@ -28,6 +29,7 @@ export default async function SuppliersPage({
   searchParams: Promise<{ q?: string; type?: string }>;
 }) {
   await requireWorkcenterView("suppliers");
+  await requireFeature("suppliers");
   const { supabase, tenantId } = await requireTenantUser();
   const { q, type: typeFilter } = await searchParams;
 

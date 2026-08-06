@@ -177,8 +177,8 @@ export const NAV: NavGroup[] = [
     group: "WORKSPACE",
     items: [
       { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue", workcenterKey: "dashboard" },
-      { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue", workcenterKey: "accounts" },
-      { label: "Contacts",  href: ROUTES.contacts,  icon: "◉", pillar: "blue", workcenterKey: "contacts" },
+      { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue", featureKey: "accounts", workcenterKey: "accounts" },
+      { label: "Contacts",  href: ROUTES.contacts,  icon: "◉", pillar: "blue", featureKey: "contacts", workcenterKey: "contacts" },
     ],
   },
   {
@@ -187,7 +187,7 @@ export const NAV: NavGroup[] = [
       {
         label: "Sales", href: ROUTES.quotations, icon: "₹", pillar: "blue",
         children: [
-          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", workcenterKey: "quotations" },
+          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", featureKey: "quotations", workcenterKey: "quotations" },
           { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
@@ -201,11 +201,11 @@ export const NAV: NavGroup[] = [
       {
         label: "Service", href: ROUTES.cases, icon: "☎", pillar: "teal",
         children: [
-          { label: "Cases",         href: ROUTES.cases,       icon: "☎", pillar: "teal", workcenterKey: "cases" },
+          { label: "Cases",         href: ROUTES.cases,       icon: "☎", pillar: "teal", featureKey: "cases", workcenterKey: "cases" },
           { label: "AMC contracts", href: ROUTES.amc,         icon: "▥", pillar: "teal", featureKey: "amc", workcenterKey: "amc" },
-          { label: "Work orders",   href: ROUTES.workOrders,  icon: "▤", pillar: "amber", workcenterKey: "work_orders" },
+          { label: "Work orders",   href: ROUTES.workOrders,  icon: "▤", pillar: "amber", featureKey: "work_orders", workcenterKey: "work_orders" },
           { label: "Dispatch",      href: ROUTES.dispatch,    icon: "◷", pillar: "amber", featureKey: "dispatch", workcenterKey: "dispatch" },
-          { label: "Technicians",   href: ROUTES.technicians, icon: "◍", pillar: "amber", workcenterKey: "technicians" },
+          { label: "Technicians",   href: ROUTES.technicians, icon: "◍", pillar: "amber", featureKey: "technicians", workcenterKey: "technicians" },
         ],
       },
     ],
@@ -230,8 +230,8 @@ export const NAV: NavGroup[] = [
       {
         label: "Master data", href: ROUTES.assets, icon: "⚙", pillar: "green",
         children: [
-          { label: "Assets",          href: ROUTES.assets,         icon: "⚙", pillar: "green", workcenterKey: "assets" },
-          { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", workcenterKey: "suppliers" },
+          { label: "Assets",          href: ROUTES.assets,         icon: "⚙", pillar: "green", featureKey: "assets", workcenterKey: "assets" },
+          { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", featureKey: "suppliers", workcenterKey: "suppliers" },
           { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "green", featureKey: "purchasing", workcenterKey: "purchase_orders" },
           // Employees ships as part of the Business Roles/Business Users
@@ -261,14 +261,14 @@ export const NAV: NavGroup[] = [
   {
     group: "ANALYTICS",
     items: [
-      { label: "Analytics", href: ROUTES.reports, icon: "◫", pillar: "purple", workcenterKey: "reports" },
+      { label: "Analytics", href: ROUTES.reports, icon: "◫", pillar: "purple", featureKey: "reports", workcenterKey: "reports" },
     ],
   },
   {
     group: "ADMIN",
     items: [
-      { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal", workcenterKey: "data_workbench" },
-      { label: "Administrator", href: ROUTES.administration, icon: "🛠", pillar: "teal", workcenterKey: "administration" },
+      { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal", featureKey: "data_workbench", workcenterKey: "data_workbench" },
+      { label: "Administrator", href: ROUTES.administration, icon: "🛠", pillar: "teal", featureKey: "administration", workcenterKey: "administration" },
     ],
   },
 ];
@@ -404,6 +404,23 @@ export type TenantFeatures = {
   gmail_reply_threading: boolean;
   quote_lines_dw: boolean;
   wfm: boolean;
+  // Core-module subscription flags (0067). Every nav item now carries one,
+  // so a tenant only sees the modules they actually bought -- previously
+  // these twelve were ungated and shown to everyone regardless. A MISSING
+  // key reads as false (hidden), which is why 0067 backfills all of them to
+  // true for every pre-existing tenant: without that, adding these gates
+  // would silently strip live clients' navigation.
+  accounts: boolean;
+  contacts: boolean;
+  quotations: boolean;
+  cases: boolean;
+  work_orders: boolean;
+  technicians: boolean;
+  assets: boolean;
+  suppliers: boolean;
+  reports: boolean;
+  data_workbench: boolean;
+  administration: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in

@@ -2,7 +2,7 @@ import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import DataWorkbenchClient from "./DataWorkbenchClient";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { getTenant } from "@/lib/tenant";
+import { getTenant, requireFeature } from "@/lib/tenant";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { REGISTRY_OBJECT_TYPE, buildObjectSpec } from "@/lib/import/registrySchema";
 import { USERS_SPEC } from "@/lib/import/usersSchema";
@@ -30,6 +30,7 @@ const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
 
 export default async function DataWorkbenchPage() {
   await requireWorkcenterView("data_workbench");
+  await requireFeature("data_workbench");
   const { supabase, tenantId } = await requireTenantUser();
 
   const [salesConfig, tenant] = await Promise.all([getSalesConfig(supabase, tenantId), getTenant()]);

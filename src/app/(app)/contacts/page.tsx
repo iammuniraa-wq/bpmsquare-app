@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { listContacts } from "@/lib/data";
 import { c } from "@/lib/theme";
@@ -12,6 +13,7 @@ export default async function ContactsPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   await requireWorkcenterView("contacts");
+  await requireFeature("contacts");
   const { q } = await searchParams;
   const allRows = await listContacts();
 

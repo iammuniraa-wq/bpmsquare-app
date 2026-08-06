@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/data";
 import { listAccountsLive } from "@/lib/data/live";
@@ -16,6 +17,7 @@ export default async function AccountsPage({
   searchParams: Promise<{ q?: string; type?: string; territory?: string }>;
 }) {
   await requireWorkcenterView("accounts");
+  await requireFeature("accounts");
   const { q, type: typeFilter } = await searchParams;
   const allRows = await listAccountsLive();
 

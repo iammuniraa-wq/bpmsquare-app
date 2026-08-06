@@ -9,7 +9,7 @@ import { ROUTES } from "@/lib/constants";
 import type { Technician } from "@/lib/types";
 import { AlertTriangle } from "@/components/Icons";
 import { requireWorkcenterView } from "@/lib/permissions";
-import { getTenant } from "@/lib/tenant";
+import { getTenant, requireFeature } from "@/lib/tenant";
 import { getTechnicianLiveStates } from "@/lib/wfm/server";
 import TechnicianLiveBadge from "@/components/wfm/TechnicianLiveBadge";
 
@@ -37,6 +37,7 @@ export default async function TechniciansPage({
   searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   await requireWorkcenterView("technicians");
+  await requireFeature("technicians");
   const { status: statusFilter, q } = await searchParams;
   const [allTechs, tenant] = await Promise.all([listTechnicians(), getTenant()]);
   // The status filter already existed but had no control to reach it -- it
