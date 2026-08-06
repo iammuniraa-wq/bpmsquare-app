@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { WORKCENTERS } from "@/lib/workcenters";
 import { cardStyle } from "@/components/Shell";
+import Pill from "@/components/Pill";
+import { STANDARD_ROLE_CATEGORIES, STANDARD_ROLE_BY_KEY } from "@/lib/standardRoles";
 
 type Grant = {
   workcenter: string;
@@ -14,7 +16,14 @@ type Grant = {
   data_scope: "all" | "territory";
   territories: string[];
 };
-type BusinessRole = { id: string; name: string; description: string | null; grants: Grant[] };
+type BusinessRole = {
+  id: string; name: string; description: string | null; grants: Grant[];
+  /** Set when this row was materialised from the standard catalog. */
+  template_key?: string | null;
+  /** Standard roles are read-only -- customise by duplicating (see
+   * BUSINESS_ROLES_STANDARD_MAP.md §2). Enforced API-side too. */
+  is_standard?: boolean;
+};
 
 type GrantDraft = Record<string, { granted: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean; data_scope: "all" | "territory"; territories: string[] }>;
 
@@ -143,18 +152,57 @@ export default function BusinessRolesClient({ territories }: { territories: stri
     if (res.ok) load();
   }
 
+  /** The supported way to customise a standard role: copy it, then edit the copy. */
+  async function duplicate(r: BusinessRole) {
+    setSaveError("");
+    const res = await fetch("/api/business-roles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ duplicate_of: r.id }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) { setError(json.error ?? "Could not duplicate this role"); return; }
+    await load();
+    // Drop straight into the copy so "duplicate and adapt" is one motion.
+    startEdit({ ...json, grants: json.grants ?? [] });
+  }
+
+  const standardRoles = (roles ?? []).filter((r) => r.is_standard);
+  const customRoles = (roles ?? []).filter((r) => !r.is_standard);
+  const templateOf = (r: BusinessRole) => (r.template_key ? STANDARD_ROLE_BY_KEY.get(r.template_key) : undefined);
+
+  const editingRole = editingId && editingId !== "new" ? (roles ?? []).find((r) => r.id === editingId) : undefined;
+  // A standard role opens in the same editor but read-only -- an admin still
+  // wants to SEE exactly what it grants before assigning it.
+  const readOnly = !!editingRole?.is_standard;
+
   if (editingId) {
     return (
       <div style={{ maxWidth: 900 }}>
+        {readOnly && (
+          <div style={{ ...cardStyle, marginBottom: 12, fontSize: 12.5, color: c.muted, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Pill label="Standard role" tone="blue" />
+            <span style={{ flex: 1, minWidth: 220 }}>
+              This role ships with BPMSquare and stays up to date automatically, so it can&apos;t be edited.
+              Duplicate it to make a version you can change.
+            </span>
+            <button
+              onClick={() => editingRole && duplicate(editingRole)}
+              style={{ padding: "7px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, background: c.accent, color: c.panel, border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              Duplicate &amp; edit
+            </button>
+          </div>
+        )}
         <div style={{ ...cardStyle, marginBottom: 16 }}>
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 200 }}>
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sales Rep" style={inputStyle} />
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sales Rep" style={inputStyle} disabled={readOnly} />
             </div>
             <div style={{ flex: 2, minWidth: 240 }}>
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Description (optional)</label>
-              <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this role is for" style={inputStyle} />
+              <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this role is for" style={inputStyle} disabled={readOnly} />
             </div>
           </div>
 
@@ -176,19 +224,19 @@ export default function BusinessRolesClient({ territories }: { territories: stri
                     <tr key={w.key} style={{ opacity: g.granted ? 1 : 0.55 }}>
                       <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}`, color: c.ink, fontWeight: 500 }}>
                         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                          <input type="checkbox" checked={g.granted} onChange={() => toggleGranted(w.key)} />
+                          <input type="checkbox" checked={g.granted} onChange={() => toggleGranted(w.key)} disabled={readOnly} />
                           {w.label}
                         </label>
                       </td>
                       <td style={{ ...checkboxCell, borderBottom: `1px solid ${c.line}`, color: c.hint, fontSize: 11 }}>{g.granted ? "✓" : "—"}</td>
                       <td style={{ ...checkboxCell, borderBottom: `1px solid ${c.line}` }}>
-                        <input type="checkbox" disabled={!g.granted} checked={g.can_create} onChange={() => toggleAction(w.key, "can_create")} />
+                        <input type="checkbox" disabled={readOnly || !g.granted} checked={g.can_create} onChange={() => toggleAction(w.key, "can_create")} />
                       </td>
                       <td style={{ ...checkboxCell, borderBottom: `1px solid ${c.line}` }}>
-                        <input type="checkbox" disabled={!g.granted} checked={g.can_edit} onChange={() => toggleAction(w.key, "can_edit")} />
+                        <input type="checkbox" disabled={readOnly || !g.granted} checked={g.can_edit} onChange={() => toggleAction(w.key, "can_edit")} />
                       </td>
                       <td style={{ ...checkboxCell, borderBottom: `1px solid ${c.line}` }}>
-                        <input type="checkbox" disabled={!g.granted} checked={g.can_delete} onChange={() => toggleAction(w.key, "can_delete")} />
+                        <input type="checkbox" disabled={readOnly || !g.granted} checked={g.can_delete} onChange={() => toggleAction(w.key, "can_delete")} />
                       </td>
                       <td style={{ padding: "6px 11px", borderBottom: `1px solid ${c.line}`, minWidth: 220 }}>
                         {w.territoryScopable && g.granted ? (
@@ -196,6 +244,7 @@ export default function BusinessRolesClient({ territories }: { territories: stri
                             <select
                               value={g.data_scope}
                               onChange={(e) => setScope(w.key, e.target.value as "all" | "territory")}
+                              disabled={readOnly}
                               style={{ padding: "5px 8px", borderRadius: 6, border: `1px solid ${c.line}`, fontSize: 11.5, background: c.panel, color: c.ink }}
                             >
                               <option value="all">All territories</option>
@@ -208,7 +257,7 @@ export default function BusinessRolesClient({ territories }: { territories: stri
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                   {territories.map((t) => (
                                     <label key={t} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: c.muted, border: `1px solid ${c.line}`, borderRadius: 5, padding: "2px 6px", cursor: "pointer" }}>
-                                      <input type="checkbox" checked={g.territories.includes(t)} onChange={() => toggleTerritory(w.key, t)} style={{ width: 11, height: 11 }} />
+                                      <input type="checkbox" checked={g.territories.includes(t)} onChange={() => toggleTerritory(w.key, t)} disabled={readOnly} style={{ width: 11, height: 11 }} />
                                       {t}
                                     </label>
                                   ))}
@@ -234,11 +283,13 @@ export default function BusinessRolesClient({ territories }: { territories: stri
           )}
 
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-            <button onClick={save} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: c.accent, color: c.panel, border: "none", cursor: saving ? "wait" : "pointer" }}>
-              {saving ? "Saving…" : "Save role"}
-            </button>
+            {!readOnly && (
+              <button onClick={save} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: c.accent, color: c.panel, border: "none", cursor: saving ? "wait" : "pointer" }}>
+                {saving ? "Saving…" : "Save role"}
+              </button>
+            )}
             <button onClick={cancelEdit} style={{ padding: "9px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: "none", color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer" }}>
-              Cancel
+              {readOnly ? "Back to roles" : "Cancel"}
             </button>
           </div>
         </div>
@@ -261,27 +312,100 @@ export default function BusinessRolesClient({ territories }: { territories: stri
       )}
       {loading && <div style={{ fontSize: 13, color: c.muted, padding: "16px 0", textAlign: "center" }}>Loading…</div>}
 
-      {!loading && roles && roles.length === 0 && (
+      {!loading && roles && customRoles.length === 0 && standardRoles.length === 0 && (
         <div style={{ ...cardStyle, textAlign: "center", color: c.muted, fontSize: 13, padding: 24 }}>
           No Business Roles yet. Everyone keeps full access until you create one and assign it to someone in Settings → Team.
         </div>
       )}
 
-      {!loading && roles && roles.map((r) => (
-        <div key={r.id} style={{ ...cardStyle, marginBottom: 10, display: "flex", alignItems: "flex-start", gap: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: c.ink }}>{r.name}</div>
-            {r.description && <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>{r.description}</div>}
-            <div style={{ fontSize: 11.5, color: c.hint, marginTop: 6 }}>{summarizeGrants(r.grants)}</div>
-          </div>
-          <button onClick={() => startEdit(r)} style={{ padding: "7px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 500, background: "none", color: c.accent, border: `1px solid ${c.line}`, cursor: "pointer", whiteSpace: "nowrap" }}>
-            Edit
-          </button>
-          <button onClick={() => remove(r)} style={{ padding: "7px 14px", borderRadius: 7, fontSize: 12.5, background: "var(--err-bg)", color: "var(--err-ink)", border: "1px solid var(--err-line)", cursor: "pointer", whiteSpace: "nowrap" }}>
-            Delete
-          </button>
+      {!loading && standardRoles.length > 0 && (
+        <>
+          <SectionHeading
+            title="Standard roles"
+            hint="Shipped with BPMSquare and kept up to date for you, so they can't be edited directly. Duplicate one to make a version you can change."
+          />
+          {STANDARD_ROLE_CATEGORIES.map((cat) => {
+            const inCat = standardRoles.filter((r) => templateOf(r)?.category === cat.key);
+            if (inCat.length === 0) return null;
+            return (
+              <div key={cat.key} style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 7px 2px" }}>
+                  {cat.label}
+                </div>
+                {inCat.map((r) => (
+                  <RoleCard
+                    key={r.id}
+                    role={r}
+                    onPrimary={() => startEdit(r)}
+                    primaryLabel="View"
+                    onDuplicate={() => duplicate(r)}
+                  />
+                ))}
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {!loading && customRoles.length > 0 && (
+        <>
+          <SectionHeading title="Your roles" hint="Roles you created or adapted. Fully editable." />
+          {customRoles.map((r) => (
+            <RoleCard
+              key={r.id}
+              role={r}
+              onPrimary={() => startEdit(r)}
+              primaryLabel="Edit"
+              onDuplicate={() => duplicate(r)}
+              onDelete={() => remove(r)}
+            />
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function SectionHeading({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div style={{ margin: "18px 0 10px" }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{title}</div>
+      <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>{hint}</div>
+    </div>
+  );
+}
+
+function RoleCard({
+  role, onPrimary, primaryLabel, onDuplicate, onDelete,
+}: {
+  role: BusinessRole;
+  onPrimary: () => void;
+  primaryLabel: string;
+  onDuplicate: () => void;
+  onDelete?: () => void;
+}) {
+  const btn: React.CSSProperties = {
+    padding: "7px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 500,
+    background: "none", color: c.accent, border: `1px solid ${c.line}`,
+    cursor: "pointer", whiteSpace: "nowrap",
+  };
+  return (
+    <div style={{ ...cardStyle, marginBottom: 10, display: "flex", alignItems: "flex-start", gap: 12 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: c.ink, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {role.name}
+          {role.is_standard && <Pill label="Standard" tone="blue" />}
         </div>
-      ))}
+        {role.description && <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>{role.description}</div>}
+        <div style={{ fontSize: 11.5, color: c.hint, marginTop: 6 }}>{summarizeGrants(role.grants)}</div>
+      </div>
+      <button onClick={onPrimary} style={btn}>{primaryLabel}</button>
+      <button onClick={onDuplicate} style={btn}>Duplicate</button>
+      {onDelete && (
+        <button onClick={onDelete} style={{ ...btn, background: "var(--err-bg)", color: "var(--err-ink)", border: "1px solid var(--err-line)" }}>
+          Delete
+        </button>
+      )}
     </div>
   );
 }
