@@ -480,7 +480,7 @@ export default function MeClient() {
   // straight from it -- no separate punch screen (the ADP pattern the
   // client asked for).
   const punchTile = (
-    <section style={{ ...cardStyle, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+    <section className="stat-tile" style={{ ...cardStyle, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
       <div>
         <div style={capStyle}>Punch</div>
         <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1, color: c.ink }}>{fmtHM(me.running_minutes)}</div>
@@ -535,7 +535,7 @@ export default function MeClient() {
           <div style={{ ...grid(260), marginBottom: 14 }}>
             {punchTile}
 
-            <section style={cardStyle}>
+            <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("time")}>
               <div style={capStyle}>This month</div>
               {monthTotals ? (
                 <>
@@ -550,7 +550,7 @@ export default function MeClient() {
               <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("time")}>View timesheet</button>
             </section>
 
-            <section style={cardStyle}>
+            <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("leave")}>
               <div style={capStyle}>Leave</div>
               {leaveBalance.length === 0 ? (
                 <div style={{ fontSize: 12, color: c.hint }}>No leave types configured.</div>
@@ -566,7 +566,7 @@ export default function MeClient() {
               <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("leave")}>Request leave</button>
             </section>
 
-            <section style={cardStyle}>
+            <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("calendar")}>
               <div style={capStyle}>Next holiday</div>
               {nextHoliday ? (
                 <>
@@ -713,14 +713,14 @@ export default function MeClient() {
 
           {timeView === "monthly" && (
             <div style={{ ...grid(200), marginBottom: 14 }}>
-              <section style={cardStyle}><div style={capStyle}>Total worked</div><Stat value={fmtHM(monthTotals?.working_minutes ?? 0)} label={deductBreaks ? "breaks deducted" : "breaks not deducted"} /></section>
-              <section style={cardStyle}><div style={capStyle}>Days present</div><Stat value={String(monthTotals?.days_present ?? 0)} label="days with a punch" /></section>
-              <section style={cardStyle}><div style={capStyle}>Break time</div><Stat value={fmtHM(days.reduce((s, d) => s + d.break_minutes, 0))} label="total this month" /></section>
-              <section style={cardStyle}><div style={capStyle}>Late marks</div><Stat value={String(monthTotals?.late_marks ?? 0)} label={`${monthTotals?.half_day_deductions ?? 0} half-day deduction(s)`} tone={(monthTotals?.late_marks ?? 0) > 0 ? statusInk.warn : undefined} /></section>
-              <section style={cardStyle}><div style={capStyle}>Leave</div><Stat value={String((monthTotals?.paid_leave_days ?? 0) + (monthTotals?.unpaid_leave_days ?? 0))} label={`${monthTotals?.paid_leave_days ?? 0} paid · ${monthTotals?.unpaid_leave_days ?? 0} unpaid`} /></section>
-              <section style={cardStyle}><div style={capStyle}>Holidays</div><Stat value={String(monthTotals?.holiday_days ?? 0)} label="this month" /></section>
-              <section style={cardStyle}><div style={capStyle}>Night shifts</div><Stat value={String(monthTotals?.night_shifts ?? 0)} label={monthTotals?.night_allowance_total ? `₹${monthTotals.night_allowance_total.toLocaleString("en-IN")} allowance` : "no allowance"} /></section>
-              <section style={cardStyle}><div style={capStyle}>Incomplete</div><Stat value={String(monthTotals?.incomplete_days ?? 0)} label="days missing a check-out" tone={(monthTotals?.incomplete_days ?? 0) > 0 ? statusInk.bad : undefined} /></section>
+              <section className="stat-tile" style={cardStyle}><div style={capStyle}>Total worked</div><Stat value={fmtHM(monthTotals?.working_minutes ?? 0)} label={deductBreaks ? "breaks deducted" : "breaks not deducted"} /></section>
+              <section className="stat-tile" style={cardStyle}><div style={capStyle}>Days present</div><Stat value={String(monthTotals?.days_present ?? 0)} label="days with a punch" /></section>
+              <section className="stat-tile" style={cardStyle}><div style={capStyle}>Break time</div><Stat value={fmtHM(days.reduce((s, d) => s + d.break_minutes, 0))} label="total this month" /></section>
+              <section className="stat-tile" style={cardStyle}><div style={capStyle}>Late marks</div><Stat value={String(monthTotals?.late_marks ?? 0)} label={`${monthTotals?.half_day_deductions ?? 0} half-day deduction(s)`} tone={(monthTotals?.late_marks ?? 0) > 0 ? statusInk.warn : undefined} /></section>
+              <section className="stat-tile" style={cardStyle}><div style={capStyle}>Leave</div><Stat value={String((monthTotals?.paid_leave_days ?? 0) + (monthTotals?.unpaid_leave_days ?? 0))} label={`${monthTotals?.paid_leave_days ?? 0} paid · ${monthTotals?.unpaid_leave_days ?? 0} unpaid`} /></section>
+              <section className="stat-tile" style={cardStyle}><div style={capStyle}>Holidays</div><Stat value={String(monthTotals?.holiday_days ?? 0)} label="this month" /></section>
+              <section className="stat-tile" style={cardStyle}><div style={capStyle}>Night shifts</div><Stat value={String(monthTotals?.night_shifts ?? 0)} label={monthTotals?.night_allowance_total ? `₹${monthTotals.night_allowance_total.toLocaleString("en-IN")} allowance` : "no allowance"} /></section>
+              <section className="stat-tile" style={cardStyle}><div style={capStyle}>Incomplete</div><Stat value={String(monthTotals?.incomplete_days ?? 0)} label="days missing a check-out" tone={(monthTotals?.incomplete_days ?? 0) > 0 ? statusInk.bad : undefined} /></section>
             </div>
           )}
 

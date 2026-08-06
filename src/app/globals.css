@@ -335,6 +335,38 @@
   background: var(--card-bg);
 }
 
+/* KPI / summary tiles. Works in every theme (unlike .modern-lift, which is
+   scoped to modern/nextgen) because a completely inert stat card was the
+   "not interactive at all" complaint. `.stat-tile` is the passive version --
+   a subtle raise so the card feels alive under the cursor; add
+   `.is-clickable` when the tile actually navigates or filters, which turns
+   on the pointer cursor and a stronger accent border so the two are
+   visually distinguishable rather than everything looking clickable. */
+.stat-tile {
+  transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.16s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.16s ease;
+}
+.stat-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover, 0 8px 22px rgba(20, 40, 80, 0.14));
+}
+.stat-tile.is-clickable {
+  cursor: pointer;
+}
+.stat-tile.is-clickable:hover {
+  border-color: color-mix(in srgb, var(--tenant-accent, #378add) 45%, var(--line));
+}
+.stat-tile.is-clickable:active {
+  transform: translateY(0);
+}
+/* Selected state for a tile being used as a filter -- must survive losing
+   hover, so it's a class rather than :hover styling. */
+.stat-tile.is-active {
+  border-color: var(--tenant-accent, #378add);
+  box-shadow: 0 0 0 1px var(--tenant-accent, #378add) inset;
+}
+
 /* Interactive chart segment: a slice grows slightly and lifts out of the
    ring on hover (transform-box/transform-origin so the transform is
    relative to the slice's own centre, not the SVG's). */

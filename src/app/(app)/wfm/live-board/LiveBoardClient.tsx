@@ -90,6 +90,7 @@ export default function LiveBoardClient() {
   const [siteFilter, setSiteFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const [lateOnly, setLateOnly] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -141,6 +142,7 @@ export default function LiveBoardClient() {
     if (statusFilter && bucketOf(r) !== statusFilter) return false;
     if (siteFilter && (r.home_site_name ?? "No site assigned") !== siteFilter) return false;
     if (flaggedOnly && !r.outside_geofence) return false;
+    if (lateOnly && !r.late) return false;
     if (!q) return true;
     return (
       r.full_name.toLowerCase().includes(q) ||
@@ -160,12 +162,22 @@ export default function LiveBoardClient() {
     a === "No site assigned" ? 1 : b === "No site assigned" ? -1 : a.localeCompare(b)
   );
 
-  const stat = (label: string, value: number, color?: string) => (
-    <div key={label} style={{ ...cardStyle, padding: "10px 16px", minWidth: 100 }}>
+  // Every stat card is a live filter -- clicking "Late" shows exactly those
+  // people, which is the action a supervisor wants the instant they see a
+  // non-zero count. `onClick` omitted => the tile still lifts on hover but
+  // isn't styled or cursored as clickable.
+  const stat = (label: string, value: number, color?: string, onClick?: () => void, active?: boolean) => (
+    <div
+      key={label}
+      onClick={onClick}
+      className={`stat-tile${onClick ? " is-clickable" : ""}${active ? " is-active" : ""}`}
+      style={{ ...cardStyle, padding: "10px 16px", minWidth: 100 }}
+    >
       <div style={{ fontSize: 22, fontWeight: 700, color: color ?? c.ink }}>{value}</div>
       <div style={{ fontSize: 11.5, color: c.muted }}>{label}</div>
     </div>
   );
+  const toggleStatus = (b: Bucket) => () => setStatusFilter((cur) => (cur === b ? null : b));
 
   return (
     <>
@@ -180,12 +192,14 @@ export default function LiveBoardClient() {
           />
         </section>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", flex: "1 1 320px", alignContent: "flex-start" }}>
-          {stat("Checked in", counts.in, statusInk.good)}
-          {stat("On break", counts.onBreak, statusInk.warn)}
-          {stat("Late", counts.late, statusInk.bad)}
-          {stat("Absent", counts.absent, statusInk.bad)}
-          {stat("On leave", counts.leave)}
-          {stat("Geofence flags", counts.flagged, counts.flagged ? statusInk.warn : undefined)}
+          {stat("Checked in", counts.in, statusInk.good, toggleStatus("In"), statusFilter === "In")}
+          {stat("On break", counts.onBreak, statusInk.warn, toggleStatus("On break"), statusFilter === "On break")}
+          {/* Late isn't a bucket (it's a flag on top of one), so it drives
+              its own filter rather than statusFilter. */}
+          {stat("Late", counts.late, statusInk.bad, () => { setStatusFilter(null); setLateOnly((v) => !v); setFlaggedOnly(false); }, lateOnly)}
+          {stat("Absent", counts.absent, statusInk.bad, toggleStatus("Absent"), statusFilter === "Absent")}
+          {stat("On leave", counts.leave, undefined, toggleStatus("On leave"), statusFilter === "On leave")}
+          {stat("Geofence flags", counts.flagged, counts.flagged ? statusInk.warn : undefined, () => { setFlaggedOnly((v) => !v); setLateOnly(false); }, flaggedOnly)}
         </div>
       </div>
 
