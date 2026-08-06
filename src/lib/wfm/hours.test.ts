@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { breakSegments, computeDayHours, shiftDayKey } from "./hours";
+import { breakSegments, computeDayHours, shiftDayKey, workSessions } from "./hours";
 
 const TZ = "Asia/Kolkata"; // UTC+5:30, no DST -- deterministic for tests
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -61,6 +61,92 @@ describe("computeDayHours", () => {
     const r = computeDayHours([{ kind: "check_in", ts: T(0) }], end);
     expect(r.open).toBe(true);
     expect(r.gross_minutes).toBe(20);
+  });
+
+  it("a second check-in later the same day does NOT bill the gap between sessions", () => {
+    // 09:00–09:05 worked, away 09:05–09:15, 09:15–09:20 worked = 10 min.
+    // The naive "last check_out − first check_in" span would say 20.
+    const r = computeDayHours(
+      [
+        { kind: "check_in", ts: T(0) },
+        { kind: "check_out", ts: T(5) },
+        { kind: "check_in", ts: T(15) },
+        { kind: "check_out", ts: T(20) },
+      ],
+      end
+    );
+    expect(r).toEqual({ gross_minutes: 10, break_minutes: 0, net_minutes: 10, open: false });
+  });
+
+  it("breaks inside a multi-session day are deducted from their own session", () => {
+    const r = computeDayHours(
+      [
+        { kind: "check_in", ts: T(0) },
+        { kind: "break_start", ts: T(2) }, { kind: "break_end", ts: T(4) },
+        { kind: "check_out", ts: T(5) },
+        { kind: "check_in", ts: T(15) },
+        { kind: "check_out", ts: T(20) },
+      ],
+      end
+    );
+    expect(r).toEqual({ gross_minutes: 10, break_minutes: 2, net_minutes: 8, open: false });
+  });
+
+  it("a reopened session still running counts up to the end reference", () => {
+    const r = computeDayHours(
+      [
+        { kind: "check_in", ts: T(0) },
+        { kind: "check_out", ts: T(5) },
+        { kind: "check_in", ts: T(15) },
+      ],
+      end
+    );
+    expect(r).toEqual({ gross_minutes: 10, break_minutes: 0, net_minutes: 10, open: true });
+  });
+});
+
+describe("workSessions", () => {
+  const T = (m: number) => ist(2026, 8, 5, 9, m).toISOString();
+  const end = ist(2026, 8, 5, 9, 20);
+
+  it("splits a day into each in→out pair", () => {
+    const sessions = workSessions(
+      [
+        { kind: "check_in", ts: T(0) },
+        { kind: "check_out", ts: T(5) },
+        { kind: "check_in", ts: T(15) },
+        { kind: "check_out", ts: T(20) },
+      ],
+      end
+    );
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0]).toMatchObject({ in: T(0), out: T(5), gross_minutes: 5, net_minutes: 5 });
+    expect(sessions[1]).toMatchObject({ in: T(15), out: T(20), gross_minutes: 5, net_minutes: 5 });
+  });
+
+  it("an unclosed final session has a null out", () => {
+    const sessions = workSessions([{ kind: "check_in", ts: T(10) }], end);
+    expect(sessions).toEqual([
+      { in: T(10), out: null, gross_minutes: 10, break_minutes: 0, net_minutes: 10, breaks: [] },
+    ]);
+  });
+
+  it("attributes each break to the session it happened in", () => {
+    const sessions = workSessions(
+      [
+        { kind: "check_in", ts: T(0) },
+        { kind: "break_start", ts: T(1) }, { kind: "break_end", ts: T(3) },
+        { kind: "check_out", ts: T(5) },
+        { kind: "check_in", ts: T(15) },
+        { kind: "break_start", ts: T(16) }, { kind: "break_end", ts: T(17) },
+        { kind: "check_out", ts: T(20) },
+      ],
+      end
+    );
+    expect(sessions[0].breaks).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({ break_minutes: 2, net_minutes: 3 });
+    expect(sessions[1].breaks).toHaveLength(1);
+    expect(sessions[1]).toMatchObject({ break_minutes: 1, net_minutes: 4 });
   });
 });
 

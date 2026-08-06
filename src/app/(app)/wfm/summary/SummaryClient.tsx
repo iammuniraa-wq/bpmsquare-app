@@ -5,10 +5,12 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 
 type BreakSegment = { start: string; end: string | null; minutes: number };
+type WorkSession = { in: string; out: string | null; gross_minutes: number; break_minutes: number; net_minutes: number; breaks: BreakSegment[] };
 type DayRecord = {
   date: string;
   first_in: string | null;
   last_out: string | null;
+  sessions: WorkSession[];
   breaks: BreakSegment[];
   gross_minutes: number;
   break_minutes: number;
@@ -149,10 +151,26 @@ function DailyEmployee({ emp, deductBreaks }: { emp: EmployeeSummary; deductBrea
               const st = dayStatus(d);
               return (
                 <tr key={d.date}>
-                  <td style={{ ...td, color: c.ink, fontWeight: 600 }}>{fmtDay(d.date)}</td>
-                  <td style={td}>{d.first_in ? fmtTime(d.first_in) : "—"}</td>
-                  <td style={td}>{d.last_out ? fmtTime(d.last_out) : d.incomplete ? <span style={{ color: "#ef4444" }}>missing</span> : "—"}</td>
-                  <td style={{ ...td, whiteSpace: "normal" }}>
+                  <td style={{ ...td, color: c.ink, fontWeight: 600, verticalAlign: "top" }}>{fmtDay(d.date)}</td>
+                  <td style={{ ...td, verticalAlign: "top" }}>
+                    {d.sessions.length === 0 ? "—" : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        {d.sessions.map((s, i) => (
+                          <span key={s.in}>{d.sessions.length > 1 && <span style={{ color: c.hint }}>{i + 1}. </span>}{fmtTime(s.in)}</span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ ...td, verticalAlign: "top" }}>
+                    {d.sessions.length === 0 ? "—" : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        {d.sessions.map((s) => (
+                          <span key={s.in}>{s.out ? fmtTime(s.out) : <span style={{ color: "#ef4444" }}>missing</span>}</span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ ...td, whiteSpace: "normal", verticalAlign: "top" }}>
                     {d.breaks.length === 0 ? <span style={{ color: c.hint }}>—</span> : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         {d.breaks.map((b, i) => (
@@ -165,10 +183,10 @@ function DailyEmployee({ emp, deductBreaks }: { emp: EmployeeSummary; deductBrea
                       </div>
                     )}
                   </td>
-                  <td style={td}>{d.break_minutes > 0 ? fmtHM(d.break_minutes) : "—"}</td>
-                  <td style={{ ...td, color: c.muted }}>{d.punches > 0 ? fmtHM(d.gross_minutes) : "—"}</td>
-                  <td style={{ ...td, fontWeight: 700, color: c.ink }}>{d.punches > 0 ? fmtHM(deductBreaks ? d.net_minutes : d.gross_minutes) : "—"}</td>
-                  <td style={{ ...td, color: st.color }}>{st.label}</td>
+                  <td style={{ ...td, verticalAlign: "top" }}>{d.break_minutes > 0 ? fmtHM(d.break_minutes) : "—"}</td>
+                  <td style={{ ...td, color: c.muted, verticalAlign: "top" }}>{d.punches > 0 ? fmtHM(d.gross_minutes) : "—"}</td>
+                  <td style={{ ...td, fontWeight: 700, color: c.ink, verticalAlign: "top" }}>{d.punches > 0 ? fmtHM(deductBreaks ? d.net_minutes : d.gross_minutes) : "—"}</td>
+                  <td style={{ ...td, color: st.color, verticalAlign: "top" }}>{st.label}</td>
                 </tr>
               );
             })}

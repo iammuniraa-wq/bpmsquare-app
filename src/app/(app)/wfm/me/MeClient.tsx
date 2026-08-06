@@ -39,8 +39,10 @@ type MonthTotals = {
   holiday_days: number; night_shifts: number; night_allowance_total: number; incomplete_days: number;
 };
 type BreakSegment = { start: string; end: string | null; minutes: number };
+type WorkSession = { in: string; out: string | null; gross_minutes: number; break_minutes: number; net_minutes: number; breaks: BreakSegment[] };
 type DayRecord = {
   date: string; first_in: string | null; last_out: string | null;
+  sessions: WorkSession[];
   breaks: BreakSegment[];
   net_minutes: number; gross_minutes: number; break_minutes: number;
   late: boolean; absent: boolean;
@@ -568,10 +570,26 @@ export default function MeClient() {
                 <tbody>
                   {days.filter((d) => d.date <= todayKey()).reverse().map((d) => (
                     <tr key={d.date}>
-                      <td style={{ ...td, color: c.ink, fontWeight: 600, whiteSpace: "nowrap" }}>{fmtDate(d.date)}</td>
-                      <td style={{ ...td, whiteSpace: "nowrap" }}>{d.first_in ? fmtTime(d.first_in) : "—"}</td>
-                      <td style={{ ...td, whiteSpace: "nowrap" }}>{d.last_out ? fmtTime(d.last_out) : d.incomplete ? <span style={{ color: "#ef4444" }}>missing</span> : "—"}</td>
-                      <td style={td}>
+                      <td style={{ ...td, color: c.ink, fontWeight: 600, whiteSpace: "nowrap", verticalAlign: "top" }}>{fmtDate(d.date)}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap", verticalAlign: "top" }}>
+                        {d.sessions.length === 0 ? "—" : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            {d.sessions.map((s, i) => (
+                              <span key={s.in}>{d.sessions.length > 1 && <span style={{ color: c.hint }}>{i + 1}. </span>}{fmtTime(s.in)}</span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ ...td, whiteSpace: "nowrap", verticalAlign: "top" }}>
+                        {d.sessions.length === 0 ? "—" : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            {d.sessions.map((s) => (
+                              <span key={s.in}>{s.out ? fmtTime(s.out) : <span style={{ color: "#ef4444" }}>missing</span>}</span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ ...td, verticalAlign: "top" }}>
                         {d.breaks.length === 0 ? <span style={{ color: c.hint }}>—</span> : (
                           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                             {d.breaks.map((b, i) => (
@@ -584,12 +602,12 @@ export default function MeClient() {
                           </div>
                         )}
                       </td>
-                      <td style={{ ...td, whiteSpace: "nowrap" }}>{d.break_minutes > 0 ? fmtHM(d.break_minutes) : "—"}</td>
-                      <td style={{ ...td, whiteSpace: "nowrap", color: c.muted }}>{d.punches > 0 ? fmtHM(d.gross_minutes) : "—"}</td>
-                      <td style={{ ...td, whiteSpace: "nowrap", fontWeight: 700, color: c.ink }}>
+                      <td style={{ ...td, whiteSpace: "nowrap", verticalAlign: "top" }}>{d.break_minutes > 0 ? fmtHM(d.break_minutes) : "—"}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap", color: c.muted, verticalAlign: "top" }}>{d.punches > 0 ? fmtHM(d.gross_minutes) : "—"}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap", fontWeight: 700, color: c.ink, verticalAlign: "top" }}>
                         {d.punches > 0 ? fmtHM(deductBreaks ? d.net_minutes : d.gross_minutes) : "—"}
                       </td>
-                      <td style={td}>
+                      <td style={{ ...td, verticalAlign: "top" }}>
                         {d.holiday ? <Pill label={d.holiday} tone="blue" />
                           : d.on_leave ? <Pill label={d.on_leave.name} tone="purple" />
                           : d.is_week_off ? <span style={{ color: c.hint }}>Week off</span>

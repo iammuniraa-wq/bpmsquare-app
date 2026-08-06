@@ -19,93 +19,114 @@ export type DayHours = {
 
 type Ev = Pick<PresenceEvent, "kind" | "ts">;
 
-/**
- * Compute one day's hours from its events. `endRef` is "now" for a live
- * running total; for a closed day the last check_out wins over it.
- * Decision 2026-08-05 (overrides requirements v1.0 §6): working hours
- * EXCLUDE break time — net = (out − in) − breaks. deduct_breaks in tenant
- * config (default true) selects net vs gross downstream.
- */
-export function computeDayHours(events: Ev[], endRef: Date): DayHours {
-  const firstIn = events.find((e) => e.kind === "check_in");
-  if (!firstIn) return { gross_minutes: 0, break_minutes: 0, net_minutes: 0, open: false };
-
-  const start = new Date(firstIn.ts).getTime();
-  const lastOut = [...events].reverse().find(
-    (e) => e.kind === "check_out" && new Date(e.ts).getTime() >= start
-  );
-  const open = !lastOut;
-  const end = Math.max(start, lastOut ? new Date(lastOut.ts).getTime() : endRef.getTime());
-
-  let breakMs = 0;
-  let openBreak: number | null = null;
-  for (const e of events) {
-    const t = new Date(e.ts).getTime();
-    if (t < start || t > end) continue;
-    if (e.kind === "break_start") openBreak = t;
-    else if (e.kind === "break_end" && openBreak !== null) {
-      breakMs += t - openBreak;
-      openBreak = null;
-    } else if (e.kind === "check_out") {
-      // checking out while on break closes the break at the same instant
-      if (openBreak !== null) {
-        breakMs += t - openBreak;
-        openBreak = null;
-      }
-    }
-  }
-  if (openBreak !== null) breakMs += end - openBreak;
-
-  const gross = Math.max(0, Math.round((end - start) / 60000));
-  const brk = Math.min(gross, Math.round(breakMs / 60000));
-  return { gross_minutes: gross, break_minutes: brk, net_minutes: gross - brk, open };
-}
-
 export type BreakSegment = {
   start: string;      // ISO ts of break_start
   end: string | null; // ISO ts of break_end, or null if still open at endRef
   minutes: number;
 };
 
+/** One check_in→check_out stretch. A day can have several (an employee who
+ * leaves at lunch and returns, a field tech doing a morning and an evening
+ * job), which is why hours are summed per session rather than measured from
+ * the day's first check-in to its last check-out. */
+export type WorkSession = {
+  in: string;
+  out: string | null; // null while the session is still running
+  gross_minutes: number;
+  break_minutes: number;
+  net_minutes: number;
+  breaks: BreakSegment[];
+};
+
+const mins = (ms: number) => Math.round(ms / 60000);
+
 /**
- * The individual break_start→break_end pairs of one day, in order — the
- * detail behind computeDayHours' single `break_minutes` figure, for a
- * timesheet that has to show every break the employee actually booked.
- * Kept separate from computeDayHours rather than folded into its return so
- * that function's shape (and its tests) stay unchanged. Same interval rules
- * as computeDayHours, so the segment minutes always sum to its
- * break_minutes: breaks outside the in→out window are ignored, a check_out
- * closes an open break, and a still-open break runs to `endRef`.
+ * Split one day's events into its work sessions. The state machine
+ * (types.ts) permits out→check_in again, so this is a real case, not a
+ * defensive one: counting from first check-in to last check-out would bill
+ * the employee for the gap in between. A session left open (no check_out)
+ * runs to `endRef` — "now" for a live total, the day's last event for a
+ * historical one. Events before the first check-in are ignored.
  */
-export function breakSegments(events: Ev[], endRef: Date): BreakSegment[] {
-  const firstIn = events.find((e) => e.kind === "check_in");
-  if (!firstIn) return [];
-
-  const start = new Date(firstIn.ts).getTime();
-  const lastOut = [...events].reverse().find(
-    (e) => e.kind === "check_out" && new Date(e.ts).getTime() >= start
-  );
-  const end = Math.max(start, lastOut ? new Date(lastOut.ts).getTime() : endRef.getTime());
-
-  const segments: BreakSegment[] = [];
+export function workSessions(events: Ev[], endRef: Date): WorkSession[] {
+  const sessions: WorkSession[] = [];
+  let openAt: number | null = null;
+  let breaks: BreakSegment[] = [];
   let openBreak: number | null = null;
+
+  const close = (endMs: number, outTs: string | null) => {
+    if (openAt === null) return;
+    if (openBreak !== null) {
+      // Checking out (or the day ending) while on break closes the break too.
+      breaks.push({ start: new Date(openBreak).toISOString(), end: outTs, minutes: mins(endMs - openBreak) });
+      openBreak = null;
+    }
+    const gross = Math.max(0, mins(endMs - openAt));
+    const brk = Math.min(gross, breaks.reduce((s, b) => s + b.minutes, 0));
+    sessions.push({
+      in: new Date(openAt).toISOString(),
+      out: outTs,
+      gross_minutes: gross,
+      break_minutes: brk,
+      net_minutes: gross - brk,
+      breaks,
+    });
+    openAt = null;
+    breaks = [];
+  };
+
   for (const e of events) {
     const t = new Date(e.ts).getTime();
-    if (t < start || t > end) continue;
-    if (e.kind === "break_start") {
-      openBreak = t;
+    if (e.kind === "check_in") {
+      if (openAt === null) openAt = t;
+    } else if (openAt === null) {
+      continue; // break/check-out with no session open — nothing to attribute
+    } else if (e.kind === "check_out") {
+      close(t, e.ts);
+    } else if (e.kind === "break_start") {
+      if (openBreak === null) openBreak = t;
     } else if (e.kind === "break_end" && openBreak !== null) {
-      segments.push({ start: new Date(openBreak).toISOString(), end: e.ts, minutes: Math.round((t - openBreak) / 60000) });
-      openBreak = null;
-    } else if (e.kind === "check_out" && openBreak !== null) {
-      segments.push({ start: new Date(openBreak).toISOString(), end: e.ts, minutes: Math.round((t - openBreak) / 60000) });
+      breaks.push({ start: new Date(openBreak).toISOString(), end: e.ts, minutes: mins(t - openBreak) });
       openBreak = null;
     }
   }
-  if (openBreak !== null) {
-    segments.push({ start: new Date(openBreak).toISOString(), end: null, minutes: Math.round((end - openBreak) / 60000) });
-  }
-  return segments;
+  close(Math.max(openAt ?? 0, endRef.getTime()), null);
+
+  return sessions;
+}
+
+/**
+ * Compute one day's hours from its events. `endRef` is "now" for a live
+ * running total; for a closed day the last check_out wins over it.
+ * Decision 2026-08-05 (overrides requirements v1.0 §6): working hours
+ * EXCLUDE break time — net = worked − breaks. deduct_breaks in tenant
+ * config (default true) selects net vs gross downstream.
+ *
+ * Gross is the SUM of the day's work sessions, not the span from first
+ * check-in to last check-out — see workSessions.
+ */
+export function computeDayHours(events: Ev[], endRef: Date): DayHours {
+  const sessions = workSessions(events, endRef);
+  if (sessions.length === 0) return { gross_minutes: 0, break_minutes: 0, net_minutes: 0, open: false };
+
+  const gross = sessions.reduce((s, x) => s + x.gross_minutes, 0);
+  const brk = sessions.reduce((s, x) => s + x.break_minutes, 0);
+  return {
+    gross_minutes: gross,
+    break_minutes: brk,
+    net_minutes: gross - brk,
+    open: sessions[sessions.length - 1].out === null,
+  };
+}
+
+/**
+ * Every break the employee booked that day, in order, across all sessions —
+ * the detail behind computeDayHours' single `break_minutes` figure, for a
+ * timesheet that has to show each one. Derived from workSessions so the
+ * segment minutes always sum to that figure.
+ */
+export function breakSegments(events: Ev[], endRef: Date): BreakSegment[] {
+  return workSessions(events, endRef).flatMap((s) => s.breaks);
 }
 
 // ── Shift-day attribution ──────────────────────────────────────────────────

@@ -72,8 +72,21 @@ export const DAILY_DETAIL_COLUMNS: DailyDetailColumn[] = [
   { header: "Name", width: 24, accessor: ({ employee }) => employee.full_name },
   { header: "Site", width: 18, accessor: ({ employee }) => employee.site_name ?? "" },
   { header: "Date", width: 12, accessor: ({ day }) => day.date },
+  // First in / last out stay for the common single-session case and for any
+  // downstream sheet that keys off them; "Sessions"/"Session Times" is what
+  // makes a day with more than one in/out pair readable, and is the figure
+  // Total Worked is actually summed from.
   { header: "Check In", width: 10, accessor: ({ day, timezone }) => (day.first_in ? hhmm(day.first_in, timezone) : "") },
   { header: "Check Out", width: 10, accessor: ({ day, timezone }) => (day.last_out ? hhmm(day.last_out, timezone) : "") },
+  { header: "Sessions", width: 9, accessor: ({ day }) => day.sessions.length },
+  {
+    header: "Session Times",
+    width: 34,
+    accessor: ({ day, timezone }) =>
+      day.sessions
+        .map((s, i) => `${i + 1}) ${hhmm(s.in, timezone)}-${s.out ? hhmm(s.out, timezone) : "open"}`)
+        .join("  "),
+  },
   { header: "Breaks Taken", width: 12, accessor: ({ day }) => day.breaks.length },
   {
     header: "Break Times",
