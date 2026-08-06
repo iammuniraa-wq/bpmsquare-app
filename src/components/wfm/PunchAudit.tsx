@@ -14,6 +14,7 @@ type PunchEvent = {
   geo_lng: number | null;
   geo_accuracy_m: number | null;
   within_geofence: boolean | null;
+  geo_address: string | null;
   selfie_url: string | null;
 };
 
@@ -29,10 +30,10 @@ const fmtTime = (s: string) => new Date(s).toLocaleTimeString("en-IN", { hour: "
  * private -- see 0062), so this component always fetches fresh rather than
  * caching a URL that will expire.
  *
- * Location renders as coordinates plus a map link. A literal street address
- * would need a reverse-geocoding provider, which is an external dependency
- * AND means sending an employee's GPS fix to a third party -- a DPDP
- * decision, not a styling one, so it's deliberately not done here.
+ * Location shows the resolved street address (reverse-geocoded via Ola Maps
+ * and cached on the row -- see lib/wfm/geocode.ts), with the raw coordinates
+ * and a map link underneath so the underlying evidence is always visible and
+ * an address is never the only record of where someone was.
  */
 export default function PunchAudit({ employeeId, date }: { employeeId: string; date?: string }) {
   const [events, setEvents] = useState<PunchEvent[] | null>(null);
@@ -86,9 +87,12 @@ export default function PunchAudit({ employeeId, date }: { employeeId: string; d
               {e.within_geofence === false && <Pill label="Outside geofence" tone="amber" />}
             </div>
 
-            <div style={{ marginTop: 4, color: c.muted, fontSize: 11.5 }}>
-              {e.geo_lat != null && e.geo_lng != null ? (
-                <>
+            {e.geo_lat != null && e.geo_lng != null ? (
+              <>
+                {e.geo_address && (
+                  <div style={{ marginTop: 4, color: c.ink, fontSize: 12 }}>📍 {e.geo_address}</div>
+                )}
+                <div style={{ marginTop: 3, color: c.muted, fontSize: 11.5 }}>
                   {e.geo_lat.toFixed(5)}, {e.geo_lng.toFixed(5)}
                   {e.geo_accuracy_m != null && <span style={{ color: c.hint }}> · ±{Math.round(e.geo_accuracy_m)}m</span>}
                   {" · "}
@@ -100,11 +104,11 @@ export default function PunchAudit({ employeeId, date }: { employeeId: string; d
                   >
                     View on map ↗
                   </a>
-                </>
-              ) : (
-                <span style={{ color: statusInk.warn }}>No location captured</span>
-              )}
-            </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ marginTop: 4, fontSize: 11.5, color: statusInk.warn }}>No location captured</div>
+            )}
           </div>
         </div>
       ))}

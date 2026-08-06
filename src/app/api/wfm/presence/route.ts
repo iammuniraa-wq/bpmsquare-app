@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, getWfmConfig } from "@/lib/wfm/server";
 import { shiftDayKey } from "@/lib/wfm/hours";
+import { reverseGeocode, geocodingConfigured } from "@/lib/wfm/geocode";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
 
   const { data: events } = await admin
     .from("wfm_presence_events")
-    .select("id, kind, ts, source, site_id, geo_lat, geo_lng, geo_accuracy_m, within_geofence, selfie_path, flags")
+    .select("id, kind, ts, source, site_id, geo_lat, geo_lng, geo_accuracy_m, within_geofence, selfie_path, geo_address, flags")
     .eq("tenant_id", tenantId)
     .eq("employee_id", employeeId)
     .is("superseded_by", null)
@@ -71,6 +72,32 @@ export async function GET(request: NextRequest) {
   const { data: sites } = await admin.from("wfm_sites").select("id, name").eq("tenant_id", tenantId);
   const siteName = new Map((sites ?? []).map((s) => [s.id as string, s.name as string]));
 
+  // Resolve any addresses we don't have yet, ONCE, and cache them on the
+  // row. Doing it lazily on first view rather than at punch time keeps
+  // punching instant (no provider round-trip in the critical path) and means
+  // a punch nobody ever looks at costs nothing. A failure is left null so
+  // it's retried next time; a genuine "no address here" is cached as "" so
+  // it isn't.
+  const needAddress = dayEvents.filter(
+    (e) => e.geo_address == null && e.geo_lat != null && e.geo_lng != null
+  );
+  const resolved = new Map<string, string>();
+  if (geocodingConfigured() && needAddress.length > 0) {
+    await Promise.all(
+      needAddress.map(async (e) => {
+        const r = await reverseGeocode(Number(e.geo_lat), Number(e.geo_lng));
+        if (r.status === "unavailable") return; // leave null, retry later
+        const value = r.status === "ok" ? r.address : "";
+        resolved.set(e.id as string, value);
+        await admin
+          .from("wfm_presence_events")
+          .update({ geo_address: value })
+          .eq("id", e.id)
+          .eq("tenant_id", tenantId);
+      })
+    );
+  }
+
   // Selfies live in a PRIVATE bucket (0062) -- they're DPDP-sensitive and
   // must never be publicly addressable. Mint a short-lived signed URL per
   // event instead; 5 minutes is enough to render the page and no longer.
@@ -81,6 +108,7 @@ export async function GET(request: NextRequest) {
         const { data: signed } = await admin.storage.from("wfm").createSignedUrl(e.selfie_path as string, 300);
         selfie_url = signed?.signedUrl ?? null;
       }
+      const address = resolved.get(e.id as string) ?? (e.geo_address as string | null);
       return {
         id: e.id,
         kind: e.kind,
@@ -91,6 +119,7 @@ export async function GET(request: NextRequest) {
         geo_lng: e.geo_lng,
         geo_accuracy_m: e.geo_accuracy_m,
         within_geofence: e.within_geofence,
+        geo_address: address || null,
         selfie_url,
       };
     })
