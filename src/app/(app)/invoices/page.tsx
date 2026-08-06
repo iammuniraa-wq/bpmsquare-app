@@ -7,6 +7,7 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
+import ListFilterBar from "@/components/ListFilterBar";
 import type { InvoiceStatus } from "@/lib/types";
 
 const STATUS_TONE: Record<InvoiceStatus, PillarKey> = {
@@ -34,11 +35,11 @@ const td: React.CSSProperties = {
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; from?: string; to?: string }>;
 }) {
   await requireWorkcenterView("invoices");
   await requireFeature("invoices");
-  const { status: statusFilter } = await searchParams;
+  const { status: statusFilter, q, from, to } = await searchParams;
   const invoices = await listInvoices();
 
   const summary = SUMMARY_STATUSES.map((s) => ({
@@ -47,7 +48,23 @@ export default async function InvoicesPage({
     total: invoices.filter((i) => i.status === s).reduce((acc, i) => acc + i.total, 0),
   }));
 
-  const filtered = statusFilter ? invoices.filter((i) => i.status === statusFilter) : invoices;
+  // Summary tiles deliberately count the WHOLE ledger, not the filtered
+  // subset -- they're the overview the filters act on, and a tile showing
+  // the total of what you already filtered to is useless.
+  const needle = (q ?? "").trim().toLowerCase();
+  const filtered = invoices.filter((i) => {
+    if (statusFilter && i.status !== statusFilter) return false;
+    // Date bounds compare on the issue date; an unissued (draft) invoice has
+    // no date and so can't satisfy a range.
+    const issued = i.issued_at ? i.issued_at.slice(0, 10) : null;
+    if (from && (!issued || issued < from)) return false;
+    if (to && (!issued || issued > to)) return false;
+    if (!needle) return true;
+    return (
+      (i.ref ?? "").toLowerCase().includes(needle) ||
+      (i.account_name ?? "").toLowerCase().includes(needle)
+    );
+  });
 
   return (
     <>
@@ -82,6 +99,14 @@ export default async function InvoicesPage({
         ))}
       </div>
 
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search invoice ref or account…"
+        dates={[{ name: "from", value: from, label: "Issued from" }, { name: "to", value: to, label: "to" }]}
+        hiddenParams={{ status: statusFilter }}
+        clearHref={ROUTES.invoices}
+      />
+
       {statusFilter && (
         <div style={{ marginBottom: 12 }}>
           <Link href={ROUTES.invoices} style={{ fontSize: 12, color: c.hint, textDecoration: "none" }}>← Show all invoices</Link>
@@ -90,11 +115,20 @@ export default async function InvoicesPage({
 
       {filtered.length === 0 ? (
         <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>
-          No invoices yet.{" "}
-          <Link href={ROUTES.invoiceNew} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-            + Create one
-          </Link>
-          , or raise one from a completed work order or an approved quote.
+          {invoices.length > 0 ? (
+            <>
+              No invoices match these filters.{" "}
+              <Link href={ROUTES.invoices} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>Clear them</Link>
+            </>
+          ) : (
+            <>
+              No invoices yet.{" "}
+              <Link href={ROUTES.invoiceNew} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
+                + Create one
+              </Link>
+              , or raise one from a completed work order or an approved quote.
+            </>
+          )}
         </div>
       ) : (
         <div style={{ ...cardStyle, overflowX: "auto" }}>

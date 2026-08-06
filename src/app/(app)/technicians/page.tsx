@@ -3,6 +3,7 @@ import { listTechnicians, TECH_STATUS_LABEL } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
+import ListFilterBar from "@/components/ListFilterBar";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { Technician } from "@/lib/types";
@@ -33,12 +34,24 @@ function Avatar({ name, tone }: { name: string; tone: PillarKey }) {
 export default async function TechniciansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   await requireWorkcenterView("technicians");
-  const { status: statusFilter } = await searchParams;
+  const { status: statusFilter, q } = await searchParams;
   const [allTechs, tenant] = await Promise.all([listTechnicians(), getTenant()]);
-  const techs = statusFilter ? allTechs.filter((t) => t.technician.status === statusFilter) : allTechs;
+  // The status filter already existed but had no control to reach it -- it
+  // was only settable by hand-editing the URL. Now driven by the bar below.
+  const needle = (q ?? "").trim().toLowerCase();
+  const techs = allTechs.filter((t) => {
+    if (statusFilter && t.technician.status !== statusFilter) return false;
+    if (!needle) return true;
+    const tech = t.technician;
+    return (
+      (tech.name ?? "").toLowerCase().includes(needle) ||
+      (tech.phone ?? "").toLowerCase().includes(needle) ||
+      (tech.skills ?? "").toLowerCase().includes(needle)
+    );
+  });
   const liveStates = tenant?.features?.wfm
     ? await getTechnicianLiveStates(tenant.id, allTechs.map((t) => t.technician.id))
     : new Map();
@@ -68,6 +81,22 @@ export default async function TechniciansPage({
             + New Technician
           </Link>
         }
+      />
+
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search technician, phone or skill…"
+        selects={[{
+          name: "status",
+          value: statusFilter,
+          placeholder: "All statuses",
+          options: [
+            { value: "active", label: "Active" },
+            { value: "on_leave", label: "On leave" },
+            { value: "inactive", label: "Inactive" },
+          ],
+        }]}
+        clearHref={ROUTES.technicians}
       />
 
       {/* Team capacity strip */}

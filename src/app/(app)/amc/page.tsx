@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { listContracts } from "@/lib/data/live";
@@ -5,6 +6,8 @@ import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
+import ListFilterBar from "@/components/ListFilterBar";
+import { ROUTES } from "@/lib/constants";
 
 type ContractStatus = "active" | "expired" | "pending" | "cancelled";
 
@@ -34,13 +37,31 @@ const td: React.CSSProperties = {
   fontSize: 12.5, verticalAlign: "middle",
 };
 
-export default async function AmcPage() {
+export default async function AmcPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string; expiring?: string }>;
+}) {
   await requireWorkcenterView("amc");
   await requireFeature("amc");
+  const { q, status, expiring } = await searchParams;
   const contracts = await listContracts();
   const active = contracts.filter((con) => con.status === "active");
   const expiringSoon = active.filter((con) => daysLeft(con.end_date) <= 60);
   const totalValue = active.reduce((s, con) => s + (con.value ?? 0), 0);
+
+  // KPI tiles stay whole-book figures -- they're the overview the filters
+  // act on. Only the table below narrows.
+  const needle = (q ?? "").trim().toLowerCase();
+  const visible = contracts.filter((con) => {
+    if (status && con.status !== status) return false;
+    if (expiring === "1" && !(con.status === "active" && daysLeft(con.end_date) <= 60)) return false;
+    if (!needle) return true;
+    return (
+      (con.ref ?? "").toLowerCase().includes(needle) ||
+      (con.account_name ?? "").toLowerCase().includes(needle)
+    );
+  });
 
   return (
     <>
@@ -51,19 +72,36 @@ export default async function AmcPage() {
           <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Active</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: pillar.green.base }}>{active.length}</div>
         </div>
-        <div style={{ ...cardStyle, textAlign: "center" }}>
+        <Link
+          href={expiring === "1" ? ROUTES.amc : `${ROUTES.amc}?expiring=1`}
+          className={`stat-tile is-clickable${expiring === "1" ? " is-active" : ""}`}
+          style={{ ...cardStyle, textAlign: "center", textDecoration: "none", display: "block" }}
+        >
           <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Expiring ≤60 days</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: expiringSoon.length > 0 ? pillar.amber.base : pillar.green.base }}>{expiringSoon.length}</div>
-        </div>
+        </Link>
         <div style={{ ...cardStyle, textAlign: "center" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Active Value</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: pillar.teal.base }}>{inr(totalValue)}</div>
         </div>
       </div>
 
-      {contracts.length === 0 ? (
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search contract ref or account…"
+        selects={[{
+          name: "status",
+          value: status,
+          placeholder: "All statuses",
+          options: (Object.keys(STATUS_LABEL) as ContractStatus[]).map((k) => ({ value: k, label: STATUS_LABEL[k] })),
+        }]}
+        hiddenParams={{ expiring }}
+        clearHref={ROUTES.amc}
+      />
+
+      {visible.length === 0 ? (
         <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>
-          No AMC contracts yet.
+          {contracts.length > 0 ? "No contracts match these filters." : "No AMC contracts yet."}
         </div>
       ) : (
         <div style={{ ...cardStyle, overflowX: "auto" }}>
@@ -79,7 +117,7 @@ export default async function AmcPage() {
               </tr>
             </thead>
             <tbody>
-              {contracts.map((con) => {
+              {visible.map((con) => {
                 const left = daysLeft(con.end_date);
                 const isExpiringSoon = con.status === "active" && left <= 60;
                 return (
