@@ -2,6 +2,7 @@
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
+import ListFilterBar from "@/components/ListFilterBar";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import { listAssetsLive } from "@/lib/data/live";
@@ -31,15 +32,27 @@ const ALL_KINDS = ["motor", "transformer", "pump", "generator", "panel"] as cons
 export default async function AssetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kind?: string }>;
+  searchParams: Promise<{ kind?: string; q?: string }>;
 }) {
   await requireWorkcenterView("assets");
-  const { kind: kindFilter } = await searchParams;
+  const { kind: kindFilter, q } = await searchParams;
   const { customerAssets: allCustomerAssets, loanerStock } = await listAssetsLive();
 
-  const customerAssets = kindFilter && kindFilter !== "loaner"
-    ? allCustomerAssets.filter((r) => r.asset.kind === kindFilter)
-    : allCustomerAssets;
+  // Serial is the single most common real-world lookup here (an engineer
+  // reads it off the machine), and it was displayed but not searchable.
+  const needle = (q ?? "").trim().toLowerCase();
+  const customerAssets = allCustomerAssets.filter((r) => {
+    if (kindFilter && kindFilter !== "loaner" && r.asset.kind !== kindFilter) return false;
+    if (!needle) return true;
+    const a = r.asset;
+    return (
+      (a.name ?? "").toLowerCase().includes(needle) ||
+      (a.serial ?? "").toLowerCase().includes(needle) ||
+      (a.make ?? "").toLowerCase().includes(needle) ||
+      (a.model ?? "").toLowerCase().includes(needle) ||
+      (r.account?.name ?? "").toLowerCase().includes(needle)
+    );
+  });
 
   const available = loanerStock.filter((r) => r.asset.loaner_status === "available").length;
   const onLoan    = loanerStock.filter((r) => r.asset.loaner_status === "on_loan").length;
@@ -179,6 +192,13 @@ export default async function AssetsPage({
             {customerAssets.length} registered
           </span>
         </h2>
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search name, serial, make, model or account…"
+        hiddenParams={{ kind: kindFilter }}
+        clearHref={ROUTES.assets}
+      />
+
 
         {customerAssets.length === 0 ? (
           <p style={{ color: c.muted, fontSize: 13, margin: 0 }}>No customer assets registered.</p>

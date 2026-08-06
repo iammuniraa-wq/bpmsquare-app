@@ -5,6 +5,7 @@ import { listPurchaseOrdersLive } from "@/lib/data/live";
 import { c, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
+import ListFilterBar from "@/components/ListFilterBar";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { PurchaseOrderStatus } from "@/lib/types";
@@ -30,14 +31,22 @@ const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, vertical
 export default async function PurchaseOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   await requireWorkcenterView("purchase_orders");
   await requireFeature("purchasing");
-  const { status: statusFilter } = await searchParams;
+  const { status: statusFilter, q } = await searchParams;
   const rows = await listPurchaseOrdersLive();
 
-  const filtered = statusFilter && statusFilter !== "all" ? rows.filter((r) => r.po.status === statusFilter) : rows;
+  const needle = (q ?? "").trim().toLowerCase();
+  const filtered = rows.filter((r) => {
+    if (statusFilter && statusFilter !== "all" && r.po.status !== statusFilter) return false;
+    if (!needle) return true;
+    return (
+      (r.po.ref ?? "").toLowerCase().includes(needle) ||
+      (r.supplier?.name ?? "").toLowerCase().includes(needle)
+    );
+  });
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.po.status] = (acc[r.po.status] ?? 0) + 1;
     return acc;
@@ -83,7 +92,14 @@ export default async function PurchaseOrdersPage({
       </div>
 
       <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {filtered.length === 0 ? (
+        <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search PO ref or supplier…"
+        hiddenParams={{ status: statusFilter }}
+        clearHref={ROUTES.purchaseOrders}
+      />
+
+      {filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "48px 24px", color: c.hint, fontSize: 14 }}>
             No purchase orders{statusFilter && statusFilter !== "all" ? ` with status "${STATUS_LABEL[statusFilter as PurchaseOrderStatus] ?? statusFilter}"` : " yet"}.
             {(!statusFilter || statusFilter === "all") && (

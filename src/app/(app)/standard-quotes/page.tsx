@@ -6,6 +6,7 @@ import { listStandardQuotes } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
+import ListFilterBar from "@/components/ListFilterBar";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { StandardQuoteStatus } from "@/lib/types";
@@ -35,11 +36,11 @@ const td: React.CSSProperties = {
 export default async function StandardQuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   await requireWorkcenterView("standard_quotes");
   await requireFeature("standard_quotes");
-  const { status: statusFilter } = await searchParams;
+  const { status: statusFilter, q } = await searchParams;
   const [quotes, { role }] = await Promise.all([listStandardQuotes(), requireTenantUser()]);
 
   const summary = SUMMARY_STATUSES.map((s) => ({
@@ -48,7 +49,15 @@ export default async function StandardQuotesPage({
     total: quotes.filter((q) => q.status === s).reduce((acc, q) => acc + q.total, 0),
   }));
 
-  const filtered = statusFilter ? quotes.filter((q) => q.status === statusFilter) : quotes;
+  const needle = (q ?? "").trim().toLowerCase();
+  const filtered = quotes.filter((quote) => {
+    if (statusFilter && quote.status !== statusFilter) return false;
+    if (!needle) return true;
+    return (
+      (quote.ref ?? "").toLowerCase().includes(needle) ||
+      (quote.account_name ?? "").toLowerCase().includes(needle)
+    );
+  });
 
   return (
     <>
@@ -98,6 +107,13 @@ export default async function StandardQuotesPage({
           <Link href={ROUTES.standardQuotes} style={{ fontSize: 12, color: c.hint, textDecoration: "none" }}>← Show all standard quotes</Link>
         </div>
       )}
+
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search quote ref or account…"
+        hiddenParams={{ status: statusFilter }}
+        clearHref={ROUTES.standardQuotes}
+      />
 
       {filtered.length === 0 ? (
         <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>
