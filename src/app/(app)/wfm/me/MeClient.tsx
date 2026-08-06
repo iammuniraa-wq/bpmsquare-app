@@ -5,6 +5,7 @@ import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
+import PunchAudit from "@/components/wfm/PunchAudit";
 import type { PresenceKind, PunchState, LeaveRequestStatus } from "@/lib/wfm/types";
 import { enqueuePunch, flushQueue, listQueuedPunches } from "@/lib/wfm/offlineQueue";
 
@@ -583,12 +584,10 @@ export default function MeClient() {
           {me.today.length > 0 && (
             <section style={{ ...cardStyle, marginBottom: 14 }}>
               <div style={capStyle}>Today&apos;s punches</div>
-              {me.today.map((e) => (
-                <div key={e.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5 }}>
-                  <span style={{ color: c.ink }}>{KIND_LABEL[e.kind]}</span>
-                  <span style={{ color: c.hint }}>{fmtTime(e.ts)}</span>
-                </div>
-              ))}
+              {/* Selfie + location for each punch -- the employee can see
+                  exactly what was recorded about them, which is a DPDP
+                  transparency expectation, not just a nicety. */}
+              <PunchAudit employeeId={me.employee.id} />
               <div style={{ fontSize: 11.5, color: c.hint, marginTop: 10 }}>
                 {me.employee.employee_code}
                 {me.shift && <> · {me.shift.name} ({me.shift.start_time.slice(0, 5)}–{me.shift.end_time.slice(0, 5)})</>}

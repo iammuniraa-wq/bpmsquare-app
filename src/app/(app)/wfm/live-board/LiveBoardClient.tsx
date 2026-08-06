@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
+import PunchAudit from "@/components/wfm/PunchAudit";
 
 const POLL_MS = 30_000;
 
@@ -91,6 +92,8 @@ export default function LiveBoardClient() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [lateOnly, setLateOnly] = useState(false);
+  // Which employee's punch audit (selfie + location) is expanded.
+  const [auditFor, setAuditFor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -259,7 +262,12 @@ export default function LiveBoardClient() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.employee_id}>
+                <Fragment key={r.employee_id}>
+                <tr
+                  onClick={() => setAuditFor((cur) => (cur === r.employee_id ? null : r.employee_id))}
+                  style={{ cursor: "pointer" }}
+                  title="Show selfies and punch locations"
+                >
                   <td style={td}>
                     <span style={{ fontWeight: 600, color: c.ink }}>{r.full_name}</span>
                     {r.employee_code && (
@@ -280,6 +288,14 @@ export default function LiveBoardClient() {
                     {r.outside_geofence ? <Pill label="Outside geofence" tone="amber" /> : "—"}
                   </td>
                 </tr>
+                {auditFor === r.employee_id && (
+                  <tr>
+                    <td colSpan={6} style={{ ...td, background: "var(--panel2)" }}>
+                      <PunchAudit employeeId={r.employee_id} date={board.date} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
