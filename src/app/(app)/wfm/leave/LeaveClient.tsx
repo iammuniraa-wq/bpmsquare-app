@@ -41,6 +41,9 @@ export default function LeaveClient() {
   const [employees, setEmployees] = useState<EmployeeOpt[]>([]);
   const [requests, setRequests] = useState<LeaveRequestRow[]>([]);
   const [requestFilter, setRequestFilter] = useState<"pending" | "all">("pending");
+  const [requestQuery, setRequestQuery] = useState("");
+  const [recordQuery, setRecordQuery] = useState("");
+  const [holidayQuery, setHolidayQuery] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState<string | null>(null);
@@ -134,6 +137,29 @@ export default function LeaveClient() {
     if (ok) setRecordForm({ employee_id: "", leave_type_id: "", date_from: "", date_to: "", half_day: false, remarks: "" });
   }
 
+  const empName = (e: { first_name: string; last_name: string } | null) =>
+    e ? [e.first_name, e.last_name].filter(Boolean).join(" ") : "";
+
+  const rq = requestQuery.trim().toLowerCase();
+  const visibleRequests = requests.filter((r) =>
+    !rq ||
+    empName(r.employees).toLowerCase().includes(rq) ||
+    (r.employees?.employee_code ?? "").toLowerCase().includes(rq) ||
+    r.reason_text.toLowerCase().includes(rq) ||
+    (r.wfm_leave_types?.name ?? "").toLowerCase().includes(rq)
+  );
+
+  const dq = recordQuery.trim().toLowerCase();
+  const visibleRecords = records.filter((r) =>
+    !dq ||
+    empName(r.employees).toLowerCase().includes(dq) ||
+    (r.employees?.employee_code ?? "").toLowerCase().includes(dq) ||
+    (r.wfm_leave_types?.name ?? "").toLowerCase().includes(dq)
+  );
+
+  const hq = holidayQuery.trim().toLowerCase();
+  const visibleHolidays = holidays.filter((h) => !hq || h.name.toLowerCase().includes(hq));
+
   return (
     <>
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
@@ -141,7 +167,8 @@ export default function LeaveClient() {
       <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: `1px solid ${c.line}` }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Leave requests</div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input style={{ ...inp, width: 220 }} placeholder="Search employee, type or reason…" value={requestQuery} onChange={(e) => setRequestQuery(e.target.value)} />
             <button style={requestFilter === "pending" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setRequestFilter("pending")}>Pending</button>
             <button style={requestFilter === "all" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setRequestFilter("all")}>All</button>
           </div>
@@ -154,7 +181,7 @@ export default function LeaveClient() {
             </tr>
           </thead>
           <tbody>
-            {requests.map((r) => (
+            {visibleRequests.map((r) => (
               <tr key={r.id}>
                 <td style={{ ...td, fontWeight: 600, color: c.ink }}>
                   {r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}
@@ -192,7 +219,7 @@ export default function LeaveClient() {
                 </td>
               </tr>
             ))}
-            {requests.length === 0 && (
+            {visibleRequests.length === 0 && (
               <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No {requestFilter === "pending" ? "pending" : ""} requests.</td></tr>
             )}
           </tbody>
@@ -229,11 +256,14 @@ export default function LeaveClient() {
       </section>
 
       <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
-        <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Holiday calendar</div>
+        <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Holiday calendar</span>
+          <input style={{ ...inp, width: 200 }} placeholder="Search holiday…" value={holidayQuery} onChange={(e) => setHolidayQuery(e.target.value)} />
+        </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><th style={th}>Date</th><th style={th}>Name</th><th style={th}>Applies to</th><th style={th}></th></tr></thead>
           <tbody>
-            {holidays.map((h) => (
+            {visibleHolidays.map((h) => (
               <tr key={h.id}>
                 <td style={td}>{fmtDate(h.date)}</td>
                 <td style={{ ...td, fontWeight: 600, color: c.ink }}>{h.name}</td>
@@ -241,7 +271,7 @@ export default function LeaveClient() {
                 <td style={td}><button style={btn} disabled={busy} onClick={() => del(`/api/wfm/holidays/${h.id}`)}>Remove</button></td>
               </tr>
             ))}
-            {holidays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>No holidays configured.</td></tr>}
+            {visibleHolidays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>No holidays configured.</td></tr>}
           </tbody>
         </table>
         <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -258,11 +288,14 @@ export default function LeaveClient() {
       </section>
 
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Leave records</div>
+        <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Leave records</span>
+          <input style={{ ...inp, width: 220 }} placeholder="Search employee or leave type…" value={recordQuery} onChange={(e) => setRecordQuery(e.target.value)} />
+        </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><th style={th}>Employee</th><th style={th}>Type</th><th style={th}>From</th><th style={th}>To</th><th style={th}>Half-day</th><th style={th}>Remarks</th><th style={th}></th></tr></thead>
           <tbody>
-            {records.map((r) => (
+            {visibleRecords.map((r) => (
               <tr key={r.id}>
                 <td style={{ ...td, fontWeight: 600, color: c.ink }}>{r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}</td>
                 <td style={td}>{r.wfm_leave_types?.name ?? "—"}</td>
@@ -273,7 +306,7 @@ export default function LeaveClient() {
                 <td style={td}><button style={btn} disabled={busy} onClick={() => del(`/api/wfm/leave-records/${r.id}`)}>Delete</button></td>
               </tr>
             ))}
-            {records.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No leave records yet.</td></tr>}
+            {visibleRecords.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No leave records yet.</td></tr>}
           </tbody>
         </table>
         <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>

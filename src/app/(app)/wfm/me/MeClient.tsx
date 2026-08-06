@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import Donut from "@/components/Donut";
 import type { PresenceKind, PunchState, LeaveRequestStatus } from "@/lib/wfm/types";
 import { enqueuePunch, flushQueue, listQueuedPunches } from "@/lib/wfm/offlineQueue";
 
@@ -178,6 +179,11 @@ function Bars({ points, valueOf, format }: { points: TrendPoint[]; valueOf: (p: 
 export default function MeClient() {
   const [tab, setTab] = useState<Tab>("home");
   const [timeView, setTimeView] = useState<TimeView>("daily");
+  const [month, setMonth] = useState(thisMonth());
+  const [dayFilter, setDayFilter] = useState<string | null>(null);
+  const [leaveFilter, setLeaveFilter] = useState<string>("");
+  const [holidayFilter, setHolidayFilter] = useState<"upcoming" | "all">("upcoming");
+  const [holidayQuery, setHolidayQuery] = useState("");
   const [me, setMe] = useState<MeState | null>(null);
   const [monthTotals, setMonthTotals] = useState<MonthTotals | null>(null);
   const [days, setDays] = useState<DayRecord[]>([]);
@@ -209,7 +215,7 @@ export default function MeClient() {
       if (!json.employee?.consent_recorded_at) return;
 
       const [tsRes, holRes, corrRes, leaveRes, anRes] = await Promise.all([
-        fetch(`/api/wfm/me/timesheet?month=${thisMonth()}`),
+        fetch(`/api/wfm/me/timesheet?month=${month}`),
         fetch("/api/wfm/holidays"),
         fetch("/api/wfm/corrections"),
         fetch("/api/wfm/leave-requests"),
@@ -229,7 +235,7 @@ export default function MeClient() {
     } catch {
       setLoadError("Network error — check your connection");
     }
-  }, []);
+  }, [month]);
 
   const trySync = useCallback(async () => {
     try {
@@ -420,6 +426,56 @@ export default function MeClient() {
   const pendingLeave = leaveRequests.filter((r) => r.status === "pending").length;
   const pendingCorr = corrections.filter((r) => r.status === "pending").length;
 
+  // ── Time tab data ────────────────────────────────────────────────────────
+  const dayLabel = (d: DayRecord): string => {
+    if (d.holiday) return "Holiday";
+    if (d.on_leave) return "Leave";
+    if (d.is_week_off) return "Week off";
+    if (d.incomplete) return "Incomplete";
+    if (d.absent) return "Absent";
+    if (d.late) return "Late";
+    if (d.punches > 0) return "Present";
+    return "—";
+  };
+  // Past days only -- counting the rest of the month as "absent" would be
+  // both wrong and alarming.
+  const elapsedDays = days.filter((d) => d.date <= todayKey());
+  const dayMix = [
+    { label: "Present", color: pillar.green.base },
+    { label: "Late", color: pillar.amber.base },
+    { label: "Absent", color: pillar.red.base },
+    { label: "Leave", color: pillar.purple.base },
+    { label: "Holiday", color: pillar.blue.base },
+    { label: "Week off", color: pillar.teal.base },
+    { label: "Incomplete", color: pillar.red.base },
+  ].map((s) => ({ ...s, value: elapsedDays.filter((d) => dayLabel(d) === s.label).length }));
+
+  const workedMinutes = elapsedDays.reduce((s, d) => s + (deductBreaks ? d.net_minutes : d.gross_minutes), 0);
+  const breakMinutes = elapsedDays.reduce((s, d) => s + d.break_minutes, 0);
+  const hoursMix = [
+    { label: "Worked", value: Math.round(workedMinutes / 60), color: pillar.green.base },
+    { label: "Breaks", value: Math.round(breakMinutes / 60), color: pillar.amber.base },
+  ];
+
+  const visibleDays = elapsedDays
+    .filter((d) => !dayFilter || dayLabel(d) === dayFilter)
+    .slice()
+    .reverse();
+
+  const leaveMix = leaveBalance.map((lb, i) => ({
+    label: lb.name,
+    value: lb.used,
+    color: [pillar.purple.base, pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.green.base][i % 5],
+  }));
+
+  const visibleHolidays = holidays.filter((h) => {
+    if (holidayFilter === "upcoming" && h.date < todayKey()) return false;
+    const hq = holidayQuery.trim().toLowerCase();
+    return !hq || h.name.toLowerCase().includes(hq);
+  });
+
+  const visibleLeaveRequests = leaveFilter ? leaveRequests.filter((r) => r.status === leaveFilter) : leaveRequests;
+
   // The punch card is one tile among several, and check in/out happens
   // straight from it -- no separate punch screen (the ADP pattern the
   // client asked for).
@@ -545,18 +601,37 @@ export default function MeClient() {
 
       {tab === "time" && (
         <>
-          <div style={{ display: "flex", gap: 7, marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
             <button style={timeView === "daily" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setTimeView("daily")}>Daily — detailed</button>
             <button style={timeView === "monthly" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setTimeView("monthly")}>Monthly summary</button>
+            <input style={{ ...inp, width: "auto" }} type="month" max={thisMonth()} value={month} onChange={(e) => setMonth(e.target.value)} />
+          </div>
+
+          <div style={{ ...grid(300), marginBottom: 14 }}>
+            <section style={cardStyle}>
+              <Donut slices={dayMix} title="How your month is going" centerLabel="days" selected={dayFilter} onSelect={setDayFilter} />
+            </section>
+            <section style={cardStyle}>
+              <Donut slices={hoursMix} title={`Hours split — ${deductBreaks ? "breaks deducted" : "breaks included"}`} centerLabel="hours" />
+            </section>
           </div>
 
           {timeView === "daily" && (
             <section style={{ ...cardStyle, padding: 0, marginBottom: 14, overflowX: "auto" }}>
-              <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}` }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Daily record — {fmtMonth(thisMonth())}</div>
-                <div style={{ fontSize: 11.5, color: c.hint, marginTop: 3 }}>
-                  Every punch as booked. Total worked ={" "}
-                  {deductBreaks ? "check-out − check-in − breaks" : "check-out − check-in (breaks not deducted)"}.
+              <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Daily record — {fmtMonth(month)}</div>
+                  <div style={{ fontSize: 11.5, color: c.hint, marginTop: 3 }}>
+                    Every punch as booked. Total worked ={" "}
+                    {deductBreaks ? "check-out − check-in − breaks" : "check-out − check-in (breaks not deducted)"}.
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <select style={{ ...inp, width: "auto" }} value={dayFilter ?? ""} onChange={(e) => setDayFilter(e.target.value || null)}>
+                    <option value="">All days</option>
+                    {dayMix.filter((s) => s.value > 0).map((s) => <option key={s.label} value={s.label}>{s.label}</option>)}
+                  </select>
+                  <span style={{ fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>{visibleDays.length} of {elapsedDays.length}</span>
                 </div>
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -568,7 +643,7 @@ export default function MeClient() {
                   </tr>
                 </thead>
                 <tbody>
-                  {days.filter((d) => d.date <= todayKey()).reverse().map((d) => (
+                  {visibleDays.map((d) => (
                     <tr key={d.date}>
                       <td style={{ ...td, color: c.ink, fontWeight: 600, whiteSpace: "nowrap", verticalAlign: "top" }}>{fmtDate(d.date)}</td>
                       <td style={{ ...td, whiteSpace: "nowrap", verticalAlign: "top" }}>
@@ -619,7 +694,7 @@ export default function MeClient() {
                       </td>
                     </tr>
                   ))}
-                  {days.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={8}>No records this month.</td></tr>}
+                  {visibleDays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={8}>{dayFilter ? `No "${dayFilter}" days this month.` : "No records this month."}</td></tr>}
                 </tbody>
                 {monthTotals && (
                   <tfoot>
@@ -698,6 +773,12 @@ export default function MeClient() {
 
       {tab === "leave" && (
         <>
+          {leaveMix.some((s) => s.value > 0) && (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <Donut slices={leaveMix} title="Leave used this year" centerLabel="days" />
+            </section>
+          )}
+
           <div style={{ ...grid(200), marginBottom: 14 }}>
             {leaveBalance.length === 0 && <section style={cardStyle}><div style={{ fontSize: 12, color: c.hint }}>No leave types configured yet — ask your admin to set them up in Workforce → Leave &amp; Holidays.</div></section>}
             {leaveBalance.map((lb) => (
@@ -710,11 +791,21 @@ export default function MeClient() {
           </div>
 
           <section style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>My leave requests</div>
-              <button style={leaveBalance.length === 0 ? { ...btn, opacity: 0.5 } : btnPrimary} disabled={leaveBalance.length === 0} onClick={() => setShowLeaveForm((s) => !s)}>
-                {showLeaveForm ? "Cancel" : "+ Request leave"}
-              </button>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {leaveRequests.length > 0 && (
+                  <select style={{ ...inp, width: "auto" }} value={leaveFilter} onChange={(e) => setLeaveFilter(e.target.value)}>
+                    <option value="">All statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                )}
+                <button style={leaveBalance.length === 0 ? { ...btn, opacity: 0.5 } : btnPrimary} disabled={leaveBalance.length === 0} onClick={() => setShowLeaveForm((s) => !s)}>
+                  {showLeaveForm ? "Cancel" : "+ Request leave"}
+                </button>
+              </div>
             </div>
 
             {showLeaveForm && (
@@ -739,8 +830,10 @@ export default function MeClient() {
               </div>
             )}
 
-            {leaveRequests.length === 0 && !showLeaveForm && <div style={{ fontSize: 12, color: c.hint }}>No leave requests yet.</div>}
-            {leaveRequests.map((r) => (
+            {visibleLeaveRequests.length === 0 && !showLeaveForm && (
+              <div style={{ fontSize: 12, color: c.hint }}>{leaveFilter ? `No ${leaveFilter} requests.` : "No leave requests yet."}</div>
+            )}
+            {visibleLeaveRequests.map((r) => (
               <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5, gap: 10 }}>
                 <div style={{ minWidth: 0 }}>
                   <span style={{ color: c.ink, fontWeight: 600 }}>{r.wfm_leave_types?.name ?? "Leave"}</span>
@@ -759,11 +852,20 @@ export default function MeClient() {
 
       {tab === "calendar" && (
         <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-          <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Company holidays</div>
+          <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Company holidays</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input style={{ ...inp, width: 180 }} placeholder="Search holiday…" value={holidayQuery} onChange={(e) => setHolidayQuery(e.target.value)} />
+              <select style={{ ...inp, width: "auto" }} value={holidayFilter} onChange={(e) => setHolidayFilter(e.target.value as "upcoming" | "all")}>
+                <option value="upcoming">Upcoming only</option>
+                <option value="all">Whole year</option>
+              </select>
+            </div>
+          </div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr><th style={th}>Date</th><th style={th}>Holiday</th><th style={th}>Applies to</th><th style={th}></th></tr></thead>
             <tbody>
-              {holidays.map((h) => {
+              {visibleHolidays.map((h) => {
                 const past = h.date < todayKey();
                 return (
                   <tr key={h.id} style={{ opacity: past ? 0.5 : 1 }}>
@@ -774,7 +876,7 @@ export default function MeClient() {
                   </tr>
                 );
               })}
-              {holidays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>No holidays configured.</td></tr>}
+              {visibleHolidays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>{holidays.length === 0 ? "No holidays configured." : "No holidays match."}</td></tr>}
             </tbody>
           </table>
         </section>

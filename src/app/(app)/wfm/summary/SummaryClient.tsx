@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { c } from "@/lib/theme";
+import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import Donut from "@/components/Donut";
 
 type BreakSegment = { start: string; end: string | null; minutes: number };
 type WorkSession = { in: string; out: string | null; gross_minutes: number; break_minutes: number; net_minutes: number; breaks: BreakSegment[] };
@@ -213,6 +214,9 @@ export default function SummaryClient() {
   const [rows, setRows] = useState<EmployeeSummary[]>([]);
   const [deductBreaks, setDeductBreaks] = useState(true);
   const [siteFilter, setSiteFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [attentionFilter, setAttentionFilter] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -235,7 +239,65 @@ export default function SummaryClient() {
   useEffect(() => { load(month); }, [month, load]);
 
   const sites = useMemo(() => [...new Set(rows.map((r) => r.site_name).filter(Boolean))] as string[], [rows]);
-  const filtered = siteFilter ? rows.filter((r) => r.site_name === siteFilter) : rows;
+
+  // Where the month's days actually went, across everyone in view -- the
+  // proportional read a per-employee totals table can't give at a glance.
+  const dayMix = useMemo(() => {
+    const counts = { Present: 0, Late: 0, Absent: 0, Leave: 0, Holiday: 0, "Week off": 0, Incomplete: 0 };
+    for (const emp of rows) {
+      for (const d of emp.days) {
+        if (d.holiday) counts.Holiday++;
+        else if (d.on_leave) counts.Leave++;
+        else if (d.is_week_off) counts["Week off"]++;
+        else if (d.incomplete) counts.Incomplete++;
+        else if (d.absent) counts.Absent++;
+        else if (d.late) counts.Late++;
+        else if (d.punches > 0) counts.Present++;
+      }
+    }
+    return [
+      { label: "Present", value: counts.Present, color: pillar.green.base },
+      { label: "Late", value: counts.Late, color: pillar.amber.base },
+      { label: "Absent", value: counts.Absent, color: pillar.red.base },
+      { label: "Leave", value: counts.Leave, color: pillar.purple.base },
+      { label: "Holiday", value: counts.Holiday, color: pillar.blue.base },
+      { label: "Week off", value: counts["Week off"], color: pillar.teal.base },
+      { label: "Incomplete", value: counts.Incomplete, color: pillar.red.base },
+    ];
+  }, [rows]);
+
+  // Headcount split, so a supervisor can see the shape of the workforce the
+  // numbers above are drawn from.
+  const headcountMix = useMemo(() => {
+    const bySite = new Map<string, number>();
+    for (const r of rows) bySite.set(r.site_name ?? "No site", (bySite.get(r.site_name ?? "No site") ?? 0) + 1);
+    const palette = [pillar.blue.base, pillar.teal.base, pillar.purple.base, pillar.amber.base, pillar.green.base, pillar.red.base];
+    return [...bySite.entries()].map(([label, value], i) => ({ label, value, color: palette[i % palette.length] }));
+  }, [rows]);
+
+  // "Needs attention" buckets double as filters -- clicking a slice narrows
+  // the tables to just those employees.
+  const ATTENTION: Record<string, (r: EmployeeSummary) => boolean> = {
+    "Late marks": (r) => r.totals.late_marks > 0,
+    "Incomplete days": (r) => r.totals.incomplete_days > 0,
+    "Unpaid leave": (r) => r.totals.unpaid_leave_days > 0,
+    "Clean": (r) => r.totals.late_marks === 0 && r.totals.incomplete_days === 0 && r.totals.unpaid_leave_days === 0,
+  };
+  const attentionMix = [
+    { label: "Late marks", value: rows.filter(ATTENTION["Late marks"]).length, color: pillar.amber.base },
+    { label: "Incomplete days", value: rows.filter(ATTENTION["Incomplete days"]).length, color: pillar.red.base },
+    { label: "Unpaid leave", value: rows.filter(ATTENTION["Unpaid leave"]).length, color: pillar.purple.base },
+    { label: "Clean", value: rows.filter(ATTENTION["Clean"]).length, color: pillar.green.base },
+  ];
+
+  const q = query.trim().toLowerCase();
+  const filtered = rows.filter((r) => {
+    if (siteFilter && r.site_name !== siteFilter) return false;
+    if (typeFilter && r.employment_type !== typeFilter) return false;
+    if (attentionFilter && !ATTENTION[attentionFilter]?.(r)) return false;
+    if (!q) return true;
+    return r.full_name.toLowerCase().includes(q) || (r.employee_code ?? "").toLowerCase().includes(q);
+  });
 
   return (
     <>
@@ -243,15 +305,48 @@ export default function SummaryClient() {
         <button style={view === "daily" ? btnActive : btn} onClick={() => setView("daily")}>Daily — detailed</button>
         <button style={view === "monthly" ? btnActive : btn} onClick={() => setView("monthly")}>Monthly summary</button>
         <input style={inp} type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-        <select style={inp} value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
-          <option value="">All sites</option>
-          {sites.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
         <a style={btnPrimary} href={`/api/wfm/summary/export?month=${month}`}>Export to Excel</a>
         {loading && <span style={{ fontSize: 12, color: c.hint }}>Loading…</span>}
       </div>
 
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14, marginBottom: 14 }}>
+        <section style={cardStyle}><Donut slices={dayMix} title="How the month went" centerLabel="days" /></section>
+        <section style={cardStyle}>
+          <Donut
+            slices={attentionMix}
+            title="Needs attention"
+            centerLabel="employees"
+            selected={attentionFilter}
+            onSelect={setAttentionFilter}
+          />
+        </section>
+        <section style={cardStyle}><Donut slices={headcountMix} title="Headcount by site" centerLabel="employees" /></section>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          style={{ ...inp, flex: "1 1 220px", maxWidth: 320 }}
+          placeholder="Search employee name or code…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <select style={inp} value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
+          <option value="">All sites</option>
+          {sites.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select style={inp} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+          <option value="">All employment types</option>
+          <option value="full_time">Full-time</option>
+          <option value="contractor">Contractor</option>
+        </select>
+        <select style={inp} value={attentionFilter ?? ""} onChange={(e) => setAttentionFilter(e.target.value || null)}>
+          <option value="">Everyone</option>
+          {Object.keys(ATTENTION).map((k) => <option key={k} value={k}>{k}</option>)}
+        </select>
+        <span style={{ fontSize: 11.5, color: c.hint }}>{filtered.length} of {rows.length}</span>
+      </div>
 
       {view === "monthly" ? (
         <>

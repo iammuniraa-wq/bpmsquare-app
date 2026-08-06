@@ -1,11 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { c } from "@/lib/theme";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import Donut from "@/components/Donut";
 
 const POLL_MS = 30_000;
+
+// One bucket per employee, mutually exclusive so the donut's slices sum to
+// headcount -- "late" and "outside geofence" are flags on top of a state,
+// not states of their own, so they stay as separate stat cards.
+type Bucket = "In" | "On break" | "On leave" | "Absent" | "Checked out" | "Not in yet";
+
+function bucketOf(r: Row): Bucket {
+  if (r.on_leave) return "On leave";
+  if (r.state === "in") return "In";
+  if (r.state === "break") return "On break";
+  if (r.absent) return "Absent";
+  if (r.punches > 0) return "Checked out";
+  return "Not in yet";
+}
+
+const BUCKET_COLOR: Record<Bucket, string> = {
+  "In": pillar.green.base,
+  "On break": pillar.amber.base,
+  "On leave": pillar.purple.base,
+  "Absent": pillar.red.base,
+  "Checked out": pillar.blue.base,
+  "Not in yet": pillar.teal.base,
+};
 
 type Row = {
   employee_id: string;
@@ -53,10 +77,19 @@ function statusPill(r: Row) {
   return <Pill label="Not in yet" tone="teal" />;
 }
 
+const inp: React.CSSProperties = {
+  padding: "8px 11px", fontSize: 12.5, border: `1px solid ${c.line}`,
+  borderRadius: 8, background: c.panel, color: c.ink, outline: "none",
+};
+
 export default function LiveBoardClient() {
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [query, setQuery] = useState("");
+  const [siteFilter, setSiteFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -93,9 +126,32 @@ export default function LiveBoardClient() {
     flagged: board.rows.filter((r) => r.outside_geofence).length,
   };
 
+  // Donut always reflects the whole board, not the filtered subset -- it's
+  // the overview the filters act on, so filtering it too would leave a
+  // single 100% slice and nothing to click back to.
+  const donutSlices = (Object.keys(BUCKET_COLOR) as Bucket[]).map((b) => ({
+    label: b,
+    value: board.rows.filter((r) => bucketOf(r) === b).length,
+    color: BUCKET_COLOR[b],
+  }));
+
+  const sites = [...new Set(board.rows.map((r) => r.home_site_name ?? "No site assigned"))].sort();
+  const q = query.trim().toLowerCase();
+  const visible = board.rows.filter((r) => {
+    if (statusFilter && bucketOf(r) !== statusFilter) return false;
+    if (siteFilter && (r.home_site_name ?? "No site assigned") !== siteFilter) return false;
+    if (flaggedOnly && !r.outside_geofence) return false;
+    if (!q) return true;
+    return (
+      r.full_name.toLowerCase().includes(q) ||
+      (r.employee_code ?? "").toLowerCase().includes(q) ||
+      (r.shift_name ?? "").toLowerCase().includes(q)
+    );
+  });
+
   // Group by home site; employees without one land in a trailing group.
   const groups = new Map<string, Row[]>();
-  for (const r of board.rows) {
+  for (const r of visible) {
     const key = r.home_site_name ?? "No site assigned";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
@@ -113,19 +169,58 @@ export default function LiveBoardClient() {
 
   return (
     <>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-        {stat("Checked in", counts.in, "#10b981")}
-        {stat("On break", counts.onBreak, c.amber)}
-        {stat("Late", counts.late, "#ef4444")}
-        {stat("Absent", counts.absent, "#ef4444")}
-        {stat("On leave", counts.leave)}
-        {stat("Geofence flags", counts.flagged, counts.flagged ? c.amber : undefined)}
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14, alignItems: "stretch" }}>
+        <section style={{ ...cardStyle, flex: "1 1 320px" }}>
+          <Donut
+            slices={donutSlices}
+            title="Right now"
+            centerLabel="employees"
+            selected={statusFilter}
+            onSelect={setStatusFilter}
+          />
+        </section>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", flex: "1 1 320px", alignContent: "flex-start" }}>
+          {stat("Checked in", counts.in, pillar.green.base)}
+          {stat("On break", counts.onBreak, c.amber)}
+          {stat("Late", counts.late, pillar.red.base)}
+          {stat("Absent", counts.absent, pillar.red.base)}
+          {stat("On leave", counts.leave)}
+          {stat("Geofence flags", counts.flagged, counts.flagged ? c.amber : undefined)}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
+        <input
+          style={{ ...inp, flex: "1 1 220px", maxWidth: 320 }}
+          placeholder="Search name, code or shift…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <select style={inp} value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
+          <option value="">All sites</option>
+          {sites.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select style={inp} value={statusFilter ?? ""} onChange={(e) => setStatusFilter(e.target.value || null)}>
+          <option value="">All statuses</option>
+          {(Object.keys(BUCKET_COLOR) as Bucket[]).map((b) => <option key={b} value={b}>{b}</option>)}
+        </select>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: c.muted, cursor: "pointer" }}>
+          <input type="checkbox" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
+          Geofence flags only
+        </label>
+        <span style={{ fontSize: 11.5, color: c.hint }}>{visible.length} of {board.rows.length}</span>
       </div>
 
       {(board.is_holiday || board.is_week_off) && (
         <div style={{ ...cardStyle, marginBottom: 14, fontSize: 12.5, color: c.muted }}>
           {board.is_holiday ? "Today is a holiday — " : "Today is a weekly off — "}
           no lateness or absence is being marked.
+        </div>
+      )}
+
+      {visible.length === 0 && (
+        <div style={{ ...cardStyle, marginBottom: 14, fontSize: 12.5, color: c.hint }}>
+          No employees match these filters.
         </div>
       )}
 

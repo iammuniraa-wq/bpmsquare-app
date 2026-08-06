@@ -65,6 +65,10 @@ export default function WfmEmployeesClient() {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<string | null>(null); // "new" | employee id
   const [draft, setDraft] = useState<Draft>(emptyDraft());
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("active");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [siteFilter, setSiteFilter] = useState("");
 
   const load = useCallback(async () => {
     const [empRes, shiftRes, siteRes] = await Promise.all([
@@ -186,18 +190,55 @@ export default function WfmEmployeesClient() {
     </div>
   );
 
+  const q = query.trim().toLowerCase();
+  const visible = rows.filter((r) => {
+    if (statusFilter && r.status !== statusFilter) return false;
+    if (roleFilter && r.wfm_role !== roleFilter) return false;
+    if (siteFilter && r.site_id !== siteFilter) return false;
+    if (!q) return true;
+    return (
+      [r.first_name, r.last_name].filter(Boolean).join(" ").toLowerCase().includes(q) ||
+      (r.employee_code ?? "").toLowerCase().includes(q) ||
+      (r.phone ?? "").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <>
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
 
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: `1px solid ${c.line}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: `1px solid ${c.line}`, gap: 10, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>
-            {rows.length} employee{rows.length === 1 ? "" : "s"}
+            {visible.length === rows.length
+              ? `${rows.length} employee${rows.length === 1 ? "" : "s"}`
+              : `${visible.length} of ${rows.length} employees`}
           </span>
           <button style={btnPrimary} onClick={() => { setEditing("new"); setDraft(emptyDraft()); setError(""); }}>
             + New employee
           </button>
+        </div>
+        <div style={{ display: "flex", gap: 8, padding: "10px 12px", borderBottom: `1px solid ${c.line}`, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            style={{ ...inp, flex: "1 1 200px", maxWidth: 280 }}
+            placeholder="Search name, code or phone…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <select style={{ ...inp, width: "auto" }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="active">Active only</option>
+            <option value="inactive">Inactive only</option>
+            <option value="">All statuses</option>
+          </select>
+          <select style={{ ...inp, width: "auto" }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+            <option value="">All roles</option>
+            <option value="supervisor">Supervisors</option>
+            <option value="employee">Employees</option>
+          </select>
+          <select style={{ ...inp, width: "auto" }} value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
+            <option value="">All sites</option>
+            {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -215,7 +256,7 @@ export default function WfmEmployeesClient() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {visible.map((r) => (
               <tr key={r.id}>
                 <td style={{ ...td, fontFamily: "monospace" }}>{r.employee_code ?? "—"}</td>
                 <td style={{ ...td, fontWeight: 600, color: c.ink }}>{[r.first_name, r.last_name].filter(Boolean).join(" ")}</td>
@@ -254,8 +295,12 @@ export default function WfmEmployeesClient() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={10}>No employees yet — create one below or bulk-load via Data Workbench.</td></tr>
+            {visible.length === 0 && (
+              <tr><td style={{ ...td, color: c.hint }} colSpan={10}>
+                {rows.length === 0
+                  ? "No employees yet — create one below or bulk-load via Data Workbench."
+                  : "No employees match these filters."}
+              </td></tr>
             )}
           </tbody>
         </table>

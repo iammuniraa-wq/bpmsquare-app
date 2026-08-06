@@ -37,9 +37,16 @@ const btnRed: React.CSSProperties = { ...btn, background: "#ef4444", borderColor
 const fmtDate = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 const fmtTs = (s?: string) => (s ? new Date(s).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
 
+const inp: React.CSSProperties = {
+  padding: "7px 11px", fontSize: 12.5, border: `1px solid ${c.line}`,
+  borderRadius: 8, background: c.panel, color: c.ink, outline: "none",
+};
+
 export default function CorrectionsQueueClient() {
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [query, setQuery] = useState("");
+  const [issueFilter, setIssueFilter] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState<string | null>(null);
@@ -75,11 +82,34 @@ export default function CorrectionsQueueClient() {
     }
   }
 
+  const q = query.trim().toLowerCase();
+  const visible = rows.filter((r) => {
+    if (issueFilter && r.requested_change.issue !== issueFilter) return false;
+    if (!q) return true;
+    const name = r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "";
+    return (
+      name.toLowerCase().includes(q) ||
+      (r.employees?.employee_code ?? "").toLowerCase().includes(q) ||
+      r.reason_text.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <>
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
         <button style={filter === "pending" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setFilter("pending")}>Pending</button>
         <button style={filter === "all" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setFilter("all")}>All</button>
+        <input
+          style={{ ...inp, flex: "1 1 200px", maxWidth: 300 }}
+          placeholder="Search employee, code or reason…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <select style={inp} value={issueFilter} onChange={(e) => setIssueFilter(e.target.value)}>
+          <option value="">All issue types</option>
+          {Object.entries(ISSUE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <span style={{ fontSize: 11.5, color: c.hint }}>{visible.length} of {rows.length}</span>
       </div>
 
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
@@ -98,7 +128,7 @@ export default function CorrectionsQueueClient() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {visible.map((r) => (
               <tr key={r.id}>
                 <td style={{ ...td, fontWeight: 600, color: c.ink }}>
                   {r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}
@@ -136,8 +166,8 @@ export default function CorrectionsQueueClient() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No {filter === "pending" ? "pending" : ""} requests.</td></tr>
+            {visible.length === 0 && (
+              <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No {filter === "pending" ? "pending" : ""} requests{rows.length > 0 ? " match these filters" : ""}.</td></tr>
             )}
           </tbody>
         </table>
