@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { c, pillar } from "@/lib/theme";
+import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
@@ -380,7 +380,7 @@ export default function MeClient() {
     }
   }
 
-  if (loadError) return <div style={{ ...cardStyle, color: "#ef4444", fontSize: 13 }}>{loadError}</div>;
+  if (loadError) return <div style={{ ...cardStyle, color: statusInk.bad, fontSize: 13 }}>{loadError}</div>;
   if (!me) return <div style={{ ...cardStyle, color: c.hint, fontSize: 13 }}>Loading…</div>;
 
   if (!me.employee) {
@@ -420,7 +420,7 @@ export default function MeClient() {
     );
   }
 
-  const toneColor = { ok: "#10b981", warn: c.amber, err: "#ef4444" };
+  const toneColor = { ok: statusInk.good, warn: statusInk.warn, err: statusInk.bad };
   const upcoming = holidays.filter((h) => h.date >= todayKey()).sort((a, b) => a.date.localeCompare(b.date));
   const nextHoliday = upcoming[0] ?? null;
   const pendingLeave = leaveRequests.filter((r) => r.status === "pending").length;
@@ -527,7 +527,7 @@ export default function MeClient() {
       </div>
 
       {queuedCount > 0 && (
-        <div style={{ ...cardStyle, marginBottom: 14, color: c.amber, fontSize: 12.5 }}>{queuedCount} punch(es) pending sync</div>
+        <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.warn, fontSize: 12.5 }}>{queuedCount} punch(es) pending sync</div>
       )}
 
       {tab === "home" && (
@@ -541,7 +541,7 @@ export default function MeClient() {
                 <>
                   <Stat value={fmtHM(monthTotals.working_minutes)} label={`working hours · ${monthTotals.days_present} days present`} />
                   <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 11.5, color: c.muted, flexWrap: "wrap" }}>
-                    <span style={{ color: monthTotals.late_marks > 0 ? pillar.amber.fg : undefined }}>{monthTotals.late_marks} late</span>
+                    <span style={{ color: monthTotals.late_marks > 0 ? statusInk.warn : undefined }}>{monthTotals.late_marks} late</span>
                     <span>{monthTotals.paid_leave_days + monthTotals.unpaid_leave_days} leave</span>
                     <span>{monthTotals.holiday_days} holidays</span>
                   </div>
@@ -558,11 +558,11 @@ export default function MeClient() {
                 leaveBalance.slice(0, 3).map((lb) => (
                   <div key={lb.leave_type_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "3px 0" }}>
                     <span style={{ color: c.ink }}>{lb.name}</span>
-                    <span style={{ color: lb.balance <= 0 ? "#ef4444" : c.muted }}>{lb.balance} / {lb.quota}</span>
+                    <span style={{ color: lb.balance <= 0 ? statusInk.bad : c.muted }}>{lb.balance} / {lb.quota}</span>
                   </div>
                 ))
               )}
-              {pendingLeave > 0 && <div style={{ fontSize: 11.5, color: c.amber, marginTop: 8 }}>{pendingLeave} request(s) awaiting approval</div>}
+              {pendingLeave > 0 && <div style={{ fontSize: 11.5, color: statusInk.warn, marginTop: 8 }}>{pendingLeave} request(s) awaiting approval</div>}
               <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("leave")}>Request leave</button>
             </section>
 
@@ -634,7 +634,7 @@ export default function MeClient() {
                   <span style={{ fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>{visibleDays.length} of {elapsedDays.length}</span>
                 </div>
               </div>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
                     <th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th>
@@ -659,7 +659,7 @@ export default function MeClient() {
                         {d.sessions.length === 0 ? "—" : (
                           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                             {d.sessions.map((s) => (
-                              <span key={s.in}>{s.out ? fmtTime(s.out) : <span style={{ color: "#ef4444" }}>missing</span>}</span>
+                              <span key={s.in}>{s.out ? fmtTime(s.out) : <span style={{ color: statusInk.bad }}>missing</span>}</span>
                             ))}
                           </div>
                         )}
@@ -670,7 +670,7 @@ export default function MeClient() {
                             {d.breaks.map((b, i) => (
                               <span key={b.start} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
                                 <span style={{ color: c.hint }}>{i + 1}.</span>{" "}
-                                {fmtTime(b.start)} – {b.end ? fmtTime(b.end) : <span style={{ color: c.amber }}>running</span>}
+                                {fmtTime(b.start)} – {b.end ? fmtTime(b.end) : <span style={{ color: statusInk.warn }}>running</span>}
                                 <span style={{ color: c.hint }}> ({b.minutes}m)</span>
                               </span>
                             ))}
@@ -716,17 +716,17 @@ export default function MeClient() {
               <section style={cardStyle}><div style={capStyle}>Total worked</div><Stat value={fmtHM(monthTotals?.working_minutes ?? 0)} label={deductBreaks ? "breaks deducted" : "breaks not deducted"} /></section>
               <section style={cardStyle}><div style={capStyle}>Days present</div><Stat value={String(monthTotals?.days_present ?? 0)} label="days with a punch" /></section>
               <section style={cardStyle}><div style={capStyle}>Break time</div><Stat value={fmtHM(days.reduce((s, d) => s + d.break_minutes, 0))} label="total this month" /></section>
-              <section style={cardStyle}><div style={capStyle}>Late marks</div><Stat value={String(monthTotals?.late_marks ?? 0)} label={`${monthTotals?.half_day_deductions ?? 0} half-day deduction(s)`} tone={(monthTotals?.late_marks ?? 0) > 0 ? pillar.amber.fg : undefined} /></section>
+              <section style={cardStyle}><div style={capStyle}>Late marks</div><Stat value={String(monthTotals?.late_marks ?? 0)} label={`${monthTotals?.half_day_deductions ?? 0} half-day deduction(s)`} tone={(monthTotals?.late_marks ?? 0) > 0 ? statusInk.warn : undefined} /></section>
               <section style={cardStyle}><div style={capStyle}>Leave</div><Stat value={String((monthTotals?.paid_leave_days ?? 0) + (monthTotals?.unpaid_leave_days ?? 0))} label={`${monthTotals?.paid_leave_days ?? 0} paid · ${monthTotals?.unpaid_leave_days ?? 0} unpaid`} /></section>
               <section style={cardStyle}><div style={capStyle}>Holidays</div><Stat value={String(monthTotals?.holiday_days ?? 0)} label="this month" /></section>
               <section style={cardStyle}><div style={capStyle}>Night shifts</div><Stat value={String(monthTotals?.night_shifts ?? 0)} label={monthTotals?.night_allowance_total ? `₹${monthTotals.night_allowance_total.toLocaleString("en-IN")} allowance` : "no allowance"} /></section>
-              <section style={cardStyle}><div style={capStyle}>Incomplete</div><Stat value={String(monthTotals?.incomplete_days ?? 0)} label="days missing a check-out" tone={(monthTotals?.incomplete_days ?? 0) > 0 ? "#ef4444" : undefined} /></section>
+              <section style={cardStyle}><div style={capStyle}>Incomplete</div><Stat value={String(monthTotals?.incomplete_days ?? 0)} label="days missing a check-out" tone={(monthTotals?.incomplete_days ?? 0) > 0 ? statusInk.bad : undefined} /></section>
             </div>
           )}
 
           <section style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Correction requests{pendingCorr > 0 && <span style={{ color: c.amber, fontWeight: 500 }}> · {pendingCorr} pending</span>}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Correction requests{pendingCorr > 0 && <span style={{ color: statusInk.warn, fontWeight: 500 }}> · {pendingCorr} pending</span>}</div>
               <button style={btn} onClick={() => setShowCorrectionForm((s) => !s)}>{showCorrectionForm ? "Cancel" : "+ Request correction"}</button>
             </div>
 
@@ -784,7 +784,7 @@ export default function MeClient() {
             {leaveBalance.map((lb) => (
               <section key={lb.leave_type_id} style={cardStyle}>
                 <div style={capStyle}>{lb.name}</div>
-                <Stat value={String(lb.balance)} label={`of ${lb.quota} days left · ${lb.used} used`} tone={lb.balance <= 0 ? "#ef4444" : undefined} />
+                <Stat value={String(lb.balance)} label={`of ${lb.quota} days left · ${lb.used} used`} tone={lb.balance <= 0 ? statusInk.bad : undefined} />
                 <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{lb.category}</div>
               </section>
             ))}
@@ -862,7 +862,7 @@ export default function MeClient() {
               </select>
             </div>
           </div>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr><th style={th}>Date</th><th style={th}>Holiday</th><th style={th}>Applies to</th><th style={th}></th></tr></thead>
             <tbody>
               {visibleHolidays.map((h) => {
@@ -891,14 +891,14 @@ export default function MeClient() {
                 <Stat
                   value={analytics.on_time_rate === null ? "—" : `${analytics.on_time_rate}%`}
                   label="of attended days this month"
-                  tone={analytics.on_time_rate !== null && analytics.on_time_rate < 80 ? pillar.amber.fg : "#10b981"}
+                  tone={analytics.on_time_rate !== null && analytics.on_time_rate < 80 ? statusInk.warn : statusInk.good}
                 />
               </section>
               <section style={cardStyle}>
                 <div style={capStyle}>Hours vs last month</div>
                 {analytics.previous ? (() => {
                   const diff = analytics.current.working_minutes - analytics.previous.working_minutes;
-                  return <Stat value={`${diff >= 0 ? "+" : "−"}${fmtHM(Math.abs(diff))}`} label={`vs ${fmtMonth(analytics.previous.month)}`} tone={diff >= 0 ? "#10b981" : pillar.amber.fg} />;
+                  return <Stat value={`${diff >= 0 ? "+" : "−"}${fmtHM(Math.abs(diff))}`} label={`vs ${fmtMonth(analytics.previous.month)}`} tone={diff >= 0 ? statusInk.good : statusInk.warn} />;
                 })() : <Stat value="—" label="no prior month" />}
               </section>
               <section style={cardStyle}>

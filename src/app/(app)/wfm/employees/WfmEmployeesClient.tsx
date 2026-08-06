@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { c } from "@/lib/theme";
+import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import type { WfmSite, WfmShift } from "@/lib/wfm/types";
@@ -205,7 +205,7 @@ export default function WfmEmployeesClient() {
 
   return (
     <>
-      {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
+      {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
 
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: `1px solid ${c.line}`, gap: 10, flexWrap: "wrap" }}>
@@ -240,7 +240,7 @@ export default function WfmEmployeesClient() {
             {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               <th style={th}>Code</th>

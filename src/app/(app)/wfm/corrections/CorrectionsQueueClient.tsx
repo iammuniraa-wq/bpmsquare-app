@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { c } from "@/lib/theme";
+import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import type { CorrectionIssue, CorrectionStatus, WfmCorrectionRequest } from "@/lib/wfm/types";
@@ -112,10 +112,10 @@ export default function CorrectionsQueueClient() {
         <span style={{ fontSize: 11.5, color: c.hint }}>{visible.length} of {rows.length}</span>
       </div>
 
-      {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
+      {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
 
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               <th style={th}>Employee</th>

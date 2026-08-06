@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { c, pillar } from "@/lib/theme";
+import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
@@ -180,12 +180,12 @@ export default function LiveBoardClient() {
           />
         </section>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", flex: "1 1 320px", alignContent: "flex-start" }}>
-          {stat("Checked in", counts.in, pillar.green.base)}
-          {stat("On break", counts.onBreak, c.amber)}
-          {stat("Late", counts.late, pillar.red.base)}
-          {stat("Absent", counts.absent, pillar.red.base)}
+          {stat("Checked in", counts.in, statusInk.good)}
+          {stat("On break", counts.onBreak, statusInk.warn)}
+          {stat("Late", counts.late, statusInk.bad)}
+          {stat("Absent", counts.absent, statusInk.bad)}
           {stat("On leave", counts.leave)}
-          {stat("Geofence flags", counts.flagged, counts.flagged ? c.amber : undefined)}
+          {stat("Geofence flags", counts.flagged, counts.flagged ? statusInk.warn : undefined)}
         </div>
       </div>
 
@@ -232,7 +232,7 @@ export default function LiveBoardClient() {
               {rows.filter((r) => r.state !== "out").length} of {rows.length} present
             </span>
           </div>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
                 <th style={th}>Employee</th>
@@ -259,7 +259,7 @@ export default function LiveBoardClient() {
                   <td style={td}>{statusPill(r)}</td>
                   <td style={td}>
                     {fmtTime(r.first_in, board.timezone)}
-                    {r.late && <span style={{ color: "#ef4444", marginLeft: 6, fontSize: 11 }}>late</span>}
+                    {r.late && <span style={{ color: statusInk.bad, marginLeft: 6, fontSize: 11 }}>late</span>}
                   </td>
                   <td style={td}>{fmtTime(r.last_out, board.timezone)}</td>
                   <td style={td}>

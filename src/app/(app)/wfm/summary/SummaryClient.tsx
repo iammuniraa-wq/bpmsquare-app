@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { c, pillar } from "@/lib/theme";
+import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Donut from "@/components/Donut";
 
@@ -62,10 +62,10 @@ function dayStatus(d: DayRecord) {
   if (d.holiday) return { label: d.holiday, color: c.muted };
   if (d.on_leave) return { label: d.on_leave.name, color: c.muted };
   if (d.is_week_off) return { label: "Week off", color: c.hint };
-  if (d.incomplete) return { label: "Incomplete", color: "#ef4444" };
-  if (d.absent) return { label: "Absent", color: "#ef4444" };
-  if (d.late) return { label: "Late", color: "#f6b23c" };
-  if (d.punches > 0) return { label: "Present", color: "#10b981" };
+  if (d.incomplete) return { label: "Incomplete", color: statusInk.bad };
+  if (d.absent) return { label: "Absent", color: statusInk.bad };
+  if (d.late) return { label: "Late", color: statusInk.warn };
+  if (d.punches > 0) return { label: "Present", color: statusInk.good };
   return { label: "—", color: c.hint };
 }
 
@@ -77,7 +77,7 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
       <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>
         {title} <span style={{ color: c.hint, fontWeight: 400 }}>({rows.length})</span>
       </div>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
             <th style={th}>Code</th><th style={th}>Name</th><th style={th}>Site</th>
@@ -95,14 +95,14 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
               <td style={td}>{r.site_name ?? "—"}</td>
               <td style={td}>{r.totals.days_present}</td>
               <td style={td}>{fmtHM(r.totals.working_minutes)}</td>
-              <td style={{ ...td, color: r.totals.late_marks > 0 ? "#f6b23c" : undefined }}>{r.totals.late_marks}</td>
+              <td style={{ ...td, color: r.totals.late_marks > 0 ? statusInk.warn : undefined }}>{r.totals.late_marks}</td>
               <td style={td}>{r.totals.half_day_deductions}</td>
               <td style={td}>{r.totals.paid_leave_days}</td>
               <td style={td}>{r.totals.unpaid_leave_days}</td>
               <td style={td}>{r.totals.holiday_days}</td>
               <td style={td}>{r.totals.night_shifts}</td>
               <td style={td}>{r.totals.night_allowance_total ? `₹${r.totals.night_allowance_total.toLocaleString("en-IN")}` : "—"}</td>
-              <td style={{ ...td, color: r.totals.incomplete_days > 0 ? "#ef4444" : undefined }}>{r.totals.incomplete_days || "—"}</td>
+              <td style={{ ...td, color: r.totals.incomplete_days > 0 ? statusInk.bad : undefined }}>{r.totals.incomplete_days || "—"}</td>
             </tr>
           ))}
           {rows.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={13}>No employees in this section.</td></tr>}
@@ -139,7 +139,7 @@ function DailyEmployee({ emp, deductBreaks }: { emp: EmployeeSummary; deductBrea
       </div>
 
       {open && (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               <th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th>
@@ -166,7 +166,7 @@ function DailyEmployee({ emp, deductBreaks }: { emp: EmployeeSummary; deductBrea
                     {d.sessions.length === 0 ? "—" : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         {d.sessions.map((s) => (
-                          <span key={s.in}>{s.out ? fmtTime(s.out) : <span style={{ color: "#ef4444" }}>missing</span>}</span>
+                          <span key={s.in}>{s.out ? fmtTime(s.out) : <span style={{ color: statusInk.bad }}>missing</span>}</span>
                         ))}
                       </div>
                     )}
@@ -177,7 +177,7 @@ function DailyEmployee({ emp, deductBreaks }: { emp: EmployeeSummary; deductBrea
                         {d.breaks.map((b, i) => (
                           <span key={b.start} style={{ whiteSpace: "nowrap" }}>
                             <span style={{ color: c.hint }}>{i + 1}.</span>{" "}
-                            {fmtTime(b.start)} – {b.end ? fmtTime(b.end) : <span style={{ color: "#f6b23c" }}>running</span>}
+                            {fmtTime(b.start)} – {b.end ? fmtTime(b.end) : <span style={{ color: statusInk.warn }}>running</span>}
                             <span style={{ color: c.hint }}> ({b.minutes}m)</span>
                           </span>
                         ))}
@@ -309,7 +309,7 @@ export default function SummaryClient() {
         {loading && <span style={{ fontSize: 12, color: c.hint }}>Loading…</span>}
       </div>
 
-      {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
+      {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14, marginBottom: 14 }}>
         <section style={cardStyle}><Donut slices={dayMix} title="How the month went" centerLabel="days" /></section>

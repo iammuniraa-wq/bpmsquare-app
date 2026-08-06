@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { c } from "@/lib/theme";
+import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import type { LeaveRequestStatus, WfmLeaveRequest } from "@/lib/wfm/types";
@@ -162,7 +162,7 @@ export default function LeaveClient() {
 
   return (
     <>
-      {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
+      {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
 
       <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: `1px solid ${c.line}` }}>
@@ -173,7 +173,7 @@ export default function LeaveClient() {
             <button style={requestFilter === "all" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setRequestFilter("all")}>All</button>
           </div>
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               <th style={th}>Employee</th><th style={th}>Type</th><th style={th}>From</th><th style={th}>To</th>
@@ -228,7 +228,7 @@ export default function LeaveClient() {
 
       <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
         <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Leave types</div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><th style={th}>Name</th><th style={th}>Category</th><th style={th}>Default annual quota</th><th style={th}>Status</th></tr></thead>
           <tbody>
             {types.map((t) => (
@@ -260,7 +260,7 @@ export default function LeaveClient() {
           <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Holiday calendar</span>
           <input style={{ ...inp, width: 200 }} placeholder="Search holiday…" value={holidayQuery} onChange={(e) => setHolidayQuery(e.target.value)} />
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><th style={th}>Date</th><th style={th}>Name</th><th style={th}>Applies to</th><th style={th}></th></tr></thead>
           <tbody>
             {visibleHolidays.map((h) => (
@@ -292,7 +292,7 @@ export default function LeaveClient() {
           <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Leave records</span>
           <input style={{ ...inp, width: 220 }} placeholder="Search employee or leave type…" value={recordQuery} onChange={(e) => setRecordQuery(e.target.value)} />
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><th style={th}>Employee</th><th style={th}>Type</th><th style={th}>From</th><th style={th}>To</th><th style={th}>Half-day</th><th style={th}>Remarks</th><th style={th}></th></tr></thead>
           <tbody>
             {visibleRecords.map((r) => (
