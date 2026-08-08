@@ -122,11 +122,8 @@ export default function StatusesClient({ initial, initialAssetFields, assetCusto
   function setInitial(idx: number) {
     setStatuses((p) => p.map((s, i) => ({ ...s, is_initial: i === idx })));
   }
-  function toggleTerminal(idx: number) {
-    setStatuses((p) => p.map((s, i) => i === idx ? { ...s, is_terminal: !s.is_terminal } : s));
-  }
-  function toggleLost(idx: number) {
-    setStatuses((p) => p.map((s, i) => i === idx ? { ...s, is_lost: !s.is_lost } : s));
+  function toggleClosed(idx: number) {
+    setStatuses((p) => p.map((s, i) => i === idx ? { ...s, is_closed: !s.is_closed } : s));
   }
 
   async function save() {
@@ -218,13 +215,8 @@ export default function StatusesClient({ initial, initialAssetFields, assetCusto
                 </label>
 
                 <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: c.muted, cursor: "pointer" }}>
-                  <input type="checkbox" checked={!!s.is_terminal} onChange={() => toggleTerminal(idx)} style={{ cursor: "pointer" }} />
-                  Terminal (locks editing)
-                </label>
-
-                <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: c.muted, cursor: "pointer" }}>
-                  <input type="checkbox" checked={!!s.is_lost} onChange={() => toggleLost(idx)} style={{ cursor: "pointer" }} />
-                  Lost (excluded from won/approved value)
+                  <input type="checkbox" checked={!!s.is_closed} onChange={() => toggleClosed(idx)} style={{ cursor: "pointer" }} />
+                  Closed (locks editing, requires an outcome)
                 </label>
               </div>
             </div>

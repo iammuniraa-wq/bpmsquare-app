@@ -145,6 +145,17 @@ thousand rows.
 **Foreign ids are tenant-checked.** `account_id`, `contact_id`, `asset_ids` and
 `inventory_item_id` must belong to your tenant, or the request is `404`.
 
+**`status` and `outcome` are independent fields — with one rule tying them
+together.** `status` is your tenant's pipeline position (Settings → Quote
+statuses — entirely tenant-configurable, so it's validated dynamically, not
+against a fixed list; an unrecognized value is `422`). `outcome` is the
+business result — `open` / `won` / `lost` / `dropped` — and is never
+auto-derived from status. The one rule: a status marked "closed" in Settings
+can never coexist with `outcome: "open"`. Moving `status` to a closed value
+requires `outcome` to already be decided or set in the same request; moving
+`status` off a closed value resets `outcome` back to `open` unless you send
+one explicitly. Violating this is a `422`.
+
 **Line ordering is natural, not lexicographic.** `sl_no` is text (so `"1a"` and
 `"2.10"` work), but reads sort it numerically — `1, 2, 10`, not `1, 10, 2`.
 

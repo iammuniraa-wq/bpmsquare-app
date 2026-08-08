@@ -2,8 +2,7 @@ import { UOM_OPTIONS } from "@/lib/constants";
 import type { EntityDef, FieldDef } from "./schema";
 
 const OFFER_TYPES = ["quotation", "technical", "budgetary", "supply", "repair"] as const;
-const QUOTE_STATUSES = ["draft", "sent", "approved", "rejected"] as const;
-const OUTCOMES = ["open", "won", "lost"] as const;
+const OUTCOMES = ["open", "won", "lost", "dropped"] as const;
 const BUSINESS_STATUSES = ["pending", "po_received"] as const;
 const DISCOUNT_TYPES = ["pct", "fixed"] as const;
 const GROUP_TYPES = ["additive", "alternative"] as const;
@@ -98,8 +97,8 @@ const QUOTE_FIELDS: FieldDef[] = [
     description: "\"technical\" hides all pricing on the document. \"supply\" uses a separate per-line GST model in the UI.",
   },
   {
-    key: "status", type: "enum", label: "Status", enumValues: QUOTE_STATUSES, defaultValue: "draft",
-    description: "Pipeline status. Tenants may define additional statuses in Settings → Quote statuses; those custom values are also accepted.",
+    key: "status", type: "string", label: "Status", maxLength: 40, defaultValue: "draft",
+    description: "Pipeline status. Allowed values are entirely tenant-configured (Settings → Quote statuses) -- an unrecognized value is rejected with a 422. See GET /api/v1/quotations?status= for values currently in use. A status marked \"closed\" in Settings requires outcome to already be (or be set in the same request to) won, lost, or dropped -- never \"open\".",
   },
   {
     key: "business_status", type: "enum", label: "Business status", enumValues: BUSINESS_STATUSES,
@@ -107,7 +106,7 @@ const QUOTE_FIELDS: FieldDef[] = [
   },
   {
     key: "outcome", type: "enum", label: "Outcome", enumValues: OUTCOMES, defaultValue: "open",
-    description: "Won/lost, independent of status. Set automatically when status reaches a terminal state, unless you set it explicitly in the same request.",
+    description: "The business result -- won, lost, or dropped (deal went cold, no decision) -- fully independent of status; it is never auto-derived. Can be set any time, including before status reaches a closed state. A closed status can never coexist with outcome \"open\": moving status to a closed value requires outcome to already be decided or set in the same request.",
   },
   { key: "name", type: "string", label: "Title", maxLength: 300, description: "Subject line of the quotation.", example: "Rewinding of 180 kW motor" },
   { key: "ref_no", type: "string", label: "Ref no.", maxLength: 100, description: "Your own free-text reference, distinct from the system-generated Quote ID. Shown in-app, never printed." },

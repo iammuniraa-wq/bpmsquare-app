@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Quote, QuoteLine, Account, Contact, Asset, LayoutSection } from "@/lib/types";
-import type { TenantTaxConfig, QuoteStatusDef } from "@/lib/constants";
+import type { TenantTaxConfig, QuoteStatusDef, QuoteOutcome } from "@/lib/constants";
 import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES } from "@/lib/constants";
 import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -43,6 +43,7 @@ function StatusChanger({ quoteId, currentStatus, statuses, onChanged }: {
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const def = statusDef(statuses, currentStatus);
 
@@ -56,6 +57,7 @@ function StatusChanger({ quoteId, currentStatus, statuses, onChanged }: {
   async function change(value: string) {
     if (value === currentStatus) { setOpen(false); return; }
     setSaving(true);
+    setError("");
     const res = await fetch(`/api/quotes/${quoteId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -63,6 +65,7 @@ function StatusChanger({ quoteId, currentStatus, statuses, onChanged }: {
     });
     setSaving(false);
     if (res.ok) { onChanged(value); setOpen(false); }
+    else { const j = await res.json().catch(() => ({})); setError(j.error ?? "Failed to update status"); }
   }
 
   return (
@@ -103,28 +106,34 @@ function StatusChanger({ quoteId, currentStatus, statuses, onChanged }: {
               {s.value === currentStatus && <span style={{ marginLeft: "auto", fontSize: 11 }}>✓</span>}
             </button>
           ))}
+          {error && (
+            <div style={{ padding: "8px 14px", fontSize: 11.5, color: "var(--err-ink)", background: "var(--err-bg)", borderTop: `1px solid ${c.line}`, maxWidth: 220 }}>
+              {error}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-const OUTCOME_META: Record<"open" | "won" | "lost", { label: string; color: string }> = {
-  open: { label: "Open",  color: "#94a3b8" },
-  won:  { label: "Won",   color: "#10b981" },
-  lost: { label: "Lost",  color: "#ef4444" },
+const OUTCOME_META: Record<QuoteOutcome, { label: string; color: string }> = {
+  open:    { label: "Open",    color: "#94a3b8" },
+  won:     { label: "Won",     color: "#10b981" },
+  lost:    { label: "Lost",    color: "#ef4444" },
+  dropped: { label: "Dropped", color: "#f59e0b" },
 };
 
-// Independent from the pipeline status -- a quote can be marked Lost while
-// still sitting in a non-terminal status (customer went quiet), or Won ahead
-// of the status catching up. Status changes still auto-sync this when they
-// reach a terminal state (see the PATCH route), but this lets it be set
-// directly at any time.
+// Independent from the pipeline status -- a quote can be marked Lost/Dropped
+// while still sitting in a non-closed status (customer went quiet), or Won
+// ahead of the status catching up. A closed status always requires a decided
+// (non-"open") outcome -- enforced server-side, not here.
 function OutcomeChanger({ quoteId, currentOutcome, onChanged }: {
-  quoteId: string; currentOutcome: "open" | "won" | "lost"; onChanged: (o: "open" | "won" | "lost") => void;
+  quoteId: string; currentOutcome: QuoteOutcome; onChanged: (o: QuoteOutcome) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const meta = OUTCOME_META[currentOutcome];
 
@@ -135,9 +144,10 @@ function OutcomeChanger({ quoteId, currentOutcome, onChanged }: {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  async function change(value: "open" | "won" | "lost") {
+  async function change(value: QuoteOutcome) {
     if (value === currentOutcome) { setOpen(false); return; }
     setSaving(true);
+    setError("");
     const res = await fetch(`/api/quotes/${quoteId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -145,6 +155,7 @@ function OutcomeChanger({ quoteId, currentOutcome, onChanged }: {
     });
     setSaving(false);
     if (res.ok) { onChanged(value); setOpen(false); }
+    else { const j = await res.json().catch(() => ({})); setError(j.error ?? "Failed to update outcome"); }
   }
 
   return (
@@ -167,7 +178,7 @@ function OutcomeChanger({ quoteId, currentOutcome, onChanged }: {
           background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
           boxShadow: "0 8px 24px rgba(0,0,0,.15)", minWidth: 140, overflow: "hidden",
         }}>
-          {(["open", "won", "lost"] as const).map((o) => (
+          {(["open", "won", "lost", "dropped"] as const).map((o) => (
             <button
               key={o}
               onClick={() => change(o)}
@@ -185,6 +196,11 @@ function OutcomeChanger({ quoteId, currentOutcome, onChanged }: {
               {o === currentOutcome && <span style={{ marginLeft: "auto", fontSize: 11 }}>✓</span>}
             </button>
           ))}
+          {error && (
+            <div style={{ padding: "8px 14px", fontSize: 11.5, color: "var(--err-ink)", background: "var(--err-bg)", borderTop: `1px solid ${c.line}`, maxWidth: 220 }}>
+              {error}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -251,7 +267,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const isTechnical = quote.type === "technical";
   const [currentStatus, setCurrentStatus] = useState<string>(quote.status);
   useEffect(() => { setCurrentStatus(quote.status); }, [quote.status]);
-  const [currentOutcome, setCurrentOutcome] = useState<"open" | "won" | "lost">(quote.outcome);
+  const [currentOutcome, setCurrentOutcome] = useState<QuoteOutcome>(quote.outcome);
   useEffect(() => { setCurrentOutcome(quote.outcome); }, [quote.outcome]);
   // CR-010: GST is optional per quote — no rate entered means no tax row at all
   // (the "GST @ 18%" statement lives in Terms & Conditions text instead).

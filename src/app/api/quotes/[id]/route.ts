@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
-import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
+import { applyDateProfile } from "@/lib/api/quoteService";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -101,35 +101,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!before) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
 
-  // Auto-sync outcome to the pipeline status whenever status changes (unless
-  // the caller is also explicitly setting outcome in this same request) --
-  // reaching a terminal status is a definitive event. A quote can still be
-  // marked won/lost independently, before that, via its own "outcome" patch.
-  if ("status" in patch) {
-    const { data: tenant } = await admin.from("tenants").select("config").eq("id", tenantId).single();
-    const quoteStatuses: QuoteStatusDef[] = (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
-    const def = quoteStatuses.find((s) => s.value === patch.status);
-    if (!("outcome" in patch)) {
-      patch.outcome = def?.is_terminal ? (def.is_lost ? "lost" : "won") : "open";
-    }
-    // Submitted-to-customer: stamped the first time the quote leaves its
-    // initial status (works for tenant-customized status sets too, where
-    // the post-draft stage isn't necessarily called "sent"). Also stamped by
-    // the email route on an actual send; a manual override always wins.
-    if (!before.submitted_at && !("submitted_at" in patch) && def && !def.is_initial) {
-      patch.submitted_at = new Date().toISOString();
-    }
-  }
-
-  // Closed date follows outcome: stamped when the quote leaves "open",
-  // cleared when it's reopened -- unless the caller overrode it explicitly.
-  const effectiveOutcome = ("outcome" in patch ? patch.outcome : before.outcome) as string;
-  if (!("closed_at" in patch)) {
-    if (effectiveOutcome !== "open" && before.outcome === "open") patch.closed_at = new Date().toISOString();
-    else if (effectiveOutcome === "open" && before.outcome !== "open") patch.closed_at = null;
-  }
-
-  patch.updated_at = new Date().toISOString();
+  // Status (pipeline position) and outcome (won/lost/dropped/open) are
+  // independent fields -- see applyDateProfile in quoteService.ts for the one
+  // rule tying them together (a closed status can never coexist with an
+  // undecided "open" outcome), plus the submitted_at/closed_at date-profile
+  // stamps. Shared with the v1 API so both channels enforce it identically.
+  const dateProfile = await applyDateProfile(admin, tenantId, before as Record<string, unknown>, patch);
+  if (dateProfile.error) return NextResponse.json({ error: dateProfile.error }, { status: 400 });
 
   const { data, error } = await admin
     .from("quotes")
@@ -149,7 +127,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (changes.length > 0) {
     await logChange(supabase, {
       tenantId, objectType: "quotes", objectId: id, objectLabel: (data as { ref?: string }).ref ?? null,
-      action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+      action: dateProfile.reopened ? "reopen" : "update", actorId: user?.id, actorEmail: user?.email, changes,
     });
   }
 

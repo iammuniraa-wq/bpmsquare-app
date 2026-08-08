@@ -582,13 +582,14 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
     case "recent_activity":  return <AnalyticsCard title="Recent activity" href={ROUTES.accounts}><div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{a.recentActivity.slice(0, 4).map((act, i) => (<div key={i} style={{ fontSize: 11, color: c.muted, borderLeft: `2px solid ${ledger.accentSoft}`, paddingLeft: 9 }}><div style={{ color: c.ink }}>{act.text}</div><div style={{ fontSize: 10, color: c.hint, marginTop: 1 }}>{act.accountName} · {fmtDate(act.at)}</div></div>))}</div></AnalyticsCard>;
     case "account_news":     return <AnalyticsCard title="Client news" href={ROUTES.accounts}><AccountNewsList items={a.accountNews} /></AnalyticsCard>;
     case "quote_outcomes": {
-      const { open, won, lost } = a.quoteOutcomeTotals;
+      const { open, won, lost, dropped } = a.quoteOutcomeTotals;
       const rows = [
-        { label: "Won",  value: won,  valueLabel: inr(won) },
-        { label: "Lost", value: lost, valueLabel: inr(lost) },
-        { label: "Open", value: open, valueLabel: inr(open) },
+        { label: "Won",     value: won,     valueLabel: inr(won) },
+        { label: "Lost",    value: lost,    valueLabel: inr(lost) },
+        { label: "Dropped", value: dropped, valueLabel: inr(dropped) },
+        { label: "Open",    value: open,    valueLabel: inr(open) },
       ];
-      return <AnalyticsCard title="Quote won/lost value" href={ROUTES.quotations}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.blue.base][i]} /></AnalyticsCard>;
+      return <AnalyticsCard title="Quote outcome value" href={ROUTES.quotations}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.amber.base, pillar.blue.base][i]} /></AnalyticsCard>;
     }
     case "quote_overdue": return <AnalyticsCard title="Quote overdue" href={ROUTES.quotations}><StatTile value={a.quoteOverdueCount} label="Overdue quotes" icon={<AlertTriangle size={14} color={ledger.accent} />} href={ROUTES.quotations} /></AnalyticsCard>;
     case "quote_source": return <AnalyticsCard title="Quote source" href={ROUTES.quotations}><div style={{ display: "flex" }}><StatTile value={a.quoteSource.caseLinked.count} label="From cases" icon={<Wrench size={14} color={ledger.accent} />} href={ROUTES.quotations} /><StatTile value={a.quoteSource.standalone.count} label="Standalone" icon={<FileText size={14} color={ledger.accent} />} href={ROUTES.quotations} /></div></AnalyticsCard>;

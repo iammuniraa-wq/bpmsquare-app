@@ -605,14 +605,15 @@ export default function ReportsClient({
       {(isVisible("quote_outcomes") || isVisible("quote_overdue") || isVisible("quote_source")) && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
 
-        {isVisible("quote_outcomes") && <ChartCard title="Quote won/lost value" href={ROUTES.quotations}>
+        {isVisible("quote_outcomes") && <ChartCard title="Quote outcome value" href={ROUTES.quotations}>
           <HBarChartNav
             rows={[
-              { label: "Won",  value: a.quoteOutcomeTotals.won,  sub: inr(a.quoteOutcomeTotals.won) },
-              { label: "Lost", value: a.quoteOutcomeTotals.lost, sub: inr(a.quoteOutcomeTotals.lost) },
-              { label: "Open", value: a.quoteOutcomeTotals.open, sub: inr(a.quoteOutcomeTotals.open) },
+              { label: "Won",     value: a.quoteOutcomeTotals.won,     sub: inr(a.quoteOutcomeTotals.won) },
+              { label: "Lost",    value: a.quoteOutcomeTotals.lost,    sub: inr(a.quoteOutcomeTotals.lost) },
+              { label: "Dropped", value: a.quoteOutcomeTotals.dropped, sub: inr(a.quoteOutcomeTotals.dropped) },
+              { label: "Open",    value: a.quoteOutcomeTotals.open,    sub: inr(a.quoteOutcomeTotals.open) },
             ]}
-            colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.blue.base][i]}
+            colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.amber.base, pillar.blue.base][i]}
           />
         </ChartCard>}
 

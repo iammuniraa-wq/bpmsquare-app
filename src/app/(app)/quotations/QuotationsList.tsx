@@ -249,7 +249,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   const today = new Date().toISOString().slice(0, 10);
   const overdueCount = rows.filter((r) => r.quote.outcome === "open" && r.quote.valid_until && r.quote.valid_until < today).length;
 
-  const sentStatuses = new Set(quoteStatuses.filter((s) => !s.is_initial && !s.is_terminal).map((s) => s.value));
+  const sentStatuses = new Set(quoteStatuses.filter((s) => !s.is_initial && !s.is_closed).map((s) => s.value));
   const awaitingApprovalCount = rows.filter((r) => sentStatuses.has(r.quote.status)).length;
 
   const caseLinkedSet = new Set(caseLinkedQuoteIds);

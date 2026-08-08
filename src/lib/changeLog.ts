@@ -1,7 +1,10 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type ChangeLogAction = "create" | "update" | "delete";
+// "reopen" is a distinct action from "update" -- moving a quote off a closed
+// status back into the pipeline undoes a closed deal, which is worth being
+// able to filter/audit separately from an ordinary field edit.
+export type ChangeLogAction = "create" | "update" | "delete" | "reopen";
 
 export type ChangeEntry = { field: string; from: unknown; to: unknown; redacted?: boolean };
 

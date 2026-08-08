@@ -1394,7 +1394,7 @@ export async function getDashboardSummaryLive() {
   // Quotations page's "In pipeline" tile.
   const quoteStatusDefs = tenant?.config?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
   const openPipelineStatuses = new Set(
-    quoteStatusDefs.filter((d) => !d.is_terminal).map((d) => d.value)
+    quoteStatusDefs.filter((d) => !d.is_closed).map((d) => d.value)
   );
 
   const kpis = {
@@ -1463,7 +1463,7 @@ export type AnalyticsData = {
   loanerStock: { available: number; onLoan: number; total: number };
   quotesByStatus: Array<{ status: string; label: string; count: number; value: number }>;
   quoteTrend: Array<{ dateLabel: string; value: number; cumulative: number }>;
-  quoteOutcomeTotals: { open: number; won: number; lost: number };
+  quoteOutcomeTotals: { open: number; won: number; lost: number; dropped: number };
   quoteOverdueCount: number;
   quoteSource: { caseLinked: { count: number; value: number }; standalone: { count: number; value: number } };
   casesByStatus: Array<{ status: string; label: string; count: number }>;
@@ -1491,7 +1491,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
-      quoteOutcomeTotals: { open: 0, won: 0, lost: 0 },
+      quoteOutcomeTotals: { open: 0, won: 0, lost: 0, dropped: 0 },
       quoteOverdueCount: 0,
       quoteSource: { caseLinked: { count: 0, value: 0 }, standalone: { count: 0, value: 0 } },
       techniciansByStatus: [], invoicesByStatus: [],
@@ -1533,7 +1533,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const allLeads       = (leads       ?? []) as Array<{ id: string; status: string }>;
   const allTechnicians = (technicians ?? []) as Array<{ id: string; status: string }>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allQuotes      = (quotes      ?? []) as any as Array<{ id: string; status: string; outcome: "open" | "won" | "lost"; total: number; valid_until: string | null; created_at: string; account_id: string; accounts: { name: string } | { name: string }[] | null }>;
+  const allQuotes      = (quotes      ?? []) as any as Array<{ id: string; status: string; outcome: "open" | "won" | "lost" | "dropped"; total: number; valid_until: string | null; created_at: string; account_id: string; accounts: { name: string } | { name: string }[] | null }>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allInvoices    = (invoices    ?? []) as any as Array<{ id: string; status: string; total: number; paid_amount: number; account_id: string; accounts: { name: string } | { name: string }[] | null }>;
 
@@ -1596,7 +1596,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     .map((def) => ({ status: def.value, label: def.label, ...(qStatusCounts.get(def.value) ?? { count: 0, value: 0 }) }))
     .filter((x) => x.count > 0);
 
-  const quoteOutcomeTotals = { open: 0, won: 0, lost: 0 };
+  const quoteOutcomeTotals = { open: 0, won: 0, lost: 0, dropped: 0 };
   allQuotes.forEach((q) => { quoteOutcomeTotals[q.outcome] += q.total; });
 
   // A quote is overdue when its validity date has passed with no decision --

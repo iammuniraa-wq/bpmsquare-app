@@ -1,7 +1,7 @@
 import { listQuotesForTenant } from "@/lib/data";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { generateNextQuoteRef } from "@/lib/quoteRef";
-import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig } from "@/lib/constants";
+import { DEFAULT_QUOTE_ID_FORMAT, DEFAULT_QUOTE_STATUSES, type QuoteIdFormat, type QuoteStatusDef, type TenantConfig } from "@/lib/constants";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { QUOTE_ENTITY } from "@/lib/api/quotes";
 import { validateBody, validateChildren } from "@/lib/api/schema";
@@ -81,9 +81,25 @@ export async function POST(req: Request) {
     .from("accounts").select("id, territory, sales_org").eq("id", header.values.account_id).eq("tenant_id", tenantId).maybeSingle();
 
   const { data: tenantRow } = await supabase.from("tenants").select("config").eq("id", tenantId).maybeSingle();
-  const quoteIdFormat: QuoteIdFormat = (tenantRow?.config as TenantConfig | null)?.quote_id_format ?? DEFAULT_QUOTE_ID_FORMAT;
+  const tenantConfig = tenantRow?.config as TenantConfig | null;
+  const quoteIdFormat: QuoteIdFormat = tenantConfig?.quote_id_format ?? DEFAULT_QUOTE_ID_FORMAT;
 
   const values = sanitizeQuoteValues({ ...header.values });
+
+  // Status is tenant-configurable (Settings -> Quote statuses), so it can't be
+  // checked as a fixed enum at the schema layer -- validated here against the
+  // tenant's real pipeline instead. A quotation created directly in a closed
+  // status still needs a decided outcome, same rule PATCH enforces.
+  if (typeof values.status === "string") {
+    const cfgStatuses: QuoteStatusDef[] = tenantConfig?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
+    const statusDef = cfgStatuses.find((s) => s.value === values.status);
+    if (!statusDef) {
+      return jsonError(422, `Unknown status "${values.status}". Allowed values are tenant-configured -- see GET /api/v1/quotations?status= for values currently in use, or the app's Settings -> Quote statuses page.`);
+    }
+    if (statusDef.is_closed && values.outcome !== "won" && values.outcome !== "lost" && values.outcome !== "dropped") {
+      return jsonError(422, "Set an outcome (won, lost, or dropped) when creating a quotation directly in a closed status.");
+    }
+  }
 
   // Amounts and totals are always derived, never taken from the caller.
   const draftLines = buildLineRows(lines.values, tenantId, "pending");
