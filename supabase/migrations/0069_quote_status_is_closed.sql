@@ -1,7 +1,7 @@
--- 0063_quote_status_is_closed.sql
+-- 0069_quote_status_is_closed.sql
 -- QuoteStatusDef's is_terminal/is_lost pair collapses into one is_closed
 -- flag. Win/loss meaning now belongs entirely to `outcome` (open/won/lost/
--- dropped, 0036 + 0062), independent of the pipeline status -- a status
+-- dropped, 0036 + 0068), independent of the pipeline status -- a status
 -- just says whether the quote is closed, not which way it closed.
 --
 -- quote_statuses is tenant-configurable and lives inside tenants.config

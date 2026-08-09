@@ -1,14 +1,14 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// The status-schema engine (0064_status_schema_engine.sql). One shared
+// The status-schema engine (0070_status_schema_engine.sql). One shared
 // validation path for every object migrated onto the two-layer status
 // model (system_status + tenant-configurable custom_status), instead of
 // each object re-deriving its own status/transition logic -- see the
 // approved plan for the full rollout sequence.
 //
 // entity_type covers every object the whole rollout will ever need,
-// mirroring system_status's seeded set (0064) -- kept in sync by hand,
+// mirroring system_status's seeded set (0070) -- kept in sync by hand,
 // since Postgres enums and TS unions can't share a single source of truth.
 export type StatusEntityType =
   | "quotes" | "cases" | "work_orders" | "invoices" | "purchase_orders"

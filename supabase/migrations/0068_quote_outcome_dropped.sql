@@ -1,6 +1,6 @@
--- 0062_quote_outcome_dropped.sql
+-- 0068_quote_outcome_dropped.sql
 -- Adds "dropped" as a third closed-outcome value alongside won/lost (0036).
--- Status and outcome are being decoupled further (see 0063): status only
+-- Status and outcome are being decoupled further (see 0069): status only
 -- says whether a quote is closed, outcome says what happened. "Lost" (an
 -- active rejection) and "dropped" (the deal went cold, no decision) mean
 -- different things for win-rate reporting, so they need to stay distinct
