@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
-import { listInvoices } from "@/lib/data/live";
+import { listInvoices, type InvoiceRow } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
-import { ROUTES } from "@/lib/constants";
 import ListFilterBar from "@/components/ListFilterBar";
+import SortableTh from "@/components/SortableTh";
+import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
+import { ROUTES } from "@/lib/constants";
 import type { InvoiceStatus } from "@/lib/types";
 
 const STATUS_TONE: Record<InvoiceStatus, PillarKey> = {
@@ -32,14 +34,25 @@ const td: React.CSSProperties = {
   fontSize: 12.5, verticalAlign: "middle",
 };
 
+const SORT_EXTRACTORS: Record<string, SortExtractor<InvoiceRow>> = {
+  ref: (i) => i.ref,
+  account: (i) => i.account_name,
+  status: (i) => i.status,
+  total: (i) => i.total,
+  balance: (i) => Math.max(0, i.total - i.paid_amount),
+  issued: (i) => i.issued_at,
+};
+
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; from?: string; to?: string; sort?: string; dir?: string }>;
 }) {
   await requireWorkcenterView("invoices");
   await requireFeature("invoices");
-  const { status: statusFilter, q, from, to } = await searchParams;
+  const params = await searchParams;
+  const { status: statusFilter, q, from, to } = params;
+  const { sort, dir } = readSortParams(params);
   const invoices = await listInvoices();
 
   const summary = SUMMARY_STATUSES.map((s) => ({
@@ -52,7 +65,7 @@ export default async function InvoicesPage({
   // subset -- they're the overview the filters act on, and a tile showing
   // the total of what you already filtered to is useless.
   const needle = (q ?? "").trim().toLowerCase();
-  const filtered = invoices.filter((i) => {
+  const searched = invoices.filter((i) => {
     if (statusFilter && i.status !== statusFilter) return false;
     // Date bounds compare on the issue date; an unissued (draft) invoice has
     // no date and so can't satisfy a range.
@@ -65,6 +78,7 @@ export default async function InvoicesPage({
       (i.account_name ?? "").toLowerCase().includes(needle)
     );
   });
+  const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
 
   return (
     <>
@@ -135,12 +149,19 @@ export default async function InvoicesPage({
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={th}>Ref</th>
-                <th style={th}>Account</th>
-                <th style={th}>Status</th>
-                <th style={th}>Total</th>
-                <th style={th}>Balance due</th>
-                <th style={th}>Issued</th>
+                {(() => {
+                  const hp = { status: statusFilter, q, from, to };
+                  return (
+                    <>
+                      <SortableTh label="Ref" sortKey="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Account" sortKey="account" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Status" sortKey="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Total" sortKey="total" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Balance due" sortKey="balance" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Issued" sortKey="issued" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                    </>
+                  );
+                })()}
               </tr>
             </thead>
             <tbody>

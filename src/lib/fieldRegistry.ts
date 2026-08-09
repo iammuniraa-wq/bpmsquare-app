@@ -108,10 +108,11 @@ const QUOTE_BUSINESS_STATUS_OPTIONS: { value: "pending" | "po_received"; label: 
   { value: "po_received", label: "PO received" },
 ];
 
-const QUOTE_OUTCOME_OPTIONS: { value: "open" | "won" | "lost"; label: string }[] = [
-  { value: "open", label: "Open" },
-  { value: "won",  label: "Won" },
-  { value: "lost", label: "Lost" },
+const QUOTE_OUTCOME_OPTIONS: { value: "open" | "won" | "lost" | "dropped"; label: string }[] = [
+  { value: "open",    label: "Open" },
+  { value: "won",     label: "Won" },
+  { value: "lost",    label: "Lost" },
+  { value: "dropped", label: "Dropped" },
 ];
 
 const CASE_TYPE_OPTIONS: { value: ServiceCase["type"]; label: string }[] =

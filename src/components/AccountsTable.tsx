@@ -14,6 +14,7 @@ import { ROUTES } from "@/lib/constants";
 import { MapPin, CheckIcon, XIcon } from "@/components/Icons";
 import type { PillarKey } from "@/lib/theme";
 import type { AccountSummary } from "@/lib/data/live";
+import { sortRows, type SortExtractor } from "@/lib/listSort";
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
@@ -32,6 +33,18 @@ const COLUMNS: ColDef[] = [
 ];
 
 const LS_KEY = "bms_accounts_cols";
+
+const SORT_EXTRACTORS: Record<string, SortExtractor<AccountSummary>> = {
+  ref: (r) => r.account.ref,
+  name: (r) => r.account.name,
+  type: (r) => r.account.type,
+  city: (r) => r.account.city,
+  phone: (r) => r.account.phone,
+  contacts: (r) => r.counts.contacts,
+  cases: (r) => r.counts.cases,
+  assets: (r) => r.counts.assets,
+  contracts: (r) => r.counts.contracts,
+};
 
 const typeTone: Record<Account["type"], PillarKey> = {
   prospect: "amber", oem: "purple", direct: "green", end_customer: "teal",
@@ -55,6 +68,22 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
     new Set(COLUMNS.filter((c) => c.defaultOn).map((c) => c.id))
   );
   const [adaptOpen, setAdaptOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+
+  function sortIndicator(key: string) {
+    const active = sortKey === key;
+    return (
+      <span style={{ fontSize: 9, opacity: active ? 1 : 0.35, color: active ? c.accent : "inherit", marginLeft: 4 }}>
+        {active ? (sortDir === "desc" ? "↓" : "↑") : "↕"}
+      </span>
+    );
+  }
 
   // Load from localStorage after mount
   useEffect(() => {
@@ -77,6 +106,7 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
   }
 
   const visibleDefs = COLUMNS.filter((col) => visibleCols.has(col.id));
+  const sortedRows = sortRows(rows, sortKey, sortDir, SORT_EXTRACTORS);
 
   if (rows.length === 0) {
     return (
@@ -181,15 +211,21 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-              <th style={{ ...th, width: 88 }}>ID</th>
-              <th style={th}>Account</th>
+              <th style={{ ...th, width: 88, cursor: "pointer" }} onClick={() => toggleSort("ref")}>ID{sortIndicator("ref")}</th>
+              <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("name")}>Account{sortIndicator("name")}</th>
               {visibleDefs.map((col) => (
-                <th key={col.id} style={{ ...th, textAlign: col.align ?? "left" }}>{col.label}</th>
+                <th
+                  key={col.id}
+                  style={{ ...th, textAlign: col.align ?? "left", cursor: "pointer" }}
+                  onClick={() => toggleSort(col.id)}
+                >
+                  {col.label}{sortIndicator(col.id)}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ account, referredBy, counts }, i) => {
+            {sortedRows.map(({ account, referredBy, counts }, i) => {
               const tone = typeTone[account.type];
               const p = pillar[tone];
               return (

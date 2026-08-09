@@ -9,6 +9,7 @@ import type { PillarKey } from "@/lib/theme";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import { CheckIcon, XIcon } from "@/components/Icons";
+import { sortRows, type SortExtractor } from "@/lib/listSort";
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
@@ -48,6 +49,16 @@ interface Row { serviceCase: ServiceCase; account: Account; technicianName: stri
 
 interface Props { rows: Row[]; q?: string; filter: string }
 
+const SORT_EXTRACTORS: Record<string, SortExtractor<Row>> = {
+  ref: (r) => r.serviceCase.ref,
+  stage: (r) => r.serviceCase.status,
+  account: (r) => r.account.name,
+  type: (r) => r.serviceCase.type,
+  technician: (r) => r.technicianName,
+  intake: (r) => r.serviceCase.intake_at,
+  complaint: (r) => r.serviceCase.complaint,
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function CasesTable({ rows, q, filter }: Props) {
@@ -55,6 +66,22 @@ export default function CasesTable({ rows, q, filter }: Props) {
     new Set(COLUMNS.filter((c) => c.defaultOn).map((c) => c.id))
   );
   const [adaptOpen, setAdaptOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+
+  function sortIndicator(key: string) {
+    const active = sortKey === key;
+    return (
+      <span style={{ fontSize: 9, opacity: active ? 1 : 0.35, color: active ? c.accent : "inherit", marginLeft: 4 }}>
+        {active ? (sortDir === "desc" ? "↓" : "↑") : "↕"}
+      </span>
+    );
+  }
 
   useEffect(() => {
     try {
@@ -73,6 +100,7 @@ export default function CasesTable({ rows, q, filter }: Props) {
   }
 
   const visibleDefs = COLUMNS.filter((col) => visibleCols.has(col.id));
+  const sortedRows = sortRows(rows, sortKey, sortDir, SORT_EXTRACTORS);
 
   if (rows.length === 0) {
     return (
@@ -119,15 +147,21 @@ export default function CasesTable({ rows, q, filter }: Props) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-              <th style={th}>Ref · Equipment</th>
+              <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("ref")}>Ref · Equipment{sortIndicator("ref")}</th>
               {visibleDefs.map((col) => (
-                <th key={col.id} style={th}>{col.label}</th>
+                <th
+                  key={col.id}
+                  style={{ ...th, cursor: "pointer" }}
+                  onClick={() => toggleSort(col.id)}
+                >
+                  {col.label}{sortIndicator(col.id)}
+                </th>
               ))}
               <th style={{ ...th, width: 60 }}></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ serviceCase: sc, account, technicianName }) => (
+            {sortedRows.map(({ serviceCase: sc, account, technicianName }) => (
               <tr key={sc.id} className="cs-row" style={{ borderBottom: `1px solid ${c.line}` }}>
                 {/* Ref + equipment — always visible */}
                 <td style={td}>

@@ -96,7 +96,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const totals = totalsFor(nextLines, effective);
 
   const patch: Record<string, unknown> = { ...values, total: totals.total };
-  await applyDateProfile(supabase, tenantId, before as Record<string, unknown>, patch);
+  const dateProfile = await applyDateProfile(supabase, tenantId, before as Record<string, unknown>, patch);
+  if (dateProfile.error) return jsonError(422, dateProfile.error);
 
   const { data: updated, error: uErr } = await supabase
     .from("quotes").update(patch).eq("id", id).eq("tenant_id", tenantId).select("*").single();
@@ -128,7 +129,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (changes.length > 0) {
     await logChange(supabase, {
       tenantId, objectType: "quotes", objectId: id, objectLabel: (updated as { ref?: string }).ref ?? null,
-      action: "update", actorEmail: API_ACTOR_EMAIL, changes,
+      action: dateProfile.reopened ? "reopen" : "update", actorEmail: API_ACTOR_EMAIL, changes,
     });
   }
 

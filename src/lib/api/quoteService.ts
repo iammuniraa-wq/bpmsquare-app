@@ -103,32 +103,58 @@ export function sanitizeQuoteValues(values: Record<string, unknown>): Record<str
   return values;
 }
 
+/** The tenant's configured quote status pipeline, falling back to defaults. */
+export async function getTenantQuoteStatuses(supabase: SupabaseClient, tenantId: string): Promise<QuoteStatusDef[]> {
+  const { data: tenant } = await supabase.from("tenants").select("config").eq("id", tenantId).maybeSingle();
+  return (tenant?.config as { quote_statuses?: QuoteStatusDef[] } | null)?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
+}
+
 /**
- * The date-profile rules from migration 0059, applied identically here to the
- * way the in-app routes apply them -- a quote moved through the API must end up
- * with the same submitted/closed stamps as one moved through the UI.
+ * The date-profile rules from migration 0059, plus the status/outcome
+ * boundary rule from 0062/0063, applied identically here to the way the
+ * in-app route applies them -- a quote moved through the API must end up
+ * with the same stamps and the same guarantees as one moved through the UI.
  *
- * An explicit value from the caller always wins: a quote handed over on
- * WhatsApp or closed verbally happened outside the system, and historical
- * imports need to state their own dates.
+ * Status (pipeline position) and outcome (won/lost/dropped/open) are
+ * independent fields, but a closed status can never coexist with an
+ * undecided ("open") outcome -- checked against the EFFECTIVE values after
+ * this patch, regardless of which of the two fields the caller actually
+ * touched, since a bare `{outcome: "open"}` on an already-closed quote is
+ * just as inconsistent as closing without an outcome in the same request.
+ *
+ * An explicit value from the caller always wins for the date-profile stamps:
+ * a quote handed over on WhatsApp or closed verbally happened outside the
+ * system, and historical imports need to state their own dates.
  */
 export async function applyDateProfile(
   supabase: SupabaseClient,
   tenantId: string,
   before: Record<string, unknown>,
   patch: Record<string, unknown>
-): Promise<void> {
-  if ("status" in patch) {
-    const { data: tenant } = await supabase.from("tenants").select("config").eq("id", tenantId).maybeSingle();
-    const statuses: QuoteStatusDef[] =
-      (tenant?.config as { quote_statuses?: QuoteStatusDef[] } | null)?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
-    const def = statuses.find((s) => s.value === patch.status);
+): Promise<{ error?: string; reopened?: boolean }> {
+  let reopened = false;
 
-    if (!("outcome" in patch)) {
-      patch.outcome = def?.is_terminal ? (def.is_lost ? "lost" : "won") : "open";
+  if ("status" in patch || "outcome" in patch) {
+    const statuses = await getTenantQuoteStatuses(supabase, tenantId);
+
+    if ("status" in patch && patch.status !== before.status) {
+      const def = statuses.find((s) => s.value === patch.status);
+      if (!def) return { error: `Unknown status "${patch.status}"` };
+      const wasDef = statuses.find((s) => s.value === before.status);
+      if (wasDef?.is_closed && !def.is_closed && !("outcome" in patch)) {
+        patch.outcome = "open"; // reopening resets the decided outcome
+        reopened = true;
+      }
+      if (!before.submitted_at && !("submitted_at" in patch) && !def.is_initial) {
+        patch.submitted_at = new Date().toISOString();
+      }
     }
-    if (!before.submitted_at && !("submitted_at" in patch) && def && !def.is_initial) {
-      patch.submitted_at = new Date().toISOString();
+
+    const effectiveStatusValue = ("status" in patch ? patch.status : before.status) as string;
+    const effectiveStatusDef = statuses.find((s) => s.value === effectiveStatusValue);
+    const effectiveOutcomeValue = ("outcome" in patch ? patch.outcome : before.outcome) as string;
+    if (effectiveStatusDef?.is_closed && effectiveOutcomeValue === "open") {
+      return { error: "Set an outcome (won, lost, or dropped) before closing this quotation -- or before clearing the outcome on one that's already closed." };
     }
   }
 
@@ -139,6 +165,7 @@ export async function applyDateProfile(
   }
 
   patch.updated_at = new Date().toISOString();
+  return { reopened };
 }
 
 type QuoteRow = Record<string, unknown>;

@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
-import { listPurchaseOrdersLive } from "@/lib/data/live";
+import { listPurchaseOrdersLive, type PurchaseOrderRow } from "@/lib/data/live";
 import { c, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
-import ListFilterBar from "@/components/ListFilterBar";
 import Pill from "@/components/Pill";
+import ListFilterBar from "@/components/ListFilterBar";
+import SortableTh from "@/components/SortableTh";
+import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { PurchaseOrderStatus } from "@/lib/types";
 
@@ -28,25 +30,37 @@ const th: React.CSSProperties = {
 };
 const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, verticalAlign: "middle" };
 
+const SORT_EXTRACTORS: Record<string, SortExtractor<PurchaseOrderRow>> = {
+  ref: (r) => r.po.ref,
+  supplier: (r) => r.supplier?.name,
+  status: (r) => r.po.status,
+  order_date: (r) => r.po.order_date,
+  total: (r) => r.po.total,
+};
+
 export default async function PurchaseOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string }>;
 }) {
   await requireWorkcenterView("purchase_orders");
   await requireFeature("purchasing");
-  const { status: statusFilter, q } = await searchParams;
+  const params = await searchParams;
+  const { status: statusFilter, q } = params;
+  const { sort, dir } = readSortParams(params);
   const rows = await listPurchaseOrdersLive();
 
-  const needle = (q ?? "").trim().toLowerCase();
-  const filtered = rows.filter((r) => {
-    if (statusFilter && statusFilter !== "all" && r.po.status !== statusFilter) return false;
-    if (!needle) return true;
+  const statusFiltered = statusFilter && statusFilter !== "all" ? rows.filter((r) => r.po.status === statusFilter) : rows;
+  const searched = statusFiltered.filter((r) => {
+    if (!q) return true;
+    const term = q.toLowerCase();
     return (
-      (r.po.ref ?? "").toLowerCase().includes(needle) ||
-      (r.supplier?.name ?? "").toLowerCase().includes(needle)
+      r.po.ref.toLowerCase().includes(term) ||
+      r.po.id.toLowerCase().includes(term) ||
+      (r.supplier?.name ?? "").toLowerCase().includes(term)
     );
   });
+  const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.po.status] = (acc[r.po.status] ?? 0) + 1;
     return acc;
@@ -91,15 +105,15 @@ export default async function PurchaseOrdersPage({
         })}
       </div>
 
-      <div style={{ ...cardStyle, overflow: "hidden" }}>
-        <ListFilterBar
+      <ListFilterBar
         searchValue={q}
-        searchPlaceholder="Search PO ref or supplier…"
-        hiddenParams={{ status: statusFilter }}
+        searchPlaceholder="Search PO ID or supplier…"
+        hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined }}
         clearHref={ROUTES.purchaseOrders}
       />
 
-      {filtered.length === 0 ? (
+      <div style={{ ...cardStyle, overflow: "hidden" }}>
+        {filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "48px 24px", color: c.hint, fontSize: 14 }}>
             No purchase orders{statusFilter && statusFilter !== "all" ? ` with status "${STATUS_LABEL[statusFilter as PurchaseOrderStatus] ?? statusFilter}"` : " yet"}.
             {(!statusFilter || statusFilter === "all") && (
@@ -115,11 +129,18 @@ export default async function PurchaseOrdersPage({
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-                  <th style={th}>PO ID</th>
-                  <th style={th}>Supplier</th>
-                  <th style={th}>Status</th>
-                  <th style={th}>Order date</th>
-                  <th style={th}>Total</th>
+                  {(() => {
+                    const hp = { status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, q };
+                    return (
+                      <>
+                        <SortableTh label="PO ID" sortKey="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
+                        <SortableTh label="Supplier" sortKey="supplier" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
+                        <SortableTh label="Status" sortKey="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
+                        <SortableTh label="Order date" sortKey="order_date" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
+                        <SortableTh label="Total" sortKey="total" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
+                      </>
+                    );
+                  })()}
                   <th style={{ ...th, width: 60 }}></th>
                 </tr>
               </thead>

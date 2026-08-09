@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { listTechnicians, TECH_STATUS_LABEL } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -12,6 +12,16 @@ import { requireWorkcenterView } from "@/lib/permissions";
 import { getTenant, requireFeature } from "@/lib/tenant";
 import { getTechnicianLiveStates } from "@/lib/wfm/server";
 import TechnicianLiveBadge from "@/components/wfm/TechnicianLiveBadge";
+import { sortRows, type SortExtractor } from "@/lib/listSort";
+
+type TechRow = Awaited<ReturnType<typeof listTechnicians>>[number];
+
+const SORT_EXTRACTORS: Record<string, SortExtractor<TechRow>> = {
+  name: (r) => r.technician.name,
+  status: (r) => r.technician.status,
+  location: (r) => r.technician.base_location,
+  visits: (r) => r.monthStats.visits,
+};
 
 const STATUS_TONE: Record<Technician["status"], PillarKey> = {
   active: "green", on_leave: "amber", inactive: "red",
@@ -34,16 +44,16 @@ function Avatar({ name, tone }: { name: string; tone: PillarKey }) {
 export default async function TechniciansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string }>;
 }) {
   await requireWorkcenterView("technicians");
   await requireFeature("technicians");
-  const { status: statusFilter, q } = await searchParams;
+  const { status: statusFilter, q, sort } = await searchParams;
   const [allTechs, tenant] = await Promise.all([listTechnicians(), getTenant()]);
   // The status filter already existed but had no control to reach it -- it
   // was only settable by hand-editing the URL. Now driven by the bar below.
   const needle = (q ?? "").trim().toLowerCase();
-  const techs = allTechs.filter((t) => {
+  let techs = allTechs.filter((t) => {
     if (statusFilter && t.technician.status !== statusFilter) return false;
     if (!needle) return true;
     const tech = t.technician;
@@ -53,6 +63,7 @@ export default async function TechniciansPage({
       (tech.skills ?? "").toLowerCase().includes(needle)
     );
   });
+  techs = sortRows(techs, sort, "asc", SORT_EXTRACTORS);
   const liveStates = tenant?.features?.wfm
     ? await getTechnicianLiveStates(tenant.id, allTechs.map((t) => t.technician.id))
     : new Map();
@@ -87,16 +98,25 @@ export default async function TechniciansPage({
       <ListFilterBar
         searchValue={q}
         searchPlaceholder="Search technician, phone or skill…"
-        selects={[{
-          name: "status",
-          value: statusFilter,
-          placeholder: "All statuses",
-          options: [
-            { value: "active", label: "Active" },
-            { value: "on_leave", label: "On leave" },
-            { value: "inactive", label: "Inactive" },
-          ],
-        }]}
+        selects={[
+          {
+            name: "status", value: statusFilter, placeholder: "All statuses",
+            options: [
+              { value: "active", label: "Active" },
+              { value: "on_leave", label: "On leave" },
+              { value: "inactive", label: "Inactive" },
+            ],
+          },
+          {
+            name: "sort", value: sort, placeholder: "Sort by…",
+            options: [
+              { value: "name", label: "Name" },
+              { value: "status", label: "Status" },
+              { value: "location", label: "Location" },
+              { value: "visits", label: "Visits / mo" },
+            ],
+          },
+        ]}
         clearHref={ROUTES.technicians}
       />
 

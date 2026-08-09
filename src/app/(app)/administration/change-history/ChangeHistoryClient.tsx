@@ -29,7 +29,7 @@ type ChangeLogRow = {
   object_type: string;
   object_id: string;
   object_label: string | null;
-  action: "create" | "update" | "delete";
+  action: "create" | "update" | "delete" | "reopen";
   changes: ChangeEntry[];
   actor_id: string | null;
   actor_email: string | null;
@@ -52,6 +52,7 @@ const ACTION_TONE: Record<ChangeLogRow["action"], { bg: string; fg: string }> = 
   create: { bg: "#e5f6ee", fg: "#1c8a5a" },
   update: { bg: "#eaf2fd", fg: "#2563eb" },
   delete: { bg: "#fbe9e7", fg: "#c62828" },
+  reopen: { bg: "#fef3e0", fg: "#b7791f" },
 };
 
 export default function ChangeHistoryClient() {

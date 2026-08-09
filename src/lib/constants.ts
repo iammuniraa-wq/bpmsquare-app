@@ -490,19 +490,30 @@ export type QuoteStatusDef = {
   label: string;      // displayed in UI
   color: string;      // hex colour for the pill
   is_initial?: boolean;  // shown as default on new quotes
-  is_terminal?: boolean; // quote locked (no edit) when in this status
-  is_lost?: boolean;     // this terminal status represents a lost/rejected deal --
-                         // distinguishes it from a "won" terminal status (e.g. approved)
-                         // when computing won/approved value.
+  is_closed?: boolean;   // quote locked (no edit) when in this status. Purely
+                         // a pipeline-position flag -- it says nothing about
+                         // win/loss, which is `outcome`'s job (see QuoteOutcome
+                         // below). A closed status always requires a decided
+                         // (non-"open") outcome; enforced where status is patched.
 };
 
 // Default statuses used when tenant has not configured custom ones.
 export const DEFAULT_QUOTE_STATUSES: QuoteStatusDef[] = [
   { value: "draft",       label: "Draft",       color: "#3b82f6", is_initial: true },
   { value: "sent",        label: "Sent",        color: "#8b5cf6" },
-  { value: "approved",    label: "Approved",    color: "#10b981", is_terminal: true },
-  { value: "rejected",    label: "Rejected",    color: "#ef4444", is_terminal: true, is_lost: true },
+  { value: "approved",    label: "Approved",    color: "#10b981", is_closed: true },
+  { value: "rejected",    label: "Rejected",    color: "#ef4444", is_closed: true },
 ];
+
+// Quote outcome -- the business RESULT, fully independent of pipeline status
+// (a status just tracks where the quote sits; a quote can be marked lost
+// while still "Sent", ahead of the paperwork catching up). "lost" (actively
+// rejected) and "dropped" (went cold, no decision) are kept distinct since
+// they mean different things for win-rate reporting. Not tenant-configurable
+// -- unlike status, this is a fixed small vocabulary the system reasons about
+// directly (invoice conversion gates on "won").
+export const QUOTE_OUTCOMES = ["open", "won", "lost", "dropped"] as const;
+export type QuoteOutcome = (typeof QUOTE_OUTCOMES)[number];
 
 // TenantConfig — full shape of tenants.config JSONB column.
 export type TenantConfig = {

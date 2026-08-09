@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { generateNextInvoiceRef } from "@/lib/invoiceRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { tenantHasFeature } from "@/lib/tenant";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -10,6 +11,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+
+  if (!(await tenantHasFeature(supabase, tenantId, "invoices"))) {
+    return NextResponse.json({ error: "Invoices is not enabled for this tenant" }, { status: 403 });
   }
 
   const { id } = await params;
