@@ -12,6 +12,7 @@ import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { useUserRole, useUiTheme } from "@/lib/tenant-context";
 import type { EffectiveField } from "@/lib/fieldRegistry";
 import type { QuoteSummary } from "@/lib/data/labels";
+import { sortRows, type SortExtractor } from "@/lib/listSort";
 
 // ── Column definitions ────────────────────────────────────────────────────────
 //
@@ -29,6 +30,9 @@ type ColDef = {
   group: "standard" | "custom";
   render: (row: QuoteSummary) => React.ReactNode;
   cellStyle?: React.CSSProperties;
+  /** Raw value for sorting -- separate from `render` since render often
+   * returns a pill/link/formatted node, not a directly comparable value. */
+  sortValue: SortExtractor<QuoteSummary>;
 };
 
 const LS_KEY = "bms_quotes_cols";
@@ -58,47 +62,47 @@ function discountDisplay(q: QuoteSummary["quote"]): React.ReactNode {
 function buildStandardColumns(quoteStatuses: QuoteStatusDef[]): ColDef[] {
   return [
     { id: "type",        label: "Type",           defaultOn: true,  group: "standard",
-      render: (r) => muted(OFFER_TYPE_LABEL[r.quote.type] ?? r.quote.type) },
+      render: (r) => muted(OFFER_TYPE_LABEL[r.quote.type] ?? r.quote.type), sortValue: (r) => r.quote.type },
     { id: "account",     label: "Account",         defaultOn: true,  group: "standard",
-      render: (r) => <Link href={ROUTES.account(r.account.id)} onClick={(e) => e.stopPropagation()} style={{ color: c.ink }}>{r.account.name}</Link> },
+      render: (r) => <Link href={ROUTES.account(r.account.id)} onClick={(e) => e.stopPropagation()} style={{ color: c.ink }}>{r.account.name}</Link>, sortValue: (r) => r.account.name },
     { id: "status",      label: "Status",          defaultOn: true,  group: "standard",
-      render: (r) => <QuoteStatusPill status={r.quote.status} statuses={quoteStatuses} /> },
+      render: (r) => <QuoteStatusPill status={r.quote.status} statuses={quoteStatuses} />, sortValue: (r) => r.quote.status },
     { id: "lines",       label: "Lines",           defaultOn: true,  group: "standard", align: "center",
-      render: (r) => muted(`${r.lineCount} items`) },
+      render: (r) => muted(`${r.lineCount} items`), sortValue: (r) => r.lineCount },
     { id: "total",       label: "Total",           defaultOn: true,  group: "standard", align: "right",
-      render: (r) => inr(r.quote.total), cellStyle: { fontWeight: 600 } },
+      render: (r) => inr(r.quote.total), cellStyle: { fontWeight: 600 }, sortValue: (r) => r.quote.total },
     { id: "date",        label: "Date",            defaultOn: true,  group: "standard",
-      render: (r) => muted(fmtDate(r.quote.quote_date ?? r.quote.created_at)) },
+      render: (r) => muted(fmtDate(r.quote.quote_date ?? r.quote.created_at)), sortValue: (r) => r.quote.quote_date ?? r.quote.created_at },
     { id: "valid_until", label: "Valid until",     defaultOn: false, group: "standard",
-      render: (r) => muted(r.quote.valid_until ? fmtDate(r.quote.valid_until) : "—") },
+      render: (r) => muted(r.quote.valid_until ? fmtDate(r.quote.valid_until) : "—"), sortValue: (r) => r.quote.valid_until },
     { id: "territory",   label: "Territory",       defaultOn: false, group: "standard",
-      render: (r) => muted(r.quote.territory ?? "—") },
+      render: (r) => muted(r.quote.territory ?? "—"), sortValue: (r) => r.quote.territory },
     { id: "name",        label: "Quote name",      defaultOn: false, group: "standard",
-      render: (r) => r.quote.name || muted("—") },
+      render: (r) => r.quote.name || muted("—"), sortValue: (r) => r.quote.name },
     { id: "sales_org",   label: "Sales org",       defaultOn: false, group: "standard",
-      render: (r) => muted(r.quote.sales_org ?? "—") },
+      render: (r) => muted(r.quote.sales_org ?? "—"), sortValue: (r) => r.quote.sales_org },
     { id: "business_status", label: "Business status", defaultOn: false, group: "standard",
-      render: (r) => muted(r.quote.business_status ? BUSINESS_STATUS_LABEL[r.quote.business_status] ?? r.quote.business_status : "—") },
+      render: (r) => muted(r.quote.business_status ? BUSINESS_STATUS_LABEL[r.quote.business_status] ?? r.quote.business_status : "—"), sortValue: (r) => r.quote.business_status },
     { id: "outcome",     label: "Outcome",         defaultOn: false, group: "standard",
-      render: (r) => <span style={{ color: OUTCOME_COLOR[r.quote.outcome], fontWeight: 600 }}>{OUTCOME_LABEL[r.quote.outcome] ?? r.quote.outcome}</span> },
+      render: (r) => <span style={{ color: OUTCOME_COLOR[r.quote.outcome], fontWeight: 600 }}>{OUTCOME_LABEL[r.quote.outcome] ?? r.quote.outcome}</span>, sortValue: (r) => r.quote.outcome },
     { id: "ref_no",      label: "Ref No.",         defaultOn: false, group: "standard",
-      render: (r) => muted(r.quote.ref_no ?? "—") },
+      render: (r) => muted(r.quote.ref_no ?? "—"), sortValue: (r) => r.quote.ref_no },
     { id: "pr_no",       label: "PR No.",          defaultOn: false, group: "standard",
-      render: (r) => muted(r.quote.pr_no ?? "—") },
+      render: (r) => muted(r.quote.pr_no ?? "—"), sortValue: (r) => r.quote.pr_no },
     { id: "po_number",   label: "PO number",       defaultOn: false, group: "standard",
-      render: (r) => muted(r.quote.po_number ?? "—") },
+      render: (r) => muted(r.quote.po_number ?? "—"), sortValue: (r) => r.quote.po_number },
     { id: "po_amount",   label: "PO amount",       defaultOn: false, group: "standard", align: "right",
-      render: (r) => r.quote.po_amount != null ? inr(r.quote.po_amount) : muted("—") },
+      render: (r) => r.quote.po_amount != null ? inr(r.quote.po_amount) : muted("—"), sortValue: (r) => r.quote.po_amount },
     { id: "discount",    label: "Discount",        defaultOn: false, group: "standard",
-      render: (r) => discountDisplay(r.quote) },
+      render: (r) => discountDisplay(r.quote), sortValue: (r) => r.quote.discount_type === "fixed" ? r.quote.discount_fixed : r.quote.discount_pct },
     { id: "gst_rate",    label: "GST %",           defaultOn: false, group: "standard",
-      render: (r) => muted(r.quote.gst_rate != null ? `${r.quote.gst_rate}%` : "—") },
+      render: (r) => muted(r.quote.gst_rate != null ? `${r.quote.gst_rate}%` : "—"), sortValue: (r) => r.quote.gst_rate },
     { id: "revision",    label: "Revision",        defaultOn: false, group: "standard", align: "center",
-      render: (r) => muted(`Rev ${r.quote.revision ?? 1}`) },
+      render: (r) => muted(`Rev ${r.quote.revision ?? 1}`), sortValue: (r) => r.quote.revision ?? 1 },
     { id: "notes",       label: "Notes",           defaultOn: false, group: "standard",
-      render: (r) => r.quote.notes ? truncated(r.quote.notes) : muted("—") },
+      render: (r) => r.quote.notes ? truncated(r.quote.notes) : muted("—"), sortValue: (r) => r.quote.notes },
     { id: "terms",       label: "Terms",           defaultOn: false, group: "standard",
-      render: (r) => r.quote.terms ? truncated(r.quote.terms) : muted("—") },
+      render: (r) => r.quote.terms ? truncated(r.quote.terms) : muted("—"), sortValue: (r) => r.quote.terms },
   ];
 }
 
@@ -125,6 +129,10 @@ function buildCustomColumns(fields: EffectiveField[]): ColDef[] {
       defaultOn: true, // shown as soon as a tenant adds one -- no extra step to "discover" it
       group: "custom" as const,
       render: (r: QuoteSummary) => customValueDisplay(f, (r.quote.custom_data ?? {})[f.field_key]),
+      sortValue: (r: QuoteSummary) => {
+        const v = (r.quote.custom_data ?? {})[f.field_key];
+        return typeof v === "string" || typeof v === "number" ? v : v == null ? null : String(v);
+      },
     }));
 }
 
@@ -150,6 +158,21 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   const [selected, setSelected]         = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterAccount, setFilterAccount] = useState("");
+  const [sortKey, setSortKey]           = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir]           = useState<"asc" | "desc">("asc");
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+  function sortIndicator(key: string) {
+    const active = sortKey === key;
+    return (
+      <span style={{ fontSize: 9, opacity: active ? 1 : 0.35, color: active ? c.accent : "inherit", marginLeft: 4 }}>
+        {active ? (sortDir === "desc" ? "↓" : "↑") : "↕"}
+      </span>
+    );
+  }
   const [toast, setToast]               = useState<string | null>(null);
   const [adaptOpen, setAdaptOpen]       = useState(false);
   const [customFields, setCustomFields] = useState<EffectiveField[]>([]);
@@ -228,11 +251,24 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
 
   // ── Filtering ──────────────────────────────────────────────────────────────
 
-  const filtered = useMemo(() =>
+  const searched = useMemo(() =>
     rows
       .filter((r) => !filterStatus || r.quote.status === filterStatus)
       .filter((r) => !filterAccount || r.account.name.toLowerCase().includes(filterAccount.toLowerCase())),
     [rows, filterStatus, filterAccount]
+  );
+
+  // Sort extractors are built from `columns` (render-only fields skip
+  // sorting) plus "ref" for the always-visible Ref No column, which isn't
+  // part of the ColDef array.
+  const sortExtractors = useMemo(() => {
+    const map: Record<string, SortExtractor<QuoteSummary>> = { ref: (r) => r.quote.ref_no || r.quote.ref };
+    for (const col of columns) map[col.id] = col.sortValue;
+    return map;
+  }, [columns]);
+  const filtered = useMemo(
+    () => sortRows(searched, sortKey, sortDir, sortExtractors),
+    [searched, sortKey, sortDir, sortExtractors]
   );
 
   // Summary strip values -- outcome (Won/Lost/Open) is the source of truth for
@@ -511,9 +547,15 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                     style={{ cursor: "pointer", accentColor: c.accent }}
                   />
                 </th>
-                <th style={th}>Ref No</th>
+                <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("ref")}>Ref No{sortIndicator("ref")}</th>
                 {shownColumns.map((col) => (
-                  <th key={col.id} style={{ ...th, textAlign: col.align ?? "left" }}>{col.label}</th>
+                  <th
+                    key={col.id}
+                    style={{ ...th, textAlign: col.align ?? "left", cursor: "pointer" }}
+                    onClick={() => toggleSort(col.id)}
+                  >
+                    {col.label}{sortIndicator(col.id)}
+                  </th>
                 ))}
               </tr>
             </thead>

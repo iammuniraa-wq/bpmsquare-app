@@ -3,10 +3,14 @@ import { requireWorkcenterView } from "@/lib/permissions";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { requireFeature } from "@/lib/tenant";
 import { listStandardQuotes } from "@/lib/data/live";
+import type { StandardQuoteRow } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
+import ListFilterBar from "@/components/ListFilterBar";
+import SortableTh from "@/components/SortableTh";
+import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { StandardQuoteStatus } from "@/lib/types";
 
@@ -32,14 +36,25 @@ const td: React.CSSProperties = {
   fontSize: 12.5, verticalAlign: "middle",
 };
 
+const SORT_EXTRACTORS: Record<string, SortExtractor<StandardQuoteRow>> = {
+  ref: (q) => q.ref,
+  account_name: (q) => q.account_name,
+  status: (q) => q.status,
+  total: (q) => q.total,
+  valid_until: (q) => q.valid_until,
+  created_at: (q) => q.created_at,
+};
+
 export default async function StandardQuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string }>;
 }) {
   await requireWorkcenterView("standard_quotes");
   await requireFeature("standard_quotes");
-  const { status: statusFilter } = await searchParams;
+  const params = await searchParams;
+  const { status: statusFilter, q } = params;
+  const { sort, dir } = readSortParams(params);
   const [quotes, { role }] = await Promise.all([listStandardQuotes(), requireTenantUser()]);
 
   const summary = SUMMARY_STATUSES.map((s) => ({
@@ -48,7 +63,16 @@ export default async function StandardQuotesPage({
     total: quotes.filter((q) => q.status === s).reduce((acc, q) => acc + q.total, 0),
   }));
 
-  const filtered = statusFilter ? quotes.filter((q) => q.status === statusFilter) : quotes;
+  const statusFiltered = statusFilter ? quotes.filter((q) => q.status === statusFilter) : quotes;
+  const searched = statusFiltered.filter((row) => {
+    if (!q) return true;
+    const term = q.toLowerCase();
+    return (
+      row.ref.toLowerCase().includes(term) ||
+      row.account_name.toLowerCase().includes(term)
+    );
+  });
+  const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
 
   return (
     <>
@@ -99,6 +123,13 @@ export default async function StandardQuotesPage({
         </div>
       )}
 
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search ref or account…"
+        hiddenParams={{ status: statusFilter }}
+        clearHref={ROUTES.standardQuotes}
+      />
+
       {filtered.length === 0 ? (
         <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>
           No standard quotes yet.{" "}
@@ -111,12 +142,19 @@ export default async function StandardQuotesPage({
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={th}>Ref</th>
-                <th style={th}>Account</th>
-                <th style={th}>Status</th>
-                <th style={th}>Total</th>
-                <th style={th}>Valid until</th>
-                <th style={th}>Created</th>
+                {(() => {
+                  const hp = { status: statusFilter, q };
+                  return (
+                    <>
+                      <SortableTh label="Ref" sortKey="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
+                      <SortableTh label="Account" sortKey="account_name" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
+                      <SortableTh label="Status" sortKey="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
+                      <SortableTh label="Total" sortKey="total" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
+                      <SortableTh label="Valid until" sortKey="valid_until" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
+                      <SortableTh label="Created" sortKey="created_at" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
+                    </>
+                  );
+                })()}
               </tr>
             </thead>
             <tbody>

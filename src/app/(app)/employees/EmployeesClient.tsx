@@ -6,6 +6,7 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import type { Employee } from "@/lib/types";
+import { sortRows, type SortExtractor } from "@/lib/listSort";
 
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -26,6 +27,17 @@ const td: React.CSSProperties = {
 
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+const SORT_EXTRACTORS: Record<string, SortExtractor<Employee>> = {
+  name: (e) => `${e.first_name} ${e.last_name}`,
+  code: (e) => e.employee_code,
+  email: (e) => e.email,
+  phone: (e) => e.phone,
+  department: (e) => e.department,
+  designation: (e) => e.designation,
+  validity: (e) => e.valid_from,
+  status: (e) => e.status,
+};
 
 type Draft = {
   first_name: string; last_name: string; employee_code: string; email: string;
@@ -51,6 +63,22 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
   // null = closed, "new" = create form, otherwise the employee id being edited
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
+  const [sortKey, setSortKey] = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+
+  function sortIndicator(key: string) {
+    const active = sortKey === key;
+    return (
+      <span style={{ fontSize: 9, opacity: active ? 1 : 0.35, color: active ? c.accent : "inherit", marginLeft: 4 }}>
+        {active ? (sortDir === "desc" ? "↓" : "↑") : "↕"}
+      </span>
+    );
+  }
 
   const q = search.trim().toLowerCase();
   const filtered = q
@@ -58,6 +86,7 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
         [e.first_name, e.last_name, e.employee_code, e.email, e.department, e.designation]
           .some((v) => v?.toLowerCase().includes(q)))
     : employees;
+  const sorted = sortRows(filtered, sortKey, sortDir, SORT_EXTRACTORS);
 
   function open(id: string | "new", initial: Draft) {
     setEditing(id);
@@ -171,19 +200,19 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={th}>Name</th>
-                <th style={th}>Code</th>
-                <th style={th}>Email</th>
-                <th style={th}>Phone</th>
-                <th style={th}>Department</th>
-                <th style={th}>Designation</th>
-                <th style={th}>Validity</th>
-                <th style={th}>Status</th>
+                <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("name")}>Name{sortIndicator("name")}</th>
+                <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("code")}>Code{sortIndicator("code")}</th>
+                <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("email")}>Email{sortIndicator("email")}</th>
+                <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("phone")}>Phone{sortIndicator("phone")}</th>
+                <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("department")}>Department{sortIndicator("department")}</th>
+                <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("designation")}>Designation{sortIndicator("designation")}</th>
+                <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("validity")}>Validity{sortIndicator("validity")}</th>
+                <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("status")}>Status{sortIndicator("status")}</th>
                 {canEdit && <th style={th} />}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((e) => (
+              {sorted.map((e) => (
                 <tr key={e.id}>
                   <td style={{ ...td, fontWeight: 600 }}>{e.first_name} {e.last_name}</td>
                   <td style={{ ...td, fontFamily: "monospace", fontSize: 12, color: c.muted }}>{e.employee_code ?? "—"}</td>

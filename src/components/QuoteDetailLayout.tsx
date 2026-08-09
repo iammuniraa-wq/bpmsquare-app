@@ -15,7 +15,7 @@ import { ROUTES } from "@/lib/constants";
 import { MessageSquare, CheckIcon } from "@/components/Icons";
 import QuoteEditPanel from "@/components/QuoteEditPanel";
 import EmailComposeModal from "@/components/EmailComposeModal";
-import { useTenant } from "@/lib/tenant-context";
+import { useTenant, useTenantFeature } from "@/lib/tenant-context";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/whatsapp";
 import { richTextToDisplayHtml } from "@/lib/richText";
 
@@ -305,6 +305,8 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const [composeOpen, setComposeOpen] = useState(false);
   const moreRef                       = useRef<HTMLDivElement>(null);
   const tenant = useTenant();
+  const invoicesFeatureEnabled = useTenantFeature("invoices");
+  const [activeTab, setActiveTab] = useState<"overview" | "versions">("overview");
 
   const emailRecipient = contact?.email || contact?.email2 || account?.email || account?.email2 || null;
   const emailVars = {
@@ -842,7 +844,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
         <StatusChanger quoteId={quote.id} currentStatus={currentStatus} statuses={quoteStatuses} onChanged={setCurrentStatus} />
         <OutcomeChanger quoteId={quote.id} currentOutcome={currentOutcome} onChanged={setCurrentOutcome} />
 
-        {currentOutcome === "won" && (
+        {currentOutcome === "won" && invoicesFeatureEnabled && (
           existingInvoice ? (
             <Link
               href={ROUTES.invoice(existingInvoice.id)}
@@ -960,7 +962,65 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
         </div>
       </div>
 
-      {/* Main grid */}
+      {/* Content tabs */}
+      {!adaptMode && (
+        <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${c.line}`, marginBottom: 14 }}>
+          {(["overview", "versions"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: "8px 16px", fontSize: 13, fontWeight: 600, background: "none", border: "none",
+                borderBottom: activeTab === tab ? `2px solid ${c.accent}` : "2px solid transparent",
+                color: activeTab === tab ? c.accent : c.muted, cursor: "pointer", marginBottom: -1,
+              }}
+            >
+              {tab === "overview" ? "Overview" : `Versions${revisions.length > 1 ? ` · ${revisions.length}` : ""}`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === "versions" && !adaptMode ? (
+        <section style={cardStyle}>
+          {revisions.length <= 1 ? (
+            <div style={{ fontSize: 13, color: c.muted, padding: "16px 4px" }}>
+              No other versions yet. A new version is created from "Create new version"
+              (once this quote reaches a closed status) or "Copy quote" in the More menu.
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${c.line}` }}>
+                  {["Version", "Ref", "Status", "Created", ""].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "8px 10px", color: c.muted, fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {revisions.map((rev) => {
+                  const isCurrent = rev.id === quote.id;
+                  return (
+                    <tr key={rev.id} style={{ borderBottom: `1px solid ${c.line}`, background: isCurrent ? c.accentbg : "transparent" }}>
+                      <td style={{ padding: "9px 10px", fontWeight: isCurrent ? 700 : 500 }}>Rev {rev.revision}{isCurrent ? " (current)" : ""}</td>
+                      <td style={{ padding: "9px 10px", fontFamily: "monospace", color: isCurrent ? c.accent : c.ink }}>{rev.ref}</td>
+                      <td style={{ padding: "9px 10px" }}><QuoteStatusPill status={rev.status} statuses={quoteStatuses} /></td>
+                      <td style={{ padding: "9px 10px", color: c.muted }}>
+                        {new Date(rev.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                      </td>
+                      <td style={{ padding: "9px 10px", textAlign: "right" }}>
+                        {!isCurrent && <Link href={ROUTES.quotation(rev.id)} style={{ fontSize: 12, color: c.accent, textDecoration: "none", fontWeight: 600 }}>View →</Link>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </section>
+      ) : (
+
+      /* Main grid */
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 260px", gap: 12 }} className="hub-grid">
 
         {/* Left — layout-driven sections */}
@@ -1085,33 +1145,6 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             </section>
           )}
 
-          {revisions.length > 1 && (
-            <section style={cardStyle}>
-              <h3 style={{ fontSize: 13, margin: "0 0 10px", fontWeight: 600 }}>Versions · {revisions.length}</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {revisions.map((rev) => {
-                  const isCurrent = rev.id === quote.id;
-                  return (
-                    <div key={rev.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", borderRadius: 7, background: isCurrent ? c.accentbg : "transparent", border: isCurrent ? `1px solid ${c.accent}40` : "1px solid transparent" }}>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: isCurrent ? 700 : 500, fontFamily: "monospace", color: isCurrent ? c.accent : c.ink }}>{rev.ref}</div>
-                        <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1 }}>
-                          {new Date(rev.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <QuoteStatusPill status={rev.status} statuses={quoteStatuses} />
-                        {!isCurrent && (
-                          <Link href={ROUTES.quotation(rev.id)} style={{ fontSize: 11, color: c.accent, textDecoration: "none", fontWeight: 600 }}>View →</Link>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
           <section style={cardStyle}>
             <h3 style={{ fontSize: 13, margin: "0 0 10px", fontWeight: 600 }}>Summary</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1130,6 +1163,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
 
         </div>
       </div>
+      )}
 
       {composeOpen && (
         <EmailComposeModal

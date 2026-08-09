@@ -4,6 +4,7 @@ import { c } from "@/lib/theme";
 import PageHeader from "@/components/PageHeader";
 import { ROUTES } from "@/lib/constants";
 import ContactsTable from "@/components/ContactsTable";
+import ListFilterBar from "@/components/ListFilterBar";
 import { requireWorkcenterView } from "@/lib/permissions";
 
 export default async function ContactsPage({
@@ -43,25 +44,11 @@ export default async function ContactsPage({
         }
       />
 
-      {/* Search */}
-      <form method="GET" style={{ marginBottom: 12 }}>
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Search by name, role or account…"
-          autoComplete="off"
-          style={{
-            width: "100%", maxWidth: 380, padding: "7px 12px", borderRadius: 7,
-            border: `1px solid ${c.line}`, fontSize: 13, color: c.ink,
-            background: "var(--panel)", outline: "none",
-          }}
-        />
-        {q && (
-          <Link href={ROUTES.contacts} style={{ marginLeft: 10, fontSize: 12, color: c.hint, textDecoration: "none" }}>
-            Clear ✕
-          </Link>
-        )}
-      </form>
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search by name, role or account…"
+        clearHref={ROUTES.contacts}
+      />
 
       <ContactsTable rows={rows} />
     </>

@@ -5,6 +5,9 @@ import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
+import ListFilterBar from "@/components/ListFilterBar";
+import SortableTh from "@/components/SortableTh";
+import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
 
@@ -22,14 +25,27 @@ const th: React.CSSProperties = {
 };
 const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, verticalAlign: "middle" };
 
+const SORT_EXTRACTORS: Record<string, SortExtractor<Supplier>> = {
+  ref: (s) => s.ref,
+  name: (s) => s.name,
+  type: (s) => s.type,
+  city: (s) => s.city,
+  phone: (s) => s.phone,
+  gstin: (s) => s.gstin,
+  status: (s) => s.status,
+  created_at: (s) => s.created_at,
+};
+
 export default async function SuppliersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; sort?: string; dir?: string }>;
 }) {
   await requireWorkcenterView("suppliers");
   const { supabase, tenantId } = await requireTenantUser();
-  const { q, type: typeFilter } = await searchParams;
+  const params = await searchParams;
+  const { q, type: typeFilter } = params;
+  const { sort, dir } = readSortParams(params);
 
   let query = supabase.from("suppliers").select("*").eq("tenant_id", tenantId).order("name");
   if (typeFilter && typeFilter !== "all") query = query.eq("type", typeFilter);
@@ -37,7 +53,7 @@ export default async function SuppliersPage({
   const { data: rows } = await query;
   const suppliers: Supplier[] = rows ?? [];
 
-  const filtered = suppliers.filter((s) => {
+  const searched = suppliers.filter((s) => {
     if (!q) return true;
     const term = q.toLowerCase();
     return (
@@ -47,6 +63,7 @@ export default async function SuppliersPage({
       (s.gstin ?? "").toLowerCase().includes(term)
     );
   });
+  const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
 
   const active   = suppliers.filter((s) => s.status === "active").length;
   const inactive = suppliers.filter((s) => s.status === "inactive").length;
@@ -103,26 +120,12 @@ export default async function SuppliersPage({
         )}
       </div>
 
-      {/* Search */}
-      <form method="GET" style={{ marginBottom: 14 }}>
-        {typeFilter && typeFilter !== "all" && <input type="hidden" name="type" value={typeFilter} />}
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Search by name, city, email or GSTIN…"
-          autoComplete="off"
-          style={{
-            width: "100%", maxWidth: 420, padding: "8px 12px", borderRadius: 7,
-            border: `1px solid ${c.line}`, fontSize: 13.5, color: c.ink,
-            background: "var(--panel)", outline: "none",
-          }}
-        />
-        {q && (
-          <Link href={ROUTES.suppliers} style={{ marginLeft: 10, fontSize: 12, color: c.hint, textDecoration: "none" }}>
-            Clear ✕
-          </Link>
-        )}
-      </form>
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search by name, city, email or GSTIN…"
+        hiddenParams={{ type: typeFilter && typeFilter !== "all" ? typeFilter : undefined }}
+        clearHref={ROUTES.suppliers}
+      />
 
       {/* Table */}
       <div style={{ ...cardStyle, overflow: "hidden" }}>
@@ -142,14 +145,21 @@ export default async function SuppliersPage({
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-                  <th style={{ ...th, width: 88 }}>ID</th>
-                  <th style={th}>Name</th>
-                  <th style={th}>Type</th>
-                  <th style={th}>City</th>
-                  <th style={th}>Phone</th>
-                  <th style={th}>GSTIN</th>
-                  <th style={th}>Status</th>
-                  <th style={th}>Added</th>
+                  {(() => {
+                    const hp = { q, type: typeFilter };
+                    return (
+                      <>
+                        <SortableTh label="ID" sortKey="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={{ ...th, width: 88 }} />
+                        <SortableTh label="Name" sortKey="name" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="Type" sortKey="type" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="City" sortKey="city" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="Phone" sortKey="phone" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="GSTIN" sortKey="gstin" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="Status" sortKey="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="Added" sortKey="created_at" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                      </>
+                    );
+                  })()}
                   <th style={{ ...th, width: 60 }}></th>
                 </tr>
               </thead>

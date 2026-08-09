@@ -8,6 +8,17 @@ import { ROUTES } from "@/lib/constants";
 import type { Technician } from "@/lib/types";
 import { AlertTriangle } from "@/components/Icons";
 import { requireWorkcenterView } from "@/lib/permissions";
+import ListFilterBar from "@/components/ListFilterBar";
+import { sortRows, type SortExtractor } from "@/lib/listSort";
+
+type TechRow = Awaited<ReturnType<typeof listTechnicians>>[number];
+
+const SORT_EXTRACTORS: Record<string, SortExtractor<TechRow>> = {
+  name: (r) => r.technician.name,
+  status: (r) => r.technician.status,
+  location: (r) => r.technician.base_location,
+  visits: (r) => r.monthStats.visits,
+};
 
 const STATUS_TONE: Record<Technician["status"], PillarKey> = {
   active: "green", on_leave: "amber", inactive: "red",
@@ -30,12 +41,21 @@ function Avatar({ name, tone }: { name: string; tone: PillarKey }) {
 export default async function TechniciansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string }>;
 }) {
   await requireWorkcenterView("technicians");
-  const { status: statusFilter } = await searchParams;
+  const { status: statusFilter, q, sort } = await searchParams;
   const allTechs = await listTechnicians();
-  const techs = statusFilter ? allTechs.filter((t) => t.technician.status === statusFilter) : allTechs;
+  let techs = statusFilter ? allTechs.filter((t) => t.technician.status === statusFilter) : allTechs;
+  if (q) {
+    const term = q.toLowerCase();
+    techs = techs.filter((t) =>
+      t.technician.name.toLowerCase().includes(term) ||
+      (t.technician.phone ?? "").toLowerCase().includes(term) ||
+      (t.technician.skills ?? "").toLowerCase().includes(term)
+    );
+  }
+  techs = sortRows(techs, sort, "asc", SORT_EXTRACTORS);
   const activeCt   = allTechs.filter((t) => t.technician.status === "active").length;
   const onLeaveCt  = allTechs.filter((t) => t.technician.status === "on_leave").length;
   const totalSlots = techs
@@ -89,6 +109,31 @@ export default async function TechniciansPage({
           </div>
         ))}
       </div>
+
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search technician, phone or skill…"
+        selects={[
+          {
+            name: "status", value: statusFilter, placeholder: "All statuses",
+            options: [
+              { value: "active", label: "Active" },
+              { value: "on_leave", label: "On leave" },
+              { value: "inactive", label: "Inactive" },
+            ],
+          },
+          {
+            name: "sort", value: sort, placeholder: "Sort by…",
+            options: [
+              { value: "name", label: "Name" },
+              { value: "status", label: "Status" },
+              { value: "location", label: "Location" },
+              { value: "visits", label: "Visits / mo" },
+            ],
+          },
+        ]}
+        clearHref={ROUTES.technicians}
+      />
 
       {/* Roster */}
       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
