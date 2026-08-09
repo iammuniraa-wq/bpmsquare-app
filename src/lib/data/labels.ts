@@ -114,7 +114,7 @@ export type AnalyticsData = {
   loanerStock: { available: number; onLoan: number; total: number };
   quotesByStatus: Array<{ status: string; label: string; count: number; value: number }>;
   quoteTrend: Array<{ dateLabel: string; value: number; cumulative: number }>;
-  quoteOutcomeTotals: { open: number; won: number; lost: number };
+  quoteOutcomeTotals: { open: number; won: number; lost: number; dropped: number };
   quoteOverdueCount: number;
   quoteSource: { caseLinked: { count: number; value: number }; standalone: { count: number; value: number } };
   casesByStatus: Array<{ status: string; label: string; count: number }>;
@@ -126,6 +126,10 @@ export type AnalyticsData = {
   contractStats: { activeCount: number; totalValue: number };
   recentActivity: Array<{ text: string; at: string; pillar: Activity["pillar"]; accountName: string }>;
   accountNews: Array<{ title: string; url: string; source: string; publishedAt: string; accountName: string }>;
+  // WFM (only populated when the tenant has features.wfm on) -- today's
+  // snapshot, not a historical trend (see getWfmLiveBoardSnapshot).
+  wfmAttendanceBySite: Array<{ site: string; onTime: number; late: number; absent: number }>;
+  wfmNightShiftCost: { count: number; amount: number };
 };
 
 // ── Display label maps ────────────────────────────────────────────────────────

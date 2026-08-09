@@ -828,6 +828,15 @@ function ResultStep({
   const doneLabel = mode === "update" ? "updated" : "imported";
   const problems = result.outcomes.filter((o) => o.status !== "inserted" && o.status !== "updated");
   const allGood = result.failed === 0 && result.skipped === 0;
+  // Users import only: temporary passwords for the logins just created. No
+  // invite emails are sent, so this list is the ONLY time these are shown --
+  // copying them out before leaving the page is the whole point.
+  const credentials = (result as ImportResponse).credentials ?? [];
+
+  function copyCredentials() {
+    const text = credentials.map((cr) => `${cr.email}\t${cr.password}`).join("\n");
+    navigator.clipboard?.writeText(text).catch(() => {});
+  }
 
   return (
     <div style={card}>
@@ -846,6 +855,37 @@ function ResultStep({
           )}
         </div>
       </div>
+
+      {credentials.length > 0 && (
+        <div style={{ marginTop: 16, border: `1px solid ${c.line}`, borderRadius: 9, overflow: "hidden" }}>
+          <div style={{ padding: "10px 12px", background: c.panel2, borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Temporary passwords</div>
+              <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>
+                No emails were sent. Copy these now and give each person their password — they are not shown again.
+              </div>
+            </div>
+            <button
+              onClick={copyCredentials}
+              style={{ padding: "7px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, background: c.accent, color: c.panel, border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              Copy all
+            </button>
+          </div>
+          <div style={{ maxHeight: 260, overflowY: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+              <tbody>
+                {credentials.map((cr) => (
+                  <tr key={cr.email}>
+                    <td style={{ padding: "7px 12px", borderBottom: `1px solid ${c.line}`, color: c.ink }}>{cr.email}</td>
+                    <td style={{ padding: "7px 12px", borderBottom: `1px solid ${c.line}`, fontFamily: "monospace", color: c.ink }}>{cr.password}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {problems.length > 0 && (
         <div style={{ overflowX: "auto", border: `1px solid ${c.line}`, borderRadius: 9, maxHeight: 320, overflowY: "auto" }}>

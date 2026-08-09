@@ -27,6 +27,22 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "standard_quotes",        label: "Standard Quotes" },
   { key: "gmail_reply_threading",  label: "Gmail reply-threading" },
   { key: "quote_lines_dw",         label: "Quote Lines (Data Workbench)" },
+  { key: "wfm",                    label: "Workforce (Attendance & Leave)" },
+  // Core modules (0067). Every existing tenant was backfilled to true, so
+  // switching one OFF here is what removes it from that client's navigation
+  // -- for a Workforce-only client, turn all of these off except the ones
+  // they bought.
+  { key: "accounts",       label: "Accounts" },
+  { key: "contacts",       label: "Contacts" },
+  { key: "quotations",     label: "Quotations" },
+  { key: "cases",          label: "Cases" },
+  { key: "work_orders",    label: "Work Orders" },
+  { key: "technicians",    label: "Technicians" },
+  { key: "assets",         label: "Assets" },
+  { key: "suppliers",      label: "Suppliers" },
+  { key: "reports",        label: "Analytics" },
+  { key: "data_workbench", label: "Data Workbench" },
+  { key: "administration", label: "Administration hub" },
 ];
 
 const inputStyle: React.CSSProperties = {

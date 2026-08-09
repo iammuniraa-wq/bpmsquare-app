@@ -1,7 +1,9 @@
 ﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getWorkOrder, CASE_STATUS_LABEL } from "@/lib/data";
-import { getUserRole } from "@/lib/tenant";
+import { getUserRole, getTenant } from "@/lib/tenant";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { getTechnicianAttendanceForDate, dateKeyInTz } from "@/lib/wfm/server";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
@@ -49,10 +51,41 @@ export default async function WorkOrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [data, role] = await Promise.all([getWorkOrder(id), getUserRole()]);
+  const [data, role, tenant] = await Promise.all([getWorkOrder(id), getUserRole(), getTenant()]);
   if (!data) notFound();
 
   const { workOrder: wo, account, asset, technician, serviceCase, quote, contract, loanerAsset } = data;
+
+  const attendance =
+    tenant?.features?.wfm && technician && wo.scheduled_for
+      ? await getTechnicianAttendanceForDate(
+          tenant.id,
+          technician.id,
+          dateKeyInTz(new Date(wo.scheduled_for), tenant.config?.wfm?.timezone ?? "Asia/Kolkata")
+        )
+      : null;
+
+  // Quoted labour vs. actual WFM hours -- category/deduction on quote_lines
+  // is real (0000_baseline.sql "legacy 0017_quote_line_category_deduction.sql"),
+  // but uom is free text (Nos/Job/Set/Mtr/Kg/Hrs...), so a numeric variance
+  // is only shown when the labour line is actually quoted in hours.
+  let quotedLabour: { qty: number; uom: string | null; value: number } | null = null;
+  if (tenant?.features?.wfm && quote && attendance) {
+    const { data: lines } = await createAdminSupabase()
+      .from("quote_lines")
+      .select("qty, uom, amount")
+      .eq("tenant_id", tenant.id)
+      .eq("quote_id", quote.id)
+      .eq("category", "labour");
+    if (lines && lines.length > 0) {
+      quotedLabour = {
+        qty: lines.reduce((s, l) => s + (l.qty ?? 0), 0),
+        uom: lines.find((l) => l.uom)?.uom ?? null,
+        value: lines.reduce((s, l) => s + (l.amount ?? 0), 0),
+      };
+    }
+  }
+  const laborUomIsHours = !!quotedLabour?.uom && /^h(ou)?rs?\.?$/i.test(quotedLabour.uom.trim());
 
   return (
     <>
@@ -150,6 +183,62 @@ export default async function WorkOrderDetailPage({
             {technician?.skills && <Detail label="Skills" value={<span style={{ fontSize: 11.5, color: c.muted }}>{technician.skills}</span>} />}
             {wo.scheduled_for && <Detail label="Scheduled" value={fmtDate(wo.scheduled_for)} />}
           </section>
+
+          {attendance && (
+            <section style={cardStyle}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 6px" }}>Technician attendance</h3>
+              {attendance.events.length === 0 ? (
+                <div style={{ fontSize: 12, color: c.hint }}>No punches recorded for the scheduled date.</div>
+              ) : (
+                <>
+                  {attendance.events.map((e, i) => (
+                    <Detail
+                      key={i}
+                      label={
+                        e.kind === "check_in" ? "Check in" :
+                        e.kind === "check_out" ? "Check out" :
+                        e.kind === "break_start" ? "Break start" : "Break end"
+                      }
+                      value={
+                        <>
+                          {new Date(e.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          {e.within_geofence === false && <span style={{ color: pillar.amber.base, marginLeft: 6 }}>outside geofence</span>}
+                        </>
+                      }
+                    />
+                  ))}
+                  <Detail
+                    label="Net hours"
+                    value={<strong>{Math.floor(attendance.hours.net_minutes / 60)}h {attendance.hours.net_minutes % 60}m</strong>}
+                  />
+                  {attendance.hours.break_minutes > 0 && (
+                    <Detail label="Break time" value={`${Math.floor(attendance.hours.break_minutes / 60)}h ${attendance.hours.break_minutes % 60}m`} />
+                  )}
+                  {quotedLabour && (
+                    <>
+                      <Detail
+                        label="Quoted labour"
+                        value={`${quotedLabour.qty}${quotedLabour.uom ? " " + quotedLabour.uom : ""} (₹${quotedLabour.value.toLocaleString("en-IN")})`}
+                      />
+                      {laborUomIsHours && (
+                        <Detail
+                          label="Variance"
+                          value={
+                            <span style={{ color: attendance.hours.net_minutes / 60 > quotedLabour.qty ? pillar.red.base : pillar.green.base, fontWeight: 600 }}>
+                              {(attendance.hours.net_minutes / 60 - quotedLabour.qty).toFixed(1)}h {attendance.hours.net_minutes / 60 > quotedLabour.qty ? "over" : "under"} quote
+                            </span>
+                          }
+                        />
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+              <div style={{ fontSize: 10.5, color: c.hint, marginTop: 8 }}>
+                From WFM attendance — cross-check against the technician&apos;s own visit log below.
+              </div>
+            </section>
+          )}
 
           <section style={cardStyle}>
             <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 6px" }}>Authorization</h3>

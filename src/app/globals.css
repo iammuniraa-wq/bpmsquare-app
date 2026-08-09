@@ -312,6 +312,82 @@
   box-shadow: var(--card-shadow-hover);
 }
 
+/* Data-table interaction. Same reasoning as .modern-lift above: inline
+   style objects can't express :hover, so any table that wants a row
+   highlight opts in by putting .data-table on the <table>. Works in every
+   theme (not just modern/nextgen) -- a static, completely inert table was
+   the specific "stale, not interactive at all" complaint, and hover
+   feedback on the row you're reading is the cheapest fix for it.
+   --sb-hover is already defined per theme/mode, so this stays legible on
+   both a light and a dark canvas. */
+.data-table tbody tr {
+  transition: background 0.12s ease;
+}
+.data-table tbody tr:hover {
+  background: var(--sb-hover);
+}
+/* Sticky header so scrolling a long month of rows keeps the column names
+   in view. Needs a solid background or rows show through it. */
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card-bg);
+}
+
+/* KPI / summary tiles. Works in every theme (unlike .modern-lift, which is
+   scoped to modern/nextgen) because a completely inert stat card was the
+   "not interactive at all" complaint. `.stat-tile` is the passive version --
+   a subtle raise so the card feels alive under the cursor; add
+   `.is-clickable` when the tile actually navigates or filters, which turns
+   on the pointer cursor and a stronger accent border so the two are
+   visually distinguishable rather than everything looking clickable. */
+.stat-tile {
+  transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.16s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.16s ease;
+}
+.stat-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover, 0 8px 22px rgba(20, 40, 80, 0.14));
+}
+.stat-tile.is-clickable {
+  cursor: pointer;
+}
+.stat-tile.is-clickable:hover {
+  border-color: color-mix(in srgb, var(--tenant-accent, #378add) 45%, var(--line));
+}
+.stat-tile.is-clickable:active {
+  transform: translateY(0);
+}
+/* Selected state for a tile being used as a filter -- must survive losing
+   hover, so it's a class rather than :hover styling. */
+.stat-tile.is-active {
+  border-color: var(--tenant-accent, #378add);
+  box-shadow: 0 0 0 1px var(--tenant-accent, #378add) inset;
+}
+
+/* Interactive chart segment: a slice grows slightly and lifts out of the
+   ring on hover (transform-box/transform-origin so the transform is
+   relative to the slice's own centre, not the SVG's). */
+.donut-slice {
+  transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.15s ease, filter 0.16s ease;
+  transform-origin: center;
+  transform-box: view-box;
+}
+.donut-slice.is-hovered {
+  filter: brightness(1.12) saturate(1.1);
+}
+.donut-legend-row {
+  transition: background 0.12s ease, opacity 0.15s ease;
+  border-radius: 6px;
+  padding: 2px 5px;
+  margin: -2px -5px;
+}
+.donut-legend-row.is-interactive:hover {
+  background: var(--sb-hover);
+}
+
 * { box-sizing: border-box; }
 
 html, body {

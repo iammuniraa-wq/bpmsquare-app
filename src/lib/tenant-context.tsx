@@ -11,23 +11,30 @@ type TenantCtx = {
    * unchanged default); otherwise the explicit list of workcenters a
    * member's assigned Business Roles grant view access to. */
   viewableWorkcenters: ViewableWorkcenters;
+  /** True for tenant admins and logins linked to a wfm_role=supervisor
+   * employee. Drives which Workforce sidebar sub-items render (see
+   * NavItem.supervisorOnly) -- purely a display concern, not the real
+   * access boundary (requireWfmSupervisorPage enforces that server-side). */
+  isWfmSupervisor: boolean;
 };
 
-const TenantContext = createContext<TenantCtx>({ tenant: null, userRole: null, viewableWorkcenters: "all" });
+const TenantContext = createContext<TenantCtx>({ tenant: null, userRole: null, viewableWorkcenters: "all", isWfmSupervisor: false });
 
 export function TenantProvider({
   tenant,
   userRole,
   viewableWorkcenters = "all",
+  isWfmSupervisor = false,
   children,
 }: {
   tenant: Tenant | null;
   userRole: "admin" | "member" | null;
   viewableWorkcenters?: ViewableWorkcenters;
+  isWfmSupervisor?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <TenantContext.Provider value={{ tenant, userRole, viewableWorkcenters }}>
+    <TenantContext.Provider value={{ tenant, userRole, viewableWorkcenters, isWfmSupervisor }}>
       {children}
     </TenantContext.Provider>
   );
@@ -45,6 +52,10 @@ export function useUserRole(): "admin" | "member" | null {
  * treat that as always-visible rather than an empty allow-list. */
 export function useViewableWorkcenters(): ViewableWorkcenters {
   return useContext(TenantContext).viewableWorkcenters;
+}
+
+export function useIsWfmSupervisor(): boolean {
+  return useContext(TenantContext).isWfmSupervisor;
 }
 
 export function useTenantFeature(key: keyof Tenant["features"]): boolean {

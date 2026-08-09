@@ -12,6 +12,9 @@ import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import type { Technician, VisitLog } from "@/lib/types";
 import { Gear, Phone, Mail, AlertTriangle } from "@/components/Icons";
+import { getTenant } from "@/lib/tenant";
+import { getTechnicianLiveStates } from "@/lib/wfm/server";
+import TechnicianLiveBadge from "@/components/wfm/TechnicianLiveBadge";
 
 // Config button is rendered separately — avoids making this whole page a client component
 function ConfigButton({ id }: { id: string }) {
@@ -182,10 +185,13 @@ export default async function TechnicianDetailPage({
   const today     = new Date().toISOString().slice(0, 10);
   const yearMonth = month ?? today.slice(0, 7);
 
-  const data = await getTechnicianDetail(id, yearMonth);
+  const [data, tenant] = await Promise.all([getTechnicianDetail(id, yearMonth), getTenant()]);
   if (!data) notFound();
 
   const { technician: tech, calendarDays, leaves, recentVisits, upcomingWOs, monthStats } = data;
+  const liveState = tenant?.features?.wfm
+    ? (await getTechnicianLiveStates(tenant.id, [tech.id])).get(tech.id)
+    : undefined;
 
   // Calendar navigation
   const [cy, cm] = yearMonth.split("-").map(Number);
@@ -222,6 +228,7 @@ export default async function TechnicianDetailPage({
       {/* Status + contacts row */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
         <Pill label={TECH_STATUS_LABEL[tech.status]} tone={tone} />
+        <TechnicianLiveBadge state={liveState} />
         {tech.phone && (
           <span style={{ fontSize: 12.5, color: c.muted, display: "inline-flex", alignItems: "center", gap: 4 }}><Phone size={12} color={c.hint} /> {tech.phone}</span>
         )}

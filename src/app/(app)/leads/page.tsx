@@ -6,6 +6,7 @@ import { listAccounts } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
+import ListFilterBar from "@/components/ListFilterBar";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import NewLeadButton from "./NewLeadButton";
@@ -40,11 +41,11 @@ const ALL_STATUSES: LeadStatus[] = ["new", "inspecting", "quoted", "won", "lost"
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   await requireWorkcenterView("leads");
   await requireFeature("leads");
-  const { status: statusFilter } = await searchParams;
+  const { status: statusFilter, q } = await searchParams;
   const leads = await listLeadsLive();
   const summaries = await listAccounts();
   const accounts = summaries.map((s) => ({ id: s.account.id, name: s.account.name }));
@@ -54,9 +55,15 @@ export default async function LeadsPage({
     count: leads.filter((l) => l.status === s).length,
   }));
 
-  const filtered = statusFilter
-    ? leads.filter((l) => l.status === statusFilter)
-    : leads;
+  const needle = (q ?? "").trim().toLowerCase();
+  const filtered = leads.filter((l) => {
+    if (statusFilter && l.status !== statusFilter) return false;
+    if (!needle) return true;
+    return (
+      (l.title ?? "").toLowerCase().includes(needle) ||
+      (l.account_name ?? "").toLowerCase().includes(needle)
+    );
+  });
 
   return (
     <>
@@ -89,6 +96,13 @@ export default async function LeadsPage({
           </Link>
         </div>
       )}
+
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search lead title or account…"
+        hiddenParams={{ status: statusFilter }}
+        clearHref={ROUTES.leads}
+      />
 
       {filtered.length === 0 ? (
         <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>

@@ -7,6 +7,9 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
+import ListFilterBar from "@/components/ListFilterBar";
+import SortableTh from "@/components/SortableTh";
+import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 
 const th: React.CSSProperties = {
@@ -19,12 +22,14 @@ const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, vertical
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; low_stock?: string }>;
+  searchParams: Promise<{ q?: string; low_stock?: string; sort?: string; dir?: string }>;
 }) {
   await requireWorkcenterView("inventory");
   await requireFeature("purchasing");
   const { supabase, tenantId } = await requireTenantUser();
-  const { q, low_stock } = await searchParams;
+  const params = await searchParams;
+  const { q, low_stock } = params;
+  const { sort, dir } = readSortParams(params);
 
   const [{ data: itemRows }, { data: supplierRows }] = await Promise.all([
     supabase.from("inventory_items").select("*").eq("tenant_id", tenantId).order("name"),
@@ -32,6 +37,16 @@ export default async function InventoryPage({
   ]);
   const items: InventoryItem[] = itemRows ?? [];
   const supplierNameById = new Map(((supplierRows ?? []) as Pick<Supplier, "id" | "name">[]).map((s) => [s.id, s.name]));
+
+  const SORT_EXTRACTORS: Record<string, SortExtractor<InventoryItem>> = {
+    ref: (i) => i.ref,
+    name: (i) => i.name,
+    sku: (i) => i.sku,
+    category: (i) => i.category,
+    qty_on_hand: (i) => i.qty_on_hand,
+    supplier: (i) => (i.supplier_id ? supplierNameById.get(i.supplier_id) : undefined),
+    status: (i) => i.status,
+  };
 
   let filtered = items;
   if (q) {
@@ -45,6 +60,7 @@ export default async function InventoryPage({
   if (low_stock === "true") {
     filtered = filtered.filter((i) => i.reorder_level != null && i.qty_on_hand <= i.reorder_level);
   }
+  filtered = sortRows(filtered, sort, dir, SORT_EXTRACTORS);
 
   const lowStockCount = items.filter((i) => i.reorder_level != null && i.qty_on_hand <= i.reorder_level).length;
 
@@ -89,25 +105,12 @@ export default async function InventoryPage({
         )}
       </div>
 
-      <form method="GET" style={{ marginBottom: 14 }}>
-        {low_stock === "true" && <input type="hidden" name="low_stock" value="true" />}
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Search by name, SKU or category…"
-          autoComplete="off"
-          style={{
-            width: "100%", maxWidth: 420, padding: "8px 12px", borderRadius: 7,
-            border: `1px solid ${c.line}`, fontSize: 13.5, color: c.ink,
-            background: "var(--panel)", outline: "none",
-          }}
-        />
-        {q && (
-          <Link href={ROUTES.inventory} style={{ marginLeft: 10, fontSize: 12, color: c.hint, textDecoration: "none" }}>
-            Clear ✕
-          </Link>
-        )}
-      </form>
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search by name, SKU or category…"
+        hiddenParams={{ low_stock: low_stock === "true" ? "true" : undefined }}
+        clearHref={ROUTES.inventory}
+      />
 
       <div style={{ ...cardStyle, overflow: "hidden" }}>
         {filtered.length === 0 ? (
@@ -126,13 +129,20 @@ export default async function InventoryPage({
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-                  <th style={{ ...th, width: 88 }}>ID</th>
-                  <th style={th}>Name</th>
-                  <th style={th}>SKU</th>
-                  <th style={th}>Category</th>
-                  <th style={th}>Qty on hand</th>
-                  <th style={th}>Supplier</th>
-                  <th style={th}>Status</th>
+                  {(() => {
+                    const hp = { q, low_stock: low_stock === "true" ? "true" : undefined };
+                    return (
+                      <>
+                        <SortableTh label="ID" sortKey="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.inventory} hiddenParams={hp} style={{ ...th, width: 88 }} />
+                        <SortableTh label="Name" sortKey="name" currentSort={sort} currentDir={dir} baseHref={ROUTES.inventory} hiddenParams={hp} style={th} />
+                        <SortableTh label="SKU" sortKey="sku" currentSort={sort} currentDir={dir} baseHref={ROUTES.inventory} hiddenParams={hp} style={th} />
+                        <SortableTh label="Category" sortKey="category" currentSort={sort} currentDir={dir} baseHref={ROUTES.inventory} hiddenParams={hp} style={th} />
+                        <SortableTh label="Qty on hand" sortKey="qty_on_hand" currentSort={sort} currentDir={dir} baseHref={ROUTES.inventory} hiddenParams={hp} style={th} />
+                        <SortableTh label="Supplier" sortKey="supplier" currentSort={sort} currentDir={dir} baseHref={ROUTES.inventory} hiddenParams={hp} style={th} />
+                        <SortableTh label="Status" sortKey="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.inventory} hiddenParams={hp} style={th} />
+                      </>
+                    );
+                  })()}
                   <th style={{ ...th, width: 60 }}></th>
                 </tr>
               </thead>

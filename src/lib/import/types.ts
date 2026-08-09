@@ -89,6 +89,11 @@ export type ImportResponse = {
   skipped: number;
   failed: number;
   outcomes: RowOutcome[];
+  /** Users import only. Client-admin-added logins get no invite email
+   * (decision 2026-08-06), so the temporary password generated for each new
+   * login is returned here for the admin to hand out. Shown once, on the
+   * result screen -- never stored anywhere retrievable. */
+  credentials?: { email: string; password: string }[];
 };
 
 export type UpdateResponse = {

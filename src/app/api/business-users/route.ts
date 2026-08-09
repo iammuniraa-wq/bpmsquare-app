@@ -41,16 +41,22 @@ export async function GET() {
     if (list) list.push(a.role_id); else roleIdsByUser.set(a.user_id, [a.role_id]);
   }
 
-  const users = await Promise.all(
-    (rows ?? []).map(async (row) => {
-      const { data } = await admin.auth.admin.getUserById(row.user_id);
-      return {
-        ...row,
-        email: data.user?.email ?? null,
-        business_role_ids: roleIdsByUser.get(row.user_id) ?? [],
-      };
-    })
-  );
+  // One paginated pass over the auth users instead of a getUserById per row
+  // -- the old N+1 was fine for a hand-built team but not once users arrive
+  // by bulk import (BUSINESS_ROLES_STANDARD_MAP.md §5).
+  const emailById = new Map<string, string>();
+  for (let page = 1; ; page++) {
+    const { data, error: listErr } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (listErr || !data?.users?.length) break;
+    for (const u of data.users) if (u.email) emailById.set(u.id, u.email);
+    if (data.users.length < 1000) break;
+  }
+
+  const users = (rows ?? []).map((row) => ({
+    ...row,
+    email: emailById.get(row.user_id) ?? null,
+    business_role_ids: roleIdsByUser.get(row.user_id) ?? [],
+  }));
 
   return NextResponse.json({ users });
 }

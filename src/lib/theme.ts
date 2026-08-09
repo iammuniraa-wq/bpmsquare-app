@@ -34,6 +34,20 @@ export const pillar = {
 
 export type PillarKey = keyof typeof pillar;
 
+// Semantic colours for coloured TEXT. Always prefer these over a raw hex or
+// over `pillar.*.base`/`c.amber`: those are tuned as solid fills against
+// dark chrome and drop to near-illegible on a light background (the
+// light-mode contrast bug reported 2026-08-06). These resolve to the
+// pillar ink CSS variables, which globals.css redefines per theme/mode --
+// dark ink in light mode, light ink in dark mode.
+export const statusInk = {
+  good: pillar.green.fg,
+  warn: pillar.amber.fg,
+  bad: pillar.red.fg,
+  info: pillar.blue.fg,
+  note: pillar.purple.fg,
+} as const;
+
 export const g = {
   sidebar: "linear-gradient(180deg, #152233 0%, #0e1a28 100%)",
   login: "linear-gradient(160deg, #152233, #0a1320)",

@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { listWorkOrders } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
@@ -10,6 +11,17 @@ import { ROUTES } from "@/lib/constants";
 import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 import { requireWorkcenterView } from "@/lib/permissions";
+import ListFilterBar from "@/components/ListFilterBar";
+import { sortRows, type SortExtractor } from "@/lib/listSort";
+
+type WorkOrderRow = Awaited<ReturnType<typeof listWorkOrders>>[number];
+
+const SORT_EXTRACTORS: Record<string, SortExtractor<WorkOrderRow>> = {
+  ref: (r) => r.workOrder.ref,
+  account: (r) => r.account.name,
+  scheduled: (r) => r.workOrder.scheduled_for,
+  status: (r) => r.workOrder.status,
+};
 
 const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
   scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
@@ -36,16 +48,26 @@ const fmtDate = (s: string) =>
 export default async function WorkOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; view?: string }>;
+  searchParams: Promise<{ status?: string; view?: string; q?: string; sort?: string }>;
 }) {
   await requireWorkcenterView("work_orders");
-  const { status: statusFilter, view } = await searchParams;
+  await requireFeature("work_orders");
+  const { status: statusFilter, view, q, sort } = await searchParams;
   const isCard = view !== "list";
   const vp = view ? `&view=${view}` : "";
 
   const all = await listWorkOrders();
   const cnt = (s: WorkOrderStatus) => all.filter((r) => r.workOrder.status === s).length;
-  const rows = statusFilter ? all.filter((r) => r.workOrder.status === statusFilter) : all;
+  let rows = statusFilter ? all.filter((r) => r.workOrder.status === statusFilter) : all;
+  if (q) {
+    const term = q.toLowerCase();
+    rows = rows.filter((r) =>
+      r.workOrder.ref.toLowerCase().includes(term) ||
+      r.account.name.toLowerCase().includes(term) ||
+      (r.asset?.name ?? "").toLowerCase().includes(term)
+    );
+  }
+  rows = sortRows(rows, sort, "asc", SORT_EXTRACTORS);
 
   return (
     <>
@@ -63,6 +85,22 @@ export default async function WorkOrdersPage({
         { label: "Invoiced",    count: cnt("invoiced"),    color: pillar.teal.base,  href: `${ROUTES.workOrders}?status=invoiced${vp}`,    active: statusFilter === "invoiced"    },
         { label: "All",         count: all.length,         color: c.muted,           href: `${ROUTES.workOrders}${vp ? "?" + vp.slice(1) : ""}`, active: !statusFilter },
       ]} />
+
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search ref, account or asset…"
+        selects={[{
+          name: "sort", value: sort, placeholder: "Sort by…",
+          options: [
+            { value: "ref", label: "Ref" },
+            { value: "account", label: "Account" },
+            { value: "scheduled", label: "Scheduled date" },
+            { value: "status", label: "Status" },
+          ],
+        }]}
+        hiddenParams={{ status: statusFilter, view }}
+        clearHref={ROUTES.workOrders}
+      />
 
       {rows.length === 0 ? (
         <p style={{ color: c.muted, fontSize: 13 }}>No work orders match this filter.</p>

@@ -16,7 +16,7 @@ export default function QuoteEditPanel({ quote, quoteStatuses = DEFAULT_QUOTE_ST
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const currentDef = quoteStatuses.find((s) => s.value === quote.status);
-  const isEditable = !currentDef?.is_terminal;
+  const isEditable = !currentDef?.is_closed;
 
   async function createVersion() {
     setError("");

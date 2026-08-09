@@ -22,6 +22,18 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "standard_quotes",        label: "Standard Quotes" },
   { key: "gmail_reply_threading",  label: "Gmail reply-threading" },
   { key: "quote_lines_dw",         label: "Quote Lines (Data Workbench)" },
+  { key: "wfm",                    label: "Workforce (Attendance & Leave)" },
+  { key: "accounts",       label: "Accounts" },
+  { key: "contacts",       label: "Contacts" },
+  { key: "quotations",     label: "Quotations" },
+  { key: "cases",          label: "Cases" },
+  { key: "work_orders",    label: "Work Orders" },
+  { key: "technicians",    label: "Technicians" },
+  { key: "assets",         label: "Assets" },
+  { key: "suppliers",      label: "Suppliers" },
+  { key: "reports",        label: "Analytics" },
+  { key: "data_workbench", label: "Data Workbench" },
+  { key: "administration", label: "Administration hub" },
 ];
 
 const DEFAULT_FEATURES: TenantFeatures = {
@@ -30,6 +42,13 @@ const DEFAULT_FEATURES: TenantFeatures = {
   purchasing: false, marketing: false,
   change_history: false, outbound_email: false, business_roles: false,
   standard_quotes: false, gmail_reply_threading: false, quote_lines_dw: false,
+  wfm: false,
+  // Core modules default ON: a brand-new tenant with these off would open to
+  // a workspace containing nothing but a Dashboard. Untick what the client
+  // didn't buy -- e.g. a Workforce-only client gets all of these off.
+  accounts: true, contacts: true, quotations: true, cases: true,
+  work_orders: true, technicians: true, assets: true, suppliers: true,
+  reports: true, data_workbench: true, administration: true,
 };
 
 const inputStyle: React.CSSProperties = {

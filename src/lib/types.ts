@@ -2,6 +2,7 @@
 // Mirrors the LOCKED data model in PROJECT.md §3.
 
 import type { SegmentFilter } from "@/lib/marketingSegmentation";
+import type { QuoteOutcome } from "@/lib/constants";
 
 export type AccountType = "prospect" | "oem" | "direct" | "end_customer";
 
@@ -196,10 +197,12 @@ export type Quote = {
   type: QuoteOfferType;
   status: "draft" | "sent" | "approved" | "rejected";
   business_status?: "pending" | "po_received";
-  // Won/Lost outcome -- independent of status (see QuoteStatusDef.is_terminal /
-  // is_lost), auto-synced when status reaches a terminal state but can also be
-  // set manually before that (e.g. marked "lost" while still "sent").
-  outcome: "open" | "won" | "lost";
+  // The business RESULT -- fully independent of status (see
+  // QuoteStatusDef.is_closed, which only tracks pipeline position, not
+  // win/loss). Can be set any time, including before status reaches a
+  // closed state (e.g. marked "lost" while still "sent"); a closed status
+  // always requires a decided (non-"open") outcome -- enforced server-side.
+  outcome: QuoteOutcome;
   total: number;
   created_at: string;
   // The business date on the quote, back-datable by the user. Falls back to
@@ -353,6 +356,14 @@ export type Employee = {
   status: "active" | "inactive";
   created_at: string;
   updated_at: string;
+  // WFM columns (0062) — only meaningful when the tenant's wfm feature is on.
+  employment_type: "full_time" | "contractor";
+  shift_id: string | null;
+  site_id: string | null;
+  wfm_role: "employee" | "supervisor";
+  technician_id: string | null;
+  enrolled_photo_path: string | null;
+  consent_recorded_at: string | null;
 };
 
 // Standard Quote -- a deliberately independent object, not the (separate)

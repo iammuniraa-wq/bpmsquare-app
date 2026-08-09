@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { listQuotes, getCaseLinkedQuoteIds } from "@/lib/data";
-import { getTenant } from "@/lib/tenant";
+import { getTenant, requireFeature } from "@/lib/tenant";
 import PageHeader from "@/components/PageHeader";
 import { ROUTES, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { c } from "@/lib/theme";
@@ -9,6 +9,7 @@ import QuotationsList from "./QuotationsList";
 
 export default async function QuotationsPage() {
   await requireWorkcenterView("quotations");
+  await requireFeature("quotations");
   const [rows, tenant, caseLinkedQuoteIds] = await Promise.all([listQuotes(), getTenant(), getCaseLinkedQuoteIds()]);
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;

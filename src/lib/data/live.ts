@@ -4,6 +4,7 @@ import { createAdminSupabase, resolveViewerTenantId, getAuthUser } from "@/lib/s
 import { decryptAccount, decryptContact, decrypt } from "@/lib/encryption";
 import { getAccountNews, type AccountNewsItem } from "@/lib/data/news";
 import { getTenant } from "@/lib/tenant";
+import { getWfmLiveBoardSnapshot } from "@/lib/wfm/server";
 import type { CompanyInfo } from "@/lib/tenant";
 import { DEFAULT_QUOTE_STATUSES, ROUTES } from "@/lib/constants";
 import type { TenantConfig } from "@/lib/constants";
@@ -241,6 +242,7 @@ export type DispatchRow = {
   scheduled_for: string | null;
   description: string | null;
   account_name: string;
+  technician_id: string | null;
   technician_name: string | null;
   case_ref: string | null;
 };
@@ -250,7 +252,7 @@ export async function listDispatch(): Promise<DispatchRow[]> {
   if (!tenantId) return [];
   const { data } = await createAdminSupabase()
     .from("work_orders")
-    .select("id, ref, status, scheduled_for, description, accounts(name), technicians(name), service_cases(ref)")
+    .select("id, ref, status, scheduled_for, description, technician_id, accounts(name), technicians(name), service_cases(ref)")
     .eq("tenant_id", tenantId)
     .in("status", ["scheduled", "in_progress"])
     .order("scheduled_for", { ascending: true });
@@ -262,6 +264,7 @@ export async function listDispatch(): Promise<DispatchRow[]> {
     scheduled_for: r.scheduled_for as string | null,
     description: r.description as string | null,
     account_name: (Array.isArray(r.accounts) ? r.accounts[0]?.name : r.accounts?.name) ?? "—",
+    technician_id: r.technician_id as string | null,
     technician_name: (Array.isArray(r.technicians) ? r.technicians[0]?.name : r.technicians?.name) ?? null,
     case_ref: (Array.isArray(r.service_cases) ? r.service_cases[0]?.ref : r.service_cases?.ref) ?? null,
   }));
@@ -1394,7 +1397,7 @@ export async function getDashboardSummaryLive() {
   // Quotations page's "In pipeline" tile.
   const quoteStatusDefs = tenant?.config?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
   const openPipelineStatuses = new Set(
-    quoteStatusDefs.filter((d) => !d.is_terminal).map((d) => d.value)
+    quoteStatusDefs.filter((d) => !d.is_closed).map((d) => d.value)
   );
 
   const kpis = {
@@ -1463,7 +1466,7 @@ export type AnalyticsData = {
   loanerStock: { available: number; onLoan: number; total: number };
   quotesByStatus: Array<{ status: string; label: string; count: number; value: number }>;
   quoteTrend: Array<{ dateLabel: string; value: number; cumulative: number }>;
-  quoteOutcomeTotals: { open: number; won: number; lost: number };
+  quoteOutcomeTotals: { open: number; won: number; lost: number; dropped: number };
   quoteOverdueCount: number;
   quoteSource: { caseLinked: { count: number; value: number }; standalone: { count: number; value: number } };
   casesByStatus: Array<{ status: string; label: string; count: number }>;
@@ -1475,6 +1478,8 @@ export type AnalyticsData = {
   contractStats: { activeCount: number; totalValue: number };
   recentActivity: Array<{ text: string; at: string; pillar: Activity["pillar"]; accountName: string }>;
   accountNews: AccountNewsItem[];
+  wfmAttendanceBySite: Array<{ site: string; onTime: number; late: number; absent: number }>;
+  wfmNightShiftCost: { count: number; amount: number };
 };
 
 const CASE_STATUS_LABEL_MAP: Record<string, string> = {
@@ -1491,7 +1496,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
-      quoteOutcomeTotals: { open: 0, won: 0, lost: 0 },
+      quoteOutcomeTotals: { open: 0, won: 0, lost: 0, dropped: 0 },
       quoteOverdueCount: 0,
       quoteSource: { caseLinked: { count: 0, value: 0 }, standalone: { count: 0, value: 0 } },
       techniciansByStatus: [], invoicesByStatus: [],
@@ -1500,6 +1505,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       contractStats: { activeCount: 0, totalValue: 0 },
       recentActivity: [],
       accountNews: [],
+      wfmAttendanceBySite: [],
+      wfmNightShiftCost: { count: 0, amount: 0 },
     };
   }
   const supabase = createAdminSupabase();
@@ -1533,7 +1540,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const allLeads       = (leads       ?? []) as Array<{ id: string; status: string }>;
   const allTechnicians = (technicians ?? []) as Array<{ id: string; status: string }>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allQuotes      = (quotes      ?? []) as any as Array<{ id: string; status: string; outcome: "open" | "won" | "lost"; total: number; valid_until: string | null; created_at: string; account_id: string; accounts: { name: string } | { name: string }[] | null }>;
+  const allQuotes      = (quotes      ?? []) as any as Array<{ id: string; status: string; outcome: "open" | "won" | "lost" | "dropped"; total: number; valid_until: string | null; created_at: string; account_id: string; accounts: { name: string } | { name: string }[] | null }>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allInvoices    = (invoices    ?? []) as any as Array<{ id: string; status: string; total: number; paid_amount: number; account_id: string; accounts: { name: string } | { name: string }[] | null }>;
 
@@ -1596,7 +1603,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     .map((def) => ({ status: def.value, label: def.label, ...(qStatusCounts.get(def.value) ?? { count: 0, value: 0 }) }))
     .filter((x) => x.count > 0);
 
-  const quoteOutcomeTotals = { open: 0, won: 0, lost: 0 };
+  const quoteOutcomeTotals = { open: 0, won: 0, lost: 0, dropped: 0 };
   allQuotes.forEach((q) => { quoteOutcomeTotals[q.outcome] += q.total; });
 
   // A quote is overdue when its validity date has passed with no decision --
@@ -1715,12 +1722,36 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     accountName: (Array.isArray(act.accounts) ? act.accounts[0]?.name : act.accounts?.name) ?? act.account_id,
   }));
 
+  let wfmAttendanceBySite: AnalyticsData["wfmAttendanceBySite"] = [];
+  let wfmNightShiftCost: AnalyticsData["wfmNightShiftCost"] = { count: 0, amount: 0 };
+  if (tenant?.features?.wfm) {
+    const snapshot = await getWfmLiveBoardSnapshot(tenantId);
+    const bySite = new Map<string, { onTime: number; late: number; absent: number }>();
+    for (const r of snapshot.rows) {
+      const key = r.home_site_name ?? "No site assigned";
+      const bucket = bySite.get(key) ?? { onTime: 0, late: 0, absent: 0 };
+      if (r.absent) bucket.absent += 1;
+      else if (r.late) bucket.late += 1;
+      else if (r.state !== "out" || r.punches > 0) bucket.onTime += 1;
+      bySite.set(key, bucket);
+    }
+    wfmAttendanceBySite = [...bySite.entries()].map(([site, v]) => ({ site, ...v }));
+
+    for (const r of snapshot.rows) {
+      if (r.is_night_shift && r.punches > 0) {
+        wfmNightShiftCost.count += 1;
+        wfmNightShiftCost.amount += r.night_allowance_amount;
+      }
+    }
+  }
+
   return {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
     quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOverdueCount, quoteSource,
     casesByStatus, workOrdersByStatus,
     techniciansByStatus, invoicesByStatus, invoiceTotals, topAccountsByRevenue,
     contractStats, recentActivity, accountNews,
+    wfmAttendanceBySite, wfmNightShiftCost,
   };
 }
 

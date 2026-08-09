@@ -23,6 +23,14 @@ export const TRUSTED_USER_ID_HEADER = "x-bpmsquare-user-id";
 export const TRUSTED_EMAIL_HEADER = "x-bpmsquare-email";
 export const TRUSTED_TENANT_ID_HEADER = "x-bpmsquare-tenant-id";
 export const TRUSTED_ROLE_HEADER = "x-bpmsquare-role";
+// Not identity-sensitive like the four above, but set the same way (stripped
+// of any client-supplied value, then set once by middleware) so a Server
+// Component layout can know the current request's pathname -- next/navigation
+// has no built-in way to read that outside a page's own params. Used by the
+// (app) layout's WFM-only redirect to avoid redirecting a request that's
+// already for the redirect target (an infinite-redirect bug otherwise, since
+// /wfm/me lives inside the same (app) route group the layout wraps).
+export const PATHNAME_HEADER = "x-bpmsquare-pathname";
 
 /** Business-user gate (0057): a membership is usable only if it isn't
  * admin-locked and today falls inside its validity window (null bounds are
@@ -119,6 +127,13 @@ export const ROUTES = {
   purchaseOrderNew: "/purchase-orders/new",
   purchaseOrder: (id: string) => `/purchase-orders/${id}`,
   dataWorkbench: "/data-workbench",
+  wfmMe: "/wfm/me",
+  wfmLiveBoard: "/wfm/live-board",
+  wfmEmployees: "/wfm/employees",
+  wfmCorrections: "/wfm/corrections",
+  wfmLeave: "/wfm/leave",
+  wfmSummary: "/wfm/summary",
+  settingsWorkforce: "/settings/workforce",
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
@@ -138,6 +153,12 @@ export type NavItem = {
    * expand/collapse toggle rows (Sales/Service/Marketing/Master data), which
    * have no access of their own and are hidden only when every child is. */
   workcenterKey?: string;
+  /** Hidden from a WFM login unless it's a supervisor (wfm_role=supervisor
+   * or tenant admin) -- for items that share the "wfm" workcenter grant with
+   * a plain employee's My Workforce page but aren't meant for them. The real
+   * enforcement is server-side (requireWfmSupervisorPage); this only keeps
+   * the sidebar from advertising a link that would redirect away. */
+  supervisorOnly?: boolean;
   /** Sub-items shown when this item is expanded in the sidebar -- the item
    * itself becomes an expand/collapse toggle rather than a direct link. */
   children?: NavItem[];
@@ -156,8 +177,8 @@ export const NAV: NavGroup[] = [
     group: "WORKSPACE",
     items: [
       { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue", workcenterKey: "dashboard" },
-      { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue", workcenterKey: "accounts" },
-      { label: "Contacts",  href: ROUTES.contacts,  icon: "◉", pillar: "blue", workcenterKey: "contacts" },
+      { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue", featureKey: "accounts", workcenterKey: "accounts" },
+      { label: "Contacts",  href: ROUTES.contacts,  icon: "◉", pillar: "blue", featureKey: "contacts", workcenterKey: "contacts" },
     ],
   },
   {
@@ -166,7 +187,7 @@ export const NAV: NavGroup[] = [
       {
         label: "Sales", href: ROUTES.quotations, icon: "₹", pillar: "blue",
         children: [
-          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", workcenterKey: "quotations" },
+          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", featureKey: "quotations", workcenterKey: "quotations" },
           { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
@@ -180,11 +201,11 @@ export const NAV: NavGroup[] = [
       {
         label: "Service", href: ROUTES.cases, icon: "☎", pillar: "teal",
         children: [
-          { label: "Cases",         href: ROUTES.cases,       icon: "☎", pillar: "teal", workcenterKey: "cases" },
+          { label: "Cases",         href: ROUTES.cases,       icon: "☎", pillar: "teal", featureKey: "cases", workcenterKey: "cases" },
           { label: "AMC contracts", href: ROUTES.amc,         icon: "▥", pillar: "teal", featureKey: "amc", workcenterKey: "amc" },
-          { label: "Work orders",   href: ROUTES.workOrders,  icon: "▤", pillar: "amber", workcenterKey: "work_orders" },
+          { label: "Work orders",   href: ROUTES.workOrders,  icon: "▤", pillar: "amber", featureKey: "work_orders", workcenterKey: "work_orders" },
           { label: "Dispatch",      href: ROUTES.dispatch,    icon: "◷", pillar: "amber", featureKey: "dispatch", workcenterKey: "dispatch" },
-          { label: "Technicians",   href: ROUTES.technicians, icon: "◍", pillar: "amber", workcenterKey: "technicians" },
+          { label: "Technicians",   href: ROUTES.technicians, icon: "◍", pillar: "amber", featureKey: "technicians", workcenterKey: "technicians" },
         ],
       },
     ],
@@ -209,8 +230,8 @@ export const NAV: NavGroup[] = [
       {
         label: "Master data", href: ROUTES.assets, icon: "⚙", pillar: "green",
         children: [
-          { label: "Assets",          href: ROUTES.assets,         icon: "⚙", pillar: "green", workcenterKey: "assets" },
-          { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", workcenterKey: "suppliers" },
+          { label: "Assets",          href: ROUTES.assets,         icon: "⚙", pillar: "green", featureKey: "assets", workcenterKey: "assets" },
+          { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", featureKey: "suppliers", workcenterKey: "suppliers" },
           { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "green", featureKey: "purchasing", workcenterKey: "purchase_orders" },
           // Employees ships as part of the Business Roles/Business Users
@@ -222,16 +243,32 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    group: "WORKFORCE",
+    items: [
+      {
+        label: "Workforce", href: ROUTES.wfmMe, icon: "⧖", pillar: "amber",
+        children: [
+          { label: "My Workforce", href: ROUTES.wfmMe, icon: "◈", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
+          { label: "Live board",   href: ROUTES.wfmLiveBoard,   icon: "◉", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Employees",    href: ROUTES.wfmEmployees,   icon: "⚇", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Corrections", href: ROUTES.wfmCorrections, icon: "✓", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Leave & Holidays", href: ROUTES.wfmLeave, icon: "☀", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Monthly Summary", href: ROUTES.wfmSummary, icon: "▤", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+        ],
+      },
+    ],
+  },
+  {
     group: "ANALYTICS",
     items: [
-      { label: "Analytics", href: ROUTES.reports, icon: "◫", pillar: "purple", workcenterKey: "reports" },
+      { label: "Analytics", href: ROUTES.reports, icon: "◫", pillar: "purple", featureKey: "reports", workcenterKey: "reports" },
     ],
   },
   {
     group: "ADMIN",
     items: [
-      { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal", workcenterKey: "data_workbench" },
-      { label: "Administrator", href: ROUTES.administration, icon: "🛠", pillar: "teal", workcenterKey: "administration" },
+      { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal", featureKey: "data_workbench", workcenterKey: "data_workbench" },
+      { label: "Administrator", href: ROUTES.administration, icon: "🛠", pillar: "teal", featureKey: "administration", workcenterKey: "administration" },
     ],
   },
 ];
@@ -366,6 +403,59 @@ export type TenantFeatures = {
   standard_quotes: boolean;
   gmail_reply_threading: boolean;
   quote_lines_dw: boolean;
+  wfm: boolean;
+  // Core-module subscription flags (0067). Every nav item now carries one,
+  // so a tenant only sees the modules they actually bought -- previously
+  // these twelve were ungated and shown to everyone regardless. A MISSING
+  // key reads as false (hidden), which is why 0067 backfills all of them to
+  // true for every pre-existing tenant: without that, adding these gates
+  // would silently strip live clients' navigation.
+  accounts: boolean;
+  contacts: boolean;
+  quotations: boolean;
+  cases: boolean;
+  work_orders: boolean;
+  technicians: boolean;
+  assets: boolean;
+  suppliers: boolean;
+  reports: boolean;
+  data_workbench: boolean;
+  administration: boolean;
+};
+
+// WfmConfig — tenant-level WFM (attendance) settings, stored in
+// tenants.config.wfm. Per-shift settings (grace, night allowance) live on
+// wfm_shifts rows, not here.
+export type WfmConfig = {
+  // IANA timezone all attendance day-boundary/lateness logic runs in.
+  timezone: string;
+  // Working hours exclude break time (net = out − in − breaks). Client
+  // decision 2026-08-05, overriding the original spec's "breaks are
+  // informational only"; kept as config so a tenant can revert to gross.
+  deduct_breaks: boolean;
+  // Every N late marks in a calendar month = 1 half-day deduction (counted
+  // in the CA summary only — no money math).
+  late_marks_per_half_day: number;
+  // Unused leave carries into next year (false = lapses).
+  leave_carry_forward: boolean;
+  // Punch selfies purged after this many days (enrollment photos are kept
+  // until employee deletion — DPDP).
+  selfie_retention_days: number;
+  // flag_only: async face compare vs enrolled photo sets a face_mismatch
+  // flag; never blocks a punch.
+  face_verification_mode: "off" | "flag_only";
+  // Weekly off days, 0 = Sunday … 6 = Saturday.
+  week_off_days: number[];
+};
+
+export const DEFAULT_WFM_CONFIG: WfmConfig = {
+  timezone: "Asia/Kolkata",
+  deduct_breaks: true,
+  late_marks_per_half_day: 3,
+  leave_carry_forward: false,
+  selfie_retention_days: 90,
+  face_verification_mode: "off",
+  week_off_days: [0],
 };
 
 // All metric IDs available in the Analytics page.
@@ -377,7 +467,8 @@ export type AnalyticsMetricId =
   | "technician_availability" | "revenue_overview"
   | "invoices_by_status" | "loaner_availability" | "recent_activity"
   | "account_news"
-  | "quote_outcomes" | "quote_overdue" | "quote_source";
+  | "quote_outcomes" | "quote_overdue" | "quote_source"
+  | "wfm_attendance_today" | "wfm_night_shift_cost";
 
 // Dashboard layout block — covers native cards and analytics widgets.
 // id is a NativeDashBlockId or AnalyticsMetricId string.
@@ -399,19 +490,30 @@ export type QuoteStatusDef = {
   label: string;      // displayed in UI
   color: string;      // hex colour for the pill
   is_initial?: boolean;  // shown as default on new quotes
-  is_terminal?: boolean; // quote locked (no edit) when in this status
-  is_lost?: boolean;     // this terminal status represents a lost/rejected deal --
-                         // distinguishes it from a "won" terminal status (e.g. approved)
-                         // when computing won/approved value.
+  is_closed?: boolean;   // quote locked (no edit) when in this status. Purely
+                         // a pipeline-position flag -- it says nothing about
+                         // win/loss, which is `outcome`'s job (see QuoteOutcome
+                         // below). A closed status always requires a decided
+                         // (non-"open") outcome; enforced where status is patched.
 };
 
 // Default statuses used when tenant has not configured custom ones.
 export const DEFAULT_QUOTE_STATUSES: QuoteStatusDef[] = [
   { value: "draft",       label: "Draft",       color: "#3b82f6", is_initial: true },
   { value: "sent",        label: "Sent",        color: "#8b5cf6" },
-  { value: "approved",    label: "Approved",    color: "#10b981", is_terminal: true },
-  { value: "rejected",    label: "Rejected",    color: "#ef4444", is_terminal: true, is_lost: true },
+  { value: "approved",    label: "Approved",    color: "#10b981", is_closed: true },
+  { value: "rejected",    label: "Rejected",    color: "#ef4444", is_closed: true },
 ];
+
+// Quote outcome -- the business RESULT, fully independent of pipeline status
+// (a status just tracks where the quote sits; a quote can be marked lost
+// while still "Sent", ahead of the paperwork catching up). "lost" (actively
+// rejected) and "dropped" (went cold, no decision) are kept distinct since
+// they mean different things for win-rate reporting. Not tenant-configurable
+// -- unlike status, this is a fixed small vocabulary the system reasons about
+// directly (invoice conversion gates on "won").
+export const QUOTE_OUTCOMES = ["open", "won", "lost", "dropped"] as const;
+export type QuoteOutcome = (typeof QUOTE_OUTCOMES)[number];
 
 // TenantConfig — full shape of tenants.config JSONB column.
 export type TenantConfig = {
@@ -461,6 +563,9 @@ export type TenantConfig = {
     webhook_url?: string;
     webhook_secret?: string;
   };
+  // WFM module settings (only meaningful when features.wfm is on). Absent
+  // keys fall back to DEFAULT_WFM_CONFIG.
+  wfm?: Partial<WfmConfig>;
 };
 
 // QuoteIdFormat — per-tenant Quote ID naming convention.

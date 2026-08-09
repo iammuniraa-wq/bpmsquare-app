@@ -1,13 +1,27 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { listTechnicians, TECH_STATUS_LABEL } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
+import ListFilterBar from "@/components/ListFilterBar";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { Technician } from "@/lib/types";
 import { AlertTriangle } from "@/components/Icons";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { getTenant, requireFeature } from "@/lib/tenant";
+import { getTechnicianLiveStates } from "@/lib/wfm/server";
+import TechnicianLiveBadge from "@/components/wfm/TechnicianLiveBadge";
+import { sortRows, type SortExtractor } from "@/lib/listSort";
+
+type TechRow = Awaited<ReturnType<typeof listTechnicians>>[number];
+
+const SORT_EXTRACTORS: Record<string, SortExtractor<TechRow>> = {
+  name: (r) => r.technician.name,
+  status: (r) => r.technician.status,
+  location: (r) => r.technician.base_location,
+  visits: (r) => r.monthStats.visits,
+};
 
 const STATUS_TONE: Record<Technician["status"], PillarKey> = {
   active: "green", on_leave: "amber", inactive: "red",
@@ -30,12 +44,29 @@ function Avatar({ name, tone }: { name: string; tone: PillarKey }) {
 export default async function TechniciansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string }>;
 }) {
   await requireWorkcenterView("technicians");
-  const { status: statusFilter } = await searchParams;
-  const allTechs = await listTechnicians();
-  const techs = statusFilter ? allTechs.filter((t) => t.technician.status === statusFilter) : allTechs;
+  await requireFeature("technicians");
+  const { status: statusFilter, q, sort } = await searchParams;
+  const [allTechs, tenant] = await Promise.all([listTechnicians(), getTenant()]);
+  // The status filter already existed but had no control to reach it -- it
+  // was only settable by hand-editing the URL. Now driven by the bar below.
+  const needle = (q ?? "").trim().toLowerCase();
+  let techs = allTechs.filter((t) => {
+    if (statusFilter && t.technician.status !== statusFilter) return false;
+    if (!needle) return true;
+    const tech = t.technician;
+    return (
+      (tech.name ?? "").toLowerCase().includes(needle) ||
+      (tech.phone ?? "").toLowerCase().includes(needle) ||
+      (tech.skills ?? "").toLowerCase().includes(needle)
+    );
+  });
+  techs = sortRows(techs, sort, "asc", SORT_EXTRACTORS);
+  const liveStates = tenant?.features?.wfm
+    ? await getTechnicianLiveStates(tenant.id, allTechs.map((t) => t.technician.id))
+    : new Map();
   const activeCt   = allTechs.filter((t) => t.technician.status === "active").length;
   const onLeaveCt  = allTechs.filter((t) => t.technician.status === "on_leave").length;
   const totalSlots = techs
@@ -62,6 +93,31 @@ export default async function TechniciansPage({
             + New Technician
           </Link>
         }
+      />
+
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search technician, phone or skill…"
+        selects={[
+          {
+            name: "status", value: statusFilter, placeholder: "All statuses",
+            options: [
+              { value: "active", label: "Active" },
+              { value: "on_leave", label: "On leave" },
+              { value: "inactive", label: "Inactive" },
+            ],
+          },
+          {
+            name: "sort", value: sort, placeholder: "Sort by…",
+            options: [
+              { value: "name", label: "Name" },
+              { value: "status", label: "Status" },
+              { value: "location", label: "Location" },
+              { value: "visits", label: "Visits / mo" },
+            ],
+          },
+        ]}
+        clearHref={ROUTES.technicians}
       />
 
       {/* Team capacity strip */}
@@ -130,8 +186,9 @@ export default async function TechniciansPage({
                   <div style={{ fontSize: 11.5, color: c.muted, marginTop: 1 }}>{tech.base_location}</div>
                 </div>
 
-                <div style={{ flexShrink: 0 }}>
+                <div style={{ flexShrink: 0, display: "flex", gap: 6 }}>
                   <Pill label={TECH_STATUS_LABEL[tech.status]} tone={tone} />
+                  <TechnicianLiveBadge state={liveStates.get(tech.id)} />
                 </div>
 
                 {/* Skills — single truncated line */}

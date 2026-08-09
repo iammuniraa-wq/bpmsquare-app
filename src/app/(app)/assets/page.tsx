@@ -1,12 +1,22 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
-import { listAssetsLive } from "@/lib/data/live";
+import { listAssetsLive, type AssetRow } from "@/lib/data/live";
 import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { requireFeature } from "@/lib/tenant";
+import ListFilterBar from "@/components/ListFilterBar";
+import { sortRows, type SortExtractor } from "@/lib/listSort";
+
+const SORT_EXTRACTORS: Record<string, SortExtractor<AssetRow>> = {
+  name: (r) => r.asset.name,
+  kind: (r) => r.asset.kind,
+  make: (r) => r.asset.make,
+  account: (r) => r.account?.name,
+};
 
 function KindIcon({ kind, size = 18, color }: { kind: string; size?: number; color?: string }) {
   const p = { size, color: color ?? "currentColor" };
@@ -31,15 +41,29 @@ const ALL_KINDS = ["motor", "transformer", "pump", "generator", "panel"] as cons
 export default async function AssetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kind?: string }>;
+  searchParams: Promise<{ kind?: string; q?: string; sort?: string }>;
 }) {
   await requireWorkcenterView("assets");
-  const { kind: kindFilter } = await searchParams;
+  await requireFeature("assets");
+  const { kind: kindFilter, q, sort } = await searchParams;
   const { customerAssets: allCustomerAssets, loanerStock } = await listAssetsLive();
 
-  const customerAssets = kindFilter && kindFilter !== "loaner"
+  let customerAssets = kindFilter && kindFilter !== "loaner"
     ? allCustomerAssets.filter((r) => r.asset.kind === kindFilter)
     : allCustomerAssets;
+
+  if (q) {
+    const term = q.toLowerCase();
+    customerAssets = customerAssets.filter((r) =>
+      r.asset.name.toLowerCase().includes(term) ||
+      (r.asset.make ?? "").toLowerCase().includes(term) ||
+      (r.asset.model ?? "").toLowerCase().includes(term) ||
+      (r.asset.serial ?? "").toLowerCase().includes(term) ||
+      (r.account?.name ?? "").toLowerCase().includes(term)
+    );
+  }
+
+  customerAssets = sortRows(customerAssets, sort, "asc", SORT_EXTRACTORS);
 
   const available = loanerStock.filter((r) => r.asset.loaner_status === "available").length;
   const onLoan    = loanerStock.filter((r) => r.asset.loaner_status === "on_loan").length;
@@ -62,38 +86,30 @@ export default async function AssetsPage({
         }
       />
 
-      {/* Kind filter — dropdown */}
-      <form method="GET" style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
-        <select
-          name="kind"
-          defaultValue={kindFilter ?? ""}
-          style={{
-            padding: "7px 10px", borderRadius: 7,
-            border: `1px solid ${c.line}`, fontSize: 13, color: kindFilter ? c.ink : c.hint,
-            background: "var(--panel)", outline: "none", cursor: "pointer",
-          }}
-        >
-          <option value="">All types</option>
-          {ALL_KINDS.map((k) => (
-            <option key={k} value={k}>{KIND_LABEL[k]}</option>
-          ))}
-          <option value="loaner">Loaner stock</option>
-        </select>
-        <button
-          type="submit"
-          style={{
-            padding: "7px 14px", borderRadius: 7, border: "none",
-            background: c.accent, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
-          }}
-        >
-          Filter
-        </button>
-        {kindFilter && (
-          <Link href={ROUTES.assets} style={{ fontSize: 12, color: c.hint, textDecoration: "none" }}>
-            Clear ✕
-          </Link>
-        )}
-      </form>
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search name, make, model, serial or account…"
+        selects={[
+          {
+            name: "kind", value: kindFilter, placeholder: "All types",
+            options: [
+              ...ALL_KINDS.map((k) => ({ value: k, label: KIND_LABEL[k] })),
+              { value: "loaner", label: "Loaner stock" },
+            ],
+          },
+          {
+            name: "sort", value: sort, placeholder: "Sort by…",
+            options: [
+              { value: "name", label: "Name" },
+              { value: "kind", label: "Type" },
+              { value: "make", label: "Make" },
+              { value: "account", label: "Account" },
+            ],
+          },
+        ]}
+        hiddenParams={{}}
+        clearHref={ROUTES.assets}
+      />
 
       {/* Loaner Stock */}
       <section style={{ ...cardStyle, marginBottom: 14, display: kindFilter && kindFilter !== "loaner" ? "none" : undefined }}>

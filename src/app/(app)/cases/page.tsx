@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { listCases } from "@/lib/data";
 import type { ServiceCase } from "@/lib/types";
@@ -7,6 +8,7 @@ import { ROUTES } from "@/lib/constants";
 import CasesTable from "@/components/CasesTable";
 import BreakdownBar from "@/components/BreakdownBar";
 import { requireWorkcenterView } from "@/lib/permissions";
+import ListFilterBar from "@/components/ListFilterBar";
 
 const OPEN_STATUSES: ServiceCase["status"][] = [
   "intake","inspection","report_sent","report_approved",
@@ -29,6 +31,7 @@ export default async function CasesPage({
   searchParams: Promise<{ q?: string; filter?: string }>;
 }) {
   await requireWorkcenterView("cases");
+  await requireFeature("cases");
   const { q, filter: rawFilter } = await searchParams;
   const filter = (FILTERS.find((f) => f.id === rawFilter)?.id) ?? "open";
 
@@ -88,25 +91,12 @@ export default async function CasesPage({
       ]} />
 
       {/* ── Search ───────────────────────────────────────────────────────── */}
-      <form method="GET" style={{ marginBottom: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        {filter !== "open" && <input type="hidden" name="filter" value={filter} />}
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Search by ref, equipment, account or complaint…"
-          autoComplete="off"
-          style={{
-            flex: "1 1 300px", maxWidth: 420, padding: "8px 12px", borderRadius: 7,
-            border: `1px solid ${c.line}`, fontSize: 13.5, color: c.ink,
-            background: "var(--panel)", outline: "none",
-          }}
-        />
-        {q && (
-          <Link href={`${ROUTES.cases}?filter=${filter}`} style={{ fontSize: 12, color: c.hint, textDecoration: "none" }}>
-            Clear ✕
-          </Link>
-        )}
-      </form>
+      <ListFilterBar
+        searchValue={q}
+        searchPlaceholder="Search ref, equipment or account…"
+        hiddenParams={{ filter }}
+        clearHref={ROUTES.cases}
+      />
 
       {/* ── Table with adapt mode ────────────────────────────────────────── */}
       <CasesTable rows={rows} q={q} filter={filter} />

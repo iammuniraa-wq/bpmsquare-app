@@ -35,6 +35,10 @@ export async function PUT(request: NextRequest) {
   const statuses: QuoteStatusDef[] = await request.json();
   if (!Array.isArray(statuses) || statuses.length < 1)
     return NextResponse.json({ error: "At least one status required" }, { status: 400 });
+  if (statuses.filter((s) => s.is_initial).length !== 1)
+    return NextResponse.json({ error: "Exactly one status must be marked as the default (initial) status" }, { status: 400 });
+  if (!statuses.some((s) => s.is_closed))
+    return NextResponse.json({ error: "At least one status must be marked closed, or a quote can never be closed" }, { status: 400 });
 
   const admin = createAdminSupabase();
   const { data: current, error: readErr } = await admin

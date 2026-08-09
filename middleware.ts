@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   isPrimaryOrDevHost, PRIMARY_HOST, isMembershipActive,
   TRUSTED_USER_ID_HEADER, TRUSTED_EMAIL_HEADER, TRUSTED_TENANT_ID_HEADER, TRUSTED_ROLE_HEADER,
-  SUPABASE_COOKIE_OPTIONS,
+  PATHNAME_HEADER, SUPABASE_COOKIE_OPTIONS,
 } from "@/lib/constants";
 
 export async function middleware(request: NextRequest) {
@@ -19,6 +19,8 @@ export async function middleware(request: NextRequest) {
   requestHeaders.delete(TRUSTED_EMAIL_HEADER);
   requestHeaders.delete(TRUSTED_TENANT_ID_HEADER);
   requestHeaders.delete(TRUSTED_ROLE_HEADER);
+  requestHeaders.delete(PATHNAME_HEADER);
+  requestHeaders.set(PATHNAME_HEADER, pathname);
 
   // Public paths — never intercept
   if (
@@ -55,7 +57,12 @@ export async function middleware(request: NextRequest) {
     // being skipped: each route still 401s without a valid key, and every query
     // behind them is tenant-scoped by the tenant that key resolves to.
     pathname === "/api/v1" ||
-    pathname.startsWith("/api/v1/")
+    pathname.startsWith("/api/v1/") ||
+    // Vercel Cron invocations carry no user session -- just their own
+    // CRON_SECRET bearer token, checked inside the route itself (same
+    // reasoning as /api/v1 above: a credential in the request, not a
+    // cookie, so the session gate would make it uncallable).
+    pathname === "/api/wfm/cron/retention"
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }

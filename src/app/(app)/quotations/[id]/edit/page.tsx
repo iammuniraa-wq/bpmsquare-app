@@ -24,9 +24,9 @@ export default async function EditQuotationPage({
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
   const currentDef = quoteStatuses.find((s) => s.value === quote.status);
-  // Terminal-status quotes (sent/approved) are locked — editing them means creating
-  // a new revision instead, which only the detail page's "Create new version" flow does.
-  if (currentDef?.is_terminal) redirect(ROUTES.quotation(id));
+  // Closed-status quotes are locked — editing them means creating a new
+  // revision instead, which only the detail page's "Create new version" flow does.
+  if (currentDef?.is_closed) redirect(ROUTES.quotation(id));
 
   const editQuote: EditQuoteData = { quote: quote as EditQuoteData["quote"], lines };
 

@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { WORKCENTERS, type WorkcenterKey } from "@/lib/permissions";
+import { provisionStandardRoles, grantRowsFor } from "@/lib/standardRolesServer";
+import { STANDARD_ROLE_BY_KEY } from "@/lib/standardRoles";
 
 const VALID_WORKCENTERS = new Set<string>(WORKCENTERS.map((w) => w.key));
 
@@ -59,9 +62,16 @@ export async function GET() {
     return NextResponse.json({ roles: [] });
   }
 
+  // Materialise any standard roles this tenant doesn't have yet. Idempotent,
+  // best-effort, and never updates an existing one -- see
+  // provisionStandardRoles. Uses the admin client because RLS on
+  // business_roles is tenant-isolation-only and the session client can't
+  // insert for a tenant the caller is merely a member of.
+  await provisionStandardRoles(createAdminSupabase(), tenantId);
+
   const { data: roles, error } = await supabase
     .from("business_roles")
-    .select("id, name, description, created_at")
+    .select("id, name, description, created_at, template_key, is_standard")
     .eq("tenant_id", tenantId)
     .order("name", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -97,24 +107,79 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
+
+  // Duplicate mode: { duplicate_of: <role id> } copies an existing role --
+  // the supported way to customise a standard role, which is itself locked
+  // so the catalog stays safely re-syncable (BUSINESS_ROLES_STANDARD_MAP.md
+  // §2). The copy is a normal editable role: is_standard false, no
+  // template_key.
+  if (typeof body.duplicate_of === "string" && body.duplicate_of) {
+    const { data: source } = await supabase
+      .from("business_roles")
+      .select("id, name, description, template_key")
+      .eq("id", body.duplicate_of)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (!source) return NextResponse.json({ error: "Role not found" }, { status: 404 });
+
+    const { data: sourceGrants } = await supabase
+      .from("business_role_grants")
+      .select("workcenter, can_view, can_create, can_edit, can_delete, data_scope, territories")
+      .eq("tenant_id", tenantId)
+      .eq("role_id", source.id);
+
+    const copyName = await uniqueName(supabase, tenantId, (body.name ?? `${source.name} (copy)`).trim());
+    const { data: created, error } = await supabase
+      .from("business_roles")
+      .insert({ tenant_id: tenantId, name: copyName, description: source.description })
+      .select("id, name, description, created_at, template_key, is_standard")
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const rows = (sourceGrants ?? []).map((g) => ({ ...g, tenant_id: tenantId, role_id: created.id }));
+    if (rows.length > 0) {
+      const { error: gErr } = await supabase.from("business_role_grants").insert(rows);
+      if (gErr) return NextResponse.json({ error: gErr.message }, { status: 500 });
+    }
+    return NextResponse.json({ ...created, grants: rows }, { status: 201 });
+  }
+
   const name = (body.name ?? "").trim();
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
   const { data: created, error } = await supabase
     .from("business_roles")
     .insert({ tenant_id: tenantId, name, description: body.description || null })
-    .select("id, name, description, created_at")
+    .select("id, name, description, created_at, template_key, is_standard")
     .single();
   if (error) {
     if (error.code === "23505") return NextResponse.json({ error: "A role with this name already exists" }, { status: 409 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const grantRows = sanitizeGrants(body.grants, tenantId, created.id);
+  // A brand-new role can optionally be seeded from a catalog template
+  // (Roles page "start from a standard role" path) instead of client-sent
+  // grants, so the catalog stays the single source of truth for those.
+  const template = typeof body.from_template === "string" ? STANDARD_ROLE_BY_KEY.get(body.from_template) : undefined;
+  const grantRows = template
+    ? grantRowsFor(template, tenantId, created.id)
+    : sanitizeGrants(body.grants, tenantId, created.id);
   if (grantRows.length > 0) {
     const { error: gErr } = await supabase.from("business_role_grants").insert(grantRows);
     if (gErr) return NextResponse.json({ error: gErr.message }, { status: 500 });
   }
 
   return NextResponse.json({ ...created, grants: grantRows }, { status: 201 });
+}
+
+/** Appends " 2", " 3", ... until the name is free for this tenant. */
+async function uniqueName(supabase: SupabaseClient, tenantId: string, base: string): Promise<string> {
+  const { data } = await supabase.from("business_roles").select("name").eq("tenant_id", tenantId);
+  const taken = new Set((data ?? []).map((r) => (r.name as string).toLowerCase()));
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let i = 2; i < 100; i++) {
+    const candidate = `${base} ${i}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+  return `${base} ${Date.now()}`;
 }

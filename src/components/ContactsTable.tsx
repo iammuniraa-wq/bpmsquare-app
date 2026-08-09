@@ -8,6 +8,7 @@ import { cardStyle as shellCardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { CheckIcon, XIcon, Phone, Mail } from "@/components/Icons";
 import type { PillarKey } from "@/lib/theme";
+import { sortRows, type SortExtractor } from "@/lib/listSort";
 
 const ACCOUNT_TYPE_LABEL: Record<Account["type"], string> = {
   prospect: "Prospect", oem: "OEM", direct: "Direct", end_customer: "End customer",
@@ -42,6 +43,16 @@ interface Row { contact: Contact; account: Account }
 
 interface Props { rows: Row[] }
 
+const SORT_EXTRACTORS: Record<string, SortExtractor<Row>> = {
+  ref: (r) => r.contact.ref,
+  name: (r) => r.contact.name,
+  account: (r) => r.account.name,
+  role: (r) => r.contact.role,
+  phone: (r) => r.contact.phone,
+  email: (r) => r.contact.email,
+  acct_type: (r) => r.account.type,
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ContactsTable({ rows }: Props) {
@@ -49,6 +60,22 @@ export default function ContactsTable({ rows }: Props) {
     new Set(COLUMNS.filter((c) => c.defaultOn).map((c) => c.id))
   );
   const [adaptOpen, setAdaptOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+
+  function sortIndicator(key: string) {
+    const active = sortKey === key;
+    return (
+      <span style={{ fontSize: 9, opacity: active ? 1 : 0.35, color: active ? c.accent : "inherit", marginLeft: 4 }}>
+        {active ? (sortDir === "desc" ? "↓" : "↑") : "↕"}
+      </span>
+    );
+  }
 
   useEffect(() => {
     try {
@@ -67,6 +94,7 @@ export default function ContactsTable({ rows }: Props) {
   }
 
   const visibleDefs = COLUMNS.filter((col) => visibleCols.has(col.id));
+  const sortedRows = sortRows(rows, sortKey, sortDir, SORT_EXTRACTORS);
 
   if (rows.length === 0) {
     return (
@@ -108,16 +136,18 @@ export default function ContactsTable({ rows }: Props) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-              <th style={{ ...th, width: 88 }}>ID</th>
-              <th style={th}>Name</th>
+              <th style={{ ...th, width: 88, cursor: "pointer" }} onClick={() => toggleSort("ref")}>ID{sortIndicator("ref")}</th>
+              <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("name")}>Name{sortIndicator("name")}</th>
               {visibleDefs.map((col) => (
-                <th key={col.id} style={th}>{col.label}</th>
+                <th key={col.id} style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort(col.id)}>
+                  {col.label}{sortIndicator(col.id)}
+                </th>
               ))}
               <th style={{ ...th, width: 60 }}></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ contact, account }) => {
+            {sortedRows.map(({ contact, account }) => {
               const tone = TYPE_TONE[account.type];
               const p = pillar[tone];
               return (

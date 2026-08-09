@@ -9,7 +9,7 @@ import { cardStyle } from "@/components/Shell";
 import { useUiTheme } from "@/lib/tenant-context";
 import { ROUTES } from "@/lib/constants";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
-import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText } from "@/components/Icons";
+import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText, Clock } from "@/components/Icons";
 import type { AnalyticsData } from "@/lib/data/labels";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -74,6 +74,8 @@ const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof
   quote_outcomes:          { label: "Quote won/lost value" },
   quote_overdue:           { label: "Quote overdue" },
   quote_source:            { label: "Quote source (cases vs standalone)" },
+  wfm_attendance_today:    { label: "Attendance by site (today)", feature: "wfm" },
+  wfm_night_shift_cost:    { label: "Night shift cost (today)",   feature: "wfm" },
 };
 
 const DEFAULT_LAYOUT: DashLayoutItem[] = [
@@ -582,16 +584,33 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
     case "recent_activity":  return <AnalyticsCard title="Recent activity" href={ROUTES.accounts}><div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{a.recentActivity.slice(0, 4).map((act, i) => (<div key={i} style={{ fontSize: 11, color: c.muted, borderLeft: `2px solid ${ledger.accentSoft}`, paddingLeft: 9 }}><div style={{ color: c.ink }}>{act.text}</div><div style={{ fontSize: 10, color: c.hint, marginTop: 1 }}>{act.accountName} · {fmtDate(act.at)}</div></div>))}</div></AnalyticsCard>;
     case "account_news":     return <AnalyticsCard title="Client news" href={ROUTES.accounts}><AccountNewsList items={a.accountNews} /></AnalyticsCard>;
     case "quote_outcomes": {
-      const { open, won, lost } = a.quoteOutcomeTotals;
+      const { open, won, lost, dropped } = a.quoteOutcomeTotals;
       const rows = [
-        { label: "Won",  value: won,  valueLabel: inr(won) },
-        { label: "Lost", value: lost, valueLabel: inr(lost) },
-        { label: "Open", value: open, valueLabel: inr(open) },
+        { label: "Won",     value: won,     valueLabel: inr(won) },
+        { label: "Lost",    value: lost,    valueLabel: inr(lost) },
+        { label: "Dropped", value: dropped, valueLabel: inr(dropped) },
+        { label: "Open",    value: open,    valueLabel: inr(open) },
       ];
-      return <AnalyticsCard title="Quote won/lost value" href={ROUTES.quotations}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.blue.base][i]} /></AnalyticsCard>;
+      return <AnalyticsCard title="Quote outcome value" href={ROUTES.quotations}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.amber.base, pillar.blue.base][i]} /></AnalyticsCard>;
     }
     case "quote_overdue": return <AnalyticsCard title="Quote overdue" href={ROUTES.quotations}><StatTile value={a.quoteOverdueCount} label="Overdue quotes" icon={<AlertTriangle size={14} color={ledger.accent} />} href={ROUTES.quotations} /></AnalyticsCard>;
     case "quote_source": return <AnalyticsCard title="Quote source" href={ROUTES.quotations}><div style={{ display: "flex" }}><StatTile value={a.quoteSource.caseLinked.count} label="From cases" icon={<Wrench size={14} color={ledger.accent} />} href={ROUTES.quotations} /><StatTile value={a.quoteSource.standalone.count} label="Standalone" icon={<FileText size={14} color={ledger.accent} />} href={ROUTES.quotations} /></div></AnalyticsCard>;
+    case "wfm_attendance_today": {
+      const onTime = a.wfmAttendanceBySite.reduce((s, x) => s + x.onTime, 0);
+      const late = a.wfmAttendanceBySite.reduce((s, x) => s + x.late, 0);
+      const absent = a.wfmAttendanceBySite.reduce((s, x) => s + x.absent, 0);
+      return <AnalyticsCard title="Attendance today" href={ROUTES.wfmLiveBoard}>
+        <MiniHBar
+          rows={[
+            { label: "On time", value: onTime },
+            { label: "Late",    value: late },
+            { label: "Absent",  value: absent },
+          ]}
+          colorFn={(i) => [pillar.green.base, pillar.amber.base, pillar.red.base][i]}
+        />
+      </AnalyticsCard>;
+    }
+    case "wfm_night_shift_cost": return <AnalyticsCard title="Night shift cost" href={ROUTES.wfmLiveBoard}><StatTile value={a.wfmNightShiftCost.count} label={`On night shift (${inr(a.wfmNightShiftCost.amount)})`} icon={<Clock size={14} color={ledger.accent} />} href={ROUTES.wfmLiveBoard} /></AnalyticsCard>;
     default: return null;
   }
 }
