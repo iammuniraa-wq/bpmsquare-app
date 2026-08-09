@@ -27,7 +27,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { data } = await supabase
     .from("quotes")
-    .select("id, ref, status, revision, created_at")
+    .select("id, ref, status, revision, created_at, superseded_by")
     .eq("tenant_id", tenantId)
     .like("ref", `${baseRef}%`)
     .order("revision", { ascending: true });

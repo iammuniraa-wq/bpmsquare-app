@@ -64,6 +64,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   const { data: before } = await loadQuote(supabase, id, tenantId);
   if (!before) return jsonError(404, "Quotation not found");
+  if (before.superseded_by) return jsonError(409, "This version has been superseded and is read-only -- edit the latest version instead.");
 
   const relErr = await verifyQuoteRelations(supabase, tenantId, header.values, linesGiven ? lines.values : undefined);
   if (relErr) return jsonError(404, relErr);

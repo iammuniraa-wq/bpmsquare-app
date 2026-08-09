@@ -100,6 +100,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .select("*")
     .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!before) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+  if (before.superseded_by) {
+    return NextResponse.json({ error: "This version has been superseded and is read-only -- edit the latest version instead." }, { status: 409 });
+  }
 
   // Status (pipeline position) and outcome (won/lost/dropped/open) are
   // independent fields -- see applyDateProfile in quoteService.ts for the one

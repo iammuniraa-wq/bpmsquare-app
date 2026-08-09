@@ -169,6 +169,10 @@ const QUOTE_FIELDS: FieldDef[] = [
     description: "subtotal − header discount − material deductions, where subtotal counts only effective lines (unselected alternative groups excluded). Pre-tax. Always recalculated server-side on create and on any update that touches lines or discounts.",
   },
   { key: "revision", type: "integer", label: "Revision", readOnly: true, description: "Revision number. Starts at 1." },
+  {
+    key: "superseded_by", type: "string", label: "Superseded by", readOnly: true,
+    description: "Id of the version that replaced this one, if any. Null means this is the current/latest version. A non-null row is read-only -- every write to it returns 409.",
+  },
   { key: "created_at", type: "datetime", label: "Created at", readOnly: true, description: "When the record was created. Distinct from quote_date, which is the business date you control." },
 ];
 

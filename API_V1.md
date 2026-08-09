@@ -145,16 +145,25 @@ thousand rows.
 **Foreign ids are tenant-checked.** `account_id`, `contact_id`, `asset_ids` and
 `inventory_item_id` must belong to your tenant, or the request is `404`.
 
-**`status` and `outcome` are independent fields — with one rule tying them
+**`status` and `outcome` are independent fields — with two rules tying them
 together.** `status` is your tenant's pipeline position (Settings → Quote
 statuses — entirely tenant-configurable, so it's validated dynamically, not
 against a fixed list; an unrecognized value is `422`). `outcome` is the
 business result — `open` / `won` / `lost` / `dropped` — and is never
-auto-derived from status. The one rule: a status marked "closed" in Settings
-can never coexist with `outcome: "open"`. Moving `status` to a closed value
+auto-derived from status. Rule one: a status marked "closed" in Settings can
+never coexist with `outcome: "open"`. Moving `status` to a closed value
 requires `outcome` to already be decided or set in the same request; moving
 `status` off a closed value resets `outcome` back to `open` unless you send
-one explicitly. Violating this is a `422`.
+one explicitly. Rule two: `status: "rejected"` and `outcome: "won"` can never
+coexist on the same quotation, in either order. Violating either is a `422`.
+
+**A superseded quotation is read-only.** Creating a new version (in-app
+"Create new version") locks the version it was created from — `superseded_by`
+on that row is set to the new version's id, and every further write to it
+(`PATCH` here, the in-app edit page) is rejected with `409` regardless of its
+`status`. `superseded_by` is `null` for the current/latest version in a
+revision chain. There is no v1 endpoint to create a version; do it from the
+app, or `GET` the quotation to find the current version via `superseded_by`.
 
 **Line ordering is natural, not lexicographic.** `sl_no` is text (so `"1a"` and
 `"2.10"` work), but reads sort it numerically — `1, 2, 10`, not `1, 10, 2`.
