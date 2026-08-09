@@ -18,7 +18,7 @@ filters/charts/theming pass. Fully covered by `MERGE_PLAN_develop_to_main.md` on
 smoke-test checklist that explicitly checks "log in as a Vikas user, navigation is
 exactly as before." That document is thorough and correct; nothing here overrides it.
 
-**B. `claude/new-session-2cctvi` → `develop` (this session, 3 commits, not yet
+**B. `claude/new-session-2cctvi` → `develop` (this session, 4 commits, not yet
 pushed).** Quote status/outcome redesign + status-schema-engine Batch 0. Never went
 through the standing convention (work branch → push → security review → ff-merge to
 develop → promote to main) — it's sitting local-only. This addendum is about getting
@@ -84,13 +84,32 @@ pipeline, not the code default.)
   previously just worked.
 - This is explicitly what you flagged as "(except status schema)" — I'm not blocking on
   it, just making sure it's a known, specific, verified fact rather than a hidden
-  surprise. Two ways to close it, your call:
-  1. **Ship as-is** and tell Vikas: closing a quote now requires picking Won/Lost/Dropped
-     first (the `OutcomeChanger` control already exists on the same page).
-  2. **Small follow-up** (not done, ~1 file): have `StatusChanger` detect "moving to a
-     closed status with outcome still open" and prompt for the outcome inline instead of
-     round-tripping to a 400. I'd size this as small if you want it before this reaches
-     Vikas specifically.
+  surprise.
+
+**Decision: config-only fix, no code change.** Settings → Statuses already has a
+self-serve "Closed" checkbox per status (built this session). Unchecking it on "PO
+Received" for Vikas means the new closing-requires-an-outcome check never fires for
+that status — it stops being treated as closed at all.
+
+**Operational step, not a code/migration step:** after this reaches production, open
+Settings → Statuses as the Vikas tenant (or as platform admin impersonating it) and
+uncheck "Closed" on "PO Received," then Save. Do this **before** telling Vikas the
+release is live, or the first user to move a quote there hits the 400 in the window
+between deploy and the toggle.
+
+**Accepted trade-offs of this choice** (spelling out what changes, so it isn't
+rediscovered later):
+- "PO Received" quotes stop being edit-locked — `QuoteEditPanel`'s lock is driven by
+  the same `is_closed` flag. Previously locked, now editable indefinitely.
+- Outcome is never auto-set to "won" for these quotes (that auto-derivation is gone in
+  this session's redesign regardless of the checkbox — no config toggle can bring it
+  back). If nobody clicks the separate Outcome pill by hand, `quoteOutcomeTotals` (the
+  dashboard/reports "won value" tile, driven by `outcome`, not `status`) will
+  under-report Vikas's actual won revenue.
+- Net effect: "PO Received" becomes a purely informational label with no locking or
+  outcome semantics, functionally equivalent to "Pending" except for the name. Worth
+  a one-line heads-up to Vikas so they know to use the Outcome pill if they still want
+  won/lost tracked.
 
 ## 5. Merge sequence (what actually needs to happen, in order)
 
@@ -103,19 +122,21 @@ pipeline, not the code default.)
    **before** any deploy) now additionally includes **0068–0070** at the end of that
    same batch (all additive, same "migrations first, deploy second" rule applies).
 3. **Deploy `main`** per that plan's Step 3.
-4. **Post-deploy smoke test** — the existing checklist (§4 Step 4) already checks "log
-   in as a Vikas user, navigation is exactly as before." Add one line specific to this
-   addendum: **open an existing Vikas quote and move it through its full status
-   pipeline once (Draft → Pending → PO Received), setting an outcome when prompted** —
-   this is the one behavior change in this whole release that isn't covered by the
-   existing smoke test.
+4. **Immediately after deploy, before announcing anything to Vikas:** Settings →
+   Statuses (as the Vikas tenant / platform admin impersonating it) → uncheck "Closed"
+   on "PO Received" → Save. This is the §4 fix — a UI action, not a migration step, but
+   it belongs in the release sequence, not as an afterthought.
+5. **Post-deploy smoke test** — the existing checklist (§4 Step 4 of
+   `MERGE_PLAN_develop_to_main.md`) already checks "log in as a Vikas user, navigation
+   is exactly as before." Add one line specific to this addendum: **open an existing
+   Vikas quote and move it to "PO Received"; confirm it succeeds with no error** (this
+   is what step 4 above is verifying actually took effect).
 
 ## 6. Still open before pushing
 
-- [ ] Security review of this branch's 3 commits (per the standing per-build cadence —
+- [ ] Security review of this branch's 4 commits (per the standing per-build cadence —
       not yet run this session on this work).
-- [ ] Decide §4's two options (ship as-is + tell Vikas, or the small `StatusChanger`
-      UX follow-up) before this reaches Vikas specifically.
 - [ ] Confirm Vikas's *current live* `quote_statuses` (not just the 0031 seed) with a
       quick read against production, same spirit as the existing plan's "confirm 0064–
-      0067 already applied to staging" checklist item.
+      0067 already applied to staging" checklist item — in particular confirm "PO
+      Received" is still the value/label in use today before relying on §4's steps.
