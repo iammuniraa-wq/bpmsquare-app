@@ -1,10 +1,10 @@
-"use client";
-
 import Link from "next/link";
 import { ROUTES } from "@/lib/constants";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useUserRole } from "@/lib/tenant-context";
+import { requireTenantUser } from "@/lib/supabase-server";
+import { resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
+import type { WorkcenterKey } from "@/lib/workcenters";
 
 // ── Settings hub — a menu of destinations, not a growing list of tabs ───────
 //
@@ -19,6 +19,13 @@ type SettingsCard = {
   icon: string;
   pillarKey: PillarKey;
   adminOnly: boolean;
+  /** For an adminOnly tile: also reachable by a non-admin whose Business
+   * Role(s) grant EDIT on this workcenter -- e.g. a Sales Admin can
+   * configure quote statuses without the tenant-wide admin flag. Omitted
+   * for surfaces that stay strictly admin-only (workspace-wide config, or
+   * audit-sensitive data not scoped to one object family: Team, Deleted
+   * records, Connectors). */
+  relatedWorkcenter?: WorkcenterKey;
 };
 
 const SECTIONS: { group: string; items: SettingsCard[] }[] = [
@@ -32,15 +39,15 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
   {
     group: "Sales & service setup",
     items: [
-      { label: "Entities & Tax", description: "Legal entities, print branding, and tax settings for quotations and PDFs", href: ROUTES.settingsEntities, icon: "⌂", pillarKey: "teal", adminOnly: true },
-      { label: "Statuses & assets", description: "Configure pipeline stages and equipment print fields", href: ROUTES.settingsStatuses, icon: "▦", pillarKey: "teal", adminOnly: true },
-      { label: "Sales config", description: "Manage territory and sales org picklist values", href: ROUTES.settingsSales, icon: "▤", pillarKey: "teal", adminOnly: true },
+      { label: "Entities & Tax", description: "Legal entities, print branding, and tax settings for quotations and PDFs", href: ROUTES.settingsEntities, icon: "⌂", pillarKey: "teal", adminOnly: true, relatedWorkcenter: "quotations" },
+      { label: "Statuses & assets", description: "Configure pipeline stages and equipment print fields", href: ROUTES.settingsStatuses, icon: "▦", pillarKey: "teal", adminOnly: true, relatedWorkcenter: "quotations" },
+      { label: "Sales config", description: "Manage territory and sales org picklist values", href: ROUTES.settingsSales, icon: "▤", pillarKey: "teal", adminOnly: true, relatedWorkcenter: "quotations" },
     ],
   },
   {
     group: "Content & data",
     items: [
-      { label: "Email templates", description: "Subject and body pairs your team can pick between when emailing a quote", href: ROUTES.settingsEmailTemplates, icon: "✉", pillarKey: "purple", adminOnly: true },
+      { label: "Email templates", description: "Subject and body pairs your team can pick between when emailing a quote", href: ROUTES.settingsEmailTemplates, icon: "✉", pillarKey: "purple", adminOnly: true, relatedWorkcenter: "quotations" },
       { label: "Pricing catalogue", description: "Standard rates for labour, materials, testing and transport", href: ROUTES.configPricing, icon: "₹", pillarKey: "amber", adminOnly: false },
       { label: "Text templates", description: "Saved snippets for line items, notes and terms", href: ROUTES.configTemplates, icon: "❑", pillarKey: "amber", adminOnly: false },
       { label: "Custom fields", description: "Add fields to any object — included automatically in the API and MCP", href: ROUTES.configCustomFields, icon: "✦", pillarKey: "amber", adminOnly: false },
@@ -84,9 +91,12 @@ function SettingsTile({ item }: { item: SettingsCard }) {
   );
 }
 
-export default function SettingsHubPage() {
-  const role = useUserRole();
+export default async function SettingsHubPage() {
+  const { supabase, tenantId, userId, role } = await requireTenantUser();
+  const perms = await resolvePermissions(supabase, tenantId, userId, role);
   const isAdmin = role === "admin";
+  const canReach = (item: SettingsCard) =>
+    !item.adminOnly || isAdmin || (item.relatedWorkcenter ? canEditWorkcenter(perms, item.relatedWorkcenter) : false);
 
   return (
     <div style={{ maxWidth: 780 }}>
@@ -98,7 +108,7 @@ export default function SettingsHubPage() {
       </div>
 
       {SECTIONS.map((section) => {
-        const items = section.items.filter((i) => !i.adminOnly || isAdmin);
+        const items = section.items.filter(canReach);
         if (items.length === 0) return null;
         return (
           <div key={section.group} style={{ marginBottom: 22 }}>

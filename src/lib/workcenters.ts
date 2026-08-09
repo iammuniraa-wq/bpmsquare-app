@@ -7,7 +7,7 @@ export type WorkcenterKey =
   | "cases" | "amc" | "work_orders" | "dispatch" | "technicians"
   | "marketing" | "marketing_segments" | "leads" | "partners"
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
-  | "reports" | "data_workbench" | "administration";
+  | "reports" | "data_workbench" | "administration" | "wfm";
 
 /**
  * territoryScopable marks the workcenters backed by an object that actually
@@ -41,6 +41,11 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string; territoryScopable
   { key: "reports", label: "Analytics" },
   { key: "data_workbench", label: "Data Workbench" },
   { key: "administration", label: "Administrator" },
+  // No WFM module/pages exist on this branch yet (develop has one, not yet
+  // merged) -- kept here anyway so the WFM standard roles (see
+  // standardRoles.ts) have a real grant target, forward-compatible with
+  // that eventual merge rather than a second addition later.
+  { key: "wfm", label: "Workforce" },
 ];
 
 /** "all" = unrestricted (admins, and members with no Business Role

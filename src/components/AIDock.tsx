@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 
 type Msg = { from: "bot" | "me"; text: string };
@@ -9,6 +9,12 @@ const STARTER: Msg = {
   from: "bot",
   text: "This is a preview of where your AI assistant will live — ask it something and it'll reply once it's wired up to your real data.",
 };
+
+// Per-user, per-browser preference -- separate from the tenant-level
+// ai_assistant feature flag (Shell only mounts this component when that's
+// on). A tenant can offer the assistant while an individual user still
+// hides the launcher for themselves, same pattern as bms_nextgen_dark etc.
+const ENABLED_KEY = "bms_ai_dock_enabled";
 
 /** Reserved AI-agent surface for the "modern" theme direction -- a
  * persistent bottom-right launcher that expands into a chat panel.
@@ -20,6 +26,22 @@ export default function AIDock() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([STARTER]);
   const [draft, setDraft] = useState("");
+  const [enabled, setEnabled] = useState(true);
+
+  useEffect(() => {
+    try {
+      setEnabled(localStorage.getItem(ENABLED_KEY) !== "0");
+    } catch { /* ignore */ }
+  }, []);
+
+  function toggleEnabled() {
+    setEnabled((v) => {
+      const next = !v;
+      try { localStorage.setItem(ENABLED_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      if (!next) setOpen(false);
+      return next;
+    });
+  }
 
   function sendMessage() {
     const text = draft.trim();
@@ -35,31 +57,53 @@ export default function AIDock() {
   return (
     <>
       <button
-        onClick={() => setOpen((v) => !v)}
-        aria-label={open ? "Close assistant" : "Open assistant"}
+        onClick={toggleEnabled}
+        aria-label={enabled ? "Turn off AI assistant" : "Turn on AI assistant"}
+        title={enabled ? "Turn off AI assistant" : "Turn on AI assistant"}
         style={{
-          position: "fixed", right: 22, bottom: 22, zIndex: 300,
-          width: 52, height: 52, borderRadius: "50%", border: "none", cursor: "pointer",
-          background: "var(--tenant-accent, #1e3a6e)", color: "#fff",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 10px 26px rgba(0,0,0,.25)",
+          position: "fixed", right: 22, bottom: 22, zIndex: 301,
+          width: 40, height: 22, borderRadius: 11, cursor: "pointer",
+          border: "1px solid var(--line)",
+          background: enabled ? "var(--tenant-accent, #1e3a6e)" : "var(--panel2)",
+          padding: 2, display: "flex", justifyContent: enabled ? "flex-end" : "flex-start",
+          boxShadow: "0 4px 12px rgba(0,0,0,.18)",
         }}
       >
-        {!open && (
-          <span style={{
-            position: "absolute", inset: -4, borderRadius: "50%",
-            border: "2px solid var(--tenant-accent, #1e3a6e)", opacity: 0.35,
-            animation: "vvcrm-pulse-ring 2.2s ease-out infinite",
-          }} />
-        )}
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2 L14.2 8.8 L21 11 L14.2 13.2 L12 20 L9.8 13.2 L3 11 L9.8 8.8 Z" />
-        </svg>
+        <span style={{
+          width: 16, height: 16, borderRadius: "50%",
+          background: enabled ? "#fff" : "var(--muted)",
+          transition: "none",
+        }} />
       </button>
 
-      {open && (
+      {enabled && (
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-label={open ? "Close assistant" : "Open assistant"}
+          style={{
+            position: "fixed", right: 22, bottom: 60, zIndex: 300,
+            width: 52, height: 52, borderRadius: "50%", border: "none", cursor: "pointer",
+            background: "var(--tenant-accent, #1e3a6e)", color: "#fff",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 10px 26px rgba(0,0,0,.25)",
+          }}
+        >
+          {!open && (
+            <span style={{
+              position: "absolute", inset: -4, borderRadius: "50%",
+              border: "2px solid var(--tenant-accent, #1e3a6e)", opacity: 0.35,
+              animation: "vvcrm-pulse-ring 2.2s ease-out infinite",
+            }} />
+          )}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2 L14.2 8.8 L21 11 L14.2 13.2 L12 20 L9.8 13.2 L3 11 L9.8 8.8 Z" />
+          </svg>
+        </button>
+      )}
+
+      {enabled && open && (
         <div style={{
-          position: "fixed", right: 22, bottom: 86, zIndex: 300,
+          position: "fixed", right: 22, bottom: 124, zIndex: 300,
           width: 320, maxHeight: 440, display: "flex", flexDirection: "column",
           background: "var(--card-bg, #fff)", border: "1px solid var(--line)",
           borderRadius: "var(--card-radius, 10px)", boxShadow: "0 24px 60px rgba(10,15,25,.28)",

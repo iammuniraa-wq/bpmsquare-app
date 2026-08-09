@@ -45,8 +45,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const { id } = await params;
-  const { data: existing } = await supabase.from("business_roles").select("id").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: existing } = await supabase.from("business_roles").select("id, is_standard").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!existing) return NextResponse.json({ error: "Role not found" }, { status: 404 });
+  if (existing.is_standard) {
+    return NextResponse.json({ error: "Standard roles can't be edited — duplicate it to customise." }, { status: 403 });
+  }
 
   const body = await request.json();
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -91,6 +94,12 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   }
 
   const { id } = await params;
+  const { data: existing } = await supabase.from("business_roles").select("id, is_standard").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  if (!existing) return NextResponse.json({ error: "Role not found" }, { status: 404 });
+  if (existing.is_standard) {
+    return NextResponse.json({ error: "Standard roles can't be deleted." }, { status: 403 });
+  }
+
   const { error } = await supabase.from("business_roles").delete().eq("id", id).eq("tenant_id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

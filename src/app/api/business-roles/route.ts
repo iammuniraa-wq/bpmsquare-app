@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { WORKCENTERS, type WorkcenterKey } from "@/lib/permissions";
+import { provisionStandardRoles } from "@/lib/standardRolesServer";
 
 const VALID_WORKCENTERS = new Set<string>(WORKCENTERS.map((w) => w.key));
 
@@ -59,9 +60,15 @@ export async function GET() {
     return NextResponse.json({ roles: [] });
   }
 
+  // Best-effort: materialise any standard-role templates this tenant is
+  // still missing (new tenant, or a template added since they last loaded
+  // this page). Never blocks the response on failure -- see
+  // provisionStandardRoles' own doc comment.
+  await provisionStandardRoles(createAdminSupabase(), tenantId);
+
   const { data: roles, error } = await supabase
     .from("business_roles")
-    .select("id, name, description, created_at")
+    .select("id, name, description, template_key, is_standard, created_at")
     .eq("tenant_id", tenantId)
     .order("name", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -103,7 +110,7 @@ export async function POST(request: NextRequest) {
   const { data: created, error } = await supabase
     .from("business_roles")
     .insert({ tenant_id: tenantId, name, description: body.description || null })
-    .select("id, name, description, created_at")
+    .select("id, name, description, template_key, is_standard, created_at")
     .single();
   if (error) {
     if (error.code === "23505") return NextResponse.json({ error: "A role with this name already exists" }, { status: 409 });

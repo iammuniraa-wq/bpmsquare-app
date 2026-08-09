@@ -10,7 +10,7 @@ import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
-import { useTenant, useUiTheme } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useTenantFeature } from "@/lib/tenant-context";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 // Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
@@ -168,6 +168,7 @@ function DarkToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void })
 export default function Shell({ children }: { children: React.ReactNode }) {
   const [mobile, setMobile] = useState(false);
   const uiTheme = useUiTheme();
+  const aiAllowed = useTenantFeature("ai_assistant") && uiTheme !== "classic";
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -208,7 +209,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <DarkToggle dark={dark} onToggle={toggleDark} />
             </div>
           )}
-          {uiTheme !== "classic" && <AIDock />}
+          {aiAllowed && <AIDock />}
         </div>
       </TabsProvider>
     );
@@ -235,7 +236,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {children}
           </main>
         </div>
-        {uiTheme !== "classic" && <AIDock />}
+        {aiAllowed && <AIDock />}
       </div>
     </TabsProvider>
   );
