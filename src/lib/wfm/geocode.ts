@@ -67,3 +67,56 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeR
     return { status: "unavailable", reason };
   }
 }
+
+export type ForwardGeocodeResult =
+  /** Provider found a coordinate for that address. */
+  | { status: "ok"; lat: number; lng: number; formatted_address: string }
+  /** Provider answered but found nothing for that text. */
+  | { status: "empty" }
+  /** Not configured, or the call failed. */
+  | { status: "unavailable"; reason: string };
+
+/**
+ * Resolve free-text (an address, a place name) to a coordinate -- the
+ * inverse of reverseGeocode(). Used by the site-picker so an admin can type
+ * an address instead of hunting for it on the map; the returned point is
+ * always shown as a draggable pin so it can still be fine-tuned, since a
+ * geocoder's idea of "the building" and the actual gate/entrance can differ
+ * by tens of metres. Never throws, same contract as reverseGeocode.
+ */
+export async function forwardGeocode(address: string): Promise<ForwardGeocodeResult> {
+  const key = process.env.OLA_MAPS_API_KEY;
+  if (!key) return { status: "unavailable", reason: "OLA_MAPS_API_KEY is not set" };
+  const q = address.trim();
+  if (!q) return { status: "unavailable", reason: "Empty address" };
+
+  const url =
+    `https://api.olamaps.io/places/v1/geocode` +
+    `?address=${encodeURIComponent(q)}&api_key=${encodeURIComponent(key)}`;
+
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) {
+      return { status: "unavailable", reason: `Ola Maps returned ${res.status}` };
+    }
+    const json = (await res.json()) as {
+      geocodingResults?: { formatted_address?: string; geometry?: { location?: { lat?: number; lng?: number } } }[];
+      results?: { formatted_address?: string; geometry?: { location?: { lat?: number; lng?: number } } }[];
+    };
+
+    // Parsed leniently, same caveat as reverseGeocode: Ola's geocode shape
+    // wasn't verifiable against a live key from here, so both its own
+    // documented field name and the Google-compatible fallback are tried.
+    const first = json.geocodingResults?.[0] ?? json.results?.[0];
+    const lat = first?.geometry?.location?.lat;
+    const lng = first?.geometry?.location?.lng;
+    if (typeof lat !== "number" || typeof lng !== "number") return { status: "empty" };
+    return { status: "ok", lat, lng, formatted_address: (first?.formatted_address || q).trim() };
+  } catch (e) {
+    const reason = e instanceof Error && e.name === "TimeoutError" ? "Ola Maps timed out" : "Could not reach Ola Maps";
+    return { status: "unavailable", reason };
+  }
+}

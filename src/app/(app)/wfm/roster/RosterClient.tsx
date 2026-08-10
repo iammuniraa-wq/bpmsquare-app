@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
-import type { WfmShift } from "@/lib/wfm/types";
+import type { WfmShift, WfmSite } from "@/lib/wfm/types";
 
 type EmployeeRow = {
   id: string;
@@ -12,6 +12,7 @@ type EmployeeRow = {
   last_name: string;
   employee_code: string | null;
   shift_id: string | null;
+  site_id: string | null;
   status: string;
 };
 
@@ -33,11 +34,13 @@ function one<T>(v: T | T[] | null | undefined): T | null {
 }
 
 const UPCOMING_DAYS = 30;
+const UNASSIGNED = "__unassigned__";
 
 const lbl: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 };
 const inp: React.CSSProperties = { padding: "8px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box" };
 const th: React.CSSProperties = { textAlign: "left", color: c.hint, fontWeight: 500, padding: "9px 10px", borderBottom: `1px solid ${c.line}`, fontSize: 11.5, whiteSpace: "nowrap" };
 const thCenter: React.CSSProperties = { ...th, textAlign: "center" };
+const thGroup: React.CSSProperties = { ...thCenter, borderBottom: "none", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: c.hint, paddingBottom: 4 };
 const td: React.CSSProperties = { padding: "8px 10px", borderBottom: `1px solid ${c.line}`, fontSize: 12.5, verticalAlign: "middle" };
 const tdCenter: React.CSSProperties = { ...td, textAlign: "center" };
 const btn: React.CSSProperties = { padding: "7px 12px", fontSize: 12, fontWeight: 600, borderRadius: 8, border: `1px solid ${c.line}`, background: c.panel, color: c.ink, cursor: "pointer" };
@@ -64,18 +67,22 @@ function dateRange(from: string, to: string): string[] {
 export default function RosterClient() {
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [shifts, setShifts] = useState<WfmShift[]>([]);
+  const [sites, setSites] = useState<WfmSite[]>([]);
   const [overrides, setOverrides] = useState<OverrideRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // ── Section A: standing shifts (bulk matrix) ─────────────────────────
+  // ── Section A: standing site + shift (bulk matrix) ────────────────────
   const [searchA, setSearchA] = useState("");
-  const [pending, setPending] = useState<Map<string, string | null>>(new Map());
+  const [siteFilterA, setSiteFilterA] = useState("");
+  const [pendingShift, setPendingShift] = useState<Map<string, string | null>>(new Map());
+  const [pendingSite, setPendingSite] = useState<Map<string, string | null>>(new Map());
   const [savingA, setSavingA] = useState(false);
   const [okA, setOkA] = useState("");
 
   // ── Section B: temporary overrides ───────────────────────────────────
   const [searchB, setSearchB] = useState("");
+  const [siteFilterB, setSiteFilterB] = useState("");
   const [selectedB, setSelectedB] = useState<Set<string>>(new Set());
   const [fromDate, setFromDate] = useState(todayKey());
   const [toDate, setToDate] = useState(todayKey());
@@ -91,13 +98,15 @@ export default function RosterClient() {
     rangeEnd.setDate(rangeEnd.getDate() + UPCOMING_DAYS);
     const rangeEndKey = rangeEnd.toISOString().slice(0, 10);
 
-    const [empRes, shiftRes, ovRes] = await Promise.all([
+    const [empRes, shiftRes, siteRes, ovRes] = await Promise.all([
       fetch("/api/wfm/employees"),
       fetch("/api/wfm/shifts"),
+      fetch("/api/wfm/sites"),
       fetch(`/api/wfm/roster?from=${from}&to=${rangeEndKey}`),
     ]);
     if (empRes.ok) setEmployees(await empRes.json()); else setError((await empRes.json()).error ?? "Failed to load employees");
     if (shiftRes.ok) setShifts(await shiftRes.json());
+    if (siteRes.ok) setSites(await siteRes.json());
     if (ovRes.ok) setOverrides(await ovRes.json());
     setLoading(false);
   }, []);
@@ -106,22 +115,29 @@ export default function RosterClient() {
 
   // ── Section A logic ───────────────────────────────────────────────────
   const activeShifts = useMemo(() => shifts.filter((s) => s.active), [shifts]);
+  const activeSites = useMemo(() => sites.filter((s) => s.active), [sites]);
+
+  function effectiveShift(e: EmployeeRow): string | null {
+    return pendingShift.has(e.id) ? pendingShift.get(e.id)! : e.shift_id;
+  }
+  function effectiveSite(e: EmployeeRow): string | null {
+    return pendingSite.has(e.id) ? pendingSite.get(e.id)! : e.site_id;
+  }
+
   const qA = searchA.trim().toLowerCase();
   const visibleEmployeesA = useMemo(
     () => employees.filter((e) =>
       e.status === "active" &&
-      (!qA || empName(e).toLowerCase().includes(qA) || (e.employee_code ?? "").toLowerCase().includes(qA))
+      (!qA || empName(e).toLowerCase().includes(qA) || (e.employee_code ?? "").toLowerCase().includes(qA)) &&
+      (!siteFilterA || (siteFilterA === UNASSIGNED ? effectiveSite(e) === null : effectiveSite(e) === siteFilterA))
     ),
-    [employees, qA]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [employees, qA, siteFilterA, pendingSite]
   );
 
-  function effectiveShift(e: EmployeeRow): string | null {
-    return pending.has(e.id) ? pending.get(e.id)! : e.shift_id;
-  }
-
-  function setCell(employeeId: string, shiftId: string | null) {
+  function setShiftCell(employeeId: string, shiftId: string | null) {
     setOkA("");
-    setPending((prev) => {
+    setPendingShift((prev) => {
       const next = new Map(prev);
       const emp = employees.find((e) => e.id === employeeId);
       if (emp && emp.shift_id === shiftId) next.delete(employeeId);
@@ -129,10 +145,20 @@ export default function RosterClient() {
       return next;
     });
   }
-
-  function assignAllVisible(shiftId: string | null) {
+  function setSiteCell(employeeId: string, siteId: string | null) {
     setOkA("");
-    setPending((prev) => {
+    setPendingSite((prev) => {
+      const next = new Map(prev);
+      const emp = employees.find((e) => e.id === employeeId);
+      if (emp && emp.site_id === siteId) next.delete(employeeId);
+      else next.set(employeeId, siteId);
+      return next;
+    });
+  }
+
+  function assignAllVisibleShift(shiftId: string | null) {
+    setOkA("");
+    setPendingShift((prev) => {
       const next = new Map(prev);
       for (const e of visibleEmployeesA) {
         if (e.shift_id === shiftId) next.delete(e.id);
@@ -141,36 +167,65 @@ export default function RosterClient() {
       return next;
     });
   }
+  function assignAllVisibleSite(siteId: string | null) {
+    setOkA("");
+    setPendingSite((prev) => {
+      const next = new Map(prev);
+      for (const e of visibleEmployeesA) {
+        if (e.site_id === siteId) next.delete(e.id);
+        else next.set(e.id, siteId);
+      }
+      return next;
+    });
+  }
 
-  async function saveShiftChanges() {
-    if (pending.size === 0) return;
+  const pendingCount = pendingShift.size + pendingSite.size;
+
+  async function saveAssignmentChanges() {
+    if (pendingCount === 0) return;
     setSavingA(true);
     setError("");
     setOkA("");
     try {
-      // Group by target shift so this is a handful of bulk calls, not one per employee.
-      const groups = new Map<string, string[]>(); // shiftId ("" = unassigned) -> employee ids
-      for (const [employeeId, shiftId] of pending) {
-        const key = shiftId ?? "";
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key)!.push(employeeId);
+      // Group each map by its target value so this is a handful of bulk
+      // calls total, not one per employee.
+      function groupBy(map: Map<string, string | null>): Map<string, string[]> {
+        const groups = new Map<string, string[]>();
+        for (const [employeeId, value] of map) {
+          const key = value ?? "";
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key)!.push(employeeId);
+        }
+        return groups;
       }
-      const results = await Promise.all(
-        [...groups.entries()].map(([shiftKey, ids]) =>
+
+      const shiftGroups = groupBy(pendingShift);
+      const siteGroups = groupBy(pendingSite);
+
+      const results = await Promise.all([
+        ...[...shiftGroups.entries()].map(([key, ids]) =>
           fetch("/api/wfm/employees/bulk-shift", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ employee_ids: ids, shift_id: shiftKey || null }),
+            body: JSON.stringify({ employee_ids: ids, shift_id: key || null }),
           })
-        )
-      );
+        ),
+        ...[...siteGroups.entries()].map(([key, ids]) =>
+          fetch("/api/wfm/employees/bulk-site", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ employee_ids: ids, site_id: key || null }),
+          })
+        ),
+      ]);
       const failed = results.find((r) => !r.ok);
       if (failed) {
         const json = await failed.json().catch(() => ({}));
         setError(json.error ?? "Some changes failed to save");
       } else {
-        setOkA(`Saved shift assignment for ${pending.size} employee(s).`);
-        setPending(new Map());
+        setOkA(`Saved ${pendingCount} change(s).`);
+        setPendingShift(new Map());
+        setPendingSite(new Map());
       }
       await load();
     } catch {
@@ -185,9 +240,10 @@ export default function RosterClient() {
   const visibleEmployeesB = useMemo(
     () => employees.filter((e) =>
       e.status === "active" &&
-      (!qB || empName(e).toLowerCase().includes(qB) || (e.employee_code ?? "").toLowerCase().includes(qB))
+      (!qB || empName(e).toLowerCase().includes(qB) || (e.employee_code ?? "").toLowerCase().includes(qB)) &&
+      (!siteFilterB || (siteFilterB === UNASSIGNED ? e.site_id === null : e.site_id === siteFilterB))
     ),
-    [employees, qB]
+    [employees, qB, siteFilterB]
   );
 
   function toggleB(id: string) {
@@ -256,82 +312,122 @@ export default function RosterClient() {
     <>
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
 
-      {/* ── Section A: standing shifts ────────────────────────────────── */}
+      {/* ── Section A: standing site + shift ──────────────────────────── */}
       <section style={{ ...cardStyle, padding: 0, marginBottom: 22, overflowX: "auto" }}>
         <div style={{ padding: "12px 14px", borderBottom: `1px solid ${c.line}` }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Standing shifts</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Standing site &amp; shift</div>
           <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>
-            Everyone&apos;s default shift. Tick a cell to change someone&apos;s shift — this applies every day until
-            changed again, or overridden for specific dates below. Use a column&apos;s &quot;Assign all&quot; to set a
-            whole filtered group at once instead of one employee at a time.
+            Everyone&apos;s default site and shift. Tick a cell to change someone — this applies every day until
+            changed again, or overridden for specific dates below. A column&apos;s &quot;Assign all&quot; sets a whole
+            filtered group at once. Filter by site first to manage one location&apos;s team together.
           </div>
-          <div style={{ marginTop: 10 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             <input
-              style={{ ...inp, width: 260 }}
+              style={{ ...inp, width: 240 }}
               placeholder="Search employee name or code…"
               value={searchA}
               onChange={(e) => setSearchA(e.target.value)}
             />
+            <select style={{ ...inp, width: 200 }} value={siteFilterA} onChange={(e) => setSiteFilterA(e.target.value)}>
+              <option value="">All sites</option>
+              {activeSites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              <option value={UNASSIGNED}>Unassigned site</option>
+            </select>
           </div>
         </div>
 
-        {activeShifts.length === 0 ? (
+        {activeShifts.length === 0 && activeSites.length === 0 ? (
           <div style={{ padding: 14, fontSize: 12.5, color: c.hint }}>
-            No active shifts yet — add one in Settings → Workforce → Shifts first.
+            No active sites or shifts yet — set them up in Settings → Workforce → Sites / Shifts first.
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={th}>Employee</th>
-                {activeShifts.map((s) => (
+                <th rowSpan={2} style={{ ...th, verticalAlign: "bottom" }}>Employee</th>
+                {activeSites.length > 0 && <th colSpan={activeSites.length + 1} style={thGroup}>Site</th>}
+                {activeShifts.length > 0 && <th colSpan={activeShifts.length + 1} style={{ ...thGroup, borderLeft: `1px solid ${c.line}` }}>Shift</th>}
+              </tr>
+              <tr>
+                {activeSites.map((s) => (
                   <th key={s.id} style={thCenter}>
                     <div>{s.name}</div>
-                    <div style={{ fontWeight: 400, color: c.hint, fontSize: 10.5 }}>{hhmm(s.start_time)}–{hhmm(s.end_time)}</div>
-                    <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisible(s.id)}>
-                      Assign all{qA ? " filtered" : ""}
+                    <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleSite(s.id)}>
+                      Assign all{qA || siteFilterA ? " filtered" : ""}
                     </button>
                   </th>
                 ))}
-                <th style={thCenter}>
-                  <div>Unassigned</div>
-                  <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisible(null)}>
-                    Clear all{qA ? " filtered" : ""}
-                  </button>
-                </th>
+                {activeSites.length > 0 && (
+                  <th style={thCenter}>
+                    <div>Unassigned</div>
+                    <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleSite(null)}>
+                      Clear all{qA || siteFilterA ? " filtered" : ""}
+                    </button>
+                  </th>
+                )}
+                {activeShifts.map((s, i) => (
+                  <th key={s.id} style={i === 0 ? { ...thCenter, borderLeft: `1px solid ${c.line}` } : thCenter}>
+                    <div>{s.name}</div>
+                    <div style={{ fontWeight: 400, color: c.hint, fontSize: 10.5 }}>{hhmm(s.start_time)}–{hhmm(s.end_time)}</div>
+                    <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleShift(s.id)}>
+                      Assign all{qA || siteFilterA ? " filtered" : ""}
+                    </button>
+                  </th>
+                ))}
+                {activeShifts.length > 0 && (
+                  <th style={activeSites.length === 0 ? thCenter : { ...thCenter, borderLeft: activeShifts.length === 0 ? `1px solid ${c.line}` : undefined }}>
+                    <div>Unassigned</div>
+                    <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleShift(null)}>
+                      Clear all{qA || siteFilterA ? " filtered" : ""}
+                    </button>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
               {visibleEmployeesA.map((e) => {
-                const eff = effectiveShift(e);
-                const changed = pending.has(e.id);
+                const effSh = effectiveShift(e);
+                const effSt = effectiveSite(e);
+                const changed = pendingShift.has(e.id) || pendingSite.has(e.id);
                 return (
                   <tr key={e.id} style={changed ? { background: "rgba(55, 138, 221, 0.08)" } : undefined}>
                     <td style={{ ...td, fontWeight: 600, color: c.ink, whiteSpace: "nowrap" }}>
                       {empName(e)}
                       {e.employee_code && <span style={{ color: c.hint, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>{e.employee_code}</span>}
                     </td>
-                    {activeShifts.map((s) => (
+                    {activeSites.map((s) => (
                       <td key={s.id} style={tdCenter}>
-                        <input type="checkbox" checked={eff === s.id} onChange={() => setCell(e.id, s.id)} style={{ cursor: "pointer" }} />
+                        <input type="checkbox" checked={effSt === s.id} onChange={() => setSiteCell(e.id, s.id)} style={{ cursor: "pointer" }} />
                       </td>
                     ))}
-                    <td style={tdCenter}>
-                      <input type="checkbox" checked={eff === null} onChange={() => setCell(e.id, null)} style={{ cursor: "pointer" }} />
-                    </td>
+                    {activeSites.length > 0 && (
+                      <td style={tdCenter}>
+                        <input type="checkbox" checked={effSt === null} onChange={() => setSiteCell(e.id, null)} style={{ cursor: "pointer" }} />
+                      </td>
+                    )}
+                    {activeShifts.map((s, i) => (
+                      <td key={s.id} style={i === 0 && activeSites.length > 0 ? { ...tdCenter, borderLeft: `1px solid ${c.line}` } : tdCenter}>
+                        <input type="checkbox" checked={effSh === s.id} onChange={() => setShiftCell(e.id, s.id)} style={{ cursor: "pointer" }} />
+                      </td>
+                    ))}
+                    {activeShifts.length > 0 && (
+                      <td style={tdCenter}>
+                        <input type="checkbox" checked={effSh === null} onChange={() => setShiftCell(e.id, null)} style={{ cursor: "pointer" }} />
+                      </td>
+                    )}
                   </tr>
                 );
               })}
               {visibleEmployeesA.length === 0 && (
-                <tr><td style={{ ...td, color: c.hint }} colSpan={activeShifts.length + 2}>No employees match.</td></tr>
+                <tr><td style={{ ...td, color: c.hint }} colSpan={2 + activeSites.length + activeShifts.length}>No employees match.</td></tr>
               )}
             </tbody>
           </table>
         )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderTop: `1px solid ${c.line}` }}>
-          <button style={{ ...btnPrimary, opacity: pending.size === 0 ? 0.5 : 1 }} disabled={pending.size === 0 || savingA} onClick={saveShiftChanges}>
-            {savingA ? "Saving…" : `Save changes${pending.size > 0 ? ` (${pending.size})` : ""}`}
+          <button style={{ ...btnPrimary, opacity: pendingCount === 0 ? 0.5 : 1 }} disabled={pendingCount === 0 || savingA} onClick={saveAssignmentChanges}>
+            {savingA ? "Saving…" : `Save changes${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
           </button>
           {okA && <span style={{ fontSize: 12, color: statusInk.good }}>{okA}</span>}
         </div>
@@ -343,7 +439,7 @@ export default function RosterClient() {
           <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Temporary overrides</div>
           <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>
             A different shift (or a day off) for selected employees on specific dates only — doesn&apos;t change
-            anyone&apos;s standing shift above. For a holiday that applies to everyone, use Settings → Workforce →
+            anyone&apos;s standing site/shift above. For a holiday that applies to everyone, use Settings → Workforce →
             Holidays instead — this is for individual/group exceptions.
           </div>
         </div>
@@ -384,7 +480,12 @@ export default function RosterClient() {
               value={searchB}
               onChange={(e) => setSearchB(e.target.value)}
             />
-            <button style={btnTiny} onClick={selectAllVisibleB}>Select all{qB ? " filtered" : ""}</button>
+            <select style={{ ...inp, width: 180 }} value={siteFilterB} onChange={(e) => setSiteFilterB(e.target.value)}>
+              <option value="">All sites</option>
+              {activeSites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              <option value={UNASSIGNED}>Unassigned site</option>
+            </select>
+            <button style={btnTiny} onClick={selectAllVisibleB}>Select all{qB || siteFilterB ? " filtered" : ""}</button>
             <button style={btnTiny} onClick={clearSelectionB}>Clear selection</button>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflowY: "auto", padding: 8, border: `1px solid ${c.line}`, borderRadius: 8, marginBottom: 12 }}>
