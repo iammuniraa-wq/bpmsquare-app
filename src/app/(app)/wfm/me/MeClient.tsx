@@ -546,7 +546,6 @@ export default function MeClient() {
           </>
         )}
       </div>
-      {notice && <div style={{ marginTop: 12, fontSize: 12.5, color: toneColor[notice.tone] }}>{notice.text}</div>}
     </section>
   );
 
@@ -564,6 +563,14 @@ export default function MeClient() {
           </button>
         ))}
       </div>
+
+      {/* Global feedback for actions from ANY tab (punch, correction, leave
+          request, recheck reply) -- this used to live inside the Home tab's
+          punch tile only, so a leave-request error/success on the Leave tab
+          was set but never rendered anywhere the user could see it. */}
+      {notice && (
+        <div style={{ ...cardStyle, marginBottom: 14, fontSize: 12.5, color: toneColor[notice.tone] }}>{notice.text}</div>
+      )}
 
       {queuedCount > 0 && (
         <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.warn, fontSize: 12.5 }}>{queuedCount} punch(es) pending sync</div>
@@ -887,7 +894,7 @@ export default function MeClient() {
           )}
 
           <div style={{ ...grid(200), marginBottom: 14 }}>
-            {leaveBalance.length === 0 && <section style={cardStyle}><div style={{ fontSize: 12, color: c.hint }}>No leave types configured yet — ask your admin to set them up in Workforce → Leave &amp; Holidays.</div></section>}
+            {leaveBalance.length === 0 && <section style={cardStyle}><div style={{ fontSize: 12, color: c.hint }}>No leave types configured yet — ask your admin to set them up in Settings → Workforce → Leave Types.</div></section>}
             {leaveBalance.map((lb) => (
               <section key={lb.leave_type_id} style={cardStyle}>
                 <div style={capStyle}>{lb.name}</div>
