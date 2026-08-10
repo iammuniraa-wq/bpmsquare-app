@@ -675,24 +675,25 @@ export default function MeClient() {
               <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View calendar</button>
             </section>
 
-            <section className="stat-tile" style={cardStyle}>
+            <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("calendar")}>
               <div style={capStyle}>My shift — next few days</div>
               {me.upcoming.length === 0 ? (
                 <div style={{ fontSize: 12, color: c.hint }}>No shift assigned.</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {me.upcoming.slice(0, 4).map((u) => (
+                  {me.upcoming.slice(0, 3).map((u) => (
                     <div key={u.date} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "2px 0" }}>
                       <span style={{ color: c.ink }}>
                         {new Date(u.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}
                       </span>
-                      <span style={{ color: u.is_day_off ? "var(--red)" : c.muted }}>
+                      <span style={{ color: u.is_day_off ? statusInk.bad : c.muted }}>
                         {u.is_day_off ? "Day off" : u.shift_name ? `${u.shift_name} ${u.start_time?.slice(0, 5)}–${u.end_time?.slice(0, 5)}` : "— none —"}
                       </span>
                     </div>
                   ))}
                 </div>
               )}
+              <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View full calendar</button>
             </section>
           </div>
 
@@ -965,35 +966,85 @@ export default function MeClient() {
       )}
 
       {tab === "calendar" && (
-        <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-          <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Company holidays</div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input style={{ ...inp, width: 180 }} placeholder="Search holiday…" value={holidayQuery} onChange={(e) => setHolidayQuery(e.target.value)} />
-              <select style={{ ...inp, width: "auto" }} value={holidayFilter} onChange={(e) => setHolidayFilter(e.target.value as "upcoming" | "all")}>
-                <option value="upcoming">Upcoming only</option>
-                <option value="all">Whole year</option>
-              </select>
+        <div style={{ ...grid(340), alignItems: "flex-start" }}>
+          <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>My shifts</div>
+              <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Next {me.upcoming.length} days · set by your supervisor</div>
             </div>
-          </div>
-          <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead><tr><th style={th}>Date</th><th style={th}>Holiday</th><th style={th}>Applies to</th><th style={th}></th></tr></thead>
-            <tbody>
-              {visibleHolidays.map((h) => {
-                const past = h.date < todayKey();
+            <div style={{ maxHeight: 460, overflowY: "auto" }}>
+              {me.upcoming.map((u) => {
+                const isToday = u.date === todayKey();
                 return (
-                  <tr key={h.id} style={{ opacity: past ? 0.5 : 1 }}>
-                    <td style={{ ...td, color: c.ink, fontWeight: 600 }}>{new Date(h.date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
-                    <td style={td}>{h.name}</td>
-                    <td style={{ ...td, color: c.muted }}>{h.applies_to === "all" ? "Everyone" : h.applies_to === "full_time" ? "Full-time" : "Contractors"}</td>
-                    <td style={td}>{h.date === todayKey() ? <Pill label="Today" tone="green" /> : past ? <span style={{ color: c.hint, fontSize: 11 }}>past</span> : <span style={{ color: c.hint, fontSize: 11 }}>upcoming</span>}</td>
-                  </tr>
+                  <div
+                    key={u.date}
+                    style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                      padding: "9px 12px", borderBottom: `1px solid ${c.line}`,
+                      borderLeft: `3px solid ${u.is_day_off ? statusInk.bad : isToday ? "var(--tenant-accent, #378ADD)" : "transparent"}`,
+                      background: isToday ? "var(--panel2)" : "transparent",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink, whiteSpace: "nowrap" }}>
+                        {new Date(u.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}
+                      </span>
+                      {isToday && <Pill label="Today" tone="green" />}
+                    </div>
+                    <div style={{ fontSize: 12.5, textAlign: "right", whiteSpace: "nowrap" }}>
+                      {u.is_day_off ? (
+                        <Pill label="Day off" tone="red" />
+                      ) : u.shift_name ? (
+                        <>
+                          <span style={{ color: c.ink, fontWeight: 600 }}>{u.shift_name}</span>
+                          <span style={{ color: c.muted, marginLeft: 6 }}>{u.start_time?.slice(0, 5)}–{u.end_time?.slice(0, 5)}</span>
+                          {u.is_night_shift && <span style={{ marginLeft: 6 }}><Pill label="Night" tone="purple" /></span>}
+                        </>
+                      ) : (
+                        <span style={{ color: c.hint }}>No shift assigned</span>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
-              {visibleHolidays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>{holidays.length === 0 ? "No holidays configured." : "No holidays match."}</td></tr>}
-            </tbody>
-          </table>
-        </section>
+              {me.upcoming.length === 0 && (
+                <div style={{ padding: 14, fontSize: 12, color: c.hint }}>No shift assigned yet — ask your supervisor.</div>
+              )}
+            </div>
+          </section>
+
+          <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Company holidays</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input style={{ ...inp, width: 150 }} placeholder="Search holiday…" value={holidayQuery} onChange={(e) => setHolidayQuery(e.target.value)} />
+                <select style={{ ...inp, width: "auto" }} value={holidayFilter} onChange={(e) => setHolidayFilter(e.target.value as "upcoming" | "all")}>
+                  <option value="upcoming">Upcoming only</option>
+                  <option value="all">Whole year</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead><tr><th style={th}>Date</th><th style={th}>Holiday</th><th style={th}>Applies to</th><th style={th}></th></tr></thead>
+                <tbody>
+                  {visibleHolidays.map((h) => {
+                    const past = h.date < todayKey();
+                    return (
+                      <tr key={h.id} style={{ opacity: past ? 0.5 : 1 }}>
+                        <td style={{ ...td, color: c.ink, fontWeight: 600 }}>{new Date(h.date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                        <td style={td}>{h.name}</td>
+                        <td style={{ ...td, color: c.muted }}>{h.applies_to === "all" ? "Everyone" : h.applies_to === "full_time" ? "Full-time" : "Contractors"}</td>
+                        <td style={td}>{h.date === todayKey() ? <Pill label="Today" tone="green" /> : past ? <span style={{ color: c.hint, fontSize: 11 }}>past</span> : <span style={{ color: c.hint, fontSize: 11 }}>upcoming</span>}</td>
+                      </tr>
+                    );
+                  })}
+                  {visibleHolidays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>{holidays.length === 0 ? "No holidays configured." : "No holidays match."}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       )}
 
       {tab === "analytics" && (
