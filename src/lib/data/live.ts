@@ -2000,10 +2000,10 @@ type SearchSpec = {
   textCols: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toResult: (row: any) => Omit<SearchResult, "type">;
-  /** Mirrors SearchObjectDef.featureKey (lib/globalSearch.ts) -- when set,
-   * this object's table isn't queried at all for a tenant without that
-   * feature enabled, not just hidden from the UI. */
-  featureKey?: string;
+  /** Mirrors SearchObjectDef.featureKeys (lib/globalSearch.ts) -- when set,
+   * this object's table isn't queried at all for a tenant without at least
+   * one of these features enabled, not just hidden from the UI. */
+  featureKeys?: string[];
 };
 
 const SEARCH_SPECS: SearchSpec[] = [
@@ -2036,13 +2036,13 @@ const SEARCH_SPECS: SearchSpec[] = [
     type: "invoice", table: "invoices", columns: "id, ref, status, total",
     textCols: ["ref"],
     toResult: (r) => ({ id: r.id, title: r.ref, subtitle: `₹${r.total ?? 0} · ${r.status}`, href: ROUTES.invoice(r.id), matched: "ref" }),
-    featureKey: "invoices",
+    featureKeys: ["invoices"],
   },
   {
     type: "purchase_order", table: "purchase_orders", columns: "id, ref, status, total",
     textCols: ["ref"],
     toResult: (r) => ({ id: r.id, title: r.ref, subtitle: `₹${r.total ?? 0} · ${r.status}`, href: ROUTES.purchaseOrder(r.id), matched: "ref" }),
-    featureKey: "purchasing",
+    featureKeys: ["purchasing"],
   },
   {
     type: "asset", table: "assets", columns: "id, ref, name, serial, make, model",
@@ -2053,7 +2053,7 @@ const SEARCH_SPECS: SearchSpec[] = [
     type: "inventory_item", table: "inventory_items", columns: "id, ref, name, sku, category",
     textCols: ["name", "sku", "ref"],
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.sku, r.category].filter(Boolean).join(" · ") || "Inventory item", href: ROUTES.inventoryItem(r.id), matched: "name/sku" }),
-    featureKey: "purchasing",
+    featureKeys: ["purchasing"],
   },
   {
     type: "supplier", table: "suppliers", columns: "id, ref, name, city, type",
@@ -2066,7 +2066,22 @@ const SEARCH_SPECS: SearchSpec[] = [
     type: "lead", table: "leads", columns: "id, title, status",
     textCols: ["title"],
     toResult: (r) => ({ id: r.id, title: r.title, subtitle: r.status, href: ROUTES.leads, matched: "title" }),
-    featureKey: "leads",
+    featureKeys: ["leads"],
+  },
+  {
+    // Workforce. The default href is the supervisor Employee Hub; for a
+    // caller without supervisor-level WFM access globalSearchLive rewrites
+    // it to the master-data Employees list (see access.employeeHub below).
+    type: "employee", table: "employees", columns: "id, first_name, last_name, employee_code, department, designation, status",
+    textCols: ["first_name", "last_name", "employee_code", "department", "designation"],
+    toResult: (r) => ({
+      id: r.id,
+      title: [r.first_name, r.last_name].filter(Boolean).join(" ") || r.employee_code || "Employee",
+      subtitle: [r.designation, r.department, r.status === "inactive" ? "Inactive" : null].filter(Boolean).join(" · ") || "Employee",
+      href: ROUTES.wfmEmployee(r.id),
+      matched: "name",
+    }),
+    featureKeys: ["business_roles", "wfm"],
   },
 ];
 
@@ -2098,7 +2113,16 @@ export async function globalSearchLive(
   tenantId: string,
   query: string,
   objectType?: SearchObjectType,
-  limit = 8
+  limit = 8,
+  access?: {
+    /** Object types the caller's Business Role grants allow -- "all" when
+     * unrestricted. Anything outside this list is never queried, so scoped
+     * search can't leak an object the caller's pages would deny. */
+    types: "all" | SearchObjectType[];
+    /** True when the caller can open the supervisor Employee Hub -- false
+     * rewrites employee results to the master-data Employees list. */
+    employeeHub: boolean;
+  }
 ): Promise<SearchResult[]> {
   const term = sanitizeSearchTerm(query);
   if (term.length < 2) return [];
@@ -2107,7 +2131,11 @@ export async function globalSearchLive(
   const { data: tenantRow } = await supabase.from("tenants").select("features").eq("id", tenantId).maybeSingle();
   const features = (tenantRow?.features ?? {}) as Record<string, boolean>;
 
-  const enabledSpecs = SEARCH_SPECS.filter((s) => !s.featureKey || features[s.featureKey] === true);
+  const allowedTypes = access?.types ?? "all";
+  const typeAllowed = (t: SearchObjectType) => allowedTypes === "all" || allowedTypes.includes(t);
+  const enabledSpecs = SEARCH_SPECS
+    .filter((s) => !s.featureKeys || s.featureKeys.some((k) => features[k] === true))
+    .filter((s) => typeAllowed(s.type));
   const specs = objectType ? enabledSpecs.filter((s) => s.type === objectType) : enabledSpecs;
   const perTypeLimit = objectType ? Math.max(limit, 20) : Math.min(limit, 6);
 
@@ -2129,7 +2157,7 @@ export async function globalSearchLive(
     const seen = new Set(results.filter((r) => r.type === "account" || r.type === "contact").map((r) => `${r.type}:${r.id}`));
     const lowerTerm = term.toLowerCase();
 
-    if (!objectType || objectType === "account") {
+    if ((!objectType || objectType === "account") && typeAllowed("account")) {
       const { data: accountRows } = await supabase
         .from("accounts")
         .select("id, name, city, type, phone, phone2, email, email2")
@@ -2145,7 +2173,7 @@ export async function globalSearchLive(
       }
     }
 
-    if (!objectType || objectType === "contact") {
+    if ((!objectType || objectType === "contact") && typeAllowed("contact")) {
       const { data: contactRows } = await supabase
         .from("contacts")
         .select("id, name, role, phone, phone2, phone3, email, email2")
@@ -2162,5 +2190,12 @@ export async function globalSearchLive(
     }
   }
 
-  return objectType ? results.slice(0, limit) : results;
+  // Non-supervisors can't open the Employee Hub (requireWfmSupervisorPage
+  // would bounce them) -- send them to the master-data Employees list their
+  // "employees" grant does unlock.
+  const finalResults = access && !access.employeeHub
+    ? results.map((r) => (r.type === "employee" ? { ...r, href: ROUTES.employees } : r))
+    : results;
+
+  return objectType ? finalResults.slice(0, limit) : finalResults;
 }

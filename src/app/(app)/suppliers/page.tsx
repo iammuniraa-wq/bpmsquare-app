@@ -7,6 +7,8 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ListFilterBar from "@/components/ListFilterBar";
+import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import SortableTh from "@/components/SortableTh";
 import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
@@ -42,13 +44,13 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<Supplier>> = {
 export default async function SuppliersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; sort?: string; dir?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; sort?: string; dir?: string; page?: string; af?: string }>;
 }) {
   await requireWorkcenterView("suppliers");
   await requireFeature("suppliers");
   const { supabase, tenantId } = await requireTenantUser();
   const params = await searchParams;
-  const { q, type: typeFilter } = params;
+  const { q, type: typeFilter, af } = params;
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
 
@@ -68,7 +70,8 @@ export default async function SuppliersPage({
       (s.gstin ?? "").toLowerCase().includes(term)
     );
   });
-  const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
+  const advFiltered = applyAdvancedFilter(searched, af, (s) => s as unknown as Record<string, unknown>);
+  const filtered = sortRows(advFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
 
   const active   = suppliers.filter((s) => s.status === "active").length;
@@ -129,9 +132,10 @@ export default async function SuppliersPage({
       <ListFilterBar
         searchValue={q}
         searchPlaceholder="Search by name, city, email or GSTIN…"
-        hiddenParams={{ type: typeFilter && typeFilter !== "all" ? typeFilter : undefined }}
+        hiddenParams={{ type: typeFilter && typeFilter !== "all" ? typeFilter : undefined, af }}
         clearHref={ROUTES.suppliers}
       />
+      <AdvancedFilterPanel object="supplier" />
 
       {/* Table */}
       <div style={{ ...cardStyle, overflow: "hidden" }}>
@@ -210,7 +214,7 @@ export default async function SuppliersPage({
               total={filtered.length}
               pageSize={DEFAULT_PAGE_SIZE}
               baseHref={ROUTES.suppliers}
-              hiddenParams={{ q, type: typeFilter, sort, dir }}
+              hiddenParams={{ q, type: typeFilter, sort, dir, af }}
             />
           </div>
         )}

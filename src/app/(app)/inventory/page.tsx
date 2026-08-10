@@ -8,6 +8,8 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ListFilterBar from "@/components/ListFilterBar";
+import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import SortableTh from "@/components/SortableTh";
 import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
@@ -24,13 +26,13 @@ const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, vertical
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; low_stock?: string; sort?: string; dir?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; low_stock?: string; sort?: string; dir?: string; page?: string; af?: string }>;
 }) {
   await requireWorkcenterView("inventory");
   await requireFeature("purchasing");
   const { supabase, tenantId } = await requireTenantUser();
   const params = await searchParams;
-  const { q, low_stock } = params;
+  const { q, low_stock, af } = params;
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
 
@@ -63,6 +65,7 @@ export default async function InventoryPage({
   if (low_stock === "true") {
     filtered = filtered.filter((i) => i.reorder_level != null && i.qty_on_hand <= i.reorder_level);
   }
+  filtered = applyAdvancedFilter(filtered, af, (i) => i as unknown as Record<string, unknown>);
   filtered = sortRows(filtered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
 
@@ -112,9 +115,10 @@ export default async function InventoryPage({
       <ListFilterBar
         searchValue={q}
         searchPlaceholder="Search by name, SKU or category…"
-        hiddenParams={{ low_stock: low_stock === "true" ? "true" : undefined }}
+        hiddenParams={{ low_stock: low_stock === "true" ? "true" : undefined, af }}
         clearHref={ROUTES.inventory}
       />
+      <AdvancedFilterPanel object="inventory" />
 
       <div style={{ ...cardStyle, overflow: "hidden" }}>
         {filtered.length === 0 ? (
@@ -191,7 +195,7 @@ export default async function InventoryPage({
               total={filtered.length}
               pageSize={DEFAULT_PAGE_SIZE}
               baseHref={ROUTES.inventory}
-              hiddenParams={{ q, low_stock: low_stock === "true" ? "true" : undefined, sort, dir }}
+              hiddenParams={{ q, low_stock: low_stock === "true" ? "true" : undefined, sort, dir, af }}
             />
           </div>
         )}

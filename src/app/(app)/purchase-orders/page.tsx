@@ -7,6 +7,8 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ListFilterBar from "@/components/ListFilterBar";
+import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import SortableTh from "@/components/SortableTh";
 import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
@@ -43,12 +45,12 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<PurchaseOrderRow>> = {
 export default async function PurchaseOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; page?: string; af?: string }>;
 }) {
   await requireWorkcenterView("purchase_orders");
   await requireFeature("purchasing");
   const params = await searchParams;
-  const { status: statusFilter, q } = params;
+  const { status: statusFilter, q, af } = params;
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
   const rows = await listPurchaseOrdersLive();
@@ -63,7 +65,8 @@ export default async function PurchaseOrdersPage({
       (r.supplier?.name ?? "").toLowerCase().includes(term)
     );
   });
-  const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
+  const advFiltered = applyAdvancedFilter(searched, af, (r) => r.po as unknown as Record<string, unknown>);
+  const filtered = sortRows(advFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.po.status] = (acc[r.po.status] ?? 0) + 1;
@@ -112,9 +115,10 @@ export default async function PurchaseOrdersPage({
       <ListFilterBar
         searchValue={q}
         searchPlaceholder="Search PO ID or supplier…"
-        hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined }}
+        hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, af }}
         clearHref={ROUTES.purchaseOrders}
       />
+      <AdvancedFilterPanel object="purchase_order" />
 
       <div style={{ ...cardStyle, overflow: "hidden" }}>
         {filtered.length === 0 ? (
@@ -180,7 +184,7 @@ export default async function PurchaseOrdersPage({
               total={filtered.length}
               pageSize={DEFAULT_PAGE_SIZE}
               baseHref={ROUTES.purchaseOrders}
-              hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, q, sort, dir }}
+              hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, q, sort, dir, af }}
             />
           </div>
         )}

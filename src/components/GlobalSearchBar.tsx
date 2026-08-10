@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { searchObjectsForFeatures, type SearchObjectType, type SearchResult } from "@/lib/globalSearch";
+import { searchObjectsForFeatures, allowedSearchTypes, type SearchObjectType, type SearchResult } from "@/lib/globalSearch";
 import { SearchIcon, XIcon } from "@/components/Icons";
-import { useTenant } from "@/lib/tenant-context";
+import { useTenant, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/tenant-context";
 
 const DEBOUNCE_MS = 300;
 const MIN_QUERY_LEN = 2;
@@ -18,7 +18,16 @@ const MIN_QUERY_LEN = 2;
 export default function GlobalSearchBar({ autoFocus }: { autoFocus?: boolean } = {}) {
   const router = useRouter();
   const tenant = useTenant();
-  const searchObjects = useMemo(() => searchObjectsForFeatures(tenant?.features as Record<string, boolean> | undefined), [tenant?.features]);
+  const viewableWorkcenters = useViewableWorkcenters();
+  const isWfmSupervisor = useIsWfmSupervisor();
+  // Feature-gated by tenant AND workcenter-gated by the caller's Business
+  // Roles -- same allowedSearchTypes the /api/search route enforces, so the
+  // dropdown never offers an object the server would return nothing for.
+  const searchObjects = useMemo(() => {
+    const enabled = searchObjectsForFeatures(tenant?.features as Record<string, boolean> | undefined);
+    const allowed = allowedSearchTypes(viewableWorkcenters, isWfmSupervisor);
+    return allowed === "all" ? enabled : enabled.filter((o) => allowed.includes(o.type));
+  }, [tenant?.features, viewableWorkcenters, isWfmSupervisor]);
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [objectType, setObjectType] = useState<SearchObjectType | "">("");

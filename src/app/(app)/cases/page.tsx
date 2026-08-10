@@ -9,6 +9,8 @@ import CasesTable from "@/components/CasesTable";
 import BreakdownBar from "@/components/BreakdownBar";
 import { requireWorkcenterView } from "@/lib/permissions";
 import ListFilterBar from "@/components/ListFilterBar";
+import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { applyAdvancedFilter } from "@/lib/advancedFilter";
 
 const OPEN_STATUSES: ServiceCase["status"][] = [
   "intake","inspection","report_sent","report_approved",
@@ -28,11 +30,11 @@ const FILTERS: { id: FilterKey; label: string }[] = [
 export default async function CasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; filter?: string }>;
+  searchParams: Promise<{ q?: string; filter?: string; af?: string }>;
 }) {
   await requireWorkcenterView("cases");
   await requireFeature("cases");
-  const { q, filter: rawFilter } = await searchParams;
+  const { q, filter: rawFilter, af } = await searchParams;
   const filter = (FILTERS.find((f) => f.id === rawFilter)?.id) ?? "open";
 
   const allCases = await listCases();
@@ -49,7 +51,7 @@ export default async function CasesPage({
     : filter === "closed"    ? closed
     : allCases;
 
-  const rows = byFilter.filter(({ serviceCase: sc, account }) => {
+  const basicFiltered = byFilter.filter(({ serviceCase: sc, account }) => {
     if (!q) return true;
     const term = q.toLowerCase();
     return (
@@ -60,8 +62,10 @@ export default async function CasesPage({
     );
   });
 
+  const rows = applyAdvancedFilter(basicFiltered, af, ({ serviceCase }) => serviceCase as unknown as Record<string, unknown>);
+
   const href = (f: FilterKey) =>
-    `${ROUTES.cases}?filter=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+    `${ROUTES.cases}?filter=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}${af ? `&af=${encodeURIComponent(af)}` : ""}`;
 
   return (
     <>
@@ -94,9 +98,10 @@ export default async function CasesPage({
       <ListFilterBar
         searchValue={q}
         searchPlaceholder="Search ref, equipment or account…"
-        hiddenParams={{ filter }}
+        hiddenParams={{ filter, af }}
         clearHref={ROUTES.cases}
       />
+      <AdvancedFilterPanel object="case" />
 
       {/* ── Table with adapt mode ────────────────────────────────────────── */}
       <CasesTable rows={rows} q={q} filter={filter} />

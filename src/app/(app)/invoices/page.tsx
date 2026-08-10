@@ -7,6 +7,8 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ListFilterBar from "@/components/ListFilterBar";
+import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import SortableTh from "@/components/SortableTh";
 import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
@@ -48,12 +50,12 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<InvoiceRow>> = {
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; from?: string; to?: string; sort?: string; dir?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; from?: string; to?: string; sort?: string; dir?: string; page?: string; af?: string }>;
 }) {
   await requireWorkcenterView("invoices");
   await requireFeature("invoices");
   const params = await searchParams;
-  const { status: statusFilter, q, from, to } = params;
+  const { status: statusFilter, q, from, to, af } = params;
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
   const invoices = await listInvoices();
@@ -81,7 +83,8 @@ export default async function InvoicesPage({
       (i.account_name ?? "").toLowerCase().includes(needle)
     );
   });
-  const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
+  const advFiltered = applyAdvancedFilter(searched, af, (i) => i as unknown as Record<string, unknown>);
+  const filtered = sortRows(advFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
 
   return (
@@ -121,9 +124,10 @@ export default async function InvoicesPage({
         searchValue={q}
         searchPlaceholder="Search invoice ref or account…"
         dates={[{ name: "from", value: from, label: "Issued from" }, { name: "to", value: to, label: "to" }]}
-        hiddenParams={{ status: statusFilter }}
+        hiddenParams={{ status: statusFilter, af }}
         clearHref={ROUTES.invoices}
       />
+      <AdvancedFilterPanel object="invoice" />
 
       {statusFilter && (
         <div style={{ marginBottom: 12 }}>
@@ -199,7 +203,7 @@ export default async function InvoicesPage({
             total={filtered.length}
             pageSize={DEFAULT_PAGE_SIZE}
             baseHref={ROUTES.invoices}
-            hiddenParams={{ status: statusFilter, q, from, to, sort, dir }}
+            hiddenParams={{ status: statusFilter, q, from, to, sort, dir, af }}
           />
         </div>
       )}

@@ -12,6 +12,8 @@ import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 import { requireWorkcenterView } from "@/lib/permissions";
 import ListFilterBar from "@/components/ListFilterBar";
+import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
@@ -50,11 +52,11 @@ const fmtDate = (s: string) =>
 export default async function WorkOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; view?: string; q?: string; sort?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; view?: string; q?: string; sort?: string; page?: string; af?: string }>;
 }) {
   await requireWorkcenterView("work_orders");
   await requireFeature("work_orders");
-  const { status: statusFilter, view, q, sort, page: pageParam } = await searchParams;
+  const { status: statusFilter, view, q, sort, page: pageParam, af } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const isCard = view !== "list";
   const vp = view ? `&view=${view}` : "";
@@ -70,6 +72,7 @@ export default async function WorkOrdersPage({
       (r.asset?.name ?? "").toLowerCase().includes(term)
     );
   }
+  rows = applyAdvancedFilter(rows, af, (r) => r.workOrder as unknown as Record<string, unknown>);
   rows = sortRows(rows, sort, "asc", SORT_EXTRACTORS);
   const pageRows = paginate(rows, page);
 
@@ -102,9 +105,10 @@ export default async function WorkOrdersPage({
             { value: "status", label: "Status" },
           ],
         }]}
-        hiddenParams={{ status: statusFilter, view }}
+        hiddenParams={{ status: statusFilter, view, af }}
         clearHref={ROUTES.workOrders}
       />
+      <AdvancedFilterPanel object="work_order" />
 
       {rows.length === 0 ? (
         <p style={{ color: c.muted, fontSize: 13 }}>No work orders match this filter.</p>
@@ -158,7 +162,7 @@ export default async function WorkOrdersPage({
             );
           })}
         </div>
-        <PagerLink page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.workOrders} hiddenParams={{ status: statusFilter, view, q, sort }} />
+        <PagerLink page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.workOrders} hiddenParams={{ status: statusFilter, view, q, sort, af }} />
         </>
       ) : (
         // ── Detailed list ──────────────────────────────────────────────────────
@@ -227,7 +231,7 @@ export default async function WorkOrdersPage({
             </div>
           ))}
         </section>
-        <PagerLink page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.workOrders} hiddenParams={{ status: statusFilter, view, q, sort }} />
+        <PagerLink page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.workOrders} hiddenParams={{ status: statusFilter, view, q, sort, af }} />
         </>
       )}
     </>

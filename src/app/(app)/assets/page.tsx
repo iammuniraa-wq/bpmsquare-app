@@ -9,6 +9,8 @@ import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Ico
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireFeature } from "@/lib/tenant";
 import ListFilterBar from "@/components/ListFilterBar";
+import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
@@ -43,11 +45,11 @@ const ALL_KINDS = ["motor", "transformer", "pump", "generator", "panel"] as cons
 export default async function AssetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kind?: string; q?: string; sort?: string; page?: string }>;
+  searchParams: Promise<{ kind?: string; q?: string; sort?: string; page?: string; af?: string }>;
 }) {
   await requireWorkcenterView("assets");
   await requireFeature("assets");
-  const { kind: kindFilter, q, sort, page: pageParam } = await searchParams;
+  const { kind: kindFilter, q, sort, page: pageParam, af } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const { customerAssets: allCustomerAssets, loanerStock } = await listAssetsLive();
 
@@ -66,6 +68,7 @@ export default async function AssetsPage({
     );
   }
 
+  customerAssets = applyAdvancedFilter(customerAssets, af, (r) => r.asset as unknown as Record<string, unknown>);
   customerAssets = sortRows(customerAssets, sort, "asc", SORT_EXTRACTORS);
   const pageAssets = paginate(customerAssets, page);
 
@@ -111,9 +114,10 @@ export default async function AssetsPage({
             ],
           },
         ]}
-        hiddenParams={{}}
+        hiddenParams={{ af }}
         clearHref={ROUTES.assets}
       />
+      <AdvancedFilterPanel object="asset" />
 
       {/* Loaner Stock */}
       <section style={{ ...cardStyle, marginBottom: 14, display: kindFilter && kindFilter !== "loaner" ? "none" : undefined }}>
@@ -288,7 +292,7 @@ export default async function AssetsPage({
           total={customerAssets.length}
           pageSize={DEFAULT_PAGE_SIZE}
           baseHref={ROUTES.assets}
-          hiddenParams={{ kind: kindFilter, q, sort }}
+          hiddenParams={{ kind: kindFilter, q, sort, af }}
         />
       </section>
     </>

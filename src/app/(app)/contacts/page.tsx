@@ -6,19 +6,21 @@ import PageHeader from "@/components/PageHeader";
 import { ROUTES } from "@/lib/constants";
 import ContactsTable from "@/components/ContactsTable";
 import ListFilterBar from "@/components/ListFilterBar";
+import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import { requireWorkcenterView } from "@/lib/permissions";
 
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; af?: string }>;
 }) {
   await requireWorkcenterView("contacts");
   await requireFeature("contacts");
-  const { q } = await searchParams;
+  const { q, af } = await searchParams;
   const allRows = await listContacts();
 
-  const rows = allRows.filter(({ contact, account }) => {
+  const basicFiltered = allRows.filter(({ contact, account }) => {
     if (!q) return true;
     const term = q.toLowerCase();
     return (
@@ -27,6 +29,7 @@ export default async function ContactsPage({
       account.name.toLowerCase().includes(term)
     );
   });
+  const rows = applyAdvancedFilter(basicFiltered, af, ({ contact }) => contact as unknown as Record<string, unknown>);
 
   return (
     <>
@@ -49,8 +52,10 @@ export default async function ContactsPage({
       <ListFilterBar
         searchValue={q}
         searchPlaceholder="Search by name, role or account…"
+        hiddenParams={{ af }}
         clearHref={ROUTES.contacts}
       />
+      <AdvancedFilterPanel object="contact" />
 
       <ContactsTable rows={rows} />
     </>
