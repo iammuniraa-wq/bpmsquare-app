@@ -80,6 +80,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   let wfmEmployeeActive = false;
   let wfmDefaultLanding: string | null = null;
   if (tenant.features?.wfm) {
+    // A tenant admin is a full unrestricted superuser everywhere else in the
+    // app (resolvePermissions() returns UNRESTRICTED for role === "admin"
+    // regardless of Business Roles) -- WFM's own supervisor-only nav items
+    // (Live Board, Roster, Employees, Corrections; see Sidebar.tsx's
+    // supervisorOnly filter) need to follow that same rule. Previously this
+    // was only ever set true INSIDE the membership/employee lookup below, so
+    // an admin who manages the business but isn't also linked to a WFM
+    // employee record (the common case -- most admins aren't themselves a
+    // tracked worker) saw none of them, same as a plain employee would.
+    isWfmSupervisor = userRole === "admin";
     const { data: membership } = await supabase
       .from("tenant_users")
       .select("employee_id, wfm_default_landing")
@@ -97,7 +107,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         .maybeSingle();
       if (employee) {
         wfmEmployeeActive = true;
-        isWfmSupervisor = userRole === "admin" || employee.wfm_role === "supervisor";
+        isWfmSupervisor = isWfmSupervisor || employee.wfm_role === "supervisor";
       }
     }
   }
