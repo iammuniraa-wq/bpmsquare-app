@@ -130,6 +130,7 @@ export const ROUTES = {
   wfmMe: "/wfm/me",
   wfmLiveBoard: "/wfm/live-board",
   wfmEmployees: "/wfm/employees",
+  wfmEmployee: (id: string) => `/wfm/employees/${id}`,
   wfmCorrections: "/wfm/corrections",
   wfmRoster: "/wfm/roster",
   wfmLeave: "/wfm/leave",

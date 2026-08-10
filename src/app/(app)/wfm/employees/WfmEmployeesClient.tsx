@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import { ROUTES } from "@/lib/constants";
 import type { WfmSite, WfmShift } from "@/lib/wfm/types";
 
 type Row = {
@@ -273,7 +275,11 @@ export default function WfmEmployeesClient() {
             {visible.map((r) => (
               <tr key={r.id}>
                 <td style={{ ...td, fontFamily: "monospace" }}>{r.employee_code ?? "—"}</td>
-                <td style={{ ...td, fontWeight: 600, color: c.ink }}>{[r.first_name, r.last_name].filter(Boolean).join(" ")}</td>
+                <td style={{ ...td, fontWeight: 600 }}>
+                  <Link href={ROUTES.wfmEmployee(r.id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
+                    {[r.first_name, r.last_name].filter(Boolean).join(" ")}
+                  </Link>
+                </td>
                 <td style={td}>{r.employment_type === "contractor" ? "Contractor" : "Full-time"}</td>
                 <td style={td}>{r.wfm_role === "supervisor" ? <Pill label="Supervisor" tone="purple" /> : "Employee"}</td>
                 <td style={td}>{r.wfm_shifts?.name ?? "—"}</td>

@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import { ROUTES } from "@/lib/constants";
 import type { LeaveRequestStatus, WfmLeaveRequest } from "@/lib/wfm/types";
 
 type LeaveType = { id: string; name: string; category: "paid" | "unpaid" | "half_day"; active: boolean; annual_quota: number };
@@ -162,8 +164,10 @@ export default function LeaveClient() {
           <tbody>
             {visibleRequests.map((r) => (
               <tr key={r.id}>
-                <td style={{ ...td, fontWeight: 600, color: c.ink }}>
-                  {r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}
+                <td style={{ ...td, fontWeight: 600 }}>
+                  <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
+                    {r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}
+                  </Link>
                   {r.employees?.employee_code && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>{r.employees.employee_code}</span>}
                 </td>
                 <td style={td}>{r.wfm_leave_types?.name ?? "—"}{r.half_day && <span style={{ color: c.hint }}> (half-day)</span>}</td>
@@ -215,7 +219,11 @@ export default function LeaveClient() {
           <tbody>
             {visibleRecords.map((r) => (
               <tr key={r.id}>
-                <td style={{ ...td, fontWeight: 600, color: c.ink }}>{r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}</td>
+                <td style={{ ...td, fontWeight: 600 }}>
+                  <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
+                    {r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}
+                  </Link>
+                </td>
                 <td style={td}>{r.wfm_leave_types?.name ?? "—"}</td>
                 <td style={td}>{fmtDate(r.date_from)}</td>
                 <td style={td}>{fmtDate(r.date_to)}</td>

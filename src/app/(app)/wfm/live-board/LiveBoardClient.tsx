@@ -1,11 +1,13 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
 import PunchAudit from "@/components/wfm/PunchAudit";
+import { ROUTES } from "@/lib/constants";
 
 const POLL_MS = 30_000;
 
@@ -300,7 +302,13 @@ export default function LiveBoardClient() {
                   title="Show selfies and punch locations"
                 >
                   <td style={td}>
-                    <span style={{ fontWeight: 600, color: c.ink }}>{r.full_name}</span>
+                    <Link
+                      href={ROUTES.wfmEmployee(r.employee_id)}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ fontWeight: 600, color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}
+                    >
+                      {r.full_name}
+                    </Link>
                     {r.employee_code && (
                       <span style={{ color: c.hint, marginLeft: 6, fontSize: 11.5 }}>{r.employee_code}</span>
                     )}

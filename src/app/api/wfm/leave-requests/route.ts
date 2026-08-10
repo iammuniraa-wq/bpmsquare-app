@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
   }
   const { supabase, tenantId, employee, isSupervisor } = ctx;
   const status = request.nextUrl.searchParams.get("status");
+  const employeeIdParam = request.nextUrl.searchParams.get("employee_id");
 
   let query = supabase
     .from("wfm_leave_requests")
@@ -35,6 +36,8 @@ export async function GET(request: NextRequest) {
   if (!isSupervisor) {
     if (!employee) return NextResponse.json({ error: "No employee profile" }, { status: 403 });
     query = query.eq("employee_id", employee.id);
+  } else if (employeeIdParam) {
+    query = query.eq("employee_id", employeeIdParam);
   }
   if (status && STATUSES.includes(status as LeaveRequestStatus)) {
     query = query.eq("status", status);

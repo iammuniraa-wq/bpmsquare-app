@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import { ROUTES } from "@/lib/constants";
 import type { WfmShift, WfmSite } from "@/lib/wfm/types";
 
 type EmployeeRow = {
@@ -391,8 +393,8 @@ export default function RosterClient() {
                 const changed = pendingShift.has(e.id) || pendingSite.has(e.id);
                 return (
                   <tr key={e.id} style={changed ? { background: "rgba(55, 138, 221, 0.08)" } : undefined}>
-                    <td style={{ ...td, fontWeight: 600, color: c.ink, whiteSpace: "nowrap" }}>
-                      {empName(e)}
+                    <td style={{ ...td, fontWeight: 600, whiteSpace: "nowrap" }}>
+                      <Link href={ROUTES.wfmEmployee(e.id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>{empName(e)}</Link>
                       {e.employee_code && <span style={{ color: c.hint, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>{e.employee_code}</span>}
                     </td>
                     {activeSites.map((s) => (
@@ -532,8 +534,8 @@ export default function RosterClient() {
               return (
                 <tr key={r.id}>
                   <td style={td}>{fmtDate(r.date)}</td>
-                  <td style={{ ...td, fontWeight: 600, color: c.ink }}>
-                    {empName(emp)}
+                  <td style={{ ...td, fontWeight: 600 }}>
+                    <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>{empName(emp)}</Link>
                     {emp?.employee_code && <span style={{ color: c.hint, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>{emp.employee_code}</span>}
                   </td>
                   <td style={td}>

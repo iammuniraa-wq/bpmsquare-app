@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import { ROUTES } from "@/lib/constants";
 import type { CorrectionIssue, CorrectionStatus, WfmCorrectionRequest } from "@/lib/wfm/types";
 
 type Row = WfmCorrectionRequest & {
@@ -130,8 +132,10 @@ export default function CorrectionsQueueClient() {
           <tbody>
             {visible.map((r) => (
               <tr key={r.id}>
-                <td style={{ ...td, fontWeight: 600, color: c.ink }}>
-                  {r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}
+                <td style={{ ...td, fontWeight: 600 }}>
+                  <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
+                    {r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}
+                  </Link>
                   {r.employees?.employee_code && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>{r.employees.employee_code}</span>}
                 </td>
                 <td style={td}>{fmtDate(r.target_date)}</td>
