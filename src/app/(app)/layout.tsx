@@ -78,13 +78,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   let isWfmSupervisor = false;
   let wfmEmployeeActive = false;
+  let wfmDefaultLanding: string | null = null;
   if (tenant.features?.wfm) {
     const { data: membership } = await supabase
       .from("tenant_users")
-      .select("employee_id")
+      .select("employee_id, wfm_default_landing")
       .eq("tenant_id", tenant.id)
       .eq("user_id", user.id)
       .maybeSingle();
+    wfmDefaultLanding = membership?.wfm_default_landing ?? null;
     if (membership?.employee_id) {
       const { data: employee } = await supabase
         .from("employees")
@@ -100,24 +102,40 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
   }
 
-  // Every WFM login lands on My Workforce by default -- it's the useful home
-  // page when WFM is this login's whole reason to be in the CRM, whether
-  // that's a plain employee punching in or a supervisor whose Business Role
-  // grants nothing beyond "wfm". A login with broader CRM access (viewable
-  // === "all", or workcenters beyond wfm) still lands on the normal
-  // dashboard -- My Workforce stays one click away via the sidebar. Applies
-  // on every (app) route, not just "/", on PC and mobile alike, since this
-  // layout wraps the whole CRM shell regardless of device.
+  // A WFM-restricted login (Business Role grants nothing beyond "wfm") has
+  // no use for the generic CRM dashboard, so "/" sends them somewhere
+  // useful instead. The two roles need different treatment, though:
+  //
+  // - A plain employee's ONLY legitimate page is My Workforce -- every
+  //   other (app) route would be a dead end for them anyway (no other
+  //   workcenter is granted), so this bounces them back from anywhere,
+  //   not just "/". Unchanged from before.
+  // - A supervisor legitimately uses Live Board, Roster, Employees,
+  //   Corrections, Leave and Summary too -- all still gated by the SAME
+  //   "wfm" workcenter key, just supervisor-only in the nav. Forcing them
+  //   back to My Workforce from those pages (the old blanket behaviour)
+  //   made the rest of the WFM supervisor toolset unreachable. So a
+  //   supervisor is only ever redirected away from the plain dashboard
+  //   ("/"), to their chosen landing page (Live Board by default, or
+  //   Dashboard if they've said so via wfm_default_landing) -- never away
+  //   from a page they're already legitimately on.
   //
   // /wfm/me itself lives INSIDE this same (app) route group, so this layout
-  // re-runs (and this condition re-evaluates) on every visit to /wfm/me too
-  // -- without excluding it, that's an immediate infinite redirect loop, not
-  // a hypothetical one. `pathname` was already read above for the
-  // password-gate check (PATHNAME_HEADER is set once by middleware.ts -- a
-  // Server Component layout has no other way to know the current pathname).
+  // re-runs (and this condition re-evaluates) on every visit to it too --
+  // without excluding it in the employee branch, that's an immediate
+  // infinite redirect loop, not a hypothetical one. `pathname` was already
+  // read above for the password-gate check (PATHNAME_HEADER is set once by
+  // middleware.ts -- a Server Component layout has no other way to know
+  // the current pathname).
   const restrictedToWfmOnly = Array.isArray(viewable) && viewable.every((wc) => wc === "wfm");
-  if (wfmEmployeeActive && restrictedToWfmOnly && pathname !== ROUTES.wfmMe) {
-    redirect(ROUTES.wfmMe);
+  if (wfmEmployeeActive && restrictedToWfmOnly) {
+    if (isWfmSupervisor) {
+      if (pathname === "/" && wfmDefaultLanding !== "dashboard") {
+        redirect(ROUTES.wfmLiveBoard);
+      }
+    } else if (pathname !== ROUTES.wfmMe) {
+      redirect(ROUTES.wfmMe);
+    }
   }
 
   return (

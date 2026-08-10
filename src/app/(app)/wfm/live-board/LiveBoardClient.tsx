@@ -104,6 +104,33 @@ export default function LiveBoardClient() {
   const [flagError, setFlagError] = useState("");
   const [flagSent, setFlagSent] = useState(false);
 
+  // Default-landing preference -- only meaningful for a WFM-restricted
+  // supervisor (see (app)/layout.tsx), but harmless to show/set from
+  // anywhere else too. null = role default (Live Board).
+  const [landing, setLanding] = useState<"live_board" | "dashboard" | null>(null);
+  const [landingBusy, setLandingBusy] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/wfm/me/landing-preference")
+      .then((r) => r.json())
+      .then((json) => setLanding(json.landing ?? null))
+      .catch(() => {});
+  }, []);
+
+  async function setDefaultLanding(value: "live_board" | "dashboard") {
+    setLandingBusy(true);
+    try {
+      const res = await fetch("/api/wfm/me/landing-preference", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ landing: value === "live_board" ? null : value }),
+      });
+      if (res.ok) setLanding(value);
+    } finally {
+      setLandingBusy(false);
+    }
+  }
+
   async function submitFlag() {
     if (!flagging || !flagMessage.trim()) { setFlagError("A message is required"); return; }
     setFlagBusy(true);
@@ -217,6 +244,19 @@ export default function LiveBoardClient() {
 
   return (
     <>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12, color: c.hint }}>
+        <span>On login, show me:</span>
+        <select
+          style={{ ...inp, width: "auto", padding: "5px 9px", fontSize: 12 }}
+          value={landing ?? "live_board"}
+          disabled={landingBusy}
+          onChange={(e) => setDefaultLanding(e.target.value as "live_board" | "dashboard")}
+        >
+          <option value="live_board">Live board</option>
+          <option value="dashboard">Dashboard</option>
+        </select>
+      </div>
+
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14, alignItems: "stretch" }}>
         <section style={{ ...cardStyle, flex: "1 1 320px" }}>
           <Donut
