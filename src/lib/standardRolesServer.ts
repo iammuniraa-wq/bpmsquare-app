@@ -82,6 +82,52 @@ export async function provisionStandardRoles(
   }
 }
 
+/**
+ * Re-syncs ONE already-provisioned standard role's grants (and description)
+ * against the current catalog -- the operation provisionStandardRoles'
+ * own docstring anticipated but never actually shipped. Explicit and
+ * admin-triggered (never automatic) precisely for the reason
+ * provisionStandardRoles stays insert-only: a catalog fix (e.g. dropping an
+ * over-broad grant a standard role shouldn't have had) has to actually
+ * reach tenants that provisioned it before the fix, or it only ever helps
+ * brand-new tenants.
+ */
+export async function resyncStandardRole(
+  admin: SupabaseClient,
+  tenantId: string,
+  roleId: string
+): Promise<{ error: string } | { ok: true }> {
+  const { data: role } = await admin
+    .from("business_roles")
+    .select("id, template_key, is_standard")
+    .eq("id", roleId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!role) return { error: "Role not found" };
+  if (!role.is_standard || !role.template_key) return { error: "Only standard roles can be re-synced" };
+
+  const template = STANDARD_ROLES.find((t) => t.key === role.template_key);
+  if (!template) return { error: "This role's template no longer exists in the catalog" };
+
+  const { error: uErr } = await admin
+    .from("business_roles")
+    .update({ description: template.description, updated_at: new Date().toISOString() })
+    .eq("id", roleId)
+    .eq("tenant_id", tenantId);
+  if (uErr) return { error: uErr.message };
+
+  const { error: dErr } = await admin.from("business_role_grants").delete().eq("role_id", roleId).eq("tenant_id", tenantId);
+  if (dErr) return { error: dErr.message };
+
+  const grantRows = grantRowsFor(template, tenantId, roleId);
+  if (grantRows.length > 0) {
+    const { error: iErr } = await admin.from("business_role_grants").insert(grantRows);
+    if (iErr) return { error: iErr.message };
+  }
+
+  return { ok: true };
+}
+
 export function grantRowsFor(template: StandardRoleTemplate, tenantId: string, roleId: string) {
   return (Object.entries(template.grants) as [WorkcenterKey, Parameters<typeof expandCrud>[0]][]).map(
     ([workcenter, crud]) => ({

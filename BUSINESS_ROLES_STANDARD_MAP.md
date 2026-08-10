@@ -85,9 +85,9 @@ this. ⚠️ Confirm that's the intent.
 | invoices | V | VCED | – | VCE | – | – | – | – |
 | cases | – | V | VCE | VCED | – | – | – | – |
 | amc | – | – | V | VCED | – | – | – | – |
-| work_orders | – | – | VCE | VCED | – | – | – | – |
+| work_orders | – | – | VCE | VCED | – | – | – | – (was V, drift fixed 2026-08-11) |
 | dispatch | – | – | VCE | VCED | – | – | – | – |
-| technicians | – | – | V | VCED | – | – | – | – |
+| technicians | – | – | V | VCED | – | – | – | – (was V, drift fixed 2026-08-11) |
 | assets | – | V | VCE | VCED | – | – | – | – |
 | suppliers | – | – | V | VCED | – | – | – | – |
 | inventory | – | – | V | VCED | – | – | – | – |
@@ -102,12 +102,28 @@ this. ⚠️ Confirm that's the intent.
 
 `V`=view `C`=create `E`=edit `D`=delete `–`=no grant
 
-> **WFM caveat:** the `wfm` workcenter grant only opens *My Workforce*. The
-> five supervisor screens are gated separately by `employees.wfm_role`
-> (`requireWfmSupervisorPage`). So "WFM Admin" also needs that employee
-> record set to `supervisor` — the role alone is not enough. This is by
-> design (an employee's supervisor status is an HR fact, not a CRM
-> permission) and will be stated in the UI.
+> **WFM caveat — fixed 2026-08-11.** Previously the `wfm` workcenter grant
+> only opened *My Workforce*; the five supervisor screens
+> (`requireWfmSupervisorPage`) were gated separately by
+> `employees.wfm_role === "supervisor"`, so a "WFM Admin" business role
+> alone didn't actually unlock them — a real gap, not documented intent, a
+> tenant admin hit it directly. Both `requireWfm()`'s `isSupervisor` (the
+> actual API/page authorization boundary) and `(app)/layout.tsx`'s
+> nav-visibility flag now also treat an explicit Business Role grant of
+> `canEdit` on `wfm` as supervisor status, alongside `role === "admin"` and
+> `employee.wfm_role === "supervisor"`. Deliberately keyed off an *explicit*
+> grant, not "unrestricted" (which is also true for a plain member with zero
+> roles assigned) — that must never silently promote such a member.
+>
+> Separately, the `wfm_admin` template in the code had drifted from this
+> table: it granted `technicians`/`work_orders` (both `V`) that this table
+> never called for. Fixed in the catalog (`src/lib/standardRoles.ts`), but
+> catalog fixes don't reach a tenant that already provisioned the role —
+> `provisionStandardRoles` never updates an existing row. Use the new
+> **"Sync with catalog"** action on a standard role's read-only view
+> (`POST /api/business-roles/[id]/resync`, `resyncStandardRole()` in
+> `standardRolesServer.ts`) to pull an already-provisioned tenant's role
+> back in line with the current catalog.
 
 ---
 

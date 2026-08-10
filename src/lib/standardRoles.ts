@@ -141,7 +141,6 @@ export const STANDARD_ROLES: StandardRoleTemplate[] = [
     grants: {
       dashboard: "v",
       wfm: "vced", employees: "vced",
-      technicians: "v", work_orders: "v",
       reports: "v",
     },
   },

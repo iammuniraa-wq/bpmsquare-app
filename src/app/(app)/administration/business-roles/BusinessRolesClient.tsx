@@ -70,17 +70,21 @@ export default function BusinessRolesClient({ territories, features }: { territo
   const [saveError, setSaveError] = useState("");
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [dashboardSaving, setDashboardSaving] = useState(false);
+  const [resyncBusy, setResyncBusy] = useState(false);
+  const [resyncMsg, setResyncMsg] = useState("");
 
-  async function load() {
+  async function load(): Promise<BusinessRole[]> {
     setLoading(true);
     setError("");
     try {
       const res = await fetch("/api/business-roles");
       const json = await res.json();
-      if (!res.ok) { setError(json.error ?? "Failed to load roles"); return; }
+      if (!res.ok) { setError(json.error ?? "Failed to load roles"); return []; }
       setRoles(json.roles);
+      return json.roles ?? [];
     } catch {
       setError("Could not reach the server.");
+      return [];
     } finally {
       setLoading(false);
     }
@@ -171,6 +175,22 @@ export default function BusinessRolesClient({ territories, features }: { territo
     setRoles((prev) => (prev ?? []).map((r) => (r.id === editingRole.id ? { ...r, dashboard_layout: next } : r)));
   }
 
+  /** Re-syncs a standard role's grants/description against the current
+   * catalog -- for a tenant that provisioned it before a catalog fix
+   * shipped (provisionStandardRoles never updates an existing row). */
+  async function resync(r: BusinessRole) {
+    setResyncBusy(true);
+    setResyncMsg("");
+    const res = await fetch(`/api/business-roles/${r.id}/resync`, { method: "POST" });
+    const json = await res.json().catch(() => ({}));
+    setResyncBusy(false);
+    if (!res.ok) { setResyncMsg(json.error ?? "Resync failed"); return; }
+    setResyncMsg("Synced with the latest catalog.");
+    const fresh = await load();
+    const refreshed = fresh.find((x) => x.id === r.id);
+    if (refreshed) startEdit(refreshed);
+  }
+
   async function remove(r: BusinessRole) {
     if (!window.confirm(`Delete the "${r.name}" role? Members holding only this role will revert to full (unrestricted) access.`)) return;
     const res = await fetch(`/api/business-roles/${r.id}`, { method: "DELETE" });
@@ -209,9 +229,17 @@ export default function BusinessRolesClient({ territories, features }: { territo
           <div style={{ ...cardStyle, marginBottom: 12, fontSize: 12.5, color: c.muted, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <Pill label="Standard role" tone="blue" />
             <span style={{ flex: 1, minWidth: 220 }}>
-              This role ships with BPMSquare and stays up to date automatically, so it can&apos;t be edited.
-              Duplicate it to make a version you can change.
+              This role ships with BPMSquare and stays up to date automatically, so it can&apos;t be edited directly.
+              {resyncMsg && <span style={{ color: c.accent, fontWeight: 600, marginLeft: 6 }}>{resyncMsg}</span>}
             </span>
+            <button
+              onClick={() => editingRole && resync(editingRole)}
+              disabled={resyncBusy}
+              title="Re-apply this role's grants and description from the current catalog -- use this if it was provisioned before a catalog fix shipped."
+              style={{ padding: "7px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 500, background: "none", color: c.accent, border: `1px solid ${c.line}`, cursor: resyncBusy ? "wait" : "pointer", whiteSpace: "nowrap" }}
+            >
+              {resyncBusy ? "Syncing…" : "Sync with catalog"}
+            </button>
             <button
               onClick={() => editingRole && duplicate(editingRole)}
               style={{ padding: "7px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, background: c.accent, color: c.panel, border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
