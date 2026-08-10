@@ -11,6 +11,7 @@ import { ROUTES, type QuoteStatusDef } from "@/lib/constants";
 import type { AnalyticsMetricId } from "@/lib/constants";
 import type { QuoteSummary, AnalyticsData } from "@/lib/data/labels";
 import type { TenantFeatures } from "@/lib/constants";
+import { AlertTriangle, CheckIcon } from "@/components/Icons";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -305,6 +306,63 @@ function HBarChartNav({
   );
 }
 
+
+/** One thin stacked composition bar (parts of a whole) with 2px segment gaps. */
+function SegmentStrip({ segments, height = 10 }: {
+  segments: Array<{ label: string; value: number; color: string }>; height?: number;
+}) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  if (total === 0) return <div style={{ height, borderRadius: height / 2, background: c.line }} />;
+  return (
+    <div style={{ display: "flex", gap: 2, height, borderRadius: height / 2, overflow: "hidden" }}>
+      {segments.filter((s) => s.value > 0).map((s, i) => (
+        <div key={i} title={`${s.label}: ${s.value}`} style={{ flex: s.value, background: s.color, minWidth: 4 }} />
+      ))}
+    </div>
+  );
+}
+
+function StripLegend({ items }: { items: Array<{ label: string; value: number | string; color: string }> }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 14px" }}>
+      {items.map((it, i) => (
+        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: c.muted, whiteSpace: "nowrap" }}>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: it.color, flexShrink: 0 }} />
+          {it.label}
+          <span style={{ fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{it.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Approval-queue summary: pending count is the headline; history is chips. */
+function QueueSummary({ pending, noun, chips, href }: {
+  pending: number; noun: string;
+  chips: Array<{ label: string; value: number; color: string }>; href: string;
+}) {
+  const hot = pending > 0;
+  return (
+    <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{
+          width: 46, height: 46, borderRadius: 12, flexShrink: 0,
+          background: hot ? pillar.amber.bg : pillar.green.bg,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          {hot ? <AlertTriangle size={20} color={pillar.amber.fg} /> : <CheckIcon size={20} color={pillar.green.fg} />}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.1, color: hot ? pillar.amber.fg : c.ink, fontVariantNumeric: "tabular-nums" }}>{pending}</div>
+          <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>
+            {hot ? `pending ${noun} awaiting review` : `no pending ${noun} — all clear`}
+          </div>
+        </div>
+      </div>
+      {chips.some((ch) => ch.value > 0) && <StripLegend items={chips} />}
+    </Link>
+  );
+}
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -717,16 +775,31 @@ export default function ReportsClient({
           {a.wfmAttendanceBySite.length === 0 ? (
             <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No employees yet.</div>
           ) : (
-            a.wfmAttendanceBySite.map((s) => (
-              <div key={s.site} style={{ padding: "8px 0", borderBottom: `1px solid ${c.line}` }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: c.ink, marginBottom: 4 }}>{s.site}</div>
-                <div style={{ display: "flex", gap: 16 }}>
-                  <span style={{ fontSize: 11, color: pillar.green.fg }}>{s.onTime} on time</span>
-                  <span style={{ fontSize: 11, color: pillar.amber.fg }}>{s.late} late</span>
-                  <span style={{ fontSize: 11, color: pillar.red.fg }}>{s.absent} absent</span>
-                </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {a.wfmAttendanceBySite.map((s) => {
+                const expected = s.onTime + s.late + s.absent;
+                return (
+                  <div key={s.site} style={{ padding: "6px 0" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: c.ink }}>{s.site}</span>
+                      <span style={{ fontSize: 11, color: c.hint, fontVariantNumeric: "tabular-nums" }}>{s.onTime + s.late}/{expected} in</span>
+                    </div>
+                    <SegmentStrip height={8} segments={[
+                      { label: "On time", value: s.onTime, color: pillar.green.base },
+                      { label: "Late",    value: s.late,   color: pillar.amber.base },
+                      { label: "Absent",  value: s.absent, color: pillar.red.base },
+                    ]} />
+                  </div>
+                );
+              })}
+              <div style={{ marginTop: 6 }}>
+                <StripLegend items={[
+                  { label: "On time", value: a.wfmAttendanceBySite.reduce((s, x) => s + x.onTime, 0), color: pillar.green.base },
+                  { label: "Late",    value: a.wfmAttendanceBySite.reduce((s, x) => s + x.late, 0),   color: pillar.amber.base },
+                  { label: "Absent",  value: a.wfmAttendanceBySite.reduce((s, x) => s + x.absent, 0), color: pillar.red.base },
+                ]} />
               </div>
-            ))
+            </div>
           )}
         </ChartCard>}
 
@@ -744,22 +817,32 @@ export default function ReportsClient({
       {(isVisible("wfm_corrections_queue") || isVisible("wfm_leave_requests_queue") || isVisible("wfm_recheck_queue")) && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
         {isVisible("wfm_corrections_queue") && <ChartCard title="Corrections queue" href={ROUTES.wfmCorrections}>
-          <HBarChartNav
-            rows={a.wfmCorrectionsByStatus.map((x) => ({ label: x.label, value: x.count }))}
-            colorFn={(i) => [pillar.amber.base, pillar.green.base, pillar.red.base][i]}
-          />
+          {(() => {
+            const m = new Map(a.wfmCorrectionsByStatus.map((x) => [x.status, x.count]));
+            return <QueueSummary pending={m.get("pending") ?? 0} noun="corrections" href={ROUTES.wfmCorrections} chips={[
+              { label: "Approved", value: m.get("approved") ?? 0, color: pillar.green.base },
+              { label: "Rejected", value: m.get("rejected") ?? 0, color: pillar.red.base },
+            ]} />;
+          })()}
         </ChartCard>}
         {isVisible("wfm_leave_requests_queue") && <ChartCard title="Leave requests" href={ROUTES.wfmLeave}>
-          <HBarChartNav
-            rows={a.wfmLeaveRequestsByStatus.map((x) => ({ label: x.label, value: x.count }))}
-            colorFn={(i) => [pillar.amber.base, pillar.green.base, pillar.red.base][i]}
-          />
+          {(() => {
+            const m = new Map(a.wfmLeaveRequestsByStatus.map((x) => [x.status, x.count]));
+            return <QueueSummary pending={m.get("pending") ?? 0} noun="leave requests" href={ROUTES.wfmLeave} chips={[
+              { label: "Approved", value: m.get("approved") ?? 0, color: pillar.green.base },
+              { label: "Rejected", value: m.get("rejected") ?? 0, color: pillar.red.base },
+            ]} />;
+          })()}
         </ChartCard>}
         {isVisible("wfm_recheck_queue") && <ChartCard title="Recheck requests" href={ROUTES.wfmCorrections}>
-          <HBarChartNav
-            rows={a.wfmRecheckByStatus.map((x) => ({ label: x.label, value: x.count }))}
-            colorFn={(i) => [pillar.amber.base, pillar.blue.base, pillar.green.base, c.hint][i]}
-          />
+          {(() => {
+            const m = new Map(a.wfmRecheckByStatus.map((x) => [x.status, x.count]));
+            return <QueueSummary pending={m.get("pending") ?? 0} noun="rechecks" href={ROUTES.wfmCorrections} chips={[
+              { label: "Responded", value: m.get("responded") ?? 0, color: pillar.blue.base },
+              { label: "Resolved",  value: m.get("resolved") ?? 0,  color: pillar.green.base },
+              { label: "Dismissed", value: m.get("dismissed") ?? 0, color: c.hint },
+            ]} />;
+          })()}
         </ChartCard>}
       </div>
       )}
@@ -771,31 +854,63 @@ export default function ReportsClient({
           {a.wfmHeadcountBySite.length === 0 ? (
             <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No active employees yet.</div>
           ) : (
-            <HBarChartNav rows={a.wfmHeadcountBySite.map((x) => ({ label: x.site, value: x.count }))} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ fontSize: 11, color: c.hint }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>
+                  {a.wfmHeadcountBySite.reduce((s, x) => s + x.count, 0)}
+                </span>{" "}active employees
+              </div>
+              <HBarChartNav
+                rows={[...a.wfmHeadcountBySite].sort((x, y) => y.count - x.count).map((x) => ({ label: x.site, value: x.count }))}
+                colorFn={() => pillar.blue.base}
+              />
+            </div>
           )}
         </ChartCard>}
         {isVisible("wfm_workforce_composition") && <ChartCard title="Workforce composition" href={ROUTES.wfmEmployees}>
-          <div style={{ display: "flex", gap: 20 }}>
-            <div>
-              <div style={{ fontSize: 10, color: c.hint }}>Full-time</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: pillar.blue.fg }}>{a.wfmWorkforceComposition.fullTime}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: c.hint }}>Contractors</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: pillar.teal.fg }}>{a.wfmWorkforceComposition.contractors}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: c.hint }}>Supervisors</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: pillar.purple.fg }}>{a.wfmWorkforceComposition.supervisors}</div>
-            </div>
-          </div>
+          {(() => {
+            const { totalActive, supervisors, fullTime, contractors } = a.wfmWorkforceComposition;
+            const other = Math.max(0, totalActive - fullTime - contractors);
+            const segs = [
+              { label: "Full-time",   value: fullTime,    color: pillar.blue.base },
+              { label: "Contractors", value: contractors, color: pillar.teal.base },
+              ...(other > 0 ? [{ label: "Other", value: other, color: c.hint }] : []),
+            ];
+            return totalActive === 0
+              ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No active employees yet.</div>
+              : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.1, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{totalActive}</span>
+                    <span style={{ fontSize: 11, color: c.hint }}>active · {supervisors} supervisor{supervisors === 1 ? "" : "s"}</span>
+                  </div>
+                  <SegmentStrip segments={segs} />
+                  <StripLegend items={segs} />
+                </div>
+              );
+          })()}
         </ChartCard>}
         {isVisible("wfm_leave_taken_by_type") && <ChartCard title="Leave taken (YTD)" href={ROUTES.wfmLeave}>
-          {a.wfmLeaveTakenByType.length === 0 ? (
-            <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No leave recorded this year.</div>
-          ) : (
-            <HBarChartNav rows={a.wfmLeaveTakenByType.map((x) => ({ label: x.type, value: x.days, sub: `${x.days}d` }))} />
-          )}
+          {(() => {
+            if (a.wfmLeaveTakenByType.length === 0) {
+              return <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No leave recorded this year.</div>;
+            }
+            const fmtD = (d: number) => (Number.isInteger(d) ? d : Math.round(d * 10) / 10);
+            const sorted = [...a.wfmLeaveTakenByType].sort((x, y) => y.days - x.days);
+            const otherDays = sorted.slice(4).reduce((s, x) => s + x.days, 0);
+            const segments = [
+              ...sorted.slice(0, 4).map((x, i) => ({ label: x.type, value: fmtD(x.days), color: CHART_COLORS[i % CHART_COLORS.length] })),
+              ...(otherDays > 0 ? [{ label: "Other", value: fmtD(otherDays), color: c.hint }] : []),
+            ];
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+                <DonutChartNavigable segments={segments} size={130} r={44} sw={18} />
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <DonutLegendNav items={segments} />
+                </div>
+              </div>
+            );
+          })()}
         </ChartCard>}
       </div>
       )}

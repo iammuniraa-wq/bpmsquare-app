@@ -291,6 +291,74 @@ function MiniHBar({ rows, colorFn }: {
   );
 }
 
+// One thin stacked bar showing parts of a whole -- the composition form.
+// 2px gaps keep segments readable without outlines; zero-value segments are
+// dropped so the gap count matches what's actually visible.
+function SegmentBar({ segments, height = 10 }: {
+  segments: { label: string; value: number; color: string }[]; height?: number;
+}) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  if (total === 0) return <div style={{ height, borderRadius: height / 2, background: c.panel2 }} />;
+  return (
+    <div style={{ display: "flex", gap: 2, height, borderRadius: height / 2, overflow: "hidden" }}>
+      {segments.filter((s) => s.value > 0).map((s, i) => (
+        <div key={i} title={`${s.label}: ${s.value}`} style={{ flex: s.value, background: s.color, minWidth: 4 }} />
+      ))}
+    </div>
+  );
+}
+
+function LegendChips({ items }: { items: { label: string; value: number | string; color: string }[] }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 14px" }}>
+      {items.map((it, i) => (
+        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: c.muted, whiteSpace: "nowrap" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 2, background: it.color, flexShrink: 0 }} />
+          {it.label}
+          <span style={{ ...serifNum, fontWeight: 700, color: c.ink }}>{it.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// Approval-queue widget: the actionable number (pending) is the headline; the
+// disposition history (approved/rejected/...) is deliberately demoted to small
+// legend chips. The icon chip carries state -- amber alert while anything is
+// pending, green check when the queue is clear -- so an all-zero fresh tenant
+// reads as "all clear", not as a broken empty chart.
+function QueueGlance({ pending, noun, chips, href }: {
+  pending: number; noun: string;
+  chips: { label: string; value: number; color: string }[]; href: string;
+}) {
+  const modern = useUiTheme() !== "classic";
+  const hot = pending > 0;
+  return (
+    <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: modern ? 10 : 8, flexShrink: 0,
+          background: hot ? pillar.amber.bg : pillar.green.bg,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          {hot ? <AlertTriangle size={17} color={pillar.amber.fg} /> : <CheckIcon size={17} color={pillar.green.fg} />}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            ...(modern ? {} : serifNum),
+            fontSize: 24, fontWeight: modern ? 800 : 700, lineHeight: 1.1,
+            color: modern ? "var(--modern-accent)" : ledger.accent,
+          }}>{pending}</div>
+          <div style={{ fontSize: 10.5, color: c.hint, marginTop: 2 }}>
+            {hot ? `pending ${noun} awaiting review` : `no pending ${noun} — all clear`}
+          </div>
+        </div>
+      </div>
+      {chips.some((ch) => ch.value > 0) && <LegendChips items={chips} />}
+    </Link>
+  );
+}
+
 function MiniDonut({ slices, size = 64 }: { slices: { label: string; value: number; color: string }[]; size?: number }) {
   const total = slices.reduce((s, x) => s + x.value, 0) || 1;
   const r = size / 2 - 6;
@@ -613,28 +681,105 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
       const onTime = a.wfmAttendanceBySite.reduce((s, x) => s + x.onTime, 0);
       const late = a.wfmAttendanceBySite.reduce((s, x) => s + x.late, 0);
       const absent = a.wfmAttendanceBySite.reduce((s, x) => s + x.absent, 0);
+      const expected = onTime + late + absent;
+      const present = onTime + late;
       return <AnalyticsCard title="Attendance today" href={ROUTES.wfmLiveBoard}>
-        <MiniHBar
-          rows={[
-            { label: "On time", value: onTime },
-            { label: "Late",    value: late },
-            { label: "Absent",  value: absent },
-          ]}
-          colorFn={(i) => [pillar.green.base, pillar.amber.base, pillar.red.base][i]}
-        />
+        {expected === 0
+          ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No attendance expected today.</div>
+          : <Link href={ROUTES.wfmLiveBoard} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                <span style={{ ...serifNum, fontSize: 24, fontWeight: 700, lineHeight: 1.1, color: ledger.accent }}>{present}</span>
+                <span style={{ fontSize: 11, color: c.hint }}>of {expected} in today</span>
+              </div>
+              <SegmentBar segments={[
+                { label: "On time", value: onTime, color: pillar.green.base },
+                { label: "Late",    value: late,   color: pillar.amber.base },
+                { label: "Absent",  value: absent, color: pillar.red.base },
+              ]} />
+              <LegendChips items={[
+                { label: "On time", value: onTime, color: pillar.green.base },
+                { label: "Late",    value: late,   color: pillar.amber.base },
+                { label: "Absent",  value: absent, color: pillar.red.base },
+              ]} />
+            </Link>}
       </AnalyticsCard>;
     }
-    case "wfm_night_shift_cost": return <AnalyticsCard title="Night shift cost" href={ROUTES.wfmLiveBoard}><StatTile value={a.wfmNightShiftCost.count} label={`On night shift (${inr(a.wfmNightShiftCost.amount)})`} icon={<Clock size={14} color={ledger.accent} />} href={ROUTES.wfmLiveBoard} /></AnalyticsCard>;
-    case "wfm_corrections_queue": return <AnalyticsCard title="Corrections queue" href={ROUTES.wfmCorrections}><MiniHBar rows={a.wfmCorrectionsByStatus.map((x) => ({ label: x.label, value: x.count }))} colorFn={(i) => [pillar.amber.base, pillar.green.base, pillar.red.base][i]} /></AnalyticsCard>;
-    case "wfm_leave_requests_queue": return <AnalyticsCard title="Leave requests" href={ROUTES.wfmLeave}><MiniHBar rows={a.wfmLeaveRequestsByStatus.map((x) => ({ label: x.label, value: x.count }))} colorFn={(i) => [pillar.amber.base, pillar.green.base, pillar.red.base][i]} /></AnalyticsCard>;
-    case "wfm_recheck_queue": return <AnalyticsCard title="Recheck requests" href={ROUTES.wfmCorrections}><MiniHBar rows={a.wfmRecheckByStatus.map((x) => ({ label: x.label, value: x.count }))} colorFn={(i) => [pillar.amber.base, pillar.blue.base, pillar.green.base, c.hint][i]} /></AnalyticsCard>;
-    case "wfm_site_headcount": return <AnalyticsCard title="Headcount by site" href={ROUTES.wfmEmployees}>{a.wfmHeadcountBySite.length === 0
-      ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No active employees yet.</div>
-      : <MiniHBar rows={a.wfmHeadcountBySite.map((x) => ({ label: x.site, value: x.count }))} colorFn={(i) => COLORS[i % COLORS.length]} />}</AnalyticsCard>;
-    case "wfm_workforce_composition": return <AnalyticsCard title="Workforce composition" href={ROUTES.wfmEmployees}><div style={{ display: "flex" }}><StatTile value={a.wfmWorkforceComposition.fullTime} label="Full-time" icon={<Clipboard size={14} color={ledger.accent} />} href={ROUTES.wfmEmployees} /><StatTile value={a.wfmWorkforceComposition.contractors} label="Contractors" icon={<Clipboard size={14} color={ledger.accent} />} href={ROUTES.wfmEmployees} /></div></AnalyticsCard>;
-    case "wfm_leave_taken_by_type": return <AnalyticsCard title="Leave taken (YTD)" href={ROUTES.wfmLeave}>{a.wfmLeaveTakenByType.length === 0
-      ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No leave recorded this year.</div>
-      : <MiniHBar rows={a.wfmLeaveTakenByType.map((x) => ({ label: x.type, value: x.days, valueLabel: `${x.days}d` }))} colorFn={(i) => COLORS[i % COLORS.length]} />}</AnalyticsCard>;
+    case "wfm_night_shift_cost": return <AnalyticsCard title="Night shift cost" href={ROUTES.wfmLiveBoard}><StatTile value={inr(a.wfmNightShiftCost.amount)} label={`${a.wfmNightShiftCost.count} on night shift today`} icon={<Clock size={14} color={ledger.accent} />} href={ROUTES.wfmLiveBoard} /></AnalyticsCard>;
+    case "wfm_corrections_queue": {
+      const m = new Map(a.wfmCorrectionsByStatus.map((x) => [x.status, x.count]));
+      return <AnalyticsCard title="Corrections queue" href={ROUTES.wfmCorrections}>
+        <QueueGlance pending={m.get("pending") ?? 0} noun="corrections" href={ROUTES.wfmCorrections} chips={[
+          { label: "Approved", value: m.get("approved") ?? 0, color: pillar.green.base },
+          { label: "Rejected", value: m.get("rejected") ?? 0, color: pillar.red.base },
+        ]} />
+      </AnalyticsCard>;
+    }
+    case "wfm_leave_requests_queue": {
+      const m = new Map(a.wfmLeaveRequestsByStatus.map((x) => [x.status, x.count]));
+      return <AnalyticsCard title="Leave requests" href={ROUTES.wfmLeave}>
+        <QueueGlance pending={m.get("pending") ?? 0} noun="leave requests" href={ROUTES.wfmLeave} chips={[
+          { label: "Approved", value: m.get("approved") ?? 0, color: pillar.green.base },
+          { label: "Rejected", value: m.get("rejected") ?? 0, color: pillar.red.base },
+        ]} />
+      </AnalyticsCard>;
+    }
+    case "wfm_recheck_queue": {
+      const m = new Map(a.wfmRecheckByStatus.map((x) => [x.status, x.count]));
+      return <AnalyticsCard title="Recheck requests" href={ROUTES.wfmCorrections}>
+        <QueueGlance pending={m.get("pending") ?? 0} noun="rechecks" href={ROUTES.wfmCorrections} chips={[
+          { label: "Responded", value: m.get("responded") ?? 0, color: pillar.blue.base },
+          { label: "Resolved",  value: m.get("resolved") ?? 0,  color: pillar.green.base },
+          { label: "Dismissed", value: m.get("dismissed") ?? 0, color: c.hint },
+        ]} />
+      </AnalyticsCard>;
+    }
+    case "wfm_site_headcount": {
+      const rows = [...a.wfmHeadcountBySite].sort((x, y) => y.count - x.count);
+      const total = rows.reduce((s, x) => s + x.count, 0);
+      return <AnalyticsCard title="Headcount by site" href={ROUTES.wfmEmployees}>{rows.length === 0
+        ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No active employees yet.</div>
+        : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 11, color: c.hint }}><span style={{ ...serifNum, fontSize: 13, fontWeight: 700, color: c.ink }}>{total}</span> active employees</div>
+            <MiniHBar rows={rows.map((x) => ({ label: x.site, value: x.count }))} colorFn={() => ledger.accent} />
+          </div>}</AnalyticsCard>;
+    }
+    case "wfm_workforce_composition": {
+      const { totalActive, supervisors, fullTime, contractors } = a.wfmWorkforceComposition;
+      const other = Math.max(0, totalActive - fullTime - contractors);
+      const segs = [
+        { label: "Full-time",   value: fullTime,    color: pillar.blue.base },
+        { label: "Contractors", value: contractors, color: pillar.teal.base },
+        ...(other > 0 ? [{ label: "Other", value: other, color: c.hint }] : []),
+      ];
+      return <AnalyticsCard title="Workforce composition" href={ROUTES.wfmEmployees}>
+        {totalActive === 0
+          ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No active employees yet.</div>
+          : <Link href={ROUTES.wfmEmployees} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                <span style={{ ...serifNum, fontSize: 24, fontWeight: 700, lineHeight: 1.1, color: ledger.accent }}>{totalActive}</span>
+                <span style={{ fontSize: 11, color: c.hint }}>active · {supervisors} supervisor{supervisors === 1 ? "" : "s"}</span>
+              </div>
+              <SegmentBar segments={segs} />
+              <LegendChips items={segs} />
+            </Link>}
+      </AnalyticsCard>;
+    }
+    case "wfm_leave_taken_by_type": {
+      const sorted = [...a.wfmLeaveTakenByType].sort((x, y) => y.days - x.days);
+      const otherDays = sorted.slice(3).reduce((s, x) => s + x.days, 0);
+      const fmtD = (d: number) => (Number.isInteger(d) ? d : Math.round(d * 10) / 10);
+      const slices = [
+        ...sorted.slice(0, 3).map((x, i) => ({ label: x.type, value: fmtD(x.days), color: COLORS[i] })),
+        ...(otherDays > 0 ? [{ label: "Other", value: fmtD(otherDays), color: c.hint }] : []),
+      ];
+      const totalDays = fmtD(sorted.reduce((s, x) => s + x.days, 0));
+      return <AnalyticsCard title="Leave taken (YTD)" href={ROUTES.wfmLeave}>{sorted.length === 0
+        ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No leave recorded this year.</div>
+        : <Link href={ROUTES.wfmLeave} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 11, color: c.hint }}><span style={{ ...serifNum, fontSize: 13, fontWeight: 700, color: c.ink }}>{totalDays}</span> days this year</div>
+            <MiniDonut slices={slices} />
+          </Link>}</AnalyticsCard>;
+    }
     default: return null;
   }
 }
