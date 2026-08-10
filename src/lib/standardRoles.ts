@@ -138,9 +138,15 @@ export const STANDARD_ROLES: StandardRoleTemplate[] = [
     level: "admin",
     name: "WFM Admin",
     description: "Live board, attendance corrections, leave and the monthly summary.",
+    // NOT "employees" -- WFM's own Employees hub (/wfm/employees) and its
+    // create/edit API are gated purely by requireWfmSupervisor(), never the
+    // "employees" workcenter. That grant would only unlock the SEPARATE
+    // generic Master Data > Employees page (requireWorkcenterView(
+    // "employees")), which is redundant with the dedicated WFM hub for a
+    // role scoped to Workforce administration -- fixed 2026-08-11.
     grants: {
       dashboard: "v",
-      wfm: "vced", employees: "vced",
+      wfm: "vced",
       reports: "v",
     },
   },

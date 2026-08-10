@@ -96,7 +96,7 @@ this. ⚠️ Confirm that's the intent.
 | marketing_segments | – | – | – | – | VCE | VCED | – | – |
 | leads | V | VCE | – | – | VCE | VCED | – | – |
 | partners | – | V | – | – | VCE | VCED | – | – |
-| employees | – | – | – | V | – | – | – | VCED |
+| employees | – | – | – | V | – | – | – | – (was VCED, redundant w/ /wfm/employees, fixed 2026-08-11) |
 | wfm | – | – | – | V | – | – | V | VCED |
 | reports | – | V | – | V | – | V | – | V |
 
