@@ -3,6 +3,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
+import { resolvePermissions } from "@/lib/permissions";
 import { DEFAULT_WFM_CONFIG, ROUTES, type TenantConfig, type WfmConfig } from "@/lib/constants";
 import type { WfmEmployee, PresenceKind, PunchState } from "./types";
 import { deriveState } from "./types";
@@ -37,12 +38,10 @@ export async function requireWfm(): Promise<WfmContext> {
     throw { status: 404, message: "Not found" };
   }
 
-  const { data: membership } = await supabase
-    .from("tenant_users")
-    .select("employee_id")
-    .eq("tenant_id", tenantId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  const [{ data: membership }, perms] = await Promise.all([
+    supabase.from("tenant_users").select("employee_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
+    resolvePermissions(supabase, tenantId, userId, role),
+  ]);
 
   let employee: WfmEmployee | null = null;
   if (membership?.employee_id) {
@@ -55,13 +54,22 @@ export async function requireWfm(): Promise<WfmContext> {
     employee = (data as WfmEmployee | null) ?? null;
   }
 
+  // A Business Role that explicitly grants edit access on "wfm" counts as
+  // supervisor too, alongside tenant admins and employee.wfm_role ===
+  // "supervisor". Deliberately NOT perms.unrestricted -- that's also true
+  // for a plain member with zero roles assigned (today's "no role = full
+  // access" default elsewhere in the app), and that must never silently
+  // promote someone to WFM supervisor just because nobody's scoped them
+  // yet. Only an explicit grant (perms.grants has a real entry) counts.
+  const grantedViaRole = perms.grants.get("wfm")?.canEdit === true;
+
   return {
     supabase,
     tenantId,
     userId,
     role,
     employee,
-    isSupervisor: role === "admin" || employee?.wfm_role === "supervisor",
+    isSupervisor: role === "admin" || employee?.wfm_role === "supervisor" || grantedViaRole,
   };
 }
 

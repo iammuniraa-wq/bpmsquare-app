@@ -89,7 +89,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // an admin who manages the business but isn't also linked to a WFM
     // employee record (the common case -- most admins aren't themselves a
     // tracked worker) saw none of them, same as a plain employee would.
-    isWfmSupervisor = userRole === "admin";
+    //
+    // A Business Role that explicitly grants edit access on "wfm" counts
+    // too -- same rule as requireWfm()'s own isSupervisor (src/lib/wfm/
+    // server.ts), which is the actual API-level enforcement boundary; nav
+    // visibility has to match it or a role like "WFM Admin" shows nothing
+    // despite the API actually allowing it (or, worse, the reverse). Reuses
+    // `perms` already computed above -- not perms.unrestricted, which is
+    // also true for a plain member with zero roles assigned (today's
+    // "no role = full access" default) and must never auto-promote them.
+    isWfmSupervisor = userRole === "admin" || perms.grants.get("wfm")?.canEdit === true;
     const { data: membership } = await supabase
       .from("tenant_users")
       .select("employee_id, wfm_default_landing")

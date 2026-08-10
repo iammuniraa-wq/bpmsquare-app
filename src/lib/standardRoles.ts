@@ -137,8 +137,7 @@ export const STANDARD_ROLES: StandardRoleTemplate[] = [
     category: "wfm",
     level: "admin",
     name: "WFM Admin",
-    description:
-      "Live board, attendance corrections, leave and the monthly summary. The person's employee record must also be set to wfm_role = supervisor.",
+    description: "Live board, attendance corrections, leave and the monthly summary.",
     grants: {
       dashboard: "v",
       wfm: "vced", employees: "vced",
