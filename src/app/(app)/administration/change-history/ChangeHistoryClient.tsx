@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { c } from "@/lib/theme";
 import { csvCell, downloadCsv } from "@/lib/import/template";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 // Mirrors the objectType strings src/lib/changeLog.ts records -- kept as its
 // own small list rather than importing ImportObjectId, since not every
@@ -61,6 +63,7 @@ export default function ChangeHistoryClient() {
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
 
   async function search() {
     setLoading(true);
@@ -97,7 +100,11 @@ export default function ChangeHistoryClient() {
     downloadCsv(`change_history_${label.toLowerCase().replace(/\s+/g, "_")}${objectId ? `_${objectId}` : ""}.csv`, csv);
   }
 
-  const visible = rows?.slice(0, 300) ?? [];
+  const visible = paginate(rows ?? [], page, DEFAULT_PAGE_SIZE);
+
+  useEffect(() => {
+    setPage((p) => clampPage(p, rows?.length ?? 0, DEFAULT_PAGE_SIZE));
+  }, [rows]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -196,9 +203,12 @@ export default function ChangeHistoryClient() {
           </table>
         </div>
       )}
-      {rows && rows.length > visible.length && (
-        <div style={{ fontSize: 11.5, color: c.hint }}>
-          Showing the first {visible.length} of {rows.length} entries — the CSV download includes all of them.
+      {rows && rows.length > 0 && (
+        <Pager page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+      )}
+      {rows && rows.length >= 5000 && (
+        <div style={{ fontSize: 11.5, color: c.hint, marginTop: 6 }}>
+          Showing the most recent 5000 entries — the CSV download includes all of them.
         </div>
       )}
     </div>

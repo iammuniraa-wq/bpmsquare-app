@@ -124,12 +124,26 @@ const OUTCOME_META: Record<QuoteOutcome, { label: string; color: string }> = {
   dropped: { label: "Dropped", color: "#f59e0b" },
 };
 
+function OutcomePill({ outcome }: { outcome: QuoteOutcome }) {
+  const meta = OUTCOME_META[outcome];
+  return (
+    <span style={{
+      display: "inline-block", padding: "3px 12px", borderRadius: 12,
+      fontSize: 12, fontWeight: 600,
+      background: `${meta.color}22`, color: meta.color, border: `1px solid ${meta.color}55`,
+    }}>
+      {meta.label}
+    </span>
+  );
+}
+
 // Independent from the pipeline status -- a quote can be marked Lost/Dropped
 // while still sitting in a non-closed status (customer went quiet), or Won
 // ahead of the status catching up. A closed status always requires a decided
 // (non-"open") outcome -- enforced server-side, not here.
-function OutcomeChanger({ quoteId, currentOutcome, onChanged }: {
-  quoteId: string; currentOutcome: QuoteOutcome; onChanged: (o: QuoteOutcome) => void;
+function OutcomeChanger({ quoteId, currentOutcome, currentStatus, statuses, onChanged, onStatusChanged }: {
+  quoteId: string; currentOutcome: QuoteOutcome; currentStatus: string; statuses: QuoteStatusDef[];
+  onChanged: (o: QuoteOutcome) => void; onStatusChanged: (s: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -146,15 +160,36 @@ function OutcomeChanger({ quoteId, currentOutcome, onChanged }: {
 
   async function change(value: QuoteOutcome) {
     if (value === currentOutcome) { setOpen(false); return; }
+
+    // Winning a quote that's still early in the pipeline (not yet closed) is
+    // common when the paperwork catches up later -- offer to bump status to
+    // Approved in the same motion instead of leaving it stranded on Draft/Sent.
+    let bumpStatus = false;
+    if (value === "won") {
+      const statusDef = statuses.find((s) => s.value === currentStatus);
+      const approvedDef = statuses.find((s) => s.value === "approved");
+      if (statusDef && !statusDef.is_closed && approvedDef) {
+        bumpStatus = window.confirm(
+          `Mark this quotation as Won. Also move status from "${statusDef.label}" to "${approvedDef.label}"?`
+        );
+      }
+    }
+
     setSaving(true);
     setError("");
+    const body: Record<string, unknown> = { outcome: value };
+    if (bumpStatus) body.status = "approved";
     const res = await fetch(`/api/quotes/${quoteId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ outcome: value }),
+      body: JSON.stringify(body),
     });
     setSaving(false);
-    if (res.ok) { onChanged(value); setOpen(false); }
+    if (res.ok) {
+      onChanged(value);
+      if (bumpStatus) onStatusChanged("approved");
+      setOpen(false);
+    }
     else { const j = await res.json().catch(() => ({})); setError(j.error ?? "Failed to update outcome"); }
   }
 
@@ -283,7 +318,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const grandTotal  = subtotal + gst;
 
   // ── Revisions (sibling quotes sharing same base ref) ────────────────────────
-  type RevRow = { id: string; ref: string; status: string; revision: number; created_at: string };
+  type RevRow = { id: string; ref: string; status: string; revision: number; created_at: string; superseded_by: string | null };
   const [revisions, setRevisions] = useState<RevRow[]>([]);
   useEffect(() => {
     fetch(`/api/quotes/${quote.id}/revisions`)
@@ -841,8 +876,30 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
       {/* Page action bar */}
       <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <Link href={ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>← All quotations</Link>
-        <StatusChanger quoteId={quote.id} currentStatus={currentStatus} statuses={quoteStatuses} onChanged={setCurrentStatus} />
-        <OutcomeChanger quoteId={quote.id} currentOutcome={currentOutcome} onChanged={setCurrentOutcome} />
+        {quote.superseded_by ? (
+          <>
+            <StatusPill status={currentStatus} statuses={quoteStatuses} />
+            <OutcomePill outcome={currentOutcome} />
+            <Link
+              href={ROUTES.quotation(quote.superseded_by)}
+              style={{ fontSize: 12, color: c.accent, fontWeight: 600, textDecoration: "none" }}
+            >
+              Read-only — view latest version →
+            </Link>
+          </>
+        ) : (
+          <>
+            <StatusChanger quoteId={quote.id} currentStatus={currentStatus} statuses={quoteStatuses} onChanged={setCurrentStatus} />
+            <OutcomeChanger
+              quoteId={quote.id}
+              currentOutcome={currentOutcome}
+              currentStatus={currentStatus}
+              statuses={quoteStatuses}
+              onChanged={setCurrentOutcome}
+              onStatusChanged={setCurrentStatus}
+            />
+          </>
+        )}
 
         {currentOutcome === "won" && invoicesFeatureEnabled && (
           existingInvoice ? (
@@ -852,7 +909,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             >
               View invoice {existingInvoice.ref}
             </Link>
-          ) : (
+          ) : !quote.superseded_by ? (
             <button
               onClick={async () => {
                 setConverting(true);
@@ -865,7 +922,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             >
               {converting ? "Converting…" : "⊟ Convert to Invoice"}
             </button>
-          )
+          ) : null
         )}
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
@@ -985,21 +1042,22 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
         <section style={cardStyle}>
           {revisions.length <= 1 ? (
             <div style={{ fontSize: 13, color: c.muted, padding: "16px 4px" }}>
-              No other versions yet. A new version is created from "Create new version"
-              (once this quote reaches a closed status) or "Copy quote" in the More menu.
+              No other versions yet. Create one any time from "Create new version" in the
+              quote actions, or "Copy quote" in the More menu for a brand-new quote instead.
             </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-                  {["Version", "Ref", "Status", "Created", ""].map((h) => (
-                    <th key={h} style={{ textAlign: "left", padding: "8px 10px", color: c.muted, fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</th>
+                  {["Version", "Ref", "Status", "Created", "", ""].map((h, i) => (
+                    <th key={i} style={{ textAlign: "left", padding: "8px 10px", color: c.muted, fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {revisions.map((rev) => {
                   const isCurrent = rev.id === quote.id;
+                  const isSuperseded = !!rev.superseded_by;
                   return (
                     <tr key={rev.id} style={{ borderBottom: `1px solid ${c.line}`, background: isCurrent ? c.accentbg : "transparent" }}>
                       <td style={{ padding: "9px 10px", fontWeight: isCurrent ? 700 : 500 }}>Rev {rev.revision}{isCurrent ? " (current)" : ""}</td>
@@ -1007,6 +1065,13 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                       <td style={{ padding: "9px 10px" }}><QuoteStatusPill status={rev.status} statuses={quoteStatuses} /></td>
                       <td style={{ padding: "9px 10px", color: c.muted }}>
                         {new Date(rev.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                      </td>
+                      <td style={{ padding: "9px 10px" }}>
+                        {isSuperseded && (
+                          <span style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 5, padding: "2px 7px", letterSpacing: 0.3 }}>
+                            Read-only
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: "9px 10px", textAlign: "right" }}>
                         {!isCurrent && <Link href={ROUTES.quotation(rev.id)} style={{ fontSize: 12, color: c.accent, textDecoration: "none", fontWeight: 600 }}>View →</Link>}

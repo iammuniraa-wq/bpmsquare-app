@@ -12,6 +12,8 @@ import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 import { requireWorkcenterView } from "@/lib/permissions";
 import ListFilterBar from "@/components/ListFilterBar";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
 
 type WorkOrderRow = Awaited<ReturnType<typeof listWorkOrders>>[number];
@@ -48,11 +50,12 @@ const fmtDate = (s: string) =>
 export default async function WorkOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; view?: string; q?: string; sort?: string }>;
+  searchParams: Promise<{ status?: string; view?: string; q?: string; sort?: string; page?: string }>;
 }) {
   await requireWorkcenterView("work_orders");
   await requireFeature("work_orders");
-  const { status: statusFilter, view, q, sort } = await searchParams;
+  const { status: statusFilter, view, q, sort, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
   const isCard = view !== "list";
   const vp = view ? `&view=${view}` : "";
 
@@ -68,6 +71,7 @@ export default async function WorkOrdersPage({
     );
   }
   rows = sortRows(rows, sort, "asc", SORT_EXTRACTORS);
+  const pageRows = paginate(rows, page);
 
   return (
     <>
@@ -106,8 +110,9 @@ export default async function WorkOrdersPage({
         <p style={{ color: c.muted, fontSize: 13 }}>No work orders match this filter.</p>
       ) : isCard ? (
         // ── Card grid ──────────────────────────────────────────────────────────
+        <>
         <div className="card-grid">
-          {rows.map(({ workOrder: wo, account, asset, technician, authKind, serviceCase }) => {
+          {pageRows.map(({ workOrder: wo, account, asset, technician, authKind, serviceCase }) => {
             const tone = STATUS_TONE[wo.status];
             const p = pillar[tone];
             return (
@@ -153,10 +158,13 @@ export default async function WorkOrdersPage({
             );
           })}
         </div>
+        <PagerLink page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.workOrders} hiddenParams={{ status: statusFilter, view, q, sort }} />
+        </>
       ) : (
         // ── Detailed list ──────────────────────────────────────────────────────
+        <>
         <section style={cardStyle}>
-          {rows.map(({ workOrder: wo, account, asset, technician, authRef, authKind, serviceCase }, i) => (
+          {pageRows.map(({ workOrder: wo, account, asset, technician, authRef, authKind, serviceCase }, i) => (
             <div
               key={wo.id}
               style={{
@@ -219,6 +227,8 @@ export default async function WorkOrdersPage({
             </div>
           ))}
         </section>
+        <PagerLink page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.workOrders} hiddenParams={{ status: statusFilter, view, q, sort }} />
+        </>
       )}
     </>
   );

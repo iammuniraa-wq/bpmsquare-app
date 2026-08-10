@@ -158,6 +158,16 @@ export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) 
                   <>{spec?.label ?? "This object"} has no dependencies — safe to import first.</>
                 )}
               </div>
+              {spec?.id === "quotes" && (
+                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
+                  This file must contain each quote's line items too — Quotes import can only create a quote with its lines together, in one file.
+                </div>
+              )}
+              {spec?.id === "quote_lines" && (
+                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
+                  Only adds lines to a quote that already exists. To create a new quote, use Quotes instead — its file includes both the header and the lines.
+                </div>
+              )}
             </div>
           )}
         </nav>
@@ -760,7 +770,7 @@ function ReviewTable({
   rows: ValidatedRow[];
   columns: FieldSpec[];
 }) {
-  const visible = rows.slice(0, 200);
+  const visible = rows.slice(0, 10);
 
   return (
     <>
@@ -826,8 +836,17 @@ function ResultStep({
 }) {
   const doneCount = mode === "update" ? (result as UpdateResponse).updated : (result as ImportResponse).inserted;
   const doneLabel = mode === "update" ? "updated" : "imported";
-  const problems = result.outcomes.filter((o) => o.status !== "inserted" && o.status !== "updated");
-  const allGood = result.failed === 0 && result.skipped === 0;
+  // A quote's line rows past the first are always reported "skipped" once
+  // their header row succeeds — that's the row's data being absorbed into
+  // the header's line list, not a warning. Hide those specifically; a real
+  // skip on quotes update ("No mapped columns to update") or on any other
+  // object (duplicate account/contact/user, etc.) still shows.
+  const isBenignQuoteSkip = (o: { status: string; reason?: string }) =>
+    o.status === "skipped" && spec.id === "quotes" &&
+    (mode === "import" || /^Line row of the quote already updated by row /.test(o.reason ?? ""));
+  const problems = result.outcomes.filter((o) => o.status !== "inserted" && o.status !== "updated" && !isBenignQuoteSkip(o));
+  const visibleSkipped = result.outcomes.filter((o) => o.status === "skipped" && !isBenignQuoteSkip(o)).length;
+  const allGood = result.failed === 0 && visibleSkipped === 0;
   // Users import only: temporary passwords for the logins just created. No
   // invite emails are sent, so this list is the ONLY time these are shown --
   // copying them out before leaving the page is the whole point.
@@ -846,7 +865,7 @@ function ResultStep({
         </div>
         <div>
           <strong>{doneCount}</strong> {spec.label.toLowerCase()} {doneLabel}
-          {result.skipped > 0 && <> · <strong>{result.skipped}</strong> skipped</>}
+          {visibleSkipped > 0 && <> · <strong>{visibleSkipped}</strong> skipped</>}
           {result.failed > 0 && <> · <strong>{result.failed}</strong> could not be {doneLabel}</>}
           {doneCount > 0 && result.failed > 0 && (
             <div style={{ marginTop: 6 }}>

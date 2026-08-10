@@ -244,6 +244,10 @@ export type Quote = {
   // revise/copy. Existed in the DB (and code) long before this type knew it
   // -- see 0047_schema_drift_reconcile.sql.
   meta?: Record<string, unknown> | null;
+  // Set once a newer version has been created from this quote (0071) -- this
+  // row is then read-only everywhere, regardless of its own status. Null for
+  // the current/latest version in a revision chain.
+  superseded_by?: string | null;
 };
 
 // One row per revision of a quote — tracks what changed between versions.

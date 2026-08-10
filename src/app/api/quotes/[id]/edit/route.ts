@@ -35,6 +35,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (qErr || !quote) {
     return NextResponse.json({ error: "Quote not found" }, { status: 404 });
   }
+  if (quote.superseded_by) {
+    return NextResponse.json({ error: "This version has been superseded and is read-only -- edit the latest version instead." }, { status: 409 });
+  }
 
   const { data: beforeLines } = await supabase
     .from("quote_lines")

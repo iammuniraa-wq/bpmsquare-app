@@ -156,6 +156,11 @@ export async function applyDateProfile(
     if (effectiveStatusDef?.is_closed && effectiveOutcomeValue === "open") {
       return { error: "Set an outcome (won, lost, or dropped) before closing this quotation -- or before clearing the outcome on one that's already closed." };
     }
+    // A rejected quote can never also be won -- the two are a direct
+    // contradiction, regardless of which field this request actually touched.
+    if (effectiveStatusValue === "rejected" && effectiveOutcomeValue === "won") {
+      return { error: "A rejected quotation can't be marked won." };
+    }
   }
 
   const effectiveOutcome = ("outcome" in patch ? patch.outcome : before.outcome) as string;
@@ -241,6 +246,7 @@ export function serializeQuote(
     meta: q.meta,
     total: q.total,
     revision: q.revision,
+    superseded_by: q.superseded_by ?? null,
     created_at: q.created_at,
     ...(related?.account !== undefined ? { account: related.account } : {}),
     ...(related?.contact !== undefined ? { contact: related.contact } : {}),

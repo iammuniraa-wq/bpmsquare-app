@@ -99,6 +99,9 @@ export async function POST(req: Request) {
     if (statusDef.is_closed && values.outcome !== "won" && values.outcome !== "lost" && values.outcome !== "dropped") {
       return jsonError(422, "Set an outcome (won, lost, or dropped) when creating a quotation directly in a closed status.");
     }
+    if (values.status === "rejected" && values.outcome === "won") {
+      return jsonError(422, "A rejected quotation can't be marked won.");
+    }
   }
 
   // Amounts and totals are always derived, never taken from the caller.

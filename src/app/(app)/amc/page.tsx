@@ -7,6 +7,8 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ListFilterBar from "@/components/ListFilterBar";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { ROUTES } from "@/lib/constants";
 
 type ContractStatus = "active" | "expired" | "pending" | "cancelled";
@@ -40,11 +42,12 @@ const td: React.CSSProperties = {
 export default async function AmcPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; expiring?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; expiring?: string; page?: string }>;
 }) {
   await requireWorkcenterView("amc");
   await requireFeature("amc");
-  const { q, status, expiring } = await searchParams;
+  const { q, status, expiring, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
   const contracts = await listContracts();
   const active = contracts.filter((con) => con.status === "active");
   const expiringSoon = active.filter((con) => daysLeft(con.end_date) <= 60);
@@ -62,6 +65,7 @@ export default async function AmcPage({
       (con.account_name ?? "").toLowerCase().includes(needle)
     );
   });
+  const pageRows = paginate(visible, page);
 
   return (
     <>
@@ -117,7 +121,7 @@ export default async function AmcPage({
               </tr>
             </thead>
             <tbody>
-              {visible.map((con) => {
+              {pageRows.map((con) => {
                 const left = daysLeft(con.end_date);
                 const isExpiringSoon = con.status === "active" && left <= 60;
                 return (
@@ -146,6 +150,13 @@ export default async function AmcPage({
               })}
             </tbody>
           </table>
+          <PagerLink
+            page={page}
+            total={visible.length}
+            pageSize={DEFAULT_PAGE_SIZE}
+            baseHref={ROUTES.amc}
+            hiddenParams={{ q, status, expiring }}
+          />
         </div>
       )}
     </>

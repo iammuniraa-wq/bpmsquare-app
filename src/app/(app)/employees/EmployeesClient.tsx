@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import type { Employee } from "@/lib/types";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -65,6 +67,7 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [sortKey, setSortKey] = useState<string | undefined>(undefined);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
 
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -87,6 +90,12 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
           .some((v) => v?.toLowerCase().includes(q)))
     : employees;
   const sorted = sortRows(filtered, sortKey, sortDir, SORT_EXTRACTORS);
+  const pageRows = paginate(sorted, page, DEFAULT_PAGE_SIZE);
+
+  useEffect(() => {
+    setPage((p) => clampPage(p, sorted.length, DEFAULT_PAGE_SIZE));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sorted.length]);
 
   function open(id: string | "new", initial: Draft) {
     setEditing(id);
@@ -196,6 +205,7 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
           No employees yet.{canEdit ? " Create one above, or bulk-load an HR export via Data Workbench → Employees." : ""}
         </div>
       ) : (
+        <>
         <div style={{ ...cardStyle, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -212,7 +222,7 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
               </tr>
             </thead>
             <tbody>
-              {sorted.map((e) => (
+              {pageRows.map((e) => (
                 <tr key={e.id}>
                   <td style={{ ...td, fontWeight: 600 }}>{e.first_name} {e.last_name}</td>
                   <td style={{ ...td, fontFamily: "monospace", fontSize: 12, color: c.muted }}>{e.employee_code ?? "—"}</td>
@@ -241,6 +251,8 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
             </tbody>
           </table>
         </div>
+        <Pager page={page} total={sorted.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+        </>
       )}
     </div>
   );

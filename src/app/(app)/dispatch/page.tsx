@@ -7,6 +7,9 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import { getTechnicianLiveStates } from "@/lib/wfm/server";
 import TechnicianLiveBadge from "@/components/wfm/TechnicianLiveBadge";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { ROUTES } from "@/lib/constants";
 
 type WOStatus = "scheduled" | "in_progress";
 
@@ -32,12 +35,19 @@ const td: React.CSSProperties = {
   fontSize: 12.5, verticalAlign: "middle",
 };
 
-export default async function DispatchPage() {
+export default async function DispatchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   await requireWorkcenterView("dispatch");
   await requireFeature("dispatch");
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
   const [jobs, tenant] = await Promise.all([listDispatch(), getTenant()]);
   const scheduled = jobs.filter((j) => j.status === "scheduled");
   const inProgress = jobs.filter((j) => j.status === "in_progress");
+  const pageJobs = paginate(jobs, page);
 
   const liveStates = tenant?.features?.wfm
     ? await getTechnicianLiveStates(
@@ -80,7 +90,7 @@ export default async function DispatchPage() {
               </tr>
             </thead>
             <tbody>
-              {jobs.map((job) => (
+              {pageJobs.map((job) => (
                 <tr key={job.id}>
                   <td style={td}>
                     <span style={{ fontFamily: "monospace", fontSize: 12, color: c.accent, fontWeight: 600 }}>
@@ -117,6 +127,7 @@ export default async function DispatchPage() {
               ))}
             </tbody>
           </table>
+          <PagerLink page={page} total={jobs.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.dispatch} />
         </div>
       )}
     </>

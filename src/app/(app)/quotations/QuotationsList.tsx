@@ -13,6 +13,8 @@ import { useUserRole, useUiTheme } from "@/lib/tenant-context";
 import type { EffectiveField } from "@/lib/fieldRegistry";
 import type { QuoteSummary } from "@/lib/data/labels";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 // ── Column definitions ────────────────────────────────────────────────────────
 //
@@ -46,6 +48,18 @@ const fmtDate = (s: string) =>
 const muted = (v: React.ReactNode): React.ReactNode => <span style={{ color: c.muted }}>{v}</span>;
 const truncated = (s: string, max = 60): React.ReactNode =>
   s.length > max ? <span title={s}>{s.slice(0, max - 1)}…</span> : s;
+
+// Summary tiles are narrow (minWidth 130) -- a lakhs/crores total at a fixed
+// font size overflows the tile instead of shrinking to fit. Same approach as
+// DashboardLayout's kpiNumFontSize: scale down as the string gets longer.
+const tileNumFontSize = (text: string): number => {
+  const len = text.length;
+  if (len >= 13) return 12;
+  if (len >= 11) return 14;
+  if (len >= 9) return 16;
+  if (len >= 7) return 18;
+  return 20;
+};
 
 const BUSINESS_STATUS_LABEL: Record<string, string> = { pending: "Pending", po_received: "PO received" };
 const OUTCOME_COLOR: Record<string, string> = { won: pillar.teal.fg, lost: pillar.red.fg, open: pillar.blue.fg };
@@ -158,8 +172,9 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   const [selected, setSelected]         = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterAccount, setFilterAccount] = useState("");
-  const [sortKey, setSortKey]           = useState<string | undefined>(undefined);
-  const [sortDir, setSortDir]           = useState<"asc" | "desc">("asc");
+  const [sortKey, setSortKey]           = useState<string | undefined>("created");
+  const [sortDir, setSortDir]           = useState<"asc" | "desc">("desc");
+  const [page, setPage]                 = useState(1);
 
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -262,7 +277,12 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   // sorting) plus "ref" for the always-visible Ref No column, which isn't
   // part of the ColDef array.
   const sortExtractors = useMemo(() => {
-    const map: Record<string, SortExtractor<QuoteSummary>> = { ref: (r) => r.quote.ref_no || r.quote.ref };
+    const map: Record<string, SortExtractor<QuoteSummary>> = {
+      ref: (r) => r.quote.ref_no || r.quote.ref,
+      // Default sort key -- not a visible column, so it needs its own entry
+      // here rather than living in `columns`.
+      created: (r) => r.quote.created_at,
+    };
     for (const col of columns) map[col.id] = col.sortValue;
     return map;
   }, [columns]);
@@ -270,6 +290,12 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
     () => sortRows(searched, sortKey, sortDir, sortExtractors),
     [searched, sortKey, sortDir, sortExtractors]
   );
+  // A filter/search change can shrink the result set below the current page
+  // -- clamp rather than strand the user on a now-empty page.
+  useEffect(() => {
+    setPage((p) => clampPage(p, filtered.length, DEFAULT_PAGE_SIZE));
+  }, [filtered.length]);
+  const pageRows = useMemo(() => paginate(filtered, page, DEFAULT_PAGE_SIZE), [filtered, page]);
 
   // Summary strip values -- outcome (Won/Lost/Open) is the source of truth for
   // value reporting: it's auto-synced from the pipeline status but can also be
@@ -392,8 +418,16 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
             }}
           >
             <div style={{ fontSize: 11, fontWeight: modern ? 700 : 400, color: modern ? s.tint.fg : c.muted, ...(modern ? { textTransform: "uppercase" as const, letterSpacing: 0.5, fontSize: 10 } : {}) }}>{s.label}</div>
-            <div style={{ fontSize: 20, fontWeight: modern ? 700 : 600, color: modern ? s.tint.fg : s.color, marginTop: 4 }}>{s.value}</div>
-            {"sub" in s && <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{s.sub}</div>}
+            <div
+              style={{
+                fontSize: tileNumFontSize(String(s.value)), fontWeight: modern ? 700 : 600, color: modern ? s.tint.fg : s.color, marginTop: 4,
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}
+              title={String(s.value)}
+            >
+              {s.value}
+            </div>
+            {"sub" in s && <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={String(s.sub)}>{s.sub}</div>}
           </div>
         ))}
       </div>
@@ -567,7 +601,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                   </td>
                 </tr>
               ) : (
-                filtered.map((row) => {
+                pageRows.map((row) => {
                   const { quote } = row;
                   const isSelected = selected.has(quote.id);
                   return (
@@ -608,6 +642,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
             </tbody>
           </table>
         </div>
+        <Pager page={page} total={filtered.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
       </div>
 
       {/* Floating action bar */}

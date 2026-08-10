@@ -9,6 +9,8 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ListFilterBar from "@/components/ListFilterBar";
 import SortableTh from "@/components/SortableTh";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 
@@ -22,7 +24,7 @@ const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, vertical
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; low_stock?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ q?: string; low_stock?: string; sort?: string; dir?: string; page?: string }>;
 }) {
   await requireWorkcenterView("inventory");
   await requireFeature("purchasing");
@@ -30,6 +32,7 @@ export default async function InventoryPage({
   const params = await searchParams;
   const { q, low_stock } = params;
   const { sort, dir } = readSortParams(params);
+  const page = Math.max(1, Number(params.page) || 1);
 
   const [{ data: itemRows }, { data: supplierRows }] = await Promise.all([
     supabase.from("inventory_items").select("*").eq("tenant_id", tenantId).order("name"),
@@ -61,6 +64,7 @@ export default async function InventoryPage({
     filtered = filtered.filter((i) => i.reorder_level != null && i.qty_on_hand <= i.reorder_level);
   }
   filtered = sortRows(filtered, sort, dir, SORT_EXTRACTORS);
+  const pageRows = paginate(filtered, page);
 
   const lowStockCount = items.filter((i) => i.reorder_level != null && i.qty_on_hand <= i.reorder_level).length;
 
@@ -147,7 +151,7 @@ export default async function InventoryPage({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((i) => {
+                {pageRows.map((i) => {
                   const low = i.reorder_level != null && i.qty_on_hand <= i.reorder_level;
                   return (
                     <tr key={i.id} style={{ borderBottom: `1px solid ${c.line}` }}>
@@ -182,6 +186,13 @@ export default async function InventoryPage({
                 })}
               </tbody>
             </table>
+            <PagerLink
+              page={page}
+              total={filtered.length}
+              pageSize={DEFAULT_PAGE_SIZE}
+              baseHref={ROUTES.inventory}
+              hiddenParams={{ q, low_stock: low_stock === "true" ? "true" : undefined, sort, dir }}
+            />
           </div>
         )}
       </div>

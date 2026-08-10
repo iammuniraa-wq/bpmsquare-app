@@ -15,6 +15,8 @@ import { MapPin, CheckIcon, XIcon } from "@/components/Icons";
 import type { PillarKey } from "@/lib/theme";
 import type { AccountSummary } from "@/lib/data/live";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
@@ -70,6 +72,7 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [sortKey, setSortKey] = useState<string | undefined>(undefined);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
 
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -107,6 +110,12 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
 
   const visibleDefs = COLUMNS.filter((col) => visibleCols.has(col.id));
   const sortedRows = sortRows(rows, sortKey, sortDir, SORT_EXTRACTORS);
+  const pageRows = paginate(sortedRows, page, DEFAULT_PAGE_SIZE);
+
+  useEffect(() => {
+    setPage((p) => clampPage(p, sortedRows.length, DEFAULT_PAGE_SIZE));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedRows.length]);
 
   if (rows.length === 0) {
     return (
@@ -225,7 +234,7 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
             </tr>
           </thead>
           <tbody>
-            {sortedRows.map(({ account, referredBy, counts }, i) => {
+            {pageRows.map(({ account, referredBy, counts }, i) => {
               const tone = typeTone[account.type];
               const p = pillar[tone];
               return (
@@ -304,6 +313,10 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
             })}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ padding: "0 14px 12px" }}>
+        <Pager page={page} total={sortedRows.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
       </div>
 
       <style>{`

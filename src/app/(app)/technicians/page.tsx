@@ -13,6 +13,8 @@ import { getTenant, requireFeature } from "@/lib/tenant";
 import { getTechnicianLiveStates } from "@/lib/wfm/server";
 import TechnicianLiveBadge from "@/components/wfm/TechnicianLiveBadge";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 type TechRow = Awaited<ReturnType<typeof listTechnicians>>[number];
 
@@ -44,11 +46,12 @@ function Avatar({ name, tone }: { name: string; tone: PillarKey }) {
 export default async function TechniciansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; sort?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; page?: string }>;
 }) {
   await requireWorkcenterView("technicians");
   await requireFeature("technicians");
-  const { status: statusFilter, q, sort } = await searchParams;
+  const { status: statusFilter, q, sort, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
   const [allTechs, tenant] = await Promise.all([listTechnicians(), getTenant()]);
   // The status filter already existed but had no control to reach it -- it
   // was only settable by hand-editing the URL. Now driven by the bar below.
@@ -64,6 +67,7 @@ export default async function TechniciansPage({
     );
   });
   techs = sortRows(techs, sort, "asc", SORT_EXTRACTORS);
+  const pageTechs = paginate(techs, page);
   const liveStates = tenant?.features?.wfm
     ? await getTechnicianLiveStates(tenant.id, allTechs.map((t) => t.technician.id))
     : new Map();
@@ -148,7 +152,7 @@ export default async function TechniciansPage({
 
       {/* Roster */}
       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        {techs.map(({ technician: tech, todayWorkOrders, currentLeave, monthStats }) => {
+        {pageTechs.map(({ technician: tech, todayWorkOrders, currentLeave, monthStats }) => {
           const tone      = STATUS_TONE[tech.status];
           const isLeave   = tech.status === "on_leave";
           const slotsUsed = todayWorkOrders.length;
@@ -256,6 +260,7 @@ export default async function TechniciansPage({
           );
         })}
       </div>
+      <PagerLink page={page} total={techs.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.technicians} hiddenParams={{ status: statusFilter, q, sort }} />
     </>
   );
 }

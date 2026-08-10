@@ -10,6 +10,8 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import { CheckIcon, XIcon } from "@/components/Icons";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
@@ -68,6 +70,7 @@ export default function CasesTable({ rows, q, filter }: Props) {
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [sortKey, setSortKey] = useState<string | undefined>(undefined);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
 
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -101,6 +104,12 @@ export default function CasesTable({ rows, q, filter }: Props) {
 
   const visibleDefs = COLUMNS.filter((col) => visibleCols.has(col.id));
   const sortedRows = sortRows(rows, sortKey, sortDir, SORT_EXTRACTORS);
+  const pageRows = paginate(sortedRows, page, DEFAULT_PAGE_SIZE);
+
+  useEffect(() => {
+    setPage((p) => clampPage(p, sortedRows.length, DEFAULT_PAGE_SIZE));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedRows.length]);
 
   if (rows.length === 0) {
     return (
@@ -161,7 +170,7 @@ export default function CasesTable({ rows, q, filter }: Props) {
             </tr>
           </thead>
           <tbody>
-            {sortedRows.map(({ serviceCase: sc, account, technicianName }) => (
+            {pageRows.map(({ serviceCase: sc, account, technicianName }) => (
               <tr key={sc.id} className="cs-row" style={{ borderBottom: `1px solid ${c.line}` }}>
                 {/* Ref + equipment — always visible */}
                 <td style={td}>
@@ -217,6 +226,8 @@ export default function CasesTable({ rows, q, filter }: Props) {
           </tbody>
         </table>
       </div>
+
+      <Pager page={page} total={sortedRows.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
 
       <style>{`.cs-row:hover { background: ${c.panel2} !important; }`}</style>
     </div>
