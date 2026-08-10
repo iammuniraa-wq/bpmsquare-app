@@ -601,7 +601,7 @@ export default function MeClient() {
                         setShowCorrectionForm(true);
                         setCorrectionDraft((d) => ({ ...d, target_date: rq.target_date }));
                         setCorrectionFromRecheckId(rq.id);
-                        setTab("home");
+                        setTab("time");
                       }}
                     >
                       File a correction instead
