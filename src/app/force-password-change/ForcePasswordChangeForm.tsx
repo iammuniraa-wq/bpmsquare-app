@@ -38,17 +38,27 @@ export default function ForcePasswordChangeForm({ branding }: { branding: Brandi
     setLoading(true);
     setError("");
 
-    const supabase = createBrowserSupabase();
-    const { error: pwErr } = await supabase.auth.updateUser({ password });
-    if (pwErr) {
+    // The server applies the new password itself (via the admin client) and
+    // only then clears must_change_password -- this route is the actual
+    // source of truth for the change, not a follow-up to a separate
+    // client-side call, so the flag can't be cleared without the password
+    // genuinely having changed.
+    const res = await fetch("/api/auth/complete-password-change", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
       setLoading(false);
-      setError(pwErr.message);
+      setError(json?.error ?? "Could not set the new password. Try again.");
       return;
     }
 
-    // Best-effort -- if this fails, the layout gate simply asks again next
-    // load rather than letting them through with the flag still set.
-    await fetch("/api/auth/complete-password-change", { method: "POST" }).catch(() => {});
+    // Refresh the browser's own session so its locally-cached token reflects
+    // the credential the server just changed, before navigating onward.
+    const supabase = createBrowserSupabase();
+    await supabase.auth.refreshSession().catch(() => {});
 
     setLoading(false);
     setDone(true);

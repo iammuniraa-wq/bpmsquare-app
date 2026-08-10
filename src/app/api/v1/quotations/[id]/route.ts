@@ -106,14 +106,27 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   let finalLines = (existingLines ?? []) as Record<string, unknown>[];
   if (linesGiven) {
-    const { error: dErr } = await supabase.from("quote_lines").delete().eq("quote_id", id).eq("tenant_id", tenantId);
-    if (dErr) return jsonError(500, `Failed to replace lines: ${dErr.message}`);
+    // Insert the new lines BEFORE deleting the old ones (reverse of the
+    // naive delete-then-insert order). buildLineRows() never carries over an
+    // existing row's id, so the insert can't collide with the old rows still
+    // in place. This way a failure on either step never leaves the quote
+    // with zero lines and a stale total: an insert failure leaves the
+    // original lines untouched, and a (much rarer) failure to delete the
+    // old rows after a successful insert just leaves both sets present
+    // momentarily -- recoverable, not data loss.
+    const oldIds = ((existingLines ?? []) as { id?: string }[]).map((l) => l.id).filter((x): x is string => Boolean(x));
+
     if (nextLines.length > 0) {
       const { data, error: iErr } = await supabase.from("quote_lines").insert(nextLines).select("*");
       if (iErr) return jsonError(500, `Failed to insert lines: ${iErr.message}`);
       finalLines = data ?? [];
     } else {
       finalLines = [];
+    }
+
+    if (oldIds.length > 0) {
+      const { error: dErr } = await supabase.from("quote_lines").delete().eq("quote_id", id).eq("tenant_id", tenantId).in("id", oldIds);
+      if (dErr) return jsonError(500, `New lines saved, but failed to remove the old ones: ${dErr.message}`);
     }
   }
 

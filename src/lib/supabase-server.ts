@@ -5,8 +5,18 @@ import { cache } from "react";
 import {
   PRIMARY_HOST, isMembershipActive,
   TRUSTED_USER_ID_HEADER, TRUSTED_EMAIL_HEADER, TRUSTED_TENANT_ID_HEADER, TRUSTED_ROLE_HEADER,
-  SUPABASE_COOKIE_OPTIONS,
+  SUPABASE_COOKIE_OPTIONS, PATHNAME_HEADER,
 } from "./constants";
+
+// The only API route a must-change-password login is allowed to call --
+// everything else is blocked by requireTenantUser() below until the flag
+// clears. (app)/layout.tsx blocks page navigation the same way, but layouts
+// never run for route handlers, so this is the actual enforcement point for
+// API access -- without it, a still-must-change-password session could do
+// real work via direct API calls while the UI redirected it to
+// /force-password-change (see MULTI_TENANT_GUARDRAILS.md-style reasoning:
+// a control that only lives in the UI isn't a control).
+const MUST_CHANGE_PASSWORD_EXEMPT_PATHS = new Set(["/api/auth/complete-password-change"]);
 
 /**
  * True when Supabase env vars are present. The first build slice runs on seed
@@ -238,22 +248,35 @@ export async function requireTenantUser(): Promise<{
 
   // Host decides the tenant; the user only decides access.
   const host = await resolveHostTenant();
+  let result: { supabase: SupabaseClient; tenantId: string; userId: string; role: "admin" | "member" };
   if (host.kind === "resolved") {
-    return { supabase, tenantId: host.tenantId, userId: user.id, role: host.role };
-  }
-  if (host.kind === "denied") {
+    result = { supabase, tenantId: host.tenantId, userId: user.id, role: host.role };
+  } else if (host.kind === "denied") {
     // On a real deployed host, not being a member of that host's tenant is a
     // hard stop — never fall back to some other tenant the user belongs to.
     throw { status: 403, message: "No access to this workspace" };
+  } else {
+    // localhost / dev only: fall back to the user's own oldest membership.
+    const membership = await oldestMembership(user.id);
+    if (!membership) throw { status: 403, message: "No tenant membership" };
+    result = { supabase, tenantId: membership.tenant_id, userId: user.id, role: membership.role };
   }
 
-  // localhost / dev only: fall back to the user's own oldest membership.
-  const membership = await oldestMembership(user.id);
-  if (membership) {
-    return { supabase, tenantId: membership.tenant_id, userId: user.id, role: membership.role };
+  const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
+  if (!MUST_CHANGE_PASSWORD_EXEMPT_PATHS.has(pathname)) {
+    const admin = createAdminSupabase();
+    const { data: gate } = await admin
+      .from("tenant_users")
+      .select("must_change_password")
+      .eq("tenant_id", result.tenantId)
+      .eq("user_id", result.userId)
+      .maybeSingle();
+    if (gate?.must_change_password) {
+      throw { status: 403, message: "Password change required — set a new password before continuing" };
+    }
   }
 
-  throw { status: 403, message: "No tenant membership" };
+  return result;
 }
 
 /**

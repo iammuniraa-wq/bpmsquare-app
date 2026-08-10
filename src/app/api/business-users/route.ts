@@ -140,6 +140,19 @@ export async function POST(request: NextRequest) {
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
   const { userId, isNew } = result;
 
+  // isNew: false means this email already had a Supabase Auth account
+  // somewhere on the platform (findOrCreateUserForInvite's lookup is
+  // project-wide, not tenant-scoped) -- the admin-supplied password was
+  // silently ignored for it, and nobody has confirmed that account's owner
+  // actually wants it linked here. Granting Business Roles in the very same
+  // request would hand live, role-bearing tenant access to an account this
+  // request never actually authenticated as or verified consent from.
+  // Membership linking itself follows the same intentional pattern already
+  // used by Settings -> Team; role assignment for a linked (not newly
+  // created) login has to go through the normal follow-up role-assignment
+  // action instead, same as it already does there.
+  const applyRoles = roleIds.length > 0 && isNew;
+
   const displayName = `${employee.first_name} ${employee.last_name}`.trim();
   const membershipFields = {
     employee_id: employeeId,
@@ -178,12 +191,20 @@ export async function POST(request: NextRequest) {
     .insert({ tenant_id: tenantId, user_id: userId, role: "member", ...membershipFields });
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
-  if (roleIds.length > 0) {
+  if (applyRoles) {
     const { error: rErr } = await admin
       .from("business_user_roles")
       .insert(roleIds.map((roleId) => ({ tenant_id: tenantId, user_id: userId, role_id: roleId })));
     if (rErr) return NextResponse.json({ error: `User created, but role assignment failed: ${rErr.message}` }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, user_id: userId, passwordSet: isNew }, { status: 201 });
+  return NextResponse.json({
+    ok: true,
+    user_id: userId,
+    passwordSet: isNew,
+    // roleIds was requested but this login already had an account elsewhere
+    // on the platform -- roles weren't auto-assigned to it (see applyRoles
+    // above); the admin needs to assign them from the Team page instead.
+    rolesSkipped: roleIds.length > 0 && !applyRoles,
+  }, { status: 201 });
 }

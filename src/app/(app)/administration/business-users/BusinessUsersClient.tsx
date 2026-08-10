@@ -139,6 +139,9 @@ export default function BusinessUsersClient() {
         flash("Linked the existing login to this employee — its password is unchanged");
       } else {
         setJustCreated({ name: employeeName, email: userDraft.email, password: userDraft.password });
+        if (json.rolesSkipped) {
+          flash("Linked an existing login — assign its Business Roles from this list once it's confirmed");
+        }
       }
       setUserDraft({ email: "", password: "", counted: true, roleIds: [] });
       load();
