@@ -87,6 +87,40 @@ export function buildLineRows(
   });
 }
 
+/**
+ * Replaces a quote's lines: inserts the new rows BEFORE deleting the old
+ * ones (the reverse of the naive delete-then-insert order), so a mid-request
+ * failure never leaves the quote with zero lines and a stale total -- an
+ * insert failure leaves the original lines untouched, and a (much rarer)
+ * failure to delete the old rows after a successful insert just leaves both
+ * sets present momentarily, which is recoverable rather than data loss.
+ * buildLineRows() never carries over an existing row's id, so the insert
+ * can't collide with the old rows still in place at that point.
+ */
+export async function replaceQuoteLines(
+  supabase: SupabaseClient,
+  tenantId: string,
+  quoteId: string,
+  existingLines: { id?: string }[],
+  nextLines: NormalizedLine[]
+): Promise<{ ok: true; finalLines: Record<string, unknown>[] } | { ok: false; error: string }> {
+  const oldIds = existingLines.map((l) => l.id).filter((x): x is string => Boolean(x));
+
+  let finalLines: Record<string, unknown>[] = [];
+  if (nextLines.length > 0) {
+    const { data, error: iErr } = await supabase.from("quote_lines").insert(nextLines).select("*");
+    if (iErr) return { ok: false, error: `Failed to insert lines: ${iErr.message}` };
+    finalLines = data ?? [];
+  }
+
+  if (oldIds.length > 0) {
+    const { error: dErr } = await supabase.from("quote_lines").delete().eq("quote_id", quoteId).eq("tenant_id", tenantId).in("id", oldIds);
+    if (dErr) return { ok: false, error: `New lines saved, but failed to remove the old ones: ${dErr.message}` };
+  }
+
+  return { ok: true, finalLines };
+}
+
 /** Recomputes and returns the header total for a set of lines. */
 export function totalsFor(
   lines: NormalizedLine[],

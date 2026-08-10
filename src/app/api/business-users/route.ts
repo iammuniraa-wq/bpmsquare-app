@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { PRIMARY_HOST } from "@/lib/constants";
+import { shouldApplyRoles } from "@/lib/api/businessUsers";
 
 // The Business User layer (0057): a login bound to an Employee record, with
 // validity/lock/counted admin controls -- the SAP-style flow the design
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
   // used by Settings -> Team; role assignment for a linked (not newly
   // created) login has to go through the normal follow-up role-assignment
   // action instead, same as it already does there.
-  const applyRoles = roleIds.length > 0 && isNew;
+  const applyRoles = shouldApplyRoles(isNew, roleIds);
 
   const displayName = `${employee.first_name} ${employee.last_name}`.trim();
   const membershipFields = {

@@ -19,6 +19,16 @@ import {
 const MUST_CHANGE_PASSWORD_EXEMPT_PATHS = new Set(["/api/auth/complete-password-change"]);
 
 /**
+ * Pure decision function for the API-layer must_change_password gate --
+ * kept separate from requireTenantUser() (which needs a live request/DB
+ * context to call) purely so this specific branch of security logic can be
+ * unit-tested directly. Exported for src/lib/supabase-server.test.ts.
+ */
+export function shouldBlockForPasswordChange(mustChangePassword: boolean, pathname: string): boolean {
+  return mustChangePassword && !MUST_CHANGE_PASSWORD_EXEMPT_PATHS.has(pathname);
+}
+
+/**
  * True when Supabase env vars are present. The first build slice runs on seed
  * fixtures when this is false, so the app is viewable before a project exists.
  */
@@ -263,17 +273,15 @@ export async function requireTenantUser(): Promise<{
   }
 
   const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
-  if (!MUST_CHANGE_PASSWORD_EXEMPT_PATHS.has(pathname)) {
-    const admin = createAdminSupabase();
-    const { data: gate } = await admin
-      .from("tenant_users")
-      .select("must_change_password")
-      .eq("tenant_id", result.tenantId)
-      .eq("user_id", result.userId)
-      .maybeSingle();
-    if (gate?.must_change_password) {
-      throw { status: 403, message: "Password change required — set a new password before continuing" };
-    }
+  const admin = createAdminSupabase();
+  const { data: gate } = await admin
+    .from("tenant_users")
+    .select("must_change_password")
+    .eq("tenant_id", result.tenantId)
+    .eq("user_id", result.userId)
+    .maybeSingle();
+  if (shouldBlockForPasswordChange(Boolean(gate?.must_change_password), pathname)) {
+    throw { status: 403, message: "Password change required — set a new password before continuing" };
   }
 
   return result;
