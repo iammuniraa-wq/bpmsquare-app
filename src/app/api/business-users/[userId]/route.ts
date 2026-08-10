@@ -132,7 +132,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         { status: 409 }
       );
     }
-    const { error: pwErr } = await admin.auth.admin.updateUserById(targetUserId, { password: body.new_password });
+    // email_confirm: true alongside the password -- this whole feature exists
+    // so nobody ever has to click a verification link (see the "no magic
+    // link" requirement this was built against). Without it, an account that
+    // started unconfirmed (e.g. an old invite-flow login, or a stray existing
+    // auth user) stays permanently blocked at sign-in no matter how many
+    // times its password is reset -- Supabase gates on confirmation status
+    // independently of the credential, and both need setting together here.
+    const { error: pwErr } = await admin.auth.admin.updateUserById(targetUserId, { password: body.new_password, email_confirm: true });
     if (pwErr) return NextResponse.json({ error: pwErr.message }, { status: 500 });
     // Same as a fresh initial password on creation -- an admin-set password
     // forces the recipient to choose their own on next login.
