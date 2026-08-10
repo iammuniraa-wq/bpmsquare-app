@@ -54,8 +54,9 @@ export default function BusinessUsersClient() {
   const [savingEmp, setSavingEmp] = useState(false);
 
   const [creatingUserFor, setCreatingUserFor] = useState<string | null>(null);
-  const [userDraft, setUserDraft] = useState({ email: "", password: "", counted: true });
+  const [userDraft, setUserDraft] = useState({ email: "", password: "", counted: true, roleIds: [] as string[] });
   const [savingUser, setSavingUser] = useState(false);
+  const [justCreated, setJustCreated] = useState<{ name: string; email: string; password: string } | null>(null);
 
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({ display_name: "", valid_from: "", valid_to: "", counted: true, new_password: "" });
@@ -115,26 +116,31 @@ export default function BusinessUsersClient() {
     }
   }
 
-  async function createBusinessUser(employeeId: string) {
+  async function createBusinessUser(employeeId: string, employeeName: string) {
     setError("");
+    if (!userDraft.password.trim()) { setError("An initial password is required"); return; }
     setSavingUser(true);
     try {
       const res = await fetch("/api/business-users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employee_id: employeeId, email: userDraft.email || undefined, password: userDraft.password || undefined, counted: userDraft.counted }),
+        body: JSON.stringify({
+          employee_id: employeeId,
+          email: userDraft.email || undefined,
+          password: userDraft.password || undefined,
+          counted: userDraft.counted,
+          role_ids: userDraft.roleIds,
+        }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Failed to create business user"); return; }
       setCreatingUserFor(null);
-      setUserDraft({ email: "", password: "", counted: true });
-      flash(
-        json.linkedExisting
-          ? "Linked the existing login to this employee — its password is unchanged"
-          : json.passwordSet
-            ? "Business user created with the initial password"
-            : "Business user created — invite email sent"
-      );
+      if (json.linkedExisting) {
+        flash("Linked the existing login to this employee — its password is unchanged");
+      } else {
+        setJustCreated({ name: employeeName, email: userDraft.email, password: userDraft.password });
+      }
+      setUserDraft({ email: "", password: "", counted: true, roleIds: [] });
       load();
     } finally {
       setSavingUser(false);
@@ -235,6 +241,8 @@ export default function BusinessUsersClient() {
         </div>
       )}
 
+      {justCreated && <ShareCredentialsCard info={justCreated} onDismiss={() => setJustCreated(null)} />}
+
       <section style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
           <h3 style={{ fontSize: 13.5, fontWeight: 700, color: c.ink, margin: 0 }}>Employees</h3>
@@ -286,7 +294,7 @@ export default function BusinessUsersClient() {
                     {bu ? (
                       <BusinessUserBadge user={bu} />
                     ) : creatingUserFor === emp.id ? null : (
-                      <button style={btnGhost} onClick={() => { setCreatingUserFor(emp.id); setUserDraft({ email: emp.email ?? "", password: "", counted: true }); }}>
+                      <button style={btnGhost} onClick={() => { setCreatingUserFor(emp.id); setUserDraft({ email: emp.email ?? "", password: "", counted: true, roleIds: [] }); setJustCreated(null); }}>
                         + Create Business User
                       </button>
                     )}
@@ -306,7 +314,10 @@ export default function BusinessUsersClient() {
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
                           <div><label style={lbl}>Login email</label><input style={inp} type="email" value={userDraft.email} onChange={(e) => setUserDraft((d) => ({ ...d, email: e.target.value }))} /></div>
                           {!existing && (
-                            <div><label style={lbl}>Initial password (blank = send invite email)</label><input style={inp} type="password" value={userDraft.password} onChange={(e) => setUserDraft((d) => ({ ...d, password: e.target.value }))} placeholder="min 8 characters" /></div>
+                            <div>
+                              <label style={lbl}>Initial password *</label>
+                              <input style={inp} type="password" value={userDraft.password} onChange={(e) => setUserDraft((d) => ({ ...d, password: e.target.value }))} placeholder="min 8 characters" />
+                            </div>
                           )}
                         </div>
                         {existing && !conflicting && (
@@ -319,12 +330,41 @@ export default function BusinessUsersClient() {
                             This email&apos;s login is already linked to {conflicting.first_name} {conflicting.last_name} — one login can only belong to one employee. Use a different email.
                           </div>
                         )}
+                        {!existing && (
+                          <div style={{ marginBottom: 10 }}>
+                            <label style={lbl}>Business Roles</label>
+                            {roles.length === 0 ? (
+                              <div style={{ fontSize: 12, color: c.muted }}>No Business Roles exist yet — create one in Administrator → Business Roles first.</div>
+                            ) : (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                {roles.map((r) => (
+                                  <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: c.ink, border: `1px solid ${c.line}`, borderRadius: 6, padding: "4px 9px", cursor: "pointer", background: c.panel }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={userDraft.roleIds.includes(r.id)}
+                                      onChange={() => setUserDraft((d) => ({
+                                        ...d,
+                                        roleIds: d.roleIds.includes(r.id) ? d.roleIds.filter((x) => x !== r.id) : [...d.roleIds, r.id],
+                                      }))}
+                                    />
+                                    {r.name}
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>No role selected = full access (unrestricted).</div>
+                          </div>
+                        )}
                         <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: c.ink, marginBottom: 10, cursor: "pointer" }}>
                           <input type="checkbox" checked={userDraft.counted} onChange={(e) => setUserDraft((d) => ({ ...d, counted: e.target.checked }))} />
                           Counted user (occupies a license seat)
                         </label>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button style={{ ...btnPrimary, opacity: conflicting ? 0.5 : 1 }} disabled={savingUser || !!conflicting} onClick={() => createBusinessUser(emp.id)}>
+                          <button
+                            style={{ ...btnPrimary, opacity: conflicting || (!existing && !userDraft.password.trim()) ? 0.5 : 1 }}
+                            disabled={savingUser || !!conflicting || (!existing && !userDraft.password.trim())}
+                            onClick={() => createBusinessUser(emp.id, name)}
+                          >
                             {savingUser ? "Saving…" : existing ? "Link existing login" : "Create"}
                           </button>
                           <button style={btnGhost} onClick={() => setCreatingUserFor(null)}>Cancel</button>
@@ -428,6 +468,50 @@ export default function BusinessUsersClient() {
   );
 }
 
+function ShareCredentialsCard({
+  info, onDismiss,
+}: {
+  info: { name: string; email: string; password: string };
+  onDismiss: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const url = typeof window !== "undefined" ? window.location.origin : "";
+  const summary = `Sign-in: ${url}\nEmail: ${info.email}\nInitial password: ${info.password}`;
+
+  async function copyAll() {
+    try {
+      await navigator.clipboard.writeText(summary);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard API can be unavailable (permissions, insecure context) --
+      // the values are still shown on screen to copy by hand.
+    }
+  }
+
+  const rowStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: `1px solid ${c.line}` };
+
+  return (
+    <div style={{ background: "var(--greenbg)", border: "1px solid var(--green)", borderRadius: 8, padding: "14px 16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--greenink)" }}>
+          Business user created for {info.name} — share these details with them
+        </div>
+        <button style={{ ...btnGhost, flexShrink: 0 }} onClick={onDismiss}>Dismiss</button>
+      </div>
+      <div style={{ background: "#fff", borderRadius: 7, padding: "4px 12px" }}>
+        <div style={rowStyle}><span style={{ fontSize: 12, color: c.hint }}>Sign-in URL</span><code style={{ fontSize: 12.5, color: c.ink }}>{url}</code></div>
+        <div style={rowStyle}><span style={{ fontSize: 12, color: c.hint }}>Email</span><code style={{ fontSize: 12.5, color: c.ink }}>{info.email}</code></div>
+        <div style={{ ...rowStyle, borderBottom: "none" }}><span style={{ fontSize: 12, color: c.hint }}>Initial password</span><code style={{ fontSize: 12.5, color: c.ink }}>{info.password}</code></div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+        <button style={btnPrimary} onClick={copyAll}>{copied ? "Copied!" : "Copy all"}</button>
+        <span style={{ fontSize: 11.5, color: "var(--greenink)" }}>They&apos;ll be prompted to set their own password the first time they sign in.</span>
+      </div>
+    </div>
+  );
+}
+
 function BusinessUserBadge({ user }: { user: BusinessUser }) {
   const active = isMembershipActive(user);
   return (
@@ -464,7 +548,11 @@ function EditPanel({
     <div style={{ marginTop: 10, background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <div><label style={lbl}>Display name</label><input style={inp} value={draft.display_name} onChange={(e) => setDraft((d) => ({ ...d, display_name: e.target.value }))} /></div>
-        <div><label style={lbl}>Set new password (optional)</label><input style={inp} type="password" value={draft.new_password} onChange={(e) => setDraft((d) => ({ ...d, new_password: e.target.value }))} placeholder="min 8 characters" /></div>
+        <div>
+          <label style={lbl}>Set new password (optional)</label>
+          <input style={inp} type="password" value={draft.new_password} onChange={(e) => setDraft((d) => ({ ...d, new_password: e.target.value }))} placeholder="min 8 characters" />
+          {draft.new_password && <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>They&apos;ll be prompted to set their own on next login.</div>}
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <div><label style={lbl}>Valid from</label><input style={inp} type="date" value={draft.valid_from} onChange={(e) => setDraft((d) => ({ ...d, valid_from: e.target.value }))} /></div>

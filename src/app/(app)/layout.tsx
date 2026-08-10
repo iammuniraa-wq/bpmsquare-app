@@ -56,6 +56,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const supabase = await createServerSupabase();
+
+  // A password an admin just set for this login (fresh creation, or a
+  // later reset) forces a stop here until they set their own -- see
+  // must_change_password on tenant_users (0073). Reads the pathname
+  // header middleware.ts already sets, same as the WFM redirect below, so
+  // /force-password-change itself is never redirected to itself.
+  const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
+  const { data: passwordGate } = await supabase
+    .from("tenant_users")
+    .select("must_change_password")
+    .eq("tenant_id", tenant.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (passwordGate?.must_change_password && pathname !== "/force-password-change") {
+    redirect("/force-password-change");
+  }
+
   const perms = await resolvePermissions(supabase, tenant.id, user.id, userRole ?? "member");
   const viewable = toViewableWorkcenters(perms);
 
@@ -95,9 +112,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // /wfm/me itself lives INSIDE this same (app) route group, so this layout
   // re-runs (and this condition re-evaluates) on every visit to /wfm/me too
   // -- without excluding it, that's an immediate infinite redirect loop, not
-  // a hypothetical one. PATHNAME_HEADER is set once by middleware.ts (a
+  // a hypothetical one. `pathname` was already read above for the
+  // password-gate check (PATHNAME_HEADER is set once by middleware.ts -- a
   // Server Component layout has no other way to know the current pathname).
-  const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
   const restrictedToWfmOnly = Array.isArray(viewable) && viewable.every((wc) => wc === "wfm");
   if (wfmEmployeeActive && restrictedToWfmOnly && pathname !== ROUTES.wfmMe) {
     redirect(ROUTES.wfmMe);

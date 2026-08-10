@@ -63,9 +63,12 @@ export async function GET() {
 
 // POST /api/business-users -- create a Business User FROM an employee record:
 // the employee's email (or an explicit override) becomes the login, an
-// admin-set initial password (or invite email if omitted) bootstraps it, and
-// the employee's own validity window is copied onto the membership as the
-// starting value.
+// admin-set initial password bootstraps it (required -- this flow never
+// sends an invite email; the admin hands the password to the employee
+// directly and they're forced to change it on first login, see
+// must_change_password below), the employee's own validity window is
+// copied onto the membership as the starting value, and an optional set of
+// Business Roles is assigned in the same call.
 export async function POST(request: NextRequest) {
   let supabase, tenantId, role;
   try {
@@ -97,8 +100,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That doesn't look like a valid email address" }, { status: 400 });
   }
   const password: string | undefined = typeof body.password === "string" && body.password ? body.password : undefined;
-  if (password && password.length < 8) {
+  if (!password) {
+    return NextResponse.json({ error: "An initial password is required" }, { status: 400 });
+  }
+  if (password.length < 8) {
     return NextResponse.json({ error: "Initial password must be at least 8 characters" }, { status: 400 });
+  }
+
+  const roleIds: string[] = Array.isArray(body.role_ids)
+    ? [...new Set((body.role_ids as unknown[]).filter((r): r is string => typeof r === "string"))]
+    : [];
+  if (roleIds.length > 0) {
+    const { data: validRoles } = await supabase.from("business_roles").select("id").eq("tenant_id", tenantId).in("id", roleIds);
+    if (!validRoles || validRoles.length !== roleIds.length) {
+      return NextResponse.json({ error: "One or more roles were not found" }, { status: 404 });
+    }
   }
 
   const admin = createAdminSupabase();
@@ -131,6 +147,11 @@ export async function POST(request: NextRequest) {
     valid_from: employee.valid_from,
     valid_to: employee.valid_to,
     counted: body.counted === false ? false : true,
+    // Only true when a NEW auth account was just created with the password
+    // above -- findOrCreateUserForInvite silently ignores the password for
+    // an already-existing account (isNew: false), so nothing was actually
+    // set for them here and they shouldn't be forced to change anything.
+    must_change_password: isNew,
   };
 
   if (!isNew) {
@@ -157,5 +178,12 @@ export async function POST(request: NextRequest) {
     .insert({ tenant_id: tenantId, user_id: userId, role: "member", ...membershipFields });
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, user_id: userId, passwordSet: !!password && isNew }, { status: 201 });
+  if (roleIds.length > 0) {
+    const { error: rErr } = await admin
+      .from("business_user_roles")
+      .insert(roleIds.map((roleId) => ({ tenant_id: tenantId, user_id: userId, role_id: roleId })));
+    if (rErr) return NextResponse.json({ error: `User created, but role assignment failed: ${rErr.message}` }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, user_id: userId, passwordSet: isNew }, { status: 201 });
 }

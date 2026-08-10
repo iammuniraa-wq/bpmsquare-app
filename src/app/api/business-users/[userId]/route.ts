@@ -134,6 +134,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     const { error: pwErr } = await admin.auth.admin.updateUserById(targetUserId, { password: body.new_password });
     if (pwErr) return NextResponse.json({ error: pwErr.message }, { status: 500 });
+    // Same as a fresh initial password on creation -- an admin-set password
+    // forces the recipient to choose their own on next login.
+    const { error: mcpErr } = await admin.from("tenant_users").update({ must_change_password: true }).eq("id", member.id).eq("tenant_id", tenantId);
+    if (mcpErr) return NextResponse.json({ error: mcpErr.message }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
