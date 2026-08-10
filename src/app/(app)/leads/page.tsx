@@ -8,6 +8,8 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import ListFilterBar from "@/components/ListFilterBar";
 import Pill from "@/components/Pill";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { ROUTES } from "@/lib/constants";
 import NewLeadButton from "./NewLeadButton";
 
@@ -41,11 +43,12 @@ const ALL_STATUSES: LeadStatus[] = ["new", "inspecting", "quoted", "won", "lost"
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
 }) {
   await requireWorkcenterView("leads");
   await requireFeature("leads");
-  const { status: statusFilter, q } = await searchParams;
+  const { status: statusFilter, q, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
   const leads = await listLeadsLive();
   const summaries = await listAccounts();
   const accounts = summaries.map((s) => ({ id: s.account.id, name: s.account.name }));
@@ -64,6 +67,7 @@ export default async function LeadsPage({
       (l.account_name ?? "").toLowerCase().includes(needle)
     );
   });
+  const pageRows = paginate(filtered, page);
 
   return (
     <>
@@ -121,7 +125,7 @@ export default async function LeadsPage({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((lead) => (
+              {pageRows.map((lead) => (
                 <tr key={lead.id}>
                   <td style={{ ...td, fontWeight: 600 }}>{lead.title ?? "—"}</td>
                   <td style={td}>{lead.account_name ?? "—"}</td>
@@ -149,6 +153,13 @@ export default async function LeadsPage({
               ))}
             </tbody>
           </table>
+          <PagerLink
+            page={page}
+            total={filtered.length}
+            pageSize={DEFAULT_PAGE_SIZE}
+            baseHref={ROUTES.leads}
+            hiddenParams={{ status: statusFilter, q }}
+          />
         </div>
       )}
     </>

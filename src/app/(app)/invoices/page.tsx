@@ -8,6 +8,8 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ListFilterBar from "@/components/ListFilterBar";
 import SortableTh from "@/components/SortableTh";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { InvoiceStatus } from "@/lib/types";
@@ -46,13 +48,14 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<InvoiceRow>> = {
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; from?: string; to?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; from?: string; to?: string; sort?: string; dir?: string; page?: string }>;
 }) {
   await requireWorkcenterView("invoices");
   await requireFeature("invoices");
   const params = await searchParams;
   const { status: statusFilter, q, from, to } = params;
   const { sort, dir } = readSortParams(params);
+  const page = Math.max(1, Number(params.page) || 1);
   const invoices = await listInvoices();
 
   const summary = SUMMARY_STATUSES.map((s) => ({
@@ -79,6 +82,7 @@ export default async function InvoicesPage({
     );
   });
   const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
+  const pageRows = paginate(filtered, page);
 
   return (
     <>
@@ -165,7 +169,7 @@ export default async function InvoicesPage({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((inv) => (
+              {pageRows.map((inv) => (
                 <tr key={inv.id} style={{ cursor: "pointer" }}>
                   <td style={td}>
                     <Link href={ROUTES.invoice(inv.id)} style={{ fontFamily: "monospace", fontSize: 12, color: c.accent, fontWeight: 600, textDecoration: "none" }}>
@@ -190,6 +194,13 @@ export default async function InvoicesPage({
               ))}
             </tbody>
           </table>
+          <PagerLink
+            page={page}
+            total={filtered.length}
+            pageSize={DEFAULT_PAGE_SIZE}
+            baseHref={ROUTES.invoices}
+            hiddenParams={{ status: statusFilter, q, from, to, sort, dir }}
+          />
         </div>
       )}
     </>

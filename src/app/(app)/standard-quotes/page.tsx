@@ -10,6 +10,8 @@ import PageHeader from "@/components/PageHeader";
 import ListFilterBar from "@/components/ListFilterBar";
 import Pill from "@/components/Pill";
 import SortableTh from "@/components/SortableTh";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { StandardQuoteStatus } from "@/lib/types";
@@ -48,13 +50,14 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<StandardQuoteRow>> = {
 export default async function StandardQuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; page?: string }>;
 }) {
   await requireWorkcenterView("standard_quotes");
   await requireFeature("standard_quotes");
   const params = await searchParams;
   const { status: statusFilter, q } = params;
   const { sort, dir } = readSortParams(params);
+  const page = Math.max(1, Number(params.page) || 1);
   const [quotes, { role }] = await Promise.all([listStandardQuotes(), requireTenantUser()]);
 
   const summary = SUMMARY_STATUSES.map((s) => ({
@@ -73,6 +76,7 @@ export default async function StandardQuotesPage({
     );
   });
   const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
+  const pageRows = paginate(filtered, page);
 
   return (
     <>
@@ -158,7 +162,7 @@ export default async function StandardQuotesPage({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((q) => (
+              {pageRows.map((q) => (
                 <tr key={q.id} style={{ cursor: "pointer" }}>
                   <td style={td}>
                     <Link href={ROUTES.standardQuote(q.id)} style={{ fontFamily: "monospace", fontSize: 12, color: c.accent, fontWeight: 600, textDecoration: "none" }}>
@@ -181,6 +185,13 @@ export default async function StandardQuotesPage({
               ))}
             </tbody>
           </table>
+          <PagerLink
+            page={page}
+            total={filtered.length}
+            pageSize={DEFAULT_PAGE_SIZE}
+            baseHref={ROUTES.standardQuotes}
+            hiddenParams={{ status: statusFilter, q, sort, dir }}
+          />
         </div>
       )}
     </>

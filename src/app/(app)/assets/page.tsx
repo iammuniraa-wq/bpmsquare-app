@@ -9,6 +9,8 @@ import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Ico
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireFeature } from "@/lib/tenant";
 import ListFilterBar from "@/components/ListFilterBar";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
 
 const SORT_EXTRACTORS: Record<string, SortExtractor<AssetRow>> = {
@@ -41,11 +43,12 @@ const ALL_KINDS = ["motor", "transformer", "pump", "generator", "panel"] as cons
 export default async function AssetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kind?: string; q?: string; sort?: string }>;
+  searchParams: Promise<{ kind?: string; q?: string; sort?: string; page?: string }>;
 }) {
   await requireWorkcenterView("assets");
   await requireFeature("assets");
-  const { kind: kindFilter, q, sort } = await searchParams;
+  const { kind: kindFilter, q, sort, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
   const { customerAssets: allCustomerAssets, loanerStock } = await listAssetsLive();
 
   let customerAssets = kindFilter && kindFilter !== "loaner"
@@ -64,6 +67,7 @@ export default async function AssetsPage({
   }
 
   customerAssets = sortRows(customerAssets, sort, "asc", SORT_EXTRACTORS);
+  const pageAssets = paginate(customerAssets, page);
 
   const available = loanerStock.filter((r) => r.asset.loaner_status === "available").length;
   const onLoan    = loanerStock.filter((r) => r.asset.loaner_status === "on_loan").length;
@@ -199,7 +203,7 @@ export default async function AssetsPage({
         {customerAssets.length === 0 ? (
           <p style={{ color: c.muted, fontSize: 13, margin: 0 }}>No customer assets registered.</p>
         ) : (
-          customerAssets.map(({ asset, account, openCaseCount }, i) => {
+          pageAssets.map(({ asset, account, openCaseCount }, i) => {
             const tone = KIND_TONE[asset.kind] ?? "blue";
             return (
               <div
@@ -279,6 +283,13 @@ export default async function AssetsPage({
             );
           })
         )}
+        <PagerLink
+          page={page}
+          total={customerAssets.length}
+          pageSize={DEFAULT_PAGE_SIZE}
+          baseHref={ROUTES.assets}
+          hiddenParams={{ kind: kindFilter, q, sort }}
+        />
       </section>
     </>
   );

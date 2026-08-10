@@ -8,6 +8,8 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ListFilterBar from "@/components/ListFilterBar";
 import SortableTh from "@/components/SortableTh";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
@@ -40,7 +42,7 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<Supplier>> = {
 export default async function SuppliersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; sort?: string; dir?: string; page?: string }>;
 }) {
   await requireWorkcenterView("suppliers");
   await requireFeature("suppliers");
@@ -48,6 +50,7 @@ export default async function SuppliersPage({
   const params = await searchParams;
   const { q, type: typeFilter } = params;
   const { sort, dir } = readSortParams(params);
+  const page = Math.max(1, Number(params.page) || 1);
 
   let query = supabase.from("suppliers").select("*").eq("tenant_id", tenantId).order("name");
   if (typeFilter && typeFilter !== "all") query = query.eq("type", typeFilter);
@@ -66,6 +69,7 @@ export default async function SuppliersPage({
     );
   });
   const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
+  const pageRows = paginate(filtered, page);
 
   const active   = suppliers.filter((s) => s.status === "active").length;
   const inactive = suppliers.filter((s) => s.status === "inactive").length;
@@ -166,7 +170,7 @@ export default async function SuppliersPage({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((s) => (
+                {pageRows.map((s) => (
                   <tr key={s.id} style={{ borderBottom: `1px solid ${c.line}` }}>
                     <td style={{ ...td, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>{s.ref ?? "—"}</td>
                     <td style={td}>
@@ -201,6 +205,13 @@ export default async function SuppliersPage({
                 ))}
               </tbody>
             </table>
+            <PagerLink
+              page={page}
+              total={filtered.length}
+              pageSize={DEFAULT_PAGE_SIZE}
+              baseHref={ROUTES.suppliers}
+              hiddenParams={{ q, type: typeFilter, sort, dir }}
+            />
           </div>
         )}
       </div>

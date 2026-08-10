@@ -125,10 +125,15 @@ export const QUOTE_LINE_FIELDS: FieldSpec[] = [
   { key: "line_group", label: "Line group", type: "text", scope: "line", exportOnly: true, hint: "Group / option label this line belongs to" },
 ];
 
-/** quote_name is the grouping key that ties header + line rows together — structural, not a DB column. */
+/**
+ * quote_name is the grouping key that ties header + line rows together —
+ * structural, not a DB column. Optional: leave it blank and it's generated
+ * from the account name (see validateQuoteRows in validate.ts) — only fill
+ * it in yourself if you want a specific name instead of the automatic one.
+ */
 export const QUOTE_GROUP_FIELD: FieldSpec = {
-  key: "quote_name", label: "Quote name", type: "text", required: true, scope: "header",
-  hint: "Groups rows into one quote — repeat on every line of the same quote",
+  key: "quote_name", label: "Quote name", type: "text", required: false, scope: "header",
+  hint: "Optional — groups rows into one quote. Leave blank and it's auto-named from the account; repeat the same value on every line if you do set it",
   aliases: ["quote", "quotation", "quote title", "title"],
 };
 
@@ -143,7 +148,7 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   contacts: { label: "Contacts", icon: "◉", description: "People at accounts — matched to an account by name", dependsOn: ["accounts"] },
   assets: { label: "Assets", icon: "⚙", description: "Motors, transformers, pumps and panels — owned by an account or held as loaner stock", dependsOn: ["accounts"] },
   suppliers: { label: "Suppliers", icon: "◫", description: "Vendors and subcontractors", dependsOn: [] },
-  quotes: { label: "Quotes", icon: "₹", description: "Quotations with line items — one row per line, header fields on the first row of each quote", dependsOn: ["accounts", "contacts"] },
+  quotes: { label: "Quotes", icon: "₹", description: "Creates new quotations — line items must be in this same file (one row per line, header fields on the first row of each quote). To add lines to a quote that already exists, use Quote Lines instead.", dependsOn: ["accounts", "contacts"] },
   // Never read -- quote_lines is null in REGISTRY_OBJECT_TYPE above, so
   // buildObjectSpec() is never called for it (see data-workbench/page.tsx's
   // STATIC_SPECS branch, same as "users"). Present only because OBJECT_META

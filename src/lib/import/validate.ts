@@ -174,24 +174,62 @@ export function hasBlockingIssue(row: ValidatedRow): boolean {
 /**
  * Quote rows are line items; header fields only apply to the first row of each
  * quote, so required-header checks run per group rather than per row.
+ *
+ * quote_name is optional input: a row with account_name filled opens a new
+ * quote (same signal every other header field already uses), so a blank
+ * quote_name there is auto-named from the account instead of blocking the
+ * row. A blank quote_name on a continuation row (no account_name) just
+ * inherits the name of the quote it belongs to -- same "blank repeats the
+ * header row's value" convention already used for account_name/contact_name.
  */
 export function validateQuoteRows(spec: ObjectSpec, rows: { values: Record<string, string>; rowNum: number }[]): ValidatedRow[] {
   const seenGroups = new Set<string>();
-  const headerFields = spec.fields.filter((f) => f.scope === "header");
+  const usedGeneratedNames = new Set<string>();
+  const headerFields = spec.fields.filter((f) => f.scope === "header" && f.key !== "quote_name");
   const lineFields = spec.fields.filter((f) => f.scope !== "header");
 
+  let carryGroupName = "";
+
   return rows.map(({ values, rowNum }) => {
-    const groupKey = (values.quote_name ?? "").trim().toLowerCase();
+    const accountName = (values.account_name ?? "").trim();
+    const isHeaderRow = accountName !== "";
+    let quoteName = (values.quote_name ?? "").trim();
+    let generatedName = false;
+
+    if (quoteName === "" && isHeaderRow) {
+      let candidate = accountName;
+      let n = 1;
+      while (usedGeneratedNames.has(candidate.toLowerCase()) || seenGroups.has(candidate.toLowerCase())) {
+        n += 1;
+        candidate = `${accountName} (${n})`;
+      }
+      quoteName = candidate;
+      usedGeneratedNames.add(candidate.toLowerCase());
+      generatedName = true;
+    } else if (quoteName === "") {
+      quoteName = carryGroupName;
+    }
+    if (isHeaderRow) carryGroupName = quoteName;
+
+    const groupKey = quoteName.toLowerCase();
     const isFirstOfGroup = groupKey !== "" && !seenGroups.has(groupKey);
     if (isFirstOfGroup) seenGroups.add(groupKey);
 
     const out: Record<string, string> = {};
     const issues: RowIssue[] = [];
 
+    if (quoteName === "") {
+      issues.push({ field: "quote_name", message: "Quote name is required, or Account name so one can be generated automatically", severity: "error" });
+    } else {
+      out.quote_name = quoteName;
+      if (generatedName) {
+        issues.push({ field: "quote_name", message: `Quote name left blank — named "${quoteName}" automatically from the account`, severity: "warning" });
+      }
+    }
+
     for (const field of headerFields) {
       const raw = values[field.key] ?? "";
-      const applies = field.key === "quote_name" || isFirstOfGroup;
-      const effective: FieldSpec = applies ? field : { ...field, required: false };
+      const effective: FieldSpec = isFirstOfGroup ? field : { ...field, required: false };
       const { value, issue } = validateField(effective, raw);
       if (issue) issues.push(issue);
       if (value !== "") out[field.key] = value;

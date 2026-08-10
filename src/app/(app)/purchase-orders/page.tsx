@@ -8,6 +8,8 @@ import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import ListFilterBar from "@/components/ListFilterBar";
 import SortableTh from "@/components/SortableTh";
+import PagerLink from "@/components/PagerLink";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { PurchaseOrderStatus } from "@/lib/types";
@@ -41,13 +43,14 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<PurchaseOrderRow>> = {
 export default async function PurchaseOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; page?: string }>;
 }) {
   await requireWorkcenterView("purchase_orders");
   await requireFeature("purchasing");
   const params = await searchParams;
   const { status: statusFilter, q } = params;
   const { sort, dir } = readSortParams(params);
+  const page = Math.max(1, Number(params.page) || 1);
   const rows = await listPurchaseOrdersLive();
 
   const statusFiltered = statusFilter && statusFilter !== "all" ? rows.filter((r) => r.po.status === statusFilter) : rows;
@@ -61,6 +64,7 @@ export default async function PurchaseOrdersPage({
     );
   });
   const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
+  const pageRows = paginate(filtered, page);
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.po.status] = (acc[r.po.status] ?? 0) + 1;
     return acc;
@@ -145,7 +149,7 @@ export default async function PurchaseOrdersPage({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(({ po, supplier }) => (
+                {pageRows.map(({ po, supplier }) => (
                   <tr key={po.id} style={{ borderBottom: `1px solid ${c.line}` }}>
                     <td style={td}>
                       <Link href={ROUTES.purchaseOrder(po.id)} style={{ fontWeight: 600, color: c.ink, textDecoration: "none", fontSize: 13.5, fontFamily: "monospace" }}>
@@ -171,6 +175,13 @@ export default async function PurchaseOrdersPage({
                 ))}
               </tbody>
             </table>
+            <PagerLink
+              page={page}
+              total={filtered.length}
+              pageSize={DEFAULT_PAGE_SIZE}
+              baseHref={ROUTES.purchaseOrders}
+              hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, q, sort, dir }}
+            />
           </div>
         )}
       </div>

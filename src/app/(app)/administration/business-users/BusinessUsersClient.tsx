@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { isMembershipActive } from "@/lib/constants";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import type { Employee } from "@/lib/types";
 
 type BusinessUser = {
@@ -63,6 +65,7 @@ export default function BusinessUsersClient() {
   const [linkingUser, setLinkingUser] = useState<string | null>(null);
   const [linkEmployeeId, setLinkEmployeeId] = useState("");
   const [savingLink, setSavingLink] = useState(false);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -81,6 +84,10 @@ export default function BusinessUsersClient() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    setPage((p) => clampPage(p, employees.length, DEFAULT_PAGE_SIZE));
+  }, [employees.length]);
+  const pageEmployees = paginate(employees, page, DEFAULT_PAGE_SIZE);
 
   const userByEmployee = new Map(users.filter((u) => u.employee_id).map((u) => [u.employee_id!, u]));
   const unlinkedUsers = users.filter((u) => !u.employee_id);
@@ -263,7 +270,7 @@ export default function BusinessUsersClient() {
           <div style={{ fontSize: 12.5, color: c.hint, padding: "14px 0" }}>No employees yet — create one above, or import via Data Workbench.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {employees.map((emp) => {
+            {pageEmployees.map((emp) => {
               const bu = userByEmployee.get(emp.id);
               const name = `${emp.first_name} ${emp.last_name}`.trim();
               return (
@@ -349,6 +356,9 @@ export default function BusinessUsersClient() {
               );
             })}
           </div>
+        )}
+        {employees.length > 0 && (
+          <Pager page={page} total={employees.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
         )}
       </section>
 
