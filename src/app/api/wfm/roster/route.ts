@@ -4,6 +4,8 @@ import { requireWfm, requireWfmSupervisor } from "@/lib/wfm/server";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_BULK_DATES = 62;
+const MAX_EMPLOYEES = 500;
+const MAX_ROWS = 3000; // employee_ids.length * dates.length
 
 // GET /api/wfm/roster?from=YYYY-MM-DD&to=YYYY-MM-DD[&employee_id=] — a
 // date-range slice of the roster. Supervisors can pass employee_id to
@@ -27,7 +29,11 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("wfm_roster_assignments")
-    .select("id, employee_id, date, shift_id, site_id, is_day_off, note, wfm_shifts(name, start_time, end_time, is_night_shift), wfm_sites(name)")
+    .select(
+      "id, employee_id, date, shift_id, site_id, is_day_off, note, " +
+      "wfm_shifts(name, start_time, end_time, is_night_shift), wfm_sites(name), " +
+      "employees(first_name, last_name, employee_code)"
+    )
     .eq("tenant_id", tenantId)
     .gte("date", from)
     .lte("date", to)
@@ -47,7 +53,9 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/wfm/roster — supervisor/admin assigns (or clears) a shift for
-// one employee on one or more dates in one call. Upserts on
+// MANY employees across one or more dates in one call -- a bulk exception
+// on top of everyone's standing shift (see PATCH /api/wfm/employees/bulk-shift
+// for the standing-shift assignment itself). Upserts on
 // (tenant_id, employee_id, date) -- re-assigning a date just overwrites it.
 export async function POST(request: NextRequest) {
   let ctx;
@@ -60,17 +68,25 @@ export async function POST(request: NextRequest) {
   const { tenantId, userId } = ctx;
 
   const body = await request.json().catch(() => null);
-  const { employee_id, dates, shift_id, site_id, is_day_off, note } = (body ?? {}) as {
-    employee_id?: string; dates?: string[]; shift_id?: string | null; site_id?: string | null;
+  const { employee_ids, dates, shift_id, site_id, is_day_off, note } = (body ?? {}) as {
+    employee_ids?: string[]; dates?: string[]; shift_id?: string | null; site_id?: string | null;
     is_day_off?: boolean; note?: string;
   };
 
-  if (!employee_id) return NextResponse.json({ error: "employee_id is required" }, { status: 400 });
+  if (!Array.isArray(employee_ids) || employee_ids.length === 0) {
+    return NextResponse.json({ error: "employee_ids must be a non-empty array" }, { status: 400 });
+  }
+  if (employee_ids.length > MAX_EMPLOYEES) {
+    return NextResponse.json({ error: `Assign at most ${MAX_EMPLOYEES} employees at once` }, { status: 400 });
+  }
   if (!Array.isArray(dates) || dates.length === 0 || dates.some((d) => !DATE_RE.test(d))) {
     return NextResponse.json({ error: "dates must be a non-empty array of YYYY-MM-DD strings" }, { status: 400 });
   }
   if (dates.length > MAX_BULK_DATES) {
     return NextResponse.json({ error: `Assign at most ${MAX_BULK_DATES} dates at once` }, { status: 400 });
+  }
+  if (employee_ids.length * dates.length > MAX_ROWS) {
+    return NextResponse.json({ error: `That's too many employee × date combinations at once (max ${MAX_ROWS}) -- split into smaller batches` }, { status: 400 });
   }
   if (!is_day_off && !shift_id) {
     return NextResponse.json({ error: "shift_id is required unless is_day_off is set" }, { status: 400 });
@@ -78,9 +94,12 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminSupabase();
 
-  const { data: employee } = await admin
-    .from("employees").select("id").eq("id", employee_id).eq("tenant_id", tenantId).maybeSingle();
-  if (!employee) return NextResponse.json({ error: "Unknown employee" }, { status: 400 });
+  const { data: foundEmployees, error: empErr } = await admin
+    .from("employees").select("id").eq("tenant_id", tenantId).in("id", employee_ids);
+  if (empErr) return NextResponse.json({ error: empErr.message }, { status: 500 });
+  if ((foundEmployees ?? []).length !== employee_ids.length) {
+    return NextResponse.json({ error: "One or more employees weren't found in this tenant" }, { status: 400 });
+  }
 
   if (shift_id) {
     const { data: shift } = await admin
@@ -93,21 +112,23 @@ export async function POST(request: NextRequest) {
     if (!site) return NextResponse.json({ error: "Unknown site" }, { status: 400 });
   }
 
-  const rows = dates.map((date) => ({
-    tenant_id: tenantId,
-    employee_id,
-    date,
-    shift_id: is_day_off ? null : shift_id,
-    site_id: site_id || null,
-    is_day_off: is_day_off === true,
-    note: note?.trim() || null,
-    created_by: userId,
-  }));
+  const rows = employee_ids.flatMap((employee_id) =>
+    dates.map((date) => ({
+      tenant_id: tenantId,
+      employee_id,
+      date,
+      shift_id: is_day_off ? null : shift_id,
+      site_id: site_id || null,
+      is_day_off: is_day_off === true,
+      note: note?.trim() || null,
+      created_by: userId,
+    }))
+  );
 
   const { data, error } = await admin
     .from("wfm_roster_assignments")
     .upsert(rows, { onConflict: "tenant_id,employee_id,date" })
     .select("*");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  return NextResponse.json({ applied: data?.length ?? 0 });
 }

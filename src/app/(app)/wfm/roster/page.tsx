@@ -15,7 +15,7 @@ export default async function WfmRosterPage() {
       <TabTitle title="Workforce — Roster" />
       <PageHeader
         title="Roster"
-        subtitle="Assign a shift per employee per date. A date with no explicit assignment falls back to that employee's standing shift (set in Employees)."
+        subtitle="Assign standing shifts to whole groups of employees at once, and apply temporary overrides — a different shift or a day off — to selected employees for specific dates."
       />
       <RosterClient />
     </>
