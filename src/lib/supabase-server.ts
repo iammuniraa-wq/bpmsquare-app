@@ -155,8 +155,10 @@ export type HostTenantResult =
  * That fallback was the cross-tenant routing bug this replaces (a real-tenant
  * login on app.bpmsquare.com was silently operating on real production data).
  *
- * cache()-wrapped — host + auth don't change mid-request, and the upsert is
- * idempotent (ignoreDuplicates).
+ * cache()-wrapped — host + auth don't change mid-request, and the upsert
+ * below is a true upsert (onConflict, no ignoreDuplicates) so it's still
+ * idempotent to call repeatedly without erroring, while also promoting an
+ * existing non-admin row instead of leaving it stale.
  */
 export const resolveHostTenant = cache(async (): Promise<HostTenantResult> => {
   const h = await headers();
@@ -191,11 +193,22 @@ export const resolveHostTenant = cache(async (): Promise<HostTenantResult> => {
   }
   if (!targetTenantId) return { kind: "denied" };
 
-  // Platform admins: standing access to any tenant; lazily create the row so RLS works.
+  // Platform admins: standing access to any tenant; lazily create the row so
+  // RLS works. ignoreDuplicates would leave an EXISTING row's role
+  // untouched on conflict (e.g. a stale 'member' row from before this
+  // person became a platform admin, or from a tenant clone/import) --
+  // silently diverging from the "admin" this function unconditionally
+  // returns below. That divergence is exactly what RLS enforces against:
+  // the app would let an insert/update proceed (its own role check passes),
+  // then Postgres would reject it anyway because the real row still says
+  // 'member' -- e.g. "new row violates row level security policy for table
+  // employees" on POST /api/employees. Omitting ignoreDuplicates makes this
+  // an actual UPSERT: an existing row's role is promoted to admin too, so
+  // the returned role always matches what's really in the database.
   if (await isPlatformAdmin()) {
     await admin
       .from("tenant_users")
-      .upsert({ tenant_id: targetTenantId, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id", ignoreDuplicates: true });
+      .upsert({ tenant_id: targetTenantId, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id" });
     return { kind: "resolved", tenantId: targetTenantId, role: "admin" };
   }
 

@@ -148,6 +148,18 @@ export async function middleware(request: NextRequest) {
     if (isPlatformAdminUser) {
       resolvedTenantId = demoTenant?.id ?? null;
       resolvedRole = "admin";
+      // Trusting "admin" here without a matching tenant_users row is exactly
+      // what RLS then contradicts: policies like "employees: admin insert"
+      // check the real row, not this header, so a platform admin with no row
+      // (or a stale non-admin one) gets waved through this check only to have
+      // Postgres reject the write anyway. Lazily upsert the row to match --
+      // idempotent, and onConflict without ignoreDuplicates means an existing
+      // row's role is actually promoted, not silently left as-is.
+      if (resolvedTenantId) {
+        await admin
+          .from("tenant_users")
+          .upsert({ tenant_id: resolvedTenantId, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id" });
+      }
     } else if (demoTenant) {
       const { data: membership } = await admin
         .from("tenant_users")
@@ -186,6 +198,12 @@ export async function middleware(request: NextRequest) {
       if (isPlatformAdminUser) {
         resolvedTenantId = hostTenant.id;
         resolvedRole = "admin";
+        // Same reasoning as the PRIMARY_HOST/demo-tenant branch above --
+        // lazily upsert so the real tenant_users row backs this trusted
+        // header, instead of RLS rejecting a write the app thinks is fine.
+        await admin
+          .from("tenant_users")
+          .upsert({ tenant_id: hostTenant.id, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id" });
       } else {
         // Check directly for a row on THIS tenant, not "the" tenant_users row --
         // a user can belong to more than one tenant now (see invite routes).
