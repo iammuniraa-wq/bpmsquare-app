@@ -17,6 +17,7 @@ type Row = {
   wfm_role: "employee" | "supervisor";
   shift_id: string | null;
   site_id: string | null;
+  supervisor_id: string | null;
   consent_recorded_at: string | null;
   has_login: boolean;
   wfm_shifts: { name: string } | null;
@@ -50,11 +51,11 @@ const btnPrimary: React.CSSProperties = {
 type Draft = {
   employee_code: string; first_name: string; last_name: string; phone: string;
   employment_type: "full_time" | "contractor"; wfm_role: "employee" | "supervisor";
-  shift_id: string; site_id: string; invite_email: string;
+  shift_id: string; site_id: string; supervisor_id: string; invite_email: string;
 };
 const emptyDraft = (): Draft => ({
   employee_code: "", first_name: "", last_name: "", phone: "",
-  employment_type: "full_time", wfm_role: "employee", shift_id: "", site_id: "", invite_email: "",
+  employment_type: "full_time", wfm_role: "employee", shift_id: "", site_id: "", supervisor_id: "", invite_email: "",
 });
 
 export default function WfmEmployeesClient() {
@@ -101,6 +102,7 @@ export default function WfmEmployeesClient() {
         shift_id: draft.shift_id || null,
         site_id: draft.site_id || null,
       };
+      if (!isNew) payload.supervisor_id = draft.supervisor_id || null;
       if (!isNew && draft.invite_email.trim()) payload.invite_email = draft.invite_email.trim();
       const res = await fetch(isNew ? "/api/wfm/employees" : `/api/wfm/employees/${editing}`, {
         method: isNew ? "POST" : "PATCH",
@@ -180,6 +182,17 @@ export default function WfmEmployeesClient() {
         </select>
       </div>
       {editing !== "new" && (
+        <div style={{ flex: "0 1 170px" }}>
+          <label style={lbl}>Supervisor</label>
+          <select style={inp} value={draft.supervisor_id} onChange={(e) => setDraft({ ...draft, supervisor_id: e.target.value })}>
+            <option value="">— tenant-wide (any supervisor) —</option>
+            {rows.filter((r) => r.wfm_role === "supervisor" && r.id !== editing).map((r) => (
+              <option key={r.id} value={r.id}>{[r.first_name, r.last_name].filter(Boolean).join(" ")}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {editing !== "new" && (
         <div style={{ flex: "1 1 180px" }}>
           <label style={lbl}>Invite login (email)</label>
           <input style={inp} value={draft.invite_email} onChange={(e) => setDraft({ ...draft, invite_email: e.target.value })} placeholder="worker@example.com" />
@@ -249,6 +262,7 @@ export default function WfmEmployeesClient() {
               <th style={th}>WFM role</th>
               <th style={th}>Shift</th>
               <th style={th}>Home site</th>
+              <th style={th}>Supervisor</th>
               <th style={th}>Login</th>
               <th style={th}>Consent</th>
               <th style={th}>Status</th>
@@ -264,6 +278,11 @@ export default function WfmEmployeesClient() {
                 <td style={td}>{r.wfm_role === "supervisor" ? <Pill label="Supervisor" tone="purple" /> : "Employee"}</td>
                 <td style={td}>{r.wfm_shifts?.name ?? "—"}</td>
                 <td style={td}>{r.wfm_sites?.name ?? "—"}</td>
+                <td style={{ ...td, color: c.muted }}>
+                  {r.supervisor_id
+                    ? [rows.find((s) => s.id === r.supervisor_id)?.first_name, rows.find((s) => s.id === r.supervisor_id)?.last_name].filter(Boolean).join(" ") || "—"
+                    : "—"}
+                </td>
                 <td style={td}>{r.has_login ? <Pill label="Linked" tone="green" /> : <Pill label="No login" tone="amber" />}</td>
                 <td style={td}>{r.consent_recorded_at ? <Pill label="Given" tone="green" /> : "—"}</td>
                 <td style={td}><Pill label={r.status === "active" ? "Active" : "Inactive"} tone={r.status === "active" ? "green" : "red"} /></td>
@@ -282,6 +301,7 @@ export default function WfmEmployeesClient() {
                         wfm_role: r.wfm_role,
                         shift_id: r.shift_id ?? "",
                         site_id: r.site_id ?? "",
+                        supervisor_id: r.supervisor_id ?? "",
                         invite_email: "",
                       });
                       setError("");
@@ -296,7 +316,7 @@ export default function WfmEmployeesClient() {
               </tr>
             ))}
             {visible.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={10}>
+              <tr><td style={{ ...td, color: c.hint }} colSpan={11}>
                 {rows.length === 0
                   ? "No employees yet — create one below or bulk-load via Data Workbench."
                   : "No employees match these filters."}

@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type EmailLogKind = "quote" | "campaign";
+export type EmailLogKind = "quote" | "campaign" | "wfm";
 export type EmailLogStatus = "sent" | "failed";
 
 /**

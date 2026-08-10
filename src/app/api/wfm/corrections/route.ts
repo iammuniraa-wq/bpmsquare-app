@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { requireWfm, requireWfmEmployee } from "@/lib/wfm/server";
+import { requireWfm, requireWfmEmployee, getWfmConfig } from "@/lib/wfm/server";
+import { getSupervisorEmails, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
+import { ROUTES } from "@/lib/constants";
 import type { CorrectionIssue, PresenceKind } from "@/lib/wfm/types";
 
 const ISSUES: CorrectionIssue[] = ["missing_check_in", "missing_check_out", "wrong_time", "other"];
@@ -60,9 +62,9 @@ export async function POST(request: NextRequest) {
   const { tenantId, employee } = ctx;
 
   const body = await request.json().catch(() => null);
-  const { target_date, issue, proposed_ts, target_event_id, reason_text } = (body ?? {}) as {
+  const { target_date, issue, proposed_ts, target_event_id, reason_text, recheck_request_id } = (body ?? {}) as {
     target_date?: string; issue?: string; proposed_ts?: string;
-    target_event_id?: string; reason_text?: string;
+    target_event_id?: string; reason_text?: string; recheck_request_id?: string;
   };
 
   if (!target_date || !DATE_RE.test(target_date)) {
@@ -109,5 +111,34 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // If this correction was filed in response to a supervisor's recheck
+  // flag, link the two so a supervisor reviewing the recheck can jump
+  // straight to the fix the employee actually filed.
+  if (recheck_request_id) {
+    await admin
+      .from("wfm_recheck_requests")
+      .update({ linked_correction_id: data.id })
+      .eq("id", recheck_request_id)
+      .eq("tenant_id", tenantId)
+      .eq("employee_id", employee.id);
+  }
+
+  const config = await getWfmConfig(admin, tenantId);
+  if (config.notifications.correction_pending) {
+    const empName = [employee.first_name, employee.last_name].filter(Boolean).join(" ");
+    const emails = await getSupervisorEmails(admin, tenantId, employee.id);
+    sendWfmNotification({
+      sessionSupabase: ctx.supabase,
+      tenantId,
+      toEmails: emails,
+      subject: `Correction request from ${empName} — ${target_date}`,
+      text: `${empName} has requested a correction to their attendance on ${target_date}.\n\nReason: ${reason_text.trim()}\n\nReview it here: ${wfmUrl(ROUTES.wfmCorrections)}`,
+      relatedObjectType: "wfm_correction_requests",
+      relatedObjectId: data.id,
+      relatedObjectLabel: `${empName} — ${target_date}`,
+    }).catch(() => {});
+  }
+
   return NextResponse.json(data);
 }

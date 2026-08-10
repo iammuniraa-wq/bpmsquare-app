@@ -35,7 +35,15 @@ const fmtTime = (s: string) => new Date(s).toLocaleTimeString("en-IN", { hour: "
  * and a map link underneath so the underlying evidence is always visible and
  * an address is never the only record of where someone was.
  */
-export default function PunchAudit({ employeeId, date }: { employeeId: string; date?: string }) {
+export default function PunchAudit({
+  employeeId, date, canFlag, onFlag,
+}: {
+  employeeId: string;
+  date?: string;
+  /** Supervisor context only (Live Board) — never shown on an employee's own view. */
+  canFlag?: boolean;
+  onFlag?: (event: { id: string; kind: PunchEvent["kind"]; ts: string }) => void;
+}) {
   const [events, setEvents] = useState<PunchEvent[] | null>(null);
   const [error, setError] = useState("");
 
@@ -85,6 +93,19 @@ export default function PunchAudit({ employeeId, date }: { employeeId: string; d
               {e.source !== "web_selfie" && <Pill label={e.source === "correction" ? "Corrected" : "Manual"} tone="purple" />}
               {e.within_geofence === true && <Pill label={e.site_name ?? "On site"} tone="green" />}
               {e.within_geofence === false && <Pill label="Outside geofence" tone="amber" />}
+              {canFlag && onFlag && (
+                <button
+                  type="button"
+                  onClick={() => onFlag({ id: e.id, kind: e.kind, ts: e.ts })}
+                  style={{
+                    marginLeft: "auto", fontSize: 10.5, fontWeight: 600, color: statusInk.warn,
+                    background: "none", border: `1px solid ${statusInk.warn}55`, borderRadius: 6,
+                    padding: "2px 8px", cursor: "pointer",
+                  }}
+                >
+                  ⚑ Flag for recheck
+                </button>
+              )}
             </div>
 
             {e.geo_lat != null && e.geo_lng != null ? (

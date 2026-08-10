@@ -33,6 +33,15 @@ type MeState = {
   home_site: { id: string; name: string } | null;
   shift: { name: string; start_time: string; end_time: string } | null;
   timezone: string;
+  upcoming: {
+    date: string; is_day_off: boolean; shift_name: string | null;
+    start_time: string | null; end_time: string | null; is_night_shift: boolean;
+    source: "roster" | "standing"; note: string | null;
+  }[];
+  pending_rechecks: {
+    id: string; target_date: string; recheck_type: "time" | "selfie" | "both";
+    message: string; status: string; created_at: string;
+  }[];
 };
 
 type MonthTotals = {
@@ -202,6 +211,10 @@ export default function MeClient() {
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [correctionDraft, setCorrectionDraft] = useState({ target_date: todayKey(), issue: "missing_check_out", proposed_ts: "", reason_text: "" });
+  const [respondingTo, setRespondingTo] = useState<string | null>(null);
+  const [recheckResponse, setRecheckResponse] = useState("");
+  const [recheckBusy, setRecheckBusy] = useState(false);
+  const [correctionFromRecheckId, setCorrectionFromRecheckId] = useState<string | null>(null);
   const [leaveDraft, setLeaveDraft] = useState({ leave_type_id: "", date_from: todayKey(), date_to: todayKey(), half_day: false, reason_text: "" });
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -343,18 +356,43 @@ export default function MeClient() {
         : undefined;
       const res = await fetch("/api/wfm/corrections", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...correctionDraft, proposed_ts, reason_text: correctionDraft.reason_text.trim() }),
+        body: JSON.stringify({
+          ...correctionDraft, proposed_ts, reason_text: correctionDraft.reason_text.trim(),
+          recheck_request_id: correctionFromRecheckId ?? undefined,
+        }),
       });
       const json = await res.json();
       if (!res.ok) { setNotice({ tone: "err", text: json.error ?? "Could not submit" }); return; }
       setShowCorrectionForm(false);
       setCorrectionDraft({ target_date: todayKey(), issue: "missing_check_out", proposed_ts: "", reason_text: "" });
+      setCorrectionFromRecheckId(null);
       setNotice({ tone: "ok", text: "Correction request submitted — your supervisor will review it." });
       await load();
     } catch {
       setNotice({ tone: "err", text: "Network error" });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function respondToRecheck(id: string) {
+    if (!recheckResponse.trim()) { setNotice({ tone: "err", text: "Please add a reply first" }); return; }
+    setRecheckBusy(true);
+    try {
+      const res = await fetch(`/api/wfm/recheck-requests/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "respond", employee_response_text: recheckResponse.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setNotice({ tone: "err", text: json.error ?? "Could not send" }); return; }
+      setRespondingTo(null);
+      setRecheckResponse("");
+      setNotice({ tone: "ok", text: "Reply sent to your supervisor." });
+      await load();
+    } catch {
+      setNotice({ tone: "err", text: "Network error" });
+    } finally {
+      setRecheckBusy(false);
     }
   }
 
@@ -531,6 +569,56 @@ export default function MeClient() {
         <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.warn, fontSize: 12.5 }}>{queuedCount} punch(es) pending sync</div>
       )}
 
+      {me.pending_rechecks.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+          {me.pending_rechecks.map((rq) => (
+            <section key={rq.id} style={{ ...cardStyle, borderLeft: `3px solid ${statusInk.warn}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>
+                    ⚑ Your supervisor asked you to recheck your {rq.recheck_type === "both" ? "time and selfie" : rq.recheck_type} for {rq.target_date}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: c.muted, marginTop: 4 }}>&ldquo;{rq.message}&rdquo;</div>
+                </div>
+              </div>
+              {respondingTo === rq.id ? (
+                <div style={{ marginTop: 12 }}>
+                  <textarea
+                    value={recheckResponse}
+                    onChange={(e) => setRecheckResponse(e.target.value)}
+                    rows={2}
+                    placeholder="Reply to your supervisor…"
+                    style={{ width: "100%", padding: "8px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, resize: "vertical", boxSizing: "border-box" }}
+                  />
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button style={{ ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" }} disabled={recheckBusy} onClick={() => respondToRecheck(rq.id)}>
+                      {recheckBusy ? "Sending…" : "Send reply"}
+                    </button>
+                    <button
+                      style={btn}
+                      onClick={() => {
+                        setRespondingTo(null);
+                        setShowCorrectionForm(true);
+                        setCorrectionDraft((d) => ({ ...d, target_date: rq.target_date }));
+                        setCorrectionFromRecheckId(rq.id);
+                        setTab("home");
+                      }}
+                    >
+                      File a correction instead
+                    </button>
+                    <button style={btn} onClick={() => { setRespondingTo(null); setRecheckResponse(""); }}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button style={{ ...btn, marginTop: 12 }} onClick={() => { setRespondingTo(rq.id); setRecheckResponse(""); }}>
+                  Respond
+                </button>
+              )}
+            </section>
+          ))}
+        </div>
+      )}
+
       {tab === "home" && (
         <>
           <div style={{ ...grid(260), marginBottom: 14 }}>
@@ -578,6 +666,26 @@ export default function MeClient() {
                 </>
               ) : <div style={{ fontSize: 12, color: c.hint }}>None scheduled.</div>}
               <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View calendar</button>
+            </section>
+
+            <section className="stat-tile" style={cardStyle}>
+              <div style={capStyle}>My shift — next few days</div>
+              {me.upcoming.length === 0 ? (
+                <div style={{ fontSize: 12, color: c.hint }}>No shift assigned.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {me.upcoming.slice(0, 4).map((u) => (
+                    <div key={u.date} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "2px 0" }}>
+                      <span style={{ color: c.ink }}>
+                        {new Date(u.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}
+                      </span>
+                      <span style={{ color: u.is_day_off ? "var(--red)" : c.muted }}>
+                        {u.is_day_off ? "Day off" : u.shift_name ? `${u.shift_name} ${u.start_time?.slice(0, 5)}–${u.end_time?.slice(0, 5)}` : "— none —"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
 

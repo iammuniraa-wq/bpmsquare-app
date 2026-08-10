@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { ROUTES, DEFAULT_WFM_CONFIG, type TenantConfig, type WfmConfig } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
-import WorkforceConfigClient from "./WorkforceConfigClient";
-import SitesShiftsClient from "./SitesShiftsClient";
+import WorkforceSettingsTabs from "./WorkforceSettingsTabs";
 
 export default async function SettingsWorkforcePage() {
   let tenantId: string, role: string;
@@ -25,10 +24,9 @@ export default async function SettingsWorkforcePage() {
     <>
       <PageHeader
         title="Workforce"
-        subtitle="Attendance rules, timezone and retention, plus the sites and shifts everyone punches against."
+        subtitle="Attendance rules, sites, shifts, leave types and holidays — everything that shapes how the workforce punches in and takes leave."
       />
-      <WorkforceConfigClient initial={config} />
-      <SitesShiftsClient canEdit={true} />
+      <WorkforceSettingsTabs initial={config} />
     </>
   );
 }

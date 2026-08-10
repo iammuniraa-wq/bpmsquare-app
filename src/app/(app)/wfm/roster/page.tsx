@@ -3,21 +3,21 @@ import { requireFeature } from "@/lib/tenant";
 import { requireWfmSupervisorPage } from "@/lib/wfm/server";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
-import LeaveClient from "./LeaveClient";
+import RosterClient from "./RosterClient";
 
-export default async function WfmLeavePage() {
+export default async function WfmRosterPage() {
   await requireWorkcenterView("wfm");
   await requireFeature("wfm");
   await requireWfmSupervisorPage();
 
   return (
     <>
-      <TabTitle title="Leave" />
+      <TabTitle title="Workforce — Roster" />
       <PageHeader
-        title="Leave"
-        subtitle="Approve leave requests and enter leave records directly. Leave types and the holiday calendar are configured in Settings → Workforce."
+        title="Roster"
+        subtitle="Assign a shift per employee per date. A date with no explicit assignment falls back to that employee's standing shift (set in Employees)."
       />
-      <LeaveClient />
+      <RosterClient />
     </>
   );
 }

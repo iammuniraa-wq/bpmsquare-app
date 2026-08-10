@@ -7,7 +7,6 @@ import Pill from "@/components/Pill";
 import type { LeaveRequestStatus, WfmLeaveRequest } from "@/lib/wfm/types";
 
 type LeaveType = { id: string; name: string; category: "paid" | "unpaid" | "half_day"; active: boolean; annual_quota: number };
-type Holiday = { id: string; date: string; name: string; applies_to: "all" | "full_time" | "contractor" };
 type LeaveRecord = {
   id: string; employee_id: string; leave_type_id: string; date_from: string; date_to: string;
   half_day: boolean; remarks: string | null;
@@ -36,30 +35,25 @@ const fmtDate = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-
 
 export default function LeaveClient() {
   const [types, setTypes] = useState<LeaveType[]>([]);
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [records, setRecords] = useState<LeaveRecord[]>([]);
   const [employees, setEmployees] = useState<EmployeeOpt[]>([]);
   const [requests, setRequests] = useState<LeaveRequestRow[]>([]);
   const [requestFilter, setRequestFilter] = useState<"pending" | "all">("pending");
   const [requestQuery, setRequestQuery] = useState("");
   const [recordQuery, setRecordQuery] = useState("");
-  const [holidayQuery, setHolidayQuery] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [remark, setRemark] = useState("");
 
-  const [typeForm, setTypeForm] = useState({ name: "", category: "paid" as LeaveType["category"], annual_quota: "12" });
-  const [holidayForm, setHolidayForm] = useState({ date: "", name: "", applies_to: "all" as Holiday["applies_to"] });
   const [recordForm, setRecordForm] = useState({ employee_id: "", leave_type_id: "", date_from: "", date_to: "", half_day: false, remarks: "" });
 
   const load = useCallback(async () => {
-    const [t, h, r, e, q] = await Promise.all([
-      fetch("/api/wfm/leave-types"), fetch("/api/wfm/holidays"), fetch("/api/wfm/leave-records"), fetch("/api/wfm/employees"),
+    const [t, r, e, q] = await Promise.all([
+      fetch("/api/wfm/leave-types"), fetch("/api/wfm/leave-records"), fetch("/api/wfm/employees"),
       fetch(requestFilter === "pending" ? "/api/wfm/leave-requests?status=pending" : "/api/wfm/leave-requests"),
     ]);
     if (t.ok) setTypes(await t.json()); else setError((await t.json()).error ?? "Failed to load");
-    if (h.ok) setHolidays(await h.json());
     if (r.ok) setRecords(await r.json());
     if (e.ok) setEmployees(await e.json());
     if (q.ok) setRequests(await q.json());
@@ -116,18 +110,6 @@ export default function LeaveClient() {
     }
   }
 
-  async function addType() {
-    if (!typeForm.name.trim()) { setError("Name is required"); return; }
-    const ok = await post("/api/wfm/leave-types", { name: typeForm.name, category: typeForm.category, annual_quota: parseFloat(typeForm.annual_quota) || 0 });
-    if (ok) setTypeForm({ name: "", category: "paid", annual_quota: "12" });
-  }
-
-  async function addHoliday() {
-    if (!holidayForm.date || !holidayForm.name.trim()) { setError("Date and name are required"); return; }
-    const ok = await post("/api/wfm/holidays", holidayForm);
-    if (ok) setHolidayForm({ date: "", name: "", applies_to: "all" });
-  }
-
   async function addRecord() {
     if (!recordForm.employee_id || !recordForm.leave_type_id || !recordForm.date_from || !recordForm.date_to) {
       setError("Employee, leave type and dates are required");
@@ -156,9 +138,6 @@ export default function LeaveClient() {
     (r.employees?.employee_code ?? "").toLowerCase().includes(dq) ||
     (r.wfm_leave_types?.name ?? "").toLowerCase().includes(dq)
   );
-
-  const hq = holidayQuery.trim().toLowerCase();
-  const visibleHolidays = holidays.filter((h) => !hq || h.name.toLowerCase().includes(hq));
 
   return (
     <>
@@ -224,67 +203,6 @@ export default function LeaveClient() {
             )}
           </tbody>
         </table>
-      </section>
-
-      <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
-        <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Leave types</div>
-        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr><th style={th}>Name</th><th style={th}>Category</th><th style={th}>Default annual quota</th><th style={th}>Status</th></tr></thead>
-          <tbody>
-            {types.map((t) => (
-              <tr key={t.id}>
-                <td style={{ ...td, fontWeight: 600, color: c.ink }}>{t.name}</td>
-                <td style={td}>{t.category}</td>
-                <td style={td}>{t.annual_quota}</td>
-                <td style={td}><Pill label={t.active ? "Active" : "Inactive"} tone={t.active ? "green" : "red"} /></td>
-              </tr>
-            ))}
-            {types.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>No leave types yet.</td></tr>}
-          </tbody>
-        </table>
-        <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div style={{ flex: "1 1 140px" }}><label style={lbl}>Name</label><input style={inp} value={typeForm.name} onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })} placeholder="Paid leave" /></div>
-          <div style={{ flex: "0 1 130px" }}>
-            <label style={lbl}>Category</label>
-            <select style={inp} value={typeForm.category} onChange={(e) => setTypeForm({ ...typeForm, category: e.target.value as LeaveType["category"] })}>
-              <option value="paid">Paid</option><option value="unpaid">Unpaid</option><option value="half_day">Half-day</option>
-            </select>
-          </div>
-          <div style={{ flex: "0 1 100px" }}><label style={lbl}>Default quota</label><input style={inp} value={typeForm.annual_quota} onChange={(e) => setTypeForm({ ...typeForm, annual_quota: e.target.value })} /></div>
-          <button style={btnPrimary} disabled={busy} onClick={addType}>Add type</button>
-        </div>
-      </section>
-
-      <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
-        <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Holiday calendar</span>
-          <input style={{ ...inp, width: 200 }} placeholder="Search holiday…" value={holidayQuery} onChange={(e) => setHolidayQuery(e.target.value)} />
-        </div>
-        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr><th style={th}>Date</th><th style={th}>Name</th><th style={th}>Applies to</th><th style={th}></th></tr></thead>
-          <tbody>
-            {visibleHolidays.map((h) => (
-              <tr key={h.id}>
-                <td style={td}>{fmtDate(h.date)}</td>
-                <td style={{ ...td, fontWeight: 600, color: c.ink }}>{h.name}</td>
-                <td style={td}>{h.applies_to === "all" ? "Everyone" : h.applies_to === "full_time" ? "Full-time" : "Contractors"}</td>
-                <td style={td}><button style={btn} disabled={busy} onClick={() => del(`/api/wfm/holidays/${h.id}`)}>Remove</button></td>
-              </tr>
-            ))}
-            {visibleHolidays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>No holidays configured.</td></tr>}
-          </tbody>
-        </table>
-        <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div style={{ flex: "0 1 150px" }}><label style={lbl}>Date</label><input style={inp} type="date" value={holidayForm.date} onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })} /></div>
-          <div style={{ flex: "1 1 180px" }}><label style={lbl}>Name</label><input style={inp} value={holidayForm.name} onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })} placeholder="Independence Day" /></div>
-          <div style={{ flex: "0 1 150px" }}>
-            <label style={lbl}>Applies to</label>
-            <select style={inp} value={holidayForm.applies_to} onChange={(e) => setHolidayForm({ ...holidayForm, applies_to: e.target.value as Holiday["applies_to"] })}>
-              <option value="all">Everyone</option><option value="full_time">Full-time only</option><option value="contractor">Contractors only</option>
-            </select>
-          </div>
-          <button style={btnPrimary} disabled={busy} onClick={addHoliday}>Add holiday</button>
-        </div>
       </section>
 
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>

@@ -24,6 +24,8 @@ export async function GET() {
 }
 
 const FACE_MODES = ["off", "flag_only"];
+const GEOFENCE_MODES = ["block", "flag", "off"];
+const NOTIFICATION_KEYS = ["late_arrival", "correction_pending", "leave_pending", "recheck_flagged"] as const;
 
 // PUT /api/settings/workforce — update tenant WFM config (admin only).
 export async function PUT(request: NextRequest) {
@@ -62,6 +64,19 @@ export async function PUT(request: NextRequest) {
     body.week_off_days.every((d) => typeof d === "number" && d >= 0 && d <= 6)
   ) {
     next.week_off_days = [...new Set(body.week_off_days)].sort();
+  }
+  if (typeof body.geofence_mode === "string" && GEOFENCE_MODES.includes(body.geofence_mode)) {
+    next.geofence_mode = body.geofence_mode as WfmConfig["geofence_mode"];
+  }
+  if (body.notifications && typeof body.notifications === "object") {
+    const incoming = body.notifications as Partial<WfmConfig["notifications"]>;
+    const notifications: Partial<WfmConfig["notifications"]> = {};
+    for (const key of NOTIFICATION_KEYS) {
+      if (typeof incoming[key] === "boolean") notifications[key] = incoming[key];
+    }
+    if (Object.keys(notifications).length > 0) {
+      next.notifications = { ...DEFAULT_WFM_CONFIG.notifications, ...notifications };
+    }
   }
 
   const { data: current, error: readErr } = await admin.from("tenants").select("config").eq("id", tenantId).single();

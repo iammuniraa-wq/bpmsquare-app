@@ -102,6 +102,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.site_id = body.site_id;
     }
   }
+  if ("supervisor_id" in body) {
+    if (body.supervisor_id === null || body.supervisor_id === "") {
+      patch.supervisor_id = null;
+    } else if (typeof body.supervisor_id === "string") {
+      if (body.supervisor_id === id) {
+        return NextResponse.json({ error: "An employee can't be their own supervisor" }, { status: 400 });
+      }
+      const { data: supervisor } = await admin
+        .from("employees").select("id").eq("id", body.supervisor_id).eq("tenant_id", tenantId).maybeSingle();
+      if (!supervisor) return NextResponse.json({ error: "Unknown supervisor" }, { status: 400 });
+      patch.supervisor_id = body.supervisor_id;
+    }
+  }
 
   // Login link via tenant_users.employee_id.
   if (typeof body.invite_email === "string" && body.invite_email.trim()) {
@@ -171,7 +184,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .update(patch)
     .eq("id", id)
     .eq("tenant_id", tenantId)
-    .select("id, employee_code, first_name, last_name, phone, employment_type, wfm_role, shift_id, site_id, status, consent_recorded_at")
+    .select("id, employee_code, first_name, last_name, phone, employment_type, wfm_role, shift_id, site_id, supervisor_id, status, consent_recorded_at")
     .maybeSingle();
   if (error) {
     if ((error as { code?: string }).code === "23505") {

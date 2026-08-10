@@ -130,6 +130,30 @@ export type WfmLeaveRequest = {
   created_at: string;
 };
 
+// Supervisor-initiated recheck requests (0072) -- the other direction from
+// corrections above: a supervisor flags a punch/day and the employee
+// responds. linked_correction_id is set when the employee's response was
+// to file an actual correction (see /api/wfm/corrections' recheck_request_id).
+export type RecheckType = "time" | "selfie" | "both";
+export type RecheckStatus = "pending" | "responded" | "resolved" | "dismissed";
+
+export type WfmRecheckRequest = {
+  id: string;
+  employee_id: string;
+  target_date: string; // YYYY-MM-DD
+  target_event_id: string | null;
+  recheck_type: RecheckType;
+  supervisor_id: string;
+  message: string;
+  status: RecheckStatus;
+  employee_response_text: string | null;
+  employee_responded_at: string | null;
+  linked_correction_id: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
 // ── Punch state machine: out → in → [break ↔ in]* → out ──────────────────
 
 export type PunchState = "out" | "in" | "break";

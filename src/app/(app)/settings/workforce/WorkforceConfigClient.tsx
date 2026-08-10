@@ -139,6 +139,46 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
             <option value="flag_only">Flag only (never blocks a punch)</option>
           </select>
         </div>
+
+        <div style={field}>
+          <label style={lbl}>Geofence enforcement</label>
+          <select
+            style={inp}
+            value={cfg.geofence_mode}
+            onChange={(e) => setCfg({ ...cfg, geofence_mode: e.target.value as WfmConfig["geofence_mode"] })}
+          >
+            <option value="flag">Flag only — punch succeeds, marked outside geofence</option>
+            <option value="block">Block — punch is rejected if outside every site</option>
+            <option value="off">Off — no site match attempted at all</option>
+          </select>
+          <div style={help}>Applies to every check-in/check-out. Sites and their radius are managed in the Sites tab.</div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <label style={lbl}>Email notifications</label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+          {([
+            { key: "late_arrival", label: "Late arrival", hint: "Notify supervisor when someone checks in past shift start + grace" },
+            { key: "correction_pending", label: "Correction request submitted", hint: "Notify supervisor when an employee files one" },
+            { key: "leave_pending", label: "Leave request submitted", hint: "Notify supervisor when an employee files one" },
+            { key: "recheck_flagged", label: "Recheck flagged", hint: "Notify the employee when a supervisor flags their punch" },
+          ] as const).map(({ key, label, hint }) => (
+            <label key={key} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, color: c.ink, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={cfg.notifications[key]}
+                onChange={(e) => setCfg({ ...cfg, notifications: { ...cfg.notifications, [key]: e.target.checked } })}
+                style={{ marginTop: 2 }}
+              />
+              <span>
+                {label}
+                <div style={{ fontSize: 11, color: c.hint, fontWeight: 400 }}>{hint}</div>
+              </span>
+            </label>
+          ))}
+        </div>
+        <div style={help}>Requires email sending to be configured for this workspace — see Settings → General.</div>
       </div>
 
       <div style={{ marginBottom: 16 }}>

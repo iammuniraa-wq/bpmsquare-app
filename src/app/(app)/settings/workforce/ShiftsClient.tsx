@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
-import type { WfmSite, WfmShift } from "@/lib/wfm/types";
+import type { WfmShift } from "@/lib/wfm/types";
 
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -32,23 +32,20 @@ const btnPrimary: React.CSSProperties = {
 
 const hhmm = (t: string) => t.slice(0, 5);
 
-export default function SitesShiftsClient({ canEdit }: { canEdit: boolean }) {
-  const [sites, setSites] = useState<WfmSite[]>([]);
+export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
   const [shifts, setShifts] = useState<WfmShift[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [siteForm, setSiteForm] = useState({ name: "", lat: "", lng: "", radius_m: "150" });
   const [shiftForm, setShiftForm] = useState({
     name: "", start_time: "09:00", end_time: "18:00", grace_minutes: "10",
     is_night_shift: false, night_allowance_amount: "0",
   });
 
   const load = useCallback(async () => {
-    const [sitesRes, shiftsRes] = await Promise.all([fetch("/api/wfm/sites"), fetch("/api/wfm/shifts")]);
-    if (sitesRes.ok) setSites(await sitesRes.json());
-    if (shiftsRes.ok) setShifts(await shiftsRes.json());
-    if (!sitesRes.ok) setError((await sitesRes.json()).error ?? "Failed to load");
+    const res = await fetch("/api/wfm/shifts");
+    if (res.ok) setShifts(await res.json());
+    else setError((await res.json()).error ?? "Failed to load");
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -74,19 +71,6 @@ export default function SitesShiftsClient({ canEdit }: { canEdit: boolean }) {
     }
   }
 
-  async function addSite() {
-    const lat = parseFloat(siteForm.lat);
-    const lng = parseFloat(siteForm.lng);
-    if (!siteForm.name.trim() || isNaN(lat) || isNaN(lng)) {
-      setError("Site needs a name and numeric latitude/longitude");
-      return;
-    }
-    const ok = await post("/api/wfm/sites", {
-      name: siteForm.name, lat, lng, radius_m: parseInt(siteForm.radius_m) || 150,
-    });
-    if (ok) setSiteForm({ name: "", lat: "", lng: "", radius_m: "150" });
-  }
-
   async function addShift() {
     if (!shiftForm.name.trim()) { setError("Shift needs a name"); return; }
     const ok = await post("/api/wfm/shifts", {
@@ -107,70 +91,6 @@ export default function SitesShiftsClient({ canEdit }: { canEdit: boolean }) {
       {error && (
         <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>
       )}
-
-      <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
-        <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>
-          Sites
-        </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Name</th>
-              <th style={th}>Latitude</th>
-              <th style={th}>Longitude</th>
-              <th style={th}>Radius (m)</th>
-              <th style={th}>Status</th>
-              {canEdit && <th style={th}></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {sites.map((s) => (
-              <tr key={s.id}>
-                <td style={{ ...td, fontWeight: 600, color: c.ink }}>{s.name}</td>
-                <td style={td}>{s.lat}</td>
-                <td style={td}>{s.lng}</td>
-                <td style={td}>{s.radius_m}</td>
-                <td style={td}><Pill label={s.active ? "Active" : "Inactive"} tone={s.active ? "green" : "red"} /></td>
-                {canEdit && (
-                  <td style={td}>
-                    <button
-                      style={btn}
-                      disabled={busy}
-                      onClick={() => post(`/api/wfm/sites/${s.id}`, { active: !s.active }, "PATCH")}
-                    >
-                      {s.active ? "Deactivate" : "Activate"}
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-            {sites.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={6}>No sites yet.</td></tr>
-            )}
-          </tbody>
-        </table>
-        {canEdit && (
-          <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ flex: "1 1 160px" }}>
-              <label style={lbl}>Name</label>
-              <input style={inp} value={siteForm.name} onChange={(e) => setSiteForm({ ...siteForm, name: e.target.value })} placeholder="Workshop — Hosapete" />
-            </div>
-            <div style={{ flex: "0 1 130px" }}>
-              <label style={lbl}>Latitude</label>
-              <input style={inp} value={siteForm.lat} onChange={(e) => setSiteForm({ ...siteForm, lat: e.target.value })} placeholder="15.2695" />
-            </div>
-            <div style={{ flex: "0 1 130px" }}>
-              <label style={lbl}>Longitude</label>
-              <input style={inp} value={siteForm.lng} onChange={(e) => setSiteForm({ ...siteForm, lng: e.target.value })} placeholder="76.3871" />
-            </div>
-            <div style={{ flex: "0 1 100px" }}>
-              <label style={lbl}>Radius (m)</label>
-              <input style={inp} value={siteForm.radius_m} onChange={(e) => setSiteForm({ ...siteForm, radius_m: e.target.value })} />
-            </div>
-            <button style={btnPrimary} disabled={busy} onClick={addSite}>Add site</button>
-          </div>
-        )}
-      </section>
 
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
         <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>

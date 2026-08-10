@@ -82,8 +82,8 @@ export async function requireWfmSupervisor(): Promise<WfmContext> {
 }
 
 /**
- * Page-level guard for WFM's 5 supervisor-only screens (Live board,
- * Employees, Corrections, Leave & Holidays, Monthly Summary). A plain
+ * Page-level guard for WFM's supervisor-only screens (Live board,
+ * Employees, Corrections, Roster, Leave & Holidays, Monthly Summary). A plain
  * wfm_role=employee login now holds the "wfm" workcenter grant too (needed
  * so My Workforce is reachable) -- requireWorkcenterView("wfm") alone no
  * longer excludes them, so this is the actual enforcement boundary against

@@ -131,6 +131,7 @@ export const ROUTES = {
   wfmLiveBoard: "/wfm/live-board",
   wfmEmployees: "/wfm/employees",
   wfmCorrections: "/wfm/corrections",
+  wfmRoster: "/wfm/roster",
   wfmLeave: "/wfm/leave",
   wfmSummary: "/wfm/summary",
   settingsWorkforce: "/settings/workforce",
@@ -252,6 +253,7 @@ export const NAV: NavGroup[] = [
           { label: "Live board",   href: ROUTES.wfmLiveBoard,   icon: "◉", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Employees",    href: ROUTES.wfmEmployees,   icon: "⚇", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Corrections", href: ROUTES.wfmCorrections, icon: "✓", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Roster", href: ROUTES.wfmRoster, icon: "▦", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Leave & Holidays", href: ROUTES.wfmLeave, icon: "☀", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Monthly Summary", href: ROUTES.wfmSummary, icon: "▤", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
         ],
@@ -446,6 +448,18 @@ export type WfmConfig = {
   face_verification_mode: "off" | "flag_only";
   // Weekly off days, 0 = Sunday … 6 = Saturday.
   week_off_days: number[];
+  // block: punch outside every site's geofence is rejected (409). flag:
+  // punch succeeds, within_geofence=false + flags.outside_geofence (today's
+  // only behavior). off: no site match attempted at all, no flag either.
+  geofence_mode: "block" | "flag" | "off";
+  // Per-event-type email notification toggles. Each fires synchronously
+  // from the route that creates the underlying event -- see src/lib/wfm/notify.ts.
+  notifications: {
+    late_arrival: boolean;       // check-in past shift start+grace -> supervisor
+    correction_pending: boolean; // employee files a correction -> supervisor
+    leave_pending: boolean;      // employee files a leave request -> supervisor
+    recheck_flagged: boolean;    // supervisor flags a punch/day -> employee
+  };
 };
 
 export const DEFAULT_WFM_CONFIG: WfmConfig = {
@@ -456,6 +470,13 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   selfie_retention_days: 90,
   face_verification_mode: "off",
   week_off_days: [0],
+  geofence_mode: "flag",
+  notifications: {
+    late_arrival: false,
+    correction_pending: true,
+    leave_pending: true,
+    recheck_flagged: true,
+  },
 };
 
 // All metric IDs available in the Analytics page.

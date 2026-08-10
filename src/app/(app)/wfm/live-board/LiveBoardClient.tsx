@@ -94,6 +94,37 @@ export default function LiveBoardClient() {
   const [lateOnly, setLateOnly] = useState(false);
   // Which employee's punch audit (selfie + location) is expanded.
   const [auditFor, setAuditFor] = useState<string | null>(null);
+  // Recheck-request composer -- set when a supervisor clicks "Flag for recheck".
+  const [flagging, setFlagging] = useState<{ employeeId: string; employeeName: string; eventId: string; date: string } | null>(null);
+  const [flagType, setFlagType] = useState<"time" | "selfie" | "both">("both");
+  const [flagMessage, setFlagMessage] = useState("");
+  const [flagBusy, setFlagBusy] = useState(false);
+  const [flagError, setFlagError] = useState("");
+  const [flagSent, setFlagSent] = useState(false);
+
+  async function submitFlag() {
+    if (!flagging || !flagMessage.trim()) { setFlagError("A message is required"); return; }
+    setFlagBusy(true);
+    setFlagError("");
+    try {
+      const res = await fetch("/api/wfm/recheck-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employee_id: flagging.employeeId, target_date: flagging.date,
+          target_event_id: flagging.eventId, recheck_type: flagType, message: flagMessage.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setFlagError(json.error ?? "Could not send"); return; }
+      setFlagSent(true);
+      setTimeout(() => { setFlagging(null); setFlagMessage(""); setFlagType("both"); setFlagSent(false); }, 1200);
+    } catch {
+      setFlagError("Network error");
+    } finally {
+      setFlagBusy(false);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -291,7 +322,18 @@ export default function LiveBoardClient() {
                 {auditFor === r.employee_id && (
                   <tr>
                     <td colSpan={6} style={{ ...td, background: "var(--panel2)" }}>
-                      <PunchAudit employeeId={r.employee_id} date={board.date} />
+                      <PunchAudit
+                        employeeId={r.employee_id}
+                        date={board.date}
+                        canFlag
+                        onFlag={(event) => {
+                          setFlagging({ employeeId: r.employee_id, employeeName: r.full_name, eventId: event.id, date: board.date });
+                          setFlagType("both");
+                          setFlagMessage("");
+                          setFlagError("");
+                          setFlagSent(false);
+                        }}
+                      />
                     </td>
                   </tr>
                 )}
@@ -307,6 +349,58 @@ export default function LiveBoardClient() {
         {updatedAt && <> · updated {updatedAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</>}
         {" "}· refreshes every 30s
       </div>
+
+      {flagging && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+          onClick={() => setFlagging(null)}
+        >
+          <div style={{ ...cardStyle, width: 420, maxWidth: "92vw" }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 4 }}>Flag for recheck</div>
+            <div style={{ fontSize: 12, color: c.muted, marginBottom: 14 }}>{flagging.employeeName} · {flagging.date}</div>
+            {flagSent ? (
+              <div style={{ fontSize: 13, color: statusInk.good, padding: "10px 0" }}>✓ Sent — {flagging.employeeName} will see this on their Me page.</div>
+            ) : (
+              <>
+                <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 }}>What needs rechecking?</label>
+                <select
+                  value={flagType}
+                  onChange={(e) => setFlagType(e.target.value as typeof flagType)}
+                  style={{ width: "100%", padding: "8px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, marginBottom: 12, boxSizing: "border-box" }}
+                >
+                  <option value="both">Time and selfie</option>
+                  <option value="time">Time only</option>
+                  <option value="selfie">Selfie only</option>
+                </select>
+                <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 }}>Message to employee</label>
+                <textarea
+                  value={flagMessage}
+                  onChange={(e) => setFlagMessage(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Your check-in selfie looks blurry, please confirm this was really you."
+                  style={{ width: "100%", padding: "8px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, resize: "vertical", boxSizing: "border-box" }}
+                />
+                {flagError && <div style={{ fontSize: 12, color: statusInk.bad, marginTop: 8 }}>{flagError}</div>}
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  <button
+                    onClick={submitFlag}
+                    disabled={flagBusy}
+                    style={{ padding: "8px 16px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, border: "none", background: "var(--tenant-accent, #378ADD)", color: "#fff", cursor: "pointer" }}
+                  >
+                    {flagBusy ? "Sending…" : "Send"}
+                  </button>
+                  <button
+                    onClick={() => setFlagging(null)}
+                    style={{ padding: "8px 16px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, border: `1px solid ${c.line}`, background: c.panel, color: c.ink, cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

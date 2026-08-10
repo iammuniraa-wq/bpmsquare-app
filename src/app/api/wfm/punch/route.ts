@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { requireWfmEmployee, getWfmConfig, matchSite } from "@/lib/wfm/server";
+import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/lib/wfm/server";
+import { getSupervisorEmails, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
+import { ROUTES } from "@/lib/constants";
 import { applyPunch, type PresenceKind, type PunchState, type WfmSite } from "@/lib/wfm/types";
 import { computeDayHours, shiftDayKey } from "@/lib/wfm/hours";
 
@@ -30,7 +32,7 @@ export async function POST(request: NextRequest) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  const { tenantId, userId, employee } = ctx;
+  const { supabase, tenantId, userId, employee } = ctx;
 
   if (!employee.consent_recorded_at) {
     return NextResponse.json({ error: "Consent required before punching" }, { status: 403 });
@@ -98,16 +100,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Punch time predates your last punch" }, { status: 409 });
   }
 
-  const { data: siteRows } = await admin
-    .from("wfm_sites")
-    .select("id, name, lat, lng, radius_m, active")
-    .eq("tenant_id", tenantId)
-    .eq("active", true);
+  const [config, { data: shift }] = await Promise.all([
+    getWfmConfig(admin, tenantId),
+    employee.shift_id
+      ? admin.from("wfm_shifts").select("name, start_time, grace_minutes, crosses_midnight").eq("id", employee.shift_id).eq("tenant_id", tenantId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
   const lat = typeof geo?.lat === "number" ? geo.lat : null;
   const lng = typeof geo?.lng === "number" ? geo.lng : null;
   const accuracy = typeof geo?.accuracy_m === "number" ? geo.accuracy_m : null;
-  const { site, within } = matchSite((siteRows ?? []) as WfmSite[], lat, lng);
+
+  // off: no geofence check attempted at all -- every punch lands with no
+  // site/flag, same as a tenant with zero sites configured today.
+  let site: WfmSite | null = null;
+  let within: boolean | null = null;
+  if (config.geofence_mode !== "off") {
+    const { data: siteRows } = await admin
+      .from("wfm_sites")
+      .select("id, name, lat, lng, radius_m, active")
+      .eq("tenant_id", tenantId)
+      .eq("active", true);
+    const matched = matchSite((siteRows ?? []) as WfmSite[], lat, lng);
+    site = matched.site;
+    within = matched.within;
+  }
+
+  if (config.geofence_mode === "block" && within === false) {
+    return NextResponse.json(
+      { error: "You're outside every configured site's geofence — move closer and try again." },
+      { status: 409 }
+    );
+  }
 
   const flags: Record<string, unknown> = {};
   if (within === false) flags.outside_geofence = true;
@@ -143,12 +167,6 @@ export async function POST(request: NextRequest) {
   }
 
   // Today's running total (tenant timezone): now − first check_in of today.
-  const [config, { data: shift }] = await Promise.all([
-    getWfmConfig(admin, tenantId),
-    employee.shift_id
-      ? admin.from("wfm_shifts").select("start_time, crosses_midnight").eq("id", employee.shift_id).eq("tenant_id", tenantId).maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
   const todayKey = shiftDayKey(tsDate, config.timezone, shift);
   const dayStart = new Date(tsDate.getTime() - 36 * 60 * 60 * 1000).toISOString();
   const { data: recent } = await admin
@@ -162,6 +180,32 @@ export async function POST(request: NextRequest) {
 
   const todays = (recent ?? []).filter((e) => shiftDayKey(new Date(e.ts), config.timezone, shift) === todayKey);
   const hours = computeDayHours(todays as { kind: PresenceKind; ts: string }[], tsDate);
+
+  // Late-arrival notification: only on the shift-day's FIRST check_in, so a
+  // later break/check_out on the same day never re-fires it.
+  if (
+    config.notifications.late_arrival &&
+    kind === "check_in" &&
+    shift &&
+    todays.filter((e) => e.kind === "check_in").length === 1
+  ) {
+    const graceEnd = zonedTimestamp(todayKey, shift.start_time, config.timezone).getTime() + shift.grace_minutes * 60 * 1000;
+    if (tsDate.getTime() > graceEnd) {
+      const empName = [employee.first_name, employee.last_name].filter(Boolean).join(" ");
+      getSupervisorEmails(admin, tenantId, employee.id).then((emails) =>
+        sendWfmNotification({
+          sessionSupabase: supabase,
+          tenantId,
+          toEmails: emails,
+          subject: `Late arrival — ${empName}`,
+          text: `${empName} checked in late on ${todayKey} (shift ${shift.name}, starts ${shift.start_time.slice(0, 5)}).\n\nView the live board: ${wfmUrl(ROUTES.wfmLiveBoard)}`,
+          relatedObjectType: "wfm_presence_events",
+          relatedObjectId: event.id,
+          relatedObjectLabel: `${empName} — ${todayKey}`,
+        })
+      ).catch(() => {});
+    }
+  }
 
   return NextResponse.json({
     ok: true,

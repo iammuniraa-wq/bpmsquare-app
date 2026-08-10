@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { requireWfm, requireWfmEmployee } from "@/lib/wfm/server";
+import { requireWfm, requireWfmEmployee, getWfmConfig } from "@/lib/wfm/server";
+import { getSupervisorEmails, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
+import { ROUTES } from "@/lib/constants";
 import type { LeaveRequestStatus } from "@/lib/wfm/types";
 
 const STATUSES: LeaveRequestStatus[] = ["pending", "approved", "rejected"];
@@ -101,5 +103,22 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const config = await getWfmConfig(admin, tenantId);
+  if (config.notifications.leave_pending) {
+    const empName = [employee.first_name, employee.last_name].filter(Boolean).join(" ");
+    const emails = await getSupervisorEmails(admin, tenantId, employee.id);
+    sendWfmNotification({
+      sessionSupabase: ctx.supabase,
+      tenantId,
+      toEmails: emails,
+      subject: `Leave request from ${empName} — ${date_from} to ${date_to}`,
+      text: `${empName} has requested leave from ${date_from} to ${date_to}.\n\nReason: ${reason_text.trim()}\n\nReview it here: ${wfmUrl(ROUTES.wfmLeave)}`,
+      relatedObjectType: "wfm_leave_requests",
+      relatedObjectId: data.id,
+      relatedObjectLabel: `${empName} — ${date_from} to ${date_to}`,
+    }).catch(() => {});
+  }
+
   return NextResponse.json(data);
 }

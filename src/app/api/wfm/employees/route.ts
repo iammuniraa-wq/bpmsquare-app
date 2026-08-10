@@ -21,7 +21,7 @@ export async function GET() {
     supabase
       .from("employees")
       .select(
-        "id, employee_code, first_name, last_name, phone, status, employment_type, wfm_role, shift_id, site_id, consent_recorded_at, wfm_shifts(name), wfm_sites(name)"
+        "id, employee_code, first_name, last_name, phone, status, employment_type, wfm_role, shift_id, site_id, supervisor_id, consent_recorded_at, wfm_shifts(name), wfm_sites(name)"
       )
       .eq("tenant_id", tenantId)
       .order("employee_code"),
