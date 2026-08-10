@@ -175,12 +175,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
   }
 
-  // Login link via tenant_users.employee_id.
+  // Login link via tenant_users.employee_id -- same password-based,
+  // no-magic-link pattern as POST /api/business-users (an admin-set initial
+  // password the recipient changes on first login), not the older
+  // inviteUserByEmail() path: that path leaves the account unconfirmed until
+  // an email link is clicked, which blocks password sign-in entirely no
+  // matter how many times the password is later reset (found via a live
+  // repro -- a login created through this exact route sat permanently at
+  // "waiting for verification").
   if (typeof body.invite_email === "string" && body.invite_email.trim()) {
     const email = body.invite_email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: "Invalid email" }, { status: 400 });
     }
+    const password = typeof body.invite_password === "string" ? body.invite_password : "";
+    if (!password) return NextResponse.json({ error: "An initial password is required" }, { status: 400 });
+    if (password.length < 8) return NextResponse.json({ error: "Initial password must be at least 8 characters" }, { status: 400 });
+
     const { data: alreadyLinked } = await admin
       .from("tenant_users")
       .select("id")
@@ -192,6 +203,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const result = await findOrCreateUserForInvite(admin, email, {
+      password,
       inviteData: { full_name: [employee.first_name, employee.last_name].filter(Boolean).join(" ") },
       redirectTo: `https://${PRIMARY_HOST}/wfm/me`,
     });
@@ -208,6 +220,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "That login is already linked to another employee" }, { status: 409 });
     }
     if (membership) {
+      // An already-existing account elsewhere on the platform -- the typed
+      // password was silently ignored (findOrCreateUserForInvite never
+      // touches an existing user's credential without consent), so nothing
+      // about must_change_password changes for it either.
       const { error: linkErr } = await admin
         .from("tenant_users")
         .update({ employee_id: employee.id })
@@ -220,7 +236,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     } else {
       const { error: memberErr } = await admin
         .from("tenant_users")
-        .insert({ tenant_id: tenantId, user_id: result.userId, role: "member", employee_id: employee.id });
+        .insert({ tenant_id: tenantId, user_id: result.userId, role: "member", employee_id: employee.id, must_change_password: result.isNew });
       if (memberErr) {
         console.error("wfm invite membership failed:", memberErr.message);
         return NextResponse.json({ error: "Could not add tenant membership" }, { status: 500 });

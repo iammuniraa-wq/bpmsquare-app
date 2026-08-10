@@ -53,11 +53,12 @@ const btnPrimary: React.CSSProperties = {
 type Draft = {
   employee_code: string; first_name: string; last_name: string; phone: string;
   employment_type: "full_time" | "contractor"; wfm_role: "employee" | "supervisor";
-  shift_id: string; site_id: string; supervisor_id: string; invite_email: string;
+  shift_id: string; site_id: string; supervisor_id: string; invite_email: string; invite_password: string;
 };
 const emptyDraft = (): Draft => ({
   employee_code: "", first_name: "", last_name: "", phone: "",
-  employment_type: "full_time", wfm_role: "employee", shift_id: "", site_id: "", supervisor_id: "", invite_email: "",
+  employment_type: "full_time", wfm_role: "employee", shift_id: "", site_id: "", supervisor_id: "",
+  invite_email: "", invite_password: "",
 });
 
 export default function WfmEmployeesClient() {
@@ -90,6 +91,10 @@ export default function WfmEmployeesClient() {
       setError("Employee code and first name are required");
       return;
     }
+    if (draft.invite_email.trim() && !draft.invite_password.trim()) {
+      setError("An initial password is required to invite a login");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -105,7 +110,10 @@ export default function WfmEmployeesClient() {
         site_id: draft.site_id || null,
       };
       if (!isNew) payload.supervisor_id = draft.supervisor_id || null;
-      if (!isNew && draft.invite_email.trim()) payload.invite_email = draft.invite_email.trim();
+      if (!isNew && draft.invite_email.trim()) {
+        payload.invite_email = draft.invite_email.trim();
+        payload.invite_password = draft.invite_password;
+      }
       const res = await fetch(isNew ? "/api/wfm/employees" : `/api/wfm/employees/${editing}`, {
         method: isNew ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -196,8 +204,20 @@ export default function WfmEmployeesClient() {
       )}
       {editing !== "new" && (
         <div style={{ flex: "1 1 180px" }}>
-          <label style={lbl}>Invite login (email)</label>
+          <label style={lbl}>Set up login (email)</label>
           <input style={inp} value={draft.invite_email} onChange={(e) => setDraft({ ...draft, invite_email: e.target.value })} placeholder="worker@example.com" />
+        </div>
+      )}
+      {editing !== "new" && draft.invite_email.trim() && (
+        <div style={{ flex: "1 1 180px" }}>
+          <label style={lbl}>Initial password</label>
+          <input
+            style={inp}
+            type="password"
+            value={draft.invite_password}
+            onChange={(e) => setDraft({ ...draft, invite_password: e.target.value })}
+            placeholder="Min. 8 characters"
+          />
         </div>
       )}
       <button style={btnPrimary} disabled={busy} onClick={save}>{editing === "new" ? "Create" : "Save"}</button>
@@ -309,6 +329,7 @@ export default function WfmEmployeesClient() {
                         site_id: r.site_id ?? "",
                         supervisor_id: r.supervisor_id ?? "",
                         invite_email: "",
+                        invite_password: "",
                       });
                       setError("");
                     }}
