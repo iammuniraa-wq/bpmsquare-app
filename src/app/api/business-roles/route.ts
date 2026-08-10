@@ -71,7 +71,7 @@ export async function GET() {
 
   const { data: roles, error } = await supabase
     .from("business_roles")
-    .select("id, name, description, created_at, template_key, is_standard")
+    .select("id, name, description, created_at, template_key, is_standard, dashboard_layout")
     .eq("tenant_id", tenantId)
     .order("name", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

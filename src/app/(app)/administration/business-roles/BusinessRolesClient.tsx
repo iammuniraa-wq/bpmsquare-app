@@ -6,6 +6,8 @@ import { WORKCENTERS } from "@/lib/workcenters";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { STANDARD_ROLE_CATEGORIES, STANDARD_ROLE_BY_KEY } from "@/lib/standardRoles";
+import { AdaptDrawer } from "@/components/DashboardLayout";
+import type { DashLayoutItem, TenantFeatures } from "@/lib/constants";
 
 type Grant = {
   workcenter: string;
@@ -23,6 +25,10 @@ type BusinessRole = {
   /** Standard roles are read-only -- customise by duplicating (see
    * BUSINESS_ROLES_STANDARD_MAP.md §2). Enforced API-side too. */
   is_standard?: boolean;
+  /** The default dashboard members of this role see, unioned with any other
+   * role they hold that also defines one (see /api/business-roles/[id]/
+   * dashboard). Null/undefined = this role doesn't define one. */
+  dashboard_layout?: DashLayoutItem[] | null;
 };
 
 type GrantDraft = Record<string, { granted: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean; data_scope: "all" | "territory"; territories: string[] }>;
@@ -51,7 +57,7 @@ function summarizeGrants(grants: Grant[]): string {
 const inputStyle: React.CSSProperties = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, background: c.panel, color: c.ink, width: "100%" };
 const checkboxCell: React.CSSProperties = { textAlign: "center", padding: "6px 8px" };
 
-export default function BusinessRolesClient({ territories }: { territories: string[] }) {
+export default function BusinessRolesClient({ territories, features }: { territories: string[]; features: TenantFeatures }) {
   const [roles, setRoles] = useState<BusinessRole[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -62,6 +68,8 @@ export default function BusinessRolesClient({ territories }: { territories: stri
   const [draft, setDraft] = useState<GrantDraft>(emptyDraft());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [dashboardSaving, setDashboardSaving] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -146,6 +154,23 @@ export default function BusinessRolesClient({ territories }: { territories: stri
     load();
   }
 
+  /** Saves the role currently being edited's default dashboard. Only
+   * callable once the role has a real id (not while still creating one) --
+   * updates the local roles cache directly rather than a full reload so the
+   * drawer's own layout state (seeded from `roles`) doesn't visibly reset. */
+  async function saveRoleDashboard(next: DashLayoutItem[]) {
+    if (!editingRole) return;
+    setDashboardSaving(true);
+    const res = await fetch(`/api/business-roles/${editingRole.id}/dashboard`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dashboard_layout: next }),
+    });
+    setDashboardSaving(false);
+    if (!res.ok) return;
+    setRoles((prev) => (prev ?? []).map((r) => (r.id === editingRole.id ? { ...r, dashboard_layout: next } : r)));
+  }
+
   async function remove(r: BusinessRole) {
     if (!window.confirm(`Delete the "${r.name}" role? Members holding only this role will revert to full (unrestricted) access.`)) return;
     const res = await fetch(`/api/business-roles/${r.id}`, { method: "DELETE" });
@@ -178,6 +203,7 @@ export default function BusinessRolesClient({ territories }: { territories: stri
 
   if (editingId) {
     return (
+      <>
       <div style={{ maxWidth: 900 }}>
         {readOnly && (
           <div style={{ ...cardStyle, marginBottom: 12, fontSize: 12.5, color: c.muted, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -293,7 +319,50 @@ export default function BusinessRolesClient({ territories }: { territories: stri
             </button>
           </div>
         </div>
+
+        {!readOnly && editingRole && (
+          <div style={{ ...cardStyle }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink, marginBottom: 3 }}>Dashboard</div>
+            <div style={{ fontSize: 12, color: c.muted, marginBottom: 12 }}>
+              What members holding this role see on their dashboard by default. Holding more than one role
+              shows the union of every role's dashboard; a role left unset here contributes nothing, and members
+              fall back to the tenant-wide default until you set one.
+            </div>
+            <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+              {editingRole.dashboard_layout && editingRole.dashboard_layout.length > 0
+                ? `${editingRole.dashboard_layout.filter((b) => !b.hidden).length} widget(s) configured`
+                : "No custom dashboard set — members fall back to the tenant-wide default"}
+            </div>
+            <button
+              onClick={() => setDashboardOpen(true)}
+              style={{ padding: "8px 16px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, background: "none", color: c.accent, border: `1px solid ${c.accent}`, cursor: "pointer" }}
+            >
+              Customize this role's dashboard →
+            </button>
+          </div>
+        )}
+
+        {!readOnly && editingId === "new" && (
+          <div style={{ ...cardStyle, fontSize: 12, color: c.hint }}>
+            Save this role first to customize its dashboard.
+          </div>
+        )}
       </div>
+
+      {dashboardOpen && editingRole && (
+        <AdaptDrawer
+          layout={editingRole.dashboard_layout ?? []}
+          features={features}
+          onLayoutChange={saveRoleDashboard}
+          onClose={() => setDashboardOpen(false)}
+          saving={dashboardSaving}
+          title={`Dashboard — ${editingRole.name}`}
+          subtitle="Seen by everyone holding this role"
+          onReset={editingRole.dashboard_layout && editingRole.dashboard_layout.length > 0 ? () => saveRoleDashboard([]) : undefined}
+          resetLabel="Clear this role's dashboard"
+        />
+      )}
+      </>
     );
   }
 

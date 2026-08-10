@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenant } from "@/lib/tenant";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { ROUTES } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
@@ -18,7 +18,7 @@ export default async function BusinessRolesPage() {
   if (role !== "admin") redirect(ROUTES.dashboard);
   await requireFeature("business_roles");
 
-  const salesConfig = await getSalesConfig(supabase, tenantId);
+  const [salesConfig, tenant] = await Promise.all([getSalesConfig(supabase, tenantId), getTenant()]);
 
   return (
     <>
@@ -27,7 +27,7 @@ export default async function BusinessRolesPage() {
         title="Business Roles"
         subtitle="Define named roles, grant them access to specific workcenters, then assign roles to team members in Settings → Team. A member with no role assigned keeps full access, unchanged — assigning a role is how you narrow what they can reach."
       />
-      <BusinessRolesClient territories={salesConfig.territories} />
+      <BusinessRolesClient territories={salesConfig.territories} features={tenant?.features ?? ({} as never)} />
     </>
   );
 }

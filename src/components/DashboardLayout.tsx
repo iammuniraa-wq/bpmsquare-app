@@ -34,6 +34,10 @@ interface Props {
   features: TenantFeatures;
   dashLayout: DashLayoutItem[];
   isAdmin: boolean;
+  /** True when the current layout came from the caller's own personal
+   * override (rather than a role-derived or tenant-wide default) -- shown
+   * so the personalize drawer can offer a "reset to my default" action. */
+  hasPersonalOverride: boolean;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -640,15 +644,25 @@ function QCBtn({ href, label, icon, tint }: { href: string; label: string; icon:
 
 // ── Adapt drawer ──────────────────────────────────────────────────────────────
 
-interface DrawerProps {
+export interface DrawerProps {
   layout: DashLayoutItem[];
   features: TenantFeatures;
   onLayoutChange: (next: DashLayoutItem[]) => void;
   onClose: () => void;
   saving: boolean;
+  title?: string;
+  subtitle?: string;
+  /** Shown as a footer action when provided -- e.g. clearing a personal
+   * override back to whatever role/tenant default would otherwise apply. */
+  onReset?: () => void;
+  resetLabel?: string;
 }
 
-function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: DrawerProps) {
+export function AdaptDrawer({
+  layout, features, onLayoutChange, onClose, saving,
+  title = "Adapt dashboard", subtitle = "Drag to reorder · click eye to hide",
+  onReset, resetLabel = "Reset to default",
+}: DrawerProps) {
   const dragIdx = useRef<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
@@ -721,8 +735,8 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
         {/* header */}
         <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid var(--drawer-line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--drawer-text)" }}>Adapt dashboard</div>
-            <div style={{ fontSize: 11, color: "var(--drawer-text-dim)", marginTop: 2 }}>Drag to reorder · click eye to hide</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--drawer-text)" }}>{title}</div>
+            <div style={{ fontSize: 11, color: "var(--drawer-text-dim)", marginTop: 2 }}>{subtitle}</div>
           </div>
           <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--drawer-text-dim)", fontSize: 18, cursor: "pointer", lineHeight: 1, padding: "2px 6px" }}>✕</button>
         </div>
@@ -865,7 +879,19 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
         </div>
 
         {/* footer */}
-        <div style={{ padding: "12px 14px", borderTop: "1px solid var(--drawer-line)" }}>
+        <div style={{ padding: "12px 14px", borderTop: "1px solid var(--drawer-line)", display: "flex", flexDirection: "column", gap: 8 }}>
+          {onReset && (
+            <button
+              onClick={onReset}
+              style={{
+                fontSize: 11, fontWeight: 600, color: "var(--drawer-text-dim)",
+                background: "transparent", border: `1px solid var(--drawer-line-strong)`,
+                borderRadius: 7, padding: "6px 10px", cursor: "pointer",
+              }}
+            >
+              {resetLabel}
+            </button>
+          )}
           <div style={{ fontSize: 10.5, color: "var(--drawer-hint)", textAlign: "center" }}>
             {saving ? "Saving…" : "Changes saved automatically"}
           </div>
@@ -877,22 +903,52 @@ function AdaptDrawer({ layout, features, onLayoutChange, onClose, saving }: Draw
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin }: Props) {
+export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin, hasPersonalOverride }: Props) {
   const router = useRouter();
   const uiTheme = useUiTheme();
   const modern = uiTheme !== "classic";
   const nextgen = uiTheme === "nextgen";
   const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout));
   const [adaptOpen, setAdaptOpen] = useState(false);
+  const [personalizeOpen, setPersonalizeOpen] = useState(false);
   const [saving, startSave] = useTransition();
 
-  function saveLayout(next: DashLayoutItem[]) {
+  // Tenant-wide default -- admin-only, unchanged from before role-based
+  // dashboards existed.
+  function saveTenantLayout(next: DashLayoutItem[]) {
     setLayout(next);
     startSave(async () => {
       await fetch("/api/settings/entities", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dashboard_layout: next }),
+      });
+      router.refresh();
+    });
+  }
+
+  // The caller's own personal tweaks, layered on top of whichever default
+  // (a Business Role's dashboard, or the tenant-wide one) would otherwise
+  // apply -- available to every user, not just admins.
+  function savePersonalLayout(next: DashLayoutItem[]) {
+    setLayout(next);
+    startSave(async () => {
+      await fetch("/api/dashboard/layout", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ layout: next }),
+      });
+      router.refresh();
+    });
+  }
+
+  function resetPersonalLayout() {
+    setPersonalizeOpen(false);
+    startSave(async () => {
+      await fetch("/api/dashboard/layout", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ layout: null }),
       });
       router.refresh();
     });
@@ -1289,19 +1345,30 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
           <div style={{ fontSize: 11, color: c.hint, fontWeight: 500, marginBottom: 3 }}>{todayStr()}</div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1.2 }}>{greet()}</h1>
         </div>
-        {isAdmin && (
+        <div className="desk-only" style={{ display: "flex", gap: 8, flexShrink: 0, marginTop: 4 }}>
+          {isAdmin && (
+            <button
+              onClick={() => setAdaptOpen(true)}
+              style={{
+                fontSize: 11.5, fontWeight: 600, color: c.accent,
+                background: "transparent", border: `1px solid ${c.accent}`,
+                borderRadius: 7, padding: "6px 14px", cursor: "pointer",
+              }}
+            >
+              ⚙ Adapt dashboard
+            </button>
+          )}
           <button
-            onClick={() => setAdaptOpen(true)}
-            className="desk-only"
+            onClick={() => setPersonalizeOpen(true)}
             style={{
-              fontSize: 11.5, fontWeight: 600, color: c.accent,
-              background: "transparent", border: `1px solid ${c.accent}`,
-              borderRadius: 7, padding: "6px 14px", cursor: "pointer", flexShrink: 0, marginTop: 4,
+              fontSize: 11.5, fontWeight: 600, color: c.hint,
+              background: "transparent", border: `1px solid ${c.line}`,
+              borderRadius: 7, padding: "6px 14px", cursor: "pointer",
             }}
           >
-            ⚙ Adapt dashboard
+            🧑 My layout
           </button>
-        )}
+        </div>
       </div>
 
       {nextgen && renderNextgenBrief()}
@@ -1322,14 +1389,30 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         )}
       </div>
 
-      {/* Adapt drawer */}
+      {/* Adapt drawer -- tenant-wide default, admin-only */}
       {adaptOpen && (
         <AdaptDrawer
           layout={layout}
           features={features}
-          onLayoutChange={saveLayout}
+          onLayoutChange={saveTenantLayout}
           onClose={() => setAdaptOpen(false)}
           saving={saving}
+        />
+      )}
+
+      {/* Personalize drawer -- the caller's own layer on top of whichever
+          default (role-derived or tenant-wide) would otherwise apply */}
+      {personalizeOpen && (
+        <AdaptDrawer
+          layout={layout}
+          features={features}
+          onLayoutChange={savePersonalLayout}
+          onClose={() => setPersonalizeOpen(false)}
+          saving={saving}
+          title="My dashboard"
+          subtitle="Personal changes — only you see these"
+          onReset={hasPersonalOverride ? resetPersonalLayout : undefined}
+          resetLabel="Reset to my default"
         />
       )}
 

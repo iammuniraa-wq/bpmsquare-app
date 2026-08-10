@@ -1,10 +1,46 @@
 import { getDashboardSummary, getAnalyticsData } from "@/lib/data";
 import { getTenant, getUserRole } from "@/lib/tenant";
+import { requireTenantUser } from "@/lib/supabase-server";
+import { mergeDashLayouts } from "@/lib/dashboardLayout";
+import type { DashLayoutItem } from "@/lib/constants";
 import DashboardLayout from "@/components/DashboardLayout";
 
 export default async function DashboardPage() {
   const [{ kpis, attention, readyCases, workOrderRows, recentActivity, overdueInvoices }, analytics, tenant, role] =
     await Promise.all([getDashboardSummary(), getAnalyticsData(), getTenant(), getUserRole()]);
+
+  const { supabase, tenantId, userId } = await requireTenantUser();
+  const tenantDefault: DashLayoutItem[] = tenant?.config?.dashboard_layout ?? [];
+
+  // A scoped member (>=1 Business Role assigned) sees the union of every
+  // assigned role's own dashboard, where one is defined -- admins, and
+  // members with zero roles assigned, are "unrestricted" everywhere else in
+  // the app (see resolvePermissions()) and keep the tenant-wide default
+  // here too. A role contributing nothing (dashboard_layout still null) is
+  // fine -- rollout is role-by-role, not all-or-nothing.
+  let effectiveLayout = tenantDefault;
+  if (role !== "admin") {
+    const { data: assignments } = await supabase
+      .from("business_user_roles").select("role_id").eq("tenant_id", tenantId).eq("user_id", userId);
+    const roleIds = (assignments ?? []).map((a) => a.role_id as string);
+    if (roleIds.length > 0) {
+      const { data: roleRows } = await supabase
+        .from("business_roles").select("dashboard_layout").eq("tenant_id", tenantId).in("id", roleIds);
+      const roleLayouts = (roleRows ?? [])
+        .map((r) => r.dashboard_layout as DashLayoutItem[] | null)
+        .filter((l): l is DashLayoutItem[] => Array.isArray(l) && l.length > 0);
+      const merged = mergeDashLayouts(roleLayouts);
+      if (merged.length > 0) effectiveLayout = merged;
+    }
+  }
+
+  // A personal override -- the user's own tweaks on top of whichever
+  // default (role-derived or tenant-wide) would otherwise apply -- always
+  // wins outright when set. Self-service; see /api/dashboard/layout.
+  const { data: membership } = await supabase
+    .from("tenant_users").select("dashboard_layout_override").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
+  const personalOverride = membership?.dashboard_layout_override as DashLayoutItem[] | null;
+  if (Array.isArray(personalOverride) && personalOverride.length > 0) effectiveLayout = personalOverride;
 
   return (
     <DashboardLayout
@@ -16,8 +52,9 @@ export default async function DashboardPage() {
       overdueInvoices={overdueInvoices}
       analytics={analytics}
       features={tenant?.features ?? ({} as never)}
-      dashLayout={tenant?.config?.dashboard_layout ?? []}
+      dashLayout={effectiveLayout}
       isAdmin={role === "admin"}
+      hasPersonalOverride={Array.isArray(personalOverride) && personalOverride.length > 0}
     />
   );
 }
