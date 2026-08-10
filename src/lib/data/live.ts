@@ -1480,6 +1480,12 @@ export type AnalyticsData = {
   accountNews: AccountNewsItem[];
   wfmAttendanceBySite: Array<{ site: string; onTime: number; late: number; absent: number }>;
   wfmNightShiftCost: { count: number; amount: number };
+  wfmCorrectionsByStatus: Array<{ status: string; label: string; count: number }>;
+  wfmLeaveRequestsByStatus: Array<{ status: string; label: string; count: number }>;
+  wfmRecheckByStatus: Array<{ status: string; label: string; count: number }>;
+  wfmHeadcountBySite: Array<{ site: string; count: number }>;
+  wfmWorkforceComposition: { totalActive: number; supervisors: number; fullTime: number; contractors: number };
+  wfmLeaveTakenByType: Array<{ type: string; days: number }>;
 };
 
 const CASE_STATUS_LABEL_MAP: Record<string, string> = {
@@ -1507,6 +1513,12 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       accountNews: [],
       wfmAttendanceBySite: [],
       wfmNightShiftCost: { count: 0, amount: 0 },
+      wfmCorrectionsByStatus: [],
+      wfmLeaveRequestsByStatus: [],
+      wfmRecheckByStatus: [],
+      wfmHeadcountBySite: [],
+      wfmWorkforceComposition: { totalActive: 0, supervisors: 0, fullTime: 0, contractors: 0 },
+      wfmLeaveTakenByType: [],
     };
   }
   const supabase = createAdminSupabase();
@@ -1724,8 +1736,35 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
 
   let wfmAttendanceBySite: AnalyticsData["wfmAttendanceBySite"] = [];
   let wfmNightShiftCost: AnalyticsData["wfmNightShiftCost"] = { count: 0, amount: 0 };
+  let wfmCorrectionsByStatus: AnalyticsData["wfmCorrectionsByStatus"] = [];
+  let wfmLeaveRequestsByStatus: AnalyticsData["wfmLeaveRequestsByStatus"] = [];
+  let wfmRecheckByStatus: AnalyticsData["wfmRecheckByStatus"] = [];
+  let wfmHeadcountBySite: AnalyticsData["wfmHeadcountBySite"] = [];
+  let wfmWorkforceComposition: AnalyticsData["wfmWorkforceComposition"] = { totalActive: 0, supervisors: 0, fullTime: 0, contractors: 0 };
+  let wfmLeaveTakenByType: AnalyticsData["wfmLeaveTakenByType"] = [];
+
   if (tenant?.features?.wfm) {
-    const snapshot = await getWfmLiveBoardSnapshot(tenantId);
+    const yearStart = `${new Date().getUTCFullYear()}-01-01`;
+    const [
+      snapshot,
+      { data: correctionRows },
+      { data: leaveReqRows },
+      { data: recheckRows },
+      { data: activeEmployees },
+      { data: sites },
+      { data: leaveRecordRows },
+      { data: leaveTypes },
+    ] = await Promise.all([
+      getWfmLiveBoardSnapshot(tenantId),
+      supabase.from("wfm_correction_requests").select("status").eq("tenant_id", tenantId),
+      supabase.from("wfm_leave_requests").select("status").eq("tenant_id", tenantId),
+      supabase.from("wfm_recheck_requests").select("status").eq("tenant_id", tenantId),
+      supabase.from("employees").select("id, site_id, wfm_role, employment_type").eq("tenant_id", tenantId).eq("status", "active"),
+      supabase.from("wfm_sites").select("id, name").eq("tenant_id", tenantId),
+      supabase.from("wfm_leave_records").select("date_from, date_to, half_day, leave_type_id").eq("tenant_id", tenantId).gte("date_from", yearStart),
+      supabase.from("wfm_leave_types").select("id, name").eq("tenant_id", tenantId),
+    ]);
+
     const bySite = new Map<string, { onTime: number; late: number; absent: number }>();
     for (const r of snapshot.rows) {
       const key = r.home_site_name ?? "No site assigned";
@@ -1743,6 +1782,42 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
         wfmNightShiftCost.amount += r.night_allowance_amount;
       }
     }
+
+    const countByStatus = (rows: { status: string }[] | null, labels: Record<string, string>) => {
+      const counts = new Map<string, number>();
+      for (const r of rows ?? []) counts.set(r.status, (counts.get(r.status) ?? 0) + 1);
+      return Object.entries(labels).map(([status, label]) => ({ status, label, count: counts.get(status) ?? 0 }));
+    };
+    wfmCorrectionsByStatus = countByStatus(correctionRows, { pending: "Pending", approved: "Approved", rejected: "Rejected" });
+    wfmLeaveRequestsByStatus = countByStatus(leaveReqRows, { pending: "Pending", approved: "Approved", rejected: "Rejected" });
+    wfmRecheckByStatus = countByStatus(recheckRows, { pending: "Pending", responded: "Responded", resolved: "Resolved", dismissed: "Dismissed" });
+
+    const siteNameById = new Map((sites ?? []).map((s) => [s.id as string, s.name as string]));
+    const headcountMap = new Map<string, number>();
+    for (const e of activeEmployees ?? []) {
+      const key = e.site_id ? (siteNameById.get(e.site_id as string) ?? "Unknown site") : "No site assigned";
+      headcountMap.set(key, (headcountMap.get(key) ?? 0) + 1);
+    }
+    wfmHeadcountBySite = [...headcountMap.entries()].map(([site, count]) => ({ site, count })).sort((a, b) => b.count - a.count);
+
+    wfmWorkforceComposition = {
+      totalActive: (activeEmployees ?? []).length,
+      supervisors: (activeEmployees ?? []).filter((e) => e.wfm_role === "supervisor").length,
+      fullTime: (activeEmployees ?? []).filter((e) => e.employment_type === "full_time").length,
+      contractors: (activeEmployees ?? []).filter((e) => e.employment_type === "contractor").length,
+    };
+
+    const leaveTypeNameById = new Map((leaveTypes ?? []).map((t) => [t.id as string, t.name as string]));
+    const daysByType = new Map<string, number>();
+    for (const r of leaveRecordRows ?? []) {
+      const from = new Date(r.date_from as string);
+      const to = new Date(r.date_to as string);
+      const spanDays = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+      const days = r.half_day ? 0.5 : spanDays;
+      const label = leaveTypeNameById.get(r.leave_type_id as string) ?? "Other";
+      daysByType.set(label, (daysByType.get(label) ?? 0) + days);
+    }
+    wfmLeaveTakenByType = [...daysByType.entries()].map(([type, days]) => ({ type, days })).sort((a, b) => b.days - a.days);
   }
 
   return {
@@ -1752,6 +1827,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     techniciansByStatus, invoicesByStatus, invoiceTotals, topAccountsByRevenue,
     contractStats, recentActivity, accountNews,
     wfmAttendanceBySite, wfmNightShiftCost,
+    wfmCorrectionsByStatus, wfmLeaveRequestsByStatus, wfmRecheckByStatus,
+    wfmHeadcountBySite, wfmWorkforceComposition, wfmLeaveTakenByType,
   };
 }
 

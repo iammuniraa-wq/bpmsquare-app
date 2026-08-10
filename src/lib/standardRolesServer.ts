@@ -62,6 +62,7 @@ export async function provisionStandardRoles(
         description: template.description,
         template_key: template.key,
         is_standard: true,
+        dashboard_layout: template.dashboardLayout ?? null,
       })
       .select("id")
       .single();
@@ -99,7 +100,7 @@ export async function resyncStandardRole(
 ): Promise<{ error: string } | { ok: true }> {
   const { data: role } = await admin
     .from("business_roles")
-    .select("id, template_key, is_standard")
+    .select("id, template_key, is_standard, dashboard_layout")
     .eq("id", roleId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -109,9 +110,16 @@ export async function resyncStandardRole(
   const template = STANDARD_ROLES.find((t) => t.key === role.template_key);
   if (!template) return { error: "This role's template no longer exists in the catalog" };
 
+  // dashboard_layout is deliberately NOT overwritten if the tenant already
+  // has one set for this role -- an admin may have personalized it via the
+  // Dashboard card in the Roles editor, and resync is only ever advertised
+  // as re-applying grants/description, not silently discarding that.
+  const patch: Record<string, unknown> = { description: template.description, updated_at: new Date().toISOString() };
+  if (!role.dashboard_layout && template.dashboardLayout) patch.dashboard_layout = template.dashboardLayout;
+
   const { error: uErr } = await admin
     .from("business_roles")
-    .update({ description: template.description, updated_at: new Date().toISOString() })
+    .update(patch)
     .eq("id", roleId)
     .eq("tenant_id", tenantId);
   if (uErr) return { error: uErr.message };

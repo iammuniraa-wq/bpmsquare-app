@@ -335,6 +335,12 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   quote_source:           { label: "Quote source (cases vs standalone)" },
   wfm_attendance_today:   { label: "Attendance by site (today)", feature: "wfm" },
   wfm_night_shift_cost:   { label: "Night shift cost (today)",   feature: "wfm" },
+  wfm_corrections_queue:    { label: "Corrections queue",         feature: "wfm" },
+  wfm_leave_requests_queue: { label: "Leave requests queue",      feature: "wfm" },
+  wfm_recheck_queue:        { label: "Recheck requests queue",    feature: "wfm" },
+  wfm_site_headcount:       { label: "Headcount by site",         feature: "wfm" },
+  wfm_workforce_composition:{ label: "Workforce composition",     feature: "wfm" },
+  wfm_leave_taken_by_type:  { label: "Leave taken by type (YTD)", feature: "wfm" },
 };
 
 export default function ReportsClient({
@@ -730,6 +736,66 @@ export default function ReportsClient({
             <div style={{ fontSize: 20, fontWeight: 700, color: pillar.purple.fg }}>{inr(a.wfmNightShiftCost.amount)}</div>
             <div style={{ fontSize: 10, color: c.hint }}>allowance today</div>
           </div>
+        </ChartCard>}
+      </div>
+      )}
+
+      {/* ── Row 3c: WFM corrections · leave requests · recheck queues ── */}
+      {(isVisible("wfm_corrections_queue") || isVisible("wfm_leave_requests_queue") || isVisible("wfm_recheck_queue")) && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
+        {isVisible("wfm_corrections_queue") && <ChartCard title="Corrections queue" href={ROUTES.wfmCorrections}>
+          <HBarChartNav
+            rows={a.wfmCorrectionsByStatus.map((x) => ({ label: x.label, value: x.count }))}
+            colorFn={(i) => [pillar.amber.base, pillar.green.base, pillar.red.base][i]}
+          />
+        </ChartCard>}
+        {isVisible("wfm_leave_requests_queue") && <ChartCard title="Leave requests" href={ROUTES.wfmLeave}>
+          <HBarChartNav
+            rows={a.wfmLeaveRequestsByStatus.map((x) => ({ label: x.label, value: x.count }))}
+            colorFn={(i) => [pillar.amber.base, pillar.green.base, pillar.red.base][i]}
+          />
+        </ChartCard>}
+        {isVisible("wfm_recheck_queue") && <ChartCard title="Recheck requests" href={ROUTES.wfmCorrections}>
+          <HBarChartNav
+            rows={a.wfmRecheckByStatus.map((x) => ({ label: x.label, value: x.count }))}
+            colorFn={(i) => [pillar.amber.base, pillar.blue.base, pillar.green.base, c.hint][i]}
+          />
+        </ChartCard>}
+      </div>
+      )}
+
+      {/* ── Row 3d: WFM headcount by site · workforce composition · leave taken ── */}
+      {(isVisible("wfm_site_headcount") || isVisible("wfm_workforce_composition") || isVisible("wfm_leave_taken_by_type")) && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
+        {isVisible("wfm_site_headcount") && <ChartCard title="Headcount by site" href={ROUTES.wfmEmployees}>
+          {a.wfmHeadcountBySite.length === 0 ? (
+            <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No active employees yet.</div>
+          ) : (
+            <HBarChartNav rows={a.wfmHeadcountBySite.map((x) => ({ label: x.site, value: x.count }))} />
+          )}
+        </ChartCard>}
+        {isVisible("wfm_workforce_composition") && <ChartCard title="Workforce composition" href={ROUTES.wfmEmployees}>
+          <div style={{ display: "flex", gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 10, color: c.hint }}>Full-time</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: pillar.blue.fg }}>{a.wfmWorkforceComposition.fullTime}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: c.hint }}>Contractors</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: pillar.teal.fg }}>{a.wfmWorkforceComposition.contractors}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: c.hint }}>Supervisors</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: pillar.purple.fg }}>{a.wfmWorkforceComposition.supervisors}</div>
+            </div>
+          </div>
+        </ChartCard>}
+        {isVisible("wfm_leave_taken_by_type") && <ChartCard title="Leave taken (YTD)" href={ROUTES.wfmLeave}>
+          {a.wfmLeaveTakenByType.length === 0 ? (
+            <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No leave recorded this year.</div>
+          ) : (
+            <HBarChartNav rows={a.wfmLeaveTakenByType.map((x) => ({ label: x.type, value: x.days, sub: `${x.days}d` }))} />
+          )}
         </ChartCard>}
       </div>
       )}

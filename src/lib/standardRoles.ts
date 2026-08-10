@@ -11,6 +11,7 @@
 // catalog's category grouping directly.
 
 import type { WorkcenterKey } from "./workcenters";
+import type { DashLayoutItem } from "./constants";
 
 export type StandardRoleCategory = "sales" | "service" | "marketing" | "wfm";
 export type StandardRoleLevel = "user" | "admin";
@@ -27,6 +28,12 @@ export type StandardRoleTemplate = {
   name: string;
   description: string;
   grants: Partial<Record<WorkcenterKey, Crud>>;
+  /** Seeded onto business_roles.dashboard_layout when this template is first
+   * provisioned for a tenant -- the default dashboard everyone holding this
+   * role sees (unioned with any other role they also hold that defines
+   * one), until they personalize it further. Omit for a template that
+   * shouldn't define one (most don't -- the tenant-wide default applies). */
+  dashboardLayout?: DashLayoutItem[];
 };
 
 export const STANDARD_ROLE_CATEGORIES: { key: StandardRoleCategory; label: string }[] = [
@@ -149,6 +156,15 @@ export const STANDARD_ROLES: StandardRoleTemplate[] = [
       wfm: "vced",
       reports: "v",
     },
+    dashboardLayout: [
+      { id: "overview_strip" },
+      { id: "wfm_attendance_today" },
+      { id: "wfm_corrections_queue" },
+      { id: "wfm_leave_requests_queue" },
+      { id: "wfm_site_headcount" },
+      { id: "wfm_workforce_composition", size: "half" },
+      { id: "wfm_night_shift_cost", size: "compact" },
+    ],
   },
 ];
 

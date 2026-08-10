@@ -235,7 +235,7 @@ export default function BusinessRolesClient({ territories, features }: { territo
             <button
               onClick={() => editingRole && resync(editingRole)}
               disabled={resyncBusy}
-              title="Re-apply this role's grants and description from the current catalog -- use this if it was provisioned before a catalog fix shipped."
+              title="Re-apply this role's grants and description from the current catalog (and fill in a default dashboard if it doesn't have one yet) -- use this if it was provisioned before a catalog fix shipped."
               style={{ padding: "7px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 500, background: "none", color: c.accent, border: `1px solid ${c.line}`, cursor: resyncBusy ? "wait" : "pointer", whiteSpace: "nowrap" }}
             >
               {resyncBusy ? "Syncing…" : "Sync with catalog"}

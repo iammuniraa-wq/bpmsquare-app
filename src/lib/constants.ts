@@ -490,7 +490,9 @@ export type AnalyticsMetricId =
   | "invoices_by_status" | "loaner_availability" | "recent_activity"
   | "account_news"
   | "quote_outcomes" | "quote_overdue" | "quote_source"
-  | "wfm_attendance_today" | "wfm_night_shift_cost";
+  | "wfm_attendance_today" | "wfm_night_shift_cost"
+  | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"
+  | "wfm_site_headcount" | "wfm_workforce_composition" | "wfm_leave_taken_by_type";
 
 // Dashboard layout block — covers native cards and analytics widgets.
 // id is a NativeDashBlockId or AnalyticsMetricId string.

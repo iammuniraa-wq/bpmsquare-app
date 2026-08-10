@@ -130,6 +130,12 @@ export type AnalyticsData = {
   // snapshot, not a historical trend (see getWfmLiveBoardSnapshot).
   wfmAttendanceBySite: Array<{ site: string; onTime: number; late: number; absent: number }>;
   wfmNightShiftCost: { count: number; amount: number };
+  wfmCorrectionsByStatus: Array<{ status: string; label: string; count: number }>;
+  wfmLeaveRequestsByStatus: Array<{ status: string; label: string; count: number }>;
+  wfmRecheckByStatus: Array<{ status: string; label: string; count: number }>;
+  wfmHeadcountBySite: Array<{ site: string; count: number }>;
+  wfmWorkforceComposition: { totalActive: number; supervisors: number; fullTime: number; contractors: number };
+  wfmLeaveTakenByType: Array<{ type: string; days: number }>;
 };
 
 // ── Display label maps ────────────────────────────────────────────────────────

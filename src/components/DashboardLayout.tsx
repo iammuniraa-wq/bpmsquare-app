@@ -80,6 +80,12 @@ const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof
   quote_source:            { label: "Quote source (cases vs standalone)" },
   wfm_attendance_today:    { label: "Attendance by site (today)", feature: "wfm" },
   wfm_night_shift_cost:    { label: "Night shift cost (today)",   feature: "wfm" },
+  wfm_corrections_queue:    { label: "Corrections queue",          feature: "wfm" },
+  wfm_leave_requests_queue: { label: "Leave requests queue",       feature: "wfm" },
+  wfm_recheck_queue:        { label: "Recheck requests queue",     feature: "wfm" },
+  wfm_site_headcount:       { label: "Headcount by site",          feature: "wfm" },
+  wfm_workforce_composition:{ label: "Workforce composition",      feature: "wfm" },
+  wfm_leave_taken_by_type:  { label: "Leave taken by type (YTD)",  feature: "wfm" },
 };
 
 const DEFAULT_LAYOUT: DashLayoutItem[] = [
@@ -120,6 +126,10 @@ const BUNDLES: { id: string; label: string; feature?: keyof TenantFeatures; bloc
   ] },
   { id: "invoices",     label: "Invoices",      feature: "invoices", blocks: [
     { id: "invoice_budget" }, { id: "invoices_by_status" }, { id: "revenue_overview" },
+  ] },
+  { id: "wfm",          label: "Workforce",     feature: "wfm", blocks: [
+    { id: "wfm_attendance_today" }, { id: "wfm_corrections_queue" }, { id: "wfm_leave_requests_queue" },
+    { id: "wfm_site_headcount" }, { id: "wfm_workforce_composition", size: "half" }, { id: "wfm_night_shift_cost", size: "compact" },
   ] },
 ];
 
@@ -615,6 +625,16 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
       </AnalyticsCard>;
     }
     case "wfm_night_shift_cost": return <AnalyticsCard title="Night shift cost" href={ROUTES.wfmLiveBoard}><StatTile value={a.wfmNightShiftCost.count} label={`On night shift (${inr(a.wfmNightShiftCost.amount)})`} icon={<Clock size={14} color={ledger.accent} />} href={ROUTES.wfmLiveBoard} /></AnalyticsCard>;
+    case "wfm_corrections_queue": return <AnalyticsCard title="Corrections queue" href={ROUTES.wfmCorrections}><MiniHBar rows={a.wfmCorrectionsByStatus.map((x) => ({ label: x.label, value: x.count }))} colorFn={(i) => [pillar.amber.base, pillar.green.base, pillar.red.base][i]} /></AnalyticsCard>;
+    case "wfm_leave_requests_queue": return <AnalyticsCard title="Leave requests" href={ROUTES.wfmLeave}><MiniHBar rows={a.wfmLeaveRequestsByStatus.map((x) => ({ label: x.label, value: x.count }))} colorFn={(i) => [pillar.amber.base, pillar.green.base, pillar.red.base][i]} /></AnalyticsCard>;
+    case "wfm_recheck_queue": return <AnalyticsCard title="Recheck requests" href={ROUTES.wfmCorrections}><MiniHBar rows={a.wfmRecheckByStatus.map((x) => ({ label: x.label, value: x.count }))} colorFn={(i) => [pillar.amber.base, pillar.blue.base, pillar.green.base, c.hint][i]} /></AnalyticsCard>;
+    case "wfm_site_headcount": return <AnalyticsCard title="Headcount by site" href={ROUTES.wfmEmployees}>{a.wfmHeadcountBySite.length === 0
+      ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No active employees yet.</div>
+      : <MiniHBar rows={a.wfmHeadcountBySite.map((x) => ({ label: x.site, value: x.count }))} colorFn={(i) => COLORS[i % COLORS.length]} />}</AnalyticsCard>;
+    case "wfm_workforce_composition": return <AnalyticsCard title="Workforce composition" href={ROUTES.wfmEmployees}><div style={{ display: "flex" }}><StatTile value={a.wfmWorkforceComposition.fullTime} label="Full-time" icon={<Clipboard size={14} color={ledger.accent} />} href={ROUTES.wfmEmployees} /><StatTile value={a.wfmWorkforceComposition.contractors} label="Contractors" icon={<Clipboard size={14} color={ledger.accent} />} href={ROUTES.wfmEmployees} /></div></AnalyticsCard>;
+    case "wfm_leave_taken_by_type": return <AnalyticsCard title="Leave taken (YTD)" href={ROUTES.wfmLeave}>{a.wfmLeaveTakenByType.length === 0
+      ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No leave recorded this year.</div>
+      : <MiniHBar rows={a.wfmLeaveTakenByType.map((x) => ({ label: x.type, value: x.days, valueLabel: `${x.days}d` }))} colorFn={(i) => COLORS[i % COLORS.length]} />}</AnalyticsCard>;
     default: return null;
   }
 }
