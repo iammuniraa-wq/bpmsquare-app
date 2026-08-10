@@ -1,15 +1,25 @@
 /**
- * One-shot script: create a "BPMSquare Demo" tenant (separate from the live
- * Vikas tenant) and seed it with the same two WFM test accounts used on the
+ * One-shot script: seed the existing "BPMSquare Demo" tenant (the one
+ * app.bpmsquare.com resolves to via tenants.is_demo = true -- NOT the live
+ * "Vikas Pioneers" tenant) with the same two WFM test accounts used on the
  * develop tenant -- wfm2user@gmail.com (employee) and wfm2admin@gmail.com
  * (supervisor + tenant admin) -- plus one site and one shift so the demo
  * isn't an empty shell.
+ *
+ * This does NOT create a new tenant. app.bpmsquare.com is a single shared
+ * host that always maps to whichever one tenant has is_demo = true
+ * (src/lib/supabase-server.ts, resolveHostTenant()) -- that tenant already
+ * exists (confirmed via Admin -> Tenants: "BPMSquare Demo", legacy slug
+ * "vikas", distinct row from "Vikas Pioneers" / "vikas-pioneers"). This
+ * script finds it by is_demo = true and seeds into it.
  *
  * Run with: node scripts/seed-wfm-demo-tenant.mjs
  * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the
  * environment (same as scripts/push-seed-to-supabase.mjs).
  *
  * Safe to re-run -- every step looks for an existing row before inserting.
+ * Only ever ADDS to the demo tenant's `features` (merges wfm: true in,
+ * never overwrites Leads/Invoices/Partners/etc. that are already on).
  * If wfm2user@gmail.com / wfm2admin@gmail.com already exist in Supabase Auth
  * (e.g. from the develop tenant), this REUSES those accounts and just adds a
  * second tenant membership -- no new password, same login works on both
@@ -29,29 +39,7 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 
 const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-// ── Config -- edit here if you want different names/domain/tenant slug ────
-const TENANT = {
-  name: "BPMSquare Demo",
-  slug: "demo",
-  custom_domain: "demo.bpmsquare.com",
-  accent_color: "#3b82f6",
-  plan: "small_business",
-};
-
-// Mirrors DEFAULT_FEATURES in src/app/admin/tenants/new/NewTenantForm.tsx,
-// with wfm explicitly on since that's the point of this tenant.
-const FEATURES = {
-  leads: false, pipeline: false, amc: false, dispatch: false,
-  invoices: false, partners: false, ai_assistant: false, db_export: false,
-  purchasing: false, marketing: false,
-  change_history: false, outbound_email: false, business_roles: true,
-  standard_quotes: false, gmail_reply_threading: false, quote_lines_dw: false,
-  wfm: true,
-  accounts: true, contacts: true, quotations: true, cases: true,
-  work_orders: true, technicians: true, assets: true, suppliers: true,
-  reports: true, data_workbench: true, administration: true,
-};
-
+// ── Config ──────────────────────────────────────────────────────────────
 const SITE = { name: "Demo Head Office", lat: 15.2695, lng: 76.3871, radius_m: 200 };
 const SHIFT = { name: "General Shift", start_time: "09:00:00", end_time: "18:00:00", grace_minutes: 10 };
 
@@ -77,24 +65,43 @@ const USERS = [
 ];
 // ────────────────────────────────────────────────────────────────────────
 
-async function findOrCreateTenant() {
-  const { data: existing } = await sb.from("tenants").select("id, slug, custom_domain").eq("slug", TENANT.slug).maybeSingle();
-  if (existing) {
-    console.log(`Tenant "${TENANT.slug}" already exists (${existing.id}) -- reusing.`);
-    return existing.id;
-  }
+async function findDemoTenant() {
   const { data, error } = await sb
     .from("tenants")
-    .insert({
-      name: TENANT.name, slug: TENANT.slug, accent_color: TENANT.accent_color,
-      plan: TENANT.plan, features: FEATURES, custom_domain: TENANT.custom_domain,
-      status: "active", config: { appearance: { ui_theme: "modern" } },
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(`Failed to create tenant: ${error.message}`);
-  console.log(`Created tenant "${TENANT.name}" (${data.id}) at https://${TENANT.custom_domain}`);
-  return data.id;
+    .select("id, name, slug, custom_domain, features")
+    .eq("is_demo", true)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to look up the demo tenant: ${error.message}`);
+  if (!data) {
+    throw new Error(
+      "No tenant has is_demo = true -- nothing maps to app.bpmsquare.com right now. " +
+      "This script only seeds an EXISTING demo tenant; it won't create or flag one, " +
+      "since is_demo is a single, platform-wide routing switch. Set it via Admin -> Tenants first."
+    );
+  }
+  // Guard rail: refuse to run against anything that isn't obviously the demo
+  // tenant, in case is_demo ever ends up pointed at the real Vikas Pioneers
+  // tenant by mistake.
+  if (data.slug === "vikas-pioneers") {
+    throw new Error(
+      `is_demo = true is currently set on "${data.name}" (slug "${data.slug}") -- ` +
+      `that looks like the LIVE Vikas Pioneers tenant, not the demo sandbox. Refusing ` +
+      `to seed test accounts into it. Fix the is_demo flag first if this is unexpected.`
+    );
+  }
+  console.log(`Target tenant: "${data.name}" (slug "${data.slug}", id ${data.id}) -- reachable at app.bpmsquare.com`);
+  return data;
+}
+
+async function ensureWfmFeature(tenant) {
+  if (tenant.features?.wfm === true) {
+    console.log(`Feature "wfm" already on.`);
+    return;
+  }
+  const nextFeatures = { ...tenant.features, wfm: true };
+  const { error } = await sb.from("tenants").update({ features: nextFeatures }).eq("id", tenant.id);
+  if (error) throw new Error(`Failed to enable wfm feature: ${error.message}`);
+  console.log(`Enabled feature "wfm" (left every other flag untouched).`);
 }
 
 async function findOrCreateSite(tenantId) {
@@ -201,9 +208,10 @@ async function linkTenantUser(tenantId, userId, employeeId, u) {
 }
 
 async function main() {
-  const tenantId = await findOrCreateTenant();
-  const siteId = await findOrCreateSite(tenantId);
-  const shiftId = await findOrCreateShift(tenantId);
+  const tenant = await findDemoTenant();
+  await ensureWfmFeature(tenant);
+  const siteId = await findOrCreateSite(tenant.id);
+  const shiftId = await findOrCreateShift(tenant.id);
 
   const createdPasswords = [];
 
@@ -216,13 +224,13 @@ async function main() {
     } else {
       console.log(`  Reusing existing auth account (${userId}).`);
     }
-    const employeeId = await findOrCreateEmployee(tenantId, u, shiftId, siteId);
-    await linkTenantUser(tenantId, userId, employeeId, u);
+    const employeeId = await findOrCreateEmployee(tenant.id, u, shiftId, siteId);
+    await linkTenantUser(tenant.id, userId, employeeId, u);
   }
 
   console.log(`\nDone.`);
-  console.log(`Tenant:  ${TENANT.name}  (slug: ${TENANT.slug})`);
-  console.log(`Sign in at: https://${TENANT.custom_domain}`);
+  console.log(`Tenant:  ${tenant.name}  (slug: ${tenant.slug})`);
+  console.log(`Sign in at: https://app.bpmsquare.com/wfm/me`);
   console.log(`Accounts:`);
   for (const u of USERS) {
     const pw = createdPasswords.find((p) => p.email === u.email);
