@@ -35,7 +35,13 @@ const field: React.CSSProperties = {
  * back-button friendly, evaluated server-side by the page), and can be saved
  * as personal named queries (saved_queries table, per user per object).
  */
-export default function AdvancedFilterPanel({ object }: { object: PilotObjectType }) {
+export default function AdvancedFilterPanel({ object, hideToggle = false }: {
+  object: PilotObjectType;
+  /** When true the host page renders its own toggle button and mounts this
+   * component only while open -- we skip the collapsed row and always show
+   * the condition editor (used by lists that group it with other toggles). */
+  hideToggle?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -148,9 +154,11 @@ export default function AdvancedFilterPanel({ object }: { object: PilotObjectTyp
   }
 
   const activeCount = applied.length;
+  const expanded = hideToggle || open;
 
   return (
     <div style={{ marginBottom: 12 }}>
+      {!hideToggle && (
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <button
           onClick={() => setOpen((o) => !o)}
@@ -180,8 +188,9 @@ export default function AdvancedFilterPanel({ object }: { object: PilotObjectTyp
         )}
         {msg && <span style={{ fontSize: 11.5, color: c.hint }}>{msg}</span>}
       </div>
+      )}
 
-      {open && (
+      {expanded && (
         <div style={{
           marginTop: 8, padding: 12, borderRadius: 10,
           border: `1px solid ${c.line}`, background: "var(--panel)",
@@ -278,6 +287,7 @@ export default function AdvancedFilterPanel({ object }: { object: PilotObjectTyp
               }}>Clear</button>
             )}
 
+            {hideToggle && msg && <span style={{ fontSize: 11.5, color: c.hint }}>{msg}</span>}
             {conds.length > 0 && (
               <button onClick={saveCurrent} disabled={busy} style={{
                 padding: "6px 11px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer",

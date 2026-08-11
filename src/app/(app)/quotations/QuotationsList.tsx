@@ -279,10 +279,12 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
       if (stored) setVisibleTiles(new Set(JSON.parse(stored) as string[]));
     } catch { /* ignore */ }
   }, []);
-  // Insights container (tiles + advanced filters) -- collapsed by default,
-  // C4C-style: the list itself is the page; analytics/query tooling opens on
-  // demand and the choice sticks per browser.
+  // Insights (summary tiles) and the advanced-filter editor are SEPARATE
+  // toggles -- opening one never shows the other, C4C-style: the list itself
+  // is the page, tooling opens on demand. Insights persists per browser;
+  // the filter editor is ephemeral (its badge carries active-filter state).
   const [insightsOpen, setInsightsOpen] = useState(false);
+  const [afOpen, setAfOpen] = useState(false);
   useEffect(() => {
     try { if (localStorage.getItem(INSIGHTS_LS_KEY) === "1") setInsightsOpen(true); } catch { /* ignore */ }
   }, []);
@@ -536,52 +538,8 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
 
   return (
     <>
-      {/* Insights container: summary tiles + advanced filters, collapsed by
-          default so the page is header -> filters -> table. The badge keeps
-          an active advanced filter discoverable while collapsed. */}
-      {/* moved into the control row below */}
-      {insightsOpen && (<>
-      {/* Summary strip -- modern themes get the same pillar-tinted tile
-          treatment as the dashboard KPI tiles; classic keeps flat white. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 14 }}>
-        {[
-          { id: "total",             label: "Total quotes",      value: afRows.length,                    color: c.ink,   tint: pillar.blue },
-          { id: "overall_value",     label: "Overall value",     value: inr(totalOverall),               color: c.ink,   tint: pillar.purple },
-          { id: "won_value",         label: "Won value",         value: inr(totalWon),                   color: pillar.teal.fg,  tint: pillar.teal },
-          { id: "lost_value",        label: "Lost value",        value: inr(totalLost),                  color: pillar.red.fg,   tint: pillar.red },
-          { id: "in_pipeline",       label: "In pipeline",       value: inr(totalPipeline),              color: pillar.blue.fg,  tint: pillar.blue },
-          { id: "overdue",           label: "Overdue",           value: overdueCount,                    color: overdueCount > 0 ? pillar.amber.fg : c.muted, tint: overdueCount > 0 ? pillar.amber : pillar.green },
-          { id: "awaiting_approval", label: "Awaiting approval", value: awaitingApprovalCount,           color: c.muted, tint: pillar.amber },
-          { id: "from_cases",        label: "From cases",        value: caseLinked.count,                color: pillar.purple.fg, tint: pillar.purple, sub: inr(caseLinked.value) },
-          { id: "standalone",        label: "Standalone",        value: standalone.count,                color: c.muted, tint: pillar.green,  sub: inr(standalone.value) },
-        ].filter((s) => visibleTiles.has(s.id)).map((s) => (
-          <div
-            key={s.label}
-            className="modern-lift"
-            style={{
-              background: modern ? s.tint.bg : "var(--card-bg)",
-              border: `1px solid ${modern ? `${s.tint.base}55` : "var(--line)"}`,
-              borderRadius: "var(--card-radius)", padding: "12px 14px",
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: modern ? 700 : 400, color: modern ? s.tint.fg : c.muted, ...(modern ? { textTransform: "uppercase" as const, letterSpacing: 0.5, fontSize: 10 } : {}) }}>{s.label}</div>
-            <div
-              style={{
-                fontSize: tileNumFontSize(String(s.value)), fontWeight: modern ? 700 : 600, color: modern ? s.tint.fg : s.color, marginTop: 4,
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}
-              title={String(s.value)}
-            >
-              {s.value}
-            </div>
-            {"sub" in s && <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={String(s.sub)}>{s.sub}</div>}
-          </div>
-        ))}
-      </div>
-
-      <AdvancedFilterPanel object="quote" />
-      </>)}
-
+      {/* Single control row: Insights + Advanced-filters toggles, quick
+          filters, count, Adapt, Columns. Expanded sections render below. */}
       {/* Single control row: insights toggle, quick filters, count, Adapt, Columns */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <button
@@ -590,11 +548,24 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
           style={{
             display: "inline-flex", alignItems: "center", gap: 7,
             padding: "7px 12px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-            border: `1px solid ${insightsOpen || afConds.length > 0 ? `var(--modern-accent, ${c.accent})` : c.line}`,
-            background: "var(--panel)", color: insightsOpen || afConds.length > 0 ? `var(--modern-accent, ${c.accent})` : c.muted,
+            border: `1px solid ${insightsOpen ? `var(--modern-accent, ${c.accent})` : c.line}`,
+            background: "var(--panel)", color: insightsOpen ? `var(--modern-accent, ${c.accent})` : c.muted,
           }}
         >
-          ▦ Insights &amp; filters
+          ▦ Insights
+          <span style={{ fontSize: 10, color: c.hint }}>{insightsOpen ? "▲" : "▼"}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setAfOpen((v) => !v)}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 7,
+            padding: "7px 12px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+            border: `1px solid ${afOpen || afConds.length > 0 ? `var(--modern-accent, ${c.accent})` : c.line}`,
+            background: "var(--panel)", color: afOpen || afConds.length > 0 ? `var(--modern-accent, ${c.accent})` : c.muted,
+          }}
+        >
+          ⛛ Advanced filters
           {afConds.length > 0 && (
             <span style={{
               minWidth: 17, height: 17, borderRadius: 9, padding: "0 5px",
@@ -602,7 +573,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
               fontSize: 10.5, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center",
             }}>{afConds.length}</span>
           )}
-          <span style={{ fontSize: 10, color: c.hint }}>{insightsOpen ? "▲" : "▼"}</span>
+          <span style={{ fontSize: 10, color: c.hint }}>{afOpen ? "▲" : "▼"}</span>
         </button>
 
         <select
@@ -755,6 +726,50 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
             </div>
         </div>
       </div>
+
+      {afOpen && <AdvancedFilterPanel object="quote" hideToggle />}
+
+      {insightsOpen && (<>
+      {/* Summary strip -- modern themes get the same pillar-tinted tile
+          treatment as the dashboard KPI tiles; classic keeps flat white. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 14 }}>
+        {[
+          { id: "total",             label: "Total quotes",      value: afRows.length,                    color: c.ink,   tint: pillar.blue },
+          { id: "overall_value",     label: "Overall value",     value: inr(totalOverall),               color: c.ink,   tint: pillar.purple },
+          { id: "won_value",         label: "Won value",         value: inr(totalWon),                   color: pillar.teal.fg,  tint: pillar.teal },
+          { id: "lost_value",        label: "Lost value",        value: inr(totalLost),                  color: pillar.red.fg,   tint: pillar.red },
+          { id: "in_pipeline",       label: "In pipeline",       value: inr(totalPipeline),              color: pillar.blue.fg,  tint: pillar.blue },
+          { id: "overdue",           label: "Overdue",           value: overdueCount,                    color: overdueCount > 0 ? pillar.amber.fg : c.muted, tint: overdueCount > 0 ? pillar.amber : pillar.green },
+          { id: "awaiting_approval", label: "Awaiting approval", value: awaitingApprovalCount,           color: c.muted, tint: pillar.amber },
+          { id: "from_cases",        label: "From cases",        value: caseLinked.count,                color: pillar.purple.fg, tint: pillar.purple, sub: inr(caseLinked.value) },
+          { id: "standalone",        label: "Standalone",        value: standalone.count,                color: c.muted, tint: pillar.green,  sub: inr(standalone.value) },
+        ].filter((s) => visibleTiles.has(s.id)).map((s) => (
+          <div
+            key={s.label}
+            className="modern-lift"
+            style={{
+              background: modern ? s.tint.bg : "var(--card-bg)",
+              border: `1px solid ${modern ? `${s.tint.base}55` : "var(--line)"}`,
+              borderRadius: "var(--card-radius)", padding: "12px 14px",
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: modern ? 700 : 400, color: modern ? s.tint.fg : c.muted, ...(modern ? { textTransform: "uppercase" as const, letterSpacing: 0.5, fontSize: 10 } : {}) }}>{s.label}</div>
+            <div
+              style={{
+                fontSize: tileNumFontSize(String(s.value)), fontWeight: modern ? 700 : 600, color: modern ? s.tint.fg : s.color, marginTop: 4,
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}
+              title={String(s.value)}
+            >
+              {s.value}
+            </div>
+            {"sub" in s && <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={String(s.sub)}>{s.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      </>)}
+
 
       {/* Table */}
       <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
