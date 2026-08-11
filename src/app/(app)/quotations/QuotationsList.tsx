@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import { CheckIcon, XIcon } from "@/components/Icons";
 import QuoteStatusPill from "@/components/QuoteStatusPill";
+import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { parseConds, matchesConds, flattenForFilter } from "@/lib/advancedFilter";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { useUserRole, useUiTheme } from "@/lib/tenant-context";
 import type { EffectiveField } from "@/lib/fieldRegistry";
@@ -169,6 +171,13 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   const isAdmin = role === "admin";
 
   const [rows, setRows]                 = useState<QuoteSummary[]>(initialRows);
+  // Advanced filter (the `af` searchParam) applied over the LIVE client rows
+  // -- evaluating here (not in the server page) is what makes the summary
+  // tiles, the "N of M" counts and the table all reflect the same filtered
+  // set, and it survives client-side navigations where useState(initialRows)
+  // wouldn't re-seed from fresh server props.
+  const searchParams = useSearchParams();
+  const afConds = useMemo(() => parseConds(searchParams.get("af")), [searchParams]);
   const [selected, setSelected]         = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterAccount, setFilterAccount] = useState("");
@@ -266,11 +275,18 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
 
   // ── Filtering ──────────────────────────────────────────────────────────────
 
+  const afRows = useMemo(
+    () => (afConds.length === 0
+      ? rows
+      : rows.filter((r) => matchesConds(flattenForFilter(r.quote as unknown as Record<string, unknown>), afConds))),
+    [rows, afConds]
+  );
+
   const searched = useMemo(() =>
-    rows
+    afRows
       .filter((r) => !filterStatus || r.quote.status === filterStatus)
       .filter((r) => !filterAccount || r.account.name.toLowerCase().includes(filterAccount.toLowerCase())),
-    [rows, filterStatus, filterAccount]
+    [afRows, filterStatus, filterAccount]
   );
 
   // Sort extractors are built from `columns` (render-only fields skip
@@ -301,23 +317,23 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   // value reporting: it's auto-synced from the pipeline status but can also be
   // set independently (e.g. marked Lost while still "Sent"), so it reflects
   // reality even when status alone wouldn't.
-  const totalOverall  = rows.reduce((s, r) => s + r.quote.total, 0);
-  const totalWon      = rows.filter((r) => r.quote.outcome === "won").reduce((s, r) => s + r.quote.total, 0);
-  const totalLost     = rows.filter((r) => r.quote.outcome === "lost").reduce((s, r) => s + r.quote.total, 0);
+  const totalOverall  = afRows.reduce((s, r) => s + r.quote.total, 0);
+  const totalWon      = afRows.filter((r) => r.quote.outcome === "won").reduce((s, r) => s + r.quote.total, 0);
+  const totalLost     = afRows.filter((r) => r.quote.outcome === "lost").reduce((s, r) => s + r.quote.total, 0);
   // "In pipeline" = any quote not yet won or lost -- includes drafts, since not
   // every team reliably marks a quote "Sent" as its own separate step.
-  const totalPipeline = rows.filter((r) => r.quote.outcome === "open").reduce((s, r) => s + r.quote.total, 0);
+  const totalPipeline = afRows.filter((r) => r.quote.outcome === "open").reduce((s, r) => s + r.quote.total, 0);
 
   const today = new Date().toISOString().slice(0, 10);
-  const overdueCount = rows.filter((r) => r.quote.outcome === "open" && r.quote.valid_until && r.quote.valid_until < today).length;
+  const overdueCount = afRows.filter((r) => r.quote.outcome === "open" && r.quote.valid_until && r.quote.valid_until < today).length;
 
   const sentStatuses = new Set(quoteStatuses.filter((s) => !s.is_initial && !s.is_closed).map((s) => s.value));
-  const awaitingApprovalCount = rows.filter((r) => sentStatuses.has(r.quote.status)).length;
+  const awaitingApprovalCount = afRows.filter((r) => sentStatuses.has(r.quote.status)).length;
 
   const caseLinkedSet = new Set(caseLinkedQuoteIds);
-  const caseLinked  = rows.filter((r) => caseLinkedSet.has(r.quote.id))
+  const caseLinked  = afRows.filter((r) => caseLinkedSet.has(r.quote.id))
     .reduce((acc, r) => ({ count: acc.count + 1, value: acc.value + r.quote.total }), { count: 0, value: 0 });
-  const standalone  = rows.filter((r) => !caseLinkedSet.has(r.quote.id))
+  const standalone  = afRows.filter((r) => !caseLinkedSet.has(r.quote.id))
     .reduce((acc, r) => ({ count: acc.count + 1, value: acc.value + r.quote.total }), { count: 0, value: 0 });
 
   // ── Selection helpers ──────────────────────────────────────────────────────
@@ -398,7 +414,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
           treatment as the dashboard KPI tiles; classic keeps flat white. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 14 }}>
         {[
-          { label: "Total quotes",      value: rows.length,                    color: c.ink,   tint: pillar.blue },
+          { label: "Total quotes",      value: afRows.length,                    color: c.ink,   tint: pillar.blue },
           { label: "Overall value",     value: inr(totalOverall),               color: c.ink,   tint: pillar.purple },
           { label: "Won value",         value: inr(totalWon),                   color: pillar.teal.fg,  tint: pillar.teal },
           { label: "Lost value",        value: inr(totalLost),                  color: pillar.red.fg,   tint: pillar.red },
@@ -433,6 +449,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
       </div>
 
       {/* Filter bar */}
+      <AdvancedFilterPanel object="quote" />
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <select
           value={filterStatus}
@@ -470,7 +487,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
         )}
 
         <div style={{ marginLeft: "auto", fontSize: 12, color: c.hint }}>
-          {filtered.length} of {rows.length} quotes
+          {filtered.length} of {afRows.length} quotes
         </div>
       </div>
 

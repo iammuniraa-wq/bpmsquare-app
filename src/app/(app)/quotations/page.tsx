@@ -6,26 +6,18 @@ import { ROUTES, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/const
 import { c } from "@/lib/theme";
 import { requireWorkcenterView } from "@/lib/permissions";
 import QuotationsList from "./QuotationsList";
-import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
-import { applyAdvancedFilter } from "@/lib/advancedFilter";
 
-export default async function QuotationsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ af?: string }>;
-}) {
+export default async function QuotationsPage() {
   await requireWorkcenterView("quotations");
   await requireFeature("quotations");
-  const { af } = await searchParams;
-  const [allRows, tenant, caseLinkedQuoteIds] = await Promise.all([listQuotes(), getTenant(), getCaseLinkedQuoteIds()]);
-  const rows = applyAdvancedFilter(allRows, af, ({ quote }) => quote as unknown as Record<string, unknown>);
+  const [rows, tenant, caseLinkedQuoteIds] = await Promise.all([listQuotes(), getTenant(), getCaseLinkedQuoteIds()]);
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
   return (
     <>
       <PageHeader
         title="Quotations"
-        subtitle={`Sales · ${allRows.length} quotes${rows.length !== allRows.length ? ` · ${rows.length} matching filter` : ""}`}
+        subtitle={`Sales · ${rows.length} quotes`}
         action={
           <Link
             href={ROUTES.quotationNew}
@@ -39,7 +31,6 @@ export default async function QuotationsPage({
           </Link>
         }
       />
-      <AdvancedFilterPanel object="quote" />
       <QuotationsList initialRows={rows} quoteStatuses={quoteStatuses} caseLinkedQuoteIds={caseLinkedQuoteIds} />
     </>
   );
