@@ -286,13 +286,7 @@ export async function requireTenantUser(): Promise<{
   }
 
   const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
-  const admin = createAdminSupabase();
-  const { data: gate } = await admin
-    .from("tenant_users")
-    .select("must_change_password")
-    .eq("tenant_id", result.tenantId)
-    .eq("user_id", result.userId)
-    .maybeSingle();
+  const gate = await getTenantMembership(result.tenantId, result.userId);
   if (shouldBlockForPasswordChange(Boolean(gate?.must_change_password), pathname)) {
     throw { status: 403, message: "Password change required — set a new password before continuing" };
   }
@@ -321,7 +315,14 @@ export const getAuthUser = cache(async () => {
   return user;
 });
 
-export async function createServerSupabase() {
+/**
+ * cache()-wrapped: one session client per request instead of one per caller.
+ * Beyond skipping redundant construction, the shared object identity is what
+ * lets cache()-wrapped functions that take the client as an argument
+ * (resolvePermissions) actually deduplicate -- cache() keys arguments by
+ * identity, so two distinct client objects would defeat it.
+ */
+export const createServerSupabase = cache(async () => {
   const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -342,4 +343,29 @@ export async function createServerSupabase() {
       cookieOptions: SUPABASE_COOKIE_OPTIONS,
     }
   );
-}
+});
+
+/**
+ * The caller's tenant_users row for THIS request's tenant -- the one row
+ * that was previously fetched up to three times per navigation (the
+ * password gate here in requireTenantUser, plus the app layout's own
+ * password-gate and WFM-membership lookups). cache()-wrapped so it's one
+ * query per request no matter how many places need it. Admin client with
+ * explicit tenant+user filters (MULTI_TENANT_GUARDRAILS: every admin-client
+ * query names its tenant filter).
+ */
+export const getTenantMembership = cache(
+  async (tenantId: string, userId: string): Promise<{
+    must_change_password: boolean | null;
+    employee_id: string | null;
+    wfm_default_landing: string | null;
+  } | null> => {
+    const { data } = await createAdminSupabase()
+      .from("tenant_users")
+      .select("must_change_password, employee_id, wfm_default_landing")
+      .eq("tenant_id", tenantId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    return data ?? null;
+  }
+);

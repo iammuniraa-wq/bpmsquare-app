@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTenantUser } from "./supabase-server";
@@ -37,13 +38,20 @@ const UNRESTRICTED: PermissionSet = { unrestricted: true, grants: new Map() };
  * grant is the UNION of every assigned role for that workcenter -- the most
  * permissive applicable flag wins (two roles can only ever add access to
  * each other, never subtract).
+ *
+ * cache()-wrapped (request-scoped, so no cross-request or cross-tenant reuse
+ * is possible): the app layout AND every page's requireWorkcenterView guard
+ * both resolve the same caller on the same navigation -- previously 2x the
+ * same two queries per click. cache() keys arguments by identity, which
+ * works because createServerSupabase() is itself request-cached, so every
+ * caller passes the same client object.
  */
-export async function resolvePermissions(
+export const resolvePermissions = cache(async (
   supabase: SupabaseClient,
   tenantId: string,
   userId: string,
   role: "admin" | "member"
-): Promise<PermissionSet> {
+): Promise<PermissionSet> => {
   if (role === "admin") return UNRESTRICTED;
 
   const { data: assignments } = await supabase
@@ -87,7 +95,7 @@ export async function resolvePermissions(
   }
 
   return { unrestricted: false, grants };
-}
+});
 
 export function canViewWorkcenter(perms: PermissionSet, workcenter: WorkcenterKey): boolean {
   if (perms.unrestricted) return true;

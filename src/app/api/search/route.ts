@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, getTenantMembership } from "@/lib/supabase-server";
 import { globalSearch } from "@/lib/data";
 import { resolvePermissions, toViewableWorkcenters } from "@/lib/permissions";
 import { allowedSearchTypes, getSearchObject, type SearchObjectType } from "@/lib/globalSearch";
@@ -26,12 +26,7 @@ export async function GET(request: NextRequest) {
   const perms = await resolvePermissions(supabase, tenantId, userId, role);
   let wfmSupervisor = role === "admin" || perms.grants.get("wfm")?.canEdit === true;
   if (!wfmSupervisor) {
-    const { data: membership } = await supabase
-      .from("tenant_users")
-      .select("employee_id")
-      .eq("tenant_id", tenantId)
-      .eq("user_id", userId)
-      .maybeSingle();
+    const membership = await getTenantMembership(tenantId, userId);
     if (membership?.employee_id) {
       const { data: employee } = await supabase
         .from("employees")

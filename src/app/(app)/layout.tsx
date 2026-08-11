@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Shell from "@/components/Shell";
 import { getTenant, getUserRole, isPlatformAdmin, redactTenantForRole } from "@/lib/tenant";
 import { TenantProvider } from "@/lib/tenant-context";
-import { getAuthUser, createServerSupabase } from "@/lib/supabase-server";
+import { getAuthUser, createServerSupabase, getTenantMembership } from "@/lib/supabase-server";
 import { resolvePermissions, toViewableWorkcenters } from "@/lib/permissions";
 import { LinkIcon } from "@/components/Icons";
 import { ROUTES, PATHNAME_HEADER } from "@/lib/constants";
@@ -57,23 +57,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const supabase = await createServerSupabase();
 
+  // One parallel step instead of the old sequential chain: the membership
+  // row (password gate + WFM employee link, request-cached and shared with
+  // requireTenantUser) and the caller's Business Role grants (request-cached
+  // and shared with every page's requireWorkcenterView) don't depend on
+  // each other -- awaiting them one by one just stacked roundtrips.
+  const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
+  const [membership, perms] = await Promise.all([
+    getTenantMembership(tenant.id, user.id),
+    resolvePermissions(supabase, tenant.id, user.id, userRole ?? "member"),
+  ]);
+
   // A password an admin just set for this login (fresh creation, or a
   // later reset) forces a stop here until they set their own -- see
   // must_change_password on tenant_users (0073). Reads the pathname
   // header middleware.ts already sets, same as the WFM redirect below, so
   // /force-password-change itself is never redirected to itself.
-  const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
-  const { data: passwordGate } = await supabase
-    .from("tenant_users")
-    .select("must_change_password")
-    .eq("tenant_id", tenant.id)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (passwordGate?.must_change_password && pathname !== "/force-password-change") {
+  if (membership?.must_change_password && pathname !== "/force-password-change") {
     redirect("/force-password-change");
   }
 
-  const perms = await resolvePermissions(supabase, tenant.id, user.id, userRole ?? "member");
   const viewable = toViewableWorkcenters(perms);
 
   let isWfmSupervisor = false;
@@ -99,12 +102,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // also true for a plain member with zero roles assigned (today's
     // "no role = full access" default) and must never auto-promote them.
     isWfmSupervisor = userRole === "admin" || perms.grants.get("wfm")?.canEdit === true;
-    const { data: membership } = await supabase
-      .from("tenant_users")
-      .select("employee_id, wfm_default_landing")
-      .eq("tenant_id", tenant.id)
-      .eq("user_id", user.id)
-      .maybeSingle();
     wfmDefaultLanding = membership?.wfm_default_landing ?? null;
     if (membership?.employee_id) {
       const { data: employee } = await supabase
