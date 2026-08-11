@@ -9,7 +9,6 @@ import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon } from "@/components/Icons";
 import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/tenant-context";
-import { createBrowserSupabase } from "@/lib/supabase-browser";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -354,12 +353,24 @@ function UserFooter({ accent, collapsed }: { accent: string; collapsed?: boolean
   const router = useRouter();
 
   useEffect(() => {
-    createBrowserSupabase().auth.getUser().then(({ data }) => {
-      setEmail(data.user?.email ?? null);
-    });
+    // Dynamic import: supabase-js is ~62 kB gz -- the largest client
+    // library the shared shell was shipping -- and this footer is its only
+    // use outside the auth pages. Loading it after hydration keeps it off
+    // every page's critical path. getSession() (not getUser()) reads the
+    // email locally from the stored session instead of making a network
+    // round trip on every navigation -- fine for display-only use; real
+    // auth enforcement stays server-side (middleware's verified getUser).
+    let cancelled = false;
+    import("@/lib/supabase-browser").then(({ createBrowserSupabase }) =>
+      createBrowserSupabase().auth.getSession().then(({ data }) => {
+        if (!cancelled) setEmail(data.session?.user?.email ?? null);
+      })
+    ).catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   async function signOut() {
+    const { createBrowserSupabase } = await import("@/lib/supabase-browser");
     await createBrowserSupabase().auth.signOut();
     router.push("/login");
   }
