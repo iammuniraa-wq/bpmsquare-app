@@ -14,7 +14,6 @@ import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 // ── Nav order persistence ─────────────────────────────────────────────────────
 
 const NAV_STATE_KEY = "vevey_nav_state_v2";
-const SIDEBAR_COLLAPSED_KEY = "vevey_sidebar_collapsed_v1";
 const NAV_EXPANDED_KEY = "vevey_nav_expanded_v1";
 
 function loadExpanded(): Record<string, boolean> {
@@ -427,21 +426,16 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const viewable = useViewableWorkcenters();
   const isWfmSupervisor = useIsWfmSupervisor();
 
-  // Per-browser preference to fully collapse the sidebar to an icon-only rail,
-  // separate from the tenant-wide "compact" width setting (which just narrows it
-  // while keeping labels). Read from localStorage after mount only, to avoid an
-  // SSR/client hydration mismatch -- the server always renders expanded.
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => {
-    try { setCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1"); } catch {}
-  }, []);
-  const toggleCollapsed = () => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0"); } catch {}
-      return next;
-    });
-  };
+  // The icon-only rail is the DEFAULT on desktop (product decision
+  // 2026-08-11: the expanded tree reads as crowded). Expanding is a
+  // session-only convenience -- the toggle works, but the next load starts
+  // collapsed again. Deliberately no localStorage preference anymore; a
+  // constant initial state also means SSR and client render identically.
+  // The mobile drawer (identified by onNavigate) is exempt: it only exists
+  // when explicitly opened, and an icon rail inside a drawer would be
+  // useless -- it always opens with full labels.
+  const [collapsed, setCollapsed] = useState(!onNavigate);
+  const toggleCollapsed = () => setCollapsed((prev) => !prev);
 
   const features   = tenant?.features as Record<string, boolean> | undefined;
   const appearance = tenant?.config?.appearance;
