@@ -12,7 +12,7 @@ import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import SortableTh from "@/components/SortableTh";
 import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
-import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
+import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
 
@@ -44,13 +44,15 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<Supplier>> = {
 export default async function SuppliersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; sort?: string; dir?: string; page?: string; af?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; sort?: string; dir?: string; page?: string; af?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("suppliers");
   await requireFeature("suppliers");
   const { supabase, tenantId } = await requireTenantUser();
   const params = await searchParams;
   const { q, type: typeFilter, af } = params;
+  const colFilters = parseColFilterParams(params);
+  const cfParams = colFilterQueryParams(colFilters);
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
 
@@ -71,7 +73,8 @@ export default async function SuppliersPage({
     );
   });
   const advFiltered = applyAdvancedFilter(searched, af, (s) => s as unknown as Record<string, unknown>);
-  const filtered = sortRows(advFiltered, sort, dir, SORT_EXTRACTORS);
+  const colFiltered = applyColFilters(advFiltered, colFilters, SORT_EXTRACTORS);
+  const filtered = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
 
   const active   = suppliers.filter((s) => s.status === "active").length;
@@ -132,7 +135,7 @@ export default async function SuppliersPage({
       <ListFilterBar
         searchValue={q}
         searchPlaceholder="Search by name, city, email or GSTIN…"
-        hiddenParams={{ type: typeFilter && typeFilter !== "all" ? typeFilter : undefined, af }}
+        hiddenParams={{ type: typeFilter && typeFilter !== "all" ? typeFilter : undefined, af, ...cfParams }}
         clearHref={ROUTES.suppliers}
       />
       <AdvancedFilterPanel object="supplier" />
@@ -156,17 +159,17 @@ export default async function SuppliersPage({
               <thead>
                 <tr style={{ borderBottom: `1px solid ${c.line}` }}>
                   {(() => {
-                    const hp = { q, type: typeFilter };
+                    const hp = { q, type: typeFilter, af, ...cfParams };
                     return (
                       <>
-                        <SortableTh label="ID" sortKey="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={{ ...th, width: 88 }} />
-                        <SortableTh label="Name" sortKey="name" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="Type" sortKey="type" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="City" sortKey="city" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="Phone" sortKey="phone" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="GSTIN" sortKey="gstin" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="Status" sortKey="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="Added" sortKey="created_at" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="ID" sortKey="ref" searchId="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={{ ...th, width: 88 }} />
+                        <SortableTh label="Name" sortKey="name" searchId="name" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="Type" sortKey="type" searchId="type" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="City" sortKey="city" searchId="city" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="Phone" sortKey="phone" searchId="phone" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="GSTIN" sortKey="gstin" searchId="gstin" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="Status" sortKey="status" searchId="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
+                        <SortableTh label="Added" sortKey="created_at" searchId="created_at" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
                       </>
                     );
                   })()}
@@ -214,7 +217,7 @@ export default async function SuppliersPage({
               total={filtered.length}
               pageSize={DEFAULT_PAGE_SIZE}
               baseHref={ROUTES.suppliers}
-              hiddenParams={{ q, type: typeFilter, sort, dir, af }}
+              hiddenParams={{ q, type: typeFilter, sort, dir, af, ...cfParams }}
             />
           </div>
         )}

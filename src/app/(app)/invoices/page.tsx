@@ -12,7 +12,7 @@ import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import SortableTh from "@/components/SortableTh";
 import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
-import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
+import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { InvoiceStatus } from "@/lib/types";
 
@@ -50,12 +50,14 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<InvoiceRow>> = {
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; from?: string; to?: string; sort?: string; dir?: string; page?: string; af?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; from?: string; to?: string; sort?: string; dir?: string; page?: string; af?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("invoices");
   await requireFeature("invoices");
   const params = await searchParams;
   const { status: statusFilter, q, from, to, af } = params;
+  const colFilters = parseColFilterParams(params);
+  const cfParams = colFilterQueryParams(colFilters);
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
   const invoices = await listInvoices();
@@ -84,7 +86,8 @@ export default async function InvoicesPage({
     );
   });
   const advFiltered = applyAdvancedFilter(searched, af, (i) => i as unknown as Record<string, unknown>);
-  const filtered = sortRows(advFiltered, sort, dir, SORT_EXTRACTORS);
+  const colFiltered = applyColFilters(advFiltered, colFilters, SORT_EXTRACTORS);
+  const filtered = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
 
   return (
@@ -124,7 +127,7 @@ export default async function InvoicesPage({
         searchValue={q}
         searchPlaceholder="Search invoice ref or account…"
         dates={[{ name: "from", value: from, label: "Issued from" }, { name: "to", value: to, label: "to" }]}
-        hiddenParams={{ status: statusFilter, af }}
+        hiddenParams={{ status: statusFilter, af, ...cfParams }}
         clearHref={ROUTES.invoices}
       />
       <AdvancedFilterPanel object="invoice" />
@@ -158,15 +161,15 @@ export default async function InvoicesPage({
             <thead>
               <tr>
                 {(() => {
-                  const hp = { status: statusFilter, q, from, to };
+                  const hp = { status: statusFilter, q, from, to, af, ...cfParams };
                   return (
                     <>
-                      <SortableTh label="Ref" sortKey="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                      <SortableTh label="Account" sortKey="account" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                      <SortableTh label="Status" sortKey="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                      <SortableTh label="Total" sortKey="total" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                      <SortableTh label="Balance due" sortKey="balance" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                      <SortableTh label="Issued" sortKey="issued" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Ref" sortKey="ref" searchId="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Account" sortKey="account" searchId="account" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Status" sortKey="status" searchId="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Total" sortKey="total" searchId="total" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Balance due" sortKey="balance" searchId="balance" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
+                      <SortableTh label="Issued" sortKey="issued" searchId="issued" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
                     </>
                   );
                 })()}
@@ -203,7 +206,7 @@ export default async function InvoicesPage({
             total={filtered.length}
             pageSize={DEFAULT_PAGE_SIZE}
             baseHref={ROUTES.invoices}
-            hiddenParams={{ status: statusFilter, q, from, to, sort, dir, af }}
+            hiddenParams={{ status: statusFilter, q, from, to, sort, dir, af, ...cfParams }}
           />
         </div>
       )}

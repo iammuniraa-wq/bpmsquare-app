@@ -9,6 +9,7 @@ import { ROUTES, OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef }
 import { CheckIcon, XIcon } from "@/components/Icons";
 import QuoteStatusPill from "@/components/QuoteStatusPill";
 import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import ColSearch, { applyColFilters } from "@/components/ColSearch";
 import { parseConds, matchesConds, flattenForFilter } from "@/lib/advancedFilter";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { useUserRole, useUiTheme } from "@/lib/tenant-context";
@@ -179,62 +180,6 @@ const td: React.CSSProperties = {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
-
-/** C4C-style column search: a small ⌕ on each header opens an inline
- * popover that matches only that column (against its sort value). Active
- * filters tint the icon; Escape/outside-click closes, ✕ clears. */
-function ColSearch({ id, label, colFilters, openId, setOpenId, setColFilter }: {
-  id: string; label: string;
-  colFilters: Record<string, string>;
-  openId: string | null;
-  setOpenId: (id: string | null) => void;
-  setColFilter: (id: string, term: string) => void;
-}) {
-  const active = !!colFilters[id];
-  const open = openId === id;
-  return (
-    <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-block" }}>
-      <button
-        type="button"
-        title={`Search in ${label}`}
-        onClick={() => setOpenId(open ? null : id)}
-        style={{
-          background: "none", border: "none", cursor: "pointer", padding: "0 2px",
-          marginLeft: 4, fontSize: 11, lineHeight: 1,
-          color: active || open ? c.accent : c.hint, opacity: active || open ? 1 : 0.55,
-        }}
-      >⌕</button>
-      {open && (
-        <span style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5 }}>
-          {/* Rendered INSIDE the header cell (the header row grows) rather
-              than as an overlay, so the first data row -- where the first
-              match usually is -- never gets covered. */}
-          <input
-            autoFocus
-            value={colFilters[id] ?? ""}
-            onChange={(e) => setColFilter(id, e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setOpenId(null); }}
-            onBlur={() => setTimeout(() => setOpenId(null), 150)}
-            placeholder={`Search ${label}…`}
-            style={{
-              border: `1px solid ${c.accent}60`, borderRadius: 6, padding: "4px 8px",
-              fontSize: 12, color: c.ink, background: c.panel, outline: "none", width: 130,
-              fontWeight: 400, textTransform: "none", letterSpacing: "normal",
-            }}
-          />
-          {active && (
-            <button
-              type="button"
-              title="Clear"
-              onMouseDown={(e) => { e.preventDefault(); setColFilter(id, ""); setOpenId(null); }}
-              style={{ background: "none", border: "none", cursor: "pointer", color: c.hint, fontSize: 12, padding: 2 }}
-            >✕</button>
-          )}
-        </span>
-      )}
-    </span>
-  );
-}
 
 export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QUOTE_STATUSES, caseLinkedQuoteIds = [] }: { initialRows: QuoteSummary[]; quoteStatuses?: QuoteStatusDef[]; caseLinkedQuoteIds?: string[] }) {
   const router = useRouter();
@@ -419,17 +364,10 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
     for (const col of columns) map[col.id] = col.sortValue;
     return map;
   }, [columns]);
-  const colFiltered = useMemo(() => {
-    const entries = Object.entries(colFilters).filter(([, term]) => term.trim() !== "");
-    if (entries.length === 0) return searched;
-    return searched.filter((r) =>
-      entries.every(([colId, term]) => {
-        const ex = sortExtractors[colId];
-        if (!ex) return true;
-        return String(ex(r) ?? "").toLowerCase().includes(term.trim().toLowerCase());
-      })
-    );
-  }, [searched, colFilters, sortExtractors]);
+  const colFiltered = useMemo(
+    () => applyColFilters(searched, colFilters, sortExtractors),
+    [searched, colFilters, sortExtractors]
+  );
   const filtered = useMemo(
     () => sortRows(colFiltered, sortKey, sortDir, sortExtractors),
     [colFiltered, sortKey, sortDir, sortExtractors]

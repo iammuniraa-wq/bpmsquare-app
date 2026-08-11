@@ -12,7 +12,7 @@ import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import SortableTh from "@/components/SortableTh";
 import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
-import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
+import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { PurchaseOrderStatus } from "@/lib/types";
 
@@ -45,12 +45,14 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<PurchaseOrderRow>> = {
 export default async function PurchaseOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; page?: string; af?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; page?: string; af?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("purchase_orders");
   await requireFeature("purchasing");
   const params = await searchParams;
   const { status: statusFilter, q, af } = params;
+  const colFilters = parseColFilterParams(params);
+  const cfParams = colFilterQueryParams(colFilters);
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
   const rows = await listPurchaseOrdersLive();
@@ -66,7 +68,8 @@ export default async function PurchaseOrdersPage({
     );
   });
   const advFiltered = applyAdvancedFilter(searched, af, (r) => r.po as unknown as Record<string, unknown>);
-  const filtered = sortRows(advFiltered, sort, dir, SORT_EXTRACTORS);
+  const colFiltered = applyColFilters(advFiltered, colFilters, SORT_EXTRACTORS);
+  const filtered = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.po.status] = (acc[r.po.status] ?? 0) + 1;
@@ -115,7 +118,7 @@ export default async function PurchaseOrdersPage({
       <ListFilterBar
         searchValue={q}
         searchPlaceholder="Search PO ID or supplier…"
-        hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, af }}
+        hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, af, ...cfParams }}
         clearHref={ROUTES.purchaseOrders}
       />
       <AdvancedFilterPanel object="purchase_order" />
@@ -138,14 +141,14 @@ export default async function PurchaseOrdersPage({
               <thead>
                 <tr style={{ borderBottom: `1px solid ${c.line}` }}>
                   {(() => {
-                    const hp = { status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, q };
+                    const hp = { status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, q, af, ...cfParams };
                     return (
                       <>
-                        <SortableTh label="PO ID" sortKey="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
-                        <SortableTh label="Supplier" sortKey="supplier" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
-                        <SortableTh label="Status" sortKey="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
-                        <SortableTh label="Order date" sortKey="order_date" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
-                        <SortableTh label="Total" sortKey="total" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
+                        <SortableTh label="PO ID" sortKey="ref" searchId="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
+                        <SortableTh label="Supplier" sortKey="supplier" searchId="supplier" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
+                        <SortableTh label="Status" sortKey="status" searchId="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
+                        <SortableTh label="Order date" sortKey="order_date" searchId="order_date" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
+                        <SortableTh label="Total" sortKey="total" searchId="total" currentSort={sort} currentDir={dir} baseHref={ROUTES.purchaseOrders} hiddenParams={hp} style={th} />
                       </>
                     );
                   })()}
@@ -184,7 +187,7 @@ export default async function PurchaseOrdersPage({
               total={filtered.length}
               pageSize={DEFAULT_PAGE_SIZE}
               baseHref={ROUTES.purchaseOrders}
-              hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, q, sort, dir, af }}
+              hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined, q, sort, dir, af, ...cfParams }}
             />
           </div>
         )}

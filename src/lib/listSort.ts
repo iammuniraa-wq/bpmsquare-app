@@ -41,3 +41,44 @@ export function sortRows<T>(
     return String(av).localeCompare(String(bv)) * sign;
   });
 }
+
+// ── Column search (C4C-style) helpers ────────────────────────────────────────
+// Shared by the client tables (state-driven, see components/ColSearch.tsx)
+// and the server-rendered tables (URL-param-driven: `cf_<columnId>=<term>`).
+
+const COL_FILTER_PREFIX = "cf_";
+
+/** AND-combine every active column filter, matching against the same value
+ * the column sorts by. */
+export function applyColFilters<T>(
+  rows: T[],
+  colFilters: Record<string, string>,
+  extractors: Record<string, SortExtractor<T>>
+): T[] {
+  const entries = Object.entries(colFilters).filter(([, term]) => term.trim() !== "");
+  if (entries.length === 0) return rows;
+  return rows.filter((r) =>
+    entries.every(([colId, term]) => {
+      const ex = extractors[colId];
+      if (!ex) return true;
+      return String(ex(r) ?? "").toLowerCase().includes(term.trim().toLowerCase());
+    })
+  );
+}
+
+/** Pull cf_<col> params out of a page's searchParams record. */
+export function parseColFilterParams(params: Record<string, string | undefined>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (k.startsWith(COL_FILTER_PREFIX) && typeof v === "string" && v.trim() !== "") {
+      out[k.slice(COL_FILTER_PREFIX.length)] = v;
+    }
+  }
+  return out;
+}
+
+/** Back to cf_-prefixed form, for hiddenParams spreads (so sorting, paging
+ * and the quick-filter form all preserve active column filters). */
+export function colFilterQueryParams(colFilters: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(colFilters).map(([k, v]) => [COL_FILTER_PREFIX + k, v]));
+}

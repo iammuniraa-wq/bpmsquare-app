@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { c } from "@/lib/theme";
+import { ColSearchParam } from "@/components/ColSearch";
 
 /**
  * A `<th>` that's also a sort toggle, for the server-rendered list pages
@@ -20,6 +21,7 @@ export default function SortableTh({
   baseHref,
   hiddenParams = {},
   style,
+  searchId,
 }: {
   label: string;
   sortKey: string;
@@ -28,6 +30,8 @@ export default function SortableTh({
   baseHref: string;
   hiddenParams?: Record<string, string | undefined>;
   style?: React.CSSProperties;
+  /** Enables C4C-style per-column search (cf_<searchId> URL param). */
+  searchId?: string;
 }) {
   const isActive = currentSort === sortKey;
   const nextDir = isActive && currentDir === "asc" ? "desc" : "asc";
@@ -51,6 +55,7 @@ export default function SortableTh({
           {isActive ? (currentDir === "desc" ? "↓" : "↑") : "↕"}
         </span>
       </Link>
+      {searchId && <ColSearchParam id={searchId} label={label} />}
     </th>
   );
 }

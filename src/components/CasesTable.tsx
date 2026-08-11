@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import ColSearch, { applyColFilters } from "@/components/ColSearch";
 import Link from "next/link";
 import type { ServiceCase, Account } from "@/lib/types";
 import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/constants";
@@ -70,6 +71,16 @@ export default function CasesTable({ rows, q, filter }: Props) {
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [sortKey, setSortKey] = useState<string | undefined>(undefined);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [openColSearch, setOpenColSearch] = useState<string | null>(null);
+  function setColFilter(id: string, term: string) {
+    setColFilters((prev) => {
+      const next = { ...prev };
+      if (term) next[id] = term; else delete next[id];
+      return next;
+    });
+  }
+
   const [page, setPage] = useState(1);
 
   function toggleSort(key: string) {
@@ -103,7 +114,7 @@ export default function CasesTable({ rows, q, filter }: Props) {
   }
 
   const visibleDefs = COLUMNS.filter((col) => visibleCols.has(col.id));
-  const sortedRows = sortRows(rows, sortKey, sortDir, SORT_EXTRACTORS);
+  const sortedRows = sortRows(applyColFilters(rows, colFilters, SORT_EXTRACTORS), sortKey, sortDir, SORT_EXTRACTORS);
   const pageRows = paginate(sortedRows, page, DEFAULT_PAGE_SIZE);
 
   useEffect(() => {
@@ -156,7 +167,7 @@ export default function CasesTable({ rows, q, filter }: Props) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-              <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("ref")}>Ref · Equipment{sortIndicator("ref")}</th>
+              <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("ref")}>Ref · Equipment{sortIndicator("ref")}<ColSearch id="ref" label="Ref" colFilters={colFilters} openId={openColSearch} setOpenId={setOpenColSearch} setColFilter={setColFilter} /></th>
               {visibleDefs.map((col) => (
                 <th
                   key={col.id}
@@ -164,6 +175,7 @@ export default function CasesTable({ rows, q, filter }: Props) {
                   onClick={() => toggleSort(col.id)}
                 >
                   {col.label}{sortIndicator(col.id)}
+                  <ColSearch id={col.id} label={col.label} colFilters={colFilters} openId={openColSearch} setOpenId={setOpenColSearch} setColFilter={setColFilter} />
                 </th>
               ))}
               <th style={{ ...th, width: 60 }}></th>
