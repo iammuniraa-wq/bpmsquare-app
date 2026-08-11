@@ -40,6 +40,21 @@ type ColDef = {
 };
 
 const LS_KEY = "bms_quotes_cols";
+const TILES_LS_KEY = "bms_quotes_tiles";
+
+// Summary tiles -- a lean default set (one row); the rest are opt-in via the
+// Columns/Adapt popover, same personalization model as table columns.
+const TILE_DEFS: { id: string; label: string; defaultOn: boolean }[] = [
+  { id: "total",             label: "Total quotes",      defaultOn: true },
+  { id: "overall_value",     label: "Overall value",     defaultOn: true },
+  { id: "won_value",         label: "Won value",         defaultOn: true },
+  { id: "lost_value",        label: "Lost value",        defaultOn: false },
+  { id: "in_pipeline",       label: "In pipeline",       defaultOn: true },
+  { id: "overdue",           label: "Overdue",           defaultOn: true },
+  { id: "awaiting_approval", label: "Awaiting approval", defaultOn: false },
+  { id: "from_cases",        label: "From cases",        defaultOn: false },
+  { id: "standalone",        label: "Standalone",        defaultOn: false },
+];
 const LS_SEEN_KEY = "bms_quotes_cols_seen";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -198,6 +213,23 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
     );
   }
   const [toast, setToast]               = useState<string | null>(null);
+  const [visibleTiles, setVisibleTiles] = useState<Set<string>>(
+    new Set(TILE_DEFS.filter((t) => t.defaultOn).map((t) => t.id))
+  );
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(TILES_LS_KEY);
+      if (stored) setVisibleTiles(new Set(JSON.parse(stored) as string[]));
+    } catch { /* ignore */ }
+  }, []);
+  function toggleTile(id: string) {
+    setVisibleTiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(TILES_LS_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  }
   const [adaptOpen, setAdaptOpen]       = useState(false);
   const [customFields, setCustomFields] = useState<EffectiveField[]>([]);
 
@@ -414,16 +446,16 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
           treatment as the dashboard KPI tiles; classic keeps flat white. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 14 }}>
         {[
-          { label: "Total quotes",      value: afRows.length,                    color: c.ink,   tint: pillar.blue },
-          { label: "Overall value",     value: inr(totalOverall),               color: c.ink,   tint: pillar.purple },
-          { label: "Won value",         value: inr(totalWon),                   color: pillar.teal.fg,  tint: pillar.teal },
-          { label: "Lost value",        value: inr(totalLost),                  color: pillar.red.fg,   tint: pillar.red },
-          { label: "In pipeline",       value: inr(totalPipeline),              color: pillar.blue.fg,  tint: pillar.blue },
-          { label: "Overdue",           value: overdueCount,                    color: overdueCount > 0 ? pillar.amber.fg : c.muted, tint: overdueCount > 0 ? pillar.amber : pillar.green },
-          { label: "Awaiting approval", value: awaitingApprovalCount,           color: c.muted, tint: pillar.amber },
-          { label: "From cases",        value: caseLinked.count,                color: pillar.purple.fg, tint: pillar.purple, sub: inr(caseLinked.value) },
-          { label: "Standalone",        value: standalone.count,                color: c.muted, tint: pillar.green,  sub: inr(standalone.value) },
-        ].map((s) => (
+          { id: "total",             label: "Total quotes",      value: afRows.length,                    color: c.ink,   tint: pillar.blue },
+          { id: "overall_value",     label: "Overall value",     value: inr(totalOverall),               color: c.ink,   tint: pillar.purple },
+          { id: "won_value",         label: "Won value",         value: inr(totalWon),                   color: pillar.teal.fg,  tint: pillar.teal },
+          { id: "lost_value",        label: "Lost value",        value: inr(totalLost),                  color: pillar.red.fg,   tint: pillar.red },
+          { id: "in_pipeline",       label: "In pipeline",       value: inr(totalPipeline),              color: pillar.blue.fg,  tint: pillar.blue },
+          { id: "overdue",           label: "Overdue",           value: overdueCount,                    color: overdueCount > 0 ? pillar.amber.fg : c.muted, tint: overdueCount > 0 ? pillar.amber : pillar.green },
+          { id: "awaiting_approval", label: "Awaiting approval", value: awaitingApprovalCount,           color: c.muted, tint: pillar.amber },
+          { id: "from_cases",        label: "From cases",        value: caseLinked.count,                color: pillar.purple.fg, tint: pillar.purple, sub: inr(caseLinked.value) },
+          { id: "standalone",        label: "Standalone",        value: standalone.count,                color: c.muted, tint: pillar.green,  sub: inr(standalone.value) },
+        ].filter((s) => visibleTiles.has(s.id)).map((s) => (
           <div
             key={s.label}
             className="modern-lift"
@@ -565,6 +597,36 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                         </span>
                       </button>
                     </div>
+                  );
+                })}
+                <div style={{ padding: "8px 14px 4px", fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, borderTop: `1px solid ${c.line}`, marginTop: 6 }}>
+                  Summary tiles
+                </div>
+                {TILE_DEFS.map((t) => {
+                  const on = visibleTiles.has(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => toggleTile(t.id)}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", gap: 10,
+                        padding: "7px 14px", background: "none", border: "none",
+                        cursor: "pointer", textAlign: "left",
+                      }}
+                    >
+                      <div style={{
+                        width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                        background: on ? c.accent : "none",
+                        border: `1.5px solid ${on ? c.accent : c.line}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {on && <CheckIcon size={10} color="#fff" />}
+                      </div>
+                      <span style={{ fontSize: 12.5, color: on ? c.ink : c.hint, fontWeight: on ? 600 : 400 }}>
+                        {t.label}
+                      </span>
+                    </button>
                   );
                 })}
                 <div style={{ borderTop: `1px solid ${c.line}`, margin: "8px 0 4px" }} />
