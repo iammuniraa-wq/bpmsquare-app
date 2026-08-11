@@ -1,4 +1,5 @@
 {
+  "regions": ["icn1"],
   "functions": {
     "src/app/api/quotes/**": {
       "memory": 1600,
