@@ -9,6 +9,12 @@
     "lint": "eslint",
     "test": "vitest run"
   },
+  "browserslist": [
+    "chrome >= 111",
+    "edge >= 111",
+    "firefox >= 115",
+    "safari >= 16.4"
+  ],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "@sparticuz/chromium": "^149.0.0",

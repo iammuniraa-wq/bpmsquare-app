@@ -186,7 +186,7 @@ function Bars({ points, valueOf, format }: { points: TrendPoint[]; valueOf: (p: 
   );
 }
 
-export default function MeClient() {
+export default function MeClient({ initialState = null }: { initialState?: MeState | null }) {
   const [tab, setTab] = useState<Tab>("home");
   const [timeView, setTimeView] = useState<TimeView>("daily");
   const [month, setMonth] = useState(thisMonth());
@@ -194,7 +194,12 @@ export default function MeClient() {
   const [leaveFilter, setLeaveFilter] = useState<string>("");
   const [holidayFilter, setHolidayFilter] = useState<"upcoming" | "all">("upcoming");
   const [holidayQuery, setHolidayQuery] = useState("");
-  const [me, setMe] = useState<MeState | null>(null);
+  // Seeded from the page's server render when available (see
+  // lib/wfm/meState.ts) so the punch tile paints real data at hydration
+  // instead of waiting for a post-load fetch; the ref makes the mount
+  // effect skip the redundant /state refetch exactly once.
+  const [me, setMe] = useState<MeState | null>(initialState);
+  const serverSeeded = useRef(initialState != null);
   const [monthTotals, setMonthTotals] = useState<MonthTotals | null>(null);
   const [days, setDays] = useState<DayRecord[]>([]);
   const [deductBreaks, setDeductBreaks] = useState(true);
@@ -219,15 +224,8 @@ export default function MeClient() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const load = useCallback(async () => {
+  const loadSecondary = useCallback(async () => {
     try {
-      const res = await fetch("/api/wfm/me/state");
-      const json = await res.json();
-      if (!res.ok) { setLoadError(json.error ?? "Could not load"); return; }
-      setMe(json);
-      setLoadError("");
-      if (!json.employee?.consent_recorded_at) return;
-
       const [tsRes, holRes, corrRes, leaveRes, anRes] = await Promise.all([
         fetch(`/api/wfm/me/timesheet?month=${month}`),
         fetch("/api/wfm/holidays"),
@@ -251,6 +249,20 @@ export default function MeClient() {
     }
   }, [month]);
 
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/wfm/me/state");
+      const json = await res.json();
+      if (!res.ok) { setLoadError(json.error ?? "Could not load"); return; }
+      setMe(json);
+      setLoadError("");
+      if (!json.employee?.consent_recorded_at) return;
+      await loadSecondary();
+    } catch {
+      setLoadError("Network error — check your connection");
+    }
+  }, [loadSecondary]);
+
   const trySync = useCallback(async () => {
     try {
       const { synced, remaining } = await flushQueue();
@@ -260,13 +272,21 @@ export default function MeClient() {
   }, [load]);
 
   useEffect(() => {
-    load();
+    if (serverSeeded.current) {
+      // First mount with server-rendered state: the /state payload is
+      // already on screen, only the secondary tabs' data needs fetching.
+      // Later re-runs (month change regenerates load()) refetch fully.
+      serverSeeded.current = false;
+      if (initialState?.employee?.consent_recorded_at) loadSecondary();
+    } else {
+      load();
+    }
     listQueuedPunches().then((q) => setQueuedCount(q.length)).catch(() => {});
     trySync();
     const onOnline = () => trySync();
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-  }, [load, trySync]);
+  }, [load, loadSecondary, trySync, initialState]);
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());

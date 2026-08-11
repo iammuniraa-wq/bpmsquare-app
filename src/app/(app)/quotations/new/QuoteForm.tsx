@@ -14,7 +14,16 @@ import { Gear, Zap, Droplet, Battery, Monitor, Activity } from "@/components/Ico
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import CreateExtraFields from "@/components/fields/CreateExtraFields";
 import ObjectSections from "@/components/fields/ObjectSections";
-import RichTextEditor from "@/components/RichTextEditor";
+import dynamic from "next/dynamic";
+
+// tiptap (the editor's engine) is one of the heaviest client libraries in
+// the app -- loading it on demand keeps it out of this page's initial
+// bundle, where it was inflating time-to-interactive for every visit that
+// never touches the editor.
+const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
+  ssr: false,
+  loading: () => <div style={{ minHeight: 120, borderRadius: 8, background: "var(--panel2, #f3f4f6)" }} />,
+});
 import { richTextToDisplayHtml, isRichTextEmpty } from "@/lib/richText";
 
 // Fields the drawer's own inputs already cover — CreateExtraFields renders whatever's

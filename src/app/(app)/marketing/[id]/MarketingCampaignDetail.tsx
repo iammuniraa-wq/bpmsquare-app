@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
-import RichTextEditor from "@/components/RichTextEditor";
+import dynamic from "next/dynamic";
+
+// tiptap (the editor's engine) is one of the heaviest client libraries in
+// the app -- loading it on demand keeps it out of this page's initial
+// bundle, where it was inflating time-to-interactive for every visit that
+// never touches the editor.
+const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
+  ssr: false,
+  loading: () => <div style={{ minHeight: 120, borderRadius: 8, background: "var(--panel2, #f3f4f6)" }} />,
+});
 import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/TargetAudiencePicker";
 import TemplatePicker from "@/components/marketing/TemplatePicker";
 import type { MarketingTemplateId } from "@/lib/marketingTemplates";
