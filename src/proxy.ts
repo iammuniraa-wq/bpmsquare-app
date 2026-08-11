@@ -7,7 +7,15 @@ import {
   PATHNAME_HEADER, SUPABASE_COOKIE_OPTIONS,
 } from "@/lib/constants";
 
-export async function middleware(request: NextRequest) {
+// Next 16 "proxy" convention (the renamed middleware): ALWAYS runs on the
+// Node.js runtime, which on Vercel executes in the project's pinned function
+// region (icn1, next to the Seoul database) instead of at the edge nearest
+// the visitor. That co-location matters here: this file makes an auth
+// verification call plus tenant-resolution queries on every request, and
+// from a far-away visitor's edge each of those crossed to Seoul (~200 ms a
+// hop, 400-700 ms of TTFB per navigation). As a plain rename of the old
+// middleware.ts its behavior is otherwise identical.
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Strip any client-supplied values for the trusted identity headers on
@@ -138,10 +146,11 @@ export async function middleware(request: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const [{ data: demoTenant }, { data: adminByUserId }, { data: adminByEmail }] = await Promise.all([
+    const [{ data: demoTenant }, { data: adminByUserId }, { data: adminByEmail }, { data: ownRows }] = await Promise.all([
       admin.from("tenants").select("id").eq("is_demo", true).maybeSingle(),
       admin.from("platform_admins").select("id").eq("user_id", user.id).maybeSingle(),
       admin.from("platform_admins").select("id").eq("email", user.email ?? "").maybeSingle(),
+      admin.from("tenant_users").select("tenant_id, role, is_locked, valid_from, valid_to").eq("user_id", user.id),
     ]);
 
     const isPlatformAdminUser = !!adminByUserId || !!adminByEmail;
@@ -154,19 +163,17 @@ export async function middleware(request: NextRequest) {
       // (or a stale non-admin one) gets waved through this check only to have
       // Postgres reject the write anyway. Lazily upsert the row to match --
       // idempotent, and onConflict without ignoreDuplicates means an existing
-      // row's role is actually promoted, not silently left as-is.
-      if (resolvedTenantId) {
+      // row's role is actually promoted, not silently left as-is. Skipped
+      // when the row already says admin (the steady state after the first
+      // request), so the hot path stays read-only.
+      const existing = (ownRows ?? []).find((r) => r.tenant_id === resolvedTenantId);
+      if (resolvedTenantId && existing?.role !== "admin") {
         await admin
           .from("tenant_users")
           .upsert({ tenant_id: resolvedTenantId, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id" });
       }
     } else if (demoTenant) {
-      const { data: membership } = await admin
-        .from("tenant_users")
-        .select("role, is_locked, valid_from, valid_to")
-        .eq("user_id", user.id)
-        .eq("tenant_id", demoTenant.id)
-        .maybeSingle();
+      const membership = (ownRows ?? []).find((r) => r.tenant_id === demoTenant.id) ?? null;
       if (!membership) return denyWrongWorkspace();
       if (!isMembershipActive(membership)) return denyLocked();
       resolvedTenantId = demoTenant.id;
@@ -184,10 +191,11 @@ export async function middleware(request: NextRequest) {
     // running all three anyway (the by-user_id lookup misses, forcing the
     // by-email fallback), just sequentially; this cuts that wall-clock time
     // roughly to one round trip instead of three.
-    const [{ data: hostTenant }, { data: adminByUserId }, { data: adminByEmail }] = await Promise.all([
+    const [{ data: hostTenant }, { data: adminByUserId }, { data: adminByEmail }, { data: ownRows }] = await Promise.all([
       admin.from("tenants").select("id").eq("custom_domain", host).maybeSingle(),
       admin.from("platform_admins").select("id").eq("user_id", user.id).maybeSingle(),
       admin.from("platform_admins").select("id").eq("email", user.email ?? "").maybeSingle(),
+      admin.from("tenant_users").select("tenant_id, role, is_locked, valid_from, valid_to").eq("user_id", user.id),
     ]);
 
     if (hostTenant) {
@@ -201,18 +209,19 @@ export async function middleware(request: NextRequest) {
         // Same reasoning as the PRIMARY_HOST/demo-tenant branch above --
         // lazily upsert so the real tenant_users row backs this trusted
         // header, instead of RLS rejecting a write the app thinks is fine.
-        await admin
-          .from("tenant_users")
-          .upsert({ tenant_id: hostTenant.id, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id" });
+        // Skipped when the row already says admin, keeping the hot path
+        // read-only.
+        const existing = (ownRows ?? []).find((r) => r.tenant_id === hostTenant.id);
+        if (existing?.role !== "admin") {
+          await admin
+            .from("tenant_users")
+            .upsert({ tenant_id: hostTenant.id, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id" });
+        }
       } else {
-        // Check directly for a row on THIS tenant, not "the" tenant_users row --
-        // a user can belong to more than one tenant now (see invite routes).
-        const { data: membership } = await admin
-          .from("tenant_users")
-          .select("role, is_locked, valid_from, valid_to")
-          .eq("user_id", user.id)
-          .eq("tenant_id", hostTenant.id)
-          .maybeSingle();
+        // The row for THIS tenant specifically, out of the user's memberships
+        // (already fetched in the parallel batch above) -- a user can belong
+        // to more than one tenant now (see invite routes).
+        const membership = (ownRows ?? []).find((r) => r.tenant_id === hostTenant.id) ?? null;
         if (!membership) {
           // Session belongs to a different tenant than this domain resolves to — hard isolation.
           return denyWrongWorkspace();
