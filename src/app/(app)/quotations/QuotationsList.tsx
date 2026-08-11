@@ -205,36 +205,32 @@ function ColSearch({ id, label, colFilters, openId, setOpenId, setColFilter }: {
         }}
       >⌕</button>
       {open && (
-        <>
-          <span onClick={() => setOpenId(null)} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
-          <span style={{
-            position: "absolute", left: 0, top: "calc(100% + 4px)", zIndex: 61,
-            display: "flex", alignItems: "center", gap: 4,
-            background: c.panel, border: `1px solid ${c.line}`, borderRadius: 8,
-            boxShadow: "0 6px 20px rgba(0,0,0,0.18)", padding: "6px 8px",
-          }}>
-            <input
-              autoFocus
-              value={colFilters[id] ?? ""}
-              onChange={(e) => setColFilter(id, e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setOpenId(null); }}
-              placeholder={`Search ${label}…`}
-              style={{
-                border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 8px",
-                fontSize: 12, color: c.ink, background: c.panel, outline: "none", width: 150,
-                fontWeight: 400, textTransform: "none", letterSpacing: "normal",
-              }}
-            />
-            {active && (
-              <button
-                type="button"
-                title="Clear"
-                onClick={() => { setColFilter(id, ""); setOpenId(null); }}
-                style={{ background: "none", border: "none", cursor: "pointer", color: c.hint, fontSize: 12, padding: 2 }}
-              >✕</button>
-            )}
-          </span>
-        </>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5 }}>
+          {/* Rendered INSIDE the header cell (the header row grows) rather
+              than as an overlay, so the first data row -- where the first
+              match usually is -- never gets covered. */}
+          <input
+            autoFocus
+            value={colFilters[id] ?? ""}
+            onChange={(e) => setColFilter(id, e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setOpenId(null); }}
+            onBlur={() => setTimeout(() => setOpenId(null), 150)}
+            placeholder={`Search ${label}…`}
+            style={{
+              border: `1px solid ${c.accent}60`, borderRadius: 6, padding: "4px 8px",
+              fontSize: 12, color: c.ink, background: c.panel, outline: "none", width: 130,
+              fontWeight: 400, textTransform: "none", letterSpacing: "normal",
+            }}
+          />
+          {active && (
+            <button
+              type="button"
+              title="Clear"
+              onMouseDown={(e) => { e.preventDefault(); setColFilter(id, ""); setOpenId(null); }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: c.hint, fontSize: 12, padding: 2 }}
+            >✕</button>
+          )}
+        </span>
       )}
     </span>
   );
@@ -543,27 +539,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
       {/* Insights container: summary tiles + advanced filters, collapsed by
           default so the page is header -> filters -> table. The badge keeps
           an active advanced filter discoverable while collapsed. */}
-      <button
-        type="button"
-        onClick={toggleInsights}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 7, marginBottom: 12,
-          padding: "6px 12px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-          border: `1px solid ${insightsOpen || afConds.length > 0 ? `var(--modern-accent, ${c.accent})` : c.line}`,
-          background: "var(--panel)", color: insightsOpen || afConds.length > 0 ? `var(--modern-accent, ${c.accent})` : c.muted,
-        }}
-      >
-        ▦ Insights &amp; filters
-        {afConds.length > 0 && (
-          <span style={{
-            minWidth: 17, height: 17, borderRadius: 9, padding: "0 5px",
-            background: `var(--modern-accent, ${c.accent})`, color: "#fff",
-            fontSize: 10.5, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center",
-          }}>{afConds.length}</span>
-        )}
-        <span style={{ fontSize: 10, color: c.hint }}>{insightsOpen ? "▲" : "▼"}</span>
-      </button>
-
+      {/* moved into the control row below */}
       {insightsOpen && (<>
       {/* Summary strip -- modern themes get the same pillar-tinted tile
           treatment as the dashboard KPI tiles; classic keeps flat white. */}
@@ -606,8 +582,29 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
       <AdvancedFilterPanel object="quote" />
       </>)}
 
-      {/* Filter bar */}
+      {/* Single control row: insights toggle, quick filters, count, Adapt, Columns */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={toggleInsights}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 7,
+            padding: "7px 12px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+            border: `1px solid ${insightsOpen || afConds.length > 0 ? `var(--modern-accent, ${c.accent})` : c.line}`,
+            background: "var(--panel)", color: insightsOpen || afConds.length > 0 ? `var(--modern-accent, ${c.accent})` : c.muted,
+          }}
+        >
+          ▦ Insights &amp; filters
+          {afConds.length > 0 && (
+            <span style={{
+              minWidth: 17, height: 17, borderRadius: 9, padding: "0 5px",
+              background: `var(--modern-accent, ${c.accent})`, color: "#fff",
+              fontSize: 10.5, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center",
+            }}>{afConds.length}</span>
+          )}
+          <span style={{ fontSize: 10, color: c.hint }}>{insightsOpen ? "▲" : "▼"}</span>
+        </button>
+
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
@@ -643,23 +640,10 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
           </button>
         )}
 
-        <div style={{ marginLeft: "auto", fontSize: 12, color: c.hint }}>
-          {filtered.length} of {afRows.length} quotes
-        </div>
-      </div>
-
-      {/* Table */}
-      <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-        {/* Toolbar */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 14px", borderBottom: `1px solid ${c.line}`, background: c.panel2,
-        }}>
-          <span style={{ fontSize: 12, color: c.hint, fontWeight: 500 }}>
-            {filtered.length} quote{filtered.length !== 1 ? "s" : ""}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, color: c.hint }}>
+            {filtered.length} of {afRows.length} quotes
           </span>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {/* Adapt drawer -- lets an admin add/rename/hide quote fields; a
                 field added here becomes a column in this list immediately. */}
             <AdaptObjectDrawer objectType="quote" objectLabel="Quotation" isAdmin={isAdmin} />
@@ -769,9 +753,11 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
               </div>
             )}
             </div>
-          </div>
         </div>
+      </div>
 
+      {/* Table */}
+      <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
