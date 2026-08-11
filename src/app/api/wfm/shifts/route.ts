@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { wfmShiftsPayload } from "@/lib/wfm/bootstrap";
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 
@@ -13,15 +14,11 @@ export async function GET() {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  const { supabase, tenantId } = ctx;
-
-  const { data, error } = await supabase
-    .from("wfm_shifts")
-    .select("id, name, start_time, end_time, grace_minutes, is_night_shift, night_allowance_amount, crosses_midnight, active")
-    .eq("tenant_id", tenantId)
-    .order("start_time");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  try {
+    return NextResponse.json(await wfmShiftsPayload(ctx.supabase, ctx.tenantId));
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 }
 
 // POST /api/wfm/shifts — create a shift (tenant admin only).

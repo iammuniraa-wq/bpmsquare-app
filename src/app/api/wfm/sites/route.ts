@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { wfmSitesPayload } from "@/lib/wfm/bootstrap";
 
 // GET /api/wfm/sites — list sites (supervisor/admin).
 export async function GET() {
@@ -11,15 +12,11 @@ export async function GET() {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  const { supabase, tenantId } = ctx;
-
-  const { data, error } = await supabase
-    .from("wfm_sites")
-    .select("id, name, lat, lng, radius_m, active, created_at")
-    .eq("tenant_id", tenantId)
-    .order("name");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  try {
+    return NextResponse.json(await wfmSitesPayload(ctx.supabase, ctx.tenantId));
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 }
 
 // POST /api/wfm/sites — create a site (tenant admin only).

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -35,11 +35,14 @@ const btnGreen: React.CSSProperties = { ...btn, background: "#10b981", borderCol
 const btnRed: React.CSSProperties = { ...btn, background: "#ef4444", borderColor: "transparent", color: "#fff" };
 const fmtDate = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-export default function LeaveClient() {
-  const [types, setTypes] = useState<LeaveType[]>([]);
-  const [records, setRecords] = useState<LeaveRecord[]>([]);
-  const [employees, setEmployees] = useState<EmployeeOpt[]>([]);
-  const [requests, setRequests] = useState<LeaveRequestRow[]>([]);
+export default function LeaveClient({ initial = null }: {
+  initial?: { types: LeaveType[]; records: LeaveRecord[]; employees: EmployeeOpt[]; requests: LeaveRequestRow[] } | null;
+}) {
+  const [types, setTypes] = useState<LeaveType[]>(initial?.types ?? []);
+  const [records, setRecords] = useState<LeaveRecord[]>(initial?.records ?? []);
+  const [employees, setEmployees] = useState<EmployeeOpt[]>(initial?.employees ?? []);
+  const [requests, setRequests] = useState<LeaveRequestRow[]>(initial?.requests ?? []);
+  const serverSeeded = useRef(initial != null);
   const [requestFilter, setRequestFilter] = useState<"pending" | "all">("pending");
   const [requestQuery, setRequestQuery] = useState("");
   const [recordQuery, setRecordQuery] = useState("");
@@ -61,7 +64,10 @@ export default function LeaveClient() {
     if (q.ok) setRequests(await q.json());
   }, [requestFilter]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (serverSeeded.current) { serverSeeded.current = false; return; } // server-rendered bootstrap
+    load();
+  }, [load]);
 
   async function resolveRequest(id: string, action: "approve" | "reject", supervisor_remark?: string) {
     setBusy(true);

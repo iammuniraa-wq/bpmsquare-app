@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -66,12 +66,15 @@ function dateRange(from: string, to: string): string[] {
   return out;
 }
 
-export default function RosterClient() {
-  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
-  const [shifts, setShifts] = useState<WfmShift[]>([]);
-  const [sites, setSites] = useState<WfmSite[]>([]);
-  const [overrides, setOverrides] = useState<OverrideRow[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function RosterClient({ initial = null }: {
+  initial?: { employees: EmployeeRow[]; shifts: WfmShift[]; sites: WfmSite[]; overrides: OverrideRow[] } | null;
+}) {
+  const [employees, setEmployees] = useState<EmployeeRow[]>(initial?.employees ?? []);
+  const [shifts, setShifts] = useState<WfmShift[]>(initial?.shifts ?? []);
+  const [sites, setSites] = useState<WfmSite[]>(initial?.sites ?? []);
+  const [overrides, setOverrides] = useState<OverrideRow[]>(initial?.overrides ?? []);
+  const [loading, setLoading] = useState(initial == null);
+  const serverSeeded = useRef(initial != null);
   const [error, setError] = useState("");
 
   // ── Section A: standing site + shift (bulk matrix) ────────────────────
@@ -113,7 +116,10 @@ export default function RosterClient() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (serverSeeded.current) { serverSeeded.current = false; return; } // server-rendered bootstrap
+    load();
+  }, [load]);
 
   // ── Section A logic ───────────────────────────────────────────────────
   const activeShifts = useMemo(() => shifts.filter((s) => s.active), [shifts]);

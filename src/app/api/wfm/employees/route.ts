@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { wfmEmployeesPayload } from "@/lib/wfm/bootstrap";
 
 // The WFM view over the shared `employees` master-data table (see
 // 0062_wfm_module.sql — WFM extends it rather than owning a parallel one).
@@ -15,28 +16,11 @@ export async function GET() {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  const { supabase, tenantId } = ctx;
-
-  const [{ data: employees, error }, { data: memberships }] = await Promise.all([
-    supabase
-      .from("employees")
-      .select(
-        "id, employee_code, first_name, last_name, phone, status, employment_type, wfm_role, shift_id, site_id, supervisor_id, consent_recorded_at, wfm_shifts(name), wfm_sites(name)"
-      )
-      .eq("tenant_id", tenantId)
-      .order("employee_code"),
-    supabase
-      .from("tenant_users")
-      .select("employee_id, user_id")
-      .eq("tenant_id", tenantId)
-      .not("employee_id", "is", null),
-  ]);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const linked = new Set((memberships ?? []).map((m) => m.employee_id));
-  return NextResponse.json(
-    (employees ?? []).map((e) => ({ ...e, has_login: linked.has(e.id) }))
-  );
+  try {
+    return NextResponse.json(await wfmEmployeesPayload(ctx.supabase, ctx.tenantId));
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 }
 
 // POST /api/wfm/employees — create an employee record (supervisor/admin).

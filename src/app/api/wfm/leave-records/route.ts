@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { wfmLeaveRecordsPayload } from "@/lib/wfm/bootstrap";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -13,19 +14,13 @@ export async function GET(request: NextRequest) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  const { supabase, tenantId } = ctx;
-  const employeeId = request.nextUrl.searchParams.get("employee_id");
-
-  let query = supabase
-    .from("wfm_leave_records")
-    .select("id, employee_id, leave_type_id, date_from, date_to, half_day, remarks, created_at, employees(first_name, last_name, employee_code), wfm_leave_types(name, category)")
-    .eq("tenant_id", tenantId)
-    .order("date_from", { ascending: false });
-  if (employeeId) query = query.eq("employee_id", employeeId);
-
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  try {
+    return NextResponse.json(
+      await wfmLeaveRecordsPayload(ctx.supabase, ctx.tenantId, request.nextUrl.searchParams.get("employee_id"))
+    );
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 }
 
 // POST /api/wfm/leave-records — admin enters a leave record for an employee.

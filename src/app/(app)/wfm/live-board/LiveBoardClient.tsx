@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -52,7 +52,7 @@ type Row = {
   punches: number;
 };
 
-type Board = {
+export type Board = {
   date: string;
   timezone: string;
   is_week_off: boolean;
@@ -85,8 +85,12 @@ const inp: React.CSSProperties = {
   borderRadius: 8, background: c.panel, color: c.ink, outline: "none",
 };
 
-export default function LiveBoardClient() {
-  const [board, setBoard] = useState<Board | null>(null);
+export default function LiveBoardClient({ initialBoard = null, initialLanding = null }: {
+  initialBoard?: Board | null;
+  initialLanding?: "live_board" | "dashboard" | null;
+}) {
+  const [board, setBoard] = useState<Board | null>(initialBoard);
+  const serverSeeded = useRef(initialBoard != null);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [query, setQuery] = useState("");
@@ -107,14 +111,16 @@ export default function LiveBoardClient() {
   // Default-landing preference -- only meaningful for a WFM-restricted
   // supervisor (see (app)/layout.tsx), but harmless to show/set from
   // anywhere else too. null = role default (Live Board).
-  const [landing, setLanding] = useState<"live_board" | "dashboard" | null>(null);
+  const [landing, setLanding] = useState<"live_board" | "dashboard" | null>(initialLanding);
   const [landingBusy, setLandingBusy] = useState(false);
 
   useEffect(() => {
+    if (initialBoard) return; // server render already provided the preference
     fetch("/api/wfm/me/landing-preference")
       .then((r) => r.json())
       .then((json) => setLanding(json.landing ?? null))
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function setDefaultLanding(value: "live_board" | "dashboard") {
@@ -169,7 +175,14 @@ export default function LiveBoardClient() {
   }, []);
 
   useEffect(() => {
-    load();
+    if (serverSeeded.current) {
+      // First mount with a server-rendered board: skip the immediate
+      // refetch, keep the polling interval for freshness.
+      serverSeeded.current = false;
+      setUpdatedAt(new Date());
+    } else {
+      load();
+    }
     const t = setInterval(load, POLL_MS);
     return () => clearInterval(t);
   }, [load]);

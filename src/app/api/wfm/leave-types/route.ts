@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { wfmLeaveTypesPayload } from "@/lib/wfm/bootstrap";
 
 const CATEGORIES = ["paid", "unpaid", "half_day"];
 
@@ -13,16 +14,11 @@ export async function GET() {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  const { supabase, tenantId } = ctx;
-
-  const [{ data: types, error }, { data: quotas }] = await Promise.all([
-    supabase.from("wfm_leave_types").select("id, name, category, active").eq("tenant_id", tenantId).order("name"),
-    supabase.from("wfm_leave_quotas").select("leave_type_id, annual_quota").eq("tenant_id", tenantId).is("employee_id", null),
-  ]);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const quotaByType = new Map((quotas ?? []).map((q) => [q.leave_type_id, q.annual_quota]));
-  return NextResponse.json((types ?? []).map((t) => ({ ...t, annual_quota: quotaByType.get(t.id) ?? 0 })));
+  try {
+    return NextResponse.json(await wfmLeaveTypesPayload(ctx.supabase, ctx.tenantId));
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 }
 
 // POST /api/wfm/leave-types — create a leave type with its tenant-default quota.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c, statusInk } from "@/lib/theme";
@@ -94,20 +94,28 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "recheck", label: "Recheck" },
 ];
 
-export default function EmployeeHubClient({ employeeId }: { employeeId: string }) {
+export default function EmployeeHubClient({ employeeId, initialLists = null }: {
+  employeeId: string;
+  initialLists?: {
+    shifts: WfmShift[]; sites: WfmSite[]; supervisors: EmployeeOpt[];
+    upcoming: UpcomingRow[]; corrections: WfmCorrectionRequest[];
+    leaveRequests: WfmLeaveRequest[]; leaveRecords: LeaveRecordRow[]; recheck: WfmRecheckRequest[];
+  } | null;
+}) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
   const [month, setMonth] = useState(thisMonth());
 
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [shifts, setShifts] = useState<WfmShift[]>([]);
-  const [sites, setSites] = useState<WfmSite[]>([]);
-  const [supervisors, setSupervisors] = useState<EmployeeOpt[]>([]);
-  const [upcoming, setUpcoming] = useState<UpcomingRow[]>([]);
-  const [corrections, setCorrections] = useState<(WfmCorrectionRequest)[]>([]);
-  const [leaveRequests, setLeaveRequests] = useState<WfmLeaveRequest[]>([]);
-  const [leaveRecords, setLeaveRecords] = useState<LeaveRecordRow[]>([]);
-  const [recheck, setRecheck] = useState<WfmRecheckRequest[]>([]);
+  const [shifts, setShifts] = useState<WfmShift[]>(initialLists?.shifts ?? []);
+  const [sites, setSites] = useState<WfmSite[]>(initialLists?.sites ?? []);
+  const [supervisors, setSupervisors] = useState<EmployeeOpt[]>(initialLists?.supervisors ?? []);
+  const [upcoming, setUpcoming] = useState<UpcomingRow[]>(initialLists?.upcoming ?? []);
+  const [corrections, setCorrections] = useState<(WfmCorrectionRequest)[]>(initialLists?.corrections ?? []);
+  const [leaveRequests, setLeaveRequests] = useState<WfmLeaveRequest[]>(initialLists?.leaveRequests ?? []);
+  const [leaveRecords, setLeaveRecords] = useState<LeaveRecordRow[]>(initialLists?.leaveRecords ?? []);
+  const [recheck, setRecheck] = useState<WfmRecheckRequest[]>(initialLists?.recheck ?? []);
+  const serverSeeded = useRef(initialLists != null);
 
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -141,6 +149,15 @@ export default function EmployeeHubClient({ employeeId }: { employeeId: string }
   }, [employeeId]);
 
   const loadAll = useCallback(async () => {
+    if (serverSeeded.current) {
+      // Server render already provided the eight secondary lists -- only
+      // the core profile/timesheet still needs fetching on first mount.
+      // Any later loadAll() call (after a mutation) refetches everything.
+      serverSeeded.current = false;
+      await loadCore(month);
+      setLoading(false);
+      return;
+    }
     const today = todayKey();
     const rangeEnd = new Date();
     rangeEnd.setDate(rangeEnd.getDate() + 14);

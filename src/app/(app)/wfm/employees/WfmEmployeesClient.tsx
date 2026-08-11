@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -61,10 +61,13 @@ const emptyDraft = (): Draft => ({
   invite_email: "", invite_password: "",
 });
 
-export default function WfmEmployeesClient() {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [shifts, setShifts] = useState<WfmShift[]>([]);
-  const [sites, setSites] = useState<WfmSite[]>([]);
+export default function WfmEmployeesClient({ initial = null }: {
+  initial?: { rows: Row[]; shifts: WfmShift[]; sites: WfmSite[] } | null;
+}) {
+  const [rows, setRows] = useState<Row[]>(initial?.rows ?? []);
+  const [shifts, setShifts] = useState<WfmShift[]>(initial?.shifts ?? []);
+  const [sites, setSites] = useState<WfmSite[]>(initial?.sites ?? []);
+  const serverSeeded = useRef(initial != null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<string | null>(null); // "new" | employee id
@@ -84,7 +87,10 @@ export default function WfmEmployeesClient() {
     if (siteRes.ok) setSites(await siteRes.json());
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (serverSeeded.current) { serverSeeded.current = false; return; } // server-rendered bootstrap
+    load();
+  }, [load]);
 
   async function save() {
     if (editing === "new" && (!draft.employee_code.trim() || !draft.first_name.trim())) {
