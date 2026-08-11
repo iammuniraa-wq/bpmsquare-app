@@ -41,6 +41,7 @@ type ColDef = {
 
 const LS_KEY = "bms_quotes_cols";
 const TILES_LS_KEY = "bms_quotes_tiles";
+const INSIGHTS_LS_KEY = "bms_quotes_insights";
 
 // Summary tiles -- a lean default set (one row); the rest are opt-in via the
 // Columns/Adapt popover, same personalization model as table columns.
@@ -179,6 +180,66 @@ const td: React.CSSProperties = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+/** C4C-style column search: a small ⌕ on each header opens an inline
+ * popover that matches only that column (against its sort value). Active
+ * filters tint the icon; Escape/outside-click closes, ✕ clears. */
+function ColSearch({ id, label, colFilters, openId, setOpenId, setColFilter }: {
+  id: string; label: string;
+  colFilters: Record<string, string>;
+  openId: string | null;
+  setOpenId: (id: string | null) => void;
+  setColFilter: (id: string, term: string) => void;
+}) {
+  const active = !!colFilters[id];
+  const open = openId === id;
+  return (
+    <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-block" }}>
+      <button
+        type="button"
+        title={`Search in ${label}`}
+        onClick={() => setOpenId(open ? null : id)}
+        style={{
+          background: "none", border: "none", cursor: "pointer", padding: "0 2px",
+          marginLeft: 4, fontSize: 11, lineHeight: 1,
+          color: active || open ? c.accent : c.hint, opacity: active || open ? 1 : 0.55,
+        }}
+      >⌕</button>
+      {open && (
+        <>
+          <span onClick={() => setOpenId(null)} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
+          <span style={{
+            position: "absolute", left: 0, top: "calc(100% + 4px)", zIndex: 61,
+            display: "flex", alignItems: "center", gap: 4,
+            background: c.panel, border: `1px solid ${c.line}`, borderRadius: 8,
+            boxShadow: "0 6px 20px rgba(0,0,0,0.18)", padding: "6px 8px",
+          }}>
+            <input
+              autoFocus
+              value={colFilters[id] ?? ""}
+              onChange={(e) => setColFilter(id, e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setOpenId(null); }}
+              placeholder={`Search ${label}…`}
+              style={{
+                border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 8px",
+                fontSize: 12, color: c.ink, background: c.panel, outline: "none", width: 150,
+                fontWeight: 400, textTransform: "none", letterSpacing: "normal",
+              }}
+            />
+            {active && (
+              <button
+                type="button"
+                title="Clear"
+                onClick={() => { setColFilter(id, ""); setOpenId(null); }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: c.hint, fontSize: 12, padding: 2 }}
+              >✕</button>
+            )}
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
 export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QUOTE_STATUSES, caseLinkedQuoteIds = [] }: { initialRows: QuoteSummary[]; quoteStatuses?: QuoteStatusDef[]; caseLinkedQuoteIds?: string[] }) {
   const router = useRouter();
   const role = useUserRole();
@@ -222,6 +283,32 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
       if (stored) setVisibleTiles(new Set(JSON.parse(stored) as string[]));
     } catch { /* ignore */ }
   }, []);
+  // Insights container (tiles + advanced filters) -- collapsed by default,
+  // C4C-style: the list itself is the page; analytics/query tooling opens on
+  // demand and the choice sticks per browser.
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  useEffect(() => {
+    try { if (localStorage.getItem(INSIGHTS_LS_KEY) === "1") setInsightsOpen(true); } catch { /* ignore */ }
+  }, []);
+  function toggleInsights() {
+    setInsightsOpen((v) => {
+      try { localStorage.setItem(INSIGHTS_LS_KEY, v ? "0" : "1"); } catch { /* ignore */ }
+      return !v;
+    });
+  }
+
+  // C4C-style per-column search: click the ⌕ on a header, type, and only
+  // that column is matched (against the same value the column sorts by).
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [openColSearch, setOpenColSearch] = useState<string | null>(null);
+  function setColFilter(id: string, term: string) {
+    setColFilters((prev) => {
+      const next = { ...prev };
+      if (term) next[id] = term; else delete next[id];
+      return next;
+    });
+  }
+
   function toggleTile(id: string) {
     setVisibleTiles((prev) => {
       const next = new Set(prev);
@@ -334,9 +421,20 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
     for (const col of columns) map[col.id] = col.sortValue;
     return map;
   }, [columns]);
+  const colFiltered = useMemo(() => {
+    const entries = Object.entries(colFilters).filter(([, term]) => term.trim() !== "");
+    if (entries.length === 0) return searched;
+    return searched.filter((r) =>
+      entries.every(([colId, term]) => {
+        const ex = sortExtractors[colId];
+        if (!ex) return true;
+        return String(ex(r) ?? "").toLowerCase().includes(term.trim().toLowerCase());
+      })
+    );
+  }, [searched, colFilters, sortExtractors]);
   const filtered = useMemo(
-    () => sortRows(searched, sortKey, sortDir, sortExtractors),
-    [searched, sortKey, sortDir, sortExtractors]
+    () => sortRows(colFiltered, sortKey, sortDir, sortExtractors),
+    [colFiltered, sortKey, sortDir, sortExtractors]
   );
   // A filter/search change can shrink the result set below the current page
   // -- clamp rather than strand the user on a now-empty page.
@@ -442,6 +540,31 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
 
   return (
     <>
+      {/* Insights container: summary tiles + advanced filters, collapsed by
+          default so the page is header -> filters -> table. The badge keeps
+          an active advanced filter discoverable while collapsed. */}
+      <button
+        type="button"
+        onClick={toggleInsights}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 7, marginBottom: 12,
+          padding: "6px 12px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+          border: `1px solid ${insightsOpen || afConds.length > 0 ? `var(--modern-accent, ${c.accent})` : c.line}`,
+          background: "var(--panel)", color: insightsOpen || afConds.length > 0 ? `var(--modern-accent, ${c.accent})` : c.muted,
+        }}
+      >
+        ▦ Insights &amp; filters
+        {afConds.length > 0 && (
+          <span style={{
+            minWidth: 17, height: 17, borderRadius: 9, padding: "0 5px",
+            background: `var(--modern-accent, ${c.accent})`, color: "#fff",
+            fontSize: 10.5, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center",
+          }}>{afConds.length}</span>
+        )}
+        <span style={{ fontSize: 10, color: c.hint }}>{insightsOpen ? "▲" : "▼"}</span>
+      </button>
+
+      {insightsOpen && (<>
       {/* Summary strip -- modern themes get the same pillar-tinted tile
           treatment as the dashboard KPI tiles; classic keeps flat white. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 14 }}>
@@ -480,8 +603,10 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
         ))}
       </div>
 
-      {/* Filter bar */}
       <AdvancedFilterPanel object="quote" />
+      </>)}
+
+      {/* Filter bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <select
           value={filterStatus}
@@ -509,9 +634,9 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
           }}
         />
 
-        {(filterStatus || filterAccount) && (
+        {(filterStatus || filterAccount || Object.keys(colFilters).length > 0) && (
           <button
-            onClick={() => { setFilterStatus(""); setFilterAccount(""); }}
+            onClick={() => { setFilterStatus(""); setFilterAccount(""); setColFilters({}); }}
             style={{ fontSize: 12, color: c.hint, background: "none", border: "none", cursor: "pointer" }}
           >
             Clear ✕
@@ -660,14 +785,18 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
                     style={{ cursor: "pointer", accentColor: c.accent }}
                   />
                 </th>
-                <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("ref")}>Ref No{sortIndicator("ref")}</th>
+                <th style={{ ...th, cursor: "pointer", position: "relative" }} onClick={() => toggleSort("ref")}>
+                  Ref No{sortIndicator("ref")}
+                  <ColSearch id="ref" label="Ref No" colFilters={colFilters} openId={openColSearch} setOpenId={setOpenColSearch} setColFilter={setColFilter} />
+                </th>
                 {shownColumns.map((col) => (
                   <th
                     key={col.id}
-                    style={{ ...th, textAlign: col.align ?? "left", cursor: "pointer" }}
+                    style={{ ...th, textAlign: col.align ?? "left", cursor: "pointer", position: "relative" }}
                     onClick={() => toggleSort(col.id)}
                   >
                     {col.label}{sortIndicator(col.id)}
+                    <ColSearch id={col.id} label={col.label} colFilters={colFilters} openId={openColSearch} setOpenId={setOpenColSearch} setColFilter={setColFilter} />
                   </th>
                 ))}
               </tr>
