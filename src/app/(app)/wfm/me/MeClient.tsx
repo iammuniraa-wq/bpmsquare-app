@@ -94,6 +94,8 @@ type Geo = { lat: number; lng: number; accuracy_m: number } | null;
 type Tab = "home" | "time" | "timeline" | "leave" | "calendar" | "analytics";
 type TimeView = "daily" | "monthly";
 
+const LEAVE_INSIGHTS_LS_KEY = "bms_wfm_leave_insights";
+
 const TABS: { key: Tab; label: string }[] = [
   { key: "home", label: "Home" },
   { key: "time", label: "Time" },
@@ -205,6 +207,20 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [month, setMonth] = useState(thisMonth());
   const [dayFilter, setDayFilter] = useState<string | null>(null);
   const [leaveFilter, setLeaveFilter] = useState<string>("");
+  // Balance donut + per-type cards are an INSIGHT, not the point of the tab --
+  // they were pushing the actual requests (and "+ Request leave") below the
+  // fold. Collapsed by default, same toggle pattern as the object lists;
+  // the headline numbers stay on the collapsed row so nothing is really lost.
+  const [leaveInsightsOpen, setLeaveInsightsOpen] = useState(false);
+  useEffect(() => {
+    try { if (localStorage.getItem(LEAVE_INSIGHTS_LS_KEY) === "1") setLeaveInsightsOpen(true); } catch { /* ignore */ }
+  }, []);
+  function toggleLeaveInsights() {
+    setLeaveInsightsOpen((v) => {
+      try { localStorage.setItem(LEAVE_INSIGHTS_LS_KEY, v ? "0" : "1"); } catch { /* ignore */ }
+      return !v;
+    });
+  }
   const [holidayFilter, setHolidayFilter] = useState<"upcoming" | "all">("upcoming");
   const [holidayQuery, setHolidayQuery] = useState("");
   // Seeded from the page's server render when available (see
@@ -1013,22 +1029,63 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
 
       {tab === "leave" && (
         <>
-          {leaveMix.some((s) => s.value > 0) && (
-            <section style={{ ...cardStyle, marginBottom: 14 }}>
-              <Donut slices={leaveMix} title="Leave used this year" centerLabel="days" />
-            </section>
+          {/* Collapsed row: the balance headline stays readable at a glance,
+              so closing the panel costs nothing but the vertical space. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+            <button
+              type="button"
+              onClick={toggleLeaveInsights}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 7,
+                padding: "7px 12px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                border: `1px solid ${leaveInsightsOpen ? `var(--modern-accent, ${c.accent})` : c.line}`,
+                background: "var(--panel)", color: leaveInsightsOpen ? `var(--modern-accent, ${c.accent})` : c.muted,
+              }}
+            >
+              ▦ Leave balance
+              <span style={{ fontSize: 10, color: c.hint }}>{leaveInsightsOpen ? "▲" : "▼"}</span>
+            </button>
+
+            {!leaveInsightsOpen && leaveBalance.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", fontSize: 12, color: c.muted }}>
+                {leaveBalance.map((lb) => (
+                  <span key={lb.leave_type_id} style={{ display: "inline-flex", alignItems: "baseline", gap: 5 }}>
+                    <strong style={{ fontSize: 13.5, color: lb.balance <= 0 ? statusInk.bad : c.ink }}>{lb.balance}</strong>
+                    <span>{lb.name} left</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {leaveInsightsOpen && (
+            <>
+              {leaveMix.some((s) => s.value > 0) && (
+                <section style={{ ...cardStyle, marginBottom: 14 }}>
+                  <Donut slices={leaveMix} title="Leave used this year" centerLabel="days" />
+                </section>
+              )}
+
+              <div style={{ ...grid(200), marginBottom: 14 }}>
+                {leaveBalance.map((lb) => (
+                  <section key={lb.leave_type_id} style={cardStyle}>
+                    <div style={capStyle}>{lb.name}</div>
+                    <Stat value={String(lb.balance)} label={`of ${lb.quota} days left · ${lb.used} used`} tone={lb.balance <= 0 ? statusInk.bad : undefined} />
+                    <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{lb.category}</div>
+                  </section>
+                ))}
+              </div>
+            </>
           )}
 
-          <div style={{ ...grid(200), marginBottom: 14 }}>
-            {leaveBalance.length === 0 && <section style={cardStyle}><div style={{ fontSize: 12, color: c.hint }}>No leave types configured yet — ask your admin to set them up in Settings → Workforce → Leave Types.</div></section>}
-            {leaveBalance.map((lb) => (
-              <section key={lb.leave_type_id} style={cardStyle}>
-                <div style={capStyle}>{lb.name}</div>
-                <Stat value={String(lb.balance)} label={`of ${lb.quota} days left · ${lb.used} used`} tone={lb.balance <= 0 ? statusInk.bad : undefined} />
-                <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{lb.category}</div>
-              </section>
-            ))}
-          </div>
+          {/* The "no leave types configured" case is a blocker, not an
+              insight -- it stays visible whether or not the panel is open,
+              since it explains why + Request leave is disabled. */}
+          {leaveBalance.length === 0 && (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: c.hint }}>No leave types configured yet — ask your admin to set them up in Settings → Workforce → Leave Types.</div>
+            </section>
+          )}
 
           <section style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
