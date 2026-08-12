@@ -39,12 +39,15 @@ export async function firstFreeRef(
   tenantId: string,
   makeRef: (seq: number) => string,
   startSeq: number,
-  maxProbes = 200
+  maxProbes = 200,
+  /** Column holding the business id. Defaults to the master-data convention;
+   * employees carry theirs in `employee_code` instead. */
+  column = "ref"
 ): Promise<string> {
   let seq = startSeq;
   let ref = makeRef(seq);
   for (let i = 0; i < maxProbes; i++) {
-    const { data } = await supabase.from(table).select("id").eq("tenant_id", tenantId).eq("ref", ref).limit(1);
+    const { data } = await supabase.from(table).select("id").eq("tenant_id", tenantId).eq(column, ref).limit(1);
     if (!data || data.length === 0) return ref;
     const next = makeRef(++seq);
     if (next === ref) break;
