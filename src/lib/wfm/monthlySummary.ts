@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { getWfmConfig, dateKeyInTz } from "./server";
+import { makeShiftResolver, type RosterLike, type ShiftLike } from "./effectiveShift";
 import { computeDayHours, shiftDayKey, workSessions, overnightTail, type BreakSegment, type WorkSession } from "./hours";
 import type { PresenceKind } from "./types";
 
@@ -115,7 +116,7 @@ export async function getMonthlySummary(
     .eq("status", "active");
   if (employeeIds && employeeIds.length > 0) employeeQuery = employeeQuery.in("id", employeeIds);
 
-  const [{ data: employees }, { data: sites }, { data: shifts }, { data: holidays }, { data: leaves }, { data: otRows }] = await Promise.all([
+  const [{ data: employees }, { data: sites }, { data: shifts }, { data: holidays }, { data: leaves }, { data: otRows }, { data: rosterRows }] = await Promise.all([
     employeeQuery,
     admin.from("wfm_sites").select("id, name").eq("tenant_id", tenantId),
     admin.from("wfm_shifts").select("*").eq("tenant_id", tenantId),
@@ -134,12 +135,26 @@ export async function getMonthlySummary(
       .eq("tenant_id", tenantId)
       .gte("ot_date", dates[0])
       .lte("ot_date", dates[dates.length - 1]),
+    // Roster overrides the standing shift for the dates it covers. Read here
+    // for the first time by any rules path -- without it, someone rostered
+    // onto nights is measured against their day shift and marked late every
+    // single night.
+    admin.from("wfm_roster_assignments")
+      .select("employee_id, date, shift_id, is_day_off")
+      .eq("tenant_id", tenantId)
+      .gte("date", dates[0])
+      .lte("date", dates[dates.length - 1]),
   ]);
 
   const employeeRows = employees ?? [];
   if (employeeRows.length === 0) return [];
 
   const shiftById = new Map((shifts ?? []).map((s) => [s.id, s]));
+  const resolveShift = makeShiftResolver(
+    (rosterRows ?? []) as RosterLike[],
+    shiftById as Map<string, ShiftLike>,
+    new Map(employeeRows.map((e) => [e.id as string, (e.shift_id as string | null) ?? null]))
+  );
   const siteById = new Map((sites ?? []).map((s) => [s.id, s.name as string]));
 
   // Fetch presence events with 24h padding on each side of the month so
@@ -211,10 +226,15 @@ export async function getMonthlySummary(
   };
 
   return employeeRows.map((emp) => {
-    const shift = emp.shift_id ? shiftById.get(emp.shift_id) : null;
     const allEvents = eventsByEmp.get(emp.id) ?? [];
+    // Standing shift is still what buckets events into shift-days: a day's
+    // events have to be assigned to a day BEFORE that day's roster can be
+    // looked up, so using the rostered shift here would be circular.
+    const shift = emp.shift_id ? shiftById.get(emp.shift_id) : null;
 
     const days: EmployeeDayRecord[] = dates.map((date) => {
+      const effective = resolveShift(emp.id as string, date);
+      const dayShift = effective.shift;
       const dayEvents = allEvents.filter((e) => shiftDayKey(new Date(e.ts), config.timezone, shift) === date);
       // Work that runs past midnight closes in the NEXT day's bucket, so the
       // closing punch is pulled back here -- otherwise both days total zero
@@ -236,22 +256,22 @@ export async function getMonthlySummary(
 
       let late = false;
       let absent = false;
-      if (shift && !onLeave && !holiday && !isWeekOff) {
+      if (dayShift && !effective.isDayOff && !onLeave && !holiday && !isWeekOff) {
         // Compare local wall-clock time-of-day strings (minutes-of-day)
         // rather than doing UTC offset arithmetic -- avoids DST/offset
         // edge cases entirely.
         if (firstIn) {
           const inLocal = new Intl.DateTimeFormat("en-GB", { timeZone: config.timezone, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(firstIn.ts));
-          const [gh, gm] = shift.start_time.slice(0, 5).split(":").map(Number);
-          const graceMinutesOfDay = gh * 60 + gm + shift.grace_minutes;
+          const [gh, gm] = dayShift.start_time.slice(0, 5).split(":").map(Number);
+          const graceMinutesOfDay = gh * 60 + gm + dayShift.grace_minutes;
           const [ih, im] = inLocal.split(":").map(Number);
           late = ih * 60 + im > graceMinutesOfDay;
         } else if (date < todayKey) {
           absent = true;
         } else if (date === todayKey) {
           const nowLocal = new Intl.DateTimeFormat("en-GB", { timeZone: config.timezone, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
-          const [gh, gm] = shift.start_time.slice(0, 5).split(":").map(Number);
-          const graceMinutesOfDay = gh * 60 + gm + shift.grace_minutes;
+          const [gh, gm] = dayShift.start_time.slice(0, 5).split(":").map(Number);
+          const graceMinutesOfDay = gh * 60 + gm + dayShift.grace_minutes;
           const [nh, nm] = nowLocal.split(":").map(Number);
           absent = nh * 60 + nm > graceMinutesOfDay;
         }
@@ -273,9 +293,9 @@ export async function getMonthlySummary(
         incomplete,
         on_leave: onLeave,
         holiday: holiday?.name ?? null,
-        is_night_shift: shift?.is_night_shift ?? false,
-        night_allowance_amount: shift?.night_allowance_amount ?? 0,
-        is_week_off: isWeekOff,
+        is_night_shift: dayShift?.is_night_shift ?? false,
+        night_allowance_amount: dayShift?.night_allowance_amount ?? 0,
+        is_week_off: isWeekOff || effective.isDayOff,
         punches: dayEvents.length,
         ot_minutes: otByEmpDay.get(`${emp.id}|${date}`)?.approved ?? 0,
         ot_pending_minutes: otByEmpDay.get(`${emp.id}|${date}`)?.pending ?? 0,
