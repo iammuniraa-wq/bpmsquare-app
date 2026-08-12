@@ -14,8 +14,11 @@ export type WfmSite = {
    * Null = nobody can approve for this site — the Sites screen warns about it
    * rather than silently escalating to a tenant admin. */
   supervisor_id?: string | null;
-  /** Joined by wfmSitesPayload for display only. */
-  employees?: { first_name: string; last_name: string; employee_code: string | null } | null;
+  /** Joined by wfmSitesPayload for display only. Aliased away from the table
+   * name because employees<->wfm_sites now has TWO foreign keys between them
+   * (employees.site_id and wfm_sites.supervisor_id), so every embed across
+   * that pair must name which one it means. */
+  supervisor?: { first_name: string; last_name: string; employee_code: string | null } | null;
 };
 
 export type WfmShift = {

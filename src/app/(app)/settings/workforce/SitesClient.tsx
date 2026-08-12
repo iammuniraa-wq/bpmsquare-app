@@ -292,11 +292,11 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
               <tr key={s.id}>
                 <td style={{ ...td, fontWeight: 600, color: c.ink }}>{s.name}</td>
                 <td style={td}>
-                  {s.employees ? (
+                  {s.supervisor ? (
                     <span style={{ color: c.ink }}>
-                      {personName(s.employees)}
-                      {s.employees.employee_code && (
-                        <span style={{ color: c.hint, fontSize: 11.5 }}> · {s.employees.employee_code}</span>
+                      {personName(s.supervisor)}
+                      {s.supervisor.employee_code && (
+                        <span style={{ color: c.hint, fontSize: 11.5 }}> · {s.supervisor.employee_code}</span>
                       )}
                     </span>
                   ) : (

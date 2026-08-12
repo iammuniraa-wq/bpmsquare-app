@@ -26,7 +26,7 @@ export async function wfmEmployeesPayload(supabase: SupabaseClient, tenantId: st
     supabase
       .from("employees")
       .select(
-        "id, employee_code, first_name, last_name, phone, status, employment_type, wfm_role, shift_id, site_id, supervisor_id, consent_recorded_at, wfm_shifts(name), wfm_sites(name)"
+        "id, employee_code, first_name, last_name, phone, status, employment_type, wfm_role, shift_id, site_id, supervisor_id, consent_recorded_at, wfm_shifts(name), wfm_sites!site_id(name)"
       )
       .eq("tenant_id", tenantId)
       .order("employee_code"),
@@ -58,7 +58,7 @@ export async function wfmSitesPayload(supabase: SupabaseClient, tenantId: string
   return orThrow(
     await supabase
       .from("wfm_sites")
-      .select("id, name, lat, lng, radius_m, active, created_at, supervisor_id, employees:supervisor_id(first_name, last_name, employee_code)")
+      .select("id, name, lat, lng, radius_m, active, created_at, supervisor_id, supervisor:employees!supervisor_id(first_name, last_name, employee_code)")
       .eq("tenant_id", tenantId)
       .order("name")
   );
