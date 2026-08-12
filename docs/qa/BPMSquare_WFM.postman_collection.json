@@ -1,0 +1,4333 @@
+{
+  "info": {
+    "_postman_id": "b7f3c1d2-9a44-4c31-8e77-wfm00000001",
+    "name": "BPMSquare \u00b7 Workforce Management (WFM) API",
+    "description": "Complete WFM API surface for QA \u2014 functional, negative and stress testing.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nSETUP (do this once)\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n1. Import the companion environment file and fill in:\n     baseUrl            https://<tenant-host>            <- tenant is resolved FROM THE HOSTNAME\n     supabaseUrl        https://<project>.supabase.co\n     supabaseAnonKey    the public anon key\n     employeeEmail / employeePassword\n     supervisorEmail / supervisorPassword\n     adminEmail / adminPassword\n     otherEmployeeId    a second employee's UUID (for the cross-user 403 cases)\n     cronSecret         only if testing 11.x\n\n2. Run \"0.x \u00b7 Sign in\" for the persona you want, then ALWAYS run \"0.4 \u00b7 Establish app session\".\n   Confirm with \"0.5 \u00b7 Who am I\".\n\n\u26a0 TENANT IS RESOLVED FROM THE HOSTNAME, not from a header or a body field. Testing a different\ntenant means changing baseUrl to that tenant's host \u2014 there is no tenant switch, and no request\nfield will ever override it. Any endpoint that appears to accept a tenant id is a bug worth\nreporting immediately.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nTHE THREE PERSONAS \u2014 this drives most of the test matrix\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nEMPLOYEE    punches, sees ONLY their own data, files corrections/leave, responds to rechecks.\nSUPERVISOR  everything above + the live board, everyone's presence, the monthly summary, and\n            approval of OT / corrections / leave. (employees.wfm_role = 'supervisor', OR a tenant\n            admin, OR granted via a Business Role.)\nADMIN       everything above + configuration: shifts, sites, holidays, leave types, and\n            Settings -> Workforce. A supervisor who is NOT an admin gets 403 on all of those.\n\nFolder 12 exists to prove those boundaries hold server-side. Each request there says which\npersona to be signed in as \u2014 the UI hides these actions, so the API is the real gate.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nSUGGESTED RUN ORDER\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n0 (admin) -> 9 (create shift/site/leave type) -> 0 (employee) -> 1 (punch cycle incl. OT)\n  -> 2 -> 4/5 (file) -> 0 (supervisor) -> 3/4/5 (approve) -> 6/7/8/10 -> 12 (negatives)\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nSTRESS TESTING \u2014 where the load actually lands\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nRead-heavy, in descending cost:\n  GET /api/wfm/summary?month=      recomputes EVERY employee's month. The heaviest call.\n  GET /api/wfm/summary/export      same, plus xlsx generation. Heaviest response body.\n  GET /api/wfm/live-board          polled ~every 30s per open supervisor screen \u2014 the highest\n                                   sustained request rate in normal use.\n  GET /api/wfm/presence            first call per employee-day is slower: it mints signed selfie\n                                   URLs and lazily reverse-geocodes. Measure cold AND warm.\n  GET /api/wfm/me/timesheet        per-employee month; the fan-out case is many employees at once.\n\nWrite-heavy:\n  POST /api/wfm/punch              the burst case is real: a whole shift punching in within a few\n                                   minutes of each other. Each punch does a state read, a config\n                                   read, an insert, and a running-total recompute.\n  POST /api/wfm/roster             up to 3000 upserted rows in ONE call.\n  PATCH /api/wfm/employees/bulk-*  up to 500 rows per call.\n\nConcurrency cases worth deliberately racing:\n  * Two punches for the SAME employee submitted simultaneously \u2014 state is read then written, so\n    this is the interesting race. Correct behaviour: one succeeds, the other 409s or is absorbed\n    as a duplicate. Two events that both land would be a real finding.\n  * The same punch id replayed N times in parallel (offline sync) \u2014 must yield exactly one event.\n  * Two supervisors approving the SAME OT session at once \u2014 exactly one should win, the other 409.\n\nTooling: `newman run` for functional regression; k6/JMeter for load. For load, sign in ONCE and\nreuse the cookie rather than re-authenticating per virtual user \u2014 Supabase Auth applies its own\nproject-level rate limits and you will measure those instead of the app.\n\nNote: the app has NO application-level rate limiting on these routes. If a test saturates it,\nthat is a capacity finding, not a bug \u2014 report the numbers rather than a pass/fail.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0 \u00b7 Auth & session",
+      "description": "Sign in as a persona, then establish the app session cookies. Re-run 0.x + 0.4 every time you switch persona.",
+      "item": [
+        {
+          "name": "0.1 \u00b7 Sign in \u2014 EMPLOYEE",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "apikey",
+                "value": "{{supabaseAnonKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{supabaseUrl}}/auth/v1/token?grant_type=password",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "v1",
+                "token"
+              ],
+              "query": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{employeeEmail}}\",\n  \"password\": \"{{employeePassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Plain employee (employees.wfm_role = 'employee'). Use for punch, own timesheet, own corrections/leave, and every 403 negative case in folder 12."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "pm.test('signed in', () => pm.expect(b.access_token, 'no access_token \u2014 check credentials / supabaseUrl / anonKey').to.be.a('string'));",
+                  "pm.collectionVariables.set('accessToken', b.access_token);",
+                  "pm.collectionVariables.set('refreshToken', b.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.2 \u00b7 Sign in \u2014 SUPERVISOR",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "apikey",
+                "value": "{{supabaseAnonKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{supabaseUrl}}/auth/v1/token?grant_type=password",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "v1",
+                "token"
+              ],
+              "query": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{supervisorEmail}}\",\n  \"password\": \"{{supervisorPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "employees.wfm_role = 'supervisor'. Approves OT / corrections / leave, sees the live board, monthly summary and everyone's presence."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "pm.test('signed in', () => pm.expect(b.access_token, 'no access_token \u2014 check credentials / supabaseUrl / anonKey').to.be.a('string'));",
+                  "pm.collectionVariables.set('accessToken', b.access_token);",
+                  "pm.collectionVariables.set('refreshToken', b.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.3 \u00b7 Sign in \u2014 TENANT ADMIN",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "apikey",
+                "value": "{{supabaseAnonKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{supabaseUrl}}/auth/v1/token?grant_type=password",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "v1",
+                "token"
+              ],
+              "query": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "tenant_users.role = 'admin'. Required for shifts, sites, holidays, leave types and Settings -> Workforce. An admin is also implicitly a supervisor."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "pm.test('signed in', () => pm.expect(b.access_token, 'no access_token \u2014 check credentials / supabaseUrl / anonKey').to.be.a('string'));",
+                  "pm.collectionVariables.set('accessToken', b.access_token);",
+                  "pm.collectionVariables.set('refreshToken', b.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.4 \u00b7 Establish app session (sets cookies)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "session"
+              ]
+            },
+            "description": "Hands the Supabase tokens to the app, which sets the sb-* session cookies. RUN THIS AFTER EVERY SIGN-IN \u2014 switching persona means re-running 0.x then 0.4.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"access_token\": \"{{accessToken}}\",\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "// From here on every request authenticates via the sb-* cookies Postman just stored.",
+                  "// If later calls 401/404: Settings -> General -> 'Automatically follow redirects' ON,",
+                  "// and make sure the cookie jar is enabled for the baseUrl domain."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.5 \u00b7 Who am I / bootstrap",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/me/state",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "me",
+                "state"
+              ]
+            },
+            "description": "Fastest way to confirm which persona the cookie jar is currently holding: returns employee identity, is_supervisor, current punch state and the enabled punch types."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "if (b.employee) { pm.collectionVariables.set('employeeId', b.employee.id); }",
+                  "console.log('persona:', b.employee && b.employee.full_name, '| supervisor:', b.is_supervisor, '| state:', b.state);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1 \u00b7 Punch (employee)",
+      "description": "The write path: consent, the full punch cycle, OT, mobile work, business trip, and the selfie attachment.",
+      "item": [
+        {
+          "name": "1.0 \u00b7 Record DPDP consent (once per employee)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/consent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "consent"
+              ]
+            },
+            "description": "Punching is blocked with 403 until this is stamped. Set-once and idempotent."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.1 \u00b7 Punch \u2014 CHECK IN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "Records ONE presence event. The write path everything else in WFM hangs off.\n\nRules the server enforces (all return an error, never a silent accept):\n* `id` MUST be a client-generated UUID. Re-sending the same id is an idempotent no-op\n  (`{ok:true, duplicate:true}`) \u2014 that is how the offline queue retries safely.\n* `kind` must be legal FROM THE CURRENT STATE. State machine:\n    out   -> check_in | mobile_work_start | business_trip_start | ot_in\n    in    -> break_start | check_out | mobile_work_end | business_trip_end\n    break -> break_end | check_out | mobile_work_end | business_trip_end\n    ot    -> ot_out\n  Anything else is 409. Note there is NO path from `in`/`break` into `ot` \u2014 that is the\n  structural implementation of the client's \"no OT between check-in and check-out\".\n* `ts` is optional (defaults to now). Accepted window: 7 days in the past, 5 minutes in\n  the future. It must also be strictly LATER than your previous punch.\n* `geo` is optional. Whether being outside a geofence blocks the punch depends on\n  Settings -> Workforce -> geofence_mode (block / flag / off).\n* Optional punch types (ot, mobile_work, business_trip) 403 unless enabled for the tenant.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"check_in\",\n  \"ts\": \"{{$isoTimestamp}}\",\n  \"geo\": {\n    \"lat\": 17.4435,\n    \"lng\": 78.3772,\n    \"accuracy_m\": 12\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"state is 'in'\", () => pm.expect(b.state).to.eql('in'));",
+                  "pm.collectionVariables.set('lastEventId', b.event.id);",
+                  "pm.collectionVariables.set('checkInEventId', b.event.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.2 \u00b7 Punch \u2014 BREAK START",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "kind = break_start",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"break_start\",\n  \"geo\": {\n    \"lat\": 17.4435,\n    \"lng\": 78.3772,\n    \"accuracy_m\": 12\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('state advanced', () => pm.expect(b.state).to.be.a('string'));",
+                  "if (b.event) pm.collectionVariables.set('lastEventId', b.event.id);",
+                  "console.log('state ->', b.state, '| running minutes:', b.running_minutes);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.3 \u00b7 Punch \u2014 BREAK END",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "kind = break_end",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"break_end\",\n  \"geo\": {\n    \"lat\": 17.4435,\n    \"lng\": 78.3772,\n    \"accuracy_m\": 12\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('state advanced', () => pm.expect(b.state).to.be.a('string'));",
+                  "if (b.event) pm.collectionVariables.set('lastEventId', b.event.id);",
+                  "console.log('state ->', b.state, '| running minutes:', b.running_minutes);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.4 \u00b7 Punch \u2014 CHECK OUT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "Closes the working session. Must happen BEFORE any OT punch \u2014 the client's rule.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"check_out\",\n  \"geo\": {\n    \"lat\": 17.4435,\n    \"lng\": 78.3772,\n    \"accuracy_m\": 12\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('state advanced', () => pm.expect(b.state).to.be.a('string'));",
+                  "if (b.event) pm.collectionVariables.set('lastEventId', b.event.id);",
+                  "console.log('state ->', b.state, '| running minutes:', b.running_minutes);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.5 \u00b7 Punch \u2014 OT IN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "Only legal from state `out`. Requires punch_types.ot enabled (else 403).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"ot_in\",\n  \"geo\": {\n    \"lat\": 17.4435,\n    \"lng\": 78.3772,\n    \"accuracy_m\": 12\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('state advanced', () => pm.expect(b.state).to.be.a('string'));",
+                  "if (b.event) pm.collectionVariables.set('lastEventId', b.event.id);",
+                  "console.log('state ->', b.state, '| running minutes:', b.running_minutes);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.6 \u00b7 Punch \u2014 OT OUT (creates the payable OT session)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "kind = ot_out",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"ot_out\",\n  \"geo\": {\n    \"lat\": 17.4435,\n    \"lng\": 78.3772,\n    \"accuracy_m\": 12\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"state back to 'out'\", () => pm.expect(b.state).to.eql('out'));",
+                  "// A wfm_ot_sessions row (status=pending) now exists. Fetch it in folder 3."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.7 \u00b7 Punch \u2014 MOBILE WORK START",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "Ordinary working time under a different label \u2014 the hours engine treats it exactly like check_in. Requires punch_types.mobile_work.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"mobile_work_start\",\n  \"geo\": {\n    \"lat\": 17.4435,\n    \"lng\": 78.3772,\n    \"accuracy_m\": 12\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('state advanced', () => pm.expect(b.state).to.be.a('string'));",
+                  "if (b.event) pm.collectionVariables.set('lastEventId', b.event.id);",
+                  "console.log('state ->', b.state, '| running minutes:', b.running_minutes);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.8 \u00b7 Punch \u2014 MOBILE WORK END",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "kind = mobile_work_end",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"mobile_work_end\",\n  \"geo\": {\n    \"lat\": 17.4435,\n    \"lng\": 78.3772,\n    \"accuracy_m\": 12\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('state advanced', () => pm.expect(b.state).to.be.a('string'));",
+                  "if (b.event) pm.collectionVariables.set('lastEventId', b.event.id);",
+                  "console.log('state ->', b.state, '| running minutes:', b.running_minutes);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.9 \u00b7 Punch \u2014 BUSINESS TRIP START",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "Requires punch_types.business_trip.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"business_trip_start\",\n  \"geo\": {\n    \"lat\": 17.4435,\n    \"lng\": 78.3772,\n    \"accuracy_m\": 12\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('state advanced', () => pm.expect(b.state).to.be.a('string'));",
+                  "if (b.event) pm.collectionVariables.set('lastEventId', b.event.id);",
+                  "console.log('state ->', b.state, '| running minutes:', b.running_minutes);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.10 \u00b7 Punch \u2014 BUSINESS TRIP END",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "kind = business_trip_end",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"business_trip_end\",\n  \"geo\": {\n    \"lat\": 17.4435,\n    \"lng\": 78.3772,\n    \"accuracy_m\": 12\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('state advanced', () => pm.expect(b.state).to.be.a('string'));",
+                  "if (b.event) pm.collectionVariables.set('lastEventId', b.event.id);",
+                  "console.log('state ->', b.state, '| running minutes:', b.running_minutes);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.11 \u00b7 Attach selfie to a punch (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch/selfie",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch",
+                "selfie"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "event_id",
+                  "value": "{{lastEventId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "JPEG/PNG/WebP only, max 2 MB. Pick a local file in Postman."
+                }
+              ]
+            },
+            "description": "Runs AFTER the punch so a slow upload never blocks it. Set-once per event, only your own event, only within 48h of the punch. Stored in a PRIVATE bucket \u2014 it is never publicly addressable; reads go through a 5-minute signed URL (see 10.2). QA: attach a >2 MB file and a .svg to confirm both 400."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 \u00b7 My Workforce (employee self-service)",
+      "description": "Own state, timesheet, analytics and preferences. None of these accept another employee's id.",
+      "item": [
+        {
+          "name": "2.1 \u00b7 My punch state / bootstrap",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/me/state",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "me",
+                "state"
+              ]
+            },
+            "description": "Everything the punch screen needs in one call: identity, current state, today's events, running minutes, home site, shift, upcoming 14-day roster, pending rechecks, enabled punch types."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.2 \u00b7 My monthly timesheet",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/me/timesheet?month={{month}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "me",
+                "timesheet"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "{{month}}",
+                  "description": "YYYY-MM. Omit for the current month in the tenant timezone."
+                }
+              ]
+            },
+            "description": "Own month only \u2014 an employee can never pass someone else's id here. Includes per-day OT minutes/segments and the annual leave balance."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.3 \u00b7 My analytics (6-month trend)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/me/analytics?month={{month}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "me",
+                "analytics"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "{{month}}",
+                  "description": "YYYY-MM, defaults to current"
+                }
+              ]
+            },
+            "description": "Own trend always; `team` averages are returned ONLY if the caller is a supervisor. QA: as a plain employee, assert `team` is null."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.4 \u00b7 Get my WFM landing preference",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/me/landing-preference",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "me",
+                "landing-preference"
+              ]
+            },
+            "description": "null = role-based default (Live Board for a supervisor)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.5 \u00b7 Set my WFM landing preference",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/me/landing-preference",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "me",
+                "landing-preference"
+              ]
+            },
+            "description": "'live_board' | 'dashboard' | null. Always the caller's own row \u2014 no user id is accepted.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"landing\": \"live_board\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 \u00b7 Overtime",
+      "description": "OT sessions are created automatically by an ot_out punch and stay PENDING until a supervisor approves. Only approved OT reaches pay.",
+      "item": [
+        {
+          "name": "3.1 \u00b7 List OT sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/ot-sessions?",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "ot-sessions"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "pending | approved | rejected",
+                  "disabled": true
+                },
+                {
+                  "key": "employee_id",
+                  "value": "{{employeeId}}",
+                  "description": "supervisor only; ignored for an employee",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Supervisor sees the whole tenant queue (with employee names joined); a plain employee sees only their own rows \u2014 the employee_id param is ignored for them, not honoured."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json();",
+                  "pm.test('is an array', () => pm.expect(rows).to.be.an('array'));",
+                  "const pending = rows.find(r => r.status === 'pending');",
+                  "if (pending) { pm.collectionVariables.set('otSessionId', pending.id);",
+                  "  console.log('OT', pending.ot_date, pending.minutes, 'min ->', pending.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.2 \u00b7 APPROVE an OT session (supervisor)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/ot-sessions/{{otSessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "ot-sessions",
+                "{{otSessionId}}"
+              ]
+            },
+            "description": "THE PAY GATE. Only approved sessions count toward ot_minutes / ot_amount in the monthly summary and the CA export. Already-resolved sessions return 409 (no double-approve).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\",\n  \"supervisor_remark\": \"Verified against the production log\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.3 \u00b7 REJECT an OT session (supervisor)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/ot-sessions/{{otSessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "ot-sessions",
+                "{{otSessionId}}"
+              ]
+            },
+            "description": "supervisor_remark is MANDATORY on reject (400 without it) and optional on approve.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"reject\",\n  \"supervisor_remark\": \"Not authorised in advance\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 \u00b7 Corrections (employee files, supervisor approves)",
+      "description": "Append-only: approving inserts a new event and supersedes the old one.",
+      "item": [
+        {
+          "name": "4.1 \u00b7 List corrections",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/corrections?",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "corrections"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "pending | approved | rejected",
+                  "disabled": true
+                },
+                {
+                  "key": "employee_id",
+                  "value": "{{employeeId}}",
+                  "description": "supervisor only",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Supervisor sees the tenant queue; an employee sees only their own."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json();",
+                  "const p = rows.find(r => r.status === 'pending');",
+                  "if (p) pm.collectionVariables.set('correctionId', p.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.2 \u00b7 File a correction \u2014 missing check-out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/corrections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "corrections"
+              ]
+            },
+            "description": "issue \u2208 missing_check_in | missing_check_out | wrong_time | other.\nproposed_ts is REQUIRED for missing_check_in / missing_check_out.\nThis NEVER edits attendance \u2014 filing a request changes nothing until a supervisor approves.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_date\": \"{{today}}\",\n  \"issue\": \"missing_check_out\",\n  \"proposed_ts\": \"{{$isoTimestamp}}\",\n  \"reason_text\": \"Phone battery died before I could punch out\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('correctionId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.3 \u00b7 File a correction \u2014 wrong time on a specific punch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/corrections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "corrections"
+              ]
+            },
+            "description": "target_event_id is verified to belong to the caller \u2014 someone else's event id returns 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_date\": \"{{today}}\",\n  \"issue\": \"wrong_time\",\n  \"target_event_id\": \"{{checkInEventId}}\",\n  \"proposed_ts\": \"{{$isoTimestamp}}\",\n  \"reason_text\": \"Punched 20 minutes after I actually arrived\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.4 \u00b7 APPROVE a correction (supervisor)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/corrections/{{correctionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "corrections",
+                "{{correctionId}}"
+              ]
+            },
+            "description": "Append-only by design: approval INSERTS a new source='correction' event and stamps superseded_by on the old one. The original row is never edited or deleted.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\",\n  \"supervisor_remark\": \"Confirmed with the site register\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.5 \u00b7 REJECT a correction (supervisor)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/corrections/{{correctionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "corrections",
+                "{{correctionId}}"
+              ]
+            },
+            "description": "supervisor_remark mandatory on reject.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"reject\",\n  \"supervisor_remark\": \"No supporting evidence\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 \u00b7 Leave",
+      "description": "Request/approve flow, plus the supervisor's direct-entry ledger.",
+      "item": [
+        {
+          "name": "5.1 \u00b7 List leave requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-requests?",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-requests"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "pending | approved | rejected",
+                  "disabled": true
+                },
+                {
+                  "key": "employee_id",
+                  "value": "{{employeeId}}",
+                  "description": "supervisor only",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Supervisor sees the tenant queue; an employee sees only their own."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json().find(r => r.status === 'pending');",
+                  "if (p) pm.collectionVariables.set('leaveRequestId', p.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.2 \u00b7 Apply for leave (employee)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-requests"
+              ]
+            },
+            "description": "leave_type_id must be an ACTIVE type in this tenant (400 otherwise). date_to < date_from is 400. half_day is only meaningful when from == to. Writes nothing to wfm_leave_records \u2014 approval does that.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type_id\": \"{{leaveTypeId}}\",\n  \"date_from\": \"2026-09-14\",\n  \"date_to\": \"2026-09-16\",\n  \"half_day\": false,\n  \"reason_text\": \"Family function\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('leaveRequestId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.3 \u00b7 APPROVE leave (supervisor)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-requests/{{leaveRequestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-requests",
+                "{{leaveRequestId}}"
+              ]
+            },
+            "description": "Approval INSERTS a wfm_leave_records row \u2014 that record, not the request, is what moves the leave balance and the monthly summary.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\",\n  \"supervisor_remark\": \"Approved, cover arranged\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.4 \u00b7 REJECT leave (supervisor)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-requests/{{leaveRequestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-requests",
+                "{{leaveRequestId}}"
+              ]
+            },
+            "description": "supervisor_remark mandatory.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"reject\",\n  \"supervisor_remark\": \"Peak season \\u2014 please re-plan\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.5 \u00b7 List leave records (admin entry)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-records?",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-records"
+              ],
+              "query": [
+                {
+                  "key": "employee_id",
+                  "value": "{{employeeId}}",
+                  "description": "optional filter",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "The approved/absolute leave ledger, supervisor-only."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.6 \u00b7 Enter leave directly (supervisor bypass)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-records",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-records"
+              ]
+            },
+            "description": "Supervisor records leave without a request/approval round-trip. Both employee_id and leave_type_id are tenant-verified before the insert.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_id\": \"{{employeeId}}\",\n  \"leave_type_id\": \"{{leaveTypeId}}\",\n  \"date_from\": \"2026-09-20\",\n  \"date_to\": \"2026-09-20\",\n  \"half_day\": true,\n  \"remarks\": \"Back-dated, phoned in\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('leaveRecordId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.7 \u00b7 Delete a leave record",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-records/{{leaveRecordId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-records",
+                "{{leaveRecordId}}"
+              ]
+            },
+            "description": "Supervisor only."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6 \u00b7 Rechecks (supervisor flags, employee responds)",
+      "description": "The reverse of a correction.",
+      "item": [
+        {
+          "name": "6.1 \u00b7 List rechecks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/recheck-requests?",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "recheck-requests"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "pending | responded | resolved | dismissed",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "The reverse direction of a correction: a supervisor flags a punch and the employee answers."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json().find(r => r.status === 'pending');",
+                  "if (p) pm.collectionVariables.set('recheckId', p.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6.2 \u00b7 Flag a punch for recheck (supervisor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/recheck-requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "recheck-requests"
+              ]
+            },
+            "description": "recheck_type \u2208 time | selfie | both (defaults to both). Omit target_event_id to flag the whole day. Both employee_id and target_event_id are tenant-verified.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_id\": \"{{employeeId}}\",\n  \"target_date\": \"{{today}}\",\n  \"target_event_id\": null,\n  \"recheck_type\": \"both\",\n  \"message\": \"Your selfie is too dark to identify \\u2014 please recheck\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('recheckId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6.3 \u00b7 Respond to a recheck (the flagged employee)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/recheck-requests/{{recheckId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "recheck-requests",
+                "{{recheckId}}"
+              ]
+            },
+            "description": "Only the flagged employee may 'respond' (403 for anyone else, including a supervisor).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"respond\",\n  \"employee_response_text\": \"I was at the north gate, the light was poor\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6.4 \u00b7 Resolve / dismiss a recheck (supervisor)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/recheck-requests/{{recheckId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "recheck-requests",
+                "{{recheckId}}"
+              ]
+            },
+            "description": "action \u2208 resolve | dismiss, supervisor only. Never edits attendance itself \u2014 the employee still files a real correction for an actual fix.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"resolve\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7 \u00b7 Roster",
+      "description": "Date-range reads and bulk assignment with hard server-side caps.",
+      "item": [
+        {
+          "name": "7.1 \u00b7 Get roster slice",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/roster?from=2026-09-01&to=2026-09-30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "roster"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-09-01",
+                  "description": "YYYY-MM-DD, required"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-09-30",
+                  "description": "YYYY-MM-DD, required"
+                },
+                {
+                  "key": "employee_id",
+                  "value": "{{employeeId}}",
+                  "description": "supervisor only",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "A plain employee ALWAYS gets only their own rows regardless of employee_id."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json();",
+                  "if (rows.length) pm.collectionVariables.set('rosterId', rows[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7.2 \u00b7 Bulk-assign roster (supervisor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/roster",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "roster"
+              ]
+            },
+            "description": "Upserts on (tenant, employee, date) \u2014 re-assigning a date overwrites it.\nCaps QA should push against: 500 employees, 62 dates, and 3000 employee\u00d7date combinations per call. shift_id is required unless is_day_off is true. Every employee id must resolve inside the tenant or the WHOLE call 400s (deliberately loud, not a partial apply).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_ids\": [\n    \"{{employeeId}}\"\n  ],\n  \"dates\": [\n    \"2026-09-01\",\n    \"2026-09-02\",\n    \"2026-09-03\"\n  ],\n  \"shift_id\": \"{{shiftId}}\",\n  \"site_id\": null,\n  \"is_day_off\": false,\n  \"note\": \"Festival coverage\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7.3 \u00b7 Clear one roster override",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/roster/{{rosterId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "roster",
+                "{{rosterId}}"
+              ]
+            },
+            "description": "Reverts that employee/date to their standing shift."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8 \u00b7 Employees (supervisor/admin)",
+      "description": "Master data, the employee hub, login provisioning and bulk assignment.",
+      "item": [
+        {
+          "name": "8.1 \u00b7 List employees (supervisor)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/employees",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "employees"
+              ]
+            },
+            "description": "WFM fields + shift/site names + login status."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "const list = Array.isArray(b) ? b : (b.employees || []);",
+                  "if (list.length) pm.collectionVariables.set('employeeId', list[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.2 \u00b7 Employee hub (one employee)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/employees/{{employeeId}}?",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "employees",
+                "{{employeeId}}"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "{{month}}",
+                  "description": "YYYY-MM for the attendance totals",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Identity, site/shift/supervisor, direct reports, month totals, leave balance."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.3 \u00b7 Create an employee (supervisor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/employees",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "employees"
+              ]
+            },
+            "description": "employment_type is validated against the TENANT's configured list (Settings -> Workforce), not a hardcoded enum. Duplicate employee_code returns 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_code\": \"QA-{{$randomInt}}\",\n  \"first_name\": \"Test\",\n  \"last_name\": \"Employee\",\n  \"phone\": \"+91 90000 00000\",\n  \"employment_type\": \"full_time\",\n  \"shift_id\": null,\n  \"site_id\": null,\n  \"wfm_role\": \"employee\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('newEmployeeId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.4 \u00b7 Update an employee",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/employees/{{employeeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "employees",
+                "{{employeeId}}"
+              ]
+            },
+            "description": "Every foreign id (shift, site, supervisor) is tenant-verified. Self-supervision is explicitly rejected. Send null to clear a link.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Test\",\n  \"last_name\": \"Employee-Renamed\",\n  \"phone\": \"+91 90000 00001\",\n  \"employment_type\": \"full_time\",\n  \"wfm_role\": \"employee\",\n  \"status\": \"active\",\n  \"shift_id\": \"{{shiftId}}\",\n  \"site_id\": \"{{siteId}}\",\n  \"supervisor_id\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.5 \u00b7 Give an employee a login",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/employees/{{employeeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "employees",
+                "{{employeeId}}"
+              ]
+            },
+            "description": "Admin-set initial password (no magic link / email confirmation by product decision). Password must be \u22658 chars. 409 if the employee already has a login, or if that login is already bound to a different employee. The user is forced to change it at first sign-in.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invite_email\": \"qa.employee@example.com\",\n  \"initial_password\": \"ChangeMe#2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.6 \u00b7 Bulk set standing SHIFT",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/employees/bulk-shift",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "employees",
+                "bulk-shift"
+              ]
+            },
+            "description": "Max 500 ids. Pass shift_id: null to clear. Any id outside the tenant 400s the whole call.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_ids\": [\n    \"{{employeeId}}\"\n  ],\n  \"shift_id\": \"{{shiftId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.7 \u00b7 Bulk set home SITE",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/employees/bulk-site",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "employees",
+                "bulk-site"
+              ]
+            },
+            "description": "Same shape and caps as bulk-shift.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_ids\": [\n    \"{{employeeId}}\"\n  ],\n  \"site_id\": \"{{siteId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "9 \u00b7 Configuration (admin only)",
+      "description": "Shifts, sites, holidays, leave types and the tenant workforce settings. A non-admin supervisor gets 403 on every write here.",
+      "item": [
+        {
+          "name": "9.1 \u00b7 List shifts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/shifts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "shifts"
+              ]
+            },
+            "description": "Supervisor+."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "const list = Array.isArray(b) ? b : (b.shifts || []);",
+                  "if (list.length) pm.collectionVariables.set('shiftId', list[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.2 \u00b7 Create a shift (ADMIN only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/shifts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "shifts"
+              ]
+            },
+            "description": "HH:MM or HH:MM:SS, 24-hour. A shift whose end_time is <= start_time is a crosses-midnight shift and drives shift-day attribution for night workers. Supervisors who are not admins get 403 here.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"2nd Shift\",\n  \"start_time\": \"14:00\",\n  \"end_time\": \"23:00\",\n  \"grace_minutes\": 15,\n  \"is_night_shift\": false,\n  \"night_allowance_amount\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('shiftId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.3 \u00b7 Update a shift (ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/shifts/{{shiftId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "shifts",
+                "{{shiftId}}"
+              ]
+            },
+            "description": "Partial patch; 400 if the body has no recognised field.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"2nd Shift\",\n  \"grace_minutes\": 10,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.4 \u00b7 List sites",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/sites",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "sites"
+              ]
+            },
+            "description": "Supervisor+."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "const list = Array.isArray(b) ? b : (b.sites || []);",
+                  "if (list.length) pm.collectionVariables.set('siteId', list[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.5 \u00b7 Create a site (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/sites",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "sites"
+              ]
+            },
+            "description": "lat/lng must be real numbers in range; radius_m is the geofence.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hyderabad Plant\",\n  \"lat\": 17.4435,\n  \"lng\": 78.3772,\n  \"radius_m\": 150\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('siteId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.6 \u00b7 Update a site (ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/sites/{{siteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "sites",
+                "{{siteId}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hyderabad Plant\",\n  \"radius_m\": 200,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.7 \u00b7 List holidays",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/holidays?year=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "holidays"
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2026",
+                  "description": "optional"
+                }
+              ]
+            },
+            "description": "Readable by any WFM user."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.8 \u00b7 Create a holiday (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/holidays",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "holidays"
+              ]
+            },
+            "description": "applies_to = 'all' or an employment-type code. Duplicate date+audience is 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-10-02\",\n  \"name\": \"Gandhi Jayanti\",\n  \"applies_to\": \"all\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('holidayId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.9 \u00b7 Delete a holiday (ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/holidays/{{holidayId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "holidays",
+                "{{holidayId}}"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.10 \u00b7 List leave types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-types"
+              ]
+            },
+            "description": "Run this before folder 5 so leaveTypeId is populated."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "const list = Array.isArray(b) ? b : (b.leave_types || b.types || []);",
+                  "if (list.length) pm.collectionVariables.set('leaveTypeId', list[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.11 \u00b7 Create a leave type (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-types"
+              ]
+            },
+            "description": "category \u2208 paid | unpaid | half_day. annual_quota creates the tenant-default quota row.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Casual Leave\",\n  \"category\": \"paid\",\n  \"annual_quota\": 12\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json(); if (b.id) pm.collectionVariables.set('leaveTypeId', b.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.12 \u00b7 Update a leave type (ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-types/{{leaveTypeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-types",
+                "{{leaveTypeId}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Casual Leave\",\n  \"active\": true,\n  \"annual_quota\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.13 \u00b7 Get workforce settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/workforce",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "workforce"
+              ]
+            },
+            "description": "403 if the tenant doesn't have the wfm feature flag."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.14 \u00b7 Update workforce settings (ADMIN)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/workforce",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "workforce"
+              ]
+            },
+            "description": "Partial merge \u2014 only recognised, well-typed keys are applied; anything invalid is silently ignored rather than 400ing, so QA must GET after PUT to confirm what actually landed.\nNotable validation: employment_type CODES must match ^[a-z0-9_]{1,40}$, the list can never be saved empty, codes are de-duplicated, and a code must never be renamed once employees reference it. geofence_mode \u2208 block|flag|off. ot_rate_per_hour must be a finite number \u2265 0.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timezone\": \"Asia/Kolkata\",\n  \"deduct_breaks\": true,\n  \"late_marks_per_half_day\": 3,\n  \"leave_carry_forward\": false,\n  \"selfie_retention_days\": 90,\n  \"face_verification_mode\": \"flag_only\",\n  \"week_off_days\": [\n    0\n  ],\n  \"geofence_mode\": \"flag\",\n  \"ot_rate_per_hour\": 150,\n  \"punch_types\": {\n    \"ot\": true,\n    \"mobile_work\": false,\n    \"business_trip\": false\n  },\n  \"employment_types\": [\n    {\n      \"code\": \"full_time\",\n      \"label\": \"Full Time\"\n    },\n    {\n      \"code\": \"contractor\",\n      \"label\": \"Contractor\"\n    },\n    {\n      \"code\": \"intern\",\n      \"label\": \"Intern\"\n    }\n  ],\n  \"notifications\": {\n    \"late_arrival\": true,\n    \"correction_pending\": true,\n    \"leave_pending\": true,\n    \"recheck_flagged\": true\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10 \u00b7 Supervisor views",
+      "description": "Live board, presence audit, monthly summary and the Excel export \u2014 the main read-load targets.",
+      "item": [
+        {
+          "name": "10.1 \u00b7 Live board",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/live-board",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "live-board"
+              ]
+            },
+            "description": "Today's attendance for every employee: state, first-in/last-out, late/absent, geofence flags. The UI polls this about every 30s \u2014 the main sustained-read target for stress testing."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10.2 \u00b7 Presence detail (punches + selfies + geo)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/presence?employee_id={{employeeId}}&date={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "presence"
+              ],
+              "query": [
+                {
+                  "key": "employee_id",
+                  "value": "{{employeeId}}",
+                  "description": "omit for your own"
+                },
+                {
+                  "key": "date",
+                  "value": "{{today}}",
+                  "description": "YYYY-MM-DD shift-day"
+                }
+              ]
+            },
+            "description": "The audit view. Mints a 5-minute signed URL per selfie (private bucket) and lazily reverse-geocodes any punch that has coordinates but no cached address \u2014 so the FIRST call for a given day is materially slower than repeats. Worth measuring both.\nAccess: your own always; anyone else's only as supervisor (403 otherwise)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10.3 \u00b7 Monthly summary (all employees)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/summary?month={{month}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "{{month}}",
+                  "description": "YYYY-MM, required"
+                }
+              ]
+            },
+            "description": "The CA-facing monthly aggregate incl. OT minutes and OT amount. Heaviest read in the module \u2014 it recomputes every employee's month. Primary stress-test target."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10.4 \u00b7 Monthly summary \u2014 Excel export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/summary/export?month={{month}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "summary",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "{{month}}",
+                  "description": "YYYY-MM, required"
+                }
+              ]
+            },
+            "description": "Returns an .xlsx binary, one sheet per configured employment type plus an 'Other' catch-all. Heaviest single response in WFM."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('is a spreadsheet', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('spreadsheet'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10.5 \u00b7 Forward geocode (site picker)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/geocode?address=Gachibowli Hyderabad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "geocode"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "Gachibowli Hyderabad",
+                  "description": "free text"
+                }
+              ]
+            },
+            "description": "Supervisor+. Proxies an external maps provider server-side so the API key never reaches the client. 404 when nothing matches, 503 when the provider is unavailable \u2014 QA should treat 503 as a provider issue, not an app bug."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11 \u00b7 Platform / cron",
+      "description": "Bearer-authenticated, not session-authenticated.",
+      "item": [
+        {
+          "name": "11.1 \u00b7 Retention purge (cron)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cronSecret}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/cron/retention",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "cron",
+                "retention"
+              ]
+            },
+            "description": "Daily Vercel cron. Purges punch SELFIES older than the tenant's selfie_retention_days \u2014 the presence events themselves are kept forever, and enrollment photos are NOT touched. Runs across every wfm-enabled tenant. Authenticated by the CRON_SECRET bearer, not a session.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11.2 \u00b7 Retention purge WITHOUT the secret (must 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/cron/retention",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "cron",
+                "retention"
+              ]
+            },
+            "description": "Negative control for the only unauthenticated-by-session route in WFM.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// No bearer token \u2014 must never execute a purge.",
+                  "pm.test('rejected with 401', () => pm.response.to.have.status(401));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "12 \u00b7 Negative & abuse cases  \u2605 run these",
+      "description": "Every one of these MUST fail. They encode the business rules and the role boundaries \u2014 a 200 here is a real defect. Each request notes which persona to be signed in as.",
+      "item": [
+        {
+          "name": "12.1 \u00b7 Punch with a non-UUID id \u2192 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"not-a-uuid\",\n  \"kind\": \"check_in\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// id must be a client-generated UUID.",
+                  "pm.test('rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.2 \u00b7 Punch with an unknown kind \u2192 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"teleport_in\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// kind must be one of the 10 known kinds.",
+                  "pm.test('rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.3 \u00b7 Punch dated 30 days ago \u2192 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"check_in\",\n  \"ts\": \"2026-07-01T09:00:00.000Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Backdating is capped at 7 days; the future at 5 minutes.",
+                  "pm.test('rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.4 \u00b7 Punch dated in the far future \u2192 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"check_in\",\n  \"ts\": \"2027-01-01T09:00:00.000Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Guards against a wrong device clock.",
+                  "pm.test('rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.5 \u00b7 Double CHECK IN \u2192 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"check_in\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Run 1.1 first. State is already 'in' \u2014 the transition is illegal.",
+                  "pm.test('rejected with 409', () => pm.response.to.have.status(409));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.6 \u00b7 OT IN while checked in \u2192 409  \u2605 the client's core rule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"kind\": \"ot_in\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// THE headline business rule: OT can happen any time, but NEVER between check-in and",
+                  "// check-out. There is no transition from `in`/`break` into `ot` at all, so this can only",
+                  "// ever fail. Run 1.1 (check in) first, then this.",
+                  "pm.test('rejected with 409', () => pm.response.to.have.status(409));",
+                  "pm.test('names the blocking state', () => pm.expect(pm.response.json().state).to.be.oneOf(['in','break']));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.7 \u00b7 Replay the SAME punch id \u2192 200 duplicate (not a double punch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/punch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "punch"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{lastEventId}}\",\n  \"kind\": \"check_in\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Offline-sync retry. Must be an idempotent no-op, NOT a second event.",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('flagged duplicate', () => pm.expect(pm.response.json().duplicate).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.8 \u00b7 Employee approves their OWN overtime \u2192 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/ot-sessions/{{otSessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "ot-sessions",
+                "{{otSessionId}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Run signed in as the EMPLOYEE. Approval is the pay gate \u2014 supervisors only.",
+                  "pm.test('rejected with 403', () => pm.response.to.have.status(403));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.9 \u00b7 Employee approves their own correction \u2192 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/corrections/{{correctionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "corrections",
+                "{{correctionId}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Run as the EMPLOYEE.",
+                  "pm.test('rejected with 403', () => pm.response.to.have.status(403));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.10 \u00b7 Employee approves their own leave \u2192 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-requests/{{leaveRequestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-requests",
+                "{{leaveRequestId}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Run as the EMPLOYEE.",
+                  "pm.test('rejected with 403', () => pm.response.to.have.status(403));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.11 \u00b7 Employee opens the live board \u2192 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/live-board",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "live-board"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Run as the EMPLOYEE. Supervisor-only surface.",
+                  "pm.test('rejected with 403', () => pm.response.to.have.status(403));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.12 \u00b7 Employee pulls the whole-tenant summary \u2192 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/summary?month={{month}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "{{month}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Run as the EMPLOYEE. Would otherwise expose every colleague's hours.",
+                  "pm.test('rejected with 403', () => pm.response.to.have.status(403));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.13 \u00b7 Employee reads a COLLEAGUE's presence \u2192 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/presence?employee_id={{otherEmployeeId}}&date={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "presence"
+              ],
+              "query": [
+                {
+                  "key": "employee_id",
+                  "value": "{{otherEmployeeId}}",
+                  "description": "someone who is not the caller"
+                },
+                {
+                  "key": "date",
+                  "value": "{{today}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Run as the EMPLOYEE with otherEmployeeId set to a different person. Selfies and GPS coordinates are DPDP-sensitive.",
+                  "pm.test('rejected with 403', () => pm.response.to.have.status(403));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.14 \u00b7 Non-admin supervisor creates a shift \u2192 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/shifts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "shifts"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sneaky Shift\",\n  \"start_time\": \"00:00\",\n  \"end_time\": \"08:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Run as a SUPERVISOR who is not a tenant admin. Shift/site/holiday/leave-type config is admin-only even though the queues are supervisor-visible.",
+                  "pm.test('rejected with 403', () => pm.response.to.have.status(403));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.15 \u00b7 Reject without a remark \u2192 400",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/ot-sessions/{{otSessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "ot-sessions",
+                "{{otSessionId}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"reject\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// A rejection must always carry a reason; approval need not.",
+                  "pm.test('rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.16 \u00b7 Approve an already-resolved OT session \u2192 409",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/ot-sessions/{{otSessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "ot-sessions",
+                "{{otSessionId}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Run 3.2 first. No double-approval, so OT can't be paid twice.",
+                  "pm.test('rejected with 409', () => pm.response.to.have.status(409));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.17 \u00b7 Leave with date_to before date_from \u2192 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-requests"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type_id\": \"{{leaveTypeId}}\",\n  \"date_from\": \"2026-09-20\",\n  \"date_to\": \"2026-09-10\",\n  \"reason_text\": \"Reversed range\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Inverted ranges are refused.",
+                  "pm.test('rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.18 \u00b7 Leave with an unknown leave_type_id \u2192 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/leave-requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "leave-requests"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type_id\": \"00000000-0000-4000-8000-000000000000\",\n  \"date_from\": \"2026-09-20\",\n  \"date_to\": \"2026-09-20\",\n  \"reason_text\": \"Bogus type\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Foreign ids are tenant-verified before use \u2014 a cross-tenant id behaves exactly like a nonexistent one.",
+                  "pm.test('rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.19 \u00b7 Roster with 4000 employee\u00d7date combinations \u2192 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/roster",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "roster"
+              ]
+            },
+            "description": "Edit the body in Postman to exceed the caps: >500 employee_ids, >62 dates, or >3000 combinations. Each has its own distinct 400 message.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_ids\": [\n    \"{{employeeId}}\"\n  ],\n  \"dates\": [\n    \"2026-09-01\"\n  ],\n  \"shift_id\": \"{{shiftId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Bulk caps are enforced server-side, not just in the UI.",
+                  "pm.test('rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.20 \u00b7 Timesheet with a malformed month \u2192 400",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/me/timesheet?month=2026-13",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "me",
+                "timesheet"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "2026-13",
+                  "description": "invalid month"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// month must match YYYY-MM.",
+                  "pm.test('rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.21 \u00b7 Correction for someone else's event \u2192 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/corrections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "corrections"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_date\": \"{{today}}\",\n  \"issue\": \"wrong_time\",\n  \"target_event_id\": \"00000000-0000-4000-8000-000000000000\",\n  \"proposed_ts\": \"{{$isoTimestamp}}\",\n  \"reason_text\": \"Trying to alter an event I don't own\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// target_event_id is checked against tenant AND caller's employee id.",
+                  "pm.test('rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has an error message', () => pm.expect(pm.response.json()).to.have.property('error'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12.22 \u00b7 Any WFM call with no session \u2192 401/404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wfm/me/state",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wfm",
+                "me",
+                "state"
+              ]
+            },
+            "description": "Clear the Postman cookie jar first (Cookies -> delete the baseUrl domain).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Unauthenticated. The app deliberately answers 404 rather than 401 on some WFM paths",
+                  "// so the module's existence isn't advertised to a signed-out caller.",
+                  "pm.test('not authorised', () => pm.expect(pm.response.code).to.be.oneOf([401, 403, 404, 302]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "employeeId",
+      "value": ""
+    },
+    {
+      "key": "newEmployeeId",
+      "value": ""
+    },
+    {
+      "key": "lastEventId",
+      "value": ""
+    },
+    {
+      "key": "checkInEventId",
+      "value": ""
+    },
+    {
+      "key": "otSessionId",
+      "value": ""
+    },
+    {
+      "key": "correctionId",
+      "value": ""
+    },
+    {
+      "key": "leaveRequestId",
+      "value": ""
+    },
+    {
+      "key": "leaveRecordId",
+      "value": ""
+    },
+    {
+      "key": "leaveTypeId",
+      "value": ""
+    },
+    {
+      "key": "recheckId",
+      "value": ""
+    },
+    {
+      "key": "rosterId",
+      "value": ""
+    },
+    {
+      "key": "shiftId",
+      "value": ""
+    },
+    {
+      "key": "siteId",
+      "value": ""
+    },
+    {
+      "key": "holidayId",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Convenience variables used across the collection.",
+          "const now = new Date();",
+          "const pad = (n) => String(n).padStart(2, '0');",
+          "pm.collectionVariables.set('today', `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`);",
+          "pm.collectionVariables.set('month', `${now.getFullYear()}-${pad(now.getMonth()+1)}`);"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global guard: an HTML body means the request was redirected to the login page,",
+          "// i.e. the session cookie is missing or stale -- re-run folder 0.",
+          "const ct = pm.response.headers.get('Content-Type') || '';",
+          "if (ct.includes('text/html')) {",
+          "  console.warn('Got HTML instead of JSON -- session likely expired. Re-run 0.x sign-in + 0.4.');",
+          "}"
+        ]
+      }
+    }
+  ]
+}
