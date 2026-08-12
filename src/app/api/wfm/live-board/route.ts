@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireWfmSupervisor, getWfmLiveBoardSnapshot } from "@/lib/wfm/server";
+import { resolveWfmScope } from "@/lib/wfm/scope";
 
 // GET /api/wfm/live-board — today's attendance per employee: state,
 // first-in/last-out, late and absent computation, geofence flags.
@@ -8,8 +9,11 @@ import { requireWfmSupervisor, getWfmLiveBoardSnapshot } from "@/lib/wfm/server"
 // getWfmLiveBoardSnapshot (lib/wfm/server.ts) so the two never drift.
 export async function GET() {
   try {
-    const { tenantId } = await requireWfmSupervisor();
-    return NextResponse.json(await getWfmLiveBoardSnapshot(tenantId));
+    const ctx = await requireWfmSupervisor();
+    const scope = await resolveWfmScope(ctx);
+    return NextResponse.json(
+      await getWfmLiveBoardSnapshot(ctx.tenantId, scope.unrestricted ? null : scope.employeeIds)
+    );
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });

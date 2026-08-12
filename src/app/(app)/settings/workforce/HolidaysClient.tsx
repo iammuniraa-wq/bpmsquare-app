@@ -69,7 +69,13 @@ export default function HolidaysClient() {
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
         <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Holiday calendar</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Holiday calendar</div>
+            <div style={{ fontSize: 12, color: c.muted, marginTop: 3, maxWidth: 620 }}>
+              Days nobody is marked late or absent, and which show on every employee&apos;s leave
+              calendar. Apply one to everybody, or to a single employment type.
+            </div>
+          </div>
           <input style={{ ...inp, width: 200 }} placeholder="Search holiday…" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>

@@ -52,10 +52,13 @@ export async function wfmShiftsPayload(supabase: SupabaseClient, tenantId: strin
 }
 
 export async function wfmSitesPayload(supabase: SupabaseClient, tenantId: string) {
+  // The supervisor's name is joined in so the Sites screen can show WHO runs
+  // each site without a second round-trip and without the client having to
+  // resolve ids against the employee list itself.
   return orThrow(
     await supabase
       .from("wfm_sites")
-      .select("id, name, lat, lng, radius_m, active, created_at")
+      .select("id, name, lat, lng, radius_m, active, created_at, supervisor_id, employees:supervisor_id(first_name, last_name, employee_code)")
       .eq("tenant_id", tenantId)
       .order("name")
   );

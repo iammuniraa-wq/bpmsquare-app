@@ -52,7 +52,14 @@ export default function LeaveTypesClient() {
     <>
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Leave types</div>
+        <div style={{ padding: "12px 12px 10px", borderBottom: `1px solid ${c.line}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Leave types</div>
+          <div style={{ fontSize: 12, color: c.muted, marginTop: 3, maxWidth: 780 }}>
+            What people can request time off as. The <strong>quota</strong> is how many days a year each
+            employee gets. Deactivate a type you no longer offer rather than deleting it — past records
+            still refer to it.
+          </div>
+        </div>
         <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><th style={th}>Name</th><th style={th}>Category</th><th style={th}>Default annual quota</th><th style={th}>Status</th></tr></thead>
           <tbody>
@@ -64,7 +71,14 @@ export default function LeaveTypesClient() {
                 <td style={td}><Pill label={t.active ? "Active" : "Inactive"} tone={t.active ? "green" : "red"} /></td>
               </tr>
             ))}
-            {types.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>No leave types yet.</td></tr>}
+            {types.length === 0 && (
+              <tr>
+                <td style={{ ...td, color: c.hint }} colSpan={4}>
+                  No leave types yet. Until one exists, the Request leave button stays disabled for
+                  every employee.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
         <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>

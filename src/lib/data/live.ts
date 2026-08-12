@@ -4,7 +4,8 @@ import { createAdminSupabase, resolveViewerTenantId, getAuthUser } from "@/lib/s
 import { decryptAccount, decryptContact, decrypt } from "@/lib/encryption";
 import { getAccountNews, type AccountNewsItem } from "@/lib/data/news";
 import { getTenant } from "@/lib/tenant";
-import { getWfmLiveBoardSnapshot } from "@/lib/wfm/server";
+import { getWfmLiveBoardSnapshot, requireWfm } from "@/lib/wfm/server";
+import { resolveWfmScope } from "@/lib/wfm/scope";
 import type { CompanyInfo } from "@/lib/tenant";
 import { DEFAULT_QUOTE_STATUSES, ROUTES } from "@/lib/constants";
 import type { TenantConfig } from "@/lib/constants";
@@ -1745,6 +1746,16 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
 
   if (tenant?.features?.wfm) {
     const yearStart = `${new Date().getUTCFullYear()}-01-01`;
+
+    // Analytics obeys the same reporting tree as every other WFM surface: a
+    // site supervisor's charts cover their own site, a manager's cover their
+    // whole subtree, a tenant admin's cover everything. Without this the
+    // widgets silently re-exposed the tenant-wide numbers that the queues,
+    // live board and summary now scope away.
+    const wfmScope = await resolveWfmScope(await requireWfm());
+    const scopedIds = wfmScope.unrestricted ? null : (wfmScope.employeeIds ?? []);
+    const scopedSiteIds = wfmScope.unrestricted ? null : wfmScope.siteIds;
+
     const [
       snapshot,
       { data: correctionRows },
@@ -1755,13 +1766,25 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       { data: leaveRecordRows },
       { data: leaveTypes },
     ] = await Promise.all([
-      getWfmLiveBoardSnapshot(tenantId),
-      supabase.from("wfm_correction_requests").select("status").eq("tenant_id", tenantId),
-      supabase.from("wfm_leave_requests").select("status").eq("tenant_id", tenantId),
-      supabase.from("wfm_recheck_requests").select("status").eq("tenant_id", tenantId),
-      supabase.from("employees").select("id, site_id, wfm_role, employment_type").eq("tenant_id", tenantId).eq("status", "active"),
-      supabase.from("wfm_sites").select("id, name").eq("tenant_id", tenantId),
-      supabase.from("wfm_leave_records").select("date_from, date_to, half_day, leave_type_id").eq("tenant_id", tenantId).gte("date_from", yearStart),
+      getWfmLiveBoardSnapshot(tenantId, scopedIds),
+      scopedIds
+        ? supabase.from("wfm_correction_requests").select("status").eq("tenant_id", tenantId).in("employee_id", scopedIds)
+        : supabase.from("wfm_correction_requests").select("status").eq("tenant_id", tenantId),
+      scopedIds
+        ? supabase.from("wfm_leave_requests").select("status").eq("tenant_id", tenantId).in("employee_id", scopedIds)
+        : supabase.from("wfm_leave_requests").select("status").eq("tenant_id", tenantId),
+      scopedIds
+        ? supabase.from("wfm_recheck_requests").select("status").eq("tenant_id", tenantId).in("employee_id", scopedIds)
+        : supabase.from("wfm_recheck_requests").select("status").eq("tenant_id", tenantId),
+      scopedIds
+        ? supabase.from("employees").select("id, site_id, wfm_role, employment_type").eq("tenant_id", tenantId).eq("status", "active").in("id", scopedIds)
+        : supabase.from("employees").select("id, site_id, wfm_role, employment_type").eq("tenant_id", tenantId).eq("status", "active"),
+      scopedSiteIds
+        ? supabase.from("wfm_sites").select("id, name").eq("tenant_id", tenantId).in("id", scopedSiteIds)
+        : supabase.from("wfm_sites").select("id, name").eq("tenant_id", tenantId),
+      scopedIds
+        ? supabase.from("wfm_leave_records").select("date_from, date_to, half_day, leave_type_id").eq("tenant_id", tenantId).gte("date_from", yearStart).in("employee_id", scopedIds)
+        : supabase.from("wfm_leave_records").select("date_from, date_to, half_day, leave_type_id").eq("tenant_id", tenantId).gte("date_from", yearStart),
       supabase.from("wfm_leave_types").select("id, name").eq("tenant_id", tenantId),
     ]);
 
