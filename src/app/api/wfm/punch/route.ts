@@ -237,10 +237,35 @@ export async function POST(request: NextRequest) {
   if (
     config.notifications.late_arrival &&
     kind === "check_in" &&
-    shift &&
     todays.filter((e) => e.kind === "check_in").length === 1
   ) {
-    const graceEnd = zonedTimestamp(todayKey, shift.start_time, config.timezone).getTime() + shift.grace_minutes * 60 * 1000;
+    // Lateness is judged against the shift the employee was ROSTERED to for
+    // this day, falling back to their standing one. Judging it against the
+    // standing shift alone emailed the supervisor "late arrival" every night
+    // for anyone rostered onto nights -- on time, by twelve hours.
+    const { data: rosterToday } = await admin
+      .from("wfm_roster_assignments")
+      .select("shift_id, is_day_off")
+      .eq("tenant_id", tenantId)
+      .eq("employee_id", employee.id)
+      .eq("date", todayKey)
+      .maybeSingle();
+
+    let expected: { name: string; start_time: string; grace_minutes: number } | null = shift ?? null;
+    if (rosterToday?.is_day_off) {
+      expected = null; // rostered off: arriving at all can't be "late"
+    } else if (rosterToday?.shift_id) {
+      const { data: rosteredShift } = await admin
+        .from("wfm_shifts")
+        .select("name, start_time, grace_minutes")
+        .eq("id", rosterToday.shift_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (rosteredShift) expected = rosteredShift;
+    }
+
+    if (expected) {
+    const graceEnd = zonedTimestamp(todayKey, expected.start_time, config.timezone).getTime() + expected.grace_minutes * 60 * 1000;
     if (tsDate.getTime() > graceEnd) {
       const empName = [employee.first_name, employee.last_name].filter(Boolean).join(" ");
       getSupervisorEmails(admin, tenantId, employee.id).then((emails) =>
@@ -249,12 +274,13 @@ export async function POST(request: NextRequest) {
           tenantId,
           toEmails: emails,
           subject: `Late arrival — ${empName}`,
-          text: `${empName} checked in late on ${todayKey} (shift ${shift.name}, starts ${shift.start_time.slice(0, 5)}).\n\nView the live board: ${wfmUrl(ROUTES.wfmLiveBoard)}`,
+          text: `${empName} checked in late on ${todayKey} (shift ${expected.name}, starts ${expected.start_time.slice(0, 5)}).\n\nView the live board: ${wfmUrl(ROUTES.wfmLiveBoard)}`,
           relatedObjectType: "wfm_presence_events",
           relatedObjectId: event.id,
           relatedObjectLabel: `${empName} — ${todayKey}`,
         })
       ).catch(() => {});
+    }
     }
   }
 

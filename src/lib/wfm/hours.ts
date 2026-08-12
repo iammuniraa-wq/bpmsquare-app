@@ -123,6 +123,52 @@ export function computeDayHours(events: Ev[], endRef: Date): DayHours {
 }
 
 /**
+ * The punch that closes a session still open at the end of `dayEvents`, when
+ * it lands in the NEXT shift-day's bucket.
+ *
+ * Without this, an employee who checks in at 22:00 and out at 02:00 is paid
+ * nothing at all: the two punches fall in different shift-days, so day one
+ * holds a lone check_in (a session opened and closed at the same instant = 0
+ * minutes) and day two holds a lone check_out (no session open, ignored).
+ * Four hours worked, zero recorded, and the day flagged incomplete. It only
+ * bites when the shift ISN'T marked crosses_midnight -- for those, shiftDayKey
+ * already keeps both punches on the start day.
+ *
+ * Deliberately narrow: the very next event only, only if it ENDS a session,
+ * and only within `maxHours`. A check-out forgotten until the following week
+ * must stay an incomplete day for a supervisor to correct -- silently paying
+ * it would be worse than reporting nothing.
+ */
+export function overnightTail(dayEvents: Ev[], allEvents: Ev[], maxHours = 18): Ev[] {
+  if (dayEvents.length === 0) return [];
+
+  const sessions = workSessions(dayEvents, new Date(dayEvents[dayEvents.length - 1].ts));
+  const openSession = sessions[sessions.length - 1];
+  if (!openSession || openSession.out !== null) return [];
+
+  const idx = allEvents.indexOf(dayEvents[dayEvents.length - 1]);
+  if (idx < 0) return [];
+
+  const openedAt = new Date(openSession.in).getTime();
+  const tail: Ev[] = [];
+
+  // Walk forward to the punch that ends the session. Everything between is
+  // part of it -- a break that itself straddles midnight puts break_end in
+  // the next bucket too, so stopping at the first event would miss the
+  // check-out sitting behind it.
+  for (let i = idx + 1; i < allEvents.length; i++) {
+    const e = allEvents[i];
+    if (isSessionStart(e.kind)) return []; // a new session began; the old one was abandoned
+    const spanMs = new Date(e.ts).getTime() - openedAt;
+    if (spanMs <= 0 || spanMs > maxHours * 3600_000) return [];
+    tail.push(e);
+    if (isSessionEnd(e.kind)) return tail;
+  }
+
+  return []; // never closed
+}
+
+/**
  * Every break the employee booked that day, in order, across all sessions —
  * the detail behind computeDayHours' single `break_minutes` figure, for a
  * timesheet that has to show each one. Derived from workSessions so the

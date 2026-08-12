@@ -8,6 +8,7 @@ import { DEFAULT_WFM_CONFIG, ROUTES, type TenantConfig, type WfmConfig } from "@
 import type { WfmEmployee, PresenceKind, PunchState } from "./types";
 import { deriveState } from "./types";
 import { computeDayHours, shiftDayKey, type DayHours } from "./hours";
+import { makeShiftResolver, type RosterLike, type ShiftLike } from "./effectiveShift";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WfmContext = {
@@ -335,7 +336,7 @@ export async function getWfmLiveBoardSnapshot(
   const now = new Date();
   const todayKey = dateKeyInTz(now, config.timezone);
 
-  const [{ data: employees }, { data: shifts }, { data: sites }, { data: events }, { data: holidays }, { data: leaves }] =
+  const [{ data: employees }, { data: shifts }, { data: rosterToday }, { data: sites }, { data: events }, { data: holidays }, { data: leaves }] =
     await Promise.all([
       (() => {
         let q = admin
@@ -347,6 +348,10 @@ export async function getWfmLiveBoardSnapshot(
         return q.order("first_name");
       })(),
       admin.from("wfm_shifts").select("*").eq("tenant_id", tenantId),
+      admin.from("wfm_roster_assignments")
+        .select("employee_id, date, shift_id, is_day_off")
+        .eq("tenant_id", tenantId)
+        .eq("date", todayKey),
       admin.from("wfm_sites").select("id, name, active").eq("tenant_id", tenantId),
       admin
         .from("wfm_presence_events")
@@ -379,7 +384,20 @@ export async function getWfmLiveBoardSnapshot(
   const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekdayName);
   const isWeekOff = config.week_off_days.includes(weekday);
 
+  // Today's roster decides the expected shift; the standing one is only the
+  // fallback. Without this a rostered night worker checking in on time is
+  // shown LATE against the day shift they don't work.
+  const resolveShift = makeShiftResolver(
+    (rosterToday ?? []) as RosterLike[],
+    shiftById as Map<string, ShiftLike>,
+    new Map((employees ?? []).map((e) => [e.id as string, (e.shift_id as string | null) ?? null]))
+  );
+
   const rows: WfmLiveBoardRow[] = (employees ?? []).map((emp) => {
+    const effective = resolveShift(emp.id as string, todayKey);
+    const expected = effective.shift;
+    // Event bucketing still uses the standing shift -- see the note in
+    // monthlySummary: a day must be chosen before its roster can be read.
     const shift = emp.shift_id ? shiftById.get(emp.shift_id) : null;
     // Shift-day attribution (§6): a night shift's events all belong to the
     // shift's START date, not their own raw calendar date -- otherwise a
@@ -400,10 +418,10 @@ export async function getWfmLiveBoardSnapshot(
 
     let late = false;
     let absent = false;
-    if (shift && !onLeave && !holiday && !isWeekOff) {
+    if (expected && !effective.isDayOff && !onLeave && !holiday && !isWeekOff) {
       const graceEnd = new Date(
-        zonedTimestamp(todayKey, shift.start_time, config.timezone).getTime() +
-          shift.grace_minutes * 60 * 1000
+        zonedTimestamp(todayKey, expected.start_time, config.timezone).getTime() +
+          expected.grace_minutes * 60 * 1000
       );
       if (firstIn) {
         late = new Date(firstIn.ts).getTime() > graceEnd.getTime();
