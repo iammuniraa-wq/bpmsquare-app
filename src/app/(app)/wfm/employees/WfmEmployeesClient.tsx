@@ -96,8 +96,8 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   }, [load]);
 
   async function save() {
-    if (editing === "new" && (!draft.employee_code.trim() || !draft.first_name.trim())) {
-      setError("Employee code and first name are required");
+    if (editing === "new" && !draft.first_name.trim()) {
+      setError("First name is required");
       return;
     }
     if (draft.invite_email.trim() && !draft.invite_password.trim()) {
@@ -154,11 +154,16 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
     }
   }
 
-  const form = editing !== null && (
-    <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end", borderTop: `1px solid ${c.line}` }}>
-      <div style={{ flex: "0 1 110px" }}>
+  const formFields = (
+    <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+      <div style={{ flex: "0 1 150px" }}>
         <label style={lbl}>Code</label>
-        <input style={inp} value={draft.employee_code} onChange={(e) => setDraft({ ...draft, employee_code: e.target.value })} placeholder="EMP-001" />
+        <input
+          style={inp}
+          value={draft.employee_code}
+          onChange={(e) => setDraft({ ...draft, employee_code: e.target.value })}
+          placeholder={editing === "new" ? "Auto — EMP-0001" : "EMP-0001"}
+        />
       </div>
       <div style={{ flex: "1 1 130px" }}>
         <label style={lbl}>First name</label>
@@ -232,6 +237,39 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
       <button style={btn} disabled={busy} onClick={() => { setEditing(null); setDraft(emptyDraft()); setError(""); }}>Cancel</button>
     </div>
   );
+
+  // Create/edit takes over the view instead of appearing as an extra row under
+  // the table -- appended to the bottom of a long list it was off-screen, so
+  // pressing "New employee" looked like nothing had happened.
+  if (editing !== null) {
+    return (
+      <>
+        {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
+        <section style={{ ...cardStyle, padding: 0 }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+            padding: "12px 12px 10px", borderBottom: `1px solid ${c.line}`, flexWrap: "wrap",
+          }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>
+                {editing === "new" ? "New employee" : "Edit employee"}
+              </div>
+              <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
+                {editing === "new"
+                  ? "Leave the code blank and the next one is generated for you."
+                  : "Shift and site decide whose queue this person's requests land in."}
+              </div>
+            </div>
+            <button
+              style={btn}
+              onClick={() => { setEditing(null); setDraft(emptyDraft()); setError(""); }}
+            >← Back to employees</button>
+          </div>
+          {formFields}
+        </section>
+      </>
+    );
+  }
 
   const q = query.trim().toLowerCase();
   const visible = rows.filter((r) => {
@@ -353,13 +391,12 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
             {visible.length === 0 && (
               <tr><td style={{ ...td, color: c.hint }} colSpan={11}>
                 {rows.length === 0
-                  ? "No employees yet — create one below or bulk-load via Data Workbench."
+                  ? "No employees yet — use + New employee above, or bulk-load via Data Workbench."
                   : "No employees match these filters."}
               </td></tr>
             )}
           </tbody>
         </table>
-        {form}
       </section>
     </>
   );
