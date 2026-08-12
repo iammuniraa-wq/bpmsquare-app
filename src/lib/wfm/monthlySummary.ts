@@ -44,6 +44,10 @@ export type EmployeeDayRecord = {
   /** Submitted but not yet approved -- shown to supervisors so a pending
    * block is visible, never added to payable totals. */
   ot_pending_minutes: number;
+  /** The individual OT stretches, with their clock times, so a timeline can
+   * draw them where they actually happened. `status` drives the pending
+   * (faded) rendering. */
+  ot_segments: { start: string; end: string; minutes: number; status: string }[];
 };
 
 export type EmployeeMonthSummary = {
@@ -126,7 +130,7 @@ export async function getMonthlySummary(
     // each row already carries the day it started on, so an all-night
     // stretch stays one payable block instead of splitting at midnight.
     admin.from("wfm_ot_sessions")
-      .select("employee_id, ot_date, minutes, status")
+      .select("employee_id, ot_date, minutes, status, started_at, ended_at")
       .eq("tenant_id", tenantId)
       .gte("ot_date", dates[0])
       .lte("ot_date", dates[dates.length - 1]),
@@ -180,12 +184,23 @@ export async function getMonthlySummary(
   }
 
   // employee|date -> { approved, pending } minutes
-  const otByEmpDay = new Map<string, { approved: number; pending: number }>();
+  const otByEmpDay = new Map<string, {
+    approved: number; pending: number;
+    segments: { start: string; end: string; minutes: number; status: string }[];
+  }>();
   for (const o of otRows ?? []) {
     const key = `${o.employee_id}|${o.ot_date}`;
-    const cur = otByEmpDay.get(key) ?? { approved: 0, pending: 0 };
+    const cur = otByEmpDay.get(key) ?? { approved: 0, pending: 0, segments: [] };
     if (o.status === "approved") cur.approved += o.minutes as number;
     else if (o.status === "pending") cur.pending += o.minutes as number;
+    // Rejected OT keeps its segment (so the employee can see it was
+    // rejected) but contributes to neither total.
+    cur.segments.push({
+      start: o.started_at as string,
+      end: o.ended_at as string,
+      minutes: o.minutes as number,
+      status: o.status as string,
+    });
     otByEmpDay.set(key, cur);
   }
 
@@ -259,6 +274,7 @@ export async function getMonthlySummary(
         punches: dayEvents.length,
         ot_minutes: otByEmpDay.get(`${emp.id}|${date}`)?.approved ?? 0,
         ot_pending_minutes: otByEmpDay.get(`${emp.id}|${date}`)?.pending ?? 0,
+        ot_segments: otByEmpDay.get(`${emp.id}|${date}`)?.segments ?? [],
       };
     });
 

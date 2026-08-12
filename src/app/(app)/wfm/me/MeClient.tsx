@@ -5,6 +5,7 @@ import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
+import MonthTimeline from "@/components/wfm/MonthTimeline";
 import PunchAudit from "@/components/wfm/PunchAudit";
 import {
   allowedKinds, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
@@ -64,6 +65,8 @@ type DayRecord = {
   late: boolean; absent: boolean;
   incomplete: boolean; on_leave: { name: string; category: string } | null;
   holiday: string | null; is_week_off: boolean; punches: number;
+  ot_minutes: number; ot_pending_minutes: number;
+  ot_segments: { start: string; end: string; minutes: number; status: string }[];
 };
 type LeaveBalance = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number };
 type Holiday = { id: string; date: string; name: string; applies_to: string };
@@ -87,12 +90,13 @@ type Analytics = {
 };
 
 type Geo = { lat: number; lng: number; accuracy_m: number } | null;
-type Tab = "home" | "time" | "leave" | "calendar" | "analytics";
+type Tab = "home" | "time" | "timeline" | "leave" | "calendar" | "analytics";
 type TimeView = "daily" | "monthly";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "home", label: "Home" },
   { key: "time", label: "Time" },
+  { key: "timeline", label: "Timeline" },
   { key: "leave", label: "Leave" },
   { key: "calendar", label: "Calendar" },
   { key: "analytics", label: "Analytics" },
@@ -788,6 +792,29 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
               </div>
             </section>
           )}
+        </>
+      )}
+
+      {tab === "timeline" && (
+        <>
+          <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+            <input style={{ ...inp, width: "auto" }} type="month" max={thisMonth()} value={month} onChange={(e) => setMonth(e.target.value)} />
+            <span style={{ fontSize: 11.5, color: c.hint }}>
+              One row per day on a 24-hour axis. Click any day for its punches, or to raise a correction.
+            </span>
+          </div>
+          <section style={{ ...cardStyle, overflowX: "auto" }}>
+            <MonthTimeline
+              days={days}
+              month={month}
+              pendingCorrectionDates={corrections.filter((cr) => cr.status === "pending").map((cr) => cr.target_date)}
+              onRequestCorrection={(date) => {
+                setCorrectionDraft({ target_date: date, issue: "missing_check_out", proposed_ts: "", reason_text: "" });
+                setShowCorrectionForm(true);
+                setTab("time");
+              }}
+            />
+          </section>
         </>
       )}
 
