@@ -9,6 +9,13 @@ export type WfmSite = {
   lng: number;
   radius_m: number;
   active: boolean;
+  /** Who supervises this site (0079). The first hop of the reporting tree:
+   * an employee's approver is whoever runs the site they're assigned to.
+   * Null = nobody can approve for this site — the Sites screen warns about it
+   * rather than silently escalating to a tenant admin. */
+  supervisor_id?: string | null;
+  /** Joined by wfmSitesPayload for display only. */
+  employees?: { first_name: string; last_name: string; employee_code: string | null } | null;
 };
 
 export type WfmShift = {

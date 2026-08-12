@@ -93,8 +93,14 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
       )}
 
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>
-          Shifts
+        <div style={{ padding: "12px 12px 10px", borderBottom: `1px solid ${c.line}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Shifts</div>
+          <div style={{ fontSize: 12, color: c.muted, marginTop: 3, maxWidth: 780 }}>
+            Working hours people are expected to keep. <strong>Grace</strong> is how late someone can
+            check in before it counts as a late mark. A shift whose end time is earlier than its start
+            time runs past midnight — tick <strong>crosses midnight</strong> so those night hours are
+            counted on the day the shift started, not split across two days.
+          </div>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -134,7 +140,12 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
               </tr>
             ))}
             {shifts.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No shifts yet.</td></tr>
+              <tr>
+                <td style={{ ...td, color: c.hint }} colSpan={7}>
+                  No shifts yet. Without one, nobody can be marked late or absent — attendance is
+                  recorded but never measured against expected hours.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
