@@ -2,7 +2,7 @@ import "server-only";
 
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { getWfmConfig, dateKeyInTz } from "./server";
-import { computeDayHours, shiftDayKey, workSessions, type BreakSegment, type WorkSession } from "./hours";
+import { computeDayHours, shiftDayKey, workSessions, overnightTail, type BreakSegment, type WorkSession } from "./hours";
 import type { PresenceKind } from "./types";
 
 // Shared per-employee-per-month aggregation — the one place the "rules
@@ -216,9 +216,14 @@ export async function getMonthlySummary(
 
     const days: EmployeeDayRecord[] = dates.map((date) => {
       const dayEvents = allEvents.filter((e) => shiftDayKey(new Date(e.ts), config.timezone, shift) === date);
-      const endRef = dayEvents.length > 0 ? new Date(dayEvents[dayEvents.length - 1].ts) : new Date(`${date}T00:00:00Z`);
-      const hours = computeDayHours(dayEvents, endRef);
-      const sessions = workSessions(dayEvents, endRef);
+      // Work that runs past midnight closes in the NEXT day's bucket, so the
+      // closing punch is pulled back here -- otherwise both days total zero
+      // and the hours are simply lost (see overnightCloser).
+      const tail = overnightTail(dayEvents, allEvents);
+      const evs = tail.length > 0 ? [...dayEvents, ...tail] : dayEvents;
+      const endRef = evs.length > 0 ? new Date(evs[evs.length - 1].ts) : new Date(`${date}T00:00:00Z`);
+      const hours = computeDayHours(evs, endRef);
+      const sessions = workSessions(evs, endRef);
       const breaks = sessions.flatMap((s) => s.breaks);
       const firstIn = dayEvents.find((e) => e.kind === "check_in") ?? null;
       const lastOut = [...dayEvents].reverse().find((e) => e.kind === "check_out") ?? null;

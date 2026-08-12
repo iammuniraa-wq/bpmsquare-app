@@ -84,9 +84,16 @@ export async function POST(request: NextRequest) {
   if (!reason_text?.trim()) {
     return NextResponse.json({ error: "reason_text is required" }, { status: 400 });
   }
-  const kind = ISSUE_KIND[issue as CorrectionIssue];
-  if ((issue === "missing_check_in" || issue === "missing_check_out") && !proposed_ts) {
+  let kind = ISSUE_KIND[issue as CorrectionIssue];
+  const needsTime = issue === "missing_check_in" || issue === "missing_check_out" || issue === "wrong_time";
+  if (needsTime && !proposed_ts) {
     return NextResponse.json({ error: "proposed_ts is required for this issue type" }, { status: 400 });
+  }
+  // wrong_time must name the punch it is correcting -- there is nothing to
+  // move otherwise, which is how it used to be approvable while changing
+  // nothing at all.
+  if (issue === "wrong_time" && !target_event_id) {
+    return NextResponse.json({ error: "Pick the punch you want corrected" }, { status: 400 });
   }
 
   const admin = createAdminSupabase();
@@ -96,13 +103,38 @@ export async function POST(request: NextRequest) {
   if (target_event_id) {
     const { data: event } = await admin
       .from("wfm_presence_events")
-      .select("id")
+      .select("id, kind")
       .eq("id", target_event_id)
       .eq("tenant_id", tenantId)
       .eq("employee_id", employee.id)
       .maybeSingle();
     if (!event) return NextResponse.json({ error: "Unknown event" }, { status: 400 });
     verifiedEventId = event.id;
+    // THE wrong_time FIX: the kind comes from the punch being corrected.
+    // ISSUE_KIND only ever mapped the two missing_* issues, so wrong_time
+    // left `kind` undefined -- and the approve path writes an event only when
+    // kind AND proposed_ts are both present. The request therefore flipped to
+    // "approved" while the wrong time stayed on the timesheet.
+    if (issue === "wrong_time") kind = event.kind as PresenceKind;
+  }
+
+  // proposed_ts was previously accepted unparsed and unbounded: a correction
+  // filed "for 10 Aug" could carry a timestamp in a different month, and the
+  // supervisor's queue would still show 10 Aug. Bound it to a window around
+  // the target date that is generous enough for a night shift (starting the
+  // evening before, ending the following morning) and nothing more.
+  const proposedMs = new Date(proposed_ts as string).getTime();
+  if (needsTime && isNaN(proposedMs)) {
+    return NextResponse.json({ error: "proposed_ts is not a valid timestamp" }, { status: 400 });
+  }
+  if (needsTime) {
+    const dayStart = new Date(`${target_date}T00:00:00Z`).getTime();
+    if (proposedMs < dayStart - 12 * 3600_000 || proposedMs > dayStart + 36 * 3600_000) {
+      return NextResponse.json(
+        { error: `That time isn't on ${target_date} — pick a time on the day you're correcting.` },
+        { status: 400 }
+      );
+    }
   }
 
   const { data, error } = await admin
