@@ -110,6 +110,56 @@ one route (e.g. invoices), grep for the same shape on related routes (quotes,
 purchase orders, work orders) rather than fixing one instance and leaving
 the rest exposed.
 
+## Fixed 2026-08-12 — WFM overtime RLS regression (read this before adding a WFM table)
+
+`wfm_ot_sessions` (migration 0077) was created with the **standard**
+tenant-isolation policy this file recommends everywhere else:
+
+```sql
+create policy "wfm_ot_sessions: tenant isolation" on wfm_ot_sessions for all
+  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))
+  with check (...);
+```
+
+That is the correct default for most of the product and the **wrong** one for
+WFM. `0062_wfm_module.sql`'s header states the exception explicitly: WFM tables
+get tenant-scoped **SELECT only, no insert/update/delete policy at all**,
+because *"no employee can alter attendance data"* is a contract-facing
+acceptance criterion, and `for all` lets any tenant member write rows directly
+through PostgREST with their own session. Every other WFM table follows that
+rule; this one didn't, and it happened to be the table that drives pay.
+
+While it was live, any authenticated employee could take their own session
+token (the anon key is `NEXT_PUBLIC_*` and the Supabase cookie is
+non-`httpOnly` by `@supabase/ssr` design) and `POST /rest/v1/wfm_ot_sessions`
+with `{"status":"approved"}` and arbitrary `minutes`. `getMonthlySummary`
+counts on `status === "approved"` and prices at `minutes/60 *
+ot_rate_per_hour`, so the forged row reached the supervisor's Monthly Summary
+and the CA Excel export as legitimate approved overtime. The same policy also
+allowed `UPDATE` (self-approving a genuine pending session, bypassing the
+supervisor route) and `DELETE` (destroying a co-worker's OT record).
+
+Fixed in `0078_wfm_ot_sessions_rls_fix.sql` (applied to production
+2026-08-12): replaced with `0063`'s own-rows-or-supervisor SELECT policy and
+no write policy. Both API write paths use `createAdminSupabase()` and were
+unaffected.
+
+**The generalisable lesson:** "add the standard RLS policy" is not a safe
+default on a table whose module has a *stricter* convention. Before adding a
+policy, check what the sibling tables in that module actually do — and if the
+new table affects pay, attendance, or anything else a user has an incentive to
+forge, `for select` with writes confined to the service-role client is the
+starting point, not `for all`.
+
+Still open from the same review (decisions pending, not defects to re-find):
+a supervisor can approve their **own** OT/correction/leave request (no
+requester-vs-approver check on the three PATCH routes); a single OT session
+has no maximum length and `ts` is backdatable 7 days; approving a
+`wrong_time` correction is a silent no-op (`ISSUE_KIND` maps only the two
+`missing_*` issues); and regular hours worked past midnight are lost entirely
+for an employee whose shift isn't flagged `crosses_midnight` (the hours engine
+reads `employees.shift_id` only — `wfm_roster_assignments` is never consulted).
+
 ## Known tracked debt (update this list as items are fixed)
 
 - **v1 quotations API, two non-blocking findings from the 2026-08-04 review**
