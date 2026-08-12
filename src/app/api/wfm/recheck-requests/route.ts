@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
+import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getEmployeeLoginEmail, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 
@@ -31,8 +32,12 @@ export async function GET(request: NextRequest) {
   if (!isSupervisor) {
     if (!employee) return NextResponse.json({ error: "No employee profile" }, { status: 403 });
     query = query.eq("employee_id", employee.id);
-  } else if (employeeIdParam) {
-    query = query.eq("employee_id", employeeIdParam);
+  } else {
+    // A supervisor's queue is their own subtree, not the whole tenant: the
+    // site(s) they run plus anything under supervisors reporting to them.
+    const scope = await resolveWfmScope(ctx);
+    if (!scope.unrestricted) query = query.in("employee_id", scope.employeeIds ?? []);
+    if (employeeIdParam) query = query.eq("employee_id", employeeIdParam);
   }
   if (status === "pending" || status === "responded" || status === "resolved" || status === "dismissed") {
     query = query.eq("status", status);

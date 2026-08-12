@@ -324,7 +324,12 @@ function stateFromLastKind(kind: PresenceKind | null): PunchState {
   return "out";
 }
 
-export async function getWfmLiveBoardSnapshot(tenantId: string): Promise<WfmLiveBoardSnapshot> {
+export async function getWfmLiveBoardSnapshot(
+  tenantId: string,
+  /** Null = unrestricted (tenant admin). An array narrows the board to the
+   * caller's own subtree -- a site supervisor must not see other sites. */
+  employeeIds?: string[] | null
+): Promise<WfmLiveBoardSnapshot> {
   const admin = createAdminSupabase();
   const config = await getWfmConfig(admin, tenantId);
   const now = new Date();
@@ -332,12 +337,15 @@ export async function getWfmLiveBoardSnapshot(tenantId: string): Promise<WfmLive
 
   const [{ data: employees }, { data: shifts }, { data: sites }, { data: events }, { data: holidays }, { data: leaves }] =
     await Promise.all([
-      admin
-        .from("employees")
-        .select("id, employee_code, first_name, last_name, employment_type, wfm_role, shift_id, site_id, status")
-        .eq("tenant_id", tenantId)
-        .eq("status", "active")
-        .order("first_name"),
+      (() => {
+        let q = admin
+          .from("employees")
+          .select("id, employee_code, first_name, last_name, employment_type, wfm_role, shift_id, site_id, status")
+          .eq("tenant_id", tenantId)
+          .eq("status", "active");
+        if (employeeIds) q = q.in("id", employeeIds);
+        return q.order("first_name");
+      })(),
       admin.from("wfm_shifts").select("*").eq("tenant_id", tenantId),
       admin.from("wfm_sites").select("id, name, active").eq("tenant_id", tenantId),
       admin

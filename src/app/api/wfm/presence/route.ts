@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, getWfmConfig } from "@/lib/wfm/server";
+import { resolveWfmScope } from "@/lib/wfm/scope";
 import { shiftDayKey } from "@/lib/wfm/hours";
 import { reverseGeocode, geocodingConfigured } from "@/lib/wfm/geocode";
 
@@ -28,8 +29,15 @@ export async function GET(request: NextRequest) {
   const date = request.nextUrl.searchParams.get("date");
   if (!employeeId) return NextResponse.json({ error: "No employee" }, { status: 400 });
   if (date && !DATE_RE.test(date)) return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
-  if (employeeId !== employee?.id && !isSupervisor) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (employeeId !== employee?.id) {
+    if (!isSupervisor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Being a supervisor is no longer enough -- it has to be someone in your
+    // own subtree. Selfies and GPS fixes are the most sensitive data in the
+    // module, so a supervisor at another site must not reach them.
+    const scope = await resolveWfmScope(ctx);
+    if (!scope.unrestricted && !(scope.employeeIds ?? []).includes(employeeId)) {
+      return NextResponse.json({ error: "That employee doesn't work at a site you supervise." }, { status: 403 });
+    }
   }
 
   const admin = createAdminSupabase();

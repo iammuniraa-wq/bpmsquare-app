@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { canApproveFor } from "@/lib/wfm/scope";
 
 // PATCH /api/wfm/leave-requests/[id] — supervisor approves or rejects a
 // pending request. Approve inserts a real wfm_leave_records row (the only
@@ -38,6 +39,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (req.status !== "pending") {
     return NextResponse.json({ error: "Request has already been resolved" }, { status: 409 });
   }
+
+  // Leave is judged against its FIRST day -- the request is one block, so it
+  // needs one approver rather than a different one per day it spans.
+  const allowed = await canApproveFor(ctx, req.employee_id as string, req.date_from as string);
+  if (!allowed.ok) return NextResponse.json({ error: allowed.reason }, { status: 403 });
 
   if (action === "reject") {
     const { data, error } = await admin

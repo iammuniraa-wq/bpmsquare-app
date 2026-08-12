@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import ExcelJS from "exceljs";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
+import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getMonthlySummary, type EmployeeMonthSummary } from "@/lib/wfm/monthlySummary";
 import { MONTHLY_SUMMARY_COLUMNS, DAILY_DETAIL_COLUMNS } from "@/lib/wfm/summaryExportTemplate";
 
@@ -92,8 +93,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "month (YYYY-MM) is required" }, { status: 400 });
   }
 
+  // Mirrors GET /api/wfm/summary exactly: the workbook a supervisor downloads
+  // must never contain a site they don't supervise.
+  const scope = await resolveWfmScope(ctx);
   const [summaries, config] = await Promise.all([
-    getMonthlySummary(tenantId, month),
+    getMonthlySummary(tenantId, month, scope.unrestricted ? undefined : (scope.employeeIds ?? [])),
     getWfmConfig(createAdminSupabase(), tenantId),
   ]);
   const workbook = new ExcelJS.Workbook();

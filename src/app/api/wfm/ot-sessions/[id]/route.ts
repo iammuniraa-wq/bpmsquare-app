@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { canApproveFor } from "@/lib/wfm/scope";
 
 // PATCH /api/wfm/ot-sessions/[id] — supervisor approves or rejects one
 // overtime session. Only approved sessions ever count toward payable hours
@@ -29,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const admin = createAdminSupabase();
   const { data: session } = await admin
     .from("wfm_ot_sessions")
-    .select("id, status")
+    .select("id, status, employee_id, ot_date")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -37,6 +38,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (session.status !== "pending") {
     return NextResponse.json({ error: "This overtime session has already been resolved" }, { status: 409 });
   }
+
+  // Authority is judged against the site the employee was assigned to on the
+  // OT's own date -- not today's roster, and never one's own session.
+  const allowed = await canApproveFor(ctx, session.employee_id as string, session.ot_date as string);
+  if (!allowed.ok) return NextResponse.json({ error: allowed.reason }, { status: 403 });
 
   const { data, error } = await admin
     .from("wfm_ot_sessions")

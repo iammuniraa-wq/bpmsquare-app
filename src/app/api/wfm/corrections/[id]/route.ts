@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { canApproveFor } from "@/lib/wfm/scope";
 import type { PresenceKind } from "@/lib/wfm/types";
 
 // PATCH /api/wfm/corrections/[id] — supervisor approves or rejects a
@@ -38,6 +39,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (req.status !== "pending") {
     return NextResponse.json({ error: "Request has already been resolved" }, { status: 409 });
   }
+
+  // Judged against the day the correction is ABOUT, so a later roster change
+  // can't hand the decision to someone who never saw the work.
+  const allowed = await canApproveFor(ctx, req.employee_id as string, req.target_date as string);
+  if (!allowed.ok) return NextResponse.json({ error: allowed.reason }, { status: 403 });
 
   if (action === "reject") {
     const { data, error } = await admin

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
+import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getMonthlySummary } from "@/lib/wfm/monthlySummary";
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
@@ -24,8 +25,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "month (YYYY-MM) is required" }, { status: 400 });
   }
 
+  // The month view is scoped to the caller's subtree, so a site supervisor's
+  // export contains their own site only -- previously every supervisor
+  // received every employee's hours and filtered them in the browser.
+  const scope = await resolveWfmScope(ctx);
   const [summaries, config] = await Promise.all([
-    getMonthlySummary(tenantId, month),
+    getMonthlySummary(tenantId, month, scope.unrestricted ? undefined : (scope.employeeIds ?? [])),
     getWfmConfig(createAdminSupabase(), tenantId),
   ]);
   return NextResponse.json({
