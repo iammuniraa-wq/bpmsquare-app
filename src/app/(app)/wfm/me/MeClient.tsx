@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
 import MonthTimeline from "@/components/wfm/MonthTimeline";
+import LeaveRangePicker, { type LeaveDayContext } from "@/components/wfm/LeaveRangePicker";
 import PunchAudit from "@/components/wfm/PunchAudit";
 import {
   allowedKinds, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
@@ -432,7 +433,27 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     }
   }
 
+  // What each date already carries, so the leave calendar can mark it --
+  // holidays and any day already covered by a non-rejected request of this
+  // employee's own. (Team-wide availability would need its own endpoint;
+  // this is the employee's own view.)
+  const leaveDayContext = useMemo(() => {
+    const map: Record<string, LeaveDayContext> = {};
+    for (const h of holidays) {
+      map[h.date] = { ...(map[h.date] ?? {}), holiday: h.name };
+    }
+    for (const r of leaveRequests) {
+      if (r.status === "rejected") continue;
+      for (let d = new Date(`${r.date_from}T00:00:00`); d <= new Date(`${r.date_to}T00:00:00`); d.setDate(d.getDate() + 1)) {
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        map[key] = { ...(map[key] ?? {}), existingLeave: r.wfm_leave_types?.name ?? "Leave" };
+      }
+    }
+    return map;
+  }, [holidays, leaveRequests]);
+
   async function submitLeaveRequest() {
+    if (!leaveDraft.date_from || !leaveDraft.date_to) { setNotice({ tone: "err", text: "Please pick the dates on the calendar" }); return; }
     if (!leaveDraft.leave_type_id) { setNotice({ tone: "err", text: "Please choose a leave type" }); return; }
     if (!leaveDraft.reason_text.trim()) { setNotice({ tone: "err", text: "Please give a reason" }); return; }
     if (leaveDraft.date_to < leaveDraft.date_from) { setNotice({ tone: "err", text: "End date can't be before start date" }); return; }
@@ -1028,24 +1049,48 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
             </div>
 
             {showLeaveForm && (
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", padding: "10px 0", borderBottom: `1px solid ${c.line}`, marginBottom: 10 }}>
-                <div style={{ flex: "1 1 150px" }}>
-                  <label style={lbl}>Leave type</label>
-                  <select style={inp} value={leaveDraft.leave_type_id} onChange={(e) => setLeaveDraft({ ...leaveDraft, leave_type_id: e.target.value })}>
-                    <option value="">— select —</option>
-                    {leaveBalance.map((lb) => <option key={lb.leave_type_id} value={lb.leave_type_id}>{lb.name} ({lb.balance} left)</option>)}
-                  </select>
+              <div style={{
+                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20,
+                alignItems: "flex-start", padding: "12px 0", borderBottom: `1px solid ${c.line}`, marginBottom: 10,
+              }}>
+                {/* Pick the dates by dragging on the calendar (the ADP
+                    gesture) rather than typing two dates. */}
+                <LeaveRangePicker
+                  from={leaveDraft.date_from || null}
+                  to={leaveDraft.date_to || null}
+                  context={leaveDayContext}
+                  onChange={(f, t) => setLeaveDraft({ ...leaveDraft, date_from: f ?? "", date_to: t ?? "" })}
+                />
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <label style={lbl}>Leave type</label>
+                    <select style={inp} value={leaveDraft.leave_type_id} onChange={(e) => setLeaveDraft({ ...leaveDraft, leave_type_id: e.target.value })}>
+                      <option value="">— select —</option>
+                      {leaveBalance.map((lb) => <option key={lb.leave_type_id} value={lb.leave_type_id}>{lb.name} ({lb.balance} left)</option>)}
+                    </select>
+                  </div>
+                  {/* Half-day only makes sense for a single-day request. */}
+                  {leaveDraft.date_from && leaveDraft.date_from === leaveDraft.date_to && (
+                    <div>
+                      <label style={lbl}>Half-day</label>
+                      <select style={inp} value={leaveDraft.half_day ? "yes" : "no"} onChange={(e) => setLeaveDraft({ ...leaveDraft, half_day: e.target.value === "yes" })}>
+                        <option value="no">No — full day</option><option value="yes">Yes — half day</option>
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label style={lbl}>Reason</label>
+                    <input style={inp} value={leaveDraft.reason_text} onChange={(e) => setLeaveDraft({ ...leaveDraft, reason_text: e.target.value })} placeholder="e.g. Family function" />
+                  </div>
+                  <button
+                    style={{ ...btnPrimary, opacity: !leaveDraft.date_from ? 0.6 : 1 }}
+                    disabled={busy || !leaveDraft.date_from}
+                    onClick={submitLeaveRequest}
+                  >
+                    {leaveDraft.date_from ? "Submit request" : "Pick dates first"}
+                  </button>
                 </div>
-                <div style={{ flex: "0 1 140px" }}><label style={lbl}>From</label><input style={inp} type="date" value={leaveDraft.date_from} onChange={(e) => setLeaveDraft({ ...leaveDraft, date_from: e.target.value })} /></div>
-                <div style={{ flex: "0 1 140px" }}><label style={lbl}>To</label><input style={inp} type="date" value={leaveDraft.date_to} onChange={(e) => setLeaveDraft({ ...leaveDraft, date_to: e.target.value })} /></div>
-                <div style={{ flex: "0 1 100px" }}>
-                  <label style={lbl}>Half-day</label>
-                  <select style={inp} value={leaveDraft.half_day ? "yes" : "no"} onChange={(e) => setLeaveDraft({ ...leaveDraft, half_day: e.target.value === "yes" })}>
-                    <option value="no">No</option><option value="yes">Yes</option>
-                  </select>
-                </div>
-                <div style={{ flex: "1 1 180px" }}><label style={lbl}>Reason</label><input style={inp} value={leaveDraft.reason_text} onChange={(e) => setLeaveDraft({ ...leaveDraft, reason_text: e.target.value })} placeholder="e.g. Family function" /></div>
-                <button style={btnPrimary} disabled={busy} onClick={submitLeaveRequest}>Submit</button>
               </div>
             )}
 
