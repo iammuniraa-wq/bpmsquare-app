@@ -68,9 +68,15 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
     ]);
     if (sitesRes.ok) setSites(await sitesRes.json());
     else setError((await sitesRes.json()).error ?? "Failed to load sites");
+
+    // Failing quietly here is what makes the supervisor dropdown look empty
+    // when the real problem is that the employee list never loaded.
     if (empRes.ok) {
       const rows = await empRes.json();
       setPeople(Array.isArray(rows) ? rows : (rows.employees ?? []));
+    } else {
+      const json = await empRes.json().catch(() => ({}));
+      setError(json.error ?? "Couldn't load the employee list — the supervisor dropdown will be empty.");
     }
   }, []);
 
@@ -145,6 +151,93 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
   const pickedLat = siteForm.lat ? parseFloat(siteForm.lat) : null;
   const pickedLng = siteForm.lng ? parseFloat(siteForm.lng) : null;
 
+  // Add/Edit takes over the view rather than unfolding underneath the table.
+  // Stacking the form below a growing list meant scrolling past every site to
+  // reach the fields, and left the screen looking permanently "open".
+  if (canEdit && adding) {
+    return (
+      <>
+        {error && (
+          <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>
+        )}
+
+        <section style={cardStyle}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>
+                {editingId ? "Edit site" : "New site"}
+              </div>
+              <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
+                The supervisor you pick approves overtime, leave and corrections for everyone working here.
+              </div>
+            </div>
+            <button style={btn} onClick={cancelEdit}>← Back to sites</button>
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <label style={lbl}>Location — search an address or click the map</label>
+            <SiteMapPicker
+              lat={pickedLat}
+              lng={pickedLng}
+              onChange={(lat, lng) => setSiteForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }))}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 200px" }}>
+              <label style={lbl}>Site name</label>
+              <input style={inp} value={siteForm.name} onChange={(e) => setSiteForm({ ...siteForm, name: e.target.value })} placeholder="Workshop — Hosapete" />
+            </div>
+
+            <div style={{ flex: "1 1 240px" }}>
+              <label style={lbl}>Supervisor</label>
+              <select
+                style={inp}
+                value={siteForm.supervisor_id}
+                onChange={(e) => setSiteForm({ ...siteForm, supervisor_id: e.target.value })}
+                disabled={activePeople.length === 0}
+              >
+                <option value="">
+                  {activePeople.length === 0 ? "No employees to choose from" : "— No supervisor —"}
+                </option>
+                {activePeople.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {personName(p)}{p.employee_code ? ` · ${p.employee_code}` : ""}
+                    {p.wfm_role === "supervisor" ? "" : "  (will be given supervisor access)"}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ flex: "0 1 130px" }}>
+              <label style={lbl}>Geofence radius</label>
+              <input style={inp} value={siteForm.radius_m} onChange={(e) => setSiteForm({ ...siteForm, radius_m: e.target.value })} placeholder="150" />
+            </div>
+            <div style={{ flex: "0 1 120px" }}>
+              <label style={lbl}>Latitude</label>
+              <input style={inp} value={siteForm.lat} onChange={(e) => setSiteForm({ ...siteForm, lat: e.target.value })} placeholder="15.2695" />
+            </div>
+            <div style={{ flex: "0 1 120px" }}>
+              <label style={lbl}>Longitude</label>
+              <input style={inp} value={siteForm.lng} onChange={(e) => setSiteForm({ ...siteForm, lng: e.target.value })} placeholder="76.3871" />
+            </div>
+
+            <button style={btnPrimary} disabled={busy} onClick={saveSite}>
+              {editingId ? "Save changes" : "Add site"}
+            </button>
+            <button style={btn} disabled={busy} onClick={cancelEdit}>Cancel</button>
+          </div>
+
+          <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8 }}>
+            {activePeople.length === 0
+              ? "There are no active employees yet — add people under Workforce → Employees, then come back and assign one here."
+              : "Anyone chosen as a supervisor here is given supervisor access automatically — you don't need to change their role on the Employees screen as well."}
+          </div>
+        </section>
+      </>
+    );
+  }
+
   return (
     <>
       {error && (
@@ -164,13 +257,23 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
       )}
 
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <div style={{ padding: "12px 12px 10px", borderBottom: `1px solid ${c.line}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Sites</div>
-          <div style={{ fontSize: 12, color: c.muted, marginTop: 3, maxWidth: 780 }}>
-            A site is a place people punch in at. Its <strong>radius</strong> is the geofence — how far
-            from the pin a punch still counts as on-site. Its <strong>supervisor</strong> approves the
-            overtime, leave and corrections of everyone assigned to work there.
+        <div style={{
+          padding: "12px 12px 10px", borderBottom: `1px solid ${c.line}`,
+          display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Sites</div>
+            <div style={{ fontSize: 12, color: c.muted, marginTop: 3, maxWidth: 720 }}>
+              A site is a place people punch in at. Its <strong>radius</strong> is the geofence — how far
+              from the pin a punch still counts as on-site. Its <strong>supervisor</strong> approves the
+              overtime, leave and corrections of everyone assigned to work there.
+            </div>
           </div>
+          {canEdit && (
+            <button style={btnPrimary} onClick={() => { setAdding(true); setEditingId(null); setSiteForm(blank); setError(""); }}>
+              + Add site
+            </button>
+          )}
         </div>
 
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -189,11 +292,11 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
               <tr key={s.id}>
                 <td style={{ ...td, fontWeight: 600, color: c.ink }}>{s.name}</td>
                 <td style={td}>
-                  {s.employees ? (
+                  {s.supervisor ? (
                     <span style={{ color: c.ink }}>
-                      {personName(s.employees)}
-                      {s.employees.employee_code && (
-                        <span style={{ color: c.hint, fontSize: 11.5 }}> · {s.employees.employee_code}</span>
+                      {personName(s.supervisor)}
+                      {s.supervisor.employee_code && (
+                        <span style={{ color: c.hint, fontSize: 11.5 }}> · {s.supervisor.employee_code}</span>
                       )}
                     </span>
                   ) : (
@@ -230,78 +333,6 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
           </tbody>
         </table>
 
-        {canEdit && !adding && (
-          <div style={{ padding: 12 }}>
-            <button style={btnPrimary} onClick={() => { setAdding(true); setEditingId(null); setSiteForm(blank); }}>
-              + Add site
-            </button>
-          </div>
-        )}
-
-        {canEdit && adding && (
-          <div style={{ padding: 12, borderTop: `1px solid ${c.line}` }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink, marginBottom: 10 }}>
-              {editingId ? "Edit site" : "New site"}
-            </div>
-
-            <div style={{ marginBottom: 10 }}>
-              <label style={lbl}>Location — search an address or click the map</label>
-              <SiteMapPicker
-                lat={pickedLat}
-                lng={pickedLng}
-                onChange={(lat, lng) => setSiteForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }))}
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-              <div style={{ flex: "1 1 200px" }}>
-                <label style={lbl}>Site name</label>
-                <input style={inp} value={siteForm.name} onChange={(e) => setSiteForm({ ...siteForm, name: e.target.value })} placeholder="Workshop — Hosapete" />
-              </div>
-
-              <div style={{ flex: "1 1 220px" }}>
-                <label style={lbl}>Supervisor</label>
-                <select
-                  style={inp}
-                  value={siteForm.supervisor_id}
-                  onChange={(e) => setSiteForm({ ...siteForm, supervisor_id: e.target.value })}
-                >
-                  <option value="">— nobody yet —</option>
-                  {activePeople.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {personName(p)}{p.employee_code ? ` · ${p.employee_code}` : ""}
-                      {p.wfm_role === "supervisor" ? "" : "  (will be given supervisor access)"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ flex: "0 1 130px" }}>
-                <label style={lbl}>Geofence radius</label>
-                <input style={inp} value={siteForm.radius_m} onChange={(e) => setSiteForm({ ...siteForm, radius_m: e.target.value })} placeholder="150" />
-              </div>
-
-              <div style={{ flex: "0 1 120px" }}>
-                <label style={lbl}>Latitude</label>
-                <input style={inp} value={siteForm.lat} onChange={(e) => setSiteForm({ ...siteForm, lat: e.target.value })} placeholder="15.2695" />
-              </div>
-              <div style={{ flex: "0 1 120px" }}>
-                <label style={lbl}>Longitude</label>
-                <input style={inp} value={siteForm.lng} onChange={(e) => setSiteForm({ ...siteForm, lng: e.target.value })} placeholder="76.3871" />
-              </div>
-
-              <button style={btnPrimary} disabled={busy} onClick={saveSite}>
-                {editingId ? "Save changes" : "Add site"}
-              </button>
-              <button style={btn} disabled={busy} onClick={cancelEdit}>Cancel</button>
-            </div>
-
-            <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8 }}>
-              Anyone chosen as a supervisor here is given supervisor access automatically — you don&apos;t
-              need to change their role on the Employees screen as well.
-            </div>
-          </div>
-        )}
       </section>
     </>
   );
