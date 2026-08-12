@@ -2,8 +2,8 @@ import Pill from "@/components/Pill";
 import type { PillarKey } from "@/lib/theme";
 import type { PunchState } from "@/lib/wfm/types";
 
-const LABEL: Record<PunchState, string> = { in: "On duty", break: "On break", out: "Off duty" };
-const TONE: Record<PunchState, PillarKey> = { in: "green", break: "amber", out: "red" };
+const LABEL: Record<PunchState, string> = { in: "On duty", break: "On break", out: "Off duty", ot: "On overtime" };
+const TONE: Record<PunchState, PillarKey> = { in: "green", break: "amber", out: "red", ot: "purple" };
 
 // Live WFM presence, distinct from the technician's static HR status
 // (active/on_leave/inactive). Renders nothing when there's no signal --

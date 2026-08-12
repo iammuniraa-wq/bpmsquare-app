@@ -4,10 +4,13 @@ import { useState } from "react";
 import { c } from "@/lib/theme";
 import CorrectionsQueueClient from "./CorrectionsQueueClient";
 import RecheckQueueClient from "./RecheckQueueClient";
+import OtQueueClient from "./OtQueueClient";
 
-type Tab = "corrections" | "recheck";
+type Tab = "corrections" | "recheck" | "ot";
 
-export default function CorrectionsPageTabs() {
+/** `otEnabled` mirrors the tenant's WfmConfig.punch_types.ot -- the tab is
+ * pointless (and confusing) for a tenant that doesn't record overtime. */
+export default function CorrectionsPageTabs({ otEnabled = false }: { otEnabled?: boolean }) {
   const [tab, setTab] = useState<Tab>("corrections");
 
   const tabBtn = (key: Tab, label: string): React.CSSProperties => ({
@@ -22,8 +25,11 @@ export default function CorrectionsPageTabs() {
       <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${c.line}`, marginBottom: 16 }}>
         <button style={tabBtn("corrections", "Corrections")} onClick={() => setTab("corrections")}>Corrections</button>
         <button style={tabBtn("recheck", "Recheck requests")} onClick={() => setTab("recheck")}>Recheck requests</button>
+        {otEnabled && <button style={tabBtn("ot", "Overtime")} onClick={() => setTab("ot")}>Overtime</button>}
       </div>
-      {tab === "corrections" ? <CorrectionsQueueClient /> : <RecheckQueueClient />}
+      {tab === "corrections" && <CorrectionsQueueClient />}
+      {tab === "recheck" && <RecheckQueueClient />}
+      {tab === "ot" && otEnabled && <OtQueueClient />}
     </>
   );
 }

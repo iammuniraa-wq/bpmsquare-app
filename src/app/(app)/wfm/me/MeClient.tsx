@@ -1,12 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
+import MonthTimeline from "@/components/wfm/MonthTimeline";
+import LeaveRangePicker, { type LeaveDayContext } from "@/components/wfm/LeaveRangePicker";
 import PunchAudit from "@/components/wfm/PunchAudit";
-import type { PresenceKind, PunchState, LeaveRequestStatus } from "@/lib/wfm/types";
+import {
+  allowedKinds, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
+  type PresenceKind, type PunchState, type LeaveRequestStatus,
+} from "@/lib/wfm/types";
 import { enqueuePunch, flushQueue, listQueuedPunches } from "@/lib/wfm/offlineQueue";
 
 // The consent copy ships separately (bilingual EN + regional). Placeholder
@@ -33,6 +38,8 @@ type MeState = {
   home_site: { id: string; name: string } | null;
   shift: { name: string; start_time: string; end_time: string } | null;
   timezone: string;
+  /** Optional punch-type groups this tenant has switched on. */
+  punch_types?: { ot: boolean; mobile_work: boolean; business_trip: boolean };
   upcoming: {
     date: string; is_day_off: boolean; shift_name: string | null;
     start_time: string | null; end_time: string | null; is_night_shift: boolean;
@@ -59,6 +66,8 @@ type DayRecord = {
   late: boolean; absent: boolean;
   incomplete: boolean; on_leave: { name: string; category: string } | null;
   holiday: string | null; is_week_off: boolean; punches: number;
+  ot_minutes: number; ot_pending_minutes: number;
+  ot_segments: { start: string; end: string; minutes: number; status: string }[];
 };
 type LeaveBalance = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number };
 type Holiday = { id: string; date: string; name: string; applies_to: string };
@@ -82,12 +91,13 @@ type Analytics = {
 };
 
 type Geo = { lat: number; lng: number; accuracy_m: number } | null;
-type Tab = "home" | "time" | "leave" | "calendar" | "analytics";
+type Tab = "home" | "time" | "timeline" | "leave" | "calendar" | "analytics";
 type TimeView = "daily" | "monthly";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "home", label: "Home" },
   { key: "time", label: "Time" },
+  { key: "timeline", label: "Timeline" },
   { key: "leave", label: "Leave" },
   { key: "calendar", label: "Calendar" },
   { key: "analytics", label: "Analytics" },
@@ -95,6 +105,9 @@ const TABS: { key: Tab; label: string }[] = [
 
 const KIND_LABEL: Record<PresenceKind, string> = {
   check_in: "Check in", check_out: "Check out", break_start: "Break", break_end: "End break",
+  ot_in: "OT in", ot_out: "OT out",
+  mobile_work_start: "Mobile work", mobile_work_end: "End mobile work",
+  business_trip_start: "Business trip", business_trip_end: "End business trip",
 };
 const ISSUE_LABEL: Record<string, string> = {
   missing_check_in: "Missing check-in", missing_check_out: "Missing check-out",
@@ -213,6 +226,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
   const [cameraFor, setCameraFor] = useState<PresenceKind | null>(null);
+  // ADP-style: one punch-type dropdown + one action button, instead of a
+  // button per action. Options are the transitions the state machine allows
+  // right now, minus any optional group the tenant hasn't switched on.
+  const [selectedKind, setSelectedKind] = useState<PresenceKind | null>(null);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [correctionDraft, setCorrectionDraft] = useState({ target_date: todayKey(), issue: "missing_check_out", proposed_ts: "", reason_text: "" });
@@ -416,7 +433,27 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     }
   }
 
+  // What each date already carries, so the leave calendar can mark it --
+  // holidays and any day already covered by a non-rejected request of this
+  // employee's own. (Team-wide availability would need its own endpoint;
+  // this is the employee's own view.)
+  const leaveDayContext = useMemo(() => {
+    const map: Record<string, LeaveDayContext> = {};
+    for (const h of holidays) {
+      map[h.date] = { ...(map[h.date] ?? {}), holiday: h.name };
+    }
+    for (const r of leaveRequests) {
+      if (r.status === "rejected") continue;
+      for (let d = new Date(`${r.date_from}T00:00:00`); d <= new Date(`${r.date_to}T00:00:00`); d.setDate(d.getDate() + 1)) {
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        map[key] = { ...(map[key] ?? {}), existingLeave: r.wfm_leave_types?.name ?? "Leave" };
+      }
+    }
+    return map;
+  }, [holidays, leaveRequests]);
+
   async function submitLeaveRequest() {
+    if (!leaveDraft.date_from || !leaveDraft.date_to) { setNotice({ tone: "err", text: "Please pick the dates on the calendar" }); return; }
     if (!leaveDraft.leave_type_id) { setNotice({ tone: "err", text: "Please choose a leave type" }); return; }
     if (!leaveDraft.reason_text.trim()) { setNotice({ tone: "err", text: "Please give a reason" }); return; }
     if (leaveDraft.date_to < leaveDraft.date_from) { setNotice({ tone: "err", text: "End date can't be before start date" }); return; }
@@ -535,6 +572,36 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
 
   const visibleLeaveRequests = leaveFilter ? leaveRequests.filter((r) => r.status === leaveFilter) : leaveRequests;
 
+  // Which punch types are offered right now: the state machine decides what
+  // is legal from the current state (this is also what stops OT from being
+  // punched between a check-in and a check-out -- `ot` is only reachable
+  // from `out`), and the tenant's punch_types config decides which optional
+  // groups are visible at all.
+  const enabledPunchTypes = me.punch_types ?? { ot: false, mobile_work: false, business_trip: false };
+  const punchOptions = allowedKinds(me.state as PunchState).filter((k) => {
+    const group = PUNCH_KIND_GROUP[k];
+    return !group || enabledPunchTypes[group];
+  });
+  const activeKind = selectedKind && punchOptions.includes(selectedKind) ? selectedKind : punchOptions[0] ?? null;
+
+  function punchTone(kind: PresenceKind | null): string {
+    if (!kind) return c.accent;
+    if (kind === "check_in") return "#10b981";
+    if (kind === "check_out") return "#ef4444";
+    if (isOtKind(kind)) return "#7f77dd";
+    return c.accent;
+  }
+
+  // Breaks and OT punches don't need a selfie (only the shift's own
+  // in/out do, matching how the camera gate worked before the dropdown).
+  function startPunch(kind: PresenceKind) {
+    if (kind === "check_in" || kind === "check_out" || kind === "mobile_work_start" || kind === "business_trip_start") {
+      openCamera(kind);
+    } else {
+      submitPunch(kind, null);
+    }
+  }
+
   // The punch card is one tile among several, and check in/out happens
   // straight from it -- no separate punch screen (the ADP pattern the
   // client asked for).
@@ -548,21 +615,36 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           {me.state === "out" && me.today.length > 0 && "Checked out for today"}
           {me.state === "in" && "You're checked in"}
           {me.state === "break" && "On break"}
+          {me.state === "ot" && "On overtime"}
           {me.break_minutes > 0 && ` · breaks ${fmtHM(me.break_minutes)} (not counted)`}
         </div>
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
-        {me.state === "out" && <button style={{ ...btnPrimary, background: "#10b981", padding: "12px 24px", fontSize: 14 }} disabled={busy} onClick={() => openCamera("check_in")}>Check in</button>}
-        {me.state === "in" && (
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14, alignItems: "center" }}>
+        {punchOptions.length === 0 ? (
+          <span style={{ fontSize: 12, color: c.hint }}>No punch action available right now.</span>
+        ) : (
           <>
-            <button style={{ ...btnPrimary, background: "#ef4444", padding: "12px 24px", fontSize: 14 }} disabled={busy} onClick={() => openCamera("check_out")}>Check out</button>
-            <button style={btn} disabled={busy} onClick={() => submitPunch("break_start", null)}>☕ Break</button>
-          </>
-        )}
-        {me.state === "break" && (
-          <>
-            <button style={{ ...btnPrimary, padding: "12px 24px", fontSize: 14 }} disabled={busy} onClick={() => submitPunch("break_end", null)}>End break</button>
-            <button style={btn} disabled={busy} onClick={() => openCamera("check_out")}>Check out</button>
+            <select
+              value={activeKind ?? ""}
+              onChange={(e) => setSelectedKind(e.target.value as PresenceKind)}
+              disabled={busy}
+              style={{
+                padding: "11px 12px", borderRadius: 8, border: `1px solid ${c.line}`,
+                background: c.panel, color: c.ink, fontSize: 13.5, fontWeight: 600,
+                outline: "none", cursor: "pointer", minWidth: 170,
+              }}
+            >
+              {punchOptions.map((k) => (
+                <option key={k} value={k}>{PUNCH_KIND_LABEL[k]}</option>
+              ))}
+            </select>
+            <button
+              style={{ ...btnPrimary, background: punchTone(activeKind), padding: "12px 24px", fontSize: 14 }}
+              disabled={busy || !activeKind}
+              onClick={() => activeKind && startPunch(activeKind)}
+            >
+              {busy ? "Working…" : "Punch"}
+            </button>
           </>
         )}
       </div>
@@ -731,6 +813,29 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
               </div>
             </section>
           )}
+        </>
+      )}
+
+      {tab === "timeline" && (
+        <>
+          <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+            <input style={{ ...inp, width: "auto" }} type="month" max={thisMonth()} value={month} onChange={(e) => setMonth(e.target.value)} />
+            <span style={{ fontSize: 11.5, color: c.hint }}>
+              One row per day on a 24-hour axis. Click any day for its punches, or to raise a correction.
+            </span>
+          </div>
+          <section style={{ ...cardStyle, overflowX: "auto" }}>
+            <MonthTimeline
+              days={days}
+              month={month}
+              pendingCorrectionDates={corrections.filter((cr) => cr.status === "pending").map((cr) => cr.target_date)}
+              onRequestCorrection={(date) => {
+                setCorrectionDraft({ target_date: date, issue: "missing_check_out", proposed_ts: "", reason_text: "" });
+                setShowCorrectionForm(true);
+                setTab("time");
+              }}
+            />
+          </section>
         </>
       )}
 
@@ -944,24 +1049,48 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
             </div>
 
             {showLeaveForm && (
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", padding: "10px 0", borderBottom: `1px solid ${c.line}`, marginBottom: 10 }}>
-                <div style={{ flex: "1 1 150px" }}>
-                  <label style={lbl}>Leave type</label>
-                  <select style={inp} value={leaveDraft.leave_type_id} onChange={(e) => setLeaveDraft({ ...leaveDraft, leave_type_id: e.target.value })}>
-                    <option value="">— select —</option>
-                    {leaveBalance.map((lb) => <option key={lb.leave_type_id} value={lb.leave_type_id}>{lb.name} ({lb.balance} left)</option>)}
-                  </select>
+              <div style={{
+                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20,
+                alignItems: "flex-start", padding: "12px 0", borderBottom: `1px solid ${c.line}`, marginBottom: 10,
+              }}>
+                {/* Pick the dates by dragging on the calendar (the ADP
+                    gesture) rather than typing two dates. */}
+                <LeaveRangePicker
+                  from={leaveDraft.date_from || null}
+                  to={leaveDraft.date_to || null}
+                  context={leaveDayContext}
+                  onChange={(f, t) => setLeaveDraft({ ...leaveDraft, date_from: f ?? "", date_to: t ?? "" })}
+                />
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <label style={lbl}>Leave type</label>
+                    <select style={inp} value={leaveDraft.leave_type_id} onChange={(e) => setLeaveDraft({ ...leaveDraft, leave_type_id: e.target.value })}>
+                      <option value="">— select —</option>
+                      {leaveBalance.map((lb) => <option key={lb.leave_type_id} value={lb.leave_type_id}>{lb.name} ({lb.balance} left)</option>)}
+                    </select>
+                  </div>
+                  {/* Half-day only makes sense for a single-day request. */}
+                  {leaveDraft.date_from && leaveDraft.date_from === leaveDraft.date_to && (
+                    <div>
+                      <label style={lbl}>Half-day</label>
+                      <select style={inp} value={leaveDraft.half_day ? "yes" : "no"} onChange={(e) => setLeaveDraft({ ...leaveDraft, half_day: e.target.value === "yes" })}>
+                        <option value="no">No — full day</option><option value="yes">Yes — half day</option>
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label style={lbl}>Reason</label>
+                    <input style={inp} value={leaveDraft.reason_text} onChange={(e) => setLeaveDraft({ ...leaveDraft, reason_text: e.target.value })} placeholder="e.g. Family function" />
+                  </div>
+                  <button
+                    style={{ ...btnPrimary, opacity: !leaveDraft.date_from ? 0.6 : 1 }}
+                    disabled={busy || !leaveDraft.date_from}
+                    onClick={submitLeaveRequest}
+                  >
+                    {leaveDraft.date_from ? "Submit request" : "Pick dates first"}
+                  </button>
                 </div>
-                <div style={{ flex: "0 1 140px" }}><label style={lbl}>From</label><input style={inp} type="date" value={leaveDraft.date_from} onChange={(e) => setLeaveDraft({ ...leaveDraft, date_from: e.target.value })} /></div>
-                <div style={{ flex: "0 1 140px" }}><label style={lbl}>To</label><input style={inp} type="date" value={leaveDraft.date_to} onChange={(e) => setLeaveDraft({ ...leaveDraft, date_to: e.target.value })} /></div>
-                <div style={{ flex: "0 1 100px" }}>
-                  <label style={lbl}>Half-day</label>
-                  <select style={inp} value={leaveDraft.half_day ? "yes" : "no"} onChange={(e) => setLeaveDraft({ ...leaveDraft, half_day: e.target.value === "yes" })}>
-                    <option value="no">No</option><option value="yes">Yes</option>
-                  </select>
-                </div>
-                <div style={{ flex: "1 1 180px" }}><label style={lbl}>Reason</label><input style={inp} value={leaveDraft.reason_text} onChange={(e) => setLeaveDraft({ ...leaveDraft, reason_text: e.target.value })} placeholder="e.g. Family function" /></div>
-                <button style={btnPrimary} disabled={busy} onClick={submitLeaveRequest}>Submit</button>
               </div>
             )}
 

@@ -27,6 +27,10 @@ export const MONTHLY_SUMMARY_COLUMNS: SummaryColumn[] = [
   { header: "Holidays", width: 10, accessor: (r) => r.totals.holiday_days },
   { header: "Night Shifts", width: 12, accessor: (r) => r.totals.night_shifts },
   { header: "Night Allowance", width: 15, accessor: (r) => r.totals.night_allowance_total },
+  // Overtime: APPROVED sessions only (pending/rejected never reach payroll),
+  // priced on exact minutes at the tenant's flat rate -- no rounding up.
+  { header: "OT Hours", width: 11, accessor: (r) => Math.round((r.totals.ot_minutes / 60) * 100) / 100 },
+  { header: "OT Amount", width: 12, accessor: (r) => Math.round(r.totals.ot_amount * 100) / 100 },
   { header: "Incomplete Days", width: 14, accessor: (r) => r.totals.incomplete_days },
 ];
 

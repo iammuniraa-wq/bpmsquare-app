@@ -15,7 +15,7 @@ type Row = {
   last_name: string;
   phone: string | null;
   status: "active" | "inactive";
-  employment_type: "full_time" | "contractor";
+  employment_type: string;
   wfm_role: "employee" | "supervisor";
   shift_id: string | null;
   site_id: string | null;
@@ -52,7 +52,7 @@ const btnPrimary: React.CSSProperties = {
 
 type Draft = {
   employee_code: string; first_name: string; last_name: string; phone: string;
-  employment_type: "full_time" | "contractor"; wfm_role: "employee" | "supervisor";
+  employment_type: string; wfm_role: "employee" | "supervisor";
   shift_id: string; site_id: string; supervisor_id: string; invite_email: string; invite_password: string;
 };
 const emptyDraft = (): Draft => ({
@@ -61,9 +61,12 @@ const emptyDraft = (): Draft => ({
   invite_email: "", invite_password: "",
 });
 
-export default function WfmEmployeesClient({ initial = null }: {
+export default function WfmEmployeesClient({ initial = null, employmentTypes = [] }: {
   initial?: { rows: Row[]; shifts: WfmShift[]; sites: WfmSite[] } | null;
+  /** The tenant's configured employment types (Settings -> Workforce). */
+  employmentTypes?: { code: string; label: string }[];
 }) {
+  const typeLabel = (code: string) => employmentTypes.find((t) => t.code === code)?.label ?? code;
   const [rows, setRows] = useState<Row[]>(initial?.rows ?? []);
   const [shifts, setShifts] = useState<WfmShift[]>(initial?.shifts ?? []);
   const [sites, setSites] = useState<WfmSite[]>(initial?.sites ?? []);
@@ -172,8 +175,7 @@ export default function WfmEmployeesClient({ initial = null }: {
       <div style={{ flex: "0 1 130px" }}>
         <label style={lbl}>Type</label>
         <select style={inp} value={draft.employment_type} onChange={(e) => setDraft({ ...draft, employment_type: e.target.value as Draft["employment_type"] })}>
-          <option value="full_time">Full-time</option>
-          <option value="contractor">Contractor</option>
+          {employmentTypes.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
         </select>
       </div>
       <div style={{ flex: "0 1 130px" }}>
@@ -306,7 +308,7 @@ export default function WfmEmployeesClient({ initial = null }: {
                     {[r.first_name, r.last_name].filter(Boolean).join(" ")}
                   </Link>
                 </td>
-                <td style={td}>{r.employment_type === "contractor" ? "Contractor" : "Full-time"}</td>
+                <td style={td}>{typeLabel(r.employment_type)}</td>
                 <td style={td}>{r.wfm_role === "supervisor" ? <Pill label="Supervisor" tone="purple" /> : "Employee"}</td>
                 <td style={td}>{r.wfm_shifts?.name ?? "—"}</td>
                 <td style={td}>{r.wfm_sites?.name ?? "—"}</td>

@@ -2,14 +2,12 @@ import "server-only";
 
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { getWfmConfig, dateKeyInTz, type WfmContext } from "@/lib/wfm/server";
-import type { PresenceKind, PunchState } from "@/lib/wfm/types";
+// The state machine's own mapping -- NOT a local copy. A second copy here
+// silently went stale the moment OT/mobile-work kinds were added (it would
+// have reported "out" for an employee mid-overtime, offering them a check-in
+// the API would then reject).
+import { stateFromLastKind, type PresenceKind } from "@/lib/wfm/types";
 import { computeDayHours, shiftDayKey } from "@/lib/wfm/hours";
-
-function stateFromLastKind(kind: PresenceKind | null): PunchState {
-  if (kind === "check_in" || kind === "break_end") return "in";
-  if (kind === "break_start") return "break";
-  return "out";
-}
 
 /**
  * The /wfm/me punch screen's bootstrap payload: who am I, current punch
@@ -150,6 +148,7 @@ export async function buildWfmMeState(ctx: WfmContext) {
     home_site: site ?? null,
     shift: shift ?? null,
     timezone: config.timezone,
+    punch_types: config.punch_types,
     upcoming,
     pending_rechecks: recheckRows ?? [],
   };

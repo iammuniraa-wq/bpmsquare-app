@@ -32,6 +32,12 @@ const TIMEZONES = [
   "Asia/Kathmandu", "Asia/Singapore", "Europe/London", "America/New_York", "UTC",
 ];
 
+const PUNCH_TYPE_ITEMS = [
+  { key: "ot", label: "Overtime (OT in / OT out)", hint: "Employees punch overtime as its own session after checking out; each one needs supervisor approval before it counts toward pay" },
+  { key: "mobile_work", label: "Mobile work", hint: "Working away from a site — counts as ordinary working time, just labelled differently" },
+  { key: "business_trip", label: "Business trip", hint: "Travel time recorded as working time" },
+] as const;
+
 const NOTIFICATION_ITEMS = [
   { key: "late_arrival", label: "Late arrival", hint: "Notify supervisor when someone checks in past shift start + grace" },
   { key: "correction_pending", label: "Correction request submitted", hint: "Notify supervisor when an employee files one" },
@@ -80,6 +86,19 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+
+  function updateEmploymentType(i: number, patch: Partial<{ code: string; label: string }>) {
+    setCfg((prev) => ({
+      ...prev,
+      employment_types: prev.employment_types.map((t, j) => (j === i ? { ...t, ...patch } : t)),
+    }));
+  }
+  function addEmploymentType() {
+    setCfg((prev) => ({ ...prev, employment_types: [...prev.employment_types, { code: "", label: "" }] }));
+  }
+  function removeEmploymentType(i: number) {
+    setCfg((prev) => ({ ...prev, employment_types: prev.employment_types.filter((_, j) => j !== i) }));
+  }
 
   function toggleWeekOff(day: number) {
     setCfg((prev) => ({
@@ -231,6 +250,101 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
             );
           })}
         </div>
+      </Section>
+
+      <Section
+        title="Employment types"
+        dek="The list every employee is classified against. The monthly Excel export gets one sheet per type, so adding a type here (e.g. Intern) gives those people their own payroll section."
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {cfg.employment_types.map((t, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                style={{ ...inp, width: 180, flex: "0 0 auto" }}
+                value={t.label}
+                placeholder="Label (e.g. Intern)"
+                onChange={(e) => updateEmploymentType(i, { label: e.target.value })}
+              />
+              <input
+                style={{ ...inp, width: 170, flex: "0 0 auto", fontFamily: "monospace", fontSize: 12 }}
+                value={t.code}
+                placeholder="code_like_this"
+                onChange={(e) => updateEmploymentType(i, { code: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_") })}
+              />
+              <button
+                type="button"
+                onClick={() => removeEmploymentType(i)}
+                disabled={cfg.employment_types.length <= 1}
+                title={cfg.employment_types.length <= 1 ? "At least one type is required" : "Remove"}
+                style={{
+                  border: "none", background: "none", color: c.hint, fontSize: 14,
+                  cursor: cfg.employment_types.length <= 1 ? "not-allowed" : "pointer", padding: 4,
+                  opacity: cfg.employment_types.length <= 1 ? 0.4 : 1,
+                }}
+              >✕</button>
+            </div>
+          ))}
+          <div>
+            <button
+              type="button"
+              onClick={addEmploymentType}
+              style={{
+                padding: "7px 12px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                border: `1px dashed ${c.line}`, background: "transparent", color: c.muted,
+              }}
+            >+ Add employment type</button>
+          </div>
+          <div style={help}>
+            The <strong>code</strong> is what gets stored on each employee — changing a code
+            that is already in use leaves those employees classified under the old value, so
+            edit the label instead once people are assigned.
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        title="Punch types"
+        dek="Which options appear in the punch-type dropdown. Check in, check out and breaks are always available."
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {PUNCH_TYPE_ITEMS.map(({ key, label, hint }, i) => (
+            <div
+              key={key}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+                padding: "12px 4px", borderTop: i > 0 ? `1px solid ${c.line}` : "none",
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, color: c.ink, fontWeight: 500 }}>{label}</div>
+                <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>{hint}</div>
+              </div>
+              <Toggle
+                checked={cfg.punch_types[key]}
+                onChange={(v) => setCfg({ ...cfg, punch_types: { ...cfg.punch_types, [key]: v } })}
+              />
+            </div>
+          ))}
+        </div>
+
+        {cfg.punch_types.ot && (
+          <div style={{ marginTop: 18, paddingTop: 18, borderTop: `1px solid ${c.line}`, maxWidth: 320 }}>
+            <label style={lbl}>Overtime rate per hour</label>
+            <input
+              style={inp}
+              type="number"
+              min={0}
+              step="0.01"
+              value={cfg.ot_rate_per_hour}
+              onChange={(e) => setCfg({ ...cfg, ot_rate_per_hour: Number(e.target.value) || 0 })}
+            />
+            <div style={help}>
+              Flat rate for the whole workspace. Approved overtime is paid on actual
+              minutes worked — nothing is rounded up to a full hour. Leave at 0 to track
+              overtime hours without costing them.
+            </div>
+          </div>
+        )}
       </Section>
 
       <Section title="Email notifications" dek="Requires email sending to be configured for this workspace — see Settings → General.">

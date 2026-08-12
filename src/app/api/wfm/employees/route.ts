@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { wfmEmployeesPayload } from "@/lib/wfm/bootstrap";
 
 // The WFM view over the shared `employees` master-data table (see
@@ -44,7 +44,11 @@ export async function POST(request: NextRequest) {
   if (!employee_code?.trim() || !first_name?.trim()) {
     return NextResponse.json({ error: "employee_code and first_name are required" }, { status: 400 });
   }
-  if (employment_type && !["full_time", "contractor"].includes(employment_type)) {
+  // Validated against the TENANT's configured list, not a hardcoded enum --
+  // employment types are tenant-editable (Settings -> Workforce).
+  const cfg = await getWfmConfig(createAdminSupabase(), ctx.tenantId);
+  const validTypes = cfg.employment_types.map((t) => t.code);
+  if (employment_type && !validTypes.includes(employment_type)) {
     return NextResponse.json({ error: "Invalid employment_type" }, { status: 400 });
   }
   if (wfm_role && !["employee", "supervisor"].includes(wfm_role)) {
@@ -73,7 +77,7 @@ export async function POST(request: NextRequest) {
       first_name: first_name.trim(),
       last_name: last_name?.trim() ?? "",
       phone: phone?.trim() || null,
-      employment_type: employment_type ?? "full_time",
+      employment_type: employment_type ?? validTypes[0],
       shift_id: shift_id || null,
       site_id: site_id || null,
       wfm_role: wfm_role ?? "employee",
