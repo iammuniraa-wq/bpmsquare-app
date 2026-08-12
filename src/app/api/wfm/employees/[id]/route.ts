@@ -132,12 +132,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .maybeSingle();
   if (!employee) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Employment types are tenant-configured (Settings -> Workforce), so the
+  // accepted values come from config rather than a hardcoded enum.
+  const validEmploymentTypes = (await getWfmConfig(admin, tenantId)).employment_types.map((t) => t.code);
+
   const patch: Record<string, unknown> = {};
   if (typeof body.employee_code === "string" && body.employee_code.trim()) patch.employee_code = body.employee_code.trim();
   if (typeof body.first_name === "string" && body.first_name.trim()) patch.first_name = body.first_name.trim();
   if (typeof body.last_name === "string") patch.last_name = body.last_name.trim();
   if (typeof body.phone === "string") patch.phone = body.phone.trim() || null;
-  if (["full_time", "contractor"].includes(body.employment_type)) patch.employment_type = body.employment_type;
+  if (typeof body.employment_type === "string" && validEmploymentTypes.includes(body.employment_type)) {
+    patch.employment_type = body.employment_type;
+  }
   if (["employee", "supervisor"].includes(body.wfm_role)) patch.wfm_role = body.wfm_role;
   if (["active", "inactive"].includes(body.status)) patch.status = body.status;
 

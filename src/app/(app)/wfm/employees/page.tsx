@@ -1,7 +1,7 @@
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireFeature } from "@/lib/tenant";
-import { requireWfmSupervisorPage } from "@/lib/wfm/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireWfmSupervisorPage, getWfmConfig } from "@/lib/wfm/server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { wfmEmployeesPayload, wfmShiftsPayload, wfmSitesPayload } from "@/lib/wfm/bootstrap";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
@@ -14,6 +14,7 @@ export default async function WfmEmployeesPage() {
 
   // Server-prefetch of the client's bootstrap; falls back to client fetch.
   const { supabase, tenantId } = await requireTenantUser();
+  const config = await getWfmConfig(createAdminSupabase(), tenantId);
   let initial = null;
   try {
     const [rows, shifts, sites] = await Promise.all([
@@ -31,7 +32,7 @@ export default async function WfmEmployeesPage() {
         title="Employees"
         subtitle="Shift and site assignment, punch access and roles. Shares the Employees master data — HR fields live in Master data → Employees."
       />
-      <WfmEmployeesClient initial={initial} />
+      <WfmEmployeesClient initial={initial} employmentTypes={config.employment_types} />
     </>
   );
 }

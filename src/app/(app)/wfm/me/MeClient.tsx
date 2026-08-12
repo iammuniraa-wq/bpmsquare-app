@@ -6,7 +6,10 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
 import PunchAudit from "@/components/wfm/PunchAudit";
-import type { PresenceKind, PunchState, LeaveRequestStatus } from "@/lib/wfm/types";
+import {
+  allowedKinds, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
+  type PresenceKind, type PunchState, type LeaveRequestStatus,
+} from "@/lib/wfm/types";
 import { enqueuePunch, flushQueue, listQueuedPunches } from "@/lib/wfm/offlineQueue";
 
 // The consent copy ships separately (bilingual EN + regional). Placeholder
@@ -33,6 +36,8 @@ type MeState = {
   home_site: { id: string; name: string } | null;
   shift: { name: string; start_time: string; end_time: string } | null;
   timezone: string;
+  /** Optional punch-type groups this tenant has switched on. */
+  punch_types?: { ot: boolean; mobile_work: boolean; business_trip: boolean };
   upcoming: {
     date: string; is_day_off: boolean; shift_name: string | null;
     start_time: string | null; end_time: string | null; is_night_shift: boolean;
@@ -95,6 +100,9 @@ const TABS: { key: Tab; label: string }[] = [
 
 const KIND_LABEL: Record<PresenceKind, string> = {
   check_in: "Check in", check_out: "Check out", break_start: "Break", break_end: "End break",
+  ot_in: "OT in", ot_out: "OT out",
+  mobile_work_start: "Mobile work", mobile_work_end: "End mobile work",
+  business_trip_start: "Business trip", business_trip_end: "End business trip",
 };
 const ISSUE_LABEL: Record<string, string> = {
   missing_check_in: "Missing check-in", missing_check_out: "Missing check-out",
@@ -213,6 +221,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
   const [cameraFor, setCameraFor] = useState<PresenceKind | null>(null);
+  // ADP-style: one punch-type dropdown + one action button, instead of a
+  // button per action. Options are the transitions the state machine allows
+  // right now, minus any optional group the tenant hasn't switched on.
+  const [selectedKind, setSelectedKind] = useState<PresenceKind | null>(null);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [correctionDraft, setCorrectionDraft] = useState({ target_date: todayKey(), issue: "missing_check_out", proposed_ts: "", reason_text: "" });
@@ -535,6 +547,36 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
 
   const visibleLeaveRequests = leaveFilter ? leaveRequests.filter((r) => r.status === leaveFilter) : leaveRequests;
 
+  // Which punch types are offered right now: the state machine decides what
+  // is legal from the current state (this is also what stops OT from being
+  // punched between a check-in and a check-out -- `ot` is only reachable
+  // from `out`), and the tenant's punch_types config decides which optional
+  // groups are visible at all.
+  const enabledPunchTypes = me.punch_types ?? { ot: false, mobile_work: false, business_trip: false };
+  const punchOptions = allowedKinds(me.state as PunchState).filter((k) => {
+    const group = PUNCH_KIND_GROUP[k];
+    return !group || enabledPunchTypes[group];
+  });
+  const activeKind = selectedKind && punchOptions.includes(selectedKind) ? selectedKind : punchOptions[0] ?? null;
+
+  function punchTone(kind: PresenceKind | null): string {
+    if (!kind) return c.accent;
+    if (kind === "check_in") return "#10b981";
+    if (kind === "check_out") return "#ef4444";
+    if (isOtKind(kind)) return "#7f77dd";
+    return c.accent;
+  }
+
+  // Breaks and OT punches don't need a selfie (only the shift's own
+  // in/out do, matching how the camera gate worked before the dropdown).
+  function startPunch(kind: PresenceKind) {
+    if (kind === "check_in" || kind === "check_out" || kind === "mobile_work_start" || kind === "business_trip_start") {
+      openCamera(kind);
+    } else {
+      submitPunch(kind, null);
+    }
+  }
+
   // The punch card is one tile among several, and check in/out happens
   // straight from it -- no separate punch screen (the ADP pattern the
   // client asked for).
@@ -548,21 +590,36 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           {me.state === "out" && me.today.length > 0 && "Checked out for today"}
           {me.state === "in" && "You're checked in"}
           {me.state === "break" && "On break"}
+          {me.state === "ot" && "On overtime"}
           {me.break_minutes > 0 && ` · breaks ${fmtHM(me.break_minutes)} (not counted)`}
         </div>
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
-        {me.state === "out" && <button style={{ ...btnPrimary, background: "#10b981", padding: "12px 24px", fontSize: 14 }} disabled={busy} onClick={() => openCamera("check_in")}>Check in</button>}
-        {me.state === "in" && (
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14, alignItems: "center" }}>
+        {punchOptions.length === 0 ? (
+          <span style={{ fontSize: 12, color: c.hint }}>No punch action available right now.</span>
+        ) : (
           <>
-            <button style={{ ...btnPrimary, background: "#ef4444", padding: "12px 24px", fontSize: 14 }} disabled={busy} onClick={() => openCamera("check_out")}>Check out</button>
-            <button style={btn} disabled={busy} onClick={() => submitPunch("break_start", null)}>☕ Break</button>
-          </>
-        )}
-        {me.state === "break" && (
-          <>
-            <button style={{ ...btnPrimary, padding: "12px 24px", fontSize: 14 }} disabled={busy} onClick={() => submitPunch("break_end", null)}>End break</button>
-            <button style={btn} disabled={busy} onClick={() => openCamera("check_out")}>Check out</button>
+            <select
+              value={activeKind ?? ""}
+              onChange={(e) => setSelectedKind(e.target.value as PresenceKind)}
+              disabled={busy}
+              style={{
+                padding: "11px 12px", borderRadius: 8, border: `1px solid ${c.line}`,
+                background: c.panel, color: c.ink, fontSize: 13.5, fontWeight: 600,
+                outline: "none", cursor: "pointer", minWidth: 170,
+              }}
+            >
+              {punchOptions.map((k) => (
+                <option key={k} value={k}>{PUNCH_KIND_LABEL[k]}</option>
+              ))}
+            </select>
+            <button
+              style={{ ...btnPrimary, background: punchTone(activeKind), padding: "12px 24px", fontSize: 14 }}
+              disabled={busy || !activeKind}
+              onClick={() => activeKind && startPunch(activeKind)}
+            >
+              {busy ? "Working…" : "Punch"}
+            </button>
           </>
         )}
       </div>

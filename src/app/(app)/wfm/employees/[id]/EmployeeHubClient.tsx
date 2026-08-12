@@ -32,7 +32,7 @@ type LeaveBalanceRow = { leave_type_id: string; name: string; category: string; 
 
 type Profile = {
   id: string; employee_code: string | null; first_name: string; last_name: string; phone: string | null;
-  status: "active" | "inactive"; employment_type: "full_time" | "contractor"; wfm_role: "employee" | "supervisor";
+  status: "active" | "inactive"; employment_type: string; wfm_role: "employee" | "supervisor";
   supervisor_id: string | null; consent_recorded_at: string | null;
   wfm_shifts: { id: string; name: string; start_time: string; end_time: string; is_night_shift: boolean } | { id: string; name: string; start_time: string; end_time: string; is_night_shift: boolean }[] | null;
   wfm_sites: { id: string; name: string } | { id: string; name: string }[] | null;
@@ -94,8 +94,10 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "recheck", label: "Recheck" },
 ];
 
-export default function EmployeeHubClient({ employeeId, initialLists = null }: {
+export default function EmployeeHubClient({ employeeId, initialLists = null, employmentTypes = [] }: {
   employeeId: string;
+  /** The tenant's configured employment types (Settings -> Workforce). */
+  employmentTypes?: { code: string; label: string }[];
   initialLists?: {
     shifts: WfmShift[]; sites: WfmSite[]; supervisors: EmployeeOpt[];
     upcoming: UpcomingRow[]; corrections: WfmCorrectionRequest[];
@@ -125,7 +127,7 @@ export default function EmployeeHubClient({ employeeId, initialLists = null }: {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({
     first_name: "", last_name: "", employee_code: "", phone: "",
-    employment_type: "full_time" as "full_time" | "contractor",
+    employment_type: "" as string,
     wfm_role: "employee" as "employee" | "supervisor",
     status: "active" as "active" | "inactive",
     shift_id: "", site_id: "", supervisor_id: "",
@@ -311,7 +313,7 @@ export default function EmployeeHubClient({ employeeId, initialLists = null }: {
             </div>
             <div style={{ fontSize: 12.5, color: c.muted, marginTop: 4 }}>
               {profile.employee_code && <span>{profile.employee_code} · </span>}
-              {profile.employment_type === "contractor" ? "Contractor" : "Full-time"}
+              {employmentTypes.find((t) => t.code === profile.employment_type)?.label ?? profile.employment_type}
               {profile.phone && <span> · {profile.phone}</span>}
             </div>
           </div>
@@ -392,9 +394,8 @@ export default function EmployeeHubClient({ employeeId, initialLists = null }: {
             </div>
             <div>
               <label style={lbl}>Employment type</label>
-              <select style={inp} value={draft.employment_type} onChange={(e) => setDraft({ ...draft, employment_type: e.target.value as "full_time" | "contractor" })}>
-                <option value="full_time">Full-time</option>
-                <option value="contractor">Contractor</option>
+              <select style={inp} value={draft.employment_type} onChange={(e) => setDraft({ ...draft, employment_type: e.target.value })}>
+                {employmentTypes.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
               </select>
             </div>
             <div>

@@ -461,7 +461,34 @@ export type WfmConfig = {
     leave_pending: boolean;      // employee files a leave request -> supervisor
     recheck_flagged: boolean;    // supervisor flags a punch/day -> employee
   };
+  // Employment types this tenant actually uses. Was a hardcoded
+  // full_time|contractor enum until a tenant needed "Intern" -- now a
+  // tenant-editable list. `code` is what employees.employment_type stores and
+  // must never be renamed once in use (the label is the editable part); the
+  // monthly Excel export groups its sheets by this list, so adding a type
+  // adds a sheet rather than silently folding those people into another.
+  employment_types: { code: string; label: string }[];
+  // Optional punch-type groups shown in the punch-type dropdown. The core
+  // four (check in/out, break start/end) are always on. Default off: a tenant
+  // that doesn't do overtime or field work shouldn't see the extra options.
+  punch_types: {
+    ot: boolean;            // ot_in / ot_out  (+ supervisor approval + pay)
+    mobile_work: boolean;   // mobile_work_start / _end
+    business_trip: boolean; // business_trip_start / _end
+  };
+  // Flat tenant-wide overtime rate per hour, applied to APPROVED OT minutes
+  // (exact minutes, no rounding). 0 = OT hours are tracked but no cost is
+  // computed, which is the safe default until a tenant sets a real rate.
+  ot_rate_per_hour: number;
 };
+
+/** Seed list for tenants that have never edited their employment types --
+ * exactly the two values the old hardcoded enum allowed, so existing rows
+ * stay valid. */
+export const DEFAULT_EMPLOYMENT_TYPES: { code: string; label: string }[] = [
+  { code: "full_time", label: "Full-time" },
+  { code: "contractor", label: "Contractor" },
+];
 
 export const DEFAULT_WFM_CONFIG: WfmConfig = {
   timezone: "Asia/Kolkata",
@@ -478,6 +505,9 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
     leave_pending: true,
     recheck_flagged: true,
   },
+  employment_types: DEFAULT_EMPLOYMENT_TYPES,
+  punch_types: { ot: false, mobile_work: false, business_trip: false },
+  ot_rate_per_hour: 0,
 };
 
 // All metric IDs available in the Analytics page.

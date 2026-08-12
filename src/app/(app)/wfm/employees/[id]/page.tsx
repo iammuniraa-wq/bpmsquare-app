@@ -28,10 +28,11 @@ export default async function WfmEmployeeHubPage({ params }: { params: Promise<{
   // loadAll() fetches) -- the only remaining client fetch on first load is
   // the core profile/timesheet. All-or-nothing; null falls back to the
   // full client-side loadAll().
+  const config = await getWfmConfig(createAdminSupabase(), tenantId);
+
   type HubLists = React.ComponentProps<typeof EmployeeHubClient>["initialLists"];
   let initialLists: HubLists = null;
   try {
-    const config = await getWfmConfig(createAdminSupabase(), tenantId);
     const from = dateKeyInTz(new Date(), config.timezone);
     const to = dateKeyInTz(new Date(Date.now() + 14 * 86400000), config.timezone); // matches EmployeeHubClient's range
     const [shifts, sites, allEmployees, upcoming, corrections, leaveRequests, leaveRecords, recheck] = await Promise.all([
@@ -54,7 +55,7 @@ export default async function WfmEmployeeHubPage({ params }: { params: Promise<{
   return (
     <>
       <TabTitle title={tabTitle} />
-      <EmployeeHubClient employeeId={id} initialLists={initialLists} />
+      <EmployeeHubClient employeeId={id} initialLists={initialLists} employmentTypes={config.employment_types} />
     </>
   );
 }

@@ -96,15 +96,27 @@ export async function GET(request: NextRequest) {
     getMonthlySummary(tenantId, month),
     getWfmConfig(createAdminSupabase(), tenantId),
   ]);
-  const fullTime = summaries.filter((s) => s.employment_type === "full_time");
-  const contractors = summaries.filter((s) => s.employment_type === "contractor");
-
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "BPMSquare";
   workbook.created = new Date(`${month}-01T00:00:00Z`);
 
-  writeSection(workbook.addWorksheet("Full-Time"), `Attendance Summary — ${month} — Full-Time`, fullTime);
-  writeSection(workbook.addWorksheet("Contractors"), `Attendance Summary — ${month} — Contractors`, contractors);
+  // One sheet per CONFIGURED employment type, not the old hardcoded
+  // Full-Time/Contractors pair -- a tenant that adds e.g. "Intern" gets its
+  // own sheet instead of those people silently landing in someone else's
+  // section. A trailing "Other" sheet catches rows whose stored type is no
+  // longer in the configured list (a type renamed/removed after use), so
+  // nobody can fall off the payroll export entirely.
+  const configuredCodes = new Set(config.employment_types.map((t) => t.code));
+  for (const type of config.employment_types) {
+    const rows = summaries.filter((s) => s.employment_type === type.code);
+    // Excel sheet names: 31 chars max, and : \ / ? * [ ] are illegal.
+    const sheetName = type.label.replace(/[:\\/?*[\]]/g, "-").slice(0, 31) || type.code.slice(0, 31);
+    writeSection(workbook.addWorksheet(sheetName), `Attendance Summary — ${month} — ${type.label}`, rows);
+  }
+  const unclassified = summaries.filter((s) => !configuredCodes.has(s.employment_type));
+  if (unclassified.length > 0) {
+    writeSection(workbook.addWorksheet("Other"), `Attendance Summary — ${month} — Other`, unclassified);
+  }
   writeDailyDetail(
     workbook.addWorksheet("Daily Detail"),
     `Daily Attendance Detail — ${month}`,

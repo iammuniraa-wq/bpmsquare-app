@@ -26,6 +26,10 @@ export async function GET() {
 const FACE_MODES = ["off", "flag_only"];
 const GEOFENCE_MODES = ["block", "flag", "off"];
 const NOTIFICATION_KEYS = ["late_arrival", "correction_pending", "leave_pending", "recheck_flagged"] as const;
+const PUNCH_TYPE_KEYS = ["ot", "mobile_work", "business_trip"] as const;
+// Codes are what employees.employment_type stores -- keep them machine-safe
+// and stable; only the label is meant to be edited freely afterwards.
+const CODE_RE = /^[a-z0-9_]{1,40}$/;
 
 // PUT /api/settings/workforce — update tenant WFM config (admin only).
 export async function PUT(request: NextRequest) {
@@ -67,6 +71,31 @@ export async function PUT(request: NextRequest) {
   }
   if (typeof body.geofence_mode === "string" && GEOFENCE_MODES.includes(body.geofence_mode)) {
     next.geofence_mode = body.geofence_mode as WfmConfig["geofence_mode"];
+  }
+  if (typeof body.ot_rate_per_hour === "number" && isFinite(body.ot_rate_per_hour) && body.ot_rate_per_hour >= 0) {
+    next.ot_rate_per_hour = body.ot_rate_per_hour;
+  }
+  if (body.punch_types && typeof body.punch_types === "object") {
+    const incoming = body.punch_types as Partial<WfmConfig["punch_types"]>;
+    const punchTypes: Partial<WfmConfig["punch_types"]> = {};
+    for (const key of PUNCH_TYPE_KEYS) {
+      if (typeof incoming[key] === "boolean") punchTypes[key] = incoming[key];
+    }
+    if (Object.keys(punchTypes).length > 0) {
+      next.punch_types = { ...DEFAULT_WFM_CONFIG.punch_types, ...punchTypes };
+    }
+  }
+  if (Array.isArray(body.employment_types)) {
+    const cleaned = body.employment_types
+      .filter((t): t is { code: string; label: string } =>
+        !!t && typeof t.code === "string" && typeof t.label === "string" &&
+        CODE_RE.test(t.code.trim()) && t.label.trim().length > 0)
+      .map((t) => ({ code: t.code.trim(), label: t.label.trim().slice(0, 60) }));
+    // De-dupe on code, and never let a tenant save an EMPTY list -- employees
+    // must always have at least one assignable type.
+    const seen = new Set<string>();
+    const unique = cleaned.filter((t) => (seen.has(t.code) ? false : (seen.add(t.code), true)));
+    if (unique.length > 0) next.employment_types = unique;
   }
   if (body.notifications && typeof body.notifications === "object") {
     const incoming = body.notifications as Partial<WfmConfig["notifications"]>;

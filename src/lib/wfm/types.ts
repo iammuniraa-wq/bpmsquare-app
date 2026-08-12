@@ -23,7 +23,12 @@ export type WfmShift = {
   active: boolean;
 };
 
-export type WfmEmploymentType = "full_time" | "contractor";
+/** A tenant-configured employment-type CODE (WfmConfig.employment_types).
+ * Deliberately a plain string rather than a union: tenants define their own
+ * list -- "full_time"/"contractor" are only the seed defaults, and e.g. Vikas
+ * also uses "intern". Validation happens against the tenant's configured
+ * list at the API boundary, not in the type system. */
+export type WfmEmploymentType = string;
 export type WfmRole = "employee" | "supervisor";
 
 // The WFM projection of the shared `employees` master-data row (0057 +
@@ -75,8 +80,52 @@ export type WfmHoliday = {
   applies_to: "all" | WfmEmploymentType;
 };
 
-export type PresenceKind = "check_in" | "check_out" | "break_start" | "break_end";
+// Punch kinds. The first four are the always-on core; the rest are optional
+// modes a tenant switches on in Settings -> Workforce (WfmConfig.punch_types),
+// modelled on ADP/Adobe Zeiterfassung's single punch-type dropdown rather
+// than a button per action.
+export type PresenceKind =
+  | "check_in" | "check_out" | "break_start" | "break_end"
+  | "ot_in" | "ot_out"
+  | "mobile_work_start" | "mobile_work_end"
+  | "business_trip_start" | "business_trip_end";
 export type PresenceSource = "web_selfie" | "manual_admin" | "correction";
+
+/** Kinds that OPEN a regular working session. Mobile work and business trip
+ * are ordinary working time recorded under a different label -- the hours
+ * engine treats them exactly like check_in/check_out, only the timesheet
+ * distinguishes them. OT is deliberately NOT here: it's a separate,
+ * separately-approved, separately-paid session (see otSessions in hours.ts). */
+export const SESSION_START_KINDS: PresenceKind[] = ["check_in", "mobile_work_start", "business_trip_start"];
+export const SESSION_END_KINDS: PresenceKind[] = ["check_out", "mobile_work_end", "business_trip_end"];
+export const OT_KINDS: PresenceKind[] = ["ot_in", "ot_out"];
+
+export function isSessionStart(kind: PresenceKind): boolean { return SESSION_START_KINDS.includes(kind); }
+export function isSessionEnd(kind: PresenceKind): boolean { return SESSION_END_KINDS.includes(kind); }
+export function isOtKind(kind: PresenceKind): boolean { return OT_KINDS.includes(kind); }
+
+/** Optional punch-type groups a tenant can enable; the core four are always on. */
+export type PunchTypeGroup = "ot" | "mobile_work" | "business_trip";
+
+export const PUNCH_KIND_LABEL: Record<PresenceKind, string> = {
+  check_in: "Check in",
+  check_out: "Check out",
+  break_start: "Break start",
+  break_end: "Break end",
+  ot_in: "OT in",
+  ot_out: "OT out",
+  mobile_work_start: "Mobile work start",
+  mobile_work_end: "Mobile work end",
+  business_trip_start: "Business trip start",
+  business_trip_end: "Business trip end",
+};
+
+/** Which optional group a kind belongs to (undefined = always-on core kind). */
+export const PUNCH_KIND_GROUP: Partial<Record<PresenceKind, PunchTypeGroup>> = {
+  ot_in: "ot", ot_out: "ot",
+  mobile_work_start: "mobile_work", mobile_work_end: "mobile_work",
+  business_trip_start: "business_trip", business_trip_end: "business_trip",
+};
 
 export type PresenceEvent = {
   id: string;
@@ -130,6 +179,31 @@ export type WfmLeaveRequest = {
   created_at: string;
 };
 
+// Overtime sessions (0077). One row per completed ot_in→ot_out pair,
+// created when the employee punches OT out. Pay is hour-wise on ACTUAL
+// minutes (no rounding, per client), at the tenant's flat ot_rate_per_hour,
+// and ONLY once a supervisor approves -- pending/rejected OT is visible to
+// everyone but never counted into payable hours or cost.
+export type OtSessionStatus = "pending" | "approved" | "rejected";
+
+export type WfmOtSession = {
+  id: string;
+  employee_id: string;
+  /** Shift-day the OT session STARTED on (tenant tz) -- an OT stretch that
+   * runs past midnight stays on its start day, so "worked all night" is one
+   * payable block rather than two half-days. */
+  ot_date: string; // YYYY-MM-DD
+  start_event_id: string | null;
+  end_event_id: string | null;
+  started_at: string;
+  ended_at: string;
+  minutes: number;
+  status: OtSessionStatus;
+  supervisor_remark: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
 // Supervisor-initiated recheck requests (0072) -- the other direction from
 // corrections above: a supervisor flags a punch/day and the employee
 // responds. linked_correction_id is set when the employee's response was
@@ -154,18 +228,37 @@ export type WfmRecheckRequest = {
   created_at: string;
 };
 
-// ── Punch state machine: out → in → [break ↔ in]* → out ──────────────────
+// ── Punch state machine ───────────────────────────────────────────────────
+//   out → in → [break ↔ in]* → out          (regular / mobile / trip work)
+//   out → ot → out                          (overtime)
+//
+// OT is reachable ONLY from `out`, which is what enforces the client's rule
+// "OT can happen anytime but not between check-in and check-out" -- there is
+// no transition into `ot` from `in` or `break`, so it can't be nested inside
+// a shift. Structural, not a runtime validation that could be forgotten.
 
-export type PunchState = "out" | "in" | "break";
+export type PunchState = "out" | "in" | "break" | "ot";
 
 const TRANSITIONS: Record<PunchState, Partial<Record<PresenceKind, PunchState>>> = {
-  out:   { check_in: "in" },
-  in:    { break_start: "break", check_out: "out" },
-  break: { break_end: "in", check_out: "out" },
+  out:   { check_in: "in", mobile_work_start: "in", business_trip_start: "in", ot_in: "ot" },
+  in:    { break_start: "break", check_out: "out", mobile_work_end: "out", business_trip_end: "out" },
+  break: { break_end: "in", check_out: "out", mobile_work_end: "out", business_trip_end: "out" },
+  ot:    { ot_out: "out" },
 };
 
 export function allowedKinds(state: PunchState): PresenceKind[] {
   return Object.keys(TRANSITIONS[state]) as PresenceKind[];
+}
+
+/** The current state implied by the most recent non-superseded punch. Shared
+ * by the punch API and the /wfm/me bootstrap so both agree on what the
+ * employee may do next. */
+export function stateFromLastKind(kind: PresenceKind | null): PunchState {
+  if (!kind) return "out";
+  if (kind === "break_start") return "break";
+  if (kind === "ot_in") return "ot";
+  if (kind === "break_end" || isSessionStart(kind)) return "in";
+  return "out";
 }
 
 /** Next state after applying `kind`, or null if the transition is illegal. */

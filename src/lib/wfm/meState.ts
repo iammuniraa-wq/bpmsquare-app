@@ -150,6 +150,7 @@ export async function buildWfmMeState(ctx: WfmContext) {
     home_site: site ?? null,
     shift: shift ?? null,
     timezone: config.timezone,
+    punch_types: config.punch_types,
     upcoming,
     pending_rechecks: recheckRows ?? [],
   };

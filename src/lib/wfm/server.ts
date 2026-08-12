@@ -112,7 +112,21 @@ export async function requireWfmSupervisorPage(): Promise<void> {
 export async function getWfmConfig(supabase: SupabaseClient, tenantId: string): Promise<WfmConfig> {
   const { data } = await supabase.from("tenants").select("config").eq("id", tenantId).maybeSingle();
   const stored = ((data?.config as TenantConfig | null)?.wfm ?? {}) as Partial<WfmConfig>;
-  return { ...DEFAULT_WFM_CONFIG, ...stored };
+  return {
+    ...DEFAULT_WFM_CONFIG,
+    ...stored,
+    // The nested groups need their own merge: a tenant row written before a
+    // new key existed would otherwise drop that key to undefined under the
+    // top-level spread (e.g. punch_types saved when only `ot` existed).
+    notifications: { ...DEFAULT_WFM_CONFIG.notifications, ...(stored.notifications ?? {}) },
+    punch_types: { ...DEFAULT_WFM_CONFIG.punch_types, ...(stored.punch_types ?? {}) },
+    // An empty/absent list means "never configured" -- fall back to the seed
+    // pair rather than leaving a tenant with no selectable employment type.
+    employment_types:
+      Array.isArray(stored.employment_types) && stored.employment_types.length > 0
+        ? stored.employment_types
+        : DEFAULT_WFM_CONFIG.employment_types,
+  };
 }
 
 // ── Geofence ─────────────────────────────────────────────────────────────

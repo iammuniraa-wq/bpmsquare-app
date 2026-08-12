@@ -2,7 +2,7 @@
 // day's non-superseded events sorted ascending by ts, output is minutes.
 // Unit-testable per requirements §6.
 
-import type { PresenceEvent } from "./types";
+import { isSessionStart, isSessionEnd, type PresenceEvent, type PresenceKind } from "./types";
 
 export type DayHours = {
   /** last check_out (or endRef while still in/break) − first check_in */
@@ -77,11 +77,14 @@ export function workSessions(events: Ev[], endRef: Date): WorkSession[] {
 
   for (const e of events) {
     const t = new Date(e.ts).getTime();
-    if (e.kind === "check_in") {
+    // OT is a separate, separately-approved session type -- never part of a
+    // regular working session (see otSessions below).
+    if (e.kind === "ot_in" || e.kind === "ot_out") continue;
+    if (isSessionStart(e.kind)) {
       if (openAt === null) openAt = t;
     } else if (openAt === null) {
       continue; // break/check-out with no session open — nothing to attribute
-    } else if (e.kind === "check_out") {
+    } else if (isSessionEnd(e.kind)) {
       close(t, e.ts);
     } else if (e.kind === "break_start") {
       if (openBreak === null) openBreak = t;
@@ -127,6 +130,50 @@ export function computeDayHours(events: Ev[], endRef: Date): DayHours {
  */
 export function breakSegments(events: Ev[], endRef: Date): BreakSegment[] {
   return workSessions(events, endRef).flatMap((s) => s.breaks);
+}
+
+// ── Overtime sessions ──────────────────────────────────────────────────────
+
+export type OtStretch = {
+  start: string;
+  /** null while the employee is still punched in on OT. */
+  end: string | null;
+  minutes: number;
+};
+
+/**
+ * Pair a day's ot_in→ot_out events into OT stretches, independent of the
+ * regular work sessions above. A still-open OT stretch runs to `endRef`
+ * ("now" for a live figure) and is reported with end === null so callers can
+ * show it as in-progress and keep it out of payable totals until it closes.
+ *
+ * Minutes are exact -- the client pays hour-wise on actual time, so nothing
+ * here rounds.
+ */
+export function otSessions(events: Ev[], endRef: Date): OtStretch[] {
+  const out: OtStretch[] = [];
+  let openAt: number | null = null;
+  let openTs: string | null = null;
+
+  for (const e of events) {
+    const t = new Date(e.ts).getTime();
+    if (e.kind === "ot_in") {
+      if (openAt === null) { openAt = t; openTs = e.ts; }
+    } else if (e.kind === "ot_out" && openAt !== null) {
+      out.push({ start: openTs!, end: e.ts, minutes: Math.max(0, mins(t - openAt)) });
+      openAt = null; openTs = null;
+    }
+  }
+  if (openAt !== null) {
+    out.push({ start: openTs!, end: null, minutes: Math.max(0, mins(endRef.getTime() - openAt)) });
+  }
+  return out;
+}
+
+/** Total OT minutes across a day's closed stretches (open ones excluded --
+ * they aren't payable until the employee punches out). */
+export function otMinutes(events: Ev[], endRef: Date): number {
+  return otSessions(events, endRef).filter((s) => s.end !== null).reduce((s, x) => s + x.minutes, 0);
 }
 
 // ── Shift-day attribution ──────────────────────────────────────────────────

@@ -37,13 +37,21 @@ export type EmployeeDayRecord = {
   night_allowance_amount: number;
   is_week_off: boolean;
   punches: number;
+  /** APPROVED overtime minutes attributed to this day (exact, unrounded).
+   * An OT stretch that ran past midnight counts wholly on the day it
+   * started -- wfm_ot_sessions.ot_date, not the punch-out's calendar day. */
+  ot_minutes: number;
+  /** Submitted but not yet approved -- shown to supervisors so a pending
+   * block is visible, never added to payable totals. */
+  ot_pending_minutes: number;
 };
 
 export type EmployeeMonthSummary = {
   employee_id: string;
   employee_code: string | null;
   full_name: string;
-  employment_type: "full_time" | "contractor";
+  /** Tenant-configured employment-type code (WfmConfig.employment_types). */
+  employment_type: string;
   shift_name: string | null;
   site_id: string | null;
   site_name: string | null;
@@ -59,6 +67,12 @@ export type EmployeeMonthSummary = {
     night_shifts: number;
     night_allowance_total: number;
     incomplete_days: number;
+    /** Approved OT for the month, exact minutes -- the payable figure. */
+    ot_minutes: number;
+    /** ot_minutes priced at the tenant's flat ot_rate_per_hour. Exact
+     * pro-rata (minutes/60 * rate), no rounding up to whole hours. */
+    ot_amount: number;
+    ot_pending_minutes: number;
   };
 };
 
@@ -97,7 +111,7 @@ export async function getMonthlySummary(
     .eq("status", "active");
   if (employeeIds && employeeIds.length > 0) employeeQuery = employeeQuery.in("id", employeeIds);
 
-  const [{ data: employees }, { data: sites }, { data: shifts }, { data: holidays }, { data: leaves }] = await Promise.all([
+  const [{ data: employees }, { data: sites }, { data: shifts }, { data: holidays }, { data: leaves }, { data: otRows }] = await Promise.all([
     employeeQuery,
     admin.from("wfm_sites").select("id, name").eq("tenant_id", tenantId),
     admin.from("wfm_shifts").select("*").eq("tenant_id", tenantId),
@@ -108,6 +122,14 @@ export async function getMonthlySummary(
       .eq("tenant_id", tenantId)
       .lte("date_from", dates[dates.length - 1])
       .gte("date_to", dates[0]),
+    // OT is read from its own session rows (not re-derived from events):
+    // each row already carries the day it started on, so an all-night
+    // stretch stays one payable block instead of splitting at midnight.
+    admin.from("wfm_ot_sessions")
+      .select("employee_id, ot_date, minutes, status")
+      .eq("tenant_id", tenantId)
+      .gte("ot_date", dates[0])
+      .lte("ot_date", dates[dates.length - 1]),
   ]);
 
   const employeeRows = employees ?? [];
@@ -155,6 +177,16 @@ export async function getMonthlySummary(
       next.setUTCDate(next.getUTCDate() + 1);
       d = next.toISOString().slice(0, 10);
     }
+  }
+
+  // employee|date -> { approved, pending } minutes
+  const otByEmpDay = new Map<string, { approved: number; pending: number }>();
+  for (const o of otRows ?? []) {
+    const key = `${o.employee_id}|${o.ot_date}`;
+    const cur = otByEmpDay.get(key) ?? { approved: 0, pending: 0 };
+    if (o.status === "approved") cur.approved += o.minutes as number;
+    else if (o.status === "pending") cur.pending += o.minutes as number;
+    otByEmpDay.set(key, cur);
   }
 
   const weekdayCache = new Map<string, number>();
@@ -225,11 +257,14 @@ export async function getMonthlySummary(
         night_allowance_amount: shift?.night_allowance_amount ?? 0,
         is_week_off: isWeekOff,
         punches: dayEvents.length,
+        ot_minutes: otByEmpDay.get(`${emp.id}|${date}`)?.approved ?? 0,
+        ot_pending_minutes: otByEmpDay.get(`${emp.id}|${date}`)?.pending ?? 0,
       };
     });
 
     const workingDays = days.filter((d) => !d.incomplete);
     const lateMarks = days.filter((d) => d.late).length;
+    const otTotal = days.reduce((s2, d) => s2 + d.ot_minutes, 0);
 
     return {
       employee_id: emp.id,
@@ -253,6 +288,9 @@ export async function getMonthlySummary(
           .filter((d) => d.is_night_shift && d.punches > 0)
           .reduce((s, d) => s + d.night_allowance_amount, 0),
         incomplete_days: days.filter((d) => d.incomplete).length,
+        ot_minutes: otTotal,
+        ot_amount: (otTotal / 60) * (config.ot_rate_per_hour ?? 0),
+        ot_pending_minutes: days.reduce((s2, d) => s2 + d.ot_pending_minutes, 0),
       },
     };
   });
