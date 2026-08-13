@@ -77,6 +77,14 @@ function tabMeta(href: string): { title: string; icon: string; section: string }
   if (p === ROUTES.invoices)            return { title: "Invoices",            icon: "⊟", section: "Records" };
   if (p === ROUTES.technicians)         return { title: "Technicians",         icon: "◑", section: "Field" };
   if (p.startsWith("/technicians/"))    return { title: shortId(p),            icon: "◑", section: "Technician" };
+  if (p === ROUTES.wfmMe)               return { title: "My Workforce",        icon: "◔", section: "Workforce" };
+  if (p === ROUTES.wfmLiveBoard)        return { title: "Live Board",          icon: "◔", section: "Workforce" };
+  if (p === ROUTES.wfmEmployees)        return { title: "Employees",           icon: "◔", section: "Workforce" };
+  if (p.startsWith("/wfm/employees/"))  return { title: "Employee",            icon: "◔", section: "Employee" };
+  if (p === ROUTES.wfmCorrections)      return { title: "Corrections",         icon: "◔", section: "Workforce" };
+  if (p === ROUTES.wfmRoster)           return { title: "Roster",              icon: "◔", section: "Workforce" };
+  if (p === ROUTES.wfmLeave)            return { title: "Leave & Holidays",    icon: "◔", section: "Workforce" };
+  if (p === ROUTES.wfmSummary)          return { title: "Monthly Summary",     icon: "◔", section: "Workforce" };
   if (p.startsWith(ROUTES.settings))   return { title: "Settings",            icon: "◈", section: "Config" };
   if (p === ROUTES.reports)             return { title: "Analytics",           icon: "◧", section: "Records" };
   if (p.startsWith(ROUTES.admin))       return { title: "Admin",               icon: "◈", section: "System" };

@@ -133,6 +133,9 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
   const [actionError, setActionError] = useState("");
 
   const [editing, setEditing] = useState(false);
+  // The identity grid + stat tiles collapse into a one-line summary so the
+  // header doesn't dominate the page -- the record's tabs are what matter.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [draft, setDraft] = useState({
     first_name: "", last_name: "", employee_code: "", phone: "",
     employment_type: "" as string,
@@ -334,10 +337,35 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
               {profile.phone && <span> · {profile.phone}</span>}
             </div>
           </div>
-          <button style={btn} onClick={() => setEditing((s) => !s)}>{editing ? "Cancel" : "Edit"}</button>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            {!editing && (
+              <button style={btn} onClick={() => setDetailsOpen((o) => !o)}>
+                {detailsOpen ? "Hide details ▾" : "Details ▸"}
+              </button>
+            )}
+            <button style={btn} onClick={() => setEditing((s) => !s)}>{editing ? "Cancel" : "Edit"}</button>
+          </div>
         </div>
 
-        {!editing ? (
+        {/* Collapsed (and not editing): a single line with the facts that
+            matter, so nothing important is hidden while the block stays small. */}
+        {!editing && !detailsOpen && (
+          <div style={{ fontSize: 12.5, color: c.muted, marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span><span style={{ color: c.hint }}>Site</span> {site?.name ?? "—"}</span>
+            <span style={{ color: c.line }}>|</span>
+            <span><span style={{ color: c.hint }}>Shift</span> {shift?.name ?? "—"}</span>
+            <span style={{ color: c.line }}>|</span>
+            <span><span style={{ color: c.hint }}>This month</span> <span style={{ color: c.ink, fontWeight: 600 }}>{fmtHM(profile.month_summary?.totals.working_minutes ?? 0)}</span></span>
+            {(pendingCorr + pendingLeave + pendingRecheck) > 0 && (
+              <>
+                <span style={{ color: c.line }}>|</span>
+                <span style={{ color: statusInk.warn, fontWeight: 600 }}>{pendingCorr + pendingLeave + pendingRecheck} pending</span>
+              </>
+            )}
+          </div>
+        )}
+
+        {!editing && detailsOpen ? (
           <div style={{ ...grid(180), marginTop: 16 }}>
             <div>
               <div style={capStyle}>Site</div>
@@ -375,7 +403,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
               </div>
             )}
           </div>
-        ) : (
+        ) : editing ? (
           <div style={{ ...grid(160), marginTop: 16 }}>
             <div><label style={lbl}>First name</label><input style={inp} value={draft.first_name} onChange={(e) => setDraft({ ...draft, first_name: e.target.value })} /></div>
             <div><label style={lbl}>Last name</label><input style={inp} value={draft.last_name} onChange={(e) => setDraft({ ...draft, last_name: e.target.value })} /></div>
@@ -426,10 +454,11 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
               <button style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save"}</button>
             </div>
           </div>
-        )}
+        ) : null}
       </section>
 
-      {/* ── Clickable stat tiles ─────────────────────────────────────── */}
+      {/* ── Clickable stat tiles (only when details are expanded) ─────── */}
+      {!editing && detailsOpen && (
       <div style={{ ...grid(150), marginBottom: 14 }}>
         <div className="stat-tile is-clickable" style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setTab("attendance")}>
           <div style={capStyle}>Hours this month</div>
@@ -459,6 +488,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
           <div style={{ fontSize: 11.5, color: c.muted }}>open of {recheck.length}</div>
         </div>
       </div>
+      )}
 
       {/* ── Tabs ─────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 2 }}>
