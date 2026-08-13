@@ -3,6 +3,7 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { getTenant } from "@/lib/tenant";
 import { ROUTES } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
+import TabTitle from "@/components/TabTitle";
 import TemplateBuilderClient from "./TemplateBuilderClient";
 
 export default async function StandardQuoteTemplateBuilderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -25,6 +26,7 @@ export default async function StandardQuoteTemplateBuilderPage({ params }: { par
 
   return (
     <>
+      <TabTitle title={template.name} />
       <PageHeader title={`Template: ${template.name}`} subtitle="Reorder, show/hide, and write branded content for each block. Changes save when you click Save." />
       <TemplateBuilderClient
         template={template}

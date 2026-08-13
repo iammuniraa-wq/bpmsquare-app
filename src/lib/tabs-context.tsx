@@ -77,6 +77,22 @@ function tabMeta(href: string): { title: string; icon: string; section: string }
   if (p === ROUTES.invoices)            return { title: "Invoices",            icon: "⊟", section: "Records" };
   if (p === ROUTES.technicians)         return { title: "Technicians",         icon: "◑", section: "Field" };
   if (p.startsWith("/technicians/"))    return { title: shortId(p),            icon: "◑", section: "Technician" };
+  // Records / Sales / Marketing detail routes -- these fell back to the raw
+  // UUID or last path segment (the same gap the WFM routes had). Specific
+  // paths first so e.g. a template beats the generic standard-quote case.
+  if (p === ROUTES.inventory)                      return { title: "Inventory",       icon: "◫", section: "Records" };
+  if (p.startsWith("/inventory/"))                 return { title: shortId(p),        icon: "◫", section: "Item" };
+  if (p === ROUTES.purchaseOrders)                 return { title: "Purchase Orders", icon: "▤", section: "Records" };
+  if (p.startsWith("/purchase-orders/"))           return { title: shortId(p),        icon: "▤", section: "Purchase Order" };
+  if (p.startsWith("/invoices/"))                  return { title: shortId(p),        icon: "⊟", section: "Invoice" };
+  if (p === "/standard-quotes/templates")          return { title: "Quote Templates", icon: "₹", section: "Sales" };
+  if (p.startsWith("/standard-quotes/templates/")) return { title: "Template",        icon: "₹", section: "Template" };
+  if (p === ROUTES.standardQuotes)                 return { title: "Standard Quotes", icon: "₹", section: "Sales" };
+  if (p.startsWith("/standard-quotes/"))           return { title: shortId(p),        icon: "₹", section: "Standard Quote" };
+  if (p === "/marketing/segments")                 return { title: "Segments",        icon: "◎", section: "Marketing" };
+  if (p.startsWith("/marketing/segments/"))        return { title: shortId(p),        icon: "◎", section: "Segment" };
+  if (p === ROUTES.marketing)                      return { title: "Marketing",       icon: "◎", section: "Marketing" };
+  if (p.startsWith("/marketing/"))                 return { title: shortId(p),        icon: "◎", section: "Campaign" };
   if (p === ROUTES.wfmMe)               return { title: "My Workforce",        icon: "◔", section: "Workforce" };
   if (p === ROUTES.wfmLiveBoard)        return { title: "Live Board",          icon: "◔", section: "Workforce" };
   if (p === ROUTES.wfmEmployees)        return { title: "Employees",           icon: "◔", section: "Workforce" };
