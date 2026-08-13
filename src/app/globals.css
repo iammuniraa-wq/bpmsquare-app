@@ -154,11 +154,15 @@
   --nextgen-warn: #a16207;
   --nextgen-warn-soft: #fdf5e3;
 
-  /* Light chrome, neutral ink (not navy/blue-tinted) */
-  --sb-text: #4b5563;
-  --sb-text-dim: #8a8f98;
-  --sb-text-dimmer: #9aa0a9;
-  --sb-text-faint: #b3b8c0;
+  /* Light chrome, neutral ink (not navy/blue-tinted).
+     Dim tiers darkened 2026-08 -- the old values (dim #8a8f98 ~3.4:1,
+     dimmer #9aa0a9 ~2.9:1, faint #b3b8c0 ~2.1:1 on white) left nav section
+     labels, inactive tabs and the search placeholder barely readable in day
+     mode. Now dim ~5.6:1, dimmer ~4.7:1, faint ~3.6:1, hierarchy preserved. */
+  --sb-text: #414b57;
+  --sb-text-dim: #5c6470;
+  --sb-text-dimmer: #6b727d;
+  --sb-text-faint: #838a94;
   --sb-strong: #17181c;
   --sb-icon-muted: #6b7280;
   --sb-line: #e9eaee;
@@ -179,7 +183,7 @@
   --sb-search-bg: #ffffff;
   --sb-search-border: #e9eaee;
   --sb-search-text: #17181c;
-  --sb-search-icon: #8a8f98;
+  --sb-search-icon: #5c6470;
 
   --drawer-bg: #ffffff;
   --drawer-card: #f7f7f8;
@@ -467,6 +471,19 @@ a { color: inherit; text-decoration: none; }
    separately gated via <MotionConfig reducedMotion="user">). */
 .connector-tile { transition: transform 0.1s ease, box-shadow 0.16s ease; }
 .connector-tile:active { transform: scale(0.97); }
+
+/* Placeholder legibility. Browsers render placeholders as the input's own
+   color at ~54% opacity, which on white lands well under the AA floor -- the
+   washed-out "Search…" text in day mode. Give them a real token at full
+   opacity instead. Two scopes so the same rule can't misfire on the dark
+   sidebar chrome:
+   - the top-bar global search follows the sidebar's own --sb-search-icon
+     (light on a dark sidebar, dark on a light one);
+   - every content-area input (inside <main>, never the sidebar) uses --hint,
+     which is theme-aware (dark in light mode, light in dark mode). */
+.sb-search-input::placeholder { color: var(--sb-search-icon); opacity: 1; }
+main input::placeholder,
+main textarea::placeholder { color: var(--hint); opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .connector-tile:active { transform: none; }
