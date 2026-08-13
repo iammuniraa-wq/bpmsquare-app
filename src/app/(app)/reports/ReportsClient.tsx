@@ -11,6 +11,7 @@ import { ROUTES, type QuoteStatusDef } from "@/lib/constants";
 import type { AnalyticsMetricId } from "@/lib/constants";
 import type { QuoteSummary, AnalyticsData } from "@/lib/data/labels";
 import type { TenantFeatures } from "@/lib/constants";
+import type { WorkcenterKey, ViewableWorkcenters } from "@/lib/workcenters";
 import { AlertTriangle, CheckIcon } from "@/components/Icons";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -366,39 +367,43 @@ function QueueSummary({ pending, noun, chips, href }: {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-// ── Metric metadata — label + which feature gates it ─────────────────────────
-const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures }> = {
-  accounts:               { label: "Accounts KPI" },
-  contacts:               { label: "Contacts KPI" },
-  assets:                 { label: "Assets KPI" },
-  open_cases:             { label: "Open Cases KPI" },
-  work_orders:            { label: "Work Orders KPI" },
-  contracts:              { label: "Contracts KPI",       feature: "amc" },
-  leads:                  { label: "Leads KPI",           feature: "leads" },
-  technicians:            { label: "Technicians KPI" },
-  accounts_by_type:       { label: "Accounts by type" },
-  lead_funnel:            { label: "Lead pipeline funnel", feature: "leads" },
-  assets_by_kind:         { label: "Assets by kind" },
-  quote_trend:            { label: "Quote value trend" },
-  case_status:            { label: "Case status bars" },
-  work_order_status:      { label: "Work orders by status" },
-  technician_availability:{ label: "Technician availability" },
-  revenue_overview:       { label: "Revenue overview",    feature: "invoices" },
-  invoices_by_status:     { label: "Invoices by status",  feature: "invoices" },
-  loaner_availability:    { label: "Loaner availability" },
-  recent_activity:        { label: "Recent activity" },
-  account_news:           { label: "Client news" },
-  quote_outcomes:         { label: "Quote won/lost value" },
-  quote_overdue:          { label: "Quote overdue" },
-  quote_source:           { label: "Quote source (cases vs standalone)" },
-  wfm_attendance_today:   { label: "Attendance by site (today)", feature: "wfm" },
-  wfm_night_shift_cost:   { label: "Night shift cost (today)",   feature: "wfm" },
-  wfm_corrections_queue:    { label: "Corrections queue",         feature: "wfm" },
-  wfm_leave_requests_queue: { label: "Leave requests queue",      feature: "wfm" },
-  wfm_recheck_queue:        { label: "Flagged-for-review queue",   feature: "wfm" },
-  wfm_site_headcount:       { label: "Headcount by site",         feature: "wfm" },
-  wfm_workforce_composition:{ label: "Workforce composition",     feature: "wfm" },
-  wfm_leave_taken_by_type:  { label: "Leave taken by type (YTD)", feature: "wfm" },
+// ── Metric metadata — label + feature gate + owning workcenter ───────────────
+// `workcenter` gates the metric by the caller's Business Role visibility: a
+// WFM-only supervisor granted Analytics sees the WFM metrics but not the
+// CRM/service ones. Metrics with no workcenter are always shown (subject to
+// feature + admin-hidden).
+const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures; workcenter?: WorkcenterKey }> = {
+  accounts:               { label: "Accounts KPI",         workcenter: "accounts" },
+  contacts:               { label: "Contacts KPI",         workcenter: "contacts" },
+  assets:                 { label: "Assets KPI",           workcenter: "assets" },
+  open_cases:             { label: "Open Cases KPI",       workcenter: "cases" },
+  work_orders:            { label: "Work Orders KPI",      workcenter: "work_orders" },
+  contracts:              { label: "Contracts KPI",       feature: "amc",      workcenter: "amc" },
+  leads:                  { label: "Leads KPI",           feature: "leads",    workcenter: "leads" },
+  technicians:            { label: "Technicians KPI",      workcenter: "technicians" },
+  accounts_by_type:       { label: "Accounts by type",     workcenter: "accounts" },
+  lead_funnel:            { label: "Lead pipeline funnel", feature: "leads",    workcenter: "leads" },
+  assets_by_kind:         { label: "Assets by kind",       workcenter: "assets" },
+  quote_trend:            { label: "Quote value trend",     workcenter: "quotations" },
+  case_status:            { label: "Case status bars",      workcenter: "cases" },
+  work_order_status:      { label: "Work orders by status", workcenter: "work_orders" },
+  technician_availability:{ label: "Technician availability", workcenter: "technicians" },
+  revenue_overview:       { label: "Revenue overview",    feature: "invoices", workcenter: "invoices" },
+  invoices_by_status:     { label: "Invoices by status",  feature: "invoices", workcenter: "invoices" },
+  loaner_availability:    { label: "Loaner availability",   workcenter: "assets" },
+  recent_activity:        { label: "Recent activity",      workcenter: "accounts" },
+  account_news:           { label: "Client news",          workcenter: "accounts" },
+  quote_outcomes:         { label: "Quote won/lost value",  workcenter: "quotations" },
+  quote_overdue:          { label: "Quote overdue",         workcenter: "quotations" },
+  quote_source:           { label: "Quote source (cases vs standalone)", workcenter: "quotations" },
+  wfm_attendance_today:   { label: "Attendance by site (today)", feature: "wfm", workcenter: "wfm" },
+  wfm_night_shift_cost:   { label: "Night shift cost (today)",   feature: "wfm", workcenter: "wfm" },
+  wfm_corrections_queue:    { label: "Corrections queue",         feature: "wfm", workcenter: "wfm" },
+  wfm_leave_requests_queue: { label: "Leave requests queue",      feature: "wfm", workcenter: "wfm" },
+  wfm_recheck_queue:        { label: "Flagged-for-review queue",   feature: "wfm", workcenter: "wfm" },
+  wfm_site_headcount:       { label: "Headcount by site",         feature: "wfm", workcenter: "wfm" },
+  wfm_workforce_composition:{ label: "Workforce composition",     feature: "wfm", workcenter: "wfm" },
+  wfm_leave_taken_by_type:  { label: "Leave taken by type (YTD)", feature: "wfm", workcenter: "wfm" },
 };
 
 export default function ReportsClient({
@@ -408,6 +413,7 @@ export default function ReportsClient({
   hiddenMetrics: initialHidden,
   isAdmin,
   quoteStatuses,
+  viewableWorkcenters,
 }: {
   rows: QuoteSummary[];
   analytics: AnalyticsData;
@@ -415,6 +421,7 @@ export default function ReportsClient({
   hiddenMetrics: AnalyticsMetricId[];
   isAdmin: boolean;
   quoteStatuses: QuoteStatusDef[];
+  viewableWorkcenters: ViewableWorkcenters;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -428,10 +435,15 @@ export default function ReportsClient({
   const [hidden, setHidden]               = useState<Set<AnalyticsMetricId>>(new Set(initialHidden));
   const [saving, setSaving]               = useState(false);
 
-  // A metric is visible if: (a) not feature-gated or feature is enabled, AND (b) not hidden by admin
+  const canViewWc = (wc?: WorkcenterKey): boolean =>
+    !wc || viewableWorkcenters === "all" || viewableWorkcenters.includes(wc);
+
+  // A metric is visible if: (a) not feature-gated or feature is enabled, (b) the
+  // caller's Business Role can view its workcenter, AND (c) not hidden by admin.
   function isVisible(id: AnalyticsMetricId): boolean {
     const meta = METRIC_META[id];
     if (meta.feature && !features[meta.feature]) return false;
+    if (!canViewWc(meta.workcenter)) return false;
     return !hidden.has(id);
   }
 
@@ -967,7 +979,9 @@ export default function ReportsClient({
       </div>
       )}
 
-      {/* ── Quote table ── */}
+      {/* ── Quote table (gated by the quotations workcenter — a WFM-only
+          Business Role granted Analytics must not see or export quotes) ── */}
+      {canViewWc("quotations") && (
       <div style={{ ...cardStyle }}>
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -1097,6 +1111,7 @@ export default function ReportsClient({
           </table>
         </div>
       </div>
+      )}
     </>
   );
 }

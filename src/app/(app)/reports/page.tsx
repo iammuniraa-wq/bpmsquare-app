@@ -1,16 +1,27 @@
 import { listQuotes, getAnalyticsData } from "@/lib/data";
-import { getTenant, getUserRole, requireFeature } from "@/lib/tenant";
+import { getTenant, requireFeature } from "@/lib/tenant";
+import { requireTenantUser } from "@/lib/supabase-server";
+import { resolvePermissions, toViewableWorkcenters, requireWorkcenterView } from "@/lib/permissions";
 import PageHeader from "@/components/PageHeader";
 import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
-import { requireWorkcenterView } from "@/lib/permissions";
 import ReportsClient from "./ReportsClient";
 
 export default async function ReportsPage() {
   await requireWorkcenterView("reports");
   await requireFeature("reports");
-  const [rows, analytics, tenant, role] = await Promise.all([
-    listQuotes(), getAnalyticsData(), getTenant(), getUserRole(),
+
+  const { supabase, tenantId, userId, role } = await requireTenantUser();
+  const [rows, analytics, tenant, perms] = await Promise.all([
+    listQuotes(),
+    getAnalyticsData(),
+    getTenant(),
+    resolvePermissions(supabase, tenantId, userId, role),
   ]);
+  // Business-Role visibility: a member granted only Workforce + Analytics sees
+  // the WFM metrics, not the CRM/service ones. Admins (and members with no
+  // Business Role) resolve to "all" and see everything, as before.
+  const viewableWorkcenters = toViewableWorkcenters(perms);
+
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
   return (
@@ -23,6 +34,7 @@ export default async function ReportsPage() {
         hiddenMetrics={tenant?.config?.analytics_hidden ?? []}
         isAdmin={role === "admin"}
         quoteStatuses={quoteStatuses}
+        viewableWorkcenters={viewableWorkcenters}
       />
     </>
   );
