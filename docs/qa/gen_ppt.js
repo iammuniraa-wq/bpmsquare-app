@@ -43,6 +43,25 @@ const FEATURES = [
     note: "If Check in isn't offered, you are already checked in — the button never shows an illegal action.",
   },
   {
+    name: "Punching with no signal",
+    sum: "A dead spot doesn't cost anyone their attendance. The punch is captured on the device and sent when the network returns.",
+    pts: [
+      "Timestamped at CAPTURE, not at sync — 09:02 stays 09:02",
+      "Selfie and GPS are held with it and uploaded on reconnect",
+      "Each punch carries its own id, so a retry can never double-count",
+    ],
+    who: ["Employee", "Nothing to configure"],
+    role: "EMPLOYEE",
+    paths: ["Workforce", "My Workforce", "Home"],
+    steps: [
+      "Punch exactly as normal — there is no offline button and no mode to switch.",
+      "With no signal the screen confirms the punch was saved on the device.",
+      "It sends itself when the network returns, or next time the screen is opened.",
+      "Queued punches go oldest first, so the sequence is preserved.",
+    ],
+    note: "Always on: losing a punch to a dead workshop corner is never the better outcome. The app does need to have been opened once on that device.",
+  },
+  {
     name: "Punch types: OT, mobile work, trips",
     sum: "Extra punch types sit in a dropdown next to the main button — only the ones your workspace switches on.",
     pts: [
@@ -158,11 +177,11 @@ const FEATURES = [
   },
   {
     name: "Recheck requests",
-    sum: "The reverse direction — a supervisor flags a punch and asks the employee to explain it.",
+    sum: "A supervisor queries a punch and asks the employee to explain it — the mirror of a correction.",
     pts: [
       "Flag a single punch or an entire day",
       "Ask about the time, the selfie, or both",
-      "The employee replies; a real fix still needs a correction",
+      "Attendance never changes from a recheck alone — a fix still needs a correction",
     ],
     who: ["Supervisor flags", "Employee responds"],
     role: "SUPERVISOR",
@@ -173,7 +192,7 @@ const FEATURES = [
       "Write the message and send — the employee is emailed.",
       "The employee replies from My Workforce; you then resolve or dismiss it.",
     ],
-    note: "A recheck never alters attendance by itself — it only opens the conversation.",
+    note: "Why it exists: punches are append-only, so a supervisor cannot simply edit one they doubt. This is how they ask.",
   },
   {
     name: "Roster and shift planning",
