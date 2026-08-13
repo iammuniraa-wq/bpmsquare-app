@@ -124,6 +124,17 @@ const fmtMonth = (m: string) => new Date(m + "-01T00:00:00").toLocaleDateString(
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 
+// Last /state payload, cached so the punch page can render offline (a cold
+// open with no network -- the service worker serves the shell, this restores
+// the punch state). Bump the suffix if MeState's shape changes.
+const ME_CACHE_KEY = "wfm_me_state_v1";
+function cacheMeState(state: unknown) {
+  try { localStorage.setItem(ME_CACHE_KEY, JSON.stringify(state)); } catch { /* quota / private mode */ }
+}
+function readCachedMeState(): MeState | null {
+  try { const raw = localStorage.getItem(ME_CACHE_KEY); return raw ? (JSON.parse(raw) as MeState) : null; } catch { return null; }
+}
+
 // Pure -- hoisted out of the component so the memoised day rollups below can
 // share one definition without re-creating it every render.
 function dayLabel(d: DayRecord): string {
@@ -253,6 +264,9 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+  // True when /state couldn't be reached but we're rendering a cached snapshot
+  // -- the punch UI still works and punches queue for later sync.
+  const [offline, setOffline] = useState(false);
   const [queuedCount, setQueuedCount] = useState(0);
   const [rejectedPunches, setRejectedPunches] = useState<QueuedPunch[]>([]);
   const [cameraFor, setCameraFor] = useState<PresenceKind | null>(null);
@@ -292,7 +306,9 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       if (leaveRes.ok) setLeaveRequests(await leaveRes.json());
       if (anRes.ok) setAnalytics(await anRes.json());
     } catch {
-      setLoadError("Network error — check your connection");
+      // Secondary data (timesheet, holidays, ...) is optional -- offline, just
+      // flag it; never blank the page over it, /state already succeeded.
+      setOffline(true);
     }
   }, [month]);
 
@@ -303,10 +319,17 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       if (!res.ok) { setLoadError(json.error ?? "Could not load"); return; }
       setMe(json);
       setLoadError("");
+      setOffline(false);
+      cacheMeState(json);
       if (!json.employee?.consent_recorded_at) return;
       await loadSecondary();
     } catch {
-      setLoadError("Network error — check your connection");
+      // No network: fall back to the last state cached while online so the
+      // punch UI still renders and punches queue. Only hard-fail if this
+      // device has never loaded the page online.
+      const cached = readCachedMeState();
+      if (cached) { setMe(cached); setOffline(true); setLoadError(""); }
+      else setLoadError("You're offline — connect once to load your workforce page, then it works offline.");
     }
   }, [loadSecondary]);
 
@@ -325,6 +348,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       // already on screen, only the secondary tabs' data needs fetching.
       // Later re-runs (month change regenerates load()) refetch fully.
       serverSeeded.current = false;
+      if (initialState) cacheMeState(initialState);
       if (initialState?.employee?.consent_recorded_at) loadSecondary();
     } else {
       load();
@@ -582,7 +606,9 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     }
   }
 
-  if (loadError) return <div style={{ ...cardStyle, color: statusInk.bad, fontSize: 13 }}>{loadError}</div>;
+  // Only hard-stop when there's genuinely nothing to show. Offline WITH a
+  // cached snapshot keeps loadError empty and renders the punch UI instead.
+  if (loadError && !me) return <div style={{ ...cardStyle, color: statusInk.bad, fontSize: 13 }}>{loadError}</div>;
   if (!me) return <div style={{ ...cardStyle, color: c.hint, fontSize: 13 }}>Loading…</div>;
 
   if (!me.employee) {
@@ -718,6 +744,17 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           </button>
         ))}
       </div>
+
+      {offline && (
+        <div style={{ ...cardStyle, marginBottom: 14, fontSize: 12.5, color: statusInk.warn, display: "flex", gap: 8, alignItems: "center" }}>
+          <span aria-hidden>●</span>
+          <span>
+            You&apos;re offline — showing your last synced status. You can still punch;
+            it&apos;s saved on this device and syncs automatically when you&apos;re back online
+            {queuedCount > 0 ? ` (${queuedCount} waiting)` : ""}.
+          </span>
+        </div>
+      )}
 
       {/* Global feedback for actions from ANY tab (punch, correction, leave
           request, recheck reply) -- this used to live inside the Home tab's

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
 import ThemeApplier from "@/components/ThemeApplier";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { isPrimaryOrDevHost } from "@/lib/constants";
 import { getTenantBrandingByHost } from "@/lib/tenant";
 
@@ -23,6 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description: "CRM + Field Service for electromechanical repair & service businesses.",
     manifest: "/manifest.json",
+    icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
     appleWebApp: { capable: true, statusBarStyle: "black-translucent", title },
   };
 }
@@ -56,6 +58,7 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeApplier />
+        <ServiceWorkerRegister />
         {children}
       </body>
     </html>

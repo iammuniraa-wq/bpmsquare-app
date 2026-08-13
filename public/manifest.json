@@ -1,7 +1,7 @@
 {
-  "name": "VeveyCRM — Vikas Pioneers",
-  "short_name": "VeveyCRM",
-  "description": "CRM + Field Service for electromechanical repair and service businesses",
+  "name": "BPMSquare",
+  "short_name": "BPMSquare",
+  "description": "CRM + Field Service and Workforce management for electromechanical repair and service businesses",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0e1a28",
@@ -23,9 +23,9 @@
   ],
   "categories": ["business", "productivity"],
   "shortcuts": [
-    { "name": "Dashboard",   "url": "/",          "description": "Open dashboard" },
-    { "name": "Cases",       "url": "/cases",      "description": "View service cases" },
-    { "name": "Accounts",    "url": "/accounts",   "description": "View accounts" },
-    { "name": "Quotations",  "url": "/quotations", "description": "View quotations" }
+    { "name": "My Workforce", "url": "/wfm/me",     "description": "Punch in / out and see your hours" },
+    { "name": "Dashboard",    "url": "/",           "description": "Open dashboard" },
+    { "name": "Cases",        "url": "/cases",      "description": "View service cases" },
+    { "name": "Quotations",   "url": "/quotations", "description": "View quotations" }
   ]
 }
