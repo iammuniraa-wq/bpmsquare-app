@@ -24,7 +24,7 @@ export default function CorrectionsPageTabs({ otEnabled = false }: { otEnabled?:
     <>
       <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${c.line}`, marginBottom: 16 }}>
         <button style={tabBtn("corrections", "Corrections")} onClick={() => setTab("corrections")}>Corrections</button>
-        <button style={tabBtn("recheck", "Recheck requests")} onClick={() => setTab("recheck")}>Recheck requests</button>
+        <button style={tabBtn("recheck", "Flagged for review")} onClick={() => setTab("recheck")}>Flagged for review</button>
         {otEnabled && <button style={tabBtn("ot", "Overtime")} onClick={() => setTab("ot")}>Overtime</button>}
       </div>
       {tab === "corrections" && <CorrectionsQueueClient />}

@@ -120,7 +120,7 @@ export default function RecheckQueueClient() {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No recheck requests{filter !== "all" ? " in this view" : ""}.</td></tr>
+              <tr><td style={{ ...td, color: c.hint }} colSpan={7}>Nothing flagged for review{filter !== "all" ? " in this view" : ""}.</td></tr>
             )}
           </tbody>
         </table>

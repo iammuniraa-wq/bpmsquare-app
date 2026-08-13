@@ -12,7 +12,7 @@ import {
   allowedKinds, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
   type PresenceKind, type PunchState, type LeaveRequestStatus,
 } from "@/lib/wfm/types";
-import { enqueuePunch, flushQueue, listQueuedPunches } from "@/lib/wfm/offlineQueue";
+import { enqueuePunch, flushQueue, listQueuedPunches, listRejectedPunches, discardRejectedPunch, type QueuedPunch } from "@/lib/wfm/offlineQueue";
 
 // The consent copy ships separately (bilingual EN + regional). Placeholder
 // per requirements: CONSENT_TEXT_DE_EN_PLACEHOLDER.
@@ -241,6 +241,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
+  const [rejectedPunches, setRejectedPunches] = useState<QueuedPunch[]>([]);
   const [cameraFor, setCameraFor] = useState<PresenceKind | null>(null);
   // ADP-style: one punch-type dropdown + one action button, instead of a
   // button per action. Options are the transitions the state machine allows
@@ -300,6 +301,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     try {
       const { synced, remaining } = await flushQueue();
       setQueuedCount(remaining);
+      setRejectedPunches(await listRejectedPunches());
       if (synced > 0) await load();
     } catch { /* still offline */ }
   }, [load]);
@@ -314,7 +316,8 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     } else {
       load();
     }
-    listQueuedPunches().then((q) => setQueuedCount(q.length)).catch(() => {});
+    listQueuedPunches().then((q) => setQueuedCount(q.filter((e) => !e.rejected).length)).catch(() => {});
+    listRejectedPunches().then(setRejectedPunches).catch(() => {});
     trySync();
     const onOnline = () => trySync();
     window.addEventListener("online", onOnline);
@@ -369,7 +372,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     } catch {
       try {
         await enqueuePunch({ id, kind, ts, geo, selfie, queuedAt: new Date().toISOString() });
-        setQueuedCount((await listQueuedPunches()).length);
+        setQueuedCount((await listQueuedPunches()).filter((e) => !e.rejected).length);
         setNotice({ tone: "warn", text: `${KIND_LABEL[kind]} saved offline — will sync automatically when you're back online.` });
         await load();
       } catch {
@@ -694,6 +697,32 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.warn, fontSize: 12.5 }}>{queuedCount} punch(es) pending sync</div>
       )}
 
+      {rejectedPunches.length > 0 && (
+        <div style={{ ...cardStyle, marginBottom: 14, borderLeft: `3px solid ${statusInk.bad}` }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: statusInk.bad, marginBottom: 6 }}>
+            {rejectedPunches.length} offline punch{rejectedPunches.length === 1 ? "" : "es"} could not be recorded
+          </div>
+          {rejectedPunches.map((rp) => (
+            <div key={rp.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 12, color: c.ink, padding: "4px 0" }}>
+              <span>
+                <strong>{KIND_LABEL[rp.kind] ?? rp.kind}</strong>{" "}
+                <span style={{ color: c.muted }}>
+                  {new Date(rp.ts).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  {" — "}{rp.rejected?.reason}
+                </span>
+              </span>
+              <button
+                style={{ ...btn, fontSize: 11.5, padding: "5px 10px" }}
+                onClick={async () => { await discardRejectedPunch(rp.id); setRejectedPunches(await listRejectedPunches()); }}
+              >Dismiss</button>
+            </div>
+          ))}
+          <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>
+            These were captured offline but the server declined them (usually too old to accept). File a correction from the Time tab if you need them counted.
+          </div>
+        </div>
+      )}
+
       {me.pending_rechecks.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
           {me.pending_rechecks.map((rq) => (
@@ -701,7 +730,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>
-                    ⚑ Your supervisor asked you to recheck your {rq.recheck_type === "both" ? "time and selfie" : rq.recheck_type} for {rq.target_date}
+                    ⚑ Your supervisor flagged your {rq.recheck_type === "both" ? "time and selfie" : rq.recheck_type} for {rq.target_date} — please review
                   </div>
                   <div style={{ fontSize: 12.5, color: c.muted, marginTop: 4 }}>&ldquo;{rq.message}&rdquo;</div>
                 </div>
