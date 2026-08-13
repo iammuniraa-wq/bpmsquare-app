@@ -158,10 +158,12 @@ function blockSize(block: DashLayoutItem): "compact" | "half" | "full" {
 }
 
 const SIZE_FLEX: Record<"compact" | "half" | "full", React.CSSProperties> = {
-  // flex-grow: 0 on compact/half so a block sitting alone on its row keeps its
-  // intended width instead of stretching to fill the empty space beside it.
-  compact: { flex: "0 1 220px", minWidth: 190 },
-  half:    { flex: "0 1 calc(50% - 7px)", minWidth: 260 },
+  // Compact tiles GROW to share the row evenly rather than leaving a ragged
+  // gap on the right -- but maxWidth caps a lone tile so it can't stretch
+  // absurdly wide when it's the only one on its row. (grow:0 previously left
+  // a large dead zone whenever the tiles didn't happen to fill the width.)
+  compact: { flex: "1 1 240px", minWidth: 200, maxWidth: 520 },
+  half:    { flex: "1 1 calc(50% - 7px)", minWidth: 260 },
   full:    { flex: "1 1 100%", minWidth: 0 },
 };
 
@@ -1539,7 +1541,10 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       {nextgen && renderNextgenBrief()}
 
       {/* Two-column layout */}
-      <div className="dash-outer" style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 14, alignItems: "start" }}>
+      {/* Only reserve the 280px right rail when there is actually something to
+          put in it. A tenant with no sidebar widgets (e.g. a WFM-only
+          dashboard) was left with a dead 280px column down the right edge. */}
+      <div className="dash-outer" style={{ display: "grid", gridTemplateColumns: sidebarBlocks.length > 0 ? "1fr 280px" : "1fr", gap: 14, alignItems: "start" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
           {mainBlocks.map((b) => (
             <div key={b.id} style={SIZE_FLEX[blockSize(b)]}>
