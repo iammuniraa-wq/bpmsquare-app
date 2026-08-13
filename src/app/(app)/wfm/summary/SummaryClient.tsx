@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Donut from "@/components/Donut";
@@ -208,17 +208,24 @@ function DailyEmployee({ emp, deductBreaks }: { emp: EmployeeSummary; deductBrea
   );
 }
 
-export default function SummaryClient() {
+export default function SummaryClient({ initial = null }: {
+  initial?: { month: string; employees: EmployeeSummary[]; deduct_breaks: boolean } | null;
+}) {
   const [view, setView] = useState<"daily" | "monthly">("monthly");
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const [rows, setRows] = useState<EmployeeSummary[]>([]);
-  const [deductBreaks, setDeductBreaks] = useState(true);
+  const [month, setMonth] = useState(initial?.month ?? new Date().toISOString().slice(0, 7));
+  const [rows, setRows] = useState<EmployeeSummary[]>(initial?.employees ?? []);
+  const [deductBreaks, setDeductBreaks] = useState(initial?.deduct_breaks ?? true);
   const [siteFilter, setSiteFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [attentionFilter, setAttentionFilter] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // When the page server-prefetched the current month, skip the redundant
+  // mount fetch -- the table paints from `initial` immediately. Any month
+  // change still refetches through the effect below.
+  const serverSeeded = useRef(initial != null);
 
   const load = useCallback(async (m: string) => {
     setLoading(true);
@@ -236,7 +243,10 @@ export default function SummaryClient() {
     }
   }, []);
 
-  useEffect(() => { load(month); }, [month, load]);
+  useEffect(() => {
+    if (serverSeeded.current) { serverSeeded.current = false; return; }
+    load(month);
+  }, [month, load]);
 
   const sites = useMemo(() => [...new Set(rows.map((r) => r.site_name).filter(Boolean))] as string[], [rows]);
 

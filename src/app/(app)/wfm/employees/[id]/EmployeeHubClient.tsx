@@ -94,10 +94,13 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "recheck", label: "Flagged" },
 ];
 
-export default function EmployeeHubClient({ employeeId, initialLists = null, employmentTypes = [] }: {
+export default function EmployeeHubClient({ employeeId, initialProfile = null, initialLists = null, employmentTypes = [] }: {
   employeeId: string;
   /** The tenant's configured employment types (Settings -> Workforce). */
   employmentTypes?: { code: string; label: string }[];
+  /** Server-rendered core profile for the current month, so the hub paints
+   * filled on first render instead of a blank "Loading…" through a fetch. */
+  initialProfile?: Profile | null;
   initialLists?: {
     shifts: WfmShift[]; sites: WfmSite[]; supervisors: EmployeeOpt[];
     upcoming: UpcomingRow[]; corrections: WfmCorrectionRequest[];
@@ -106,9 +109,9 @@ export default function EmployeeHubClient({ employeeId, initialLists = null, emp
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
-  const [month, setMonth] = useState(thisMonth());
+  const [month, setMonth] = useState(initialProfile?.month ?? thisMonth());
 
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(initialProfile);
   const [shifts, setShifts] = useState<WfmShift[]>(initialLists?.shifts ?? []);
   const [sites, setSites] = useState<WfmSite[]>(initialLists?.sites ?? []);
   const [supervisors, setSupervisors] = useState<EmployeeOpt[]>(initialLists?.supervisors ?? []);
@@ -118,9 +121,14 @@ export default function EmployeeHubClient({ employeeId, initialLists = null, emp
   const [leaveRecords, setLeaveRecords] = useState<LeaveRecordRow[]>(initialLists?.leaveRecords ?? []);
   const [recheck, setRecheck] = useState<WfmRecheckRequest[]>(initialLists?.recheck ?? []);
   const serverSeeded = useRef(initialLists != null);
+  // The month whose core profile is already loaded. Seeded from the server
+  // profile so the mount doesn't re-fetch the month it already has, and
+  // updated by loadCore -- this is what stops the month-change effect from
+  // firing a duplicate loadCore the instant `loading` flips to false.
+  const loadedMonth = useRef<string | null>(initialProfile?.month ?? null);
 
   const [loadError, setLoadError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialProfile == null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -142,6 +150,7 @@ export default function EmployeeHubClient({ employeeId, initialLists = null, emp
     const res = await fetch(`/api/wfm/employees/${employeeId}?month=${m}`);
     const json = await res.json();
     if (!res.ok) { setLoadError(json.error ?? "Failed to load employee"); return; }
+    loadedMonth.current = m;
     setProfile(json);
     setDraft({
       first_name: json.first_name, last_name: json.last_name, employee_code: json.employee_code ?? "",
@@ -152,11 +161,13 @@ export default function EmployeeHubClient({ employeeId, initialLists = null, emp
 
   const loadAll = useCallback(async () => {
     if (serverSeeded.current) {
-      // Server render already provided the eight secondary lists -- only
-      // the core profile/timesheet still needs fetching on first mount.
-      // Any later loadAll() call (after a mutation) refetches everything.
+      // Server render already provided the eight secondary lists. The core
+      // profile is fetched only if it WASN'T also seeded -- when the page
+      // supplied initialProfile there is nothing left to fetch on mount, so
+      // the hub shows real data with zero client round-trips. Any later
+      // loadAll() (after a mutation) refetches everything.
       serverSeeded.current = false;
-      await loadCore(month);
+      if (!profile) await loadCore(month);
       setLoading(false);
       return;
     }
@@ -191,7 +202,13 @@ export default function EmployeeHubClient({ employeeId, initialLists = null, emp
   }, [employeeId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
-  useEffect(() => { if (!loading) loadCore(month); }, [month, loadCore, loading]);
+  // Reload the core profile ONLY on a real month change -- not on the initial
+  // loading->false flip, which used to re-fetch the month already loaded (the
+  // duplicate call visible in the production trace).
+  useEffect(() => {
+    if (loading || loadedMonth.current === month) return;
+    loadCore(month);
+  }, [month, loadCore, loading]);
 
   async function saveEdit() {
     setBusy(true);

@@ -2,10 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-server";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
-import { getMonthlySummary, getLeaveBalance } from "@/lib/wfm/monthlySummary";
+import { buildEmployeeHubProfile } from "@/lib/wfm/employeeHub";
 import { PRIMARY_HOST } from "@/lib/constants";
-
-const MONTH_RE = /^\d{4}-\d{2}$/;
 
 // GET /api/wfm/employees/[id] — one employee's full hub profile: identity,
 // site/shift/supervisor, who reports to them, this month's attendance
@@ -22,45 +20,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { tenantId, supabase } = ctx;
   const { id } = await params;
 
-  const { data: employee, error } = await supabase
-    .from("employees")
-    .select(
-      `id, employee_code, first_name, last_name, phone, status, employment_type, wfm_role,
-       supervisor_id, consent_recorded_at,
-       wfm_shifts(id, name, start_time, end_time, is_night_shift), wfm_sites!site_id(id, name)`
-    )
-    .eq("id", id)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!employee) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const admin = createAdminSupabase();
-  const config = await getWfmConfig(admin, tenantId);
-  const month = request.nextUrl.searchParams.get("month");
-  const yearMonth = month && MONTH_RE.test(month)
-    ? month
-    : new Intl.DateTimeFormat("en-CA", { timeZone: config.timezone, year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
-
-  const [{ data: reports }, { data: supervisor }, { data: membership }, [summary], leaveBalance] = await Promise.all([
-    supabase.from("employees").select("id, first_name, last_name").eq("tenant_id", tenantId).eq("supervisor_id", id),
-    employee.supervisor_id
-      ? supabase.from("employees").select("id, first_name, last_name").eq("tenant_id", tenantId).eq("id", employee.supervisor_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    supabase.from("tenant_users").select("id").eq("tenant_id", tenantId).eq("employee_id", id).maybeSingle(),
-    getMonthlySummary(tenantId, yearMonth, [id]),
-    getLeaveBalance(tenantId, id, Number(yearMonth.slice(0, 4))),
-  ]);
-
-  return NextResponse.json({
-    ...employee,
-    supervisor: supervisor ?? null,
-    has_login: !!membership,
-    reports: reports ?? [],
-    month: yearMonth,
-    month_summary: summary ?? null,
-    leave_balance: leaveBalance,
-  });
+  const profile = await buildEmployeeHubProfile(supabase, tenantId, id, request.nextUrl.searchParams.get("month"));
+  if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(profile);
 }
 
 // Canonical, auto-provisioned Business Roles for a WFM login's default CRM

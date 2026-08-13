@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase, getTenantMembership } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { resolvePermissions } from "@/lib/permissions";
 import { DEFAULT_WFM_CONFIG, ROUTES, type TenantConfig, type WfmConfig } from "@/lib/constants";
@@ -48,8 +48,11 @@ export const requireWfm = cache(async function requireWfm(): Promise<WfmContext>
     throw { status: 404, message: "Not found" };
   }
 
-  const [{ data: membership }, perms] = await Promise.all([
-    supabase.from("tenant_users").select("employee_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
+  // getTenantMembership is already cache()-wrapped and already read this
+  // exact tenant_users row (for the password gate) earlier in the request --
+  // reuse it instead of issuing a second identical query.
+  const [membership, perms] = await Promise.all([
+    getTenantMembership(tenantId, userId),
     resolvePermissions(supabase, tenantId, userId, role),
   ]);
 
@@ -118,9 +121,17 @@ export async function requireWfmSupervisorPage(): Promise<void> {
   if (!ctx.isSupervisor) redirect(ROUTES.wfmMe);
 }
 
-/** Tenant WFM config with defaults filled in. */
-export async function getWfmConfig(supabase: SupabaseClient, tenantId: string): Promise<WfmConfig> {
-  const { data } = await supabase.from("tenants").select("config").eq("id", tenantId).maybeSingle();
+// Request-cached on tenantId ALONE. getWfmConfig is called 20+ times across
+// the module and often twice in one request (a route + the getMonthlySummary
+// it calls), each re-reading tenants.config -- a wasted Seoul round-trip every
+// time. cache() keys by argument identity, so the public getWfmConfig(supabase,
+// tenantId) can't be cached directly: callers pass a fresh createAdminSupabase()
+// object each time, which defeats the key. This inner helper takes only
+// tenantId and builds its own admin client, so every caller in one request
+// shares a single read.
+const getWfmConfigCached = cache(async (tenantId: string): Promise<WfmConfig> => {
+  const admin = createAdminSupabase();
+  const { data } = await admin.from("tenants").select("config").eq("id", tenantId).maybeSingle();
   const stored = ((data?.config as TenantConfig | null)?.wfm ?? {}) as Partial<WfmConfig>;
   return {
     ...DEFAULT_WFM_CONFIG,
@@ -137,6 +148,13 @@ export async function getWfmConfig(supabase: SupabaseClient, tenantId: string): 
         ? stored.employment_types
         : DEFAULT_WFM_CONFIG.employment_types,
   };
+});
+
+/** Tenant WFM config with defaults filled in. Request-cached on tenantId --
+ * the `supabase` arg is kept for call-site compatibility but ignored, so the
+ * cache isn't defeated by callers passing fresh admin clients. */
+export async function getWfmConfig(_supabase: SupabaseClient, tenantId: string): Promise<WfmConfig> {
+  return getWfmConfigCached(tenantId);
 }
 
 // ── Geofence ─────────────────────────────────────────────────────────────
