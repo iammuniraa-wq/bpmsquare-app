@@ -6,8 +6,13 @@
   --panel: #fff;
   --panel2: #f4f6f9;
   --ink: #1c2733;
-  --muted: #5f6b7a;
-  --hint: #8a96a5;
+  /* Light-mode secondary/tertiary ink. Darkened 2026-08 -- the old --hint
+     (#8a96a5) sat at ~3.1:1 on white, below the 4.5 AA floor, so labels,
+     donut sublabels and "100%" read as washed-out grey in day mode. These
+     values keep the three-step ink hierarchy (ink > muted > hint) while
+     landing muted ~6:1 and hint ~4.9:1 on white. Dark modes define their own. */
+  --muted: #505b6a;
+  --hint: #66707e;
   --line: #e2e7ee;
   --accent: #378add;
   --accentbg: #e6f1fb;
