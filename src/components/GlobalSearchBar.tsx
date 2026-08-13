@@ -119,6 +119,7 @@ export default function GlobalSearchBar({ autoFocus }: { autoFocus?: boolean } =
         <SearchIcon size={14} color="var(--sb-search-icon)" />
         <input
           ref={inputRef}
+          className="sb-search-input"
           value={query}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
