@@ -1012,36 +1012,66 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           <section style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Correction requests{pendingCorr > 0 && <span style={{ color: statusInk.warn, fontWeight: 500 }}> · {pendingCorr} pending</span>}</div>
-              <button style={btn} onClick={() => setShowCorrectionForm((s) => !s)}>{showCorrectionForm ? "Cancel" : "+ Request correction"}</button>
+              <button style={btn} onClick={() => setShowCorrectionForm(true)}>+ Request correction</button>
             </div>
 
+            {/* A dialog rather than an inline block: it can be opened from the
+                Timeline day-detail and from a review flag, both of which land
+                the user at the top of the Time tab -- an inline form then sits
+                below the whole daily table, off-screen, and looks like nothing
+                happened. Centered, it's always in view. */}
             {showCorrectionForm && (
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", padding: "10px 0", borderBottom: `1px solid ${c.line}`, marginBottom: 10 }}>
-                <div style={{ flex: "0 1 140px" }}>
-                  <label style={lbl}>Date</label>
-                  <input style={inp} type="date" max={todayKey()} value={correctionDraft.target_date} onChange={(e) => setCorrectionDraft({ ...correctionDraft, target_date: e.target.value })} />
-                </div>
-                <div style={{ flex: "0 1 160px" }}>
-                  <label style={lbl}>Issue</label>
-                  <select style={inp} value={correctionDraft.issue} onChange={(e) => setCorrectionDraft({ ...correctionDraft, issue: e.target.value })}>
-                    {Object.entries(ISSUE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </div>
-                {correctionDraft.issue !== "other" && (
-                  <div style={{ flex: "0 1 120px" }}>
-                    <label style={lbl}>Correct time</label>
-                    <input style={inp} type="time" value={correctionDraft.proposed_ts} onChange={(e) => setCorrectionDraft({ ...correctionDraft, proposed_ts: e.target.value })} />
+              <div
+                onClick={() => setShowCorrectionForm(false)}
+                style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  role="dialog"
+                  aria-modal="true"
+                  style={{ background: c.panel, borderRadius: 12, width: 460, maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.35)", padding: 20 }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: c.ink }}>Request a correction</div>
+                    <button style={{ border: "none", background: "none", color: c.hint, fontSize: 20, cursor: "pointer", lineHeight: 1 }} onClick={() => setShowCorrectionForm(false)} aria-label="Close">×</button>
                   </div>
-                )}
-                <div style={{ flex: "1 1 180px" }}>
-                  <label style={lbl}>Reason</label>
-                  <input style={inp} value={correctionDraft.reason_text} onChange={(e) => setCorrectionDraft({ ...correctionDraft, reason_text: e.target.value })} placeholder="e.g. Phone died before I could check out" />
+                  <div style={{ fontSize: 12, color: c.muted, marginBottom: 14 }}>
+                    Your supervisor reviews it — nothing changes until they approve.
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <div style={{ flex: "1 1 130px" }}>
+                        <label style={lbl}>Date</label>
+                        <input style={inp} type="date" max={todayKey()} value={correctionDraft.target_date} onChange={(e) => setCorrectionDraft({ ...correctionDraft, target_date: e.target.value })} />
+                      </div>
+                      {correctionDraft.issue !== "other" && (
+                        <div style={{ flex: "1 1 110px" }}>
+                          <label style={lbl}>Correct time</label>
+                          <input style={inp} type="time" value={correctionDraft.proposed_ts} onChange={(e) => setCorrectionDraft({ ...correctionDraft, proposed_ts: e.target.value })} />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label style={lbl}>Issue</label>
+                      <select style={inp} value={correctionDraft.issue} onChange={(e) => setCorrectionDraft({ ...correctionDraft, issue: e.target.value })}>
+                        {Object.entries(ISSUE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={lbl}>Reason</label>
+                      <input style={inp} value={correctionDraft.reason_text} onChange={(e) => setCorrectionDraft({ ...correctionDraft, reason_text: e.target.value })} placeholder="e.g. Phone died before I could check out" />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+                      <button style={btn} disabled={busy} onClick={() => setShowCorrectionForm(false)}>Cancel</button>
+                      <button style={btnPrimary} disabled={busy} onClick={submitCorrection}>Submit</button>
+                    </div>
+                  </div>
                 </div>
-                <button style={btnPrimary} disabled={busy} onClick={submitCorrection}>Submit</button>
               </div>
             )}
 
-            {corrections.length === 0 && !showCorrectionForm && <div style={{ fontSize: 12, color: c.hint }}>No requests yet.</div>}
+            {corrections.length === 0 && <div style={{ fontSize: 12, color: c.hint }}>No requests yet.</div>}
             {corrections.map((r) => (
               <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5 }}>
                 <div>
