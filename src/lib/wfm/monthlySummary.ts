@@ -249,7 +249,11 @@ export async function getMonthlySummary(
       const sessions = workSessions(evs, endRef);
       const breaks = sessions.flatMap((s) => s.breaks);
       const firstIn = dayEvents.find((e) => e.kind === "check_in") ?? null;
-      const lastOut = [...dayEvents].reverse().find((e) => e.kind === "check_out") ?? null;
+      // Search the events INCLUDING the overnight tail, so a shift that closes
+      // past midnight reports its real last check-out (e.g. 00:34) rather than
+      // an earlier same-day punch -- matching the Session Times and Total
+      // Worked figures, which already include that closing punch.
+      const lastOut = [...evs].reverse().find((e) => e.kind === "check_out") ?? null;
 
       const onLeave = leaveByEmpDay.get(`${emp.id}|${date}`) ?? null;
       const holiday = (holidays ?? []).find(
