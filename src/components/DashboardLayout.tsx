@@ -349,7 +349,7 @@ function QueueGlance({ pending, noun, chips, href }: {
           <div style={{
             ...(modern ? {} : serifNum),
             fontSize: 24, fontWeight: modern ? 800 : 700, lineHeight: 1.1,
-            color: modern ? "var(--modern-accent)" : ledger.accent,
+            color: hot ? pillar.amber.fg : pillar.green.fg,
           }}>{pending}</div>
           <div style={{ fontSize: 10.5, color: c.hint, marginTop: 2 }}>
             {hot ? `pending ${noun} awaiting review` : `no pending ${noun} — all clear`}
@@ -522,13 +522,13 @@ function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: numb
   );
 }
 
-function StatTile({ value, label, icon, href }: { value: number | string; label: string; icon: React.ReactNode; href: string }) {
+function StatTile({ value, label, icon, href, tone }: { value: number | string; label: string; icon: React.ReactNode; href: string; tone?: PillarKey }) {
   const modern = useUiTheme() !== "classic";
   return (
     <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px", minWidth: 0 }}>
       <div style={{
         width: 28, height: 28, borderRadius: modern ? 8 : 7,
-        background: modern ? "var(--modern-accent-bg)" : ledger.accentSoft,
+        background: tone ? pillar[tone].bg : (modern ? "var(--modern-accent-bg)" : ledger.accentSoft),
         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
       }}>
         {icon}
@@ -537,7 +537,7 @@ function StatTile({ value, label, icon, href }: { value: number | string; label:
         <div style={{
           ...(modern ? {} : serifNum),
           fontSize: kpiNumFontSize(String(value)) + 2, fontWeight: modern ? 800 : 700,
-          color: modern ? "var(--modern-accent)" : ledger.accent,
+          color: tone ? pillar[tone].fg : (modern ? "var(--modern-accent)" : ledger.accent),
           letterSpacing: modern ? "-0.01em" : undefined,
           lineHeight: 1.15, whiteSpace: "nowrap",
         }}>{value}</div>
@@ -618,18 +618,33 @@ function AccountNewsList({ items }: { items: AnalyticsData["accountNews"] }) {
 
 // ── Analytics widget renderer ─────────────────────────────────────────────────
 
+// Each count/stat tile gets a stable identity hue from the pillar palette, so
+// the dashboard reads as a set of distinct cards rather than a wall of one
+// accent colour. Assigned by MEANING (money = green, people = teal, alerts =
+// amber/red...), not at random, and stable per widget so a tile keeps its
+// colour across renders. Widgets not listed keep the default accent.
+const WIDGET_TONE: Partial<Record<string, PillarKey>> = {
+  accounts: "blue", contacts: "teal", assets: "purple", open_cases: "amber",
+  work_orders: "purple", leads: "green", technicians: "teal",
+  quote_overdue: "red", quote_source: "blue",
+  wfm_night_shift_cost: "amber", wfm_site_headcount: "teal",
+  wfm_attendance_today: "blue", wfm_workforce_composition: "purple",
+  wfm_leave_taken_by_type: "green",
+};
 function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full"): React.ReactNode {
   const COLORS = [pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.purple.base, pillar.green.base];
+  const tone = WIDGET_TONE[id];
+  const iconColor = tone ? pillar[tone].base : ledger.accent;
   const big = size !== "compact";
   switch (id) {
-    case "accounts":        return <AnalyticsCard title="Accounts" href={ROUTES.accounts}><StatTile value={a.totals.accounts} label="Total accounts" icon={<Globe size={14} color={ledger.accent} />} href={ROUTES.accounts} /></AnalyticsCard>;
-    case "contacts":        return <AnalyticsCard title="Contacts" href={ROUTES.contacts}><StatTile value={a.totals.contacts} label="Total contacts" icon={<Phone size={14} color={ledger.accent} />} href={ROUTES.contacts} /></AnalyticsCard>;
-    case "assets":          return <AnalyticsCard title="Assets" href={ROUTES.assets}><StatTile value={a.totals.customerAssets} label="Customer assets" icon={<Gear size={14} color={ledger.accent} />} href={ROUTES.assets} /></AnalyticsCard>;
-    case "open_cases":      return <AnalyticsCard title="Open cases" href={ROUTES.cases}><StatTile value={a.totals.openCases} label="Open cases" icon={<Activity size={14} color={ledger.accent} />} href={ROUTES.cases} /></AnalyticsCard>;
-    case "work_orders":     return <AnalyticsCard title="Work orders" href={ROUTES.workOrders}><StatTile value={a.totals.workOrders} label="Total work orders" icon={<Wrench size={14} color={ledger.accent} />} href={ROUTES.workOrders} /></AnalyticsCard>;
-    case "contracts":       return <AnalyticsCard title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile value={a.contractStats.activeCount} label="Active" icon={<CalendarCheck size={14} color={ledger.accent} />} href={ROUTES.amc} /><StatTile value={inr(a.contractStats.totalValue)} label="Total value" icon={<CalendarCheck size={14} color={ledger.accent} />} href={ROUTES.amc} /></div></AnalyticsCard>;
-    case "leads":           return <AnalyticsCard title="Leads" href={ROUTES.leads}><StatTile value={a.totals.leads} label="Total leads" icon={<Zap size={14} color={ledger.accent} />} href={ROUTES.leads} /></AnalyticsCard>;
-    case "technicians":     return <AnalyticsCard title="Technicians" href={ROUTES.technicians}><StatTile value={a.totals.technicians} label="Total technicians" icon={<Clipboard size={14} color={ledger.accent} />} href={ROUTES.technicians} /></AnalyticsCard>;
+    case "accounts":        return <AnalyticsCard title="Accounts" href={ROUTES.accounts}><StatTile tone={tone} value={a.totals.accounts} label="Total accounts" icon={<Globe size={14} color={iconColor} />} href={ROUTES.accounts} /></AnalyticsCard>;
+    case "contacts":        return <AnalyticsCard title="Contacts" href={ROUTES.contacts}><StatTile tone={tone} value={a.totals.contacts} label="Total contacts" icon={<Phone size={14} color={iconColor} />} href={ROUTES.contacts} /></AnalyticsCard>;
+    case "assets":          return <AnalyticsCard title="Assets" href={ROUTES.assets}><StatTile tone={tone} value={a.totals.customerAssets} label="Customer assets" icon={<Gear size={14} color={iconColor} />} href={ROUTES.assets} /></AnalyticsCard>;
+    case "open_cases":      return <AnalyticsCard title="Open cases" href={ROUTES.cases}><StatTile tone={tone} value={a.totals.openCases} label="Open cases" icon={<Activity size={14} color={iconColor} />} href={ROUTES.cases} /></AnalyticsCard>;
+    case "work_orders":     return <AnalyticsCard title="Work orders" href={ROUTES.workOrders}><StatTile tone={tone} value={a.totals.workOrders} label="Total work orders" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.workOrders} /></AnalyticsCard>;
+    case "contracts":       return <AnalyticsCard title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.contractStats.activeCount} label="Active" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /><StatTile tone={tone} value={inr(a.contractStats.totalValue)} label="Total value" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /></div></AnalyticsCard>;
+    case "leads":           return <AnalyticsCard title="Leads" href={ROUTES.leads}><StatTile tone={tone} value={a.totals.leads} label="Total leads" icon={<Zap size={14} color={iconColor} />} href={ROUTES.leads} /></AnalyticsCard>;
+    case "technicians":     return <AnalyticsCard title="Technicians" href={ROUTES.technicians}><StatTile tone={tone} value={a.totals.technicians} label="Total technicians" icon={<Clipboard size={14} color={iconColor} />} href={ROUTES.technicians} /></AnalyticsCard>;
     case "accounts_by_type": {
       const segs = a.accountsByType.map((x, i) => ({ label: x.label, value: x.count, color: COLORS[i % COLORS.length], href: `${ROUTES.accounts}?type=${x.type}` }));
       return <AnalyticsCard title="Accounts by type" href={ROUTES.accounts}>{big
@@ -664,7 +679,7 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
       return <AnalyticsCard title="Revenue overview" href={ROUTES.invoices}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.blue.base, pillar.purple.base, pillar.teal.base][i % 4]} /></AnalyticsCard>;
     }
     case "invoices_by_status": return <AnalyticsCard title="Invoices by status" href={ROUTES.invoices}><MiniHBar rows={a.invoicesByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.invoices}?status=${x.status}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
-    case "loaner_availability": return <AnalyticsCard title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile value={a.loanerStock.available} label="Available" icon={<Battery size={14} color={ledger.accent} />} href={ROUTES.assets} /><StatTile value={a.loanerStock.onLoan} label="On loan" icon={<Package size={14} color={ledger.accent} />} href={ROUTES.assets} /></div></AnalyticsCard>;
+    case "loaner_availability": return <AnalyticsCard title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.loanerStock.available} label="Available" icon={<Battery size={14} color={iconColor} />} href={ROUTES.assets} /><StatTile tone={tone} value={a.loanerStock.onLoan} label="On loan" icon={<Package size={14} color={iconColor} />} href={ROUTES.assets} /></div></AnalyticsCard>;
     case "recent_activity":  return <AnalyticsCard title="Recent activity" href={ROUTES.accounts}><div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{a.recentActivity.slice(0, 4).map((act, i) => (<div key={i} style={{ fontSize: 11, color: c.muted, borderLeft: `2px solid ${ledger.accentSoft}`, paddingLeft: 9 }}><div style={{ color: c.ink }}>{act.text}</div><div style={{ fontSize: 10, color: c.hint, marginTop: 1 }}>{act.accountName} · {fmtDate(act.at)}</div></div>))}</div></AnalyticsCard>;
     case "account_news":     return <AnalyticsCard title="Client news" href={ROUTES.accounts}><AccountNewsList items={a.accountNews} /></AnalyticsCard>;
     case "quote_outcomes": {
@@ -677,8 +692,8 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
       ];
       return <AnalyticsCard title="Quote outcome value" href={ROUTES.quotations}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.amber.base, pillar.blue.base][i]} /></AnalyticsCard>;
     }
-    case "quote_overdue": return <AnalyticsCard title="Quote overdue" href={ROUTES.quotations}><StatTile value={a.quoteOverdueCount} label="Overdue quotes" icon={<AlertTriangle size={14} color={ledger.accent} />} href={ROUTES.quotations} /></AnalyticsCard>;
-    case "quote_source": return <AnalyticsCard title="Quote source" href={ROUTES.quotations}><div style={{ display: "flex" }}><StatTile value={a.quoteSource.caseLinked.count} label="From cases" icon={<Wrench size={14} color={ledger.accent} />} href={ROUTES.quotations} /><StatTile value={a.quoteSource.standalone.count} label="Standalone" icon={<FileText size={14} color={ledger.accent} />} href={ROUTES.quotations} /></div></AnalyticsCard>;
+    case "quote_overdue": return <AnalyticsCard title="Quote overdue" href={ROUTES.quotations}><StatTile tone={tone} value={a.quoteOverdueCount} label="Overdue quotes" icon={<AlertTriangle size={14} color={iconColor} />} href={ROUTES.quotations} /></AnalyticsCard>;
+    case "quote_source": return <AnalyticsCard title="Quote source" href={ROUTES.quotations}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.quoteSource.caseLinked.count} label="From cases" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.quotations} /><StatTile tone={tone} value={a.quoteSource.standalone.count} label="Standalone" icon={<FileText size={14} color={iconColor} />} href={ROUTES.quotations} /></div></AnalyticsCard>;
     case "wfm_attendance_today": {
       const onTime = a.wfmAttendanceBySite.reduce((s, x) => s + x.onTime, 0);
       const late = a.wfmAttendanceBySite.reduce((s, x) => s + x.late, 0);
@@ -706,7 +721,7 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
             </Link>}
       </AnalyticsCard>;
     }
-    case "wfm_night_shift_cost": return <AnalyticsCard title="Night shift cost" href={ROUTES.wfmLiveBoard}><StatTile value={inr(a.wfmNightShiftCost.amount)} label={`${a.wfmNightShiftCost.count} on night shift today`} icon={<Clock size={14} color={ledger.accent} />} href={ROUTES.wfmLiveBoard} /></AnalyticsCard>;
+    case "wfm_night_shift_cost": return <AnalyticsCard title="Night shift cost" href={ROUTES.wfmLiveBoard}><StatTile tone={tone} value={inr(a.wfmNightShiftCost.amount)} label={`${a.wfmNightShiftCost.count} on night shift today`} icon={<Clock size={14} color={iconColor} />} href={ROUTES.wfmLiveBoard} /></AnalyticsCard>;
     case "wfm_corrections_queue": {
       const m = new Map(a.wfmCorrectionsByStatus.map((x) => [x.status, x.count]));
       return <AnalyticsCard title="Corrections queue" href={ROUTES.wfmCorrections}>
