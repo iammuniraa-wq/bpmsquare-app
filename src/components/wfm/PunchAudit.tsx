@@ -103,7 +103,7 @@ export default function PunchAudit({
                     padding: "2px 8px", cursor: "pointer",
                   }}
                 >
-                  ⚑ Flag for recheck
+                  ⚑ Flag for review
                 </button>
               )}
             </div>

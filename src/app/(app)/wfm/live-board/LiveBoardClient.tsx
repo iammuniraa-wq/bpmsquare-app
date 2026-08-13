@@ -417,13 +417,13 @@ export default function LiveBoardClient({ initialBoard = null, initialLanding = 
           onClick={() => setFlagging(null)}
         >
           <div style={{ ...cardStyle, width: 420, maxWidth: "92vw" }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 4 }}>Flag for recheck</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 4 }}>Flag for review</div>
             <div style={{ fontSize: 12, color: c.muted, marginBottom: 14 }}>{flagging.employeeName} · {flagging.date}</div>
             {flagSent ? (
               <div style={{ fontSize: 13, color: statusInk.good, padding: "10px 0" }}>✓ Sent — {flagging.employeeName} will see this on their Me page.</div>
             ) : (
               <>
-                <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 }}>What needs rechecking?</label>
+                <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 }}>What needs review?</label>
                 <select
                   value={flagType}
                   onChange={(e) => setFlagType(e.target.value as typeof flagType)}

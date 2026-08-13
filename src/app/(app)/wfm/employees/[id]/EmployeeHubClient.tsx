@@ -91,7 +91,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "corrections", label: "Corrections" },
   { key: "leave", label: "Leave" },
   { key: "roster", label: "Roster" },
-  { key: "recheck", label: "Recheck" },
+  { key: "recheck", label: "Flagged" },
 ];
 
 export default function EmployeeHubClient({ employeeId, initialLists = null, employmentTypes = [] }: {
@@ -437,7 +437,7 @@ export default function EmployeeHubClient({ employeeId, initialLists = null, emp
           <div style={{ fontSize: 11.5, color: c.muted }}>pending of {leaveRequests.length}</div>
         </div>
         <div className="stat-tile is-clickable" style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setTab("recheck")}>
-          <div style={capStyle}>Recheck flags</div>
+          <div style={capStyle}>Flagged for review</div>
           <div style={{ fontSize: 21, fontWeight: 700, color: pendingRecheck > 0 ? statusInk.warn : c.ink }}>{pendingRecheck}</div>
           <div style={{ fontSize: 11.5, color: c.muted }}>open of {recheck.length}</div>
         </div>

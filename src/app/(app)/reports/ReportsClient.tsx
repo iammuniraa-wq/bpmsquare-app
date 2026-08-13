@@ -395,7 +395,7 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   wfm_night_shift_cost:   { label: "Night shift cost (today)",   feature: "wfm" },
   wfm_corrections_queue:    { label: "Corrections queue",         feature: "wfm" },
   wfm_leave_requests_queue: { label: "Leave requests queue",      feature: "wfm" },
-  wfm_recheck_queue:        { label: "Recheck requests queue",    feature: "wfm" },
+  wfm_recheck_queue:        { label: "Flagged-for-review queue",   feature: "wfm" },
   wfm_site_headcount:       { label: "Headcount by site",         feature: "wfm" },
   wfm_workforce_composition:{ label: "Workforce composition",     feature: "wfm" },
   wfm_leave_taken_by_type:  { label: "Leave taken by type (YTD)", feature: "wfm" },
@@ -834,10 +834,10 @@ export default function ReportsClient({
             ]} />;
           })()}
         </ChartCard>}
-        {isVisible("wfm_recheck_queue") && <ChartCard title="Recheck requests" href={ROUTES.wfmCorrections}>
+        {isVisible("wfm_recheck_queue") && <ChartCard title="Flagged for review" href={ROUTES.wfmCorrections}>
           {(() => {
             const m = new Map(a.wfmRecheckByStatus.map((x) => [x.status, x.count]));
-            return <QueueSummary pending={m.get("pending") ?? 0} noun="rechecks" href={ROUTES.wfmCorrections} chips={[
+            return <QueueSummary pending={m.get("pending") ?? 0} noun="flags" href={ROUTES.wfmCorrections} chips={[
               { label: "Responded", value: m.get("responded") ?? 0, color: pillar.blue.base },
               { label: "Resolved",  value: m.get("resolved") ?? 0,  color: pillar.green.base },
               { label: "Dismissed", value: m.get("dismissed") ?? 0, color: c.hint },

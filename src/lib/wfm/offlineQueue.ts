@@ -19,6 +19,11 @@ export type QueuedPunch = {
   geo: { lat: number; lng: number; accuracy_m: number } | null;
   selfie: Blob | null;
   queuedAt: string;
+  /** Set when the server REJECTED this punch (a 4xx: ts outside the accepted
+   * window, consent not recorded, transition no longer valid). The entry
+   * stays in the queue so the employee is told the truth rather than a false
+   * "synced", and the punch screen can surface it for a manual fix. */
+  rejected?: { at: string; status: number; reason: string };
 };
 
 function openDb(): Promise<IDBDatabase> {
@@ -67,14 +72,23 @@ export async function dequeuePunch(id: string): Promise<void> {
 }
 
 /**
- * Push every queued punch to the server, oldest first (order matters --
- * the state machine validates each transition against the last one).
- * Stops at the first failure (still offline, or a real rejection) so nothing
- * gets skipped or reordered; whatever synced is removed from the queue.
+ * Push every queued punch to the server, oldest first (order matters -- the
+ * state machine validates each transition against the last one).
+ *
+ * Three outcomes per entry:
+ *  - 2xx (or a duplicate the server already has): synced, removed.
+ *  - 4xx: the server REJECTED it -- ts too old, consent missing, transition
+ *    no longer valid. It will never succeed on retry, so it is not dropped
+ *    silently (the old behaviour, which counted it as "synced" and deleted
+ *    it, telling the worker their punch was saved when it was thrown away).
+ *    It stays in the queue marked `rejected` so the punch screen can show it.
+ *  - 5xx / network error: transient -- stop here, the rest keep their place
+ *    and retry next flush.
  */
-export async function flushQueue(): Promise<{ synced: number; remaining: number }> {
-  const queued = await listQueuedPunches();
+export async function flushQueue(): Promise<{ synced: number; rejected: number; remaining: number }> {
+  const queued = (await listQueuedPunches()).filter((e) => !e.rejected);
   let synced = 0;
+  let rejected = 0;
   for (const entry of queued) {
     try {
       const res = await fetch("/api/wfm/punch", {
@@ -82,14 +96,23 @@ export async function flushQueue(): Promise<{ synced: number; remaining: number 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: entry.id, kind: entry.kind, ts: entry.ts, geo: entry.geo }),
       });
-      if (!res.ok && res.status !== 409) {
-        // A genuine network/server problem -- stop, try again later.
-        // (409 = the transition is now invalid, e.g. superseded by a
-        // manual/admin correction while offline; drop it rather than
-        // block every later queued punch forever.)
-        if (res.status >= 500) break;
+
+      if (res.status >= 500) break; // transient server problem -- try again later
+
+      if (!res.ok) {
+        // A 4xx the server will keep rejecting. Mark it, don't discard it:
+        // the worker needs to know this punch did NOT record.
+        let reason = "This punch could not be recorded.";
+        try { reason = (await res.json())?.error ?? reason; } catch { /* keep default */ }
+        await enqueuePunch({
+          ...entry,
+          rejected: { at: new Date().toISOString(), status: res.status, reason },
+        });
+        rejected++;
+        continue;
       }
-      if (res.ok && entry.selfie) {
+
+      if (entry.selfie) {
         const form = new FormData();
         form.append("event_id", entry.id);
         form.append("file", entry.selfie, "selfie.jpg");
@@ -101,6 +124,17 @@ export async function flushQueue(): Promise<{ synced: number; remaining: number 
       break; // still offline
     }
   }
-  const remaining = (await listQueuedPunches()).length;
-  return { synced, remaining };
+  const all = await listQueuedPunches();
+  return { synced, rejected, remaining: all.filter((e) => !e.rejected).length };
+}
+
+/** Punches the server refused, kept so the UI can list them for a manual fix. */
+export async function listRejectedPunches(): Promise<QueuedPunch[]> {
+  return (await listQueuedPunches()).filter((e) => !!e.rejected);
+}
+
+/** Discard a rejected punch once the employee has acknowledged it (e.g. filed
+ * a correction instead). */
+export async function discardRejectedPunch(id: string): Promise<void> {
+  await dequeuePunch(id);
 }

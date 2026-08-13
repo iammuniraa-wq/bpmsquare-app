@@ -725,7 +725,7 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
     }
     case "wfm_recheck_queue": {
       const m = new Map(a.wfmRecheckByStatus.map((x) => [x.status, x.count]));
-      return <AnalyticsCard title="Recheck requests" href={ROUTES.wfmCorrections}>
+      return <AnalyticsCard title="Flagged for review" href={ROUTES.wfmCorrections}>
         <QueueGlance pending={m.get("pending") ?? 0} noun="rechecks" href={ROUTES.wfmCorrections} chips={[
           { label: "Responded", value: m.get("responded") ?? 0, color: pillar.blue.base },
           { label: "Resolved",  value: m.get("resolved") ?? 0,  color: pillar.green.base },

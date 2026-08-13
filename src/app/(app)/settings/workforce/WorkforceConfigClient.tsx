@@ -42,7 +42,7 @@ const NOTIFICATION_ITEMS = [
   { key: "late_arrival", label: "Late arrival", hint: "Notify supervisor when someone checks in past shift start + grace" },
   { key: "correction_pending", label: "Correction request submitted", hint: "Notify supervisor when an employee files one" },
   { key: "leave_pending", label: "Leave request submitted", hint: "Notify supervisor when an employee files one" },
-  { key: "recheck_flagged", label: "Recheck flagged", hint: "Notify the employee when a supervisor flags their punch" },
+  { key: "recheck_flagged", label: "Flagged for review", hint: "Notify the employee when a supervisor flags their punch" },
 ] as const;
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
