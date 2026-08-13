@@ -19,6 +19,7 @@ export const MONTHLY_SUMMARY_COLUMNS: SummaryColumn[] = [
   { header: "Site", width: 18, accessor: (r) => r.site_name ?? "" },
   { header: "Shift", width: 16, accessor: (r) => r.shift_name ?? "" },
   { header: "Days Present", width: 12, accessor: (r) => r.totals.days_present },
+  { header: "Absent Days", width: 11, accessor: (r) => r.totals.absent_days },
   { header: "Working Hours", width: 13, accessor: (r) => Math.round((r.totals.working_minutes / 60) * 100) / 100 },
   { header: "Late Marks", width: 11, accessor: (r) => r.totals.late_marks },
   { header: "Half-Day Deductions", width: 16, accessor: (r) => r.totals.half_day_deductions },

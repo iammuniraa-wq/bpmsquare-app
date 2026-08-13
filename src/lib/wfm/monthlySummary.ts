@@ -63,9 +63,12 @@ export type EmployeeMonthSummary = {
   days: EmployeeDayRecord[];
   totals: {
     days_present: number;
+    absent_days: number;
     working_minutes: number; // net or gross per config.deduct_breaks
     late_marks: number;
     half_day_deductions: number;
+    /** Paid/unpaid leave counted in DAYS, a half-day leave contributing 0.5 --
+     * consistent with getLeaveBalance's own half-day handling. */
     paid_leave_days: number;
     unpaid_leave_days: number;
     holiday_days: number;
@@ -318,11 +321,14 @@ export async function getMonthlySummary(
       days,
       totals: {
         days_present: days.filter((d) => d.punches > 0).length,
+        absent_days: days.filter((d) => d.absent).length,
         working_minutes: workingDays.reduce((s, d) => s + (config.deduct_breaks ? d.net_minutes : d.gross_minutes), 0),
         late_marks: lateMarks,
         half_day_deductions: Math.floor(lateMarks / Math.max(1, config.late_marks_per_half_day)),
-        paid_leave_days: days.filter((d) => d.on_leave?.category === "paid").length,
-        unpaid_leave_days: days.filter((d) => d.on_leave?.category === "unpaid").length,
+        // A half-day leave counts as 0.5 -- same rule getLeaveBalance applies,
+        // so the summary's leave-day counts agree with the balance figures.
+        paid_leave_days: days.reduce((s, d) => s + (d.on_leave?.category === "paid" ? (d.on_leave.half_day ? 0.5 : 1) : 0), 0),
+        unpaid_leave_days: days.reduce((s, d) => s + (d.on_leave?.category === "unpaid" ? (d.on_leave.half_day ? 0.5 : 1) : 0), 0),
         holiday_days: days.filter((d) => d.holiday).length,
         night_shifts: days.filter((d) => d.is_night_shift && d.punches > 0).length,
         night_allowance_total: days
