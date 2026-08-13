@@ -126,24 +126,23 @@ export const resolveWfmScope = cache(async function resolveWfmScope(
   const visible = new Set<string>(subordinates);
 
   if (siteIds.length > 0) {
-    // Home-site assignment (employees.site_id) is the standing default...
-    const { data: homed } = await admin
-      .from("employees")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .in("site_id", siteIds);
-    (homed ?? []).forEach((e) => visible.add(e.id as string));
-
-    // ...and an explicit roster row overrides it for those dates. Anyone
-    // rostered onto one of my sites within the range is mine to see, even
-    // if they normally belong elsewhere.
+    // Both depend only on siteIds and are independent of each other, so they
+    // run together rather than one Seoul hop after the other:
+    //   - home-site assignment (employees.site_id) is the standing default;
+    //   - an explicit roster row overrides it for those dates, so anyone
+    //     rostered onto one of my sites within the range is mine to see too.
     let rosterQuery = admin
       .from("wfm_roster_assignments")
       .select("employee_id")
       .eq("tenant_id", tenantId)
       .in("site_id", siteIds);
     if (range) rosterQuery = rosterQuery.gte("date", range.from).lte("date", range.to);
-    const { data: rostered } = await rosterQuery;
+
+    const [{ data: homed }, { data: rostered }] = await Promise.all([
+      admin.from("employees").select("id").eq("tenant_id", tenantId).in("site_id", siteIds),
+      rosterQuery,
+    ]);
+    (homed ?? []).forEach((e) => visible.add(e.id as string));
     (rostered ?? []).forEach((r) => visible.add(r.employee_id as string));
   }
 
