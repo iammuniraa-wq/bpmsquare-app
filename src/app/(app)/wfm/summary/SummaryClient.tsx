@@ -35,6 +35,7 @@ type EmployeeSummary = {
   days: DayRecord[];
   totals: {
     days_present: number;
+    absent_days: number;
     working_minutes: number;
     late_marks: number;
     half_day_deductions: number;
@@ -44,6 +45,8 @@ type EmployeeSummary = {
     night_shifts: number;
     night_allowance_total: number;
     incomplete_days: number;
+    ot_minutes: number;
+    ot_amount: number;
   };
 };
 
@@ -81,10 +84,10 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
         <thead>
           <tr>
             <th style={th}>Code</th><th style={th}>Name</th><th style={th}>Site</th>
-            <th style={th}>Days present</th><th style={th}>Hours</th><th style={th}>Late marks</th>
+            <th style={th}>Days present</th><th style={th}>Absent</th><th style={th}>Hours</th><th style={th}>Late marks</th>
             <th style={th}>Half-day ded.</th><th style={th}>Paid leave</th><th style={th}>Unpaid leave</th>
             <th style={th}>Holidays</th><th style={th}>Night shifts</th><th style={th}>Night allowance</th>
-            <th style={th}>Incomplete</th>
+            <th style={th}>OT hrs</th><th style={th}>OT amt</th><th style={th}>Incomplete</th>
           </tr>
         </thead>
         <tbody>
@@ -94,6 +97,7 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
               <td style={{ ...td, fontWeight: 600, color: c.ink }}>{r.full_name}</td>
               <td style={td}>{r.site_name ?? "—"}</td>
               <td style={td}>{r.totals.days_present}</td>
+              <td style={{ ...td, color: r.totals.absent_days > 0 ? statusInk.bad : undefined }}>{r.totals.absent_days || "—"}</td>
               <td style={td}>{fmtHM(r.totals.working_minutes)}</td>
               <td style={{ ...td, color: r.totals.late_marks > 0 ? statusInk.warn : undefined }}>{r.totals.late_marks}</td>
               <td style={td}>{r.totals.half_day_deductions}</td>
@@ -102,10 +106,12 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
               <td style={td}>{r.totals.holiday_days}</td>
               <td style={td}>{r.totals.night_shifts}</td>
               <td style={td}>{r.totals.night_allowance_total ? `₹${r.totals.night_allowance_total.toLocaleString("en-IN")}` : "—"}</td>
+              <td style={td}>{r.totals.ot_minutes ? fmtHM(r.totals.ot_minutes) : "—"}</td>
+              <td style={td}>{r.totals.ot_amount ? `₹${Math.round(r.totals.ot_amount).toLocaleString("en-IN")}` : "—"}</td>
               <td style={{ ...td, color: r.totals.incomplete_days > 0 ? statusInk.bad : undefined }}>{r.totals.incomplete_days || "—"}</td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={13}>No employees in this section.</td></tr>}
+          {rows.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={16}>No employees in this section.</td></tr>}
         </tbody>
       </table>
     </section>

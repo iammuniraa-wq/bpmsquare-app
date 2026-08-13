@@ -20,6 +20,16 @@ function dayTotal(all: { kind: PresenceKind; ts: string }[], date: string, shift
   return computeDayHours(evs, endRef);
 }
 
+/** The "Check Out" column's source: getMonthlySummary derives last_out from
+ * the events INCLUDING the overnight tail, so it reports the real closing
+ * punch even when it lands past midnight. */
+function lastOutOf(all: { kind: PresenceKind; ts: string }[], date: string, shift: typeof dayShift) {
+  const dayEvents = all.filter((e) => shiftDayKey(new Date(e.ts), TZ, shift) === date);
+  const tail = overnightTail(dayEvents, all);
+  const evs = tail.length > 0 ? [...dayEvents, ...tail] : dayEvents;
+  return [...evs].reverse().find((e) => e.kind === "check_out")?.ts ?? null;
+}
+
 describe("work past midnight on a shift that isn't flagged crosses_midnight", () => {
   // 22:00 IST 11 Aug -> 02:00 IST 12 Aug = 4 hours.
   const all = [
@@ -41,6 +51,18 @@ describe("work past midnight on a shift that isn't flagged crosses_midnight", ()
   it("still works when the shift IS flagged crosses_midnight", () => {
     const d1 = dayTotal(all, "2026-08-11", nightShift);
     expect(d1.gross_minutes).toBe(240);
+  });
+
+  it("reports the past-midnight closing punch as last_out, not the earlier same-day one", () => {
+    // 15:30 IST in, 20:24 IST out, 23:57 IST in, then 02:00 IST (next day) out.
+    const shifted = [
+      ev("check_in", "2026-08-11T10:00:00.000Z"),  // 15:30 IST 11 Aug
+      ev("check_out", "2026-08-11T14:54:00.000Z"), // 20:24 IST 11 Aug (earlier same-day out)
+      ev("check_in", "2026-08-11T18:27:00.000Z"),  // 23:57 IST 11 Aug
+      ev("check_out", "2026-08-11T20:30:00.000Z"), // 02:00 IST 12 Aug (real last out)
+    ];
+    // The overnight closing punch, not the 20:24 IST one from before the gap.
+    expect(lastOutOf(shifted, "2026-08-11", dayShift)).toBe("2026-08-11T20:30:00.000Z");
   });
 });
 
