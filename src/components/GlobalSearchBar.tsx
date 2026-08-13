@@ -28,6 +28,16 @@ export default function GlobalSearchBar({ autoFocus }: { autoFocus?: boolean } =
     const allowed = allowedSearchTypes(viewableWorkcenters, isWfmSupervisor);
     return allowed === "all" ? enabled : enabled.filter((o) => allowed.includes(o.type));
   }, [tenant?.features, viewableWorkcenters, isWfmSupervisor]);
+  // Placeholder derived from what this user can ACTUALLY search, so it never
+  // contradicts the scope dropdown -- a WFM-only admin was told to "Search
+  // accounts, quotes, cases" they have no access to. Names up to three real
+  // object labels; "…" stands in for the rest.
+  const placeholder = useMemo(() => {
+    if (searchObjects.length === 0) return "Search…";
+    const names = searchObjects.slice(0, 3).map((o) => o.label.toLowerCase()).join(", ");
+    return `Search ${names}${searchObjects.length > 3 ? ", …" : "…"}`;
+  }, [searchObjects]);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [objectType, setObjectType] = useState<SearchObjectType | "">("");
@@ -112,7 +122,7 @@ export default function GlobalSearchBar({ autoFocus }: { autoFocus?: boolean } =
           value={query}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          placeholder="Search accounts, quotes, cases, ref numbers…"
+          placeholder={placeholder}
           style={{
             flex: 1, background: "transparent", border: "none", outline: "none",
             color: "var(--sb-search-text)", fontSize: 12.5, height: "100%",
