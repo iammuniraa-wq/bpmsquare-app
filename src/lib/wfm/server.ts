@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
@@ -31,8 +32,16 @@ const EMPLOYEE_COLS =
  * with one catch. WFM tables are read-only under RLS by design — all
  * writes in wfm routes use createAdminSupabase() with explicit tenant
  * filters (see 0062_wfm_module.sql header).
+ *
+ * cache()-wrapped: a single WFM page render calls this several times over --
+ * once through requireWfmSupervisorPage()'s guard, again directly in the
+ * page body (e.g. /wfm/me), and the payload builders each need the ctx too.
+ * Without the cache each call re-ran the tenant_users membership lookup and
+ * the employees record fetch, so a page did those two round-trips 2-3× in
+ * series. The request-scoped cache collapses them to one. Same reasoning as
+ * getAuthUser / createServerSupabase, which this ultimately depends on.
  */
-export async function requireWfm(): Promise<WfmContext> {
+export const requireWfm = cache(async function requireWfm(): Promise<WfmContext> {
   const { supabase, tenantId, userId, role } = await requireTenantUser();
 
   if (!(await tenantHasFeature(supabase, tenantId, "wfm"))) {
@@ -72,7 +81,7 @@ export async function requireWfm(): Promise<WfmContext> {
     employee,
     isSupervisor: role === "admin" || employee?.wfm_role === "supervisor" || grantedViaRole,
   };
-}
+});
 
 /** requireWfm + must be an active employee (punch/timesheet/corrections). */
 export async function requireWfmEmployee(): Promise<WfmContext & { employee: WfmEmployee }> {
