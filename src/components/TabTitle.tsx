@@ -11,11 +11,18 @@ import { useTabs } from "@/lib/tabs-context";
  */
 export default function TabTitle({ title }: { title: string }) {
   const pathname = usePathname();
-  const { updateTabTitle } = useTabs();
+  const { tabs, updateTabTitle } = useTabs();
 
+  // Depend on `tabs` so this re-applies once the tab is actually registered:
+  // this effect can otherwise fire before the provider's auto-register runs,
+  // finding no matching tab and silently no-opping (which left detail tabs
+  // showing the raw URL segment / UUID). Guarded on a title mismatch so it
+  // doesn't loop.
   useEffect(() => {
-    if (pathname && title) updateTabTitle(pathname, title);
-  }, [pathname, title, updateTabTitle]);
+    if (!pathname || !title) return;
+    const tab = tabs.find((t) => t.href === pathname);
+    if (tab && tab.title !== title) updateTabTitle(pathname, title);
+  }, [pathname, title, tabs, updateTabTitle]);
 
   return null;
 }
