@@ -45,9 +45,9 @@ const INTEGRATIONS = [
   },
   {
     icon: <Phone size={16} />, name: "PWA / Mobile app",
-    desc: "Install VeveyCRM on Android or iOS for field technicians — works offline",
-    status: "coming-soon" as const,
-    note: "manifest.json added · icons and service-worker needed to complete PWA setup",
+    desc: "Install on Android or iOS for field staff — the punch page works offline",
+    status: "active" as const,
+    note: "Add to Home Screen to install · a service worker caches the app shell so My Workforce loads and lets you punch with no network; punches queue and sync when back online",
   },
 ];
 
