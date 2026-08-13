@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -65,6 +65,55 @@ function dateRange(from: string, to: string): string[] {
   }
   return out;
 }
+
+// One matrix row, memoised. The Section A matrix is employees ×
+// (sites + shifts + 2) checkbox cells; before this, a single tick re-rendered
+// EVERY row's cells because the whole `.map` re-ran with the parent. Memoised
+// on primitive props (effSh/effSt/changed) + stable callbacks, only the one
+// employee whose effective assignment actually changed re-renders now.
+type MatrixRowProps = {
+  e: EmployeeRow;
+  effSh: string | null;
+  effSt: string | null;
+  changed: boolean;
+  activeSites: WfmSite[];
+  activeShifts: WfmShift[];
+  onSetSite: (employeeId: string, siteId: string | null) => void;
+  onSetShift: (employeeId: string, shiftId: string | null) => void;
+};
+
+const MatrixRow = memo(function MatrixRow({
+  e, effSh, effSt, changed, activeSites, activeShifts, onSetSite, onSetShift,
+}: MatrixRowProps) {
+  return (
+    <tr style={changed ? { background: "rgba(55, 138, 221, 0.08)" } : undefined}>
+      <td style={{ ...td, fontWeight: 600, whiteSpace: "nowrap" }}>
+        <Link href={ROUTES.wfmEmployee(e.id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>{empName(e)}</Link>
+        {e.employee_code && <span style={{ color: c.hint, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>{e.employee_code}</span>}
+      </td>
+      {activeSites.map((s) => (
+        <td key={s.id} style={tdCenter}>
+          <input type="checkbox" checked={effSt === s.id} onChange={() => onSetSite(e.id, s.id)} style={{ cursor: "pointer" }} />
+        </td>
+      ))}
+      {activeSites.length > 0 && (
+        <td style={tdCenter}>
+          <input type="checkbox" checked={effSt === null} onChange={() => onSetSite(e.id, null)} style={{ cursor: "pointer" }} />
+        </td>
+      )}
+      {activeShifts.map((s, i) => (
+        <td key={s.id} style={i === 0 && activeSites.length > 0 ? { ...tdCenter, borderLeft: `1px solid ${c.line}` } : tdCenter}>
+          <input type="checkbox" checked={effSh === s.id} onChange={() => onSetShift(e.id, s.id)} style={{ cursor: "pointer" }} />
+        </td>
+      ))}
+      {activeShifts.length > 0 && (
+        <td style={tdCenter}>
+          <input type="checkbox" checked={effSh === null} onChange={() => onSetShift(e.id, null)} style={{ cursor: "pointer" }} />
+        </td>
+      )}
+    </tr>
+  );
+});
 
 export default function RosterClient({ initial = null }: {
   initial?: { employees: EmployeeRow[]; shifts: WfmShift[]; sites: WfmSite[]; overrides: OverrideRow[] } | null;
@@ -143,7 +192,9 @@ export default function RosterClient({ initial = null }: {
     [employees, qA, siteFilterA, pendingSite]
   );
 
-  function setShiftCell(employeeId: string, shiftId: string | null) {
+  // useCallback so the memoised MatrixRow's callback props keep a stable
+  // identity across renders -- otherwise every row would re-render on any tick.
+  const setShiftCell = useCallback((employeeId: string, shiftId: string | null) => {
     setOkA("");
     setPendingShift((prev) => {
       const next = new Map(prev);
@@ -152,8 +203,8 @@ export default function RosterClient({ initial = null }: {
       else next.set(employeeId, shiftId);
       return next;
     });
-  }
-  function setSiteCell(employeeId: string, siteId: string | null) {
+  }, [employees]);
+  const setSiteCell = useCallback((employeeId: string, siteId: string | null) => {
     setOkA("");
     setPendingSite((prev) => {
       const next = new Map(prev);
@@ -162,7 +213,7 @@ export default function RosterClient({ initial = null }: {
       else next.set(employeeId, siteId);
       return next;
     });
-  }
+  }, [employees]);
 
   function assignAllVisibleShift(shiftId: string | null) {
     setOkA("");
@@ -393,39 +444,19 @@ export default function RosterClient({ initial = null }: {
               </tr>
             </thead>
             <tbody>
-              {visibleEmployeesA.map((e) => {
-                const effSh = effectiveShift(e);
-                const effSt = effectiveSite(e);
-                const changed = pendingShift.has(e.id) || pendingSite.has(e.id);
-                return (
-                  <tr key={e.id} style={changed ? { background: "rgba(55, 138, 221, 0.08)" } : undefined}>
-                    <td style={{ ...td, fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <Link href={ROUTES.wfmEmployee(e.id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>{empName(e)}</Link>
-                      {e.employee_code && <span style={{ color: c.hint, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>{e.employee_code}</span>}
-                    </td>
-                    {activeSites.map((s) => (
-                      <td key={s.id} style={tdCenter}>
-                        <input type="checkbox" checked={effSt === s.id} onChange={() => setSiteCell(e.id, s.id)} style={{ cursor: "pointer" }} />
-                      </td>
-                    ))}
-                    {activeSites.length > 0 && (
-                      <td style={tdCenter}>
-                        <input type="checkbox" checked={effSt === null} onChange={() => setSiteCell(e.id, null)} style={{ cursor: "pointer" }} />
-                      </td>
-                    )}
-                    {activeShifts.map((s, i) => (
-                      <td key={s.id} style={i === 0 && activeSites.length > 0 ? { ...tdCenter, borderLeft: `1px solid ${c.line}` } : tdCenter}>
-                        <input type="checkbox" checked={effSh === s.id} onChange={() => setShiftCell(e.id, s.id)} style={{ cursor: "pointer" }} />
-                      </td>
-                    ))}
-                    {activeShifts.length > 0 && (
-                      <td style={tdCenter}>
-                        <input type="checkbox" checked={effSh === null} onChange={() => setShiftCell(e.id, null)} style={{ cursor: "pointer" }} />
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
+              {visibleEmployeesA.map((e) => (
+                <MatrixRow
+                  key={e.id}
+                  e={e}
+                  effSh={effectiveShift(e)}
+                  effSt={effectiveSite(e)}
+                  changed={pendingShift.has(e.id) || pendingSite.has(e.id)}
+                  activeSites={activeSites}
+                  activeShifts={activeShifts}
+                  onSetSite={setSiteCell}
+                  onSetShift={setShiftCell}
+                />
+              ))}
               {visibleEmployeesA.length === 0 && (
                 <tr><td style={{ ...td, color: c.hint }} colSpan={2 + activeSites.length + activeShifts.length}>No employees match.</td></tr>
               )}

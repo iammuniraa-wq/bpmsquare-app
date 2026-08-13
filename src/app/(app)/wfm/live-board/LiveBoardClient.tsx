@@ -187,56 +187,67 @@ export default function LiveBoardClient({ initialBoard = null, initialLanding = 
     return () => clearInterval(t);
   }, [load]);
 
+  // Board-wide aggregates -- memoised on `board` alone so a search keystroke
+  // (which only touches `query`) no longer re-runs these ~12 full passes over
+  // every employee, and the 30s poll recomputes them once, not per render.
+  const rows = board?.rows;
+  const counts = useMemo(() => ({
+    in: (rows ?? []).filter((r) => r.state === "in").length,
+    onBreak: (rows ?? []).filter((r) => r.state === "break").length,
+    late: (rows ?? []).filter((r) => r.late).length,
+    absent: (rows ?? []).filter((r) => r.absent).length,
+    leave: (rows ?? []).filter((r) => r.on_leave).length,
+    flagged: (rows ?? []).filter((r) => r.outside_geofence).length,
+  }), [rows]);
+
+  // Donut always reflects the whole board, not the filtered subset -- it's
+  // the overview the filters act on, so filtering it too would leave a
+  // single 100% slice and nothing to click back to.
+  const donutSlices = useMemo(() => (Object.keys(BUCKET_COLOR) as Bucket[]).map((b) => ({
+    label: b,
+    value: (rows ?? []).filter((r) => bucketOf(r) === b).length,
+    color: BUCKET_COLOR[b],
+  })), [rows]);
+
+  const sites = useMemo(
+    () => [...new Set((rows ?? []).map((r) => r.home_site_name ?? "No site assigned"))].sort(),
+    [rows]
+  );
+
+  // The filtered subset + its site grouping -- keyed on the filters so it
+  // recomputes only when a filter actually changes, not on every render.
+  const orderedGroups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const visible = (rows ?? []).filter((r) => {
+      if (statusFilter && bucketOf(r) !== statusFilter) return false;
+      if (siteFilter && (r.home_site_name ?? "No site assigned") !== siteFilter) return false;
+      if (flaggedOnly && !r.outside_geofence) return false;
+      if (lateOnly && !r.late) return false;
+      if (!q) return true;
+      return (
+        r.full_name.toLowerCase().includes(q) ||
+        (r.employee_code ?? "").toLowerCase().includes(q) ||
+        (r.shift_name ?? "").toLowerCase().includes(q)
+      );
+    });
+    const groups = new Map<string, Row[]>();
+    for (const r of visible) {
+      const key = r.home_site_name ?? "No site assigned";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    }
+    const ordered = [...groups.entries()].sort(([a], [b]) =>
+      a === "No site assigned" ? 1 : b === "No site assigned" ? -1 : a.localeCompare(b)
+    );
+    return { visibleCount: visible.length, ordered };
+  }, [rows, query, statusFilter, siteFilter, flaggedOnly, lateOnly]);
+
   if (error) {
     return <div style={{ ...cardStyle, color: c.muted, fontSize: 13 }}>{error}</div>;
   }
   if (!board) {
     return <div style={{ ...cardStyle, color: c.hint, fontSize: 13 }}>Loading today&apos;s board…</div>;
   }
-
-  const counts = {
-    in: board.rows.filter((r) => r.state === "in").length,
-    onBreak: board.rows.filter((r) => r.state === "break").length,
-    late: board.rows.filter((r) => r.late).length,
-    absent: board.rows.filter((r) => r.absent).length,
-    leave: board.rows.filter((r) => r.on_leave).length,
-    flagged: board.rows.filter((r) => r.outside_geofence).length,
-  };
-
-  // Donut always reflects the whole board, not the filtered subset -- it's
-  // the overview the filters act on, so filtering it too would leave a
-  // single 100% slice and nothing to click back to.
-  const donutSlices = (Object.keys(BUCKET_COLOR) as Bucket[]).map((b) => ({
-    label: b,
-    value: board.rows.filter((r) => bucketOf(r) === b).length,
-    color: BUCKET_COLOR[b],
-  }));
-
-  const sites = [...new Set(board.rows.map((r) => r.home_site_name ?? "No site assigned"))].sort();
-  const q = query.trim().toLowerCase();
-  const visible = board.rows.filter((r) => {
-    if (statusFilter && bucketOf(r) !== statusFilter) return false;
-    if (siteFilter && (r.home_site_name ?? "No site assigned") !== siteFilter) return false;
-    if (flaggedOnly && !r.outside_geofence) return false;
-    if (lateOnly && !r.late) return false;
-    if (!q) return true;
-    return (
-      r.full_name.toLowerCase().includes(q) ||
-      (r.employee_code ?? "").toLowerCase().includes(q) ||
-      (r.shift_name ?? "").toLowerCase().includes(q)
-    );
-  });
-
-  // Group by home site; employees without one land in a trailing group.
-  const groups = new Map<string, Row[]>();
-  for (const r of visible) {
-    const key = r.home_site_name ?? "No site assigned";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(r);
-  }
-  const orderedGroups = [...groups.entries()].sort(([a], [b]) =>
-    a === "No site assigned" ? 1 : b === "No site assigned" ? -1 : a.localeCompare(b)
-  );
 
   // Every stat card is a live filter -- clicking "Late" shows exactly those
   // people, which is the action a supervisor wants the instant they see a
@@ -311,7 +322,7 @@ export default function LiveBoardClient({ initialBoard = null, initialLanding = 
           <input type="checkbox" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
           Geofence flags only
         </label>
-        <span style={{ fontSize: 11.5, color: c.hint }}>{visible.length} of {board.rows.length}</span>
+        <span style={{ fontSize: 11.5, color: c.hint }}>{orderedGroups.visibleCount} of {board.rows.length}</span>
       </div>
 
       {(board.is_holiday || board.is_week_off) && (
@@ -321,13 +332,13 @@ export default function LiveBoardClient({ initialBoard = null, initialLanding = 
         </div>
       )}
 
-      {visible.length === 0 && (
+      {orderedGroups.visibleCount === 0 && (
         <div style={{ ...cardStyle, marginBottom: 14, fontSize: 12.5, color: c.hint }}>
           No employees match these filters.
         </div>
       )}
 
-      {orderedGroups.map(([siteName, rows]) => (
+      {orderedGroups.ordered.map(([siteName, rows]) => (
         <section key={siteName} style={{ ...cardStyle, padding: 0, marginBottom: 14, overflowX: "auto" }}>
           <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>
             {siteName}

@@ -124,6 +124,19 @@ const fmtMonth = (m: string) => new Date(m + "-01T00:00:00").toLocaleDateString(
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 
+// Pure -- hoisted out of the component so the memoised day rollups below can
+// share one definition without re-creating it every render.
+function dayLabel(d: DayRecord): string {
+  if (d.holiday) return "Holiday";
+  if (d.on_leave) return "Leave";
+  if (d.is_week_off) return "Week off";
+  if (d.incomplete) return "Incomplete";
+  if (d.absent) return "Absent";
+  if (d.late) return "Late";
+  if (d.punches > 0) return "Present";
+  return "—";
+}
+
 function getGeo(timeoutMs: number): Promise<Geo> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
@@ -471,6 +484,80 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     return map;
   }, [holidays, leaveRequests]);
 
+  // ── Derived rollups ───────────────────────────────────────────────────────
+  // These loop over the month's days / the holiday & leave lists, so without
+  // memoisation they re-ran on EVERY render -- including every keystroke in an
+  // unrelated search box, and on every tab even when the data isn't shown.
+  // Placed above the early returns below so they're unconditional hooks.
+  const elapsedDays = useMemo(() => days.filter((d) => d.date <= todayKey()), [days]);
+
+  // Single pass over elapsedDays instead of one filter per status label (was
+  // 7 full passes -- ~210 dayLabel() calls -- every render).
+  const dayMix = useMemo(() => {
+    const order = [
+      { label: "Present", color: pillar.green.base },
+      { label: "Late", color: pillar.amber.base },
+      { label: "Absent", color: pillar.red.base },
+      { label: "Leave", color: pillar.purple.base },
+      { label: "Holiday", color: pillar.blue.base },
+      { label: "Week off", color: pillar.teal.base },
+      { label: "Incomplete", color: pillar.red.base },
+    ];
+    const counts: Record<string, number> = {};
+    for (const d of elapsedDays) counts[dayLabel(d)] = (counts[dayLabel(d)] ?? 0) + 1;
+    return order.map((s) => ({ ...s, value: counts[s.label] ?? 0 }));
+  }, [elapsedDays]);
+
+  const { workedMinutes, breakMinutes, hoursMix } = useMemo(() => {
+    const worked = elapsedDays.reduce((s, d) => s + (deductBreaks ? d.net_minutes : d.gross_minutes), 0);
+    const brk = elapsedDays.reduce((s, d) => s + d.break_minutes, 0);
+    return {
+      workedMinutes: worked,
+      breakMinutes: brk,
+      hoursMix: [
+        { label: "Worked", value: Math.round(worked / 60), color: pillar.green.base },
+        { label: "Breaks", value: Math.round(brk / 60), color: pillar.amber.base },
+      ],
+    };
+  }, [elapsedDays, deductBreaks]);
+
+  const visibleDays = useMemo(
+    () => elapsedDays.filter((d) => !dayFilter || dayLabel(d) === dayFilter).slice().reverse(),
+    [elapsedDays, dayFilter]
+  );
+
+  const leaveMix = useMemo(
+    () => leaveBalance.map((lb, i) => ({
+      label: lb.name,
+      value: lb.used,
+      color: [pillar.purple.base, pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.green.base][i % 5],
+    })),
+    [leaveBalance]
+  );
+
+  const upcoming = useMemo(
+    () => holidays.filter((h) => h.date >= todayKey()).sort((a, b) => a.date.localeCompare(b.date)),
+    [holidays]
+  );
+
+  const visibleHolidays = useMemo(() => {
+    const hq = holidayQuery.trim().toLowerCase();
+    return holidays.filter((h) => {
+      if (holidayFilter === "upcoming" && h.date < todayKey()) return false;
+      return !hq || h.name.toLowerCase().includes(hq);
+    });
+  }, [holidays, holidayFilter, holidayQuery]);
+
+  const visibleLeaveRequests = useMemo(
+    () => (leaveFilter ? leaveRequests.filter((r) => r.status === leaveFilter) : leaveRequests),
+    [leaveRequests, leaveFilter]
+  );
+
+  const { pendingLeave, pendingCorr } = useMemo(() => ({
+    pendingLeave: leaveRequests.filter((r) => r.status === "pending").length,
+    pendingCorr: corrections.filter((r) => r.status === "pending").length,
+  }), [leaveRequests, corrections]);
+
   async function submitLeaveRequest() {
     if (!leaveDraft.date_from || !leaveDraft.date_to) { setNotice({ tone: "err", text: "Please pick the dates on the calendar" }); return; }
     if (!leaveDraft.leave_type_id) { setNotice({ tone: "err", text: "Please choose a leave type" }); return; }
@@ -536,60 +623,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   }
 
   const toneColor = { ok: statusInk.good, warn: statusInk.warn, err: statusInk.bad };
-  const upcoming = holidays.filter((h) => h.date >= todayKey()).sort((a, b) => a.date.localeCompare(b.date));
   const nextHoliday = upcoming[0] ?? null;
-  const pendingLeave = leaveRequests.filter((r) => r.status === "pending").length;
-  const pendingCorr = corrections.filter((r) => r.status === "pending").length;
-
-  // ── Time tab data ────────────────────────────────────────────────────────
-  const dayLabel = (d: DayRecord): string => {
-    if (d.holiday) return "Holiday";
-    if (d.on_leave) return "Leave";
-    if (d.is_week_off) return "Week off";
-    if (d.incomplete) return "Incomplete";
-    if (d.absent) return "Absent";
-    if (d.late) return "Late";
-    if (d.punches > 0) return "Present";
-    return "—";
-  };
-  // Past days only -- counting the rest of the month as "absent" would be
-  // both wrong and alarming.
-  const elapsedDays = days.filter((d) => d.date <= todayKey());
-  const dayMix = [
-    { label: "Present", color: pillar.green.base },
-    { label: "Late", color: pillar.amber.base },
-    { label: "Absent", color: pillar.red.base },
-    { label: "Leave", color: pillar.purple.base },
-    { label: "Holiday", color: pillar.blue.base },
-    { label: "Week off", color: pillar.teal.base },
-    { label: "Incomplete", color: pillar.red.base },
-  ].map((s) => ({ ...s, value: elapsedDays.filter((d) => dayLabel(d) === s.label).length }));
-
-  const workedMinutes = elapsedDays.reduce((s, d) => s + (deductBreaks ? d.net_minutes : d.gross_minutes), 0);
-  const breakMinutes = elapsedDays.reduce((s, d) => s + d.break_minutes, 0);
-  const hoursMix = [
-    { label: "Worked", value: Math.round(workedMinutes / 60), color: pillar.green.base },
-    { label: "Breaks", value: Math.round(breakMinutes / 60), color: pillar.amber.base },
-  ];
-
-  const visibleDays = elapsedDays
-    .filter((d) => !dayFilter || dayLabel(d) === dayFilter)
-    .slice()
-    .reverse();
-
-  const leaveMix = leaveBalance.map((lb, i) => ({
-    label: lb.name,
-    value: lb.used,
-    color: [pillar.purple.base, pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.green.base][i % 5],
-  }));
-
-  const visibleHolidays = holidays.filter((h) => {
-    if (holidayFilter === "upcoming" && h.date < todayKey()) return false;
-    const hq = holidayQuery.trim().toLowerCase();
-    return !hq || h.name.toLowerCase().includes(hq);
-  });
-
-  const visibleLeaveRequests = leaveFilter ? leaveRequests.filter((r) => r.status === leaveFilter) : leaveRequests;
 
   // Which punch types are offered right now: the state machine decides what
   // is legal from the current state (this is also what stops OT from being
