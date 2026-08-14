@@ -44,7 +44,21 @@ export default function QuotePrint(props: Props) {
         @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans.ttf") format("truetype"); font-weight: 400; font-display: swap; }
         @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
         @media print {
-          @page { size: A4 portrait; margin: 12mm 15mm; }
+          /* Extra bottom margin reserves a band on EVERY page for the running
+             footer below, so flowing content never runs under it. Keep this in
+             sync with margin.bottom in the two PDF routes (quotes/[id]/pdf and
+             pdf-public), which override this @page margin under Puppeteer. */
+          @page { size: A4 portrait; margin: 12mm 15mm 20mm 15mm; }
+          /* The company footer becomes a running page footer: fixed to the
+             bottom of the printable area, repeated on every page (letterhead
+             style) instead of flowing once, mid-page, after the last content.
+             Centered + max-width to track the .doc column exactly. */
+          .doc-footer {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            margin: 0 auto;
+            max-width: 800px;
+          }
           /* body's on-screen grey (below) is a page-editor backdrop, not
              something that should ever print -- print-color-adjust:exact
              forces backgrounds to actually render (browsers normally strip
