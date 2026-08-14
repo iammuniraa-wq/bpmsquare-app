@@ -64,7 +64,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
-      margin: { top: "12mm", bottom: "12mm", left: "15mm", right: "15mm" },
+      // bottom enlarged to reserve the running-footer band (see .doc-footer in
+      // QuotePrint.tsx); keep in sync with the private pdf route + @page margin.
+      margin: { top: "12mm", bottom: "20mm", left: "15mm", right: "15mm" },
       displayHeaderFooter: false,
     });
 

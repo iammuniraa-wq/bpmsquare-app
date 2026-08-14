@@ -88,7 +88,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
-      margin: { top: "12mm", bottom: "12mm", left: "15mm", right: "15mm" },
+      // bottom is enlarged to reserve a band for the running footer (a fixed,
+      // repeated-every-page letterhead footer -- see .doc-footer in
+      // QuotePrint.tsx). Keep in sync with the @page margin there.
+      margin: { top: "12mm", bottom: "20mm", left: "15mm", right: "15mm" },
       displayHeaderFooter: false,
     });
 

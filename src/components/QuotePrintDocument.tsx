@@ -555,7 +555,7 @@ export default function QuotePrintDocument({
           flex column here previously either cut text off mid-word or, worse, visually collided
           with the block above it when print pagination ran out of room for it. flexWrap on the
           phones row means an overflowing list drops to a second line instead of either. */}
-      <div style={{ background: "#fff", borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid", minHeight: "10mm", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div className="doc-footer" style={{ background: "#fff", borderTop: `2px solid ${co.logo_bg}`, breakInside: "avoid", minHeight: "10mm", display: "flex", flexDirection: "column", justifyContent: "center" }}>
         {/* Row 1: address (left) + GSTIN (right) */}
         {co.address && (
           <div style={{ padding: "1.5px 28px", borderBottom: `1px solid ${brand.line}`, display: "flex", alignItems: "center", gap: 6, fontSize: 9.5, color: "#5f6b7a" }}>
