@@ -162,3 +162,36 @@ src/
 - Do not modify `tenants.config` shape without updating `TenantConfig` in `constants.ts`.
 - Do not write comments explaining what code does — only add comments for non-obvious WHY.
 - Do not create new API routes that duplicate existing ones.
+
+---
+
+## 9. Documentation maintenance — KEEP THE GOOGLE DRIVE DOCS CURRENT
+
+There is a **user-facing documentation set** in Google Drive, folder
+**"BPMSquare Documentation"**
+(https://drive.google.com/drive/folders/1vogZwPOvllisA5enJUBdC_Ea1lUiLsz9):
+
+- **BPMSquare — Sales Cloud Guide** — Accounts, Contacts, Quotations, Standard Quotes, Pipeline, Invoices
+- **BPMSquare — Service Cloud Guide** — Cases, Inspection Reports, AMC, Work Orders, Dispatch, Technicians, master data
+- **BPMSquare — Workforce Management (WFM) Guide** — punch app, roster, leave, overtime, monthly summary + setup
+- **BPMSquare — Marketing Guide** — Campaigns, Segmentation, Leads, Partners
+- **BPMSquare — Admin & Setup Guide** — tenancy, users/roles, settings, Data Workbench, change history, integrations
+- **BPMSquare REST API — Integration Guide** — v1 API: scoped keys, enriched queries, OpenAPI, change feed, webhooks, `/ask`
+- **How to Use BPMSquare.pptx** — overview deck
+
+**The rule:** whenever a change ships that alters user-visible behaviour a guide
+describes — a new/changed module, field, status flow, WFM/quote/marketing rule,
+a new API endpoint or auth change, a settings/permission change — **update the
+matching Drive doc in the same piece of work, and note it in the PR/commit.**
+Docs drifting from the product is a defect, not a nice-to-have.
+
+Mechanics / caveats when updating these:
+- The Drive tools available here can **create** a doc and change its title/parent,
+  but **cannot edit a doc's body in place**. To refresh a guide, regenerate its
+  HTML and create a new revision, or hand the updated file to the user — do not
+  silently let it go stale because in-place edit isn't available.
+- The API guide has an always-current machine counterpart: `GET /api/v1/openapi.json`
+  (generated from `src/lib/api/openapi.ts`) and the self-describing `GET /api/v1`
+  index. When the API changes, those update automatically — the Drive API guide is
+  the human-readable snapshot that still needs a manual refresh.
+- Each guide carries a "Snapshot &lt;date&gt;" line — bump it when you refresh.

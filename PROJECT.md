@@ -270,3 +270,17 @@ cd veveycrm
 ```
 
 Push changes back to `origin/main` so the next session sees them.
+
+---
+
+## 10. User documentation (Google Drive) — keep it current
+
+A user-facing documentation set lives in Google Drive, folder **"BPMSquare
+Documentation"** (https://drive.google.com/drive/folders/1vogZwPOvllisA5enJUBdC_Ea1lUiLsz9):
+Sales Cloud Guide, Service Cloud Guide, WFM Guide, Marketing Guide, Admin &
+Setup Guide, REST API Integration Guide, and the "How to Use BPMSquare" deck.
+
+**When a change alters user-visible behaviour a guide describes, update the
+matching Drive doc in the same piece of work.** The full rule (and the caveat
+that the Drive tools can create but not edit a doc's body in place) is in
+`bpmsquarecore.md` §9 — that file is always loaded, so the rule is not missed.
