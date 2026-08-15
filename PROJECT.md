@@ -284,3 +284,54 @@ Setup Guide, REST API Integration Guide, and the "How to Use BPMSquare" deck.
 matching Drive doc in the same piece of work.** The full rule (and the caveat
 that the Drive tools can create but not edit a doc's body in place) is in
 `bpmsquarecore.md` §9 — that file is always loaded, so the rule is not missed.
+
+---
+
+## 11. Where we left off — 2026-08-15 (read this to resume)
+
+Everything on `develop` was promoted to `main` on this date. State at the
+pause point, in priority order for the next session:
+
+**Next up (explicitly on hold, waiting for the owner's go): Pricing Engine
+Phase 2.** Phase 1 is complete and live behind the `pricing_engine` feature
+flag (spec: `docs/pricing-engine-architecture.md` v1.4 — the source of truth;
+engine: `src/lib/pricing-core/`, 44 tests, both Phase-1 exit criteria green;
+API: `POST /api/v1/price`; cockpit: Settings → Pricing Engine). Phase 2 scope,
+already agreed: pricing-context persistence + simulation replay, config
+version diff, approval workflow for publish, NL rule authoring (reuse the
+`/ask` forced-tool-call pattern), tenant onboarding mapper, anomaly digest,
+per-API-key rate limiting.
+
+**Standing architecture decisions made this week (do not re-litigate):**
+- ALL business IDs (account/contact/asset/supplier/inventory refs, quote/
+  invoice/PO/case refs, employee codes) are system-generated. Users never
+  type or edit an ID; the only user influence is format/number-range config
+  in Settings → Number Ranges (one address for all of it; Quote ID format
+  lives there now, moved from Entities & Tax). Employee codes were the last
+  gap — closed everywhere incl. the WFM surfaces; `src/lib/employeeRef.ts`
+  is the single generator, case-insensitively unique (migration 0080).
+- The old static pricing in Settings is renamed "Small Scale Pricing" and
+  stays as-is for small/rigid tenants (Vikas doesn't use pricing). The
+  Pricing Engine is a separate, standalone product surface
+  (Pricing-as-a-Service) with BPMSquare in-app modules as ordinary clients.
+
+**Operational ledger — SQL the owner runs manually (never auto-applied):**
+- Dev DB: migrations through 0085 are applied.
+- Main/production DB: **0080–0085 were pending at promotion time** — run
+  them in order when promoting (0080 employee-code CI unique index — needs
+  duplicate cleanup first if any, see KAN-13; 0081 api_keys; 0082 webhooks;
+  0083 pricing engine ontology; 0084 pricing_usage; 0085 pricing_engine
+  flag for demo tenants only). The dev tenant's force-enable of
+  `pricing_engine` was direct SQL on dev only — do NOT run on main.
+
+**Open items:**
+- Password-reset loop bug (QA, Jira KAN-12/major): code fully traced, three
+  candidate mechanisms identified, waiting on QA's repro details.
+- Vercel Hobby constraint (hard-learned): crons may fire at most once per
+  day; a sub-daily schedule in `vercel.json` fails EVERY deploy's config
+  validation silently. Webhooks cron runs daily 20:30 UTC.
+- Drive docs: Admin & Setup Guide needs a Number Ranges section on its next
+  refresh; owner still to drag How_to_Use_BPMSquare.pptx into the folder.
+- Status-schema engine (see `/root/.claude/plans` history / task #27):
+  Batch 0 (core tables + statusEngine.ts) shipped; batches 1–7 (per-object
+  rollout incl. WFM leave/attendance statuses) not started.
