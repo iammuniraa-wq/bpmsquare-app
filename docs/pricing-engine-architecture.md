@@ -1,10 +1,15 @@
-# PricingEngine — Architecture Specification v1.2
+# PricingEngine — Architecture Specification v1.3
 
 **Codename:** PricingEngine (working title — ships under a product name from day one, see §14.4)
 **Author:** Abdul Nandalpad / ServiceSphere UG
 **Date:** 2026-08-15
 **Status:** Draft for review
-**Supersedes:** v1.1 (2026-08-15)
+**Supersedes:** v1.2 (2026-08-15)
+
+**Changelog v1.2 → v1.3**
+- NEW §15: SaaS delivery & embedding — three surfaces on one engine (headless API,
+  hosted cockpit, signed-token iframe widgets), embed-token contract, CSP
+  frame-ancestors per tenant, metering/rate-limiting as one mechanism.
 
 **Changelog v1.1 → v1.2 — REPOSITIONED: standalone Pricing-as-a-Service first**
 - **BPMSquare quoting is NO LONGER client #1.** Owner decision 2026-08-15: Vikas-class
@@ -380,3 +385,57 @@ Rebates/credits ledger, agreements, index escalation feeds, usage metering, vert
 | 3 | Simulation storage | **Store full pricing contexts** (JSONB, per-tenant retention, default 180 days). Reconstruction coupling rejected (§7). |
 | 4 | First vertical | **Dissolved, not chosen.** Field service is the design partner already in production (BPMSquare/Vikas = Phase-1 exit criterion). Manufacturing-distribution / SAP-displacement is a go-to-market decision deferred until the Phase-2 moat exists. |
 | 5 | Entity & name | Entity: open (ServiceSphere UG vs. new entity — tax/liability question, decide before first external contract). **Product name: required from day one** even while living in the BPMSquare repo — the API surface (`/api/v1/price`) and trace UI are what a future standalone customer sees; neither reveals where it is deployed. |
+
+---
+
+## 15. SaaS Delivery & Embedding (NEW in v1.3)
+
+### 15.1 Three surfaces, one engine
+
+1. **Headless API** — `POST /api/v1/price` (+ rules/versions/simulate CRUD). Auth:
+   scoped API keys (`objects: ["pricing"]`, read = price calls, write = config).
+   Webhooks (`version.published`, `simulation.completed`, `anomaly.flagged`) ride
+   the existing dispatcher.
+2. **Hosted cockpit** — rule editor, cost-model editor, version diff, simulation
+   reports, trace explorer. A pricing-only tenant is an ordinary tenant whose
+   feature flags enable only the pricing workcenters, living on the product's own
+   domain (one `custom_domain` row; `proxy.ts` hostname resolution unchanged).
+3. **Embedded widgets** — purpose-built `/embed/*` routes, signed-token iframes
+   (Stripe/Metabase pattern). Never "iframe the app".
+
+### 15.2 Embed views (v1)
+
+- `/embed/trace/:documentId` — read-only interactive waterfall for one priced document.
+- `/embed/simulator` — live "what would this cost" widget calling `price()`.
+- `/embed/rules/:componentCode` — (later, write-scoped) mini rule editor for partner portals.
+
+### 15.3 Embed-token contract
+
+```
+POST /api/v1/embed-tokens        (auth: tenant API key, server-side only)
+  body: { view: "trace"|"simulator", resource_id?, ttl_seconds?: <=900, theme?: {...} }
+  → { token }                     short-lived JWT bound to tenant + view + resource
+```
+
+- The API key never reaches a browser; only the single-resource, short-TTL token does.
+- `/embed/*` joins the middleware public-path list exactly like the signed quote-PDF
+  links (token IS the auth, verified in the route, `$`-anchored patterns).
+- Per-tenant `frame-ancestors` allowlist (registered embed domains in tenant config);
+  embed responses emit their own CSP. postMessage bridge (`price_changed`, `resize`,
+  `line_clicked`) pinned to the registered origin.
+- Theming via token claims (accent, light/dark, locale).
+- A JS SDK later wraps the same iframe (DX sugar); raw component library only on demand.
+
+### 15.4 Metering & rate limiting (one mechanism)
+
+Every `price()` call logs `(tenant, key_id, calls, lines, calc_ms)` to a usage table:
+simultaneously the billing meter (call/line-based plans — slab pricing priced by the
+engine itself) and the per-key rate limiter (fixed-window counter). Ships in Phase 1;
+the current v1 API's lack of its own rate limiting is acceptable for CRM keys but not
+for a public metered endpoint.
+
+### 15.5 Plans & entitlements
+
+`tenants.plan` gates simulation retention days, embed-domain count, AI-authoring
+quota, and call allowances. Enforcement server-side at the same guard that resolves
+the key.
