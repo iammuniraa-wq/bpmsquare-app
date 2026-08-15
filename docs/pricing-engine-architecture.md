@@ -1,10 +1,25 @@
-# PricingEngine — Architecture Specification v1.3
+# PricingEngine — Architecture Specification v1.4
 
 **Codename:** PricingEngine (working title — ships under a product name from day one, see §14.4)
 **Author:** Abdul Nandalpad / ServiceSphere UG
 **Date:** 2026-08-15
 **Status:** Draft for review
 **Supersedes:** v1.2 (2026-08-15)
+
+**Changelog v1.3 → v1.4 — in-app consumers are a first-class client**
+- §11.2 gains **Client #3: BPMSquare in-app modules.** Standard Quotes, service
+  orders / FSM work orders, and WFM pay rules will consume the SAME engine as an
+  in-process function call (an internal adapter in `src/lib/pricing/`, outside the
+  core), per-tenant feature-flagged — never a fork of the calc logic. Design
+  consequence enforced NOW: `document_type` (quote, standard_quote, service_order,
+  work_order, wfm_ot, …) is a conventional context attribute and an ordinary
+  matching dimension, so one tenant can run different rules per in-app document
+  family with zero schema change. Small Scale Pricing remains untouched; in-app
+  adoption is opt-in per tenant per module.
+- Ontology tables ship with **select-only RLS** (writes via service-role routes with
+  role checks) — the WFM lesson applied: pricing rules affect money, and a `for all`
+  policy would let any tenant member self-grant discounts through PostgREST,
+  bypassing the §7 approval workflow.
 
 **Changelog v1.2 → v1.3**
 - NEW §15: SaaS delivery & embedding — three surfaces on one engine (headless API,
@@ -331,6 +346,7 @@ The engine is built **inside the BPMSquare repo** as a pure TypeScript workspace
 - **Client #1 (Phase 1): the world.** `POST /api/v1/price` behind scoped keys + webhooks, plus the engine's own cockpit UI (rule editor, cost-model editor, trace viewer). This IS the product: Pricing-as-a-Service. Same deployment, no second platform.
 - **BPMSquare quoting is NOT a client for now.** Vikas-class tenants keep the static rate list ("Small Scale Pricing", `/settings/pricing`) — simple, rigid, exactly what that size needs. Untouched.
 - **Client #2 (later, optional):** a feature-flagged integration where a larger BPMSquare tenant's quoting calls `price()` instead of static rates. Opt-in per tenant, never a forced migration of Small Scale Pricing users.
+- **Client #3 (v1.4): BPMSquare in-app modules.** Standard Quotes, service orders / FSM work orders, and WFM pay computations consume the same engine via an in-process adapter (`src/lib/pricing/`, outside the core) — no HTTP hop, no logic fork. `document_type` is an ordinary matching dimension, so per-module rules (e.g. a surcharge only on `service_order`, an OT rate table only on `wfm_ot`) are tenant configuration, not code. Each module's adoption is its own feature flag.
 
 ### 11.3 CI-enforced boundary
 

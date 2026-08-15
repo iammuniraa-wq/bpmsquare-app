@@ -8,6 +8,16 @@ export type { Node, Value, BinaryOp } from "./dsl/ast";
 export { parseFormula } from "./dsl/parser";
 export { evaluate, resolveScaleTiered } from "./dsl/evaluator";
 export type { EvalContext, EvalHooks, ScaleEntry } from "./dsl/evaluator";
+export {
+  PricingError, flattenContext, computeSpecificity, resolveRules, resolveCostInput,
+} from "./resolution";
+export type { ResolvedRule } from "./resolution";
+export type {
+  ComponentClass, CalcType, CalcBasis, Sign, ManualOverride, ResolutionStrategy,
+  RoundingRule, PriceComponent, ProcedureStep, EntryMode, PricingProcedure,
+  AttrValue, ScaleTable, PriceRule, DimensionRegistry,
+  CostInputKind, CostInput, CostModel,
+} from "./types";
 
 import { parseFormula } from "./dsl/parser";
 import { evaluate, type EvalContext } from "./dsl/evaluator";
