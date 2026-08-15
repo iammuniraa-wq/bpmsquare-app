@@ -12,6 +12,8 @@ export {
   PricingError, flattenContext, computeSpecificity, resolveRules, resolveCostInput,
 } from "./resolution";
 export type { ResolvedRule } from "./resolution";
+export { priceDocument, resolveScaleGraduated } from "./calc";
+export type { PriceInput, PriceResult, PricedLine, TraceStep, TraceStatus, DocumentLine, CostItem } from "./calc";
 export type {
   ComponentClass, CalcType, CalcBasis, Sign, ManualOverride, ResolutionStrategy,
   RoundingRule, PriceComponent, ProcedureStep, EntryMode, PricingProcedure,
