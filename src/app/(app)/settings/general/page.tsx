@@ -10,6 +10,8 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { useTenant, useUiTheme, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
+import ApiKeysPanel from "./ApiKeysPanel";
+import WebhooksPanel from "./WebhooksPanel";
 
 const PILLAR_DOT: Record<string, string> = {
   blue: "#378ADD", purple: "var(--purple)", teal: "var(--teal)",
@@ -507,7 +509,7 @@ export default function GeneralSettingsPage() {
       </Section>
 
       {/* ── 5. Developer — REST API v1 ── */}
-      <Section title="Developer — REST API v1" description="Live read-only endpoints. Authenticate with: Authorization: Bearer <your tenant's API key>">
+      <Section title="Developer — REST API v1" description="Live REST API with an enriched query layer (filter / select / sort / aggregate / search), an OpenAPI spec and a change feed. Authenticate with: Authorization: Bearer <API key>">
 
         {/* API key row — admin only: this key grants read access to every
             account/case/quote/invoice/etc. in this tenant via the v1 API. */}
@@ -534,6 +536,9 @@ export default function GeneralSettingsPage() {
         ) : (
           <div style={{ fontSize: 12, color: c.hint, marginBottom: 14 }}>Ask a workspace admin to generate or view the API key.</div>
         )}
+
+        {role === "admin" && <ApiKeysPanel />}
+        {role === "admin" && <WebhooksPanel />}
 
         {/* Endpoints */}
         <div style={{ marginBottom: 12 }}>

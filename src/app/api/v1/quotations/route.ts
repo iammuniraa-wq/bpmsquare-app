@@ -1,62 +1,43 @@
-import { listQuotesForTenant } from "@/lib/data";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { generateNextQuoteRef } from "@/lib/quoteRef";
 import { DEFAULT_QUOTE_ID_FORMAT, DEFAULT_QUOTE_STATUSES, type QuoteIdFormat, type QuoteStatusDef, type TenantConfig } from "@/lib/constants";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { QUOTE_ENTITY } from "@/lib/api/quotes";
 import { validateBody, validateChildren } from "@/lib/api/schema";
+import { LIST_SOURCES } from "@/lib/api/listSources";
+import { enrichedList } from "../_list";
 import {
   API_ACTOR_EMAIL, buildLineRows, sanitizeQuoteValues, serializeQuote, totalsFor, verifyQuoteRelations,
 } from "@/lib/api/quoteService";
 import {
-  resolveTenantFromBearer, ERR_401_TENANT, jsonOk, jsonCreated, jsonError, jsonValidationError,
+  authorizeApi, jsonCreated, jsonError, jsonValidationError,
   readJsonBody, optionsResponse, RW_METHODS,
 } from "../_auth";
 
 export async function GET(req: Request) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "quotations");
+  if ("error" in auth) return auth.error;
 
   const url = new URL(req.url);
-  const status = url.searchParams.get("status");
-  const accountId = url.searchParams.get("account_id");
+  // Fetch is tenant-scoped + PII-decrypted by the data layer; the engine only
+  // shapes the result, so it inherits that boundary and adds no SQL surface.
+  const src = LIST_SOURCES.quotations;
+  const rows = await src.load(auth.tenantId);
 
-  let quotes = await listQuotesForTenant(tenantId);
-
-  if (status)    quotes = quotes.filter((q) => q.quote.status === status);
-  if (accountId) quotes = quotes.filter((q) => q.quote.account_id === accountId);
-
-  return jsonOk({
-    data: quotes.map(({ quote: q, account, lineCount }) => ({
-      id: q.id,
-      ref: q.ref,
-      status: q.status,
-      total: q.total,
-      revision: q.revision,
-      created_at: q.created_at,
-      quote_date: q.quote_date ?? null,
-      valid_until: q.valid_until,
-      account: account ? { id: account.id, name: account.name } : null,
-      line_count: lineCount,
-      _links: {
-        self: `/api/v1/quotations/${q.id}`,
-        pdf: `/quotations/${q.id}/print`,
-        account: `/api/v1/accounts/${q.account_id}`,
-      },
-    })),
-    meta: {
-      count: quotes.length,
-      total_value: quotes.reduce((s, { quote: q }) => s + q.total, 0),
-      filters: { status: status ?? null, account_id: accountId ?? null },
-      generated_at: new Date().toISOString(),
-    },
-    _links: { self: "/api/v1/quotations", metadata: "/api/v1/metadata/quotations" },
-  }, RW_METHODS);
+  return enrichedList(req, rows, src.fields, {
+    self: "/api/v1/quotations",
+    metadata: "/api/v1/metadata/quotations",
+    legacyFilters: [
+      { path: "status", value: url.searchParams.get("status") },
+      { path: "account.id", value: url.searchParams.get("account_id") },
+    ],
+  });
 }
 
 export async function POST(req: Request) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "quotations", true);
+  if ("error" in auth) return auth.error;
+  const { tenantId } = auth;
 
   const parsed = await readJsonBody(req);
   if (!parsed.ok) return parsed.response;

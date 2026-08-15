@@ -1,12 +1,13 @@
 import { getAccountHubForTenant } from "@/lib/data";
-import { resolveTenantFromBearer, ERR_401_TENANT, jsonOk } from "../../_auth";
+import { authorizeApi, jsonOk } from "../../_auth";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "accounts");
+  if ("error" in auth) return auth.error;
+  const { tenantId } = auth;
 
   const { id } = await params;
   const hub = await getAccountHubForTenant(id, tenantId);
