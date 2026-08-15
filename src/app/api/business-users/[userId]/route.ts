@@ -48,7 +48,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (member.employee_id && member.employee_id !== body.employee_id) {
       return NextResponse.json({ error: "This login is already linked to a different employee" }, { status: 409 });
     }
-    const { data: employee } = await supabase
+    // Admin client with the explicit tenant filter (guardrails pattern) --
+    // the session client worked in most cases, but this lookup must never
+    // fail for RLS/session-edge reasons when the admin is plainly allowed.
+    const { data: employee } = await admin
       .from("employees")
       .select("id, first_name, last_name")
       .eq("id", body.employee_id)

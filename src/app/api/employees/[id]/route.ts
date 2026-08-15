@@ -37,7 +37,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     patch.first_name = v;
   }
   if ("last_name" in body) patch.last_name = cleanText(body.last_name) ?? "";
-  if ("employee_code" in body) patch.employee_code = cleanText(body.employee_code, 50);
+  // employee_code is system-generated and immutable after creation (owner
+  // decision 2026-08-15) -- deliberately NOT patchable. Format/number-range
+  // configuration is the only future influence, via Settings.
   if ("email" in body) patch.email = cleanText(body.email);
   if ("phone" in body) patch.phone = cleanText(body.phone, 50);
   if ("department" in body) patch.department = cleanText(body.department);

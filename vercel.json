@@ -13,7 +13,7 @@
     },
     {
       "path": "/api/webhooks/cron",
-      "schedule": "*/5 * * * *"
+      "schedule": "30 20 * * *"
     }
   ]
 }

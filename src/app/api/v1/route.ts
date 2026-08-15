@@ -26,6 +26,7 @@ export async function GET(req: Request) {
       "GET /api/v1/metadata/:entity":     "Full field-level metadata for one entity",
       "GET /api/v1/changes":              "Change feed (CDC): ?since=<cursor>&object_type=&limit=",
       "POST /api/v1/ask":                 "Natural-language query: { object, question } compiled to the safe query engine",
+      "POST /api/v1/price":               "PricingEngine: price a document against the tenant's published config, full waterfall trace",
       "GET /api/v1/quotations":           "List quotations (filters: status, account_id)",
       "POST /api/v1/quotations":          "Create a quotation, with its lines",
       "GET /api/v1/quotations/:id":       "Quotation detail with lines, account, contact and totals",

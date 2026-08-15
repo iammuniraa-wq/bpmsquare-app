@@ -40,6 +40,7 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
     items: [
       { label: "General settings", description: "Navigation, appearance, workspace name, integrations, developer API", href: ROUTES.settingsGeneral, icon: "◈", pillarKey: "blue", adminOnly: false },
       { label: "Team", description: "Invite teammates and manage roles", href: ROUTES.settingsTeam, icon: "◉", pillarKey: "blue", adminOnly: true },
+      { label: "Number Ranges", description: "One place for every business-ID convention — Quote ID format and all system-generated ranges", href: ROUTES.settingsNumberRanges, icon: "#", pillarKey: "blue", adminOnly: true },
     ],
   },
   {
@@ -55,7 +56,8 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
     group: "Content & data",
     items: [
       { label: "Email templates", description: "Subject and body pairs your team can pick between when emailing a quote", href: ROUTES.settingsEmailTemplates, icon: "✉", pillarKey: "purple", adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
-      { label: "Pricing catalogue", description: "Standard rates for labour, materials, testing and transport", href: ROUTES.configPricing, icon: "₹", pillarKey: "amber", adminOnly: false, featureKey: "quotations" },
+      { label: "Small Scale Pricing", description: "Static standard rates for labour, materials, testing and transport — the simple pricing model for small tenants", href: ROUTES.configPricing, icon: "₹", pillarKey: "amber", adminOnly: false, featureKey: "quotations" },
+      { label: "Pricing Engine", description: "Dynamic pricing: rules, cost models, versions and the explainable price waterfall — powers Pricing-as-a-Service", href: ROUTES.configPricingEngine, icon: "◬", pillarKey: "amber", adminOnly: true, featureKey: "pricing_engine" },
       { label: "Text templates", description: "Saved snippets for line items, notes and terms", href: ROUTES.configTemplates, icon: "❑", pillarKey: "amber", adminOnly: false, featureKey: "quotations" },
       { label: "Custom fields", description: "Add fields to any object — included automatically in the API and MCP", href: ROUTES.configCustomFields, icon: "✦", pillarKey: "amber", adminOnly: false },
       { label: "Deleted records", description: "Audit log of permanently deleted objects", href: ROUTES.settingsDeletionLog, icon: "⌫", pillarKey: "red", adminOnly: true },

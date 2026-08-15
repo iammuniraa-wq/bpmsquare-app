@@ -137,7 +137,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
   // header doesn't dominate the page -- the record's tabs are what matter.
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [draft, setDraft] = useState({
-    first_name: "", last_name: "", employee_code: "", phone: "",
+    first_name: "", last_name: "", phone: "",
     employment_type: "" as string,
     wfm_role: "employee" as "employee" | "supervisor",
     status: "active" as "active" | "inactive",
@@ -156,7 +156,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
     loadedMonth.current = m;
     setProfile(json);
     setDraft({
-      first_name: json.first_name, last_name: json.last_name, employee_code: json.employee_code ?? "",
+      first_name: json.first_name, last_name: json.last_name,
       phone: json.phone ?? "", employment_type: json.employment_type, wfm_role: json.wfm_role, status: json.status,
       shift_id: one(json.wfm_shifts)?.id ?? "", site_id: one(json.wfm_sites)?.id ?? "", supervisor_id: json.supervisor_id ?? "",
     });
@@ -407,7 +407,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
           <div style={{ ...grid(160), marginTop: 16 }}>
             <div><label style={lbl}>First name</label><input style={inp} value={draft.first_name} onChange={(e) => setDraft({ ...draft, first_name: e.target.value })} /></div>
             <div><label style={lbl}>Last name</label><input style={inp} value={draft.last_name} onChange={(e) => setDraft({ ...draft, last_name: e.target.value })} /></div>
-            <div><label style={lbl}>Employee code</label><input style={inp} value={draft.employee_code} onChange={(e) => setDraft({ ...draft, employee_code: e.target.value })} /></div>
+            <div><label style={lbl}>Employee code</label><div style={{ fontSize: 12.5, color: profile.employee_code ? c.ink : c.hint, paddingTop: 9, fontFamily: profile.employee_code ? "monospace" : undefined }}>{profile.employee_code ?? "Assigned automatically (EMP-####)"}</div></div>
             <div><label style={lbl}>Phone</label><input style={inp} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} /></div>
             <div>
               <label style={lbl}>Site</label>
