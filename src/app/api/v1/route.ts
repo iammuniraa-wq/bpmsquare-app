@@ -14,13 +14,17 @@ export async function GET(req: Request) {
     authentication:
       "Bearer token — a per-tenant API key, generated in Settings → Admin → this tenant. Every endpoint resolves the tenant from that key; there is no global/shared key. The key grants writes as well as reads, so treat it like a password.",
     start_here: {
+      openapi: "GET /api/v1/openapi.json — OpenAPI 3.0 spec (import into Postman/Insomnia/SAP CPI or run codegen)",
       metadata: "GET /api/v1/metadata — every documented entity",
       quotation_fields: "GET /api/v1/metadata/quotations — every quotation field, its type, allowed values and whether it is writable",
+      changes: "GET /api/v1/changes?since=<cursor> — the change feed; poll to sync only what changed",
     },
     endpoints: {
       "GET /api/v1":                      "This index",
+      "GET /api/v1/openapi.json":         "OpenAPI 3.0 spec for the whole API",
       "GET /api/v1/metadata":             "List documented entities",
       "GET /api/v1/metadata/:entity":     "Full field-level metadata for one entity",
+      "GET /api/v1/changes":              "Change feed (CDC): ?since=<cursor>&object_type=&limit=",
       "GET /api/v1/quotations":           "List quotations (filters: status, account_id)",
       "POST /api/v1/quotations":          "Create a quotation, with its lines",
       "GET /api/v1/quotations/:id":       "Quotation detail with lines, account, contact and totals",
@@ -53,8 +57,8 @@ export async function GET(req: Request) {
     },
     coming_soon: [
       "Write endpoints for cases, accounts and invoices — the metadata/validation structure is in place, each needs its own entity definition",
-      "GET /api/v1/openapi.json — OpenAPI 3 spec generated from the same metadata",
-      "POST /api/v1/webhooks     — register webhook endpoint",
+      "POST /api/v1/webhooks     — register a webhook (push); the /changes feed already backs the replay",
+      "Scoped API keys (read-only vs write, per-object) and POST /api/v1/ask (natural-language query compiled to the same safe engine)",
     ],
   });
 }
