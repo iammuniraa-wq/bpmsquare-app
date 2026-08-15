@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import { parseListQuery, applyListQuery, type QueryableField } from "./query";
 
 const FIELDS: QueryableField[] = [
-  { path: "ref", type: "string" },
+  { path: "ref", type: "string", searchable: true },
   { path: "status", type: "string" },
   { path: "total", type: "number" },
   { path: "created_at", type: "date" },
-  { path: "account.name", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
 ];
 
 const ROWS = [
@@ -72,5 +72,26 @@ describe("enriched query engine", () => {
 
   it("clamps limit to the max", () => {
     expect(parse("limit=99999").limit).toBe(200);
+  });
+
+  it("search does OR-contains across searchable fields", () => {
+    // 'alpha' matches account.name on Q-1/Q-3; 'gamma' matches Q-4
+    expect(applyListQuery(ROWS, parse("search=alpha")).data.map((r) => r.ref)).toEqual(["Q-1", "Q-3"]);
+    expect(applyListQuery(ROWS, parse("search=q-2")).data.map((r) => r.ref)).toEqual(["Q-2"]);
+  });
+
+  it("group_by returns per-group aggregates, busiest first", () => {
+    const out = applyListQuery(ROWS, parse("group_by=status&aggregate=sum:total"));
+    expect(out.meta.groups).toEqual([
+      { key: "draft", count: 2, sum_total: 350 },
+      { key: "won", count: 1, sum_total: 5000 },
+      { key: "lost", count: 1, sum_total: 900 },
+    ]);
+  });
+
+  it("count=only returns meta without data rows", () => {
+    const out = applyListQuery(ROWS, parse("count=only&filter=status:eq:draft"));
+    expect(out.data).toEqual([]);
+    expect(out.meta.total).toBe(2);
   });
 });

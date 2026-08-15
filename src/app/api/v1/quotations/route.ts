@@ -5,7 +5,8 @@ import { DEFAULT_QUOTE_ID_FORMAT, DEFAULT_QUOTE_STATUSES, type QuoteIdFormat, ty
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { QUOTE_ENTITY } from "@/lib/api/quotes";
 import { validateBody, validateChildren } from "@/lib/api/schema";
-import { parseListQuery, applyListQuery, type QueryableField } from "@/lib/api/query";
+import { type QueryableField } from "@/lib/api/query";
+import { enrichedList } from "../_list";
 import {
   API_ACTOR_EMAIL, buildLineRows, sanitizeQuoteValues, serializeQuote, totalsFor, verifyQuoteRelations,
 } from "@/lib/api/quoteService";
@@ -19,7 +20,7 @@ import {
 // never leaks a field or accepts an ambiguous filter.
 const QUOTE_QUERYABLE: QueryableField[] = [
   { path: "id", type: "string" },
-  { path: "ref", type: "string" },
+  { path: "ref", type: "string", searchable: true },
   { path: "status", type: "string" },
   { path: "total", type: "number" },
   { path: "revision", type: "number" },
@@ -28,7 +29,7 @@ const QUOTE_QUERYABLE: QueryableField[] = [
   { path: "valid_until", type: "date" },
   { path: "line_count", type: "number" },
   { path: "account.id", type: "string" },
-  { path: "account.name", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
 ];
 
 export async function GET(req: Request) {
@@ -36,17 +37,6 @@ export async function GET(req: Request) {
   if (!tenantId) return ERR_401_TENANT();
 
   const url = new URL(req.url);
-  const parsed = parseListQuery(url.searchParams, QUOTE_QUERYABLE);
-  if (!parsed.ok) return jsonValidationError(parsed.errors.map((e) => ({ field: e.param, message: e.message })));
-  const query = parsed.query;
-
-  // Back-compat: the original ?status= / ?account_id= params still work, folded
-  // into the new filter set so nothing built against the old API breaks.
-  const status = url.searchParams.get("status");
-  const accountId = url.searchParams.get("account_id");
-  if (status) query.filters.push({ path: "status", op: "eq", value: status } as never);
-  if (accountId) query.filters.push({ path: "account.id", op: "eq", value: accountId } as never);
-
   // Fetch is tenant-scoped + PII-decrypted by the data layer; the engine only
   // shapes the result, so it inherits that boundary and adds no SQL surface.
   const quotes = await listQuotesForTenant(tenantId);
@@ -68,20 +58,14 @@ export async function GET(req: Request) {
     },
   }));
 
-  const result = applyListQuery(rows, query);
-  const linkQs = (p: Record<string, string> | null) =>
-    p ? `/api/v1/quotations?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), ...p }).toString()}` : null;
-
-  return jsonOk({
-    data: result.data,
-    meta: { ...result.meta, generated_at: new Date().toISOString() },
-    _links: {
-      self: "/api/v1/quotations",
-      metadata: "/api/v1/metadata/quotations",
-      next: linkQs(result.links.next),
-      prev: linkQs(result.links.prev),
-    },
-  }, RW_METHODS);
+  return enrichedList(req, rows, QUOTE_QUERYABLE, {
+    self: "/api/v1/quotations",
+    metadata: "/api/v1/metadata/quotations",
+    legacyFilters: [
+      { path: "status", value: url.searchParams.get("status") },
+      { path: "account.id", value: url.searchParams.get("account_id") },
+    ],
+  });
 }
 
 export async function POST(req: Request) {

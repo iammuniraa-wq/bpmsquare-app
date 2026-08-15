@@ -20,7 +20,7 @@
 // typo in a bulk load fails loudly instead of silently returning everything.
 
 export type QueryableType = "string" | "number" | "boolean" | "date";
-export type QueryableField = { path: string; type: QueryableType };
+export type QueryableField = { path: string; type: QueryableType; searchable?: boolean };
 
 export type FilterOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "like" | "in" | "isnull";
 const OPS: readonly FilterOp[] = ["eq", "ne", "gt", "gte", "lt", "lte", "like", "in", "isnull"];
@@ -42,6 +42,12 @@ export type ParsedQuery = {
   page: number;
   limit: number;
   aggregates: Agg[];
+  /** ?search=term across the entity's `searchable` fields (OR-contains). */
+  search: { term: string; fields: string[] } | null;
+  /** ?group_by=field -> aggregates computed per distinct value, in meta.groups. */
+  groupBy: string | null;
+  /** ?count=only -> return meta only, no data rows. */
+  countOnly: boolean;
 };
 
 export type QueryError = { param: string; message: string };
@@ -124,13 +130,35 @@ export function parseListQuery(
     }
   }
 
+  // search -- OR-contains across the entity's searchable fields
+  let search: { term: string; fields: string[] } | null = null;
+  const searchRaw = sp.get("search");
+  if (searchRaw && searchRaw.trim()) {
+    const searchable = fields.filter((f) => f.searchable).map((f) => f.path);
+    if (searchable.length === 0) {
+      errors.push({ param: "search", message: "This entity has no searchable fields; use filter=... instead." });
+    } else {
+      search = { term: searchRaw.trim(), fields: searchable };
+    }
+  }
+
+  // group_by -- aggregate per distinct value of a field
+  let groupBy: string | null = null;
+  const groupRaw = sp.get("group_by");
+  if (groupRaw) {
+    if (known(groupRaw.trim(), "group_by")) groupBy = groupRaw.trim();
+  }
+
+  // count=only -> meta only
+  const countOnly = sp.get("count") === "only";
+
   // pagination
   const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1);
   const rawLimit = parseInt(sp.get("limit") ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT;
   const limit = Math.min(MAX_LIMIT, Math.max(1, rawLimit));
 
   if (errors.length) return { ok: false, errors };
-  return { ok: true, query: { select, filters, sort, page, limit, aggregates } };
+  return { ok: true, query: { select, filters, sort, page, limit, aggregates, search, groupBy, countOnly } };
 }
 
 const INVALID = Symbol("invalid");
@@ -203,6 +231,8 @@ function project(row: Record<string, unknown>, select: string[]): Record<string,
   return out;
 }
 
+export type GroupResult = { key: unknown; count: number; [aggregate: string]: unknown };
+
 export type ListResult<T> = {
   data: T[];
   meta: {
@@ -212,9 +242,24 @@ export type ListResult<T> = {
     limit: number;
     has_more: boolean;
     aggregates?: Record<string, number>;
+    groups?: GroupResult[];
   };
   links: { next: Record<string, string> | null; prev: Record<string, string> | null };
 };
+
+function aggregate(rows: Record<string, unknown>[], aggs: Agg[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const a of aggs) {
+    if (a.fn === "count") { out["count"] = rows.length; continue; }
+    const nums = rows.map((r) => getPath(r, a.path!)).filter((v): v is number => typeof v === "number");
+    const key = `${a.fn}_${a.path}`;
+    if (a.fn === "sum") out[key] = nums.reduce((s, n) => s + n, 0);
+    else if (a.fn === "avg") out[key] = nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : 0;
+    else if (a.fn === "min") out[key] = nums.length ? Math.min(...nums) : 0;
+    else if (a.fn === "max") out[key] = nums.length ? Math.max(...nums) : 0;
+  }
+  return out;
+}
 
 export function applyListQuery<T extends Record<string, unknown>>(
   rows: T[],
@@ -223,19 +268,32 @@ export function applyListQuery<T extends Record<string, unknown>>(
   // filter (AND)
   let filtered = query.filters.length ? rows.filter((r) => query.filters.every((f) => matches(r, f))) : rows;
 
+  // search (OR-contains across searchable fields), ANDed with the filters
+  if (query.search) {
+    const term = query.search.term.toLowerCase();
+    filtered = filtered.filter((r) =>
+      query.search!.fields.some((p) => {
+        const v = getPath(r, p);
+        return typeof v === "string" && v.toLowerCase().includes(term);
+      })
+    );
+  }
+
   // aggregates over the filtered set (before pagination)
-  let aggregates: Record<string, number> | undefined;
-  if (query.aggregates.length) {
-    aggregates = {};
-    for (const a of query.aggregates) {
-      if (a.fn === "count") { aggregates["count"] = filtered.length; continue; }
-      const nums = filtered.map((r) => getPath(r, a.path!)).filter((v): v is number => typeof v === "number");
-      const key = `${a.fn}_${a.path}`;
-      if (a.fn === "sum") aggregates[key] = nums.reduce((s, n) => s + n, 0);
-      else if (a.fn === "avg") aggregates[key] = nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : 0;
-      else if (a.fn === "min") aggregates[key] = nums.length ? Math.min(...nums) : 0;
-      else if (a.fn === "max") aggregates[key] = nums.length ? Math.max(...nums) : 0;
+  const aggregates = query.aggregates.length ? aggregate(filtered, query.aggregates) : undefined;
+
+  // group_by -> one aggregate row per distinct value (OData $apply/groupby, but
+  // usable). Always includes count; adds any requested aggregates per group.
+  let groups: GroupResult[] | undefined;
+  if (query.groupBy) {
+    const buckets = new Map<unknown, Record<string, unknown>[]>();
+    for (const r of filtered) {
+      const key = getPath(r, query.groupBy);
+      (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(r);
     }
+    groups = [...buckets.entries()]
+      .map(([key, rs]) => ({ key, count: rs.length, ...aggregate(rs, query.aggregates.filter((a) => a.fn !== "count")) }))
+      .sort((a, b) => b.count - a.count);
   }
 
   // sort (stable multi-key)
@@ -256,8 +314,10 @@ export function applyListQuery<T extends Record<string, unknown>>(
 
   const total = filtered.length;
   const start = (query.page - 1) * query.limit;
-  const pageRows = filtered.slice(start, start + query.limit);
-  const has_more = start + query.limit < total;
+  // count=only: skip the page slice entirely -- the caller just wants the
+  // total / aggregates / groups (cheap "how many match?" without the payload).
+  const pageRows = query.countOnly ? [] : filtered.slice(start, start + query.limit);
+  const has_more = !query.countOnly && start + query.limit < total;
 
   const projected = query.select
     ? (pageRows.map((r) => project(r, query.select!)) as T[])
@@ -265,7 +325,7 @@ export function applyListQuery<T extends Record<string, unknown>>(
 
   return {
     data: projected,
-    meta: { count: projected.length, total, page: query.page, limit: query.limit, has_more, aggregates },
+    meta: { count: projected.length, total, page: query.page, limit: query.limit, has_more, aggregates, groups },
     links: {
       next: has_more ? { page: String(query.page + 1), limit: String(query.limit) } : null,
       prev: query.page > 1 ? { page: String(query.page - 1), limit: String(query.limit) } : null,

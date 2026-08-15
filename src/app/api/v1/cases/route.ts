@@ -1,41 +1,52 @@
 import { listCasesForTenant } from "@/lib/data";
-import { resolveTenantFromBearer, ERR_401_TENANT, jsonOk } from "../_auth";
+import { resolveTenantFromBearer, ERR_401_TENANT } from "../_auth";
+import { enrichedList } from "../_list";
+import type { QueryableField } from "@/lib/api/query";
+
+const CASE_QUERYABLE: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "type", type: "string" },
+  { path: "status", type: "string" },
+  { path: "equipment_label", type: "string", searchable: true },
+  { path: "complaint", type: "string", searchable: true },
+  { path: "disposition", type: "string" },
+  { path: "has_loaner", type: "boolean" },
+  { path: "intake_at", type: "date" },
+  { path: "closed_at", type: "date" },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+  { path: "technician_name", type: "string" },
+];
 
 export async function GET(req: Request) {
   const tenantId = await resolveTenantFromBearer(req);
   if (!tenantId) return ERR_401_TENANT();
 
   const url = new URL(req.url);
-  const status = url.searchParams.get("status");
-  const accountId = url.searchParams.get("account_id");
+  const cases = await listCasesForTenant(tenantId);
+  const rows = cases.map(({ serviceCase: sc, account, technicianName }) => ({
+    id: sc.id,
+    ref: sc.ref,
+    type: sc.type,
+    status: sc.status,
+    equipment_label: sc.equipment_label,
+    complaint: sc.complaint,
+    disposition: sc.disposition,
+    has_loaner: sc.has_loaner,
+    intake_at: sc.intake_at,
+    closed_at: sc.closed_at,
+    account: account ? { id: account.id, name: account.name } : null,
+    technician_name: technicianName,
+    _links: { self: `/api/v1/cases/${sc.id}`, account: `/api/v1/accounts/${sc.account_id}` },
+  }));
 
-  let cases = await listCasesForTenant(tenantId);
-
-  if (status)    cases = cases.filter((c) => c.serviceCase.status === status);
-  if (accountId) cases = cases.filter((c) => c.serviceCase.account_id === accountId);
-
-  return jsonOk({
-    data: cases.map(({ serviceCase: sc, account, technicianName }) => ({
-      id: sc.id,
-      ref: sc.ref,
-      type: sc.type,
-      status: sc.status,
-      equipment_label: sc.equipment_label,
-      complaint: sc.complaint,
-      disposition: sc.disposition,
-      has_loaner: sc.has_loaner,
-      intake_at: sc.intake_at,
-      closed_at: sc.closed_at,
-      account: account ? { id: account.id, name: account.name } : null,
-      technician_name: technicianName,
-      _links: { self: `/api/v1/cases/${sc.id}`, account: `/api/v1/accounts/${sc.account_id}` },
-    })),
-    meta: {
-      count: cases.length,
-      filters: { status: status ?? null, account_id: accountId ?? null },
-      generated_at: new Date().toISOString(),
-    },
-    _links: { self: "/api/v1/cases" },
+  return enrichedList(req, rows, CASE_QUERYABLE, {
+    self: "/api/v1/cases",
+    legacyFilters: [
+      { path: "status", value: url.searchParams.get("status") },
+      { path: "account.id", value: url.searchParams.get("account_id") },
+    ],
   });
 }
 
