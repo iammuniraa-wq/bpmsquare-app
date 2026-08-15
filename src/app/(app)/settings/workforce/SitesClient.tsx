@@ -54,6 +54,7 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
   const [sites, setSites] = useState<WfmSite[]>([]);
   const [people, setPeople] = useState<EmployeeOption[]>([]);
   const [error, setError] = useState("");
+  const [okMsg, setOkMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -95,6 +96,7 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
   async function send(url: string, body: unknown, method = "POST") {
     setBusy(true);
     setError("");
+    setOkMsg("");
     try {
       const res = await fetch(url, {
         method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -125,10 +127,14 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
       radius_m: parseInt(siteForm.radius_m) || 150,
       supervisor_id: siteForm.supervisor_id || null,
     };
+    const wasEditing = !!editingId;
     const ok = editingId
       ? await send(`/api/wfm/sites/${editingId}`, payload, "PATCH")
       : await send("/api/wfm/sites", payload);
-    if (ok) { setSiteForm(blank); setAdding(false); setEditingId(null); }
+    if (ok) {
+      setSiteForm(blank); setAdding(false); setEditingId(null);
+      setOkMsg(wasEditing ? `Site "${payload.name}" updated.` : `Site "${payload.name}" created.`);
+    }
   }
 
   function startEdit(s: WfmSite) {
@@ -242,6 +248,9 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
     <>
       {error && (
         <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>
+      )}
+      {okMsg && (
+        <div style={{ ...cardStyle, marginBottom: 14, color: "#1d9e75", fontSize: 12.5, fontWeight: 600 }}>✓ {okMsg}</div>
       )}
 
       {unsupervised.length > 0 && (
