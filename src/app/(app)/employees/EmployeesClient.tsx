@@ -107,9 +107,9 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
     if (!draft.first_name.trim()) { setError("First name is required"); return; }
     setError("");
     startTransition(async () => {
+      const { employee_code: _code, ...rest } = draft;
       const payload = {
-        ...draft,
-        employee_code: draft.employee_code || null,
+        ...rest,
         email: draft.email || null,
         phone: draft.phone || null,
         department: draft.department || null,
@@ -169,7 +169,7 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div><label style={lbl}>First name *</label><input style={inp} value={draft.first_name} onChange={(e) => setDraft({ ...draft, first_name: e.target.value })} /></div>
             <div><label style={lbl}>Last name</label><input style={inp} value={draft.last_name} onChange={(e) => setDraft({ ...draft, last_name: e.target.value })} /></div>
-            <div><label style={lbl}>Employee code</label><input style={inp} value={draft.employee_code} onChange={(e) => setDraft({ ...draft, employee_code: e.target.value })} placeholder="e.g. EMP-0042" /></div>
+            <div><label style={lbl}>Employee code</label><div style={{ fontSize: 12.5, color: draft.employee_code ? c.ink : c.hint, paddingTop: 9, fontFamily: draft.employee_code ? "monospace" : undefined }}>{draft.employee_code || "Assigned automatically (EMP-####)"}</div></div>
             <div><label style={lbl}>Email</label><input style={inp} type="email" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></div>
             <div><label style={lbl}>Phone</label><input style={inp} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} /></div>
             <div><label style={lbl}>Department</label><input style={inp} value={draft.department} onChange={(e) => setDraft({ ...draft, department: e.target.value })} /></div>

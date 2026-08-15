@@ -68,7 +68,7 @@ export default function BusinessUsersClient() {
   const [notice, setNotice] = useState("");
 
   const [showNewEmployee, setShowNewEmployee] = useState(false);
-  const [empDraft, setEmpDraft] = useState({ first_name: "", last_name: "", employee_code: "", email: "", department: "", designation: "", valid_from: "", valid_to: "" });
+  const [empDraft, setEmpDraft] = useState({ first_name: "", last_name: "", email: "", department: "", designation: "", valid_from: "", valid_to: "" });
   const [savingEmp, setSavingEmp] = useState(false);
 
   const [creatingUserFor, setCreatingUserFor] = useState<string | null>(null);
@@ -127,7 +127,7 @@ export default function BusinessUsersClient() {
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Failed to create employee"); return; }
-      setEmpDraft({ first_name: "", last_name: "", employee_code: "", email: "", department: "", designation: "", valid_from: "", valid_to: "" });
+      setEmpDraft({ first_name: "", last_name: "", email: "", department: "", designation: "", valid_from: "", valid_to: "" });
       setShowNewEmployee(false);
       flash("Employee created");
       load();
@@ -298,7 +298,7 @@ export default function BusinessUsersClient() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div><label style={lbl}>First name *</label><input style={inp} value={empDraft.first_name} onChange={(e) => setEmpDraft((d) => ({ ...d, first_name: e.target.value }))} /></div>
               <div><label style={lbl}>Last name</label><input style={inp} value={empDraft.last_name} onChange={(e) => setEmpDraft((d) => ({ ...d, last_name: e.target.value }))} /></div>
-              <div><label style={lbl}>Employee code</label><input style={inp} value={empDraft.employee_code} onChange={(e) => setEmpDraft((d) => ({ ...d, employee_code: e.target.value }))} placeholder="e.g. EMP-0042" /></div>
+              <div><label style={lbl}>Employee code</label><div style={{ fontSize: 12.5, color: c.hint, paddingTop: 9 }}>Assigned automatically (EMP-####)</div></div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div><label style={lbl}>Email</label><input style={inp} type="email" value={empDraft.email} onChange={(e) => setEmpDraft((d) => ({ ...d, email: e.target.value }))} placeholder="Becomes their login" /></div>

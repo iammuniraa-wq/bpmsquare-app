@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { insertRows, readImportBody, type PreparedRow } from "@/lib/import/server";
+import { nextEmployeeCodeSeq, formatEmployeeCode } from "@/lib/employeeRef";
 import type { RowOutcome } from "@/lib/import/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -28,6 +29,11 @@ export async function POST(request: NextRequest) {
   const prepared: PreparedRow[] = [];
   const outcomes: RowOutcome[] = [];
 
+  // Employee codes are SYSTEM-GENERATED (owner decision 2026-08-15) -- a
+  // contiguous EMP block is assigned here, same pattern as master-data ref
+  // imports. Any code column in the uploaded file is ignored.
+  let seq = await nextEmployeeCodeSeq(supabase, tenantId);
+
   for (const { rowNum, values } of rows) {
     if (!values.first_name?.trim()) {
       outcomes.push({ rowNum, status: "failed", reason: "first_name is required" });
@@ -39,7 +45,7 @@ export async function POST(request: NextRequest) {
         tenant_id: tenantId,
         first_name: values.first_name.trim().slice(0, 200),
         last_name: values.last_name?.trim().slice(0, 200) || "",
-        employee_code: values.employee_code?.trim().slice(0, 50) || null,
+        employee_code: formatEmployeeCode(seq++),
         email: values.email?.trim().slice(0, 200) || null,
         phone: values.phone?.trim().slice(0, 50) || null,
         department: values.department?.trim().slice(0, 200) || null,
