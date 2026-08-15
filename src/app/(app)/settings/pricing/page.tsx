@@ -6,7 +6,7 @@ export default async function PricingConfigPage() {
   const items = await listPricingItems();
   return (
     <>
-      <PageHeader title="Pricing catalogue" subtitle="Standard rates for labour, materials, testing and transport" />
+      <PageHeader title="Small Scale Pricing" subtitle="Static standard rates for labour, materials, testing and transport — the simple pricing model for small tenants" />
       <PricingClient initialItems={items} />
     </>
   );
