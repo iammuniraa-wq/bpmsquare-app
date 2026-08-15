@@ -325,6 +325,24 @@ per-API-key rate limiting.
   `pricing_engine` was direct SQL on dev only — do NOT run on main.
 
 **Open items:**
+- **Pricing cockpit UX redesign — brainstorm in progress (2026-08-15
+  evening), decision pending.** Owner verdict: the JSON-based cockpit tabs
+  are not understandable; wanted a self-explanatory flow "from strategy
+  selection to final price output". Direction sketched and discussed (no
+  code written — owner explicitly paused building to brainstorm): a guided
+  wizard — (1) pick strategy in plain words: Cost-plus vs Price list, with
+  value-based as situational-adjustment sentences layered on either
+  ("When customer tier is gold → discount of 5%"); (2) enter numbers in
+  simple tables; (3) try a sample job rendered like a customer-facing bill,
+  then "go live". Wizard compiles to the existing config API; JSON tabs
+  become an Advanced view. Four open questions put to the owner, unanswered:
+  which advanced features (scales, per-document-type) are needed day one;
+  primary persona (small-tenant admin vs enterprise pricing manager); a
+  separate dead-simple daily "update today's rates" screen; SAP-flavored
+  vs plain terminology. Also discussed competitive framing: SAP condition
+  technique = mechanical benchmark, Pricefx = usability benchmark; our seam
+  is self-service setup + customer-showable price explanation at mid-market
+  price. Resume here.
 - Password-reset loop bug (QA, Jira KAN-12/major): code fully traced, three
   candidate mechanisms identified, waiting on QA's repro details.
 - Vercel Hobby constraint (hard-learned): crons may fire at most once per
