@@ -14,6 +14,7 @@ const SCOPABLE_OBJECTS = [
   { key: "inventory", label: "Inventory" },
   { key: "invoices", label: "Invoices" },
   { key: "purchase-orders", label: "Purchase Orders" },
+  { key: "pricing", label: "Pricing (engine)" },
 ];
 
 type Scopes = { read: boolean; write: boolean; objects: string[] };

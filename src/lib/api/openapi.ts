@@ -132,6 +132,41 @@ export function buildOpenApiSpec(): Record<string, unknown> {
       responses: { "200": { description: "Ordered changes with a next cursor" }, "401": { description: "Missing/invalid tenant API key" } },
     },
   };
+  paths["/price"] = {
+    post: {
+      summary: "Price a document (PricingEngine)", tags: ["pricing"],
+      requestBody: { required: true, content: { "application/json": { schema: {
+        type: "object",
+        properties: {
+          document: { type: "object", properties: {
+            attributes: { type: "object", description: "Header matching attributes (document_type, customer.*, region, ...)." },
+            lines: { type: "array", items: { type: "object", properties: {
+              line_no: { type: "integer" },
+              attributes: { type: "object" },
+              quantity: { type: "number" },
+              weight_kg: { type: "number" },
+              cost_items: { type: "array", items: { type: "object", properties: { path: { type: "string" }, qty: { type: "number" } }, required: ["path", "qty"] } },
+              manual: { type: "object", description: "Per-component manual overrides {CODE: {value, reason}} — gated by each component's override policy." },
+            } } },
+          }, required: ["lines"] },
+          options: { type: "object", properties: {
+            trace: { type: "string", enum: ["full", "summary", "none"], default: "full" },
+            pricing_date: { type: "string", format: "date" },
+            config_version: { type: "integer", description: "Replay against a specific config version (default: the PUBLISHED one)." },
+            pricing_area: { type: "string", default: "default" },
+            procedure: { type: "string", description: "Procedure code; required when the version has more than one." },
+            currency: { type: "string" },
+          } },
+        },
+        required: ["document"],
+      } } } },
+      responses: {
+        "200": { description: "Priced document with waterfall trace (APPLIED/EXCLUDED/SKIPPED per step)" },
+        "409": { description: "No PUBLISHED pricing configuration for this tenant/area" },
+        "422": { description: "Invalid document, or a configuration error (AMBIGUOUS_RULE, MISSING_REQUIRED_COMPONENT, FORMULA_ERROR, ...)", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+      },
+    },
+  };
   paths["/ask"] = {
     post: {
       summary: "Natural-language query", tags: ["ask"],
