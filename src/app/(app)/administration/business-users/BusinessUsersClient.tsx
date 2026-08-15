@@ -79,6 +79,8 @@ export default function BusinessUsersClient() {
         setEmployees(Array.isArray(emps) ? emps : []);
         setUsers(Array.isArray(bu?.users) ? bu.users : []);
         setRoles(Array.isArray(br?.roles) ? br.roles.map((r: BusinessRole) => ({ id: r.id, name: r.name })) : []);
+        // A transient failure's banner must not outlive the retry that worked.
+        setError("");
       })
       .catch(() => setError("Could not load — check your connection and refresh"))
       .finally(() => setLoading(false));

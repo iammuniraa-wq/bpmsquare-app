@@ -28,6 +28,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "gmail_reply_threading",  label: "Gmail reply-threading" },
   { key: "quote_lines_dw",         label: "Quote Lines (Data Workbench)" },
   { key: "wfm",                    label: "Workforce (Attendance & Leave)" },
+  { key: "pricing_engine",         label: "Pricing Engine (dynamic pricing)" },
   // Core modules (0067). Every existing tenant was backfilled to true, so
   // switching one OFF here is what removes it from that client's navigation
   // -- for a Workforce-only client, turn all of these off except the ones
