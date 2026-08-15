@@ -1,12 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { isMembershipActive } from "@/lib/constants";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import type { Employee } from "@/lib/types";
+
+// Two objects on one screen, deliberately distinct (SAP-style):
+//   - the EMPLOYEE (master data) — clicking the NAME opens the employee record
+//     (Employee Hub);
+//   - the BUSINESS USER (the login) — the Edit button on the right opens it
+//     inline: validity, lock, password, license seat, Business Roles.
+// Errors from row actions surface next to the action, not only in the page-top
+// banner (which is off-screen when working near the bottom of a long list).
 
 type BusinessUser = {
   user_id: string;
@@ -36,10 +45,19 @@ const btnPrimary: React.CSSProperties = {
   color: "#fff", fontWeight: 600, fontSize: 12.5, cursor: "pointer",
 };
 const btnGhost: React.CSSProperties = {
-  padding: "7px 14px", borderRadius: 7, border: `1px solid ${c.line}`,
-  background: "none", color: c.muted, fontSize: 12, cursor: "pointer",
+  padding: "6px 12px", borderRadius: 7, border: `1px solid ${c.line}`,
+  background: "none", color: c.muted, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap",
 };
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
+
+function InlineError({ msg }: { msg: string }) {
+  if (!msg) return null;
+  return (
+    <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px", fontSize: 12, color: "var(--err-ink)", marginTop: 8 }}>
+      {msg}
+    </div>
+  );
+}
 
 export default function BusinessUsersClient() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -113,6 +131,8 @@ export default function BusinessUsersClient() {
       setShowNewEmployee(false);
       flash("Employee created");
       load();
+    } catch (e) {
+      setError(`Could not reach the server: ${(e as Error).message}`);
     } finally {
       setSavingEmp(false);
     }
@@ -120,9 +140,12 @@ export default function BusinessUsersClient() {
 
   async function createBusinessUser(employeeId: string, employeeName: string) {
     setError("");
-    if (!userDraft.password.trim()) { setError("An initial password is required"); return; }
     setSavingUser(true);
     try {
+      const existing = userDraft.email.trim()
+        ? users.find((u) => u.email?.toLowerCase() === userDraft.email.trim().toLowerCase())
+        : undefined;
+      if (!existing && !userDraft.password.trim()) { setError("An initial password is required"); return; }
       const res = await fetch("/api/business-users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -147,6 +170,8 @@ export default function BusinessUsersClient() {
       }
       setUserDraft({ email: "", password: "", counted: true, roleIds: [] });
       load();
+    } catch (e) {
+      setError(`Could not reach the server: ${(e as Error).message}`);
     } finally {
       setSavingUser(false);
     }
@@ -162,18 +187,21 @@ export default function BusinessUsersClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ employee_id: linkEmployeeId }),
       });
-      const json = await res.json();
-      if (!res.ok) { setError(json.error ?? "Failed to link"); return; }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(json.error ?? `Failed to link (HTTP ${res.status})`); return; }
       setLinkingUser(null);
       setLinkEmployeeId("");
       flash("Login linked to employee");
       load();
+    } catch (e) {
+      setError(`Could not reach the server: ${(e as Error).message}`);
     } finally {
       setSavingLink(false);
     }
   }
 
   function startEdit(u: BusinessUser) {
+    setError("");
     setEditingUser(u.user_id);
     setEditDraft({
       display_name: u.display_name ?? "",
@@ -215,6 +243,8 @@ export default function BusinessUsersClient() {
       setEditingUser(null);
       flash("Saved");
       load();
+    } catch (e) {
+      setError(`Could not reach the server: ${(e as Error).message}`);
     } finally {
       setSavingEdit(false);
     }
@@ -222,13 +252,17 @@ export default function BusinessUsersClient() {
 
   async function toggleLock(u: BusinessUser) {
     setError("");
-    const res = await fetch(`/api/business-users/${u.user_id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_locked: !u.is_locked }),
-    });
-    if (res.ok) { flash(u.is_locked ? "Unlocked" : "Locked — takes effect on their next request"); load(); }
-    else { const j = await res.json(); setError(j.error ?? "Failed to update lock"); }
+    try {
+      const res = await fetch(`/api/business-users/${u.user_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_locked: !u.is_locked }),
+      });
+      if (res.ok) { flash(u.is_locked ? "Unlocked" : "Locked — takes effect on their next request"); load(); }
+      else { const j = await res.json(); setError(j.error ?? "Failed to update lock"); }
+    } catch (e) {
+      setError(`Could not reach the server: ${(e as Error).message}`);
+    }
   }
 
   if (loading) return <div style={{ fontSize: 13, color: c.hint, padding: 24 }}>Loading…</div>;
@@ -255,8 +289,8 @@ export default function BusinessUsersClient() {
             {showNewEmployee ? "Cancel" : "+ New Employee"}
           </button>
         </div>
-        <p style={{ fontSize: 12, color: c.muted, margin: "0 0 14px" }}>
-          Master data — an employee without a business user has no login. Also importable in bulk via Data Workbench → Employees.
+        <p style={{ fontSize: 12, color: c.muted, margin: "0 0 10px" }}>
+          Click a <strong>name</strong> to open the employee record; <strong>Edit</strong> opens their business user (login, validity, roles). Employees are importable in bulk via Data Workbench.
         </p>
 
         {showNewEmployee && (
@@ -276,46 +310,64 @@ export default function BusinessUsersClient() {
               <div><label style={lbl}>Valid to</label><input style={inp} type="date" value={empDraft.valid_to} onChange={(e) => setEmpDraft((d) => ({ ...d, valid_to: e.target.value }))} /></div>
             </div>
             <button style={btnPrimary} disabled={savingEmp} onClick={createEmployee}>{savingEmp ? "Saving…" : "Create Employee"}</button>
+            <InlineError msg={error} />
           </div>
         )}
 
         {employees.length === 0 ? (
           <div style={{ fontSize: 12.5, color: c.hint, padding: "14px 0" }}>No employees yet — create one above, or import via Data Workbench.</div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>
             {pageEmployees.map((emp) => {
               const bu = userByEmployee.get(emp.id);
               const name = `${emp.first_name} ${emp.last_name}`.trim();
+              const panelOpen = (bu && editingUser === bu.user_id) || (creatingUserFor === emp.id && !bu);
               return (
-                <div key={emp.id} style={{ border: `1px solid ${c.line}`, borderRadius: 9, padding: "10px 14px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <div style={{ flex: 1, minWidth: 200 }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{name}</span>
-                      {emp.employee_code && <span style={{ fontSize: 11, color: c.hint, marginLeft: 8, fontFamily: "monospace" }}>{emp.employee_code}</span>}
-                      <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>
-                        {[emp.designation, emp.department, emp.email].filter(Boolean).join(" · ") || "—"}
-                      </div>
+                <div key={emp.id} style={{ borderBottom: `1px solid ${c.line}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 4px" }}>
+                    <div style={{ flex: 1, minWidth: 220, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                      <Link href={`/wfm/employees/${emp.id}`} style={{ fontSize: 13, fontWeight: 600, color: "var(--blueink)", textDecoration: "none" }}>
+                        {name}
+                      </Link>
+                      {emp.employee_code && <span style={{ fontSize: 10.5, color: c.hint, fontFamily: "monospace" }}>{emp.employee_code}</span>}
+                      <span style={{ fontSize: 11.5, color: c.muted }}>
+                        {[emp.designation, emp.department, emp.email].filter(Boolean).join(" · ")}
+                      </span>
                     </div>
-                    {bu ? (
-                      <BusinessUserBadge user={bu} />
-                    ) : creatingUserFor === emp.id ? null : (
-                      <button style={btnGhost} onClick={() => { setCreatingUserFor(emp.id); setUserDraft({ email: emp.email ?? "", password: "", counted: true, roleIds: [] }); setJustCreated(null); }}>
-                        + Create Business User
-                      </button>
-                    )}
+                    {bu && <BusinessUserBadge user={bu} />}
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      {bu ? (
+                        <>
+                          <button style={btnGhost} onClick={() => (editingUser === bu.user_id ? setEditingUser(null) : startEdit(bu))}>
+                            {editingUser === bu.user_id ? "Close" : "Edit"}
+                          </button>
+                          <button
+                            style={{ ...btnGhost, color: bu.is_locked ? "var(--greenink)" : "var(--red)", borderColor: bu.is_locked ? "var(--green)" : "#f5c0c0" }}
+                            onClick={() => toggleLock(bu)}
+                          >
+                            {bu.is_locked ? "Unlock" : "Lock"}
+                          </button>
+                        </>
+                      ) : (
+                        <button style={btnGhost} onClick={() => {
+                          if (creatingUserFor === emp.id) { setCreatingUserFor(null); return; }
+                          setCreatingUserFor(emp.id);
+                          setUserDraft({ email: emp.email ?? "", password: "", counted: true, roleIds: [] });
+                          setJustCreated(null);
+                          setError("");
+                        }}>
+                          {creatingUserFor === emp.id ? "Cancel" : "+ Business User"}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  {creatingUserFor === emp.id && !bu && (() => {
-                    // Same email already a login here? Creating will LINK that
-                    // login, not make a second one -- say so up front, and
-                    // don't show a password field that would be silently
-                    // ignored (an existing account's password is never
-                    // overwritten from here).
+                  {panelOpen && creatingUserFor === emp.id && !bu && (() => {
                     const emailKey = userDraft.email.trim().toLowerCase();
                     const existing = emailKey ? users.find((u) => u.email?.toLowerCase() === emailKey) : undefined;
                     const conflicting = existing?.employee_id ? employees.find((e2) => e2.id === existing.employee_id) : undefined;
                     return (
-                      <div style={{ marginTop: 10, background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
+                      <div style={{ margin: "0 0 10px", background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
                           <div><label style={lbl}>Login email</label><input style={inp} type="email" value={userDraft.email} onChange={(e) => setUserDraft((d) => ({ ...d, email: e.target.value }))} /></div>
                           {!existing && (
@@ -374,27 +426,19 @@ export default function BusinessUsersClient() {
                           </button>
                           <button style={btnGhost} onClick={() => setCreatingUserFor(null)}>Cancel</button>
                         </div>
+                        <InlineError msg={error} />
                       </div>
                     );
                   })()}
 
                   {bu && editingUser === bu.user_id && (
-                    <EditPanel
-                      user={bu} roles={roles} draft={editDraft} setDraft={setEditDraft}
-                      roleIds={editRoleIds} setRoleIds={setEditRoleIds}
-                      saving={savingEdit} onSave={() => saveEdit(bu)} onCancel={() => setEditingUser(null)}
-                    />
-                  )}
-
-                  {bu && editingUser !== bu.user_id && (
-                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                      <button style={btnGhost} onClick={() => startEdit(bu)}>Edit user</button>
-                      <button
-                        style={{ ...btnGhost, color: bu.is_locked ? "var(--greenink)" : "var(--red)", borderColor: bu.is_locked ? "var(--green)" : "#f5c0c0" }}
-                        onClick={() => toggleLock(bu)}
-                      >
-                        {bu.is_locked ? "Unlock" : "Lock"}
-                      </button>
+                    <div style={{ margin: "0 0 10px" }}>
+                      <EditPanel
+                        user={bu} roles={roles} draft={editDraft} setDraft={setEditDraft}
+                        roleIds={editRoleIds} setRoleIds={setEditRoleIds}
+                        saving={savingEdit} onSave={() => saveEdit(bu)} onCancel={() => setEditingUser(null)}
+                        error={error}
+                      />
                     </div>
                   )}
                 </div>
@@ -410,27 +454,49 @@ export default function BusinessUsersClient() {
       {unlinkedUsers.length > 0 && (
         <section style={cardStyle}>
           <h3 style={{ fontSize: 13.5, fontWeight: 700, color: c.ink, margin: "0 0 6px" }}>Other logins (no employee record)</h3>
-          <p style={{ fontSize: 12, color: c.muted, margin: "0 0 12px" }}>
+          <p style={{ fontSize: 12, color: c.muted, margin: "0 0 8px" }}>
             Memberships created before this screen existed, or via Settings → Team. They work exactly the same — lock, validity, and roles all apply — they just aren&apos;t tied to an employee.
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>
             {unlinkedUsers.map((u) => (
-              <div key={u.user_id} style={{ border: `1px solid ${c.line}`, borderRadius: 9, padding: "10px 14px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{u.display_name || u.email || u.user_id.slice(0, 8)}</span>
-                    <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{u.email ?? "—"} · {u.role}</div>
+              <div key={u.user_id} style={{ borderBottom: `1px solid ${c.line}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 4px" }}>
+                  <div style={{ flex: 1, minWidth: 220, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{u.display_name || u.email || u.user_id.slice(0, 8)}</span>
+                    <span style={{ fontSize: 11.5, color: c.muted }}>{u.email ?? "—"} · {u.role}</span>
                   </div>
                   <BusinessUserBadge user={u} />
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button style={btnGhost} onClick={() => (editingUser === u.user_id ? setEditingUser(null) : startEdit(u))}>
+                      {editingUser === u.user_id ? "Close" : "Edit"}
+                    </button>
+                    <button style={btnGhost} onClick={() => {
+                      if (linkingUser === u.user_id) { setLinkingUser(null); setLinkEmployeeId(""); return; }
+                      setLinkingUser(u.user_id); setLinkEmployeeId(""); setError("");
+                    }}>
+                      {linkingUser === u.user_id ? "Cancel" : "Link to employee"}
+                    </button>
+                    <button
+                      style={{ ...btnGhost, color: u.is_locked ? "var(--greenink)" : "var(--red)", borderColor: u.is_locked ? "var(--green)" : "#f5c0c0" }}
+                      onClick={() => toggleLock(u)}
+                    >
+                      {u.is_locked ? "Unlock" : "Lock"}
+                    </button>
+                  </div>
                 </div>
-                {editingUser === u.user_id ? (
-                  <EditPanel
-                    user={u} roles={roles} draft={editDraft} setDraft={setEditDraft}
-                    roleIds={editRoleIds} setRoleIds={setEditRoleIds}
-                    saving={savingEdit} onSave={() => saveEdit(u)} onCancel={() => setEditingUser(null)}
-                  />
-                ) : linkingUser === u.user_id ? (
-                  <div style={{ marginTop: 10, background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
+
+                {editingUser === u.user_id && (
+                  <div style={{ margin: "0 0 10px" }}>
+                    <EditPanel
+                      user={u} roles={roles} draft={editDraft} setDraft={setEditDraft}
+                      roleIds={editRoleIds} setRoleIds={setEditRoleIds}
+                      saving={savingEdit} onSave={() => saveEdit(u)} onCancel={() => setEditingUser(null)}
+                      error={error}
+                    />
+                  </div>
+                )}
+                {linkingUser === u.user_id && editingUser !== u.user_id && (
+                  <div style={{ margin: "0 0 10px", background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
                     <label style={lbl}>Link this login to an employee</label>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <select style={{ ...inp, maxWidth: 320 }} value={linkEmployeeId} onChange={(e) => setLinkEmployeeId(e.target.value)}>
@@ -449,19 +515,7 @@ export default function BusinessUsersClient() {
                     <p style={{ fontSize: 11.5, color: c.hint, margin: "8px 0 0" }}>
                       The login and its password are untouched — this only ties it to the employee record, moving it up into the Employees list above.
                     </p>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button style={btnGhost} onClick={() => startEdit(u)}>Edit user</button>
-                    <button style={btnGhost} onClick={() => { setLinkingUser(u.user_id); setLinkEmployeeId(""); setError(""); }}>
-                      Link to employee
-                    </button>
-                    <button
-                      style={{ ...btnGhost, color: u.is_locked ? "var(--greenink)" : "var(--red)", borderColor: u.is_locked ? "var(--green)" : "#f5c0c0" }}
-                      onClick={() => toggleLock(u)}
-                    >
-                      {u.is_locked ? "Unlock" : "Lock"}
-                    </button>
+                    <InlineError msg={error} />
                   </div>
                 )}
               </div>
@@ -537,7 +591,7 @@ function BusinessUserBadge({ user }: { user: BusinessUser }) {
 }
 
 function EditPanel({
-  user, roles, draft, setDraft, roleIds, setRoleIds, saving, onSave, onCancel,
+  user, roles, draft, setDraft, roleIds, setRoleIds, saving, onSave, onCancel, error,
 }: {
   user: BusinessUser;
   roles: BusinessRole[];
@@ -548,9 +602,10 @@ function EditPanel({
   saving: boolean;
   onSave: () => void;
   onCancel: () => void;
+  error?: string;
 }) {
   return (
-    <div style={{ marginTop: 10, background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
+    <div style={{ background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <div><label style={lbl}>Display name</label><input style={inp} value={draft.display_name} onChange={(e) => setDraft((d) => ({ ...d, display_name: e.target.value }))} /></div>
         <div>
@@ -598,6 +653,7 @@ function EditPanel({
         <button style={btnPrimary} disabled={saving} onClick={onSave}>{saving ? "Saving…" : "Save"}</button>
         <button style={btnGhost} onClick={onCancel}>Cancel</button>
       </div>
+      <InlineError msg={error ?? ""} />
     </div>
   );
 }
