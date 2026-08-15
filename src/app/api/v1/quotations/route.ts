@@ -5,6 +5,7 @@ import { DEFAULT_QUOTE_ID_FORMAT, DEFAULT_QUOTE_STATUSES, type QuoteIdFormat, ty
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { QUOTE_ENTITY } from "@/lib/api/quotes";
 import { validateBody, validateChildren } from "@/lib/api/schema";
+import { parseListQuery, applyListQuery, type QueryableField } from "@/lib/api/query";
 import {
   API_ACTOR_EMAIL, buildLineRows, sanitizeQuoteValues, serializeQuote, totalsFor, verifyQuoteRelations,
 } from "@/lib/api/quoteService";
@@ -13,44 +14,73 @@ import {
   readJsonBody, optionsResponse, RW_METHODS,
 } from "../_auth";
 
+// Fields the enriched-query engine may select / filter / sort / aggregate on.
+// This is the whitelist -- anything not here is rejected with 422, so the API
+// never leaks a field or accepts an ambiguous filter.
+const QUOTE_QUERYABLE: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string" },
+  { path: "status", type: "string" },
+  { path: "total", type: "number" },
+  { path: "revision", type: "number" },
+  { path: "created_at", type: "date" },
+  { path: "quote_date", type: "date" },
+  { path: "valid_until", type: "date" },
+  { path: "line_count", type: "number" },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string" },
+];
+
 export async function GET(req: Request) {
   const tenantId = await resolveTenantFromBearer(req);
   if (!tenantId) return ERR_401_TENANT();
 
   const url = new URL(req.url);
+  const parsed = parseListQuery(url.searchParams, QUOTE_QUERYABLE);
+  if (!parsed.ok) return jsonValidationError(parsed.errors.map((e) => ({ field: e.param, message: e.message })));
+  const query = parsed.query;
+
+  // Back-compat: the original ?status= / ?account_id= params still work, folded
+  // into the new filter set so nothing built against the old API breaks.
   const status = url.searchParams.get("status");
   const accountId = url.searchParams.get("account_id");
+  if (status) query.filters.push({ path: "status", op: "eq", value: status } as never);
+  if (accountId) query.filters.push({ path: "account.id", op: "eq", value: accountId } as never);
 
-  let quotes = await listQuotesForTenant(tenantId);
+  // Fetch is tenant-scoped + PII-decrypted by the data layer; the engine only
+  // shapes the result, so it inherits that boundary and adds no SQL surface.
+  const quotes = await listQuotesForTenant(tenantId);
+  const rows = quotes.map(({ quote: q, account, lineCount }) => ({
+    id: q.id,
+    ref: q.ref,
+    status: q.status,
+    total: q.total,
+    revision: q.revision,
+    created_at: q.created_at,
+    quote_date: q.quote_date ?? null,
+    valid_until: q.valid_until,
+    account: account ? { id: account.id, name: account.name } : null,
+    line_count: lineCount,
+    _links: {
+      self: `/api/v1/quotations/${q.id}`,
+      pdf: `/quotations/${q.id}/print`,
+      account: `/api/v1/accounts/${q.account_id}`,
+    },
+  }));
 
-  if (status)    quotes = quotes.filter((q) => q.quote.status === status);
-  if (accountId) quotes = quotes.filter((q) => q.quote.account_id === accountId);
+  const result = applyListQuery(rows, query);
+  const linkQs = (p: Record<string, string> | null) =>
+    p ? `/api/v1/quotations?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), ...p }).toString()}` : null;
 
   return jsonOk({
-    data: quotes.map(({ quote: q, account, lineCount }) => ({
-      id: q.id,
-      ref: q.ref,
-      status: q.status,
-      total: q.total,
-      revision: q.revision,
-      created_at: q.created_at,
-      quote_date: q.quote_date ?? null,
-      valid_until: q.valid_until,
-      account: account ? { id: account.id, name: account.name } : null,
-      line_count: lineCount,
-      _links: {
-        self: `/api/v1/quotations/${q.id}`,
-        pdf: `/quotations/${q.id}/print`,
-        account: `/api/v1/accounts/${q.account_id}`,
-      },
-    })),
-    meta: {
-      count: quotes.length,
-      total_value: quotes.reduce((s, { quote: q }) => s + q.total, 0),
-      filters: { status: status ?? null, account_id: accountId ?? null },
-      generated_at: new Date().toISOString(),
+    data: result.data,
+    meta: { ...result.meta, generated_at: new Date().toISOString() },
+    _links: {
+      self: "/api/v1/quotations",
+      metadata: "/api/v1/metadata/quotations",
+      next: linkQs(result.links.next),
+      prev: linkQs(result.links.prev),
     },
-    _links: { self: "/api/v1/quotations", metadata: "/api/v1/metadata/quotations" },
   }, RW_METHODS);
 }
 
