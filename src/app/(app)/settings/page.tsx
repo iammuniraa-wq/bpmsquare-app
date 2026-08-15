@@ -40,6 +40,7 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
     items: [
       { label: "General settings", description: "Navigation, appearance, workspace name, integrations, developer API", href: ROUTES.settingsGeneral, icon: "◈", pillarKey: "blue", adminOnly: false },
       { label: "Team", description: "Invite teammates and manage roles", href: ROUTES.settingsTeam, icon: "◉", pillarKey: "blue", adminOnly: true },
+      { label: "Number Ranges", description: "One place for every business-ID convention — Quote ID format and all system-generated ranges", href: ROUTES.settingsNumberRanges, icon: "#", pillarKey: "blue", adminOnly: true },
     ],
   },
   {

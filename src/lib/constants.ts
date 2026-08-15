@@ -81,6 +81,7 @@ export const ROUTES = {
   employees: "/employees",
   configPricing: "/settings/pricing",
   configPricingEngine: "/settings/pricing-engine",
+  settingsNumberRanges: "/settings/number-ranges",
   configTemplates: "/settings/templates",
   configCustomFields: "/settings/custom-fields",
   cases: "/cases",
