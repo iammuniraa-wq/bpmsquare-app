@@ -119,6 +119,35 @@ export function buildOpenApiSpec(): Record<string, unknown> {
     };
   }
 
+  // Cross-cutting endpoints without an entity schema: the change feed and the
+  // natural-language query. Added explicitly so the spec is complete.
+  paths["/changes"] = {
+    get: {
+      summary: "Change feed (CDC)", tags: ["changes"],
+      parameters: [
+        { in: "query", name: "since", schema: { type: "string" }, description: "Cursor from a previous response." },
+        { in: "query", name: "object_type", schema: { type: "string" }, description: "Filter to one object type." },
+        { in: "query", name: "limit", schema: { type: "integer", default: 100, maximum: 500 } },
+      ],
+      responses: { "200": { description: "Ordered changes with a next cursor" }, "401": { description: "Missing/invalid tenant API key" } },
+    },
+  };
+  paths["/ask"] = {
+    post: {
+      summary: "Natural-language query", tags: ["ask"],
+      requestBody: { required: true, content: { "application/json": { schema: {
+        type: "object",
+        properties: { object: { type: "string", description: "Object to query (e.g. quotations)." }, question: { type: "string", description: "Plain-English question." } },
+        required: ["object", "question"],
+      } } } },
+      responses: {
+        "200": { description: "Compiled query + results (or answerable:false)" },
+        "422": { description: "Unknown object, or the compiled query failed validation", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        "503": { description: "AI not configured on the server" },
+      },
+    },
+  };
+
   return {
     openapi: "3.0.3",
     info: {

@@ -1,11 +1,10 @@
-import { listQuotesForTenant } from "@/lib/data";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { generateNextQuoteRef } from "@/lib/quoteRef";
 import { DEFAULT_QUOTE_ID_FORMAT, DEFAULT_QUOTE_STATUSES, type QuoteIdFormat, type QuoteStatusDef, type TenantConfig } from "@/lib/constants";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { QUOTE_ENTITY } from "@/lib/api/quotes";
 import { validateBody, validateChildren } from "@/lib/api/schema";
-import { type QueryableField } from "@/lib/api/query";
+import { LIST_SOURCES } from "@/lib/api/listSources";
 import { enrichedList } from "../_list";
 import {
   API_ACTOR_EMAIL, buildLineRows, sanitizeQuoteValues, serializeQuote, totalsFor, verifyQuoteRelations,
@@ -15,51 +14,17 @@ import {
   readJsonBody, optionsResponse, RW_METHODS,
 } from "../_auth";
 
-// Fields the enriched-query engine may select / filter / sort / aggregate on.
-// This is the whitelist -- anything not here is rejected with 422, so the API
-// never leaks a field or accepts an ambiguous filter.
-const QUOTE_QUERYABLE: QueryableField[] = [
-  { path: "id", type: "string" },
-  { path: "ref", type: "string", searchable: true },
-  { path: "status", type: "string" },
-  { path: "total", type: "number" },
-  { path: "revision", type: "number" },
-  { path: "created_at", type: "date" },
-  { path: "quote_date", type: "date" },
-  { path: "valid_until", type: "date" },
-  { path: "line_count", type: "number" },
-  { path: "account.id", type: "string" },
-  { path: "account.name", type: "string", searchable: true },
-];
-
 export async function GET(req: Request) {
   const auth = await authorizeApi(req, "quotations");
   if ("error" in auth) return auth.error;
-  const { tenantId } = auth;
 
   const url = new URL(req.url);
   // Fetch is tenant-scoped + PII-decrypted by the data layer; the engine only
   // shapes the result, so it inherits that boundary and adds no SQL surface.
-  const quotes = await listQuotesForTenant(tenantId);
-  const rows = quotes.map(({ quote: q, account, lineCount }) => ({
-    id: q.id,
-    ref: q.ref,
-    status: q.status,
-    total: q.total,
-    revision: q.revision,
-    created_at: q.created_at,
-    quote_date: q.quote_date ?? null,
-    valid_until: q.valid_until,
-    account: account ? { id: account.id, name: account.name } : null,
-    line_count: lineCount,
-    _links: {
-      self: `/api/v1/quotations/${q.id}`,
-      pdf: `/quotations/${q.id}/print`,
-      account: `/api/v1/accounts/${q.account_id}`,
-    },
-  }));
+  const src = LIST_SOURCES.quotations;
+  const rows = await src.load(auth.tenantId);
 
-  return enrichedList(req, rows, QUOTE_QUERYABLE, {
+  return enrichedList(req, rows, src.fields, {
     self: "/api/v1/quotations",
     metadata: "/api/v1/metadata/quotations",
     legacyFilters: [

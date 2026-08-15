@@ -25,6 +25,7 @@ export async function GET(req: Request) {
       "GET /api/v1/metadata":             "List documented entities",
       "GET /api/v1/metadata/:entity":     "Full field-level metadata for one entity",
       "GET /api/v1/changes":              "Change feed (CDC): ?since=<cursor>&object_type=&limit=",
+      "POST /api/v1/ask":                 "Natural-language query: { object, question } compiled to the safe query engine",
       "GET /api/v1/quotations":           "List quotations (filters: status, account_id)",
       "POST /api/v1/quotations":          "Create a quotation, with its lines",
       "GET /api/v1/quotations/:id":       "Quotation detail with lines, account, contact and totals",
@@ -59,9 +60,12 @@ export async function GET(req: Request) {
       "Scoped API keys are live. A key carries a scope: read and/or write, and either all objects or a named subset (quotations, accounts, cases, inventory, invoices, purchase-orders). A read-only key gets 403 on any write; a key scoped to a subset gets 403 on any object outside it. Mint and revoke keys in Settings → General → Developer.",
     webhooks:
       "Live (push). Register an endpoint in Settings → General → Developer; every create/update/delete is delivered as a signed batch (HMAC-SHA256, header X-BPMSquare-Signature) with the same event shape as GET /api/v1/changes. Only events after registration are sent; the /changes feed remains the pull-based backfill.",
+    ask: {
+      description: "Live. POST a plain-English question and the object to run it over; it is compiled to the same validated query engine (never to SQL) and executed with your read scope. The response echoes the exact `compiled` query string it ran, so you can lift it into a normal request.",
+      example: 'POST /api/v1/ask  { "object": "quotations", "question": "top 5 draft quotes over 50,000 by value" }',
+    },
     coming_soon: [
       "Write endpoints for cases, accounts and invoices — the metadata/validation structure is in place, each needs its own entity definition",
-      "POST /api/v1/ask          — natural-language query compiled to the same safe query engine",
     ],
   });
 }
