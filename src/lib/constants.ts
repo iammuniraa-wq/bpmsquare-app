@@ -80,6 +80,7 @@ export const ROUTES = {
   standardQuoteTemplate: (id: string) => `/standard-quotes/templates/${id}`,
   employees: "/employees",
   configPricing: "/settings/pricing",
+  configPricingEngine: "/settings/pricing-engine",
   configTemplates: "/settings/templates",
   configCustomFields: "/settings/custom-fields",
   cases: "/cases",
@@ -424,6 +425,9 @@ export type TenantFeatures = {
   reports: boolean;
   data_workbench: boolean;
   administration: boolean;
+  // PricingEngine (docs/pricing-engine-architecture.md): the dynamic pricing
+  // product. Demo tenant only until sold; Small Scale Pricing is unaffected.
+  pricing_engine: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
