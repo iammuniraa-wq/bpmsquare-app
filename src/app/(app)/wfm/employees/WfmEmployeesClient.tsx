@@ -51,7 +51,9 @@ const btnPrimary: React.CSSProperties = {
 };
 
 type Draft = {
-  employee_code: string; first_name: string; last_name: string; phone: string;
+  /** Read-only in the form: system-generated at create, immutable after. */
+  employee_code: string;
+  first_name: string; last_name: string; phone: string;
   employment_type: string; wfm_role: "employee" | "supervisor";
   shift_id: string; site_id: string; supervisor_id: string; invite_email: string; invite_password: string;
 };
@@ -109,7 +111,6 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
     try {
       const isNew = editing === "new";
       const payload: Record<string, unknown> = {
-        employee_code: draft.employee_code,
         first_name: draft.first_name,
         last_name: draft.last_name,
         phone: draft.phone,
@@ -158,12 +159,9 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
     <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
       <div style={{ flex: "0 1 150px" }}>
         <label style={lbl}>Code</label>
-        <input
-          style={inp}
-          value={draft.employee_code}
-          onChange={(e) => setDraft({ ...draft, employee_code: e.target.value })}
-          placeholder={editing === "new" ? "Auto — EMP-0001" : "EMP-0001"}
-        />
+        <div style={{ fontSize: 12.5, color: draft.employee_code ? c.ink : c.hint, paddingTop: 9, fontFamily: draft.employee_code ? "monospace" : undefined }}>
+          {draft.employee_code || "Assigned automatically (EMP-####)"}
+        </div>
       </div>
       <div style={{ flex: "1 1 130px" }}>
         <label style={lbl}>First name</label>

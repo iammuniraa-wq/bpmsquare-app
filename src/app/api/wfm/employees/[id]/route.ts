@@ -99,7 +99,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const validEmploymentTypes = (await getWfmConfig(admin, tenantId)).employment_types.map((t) => t.code);
 
   const patch: Record<string, unknown> = {};
-  if (typeof body.employee_code === "string" && body.employee_code.trim()) patch.employee_code = body.employee_code.trim();
+  // employee_code is deliberately absent: system-generated at create,
+  // immutable after (owner decision 2026-08-15 -- see lib/employeeRef.ts).
   if (typeof body.first_name === "string" && body.first_name.trim()) patch.first_name = body.first_name.trim();
   if (typeof body.last_name === "string") patch.last_name = body.last_name.trim();
   if (typeof body.phone === "string") patch.phone = body.phone.trim() || null;

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { wfmEmployeesPayload } from "@/lib/wfm/bootstrap";
-import { generateEmployeeCode } from "@/lib/wfm/employeeCode";
+import { generateNextEmployeeCode, isEmployeeCodeCollision } from "@/lib/employeeRef";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 
 // The WFM view over the shared `employees` master-data table (see
@@ -44,15 +44,14 @@ export async function POST(request: NextRequest) {
   const { tenantId } = ctx;
 
   const body = await request.json().catch(() => null);
-  const { employee_code, first_name, last_name, phone, employment_type, shift_id, site_id, wfm_role } =
+  const { first_name, last_name, phone, employment_type, shift_id, site_id, wfm_role } =
     (body ?? {}) as {
-      employee_code?: string; first_name?: string; last_name?: string; phone?: string;
+      first_name?: string; last_name?: string; phone?: string;
       employment_type?: string; shift_id?: string; site_id?: string; wfm_role?: string;
     };
 
-  // employee_code is now OPTIONAL: left blank, the next EMP-#### is generated.
-  // Supplied, the tenant's own scheme wins -- plenty of workplaces already
-  // number people by payroll or biometric id.
+  // employee_code is SYSTEM-GENERATED (owner decision 2026-08-15) -- a
+  // client-supplied value is ignored, same as every other business id.
   if (!first_name?.trim()) {
     return NextResponse.json({ error: "first_name is required" }, { status: 400 });
   }
@@ -91,14 +90,10 @@ export async function POST(request: NextRequest) {
     site_id: site_id || null,
     wfm_role: wfm_role ?? "employee",
   };
-  const supplied = employee_code?.trim();
-
-  // Retry only when we generated the code: two concurrent creates can probe
-  // the same free number, and the unique index turns that race into a clean
-  // 23505 rather than a duplicate. A code the user typed is never silently
-  // replaced -- that returns 409 so they can choose another.
+  // Two concurrent creates can probe the same free number; the CI unique
+  // index (0080) turns that race into a clean 23505 we retry through.
   for (let attempt = 0; ; attempt++) {
-    const code = supplied || (await generateEmployeeCode(admin, tenantId));
+    const code = await generateNextEmployeeCode(admin, tenantId);
     const { data, error } = await admin
       .from("employees")
       .insert({ ...base, employee_code: code })
@@ -107,10 +102,7 @@ export async function POST(request: NextRequest) {
 
     if (!error) return NextResponse.json(data);
 
-    if ((error as { code?: string }).code === "23505") {
-      if (supplied) {
-        return NextResponse.json({ error: `Employee code "${supplied}" already exists` }, { status: 409 });
-      }
+    if (isEmployeeCodeCollision(error)) {
       if (attempt < 3) continue;
       return NextResponse.json({ error: "Couldn't allocate an employee code — please try again" }, { status: 409 });
     }
