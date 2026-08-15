@@ -13,7 +13,7 @@ import { nextSeqFromRefs, firstFreeRef } from "./refSeq";
 // `employee_code` rather than `ref`.
 
 const PREFIX = "EMP";
-const PATTERN = /^EMP-(\d+)$/;
+const PATTERN = /^EMP-(\d+)$/i; // /i: legacy hand-typed codes may be mixed-case
 
 export function formatEmployeeCode(seq: number): string {
   return `${PREFIX}-${String(seq).padStart(4, "0")}`;
@@ -29,7 +29,7 @@ export async function nextEmployeeCodeSeq(supabase: SupabaseClient, tenantId: st
       .from("employees")
       .select("employee_code")
       .eq("tenant_id", tenantId)
-      .like("employee_code", `${PREFIX}-%`)
+      .ilike("employee_code", `${PREFIX}-%`)
       .range(from, from + PAGE - 1);
     const batch = (data ?? []) as { employee_code: string | null }[];
     codes.push(...batch.map((r) => r.employee_code));
@@ -40,7 +40,7 @@ export async function nextEmployeeCodeSeq(supabase: SupabaseClient, tenantId: st
 
 export async function generateNextEmployeeCode(supabase: SupabaseClient, tenantId: string): Promise<string> {
   const start = await nextEmployeeCodeSeq(supabase, tenantId);
-  return firstFreeRef(supabase, "employees", tenantId, formatEmployeeCode, start, 200, "employee_code");
+  return firstFreeRef(supabase, "employees", tenantId, formatEmployeeCode, start, 200, "employee_code", true);
 }
 
 /** The CI unique index (0080) turns a probe/insert race into a clean 23505. */

@@ -42,12 +42,18 @@ export async function firstFreeRef(
   maxProbes = 200,
   /** Column holding the business id. Defaults to the master-data convention;
    * employees carry theirs in `employee_code` instead. */
-  column = "ref"
+  column = "ref",
+  /** Case-insensitive existence probe (ilike with no wildcards). Needed when
+   * the backing unique index is on lower(column) and legacy rows may carry
+   * mixed-case values the generator itself would never emit. */
+  caseInsensitive = false
 ): Promise<string> {
   let seq = startSeq;
   let ref = makeRef(seq);
   for (let i = 0; i < maxProbes; i++) {
-    const { data } = await supabase.from(table).select("id").eq("tenant_id", tenantId).eq(column, ref).limit(1);
+    const base = supabase.from(table).select("id").eq("tenant_id", tenantId);
+    const probe = caseInsensitive ? base.ilike(column, ref) : base.eq(column, ref);
+    const { data } = await probe.limit(1);
     if (!data || data.length === 0) return ref;
     const next = makeRef(++seq);
     if (next === ref) break;
