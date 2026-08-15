@@ -6,7 +6,7 @@ import {
   API_ACTOR_EMAIL, applyDateProfile, buildLineRows, replaceQuoteLines, sanitizeQuoteValues, serializeQuote, totalsFor, verifyQuoteRelations,
 } from "@/lib/api/quoteService";
 import {
-  resolveTenantFromBearer, ERR_401_TENANT, jsonOk, jsonError, jsonValidationError,
+  authorizeApi, jsonOk, jsonError, jsonValidationError,
   readJsonBody, optionsResponse, RW_METHODS,
 } from "../../_auth";
 
@@ -17,8 +17,9 @@ async function loadQuote(supabase: ReturnType<typeof createAdminSupabase>, id: s
 }
 
 export async function GET(req: Request, { params }: Ctx) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "quotations");
+  if ("error" in auth) return auth.error;
+  const { tenantId } = auth;
 
   const { id } = await params;
   const supabase = createAdminSupabase();
@@ -42,8 +43,9 @@ export async function GET(req: Request, { params }: Ctx) {
 }
 
 export async function PATCH(req: Request, { params }: Ctx) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "quotations", true);
+  if ("error" in auth) return auth.error;
+  const { tenantId } = auth;
 
   const { id } = await params;
   const parsed = await readJsonBody(req);
@@ -132,8 +134,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
 }
 
 export async function DELETE(req: Request, { params }: Ctx) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "quotations", true);
+  if ("error" in auth) return auth.error;
+  const { tenantId } = auth;
 
   const { id } = await params;
   const supabase = createAdminSupabase();

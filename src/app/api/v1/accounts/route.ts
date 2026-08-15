@@ -1,5 +1,5 @@
 import { listAccountsForTenant } from "@/lib/data";
-import { resolveTenantFromBearer, ERR_401_TENANT } from "../_auth";
+import { authorizeApi } from "../_auth";
 import { enrichedList } from "../_list";
 import type { QueryableField } from "@/lib/api/query";
 
@@ -15,8 +15,9 @@ const ACCOUNT_QUERYABLE: QueryableField[] = [
 ];
 
 export async function GET(req: Request) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "accounts");
+  if ("error" in auth) return auth.error;
+  const { tenantId } = auth;
 
   const accounts = await listAccountsForTenant(tenantId);
   const rows = accounts.map(({ account, referredBy, counts }) => ({

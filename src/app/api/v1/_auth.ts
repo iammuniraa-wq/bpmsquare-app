@@ -1,19 +1,113 @@
+import { createHash } from "crypto";
+
 /**
- * Every v1 route resolves its tenant from a per-tenant bearer key
- * (tenants.api_key) -- no shared/global key. Generated in Settings → Admin →
- * this tenant.
+ * A v1 credential resolves to a tenant AND a scope. Two kinds of key exist:
  *
- * Note on scope: that one key now grants writes as well as reads on the
- * endpoints that expose them. It is a full-access tenant credential -- treat
- * it like a password, and regenerate it in Admin if it leaks.
+ *  - Scoped keys (api_keys table) -- SHA-256-hashed, read/write + per-object
+ *    scopes, revocable, optionally expiring. This is the modern path.
+ *  - The legacy tenants.api_key -- one plaintext, full-access key per tenant.
+ *    Still honoured (existing integrations don't break) and treated as an
+ *    unrestricted scope: { read, write, objects: ["*"] }.
+ *
+ * Both are per-tenant; there is no shared/global key. Treat any key like a
+ * password and revoke/regenerate it in Settings if it leaks.
  */
-export async function resolveTenantFromBearer(req: Request): Promise<string | null> {
+export type ApiScopes = { read: boolean; write: boolean; objects: string[] }; // objects ["*"] = every object
+export type ApiAuth = { tenantId: string; scopes: ApiScopes; keyId: string | null };
+
+const FULL_SCOPE: ApiScopes = { read: true, write: true, objects: ["*"] };
+
+function bearerToken(req: Request): string {
   const auth = req.headers.get("Authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  return auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+}
+
+function sha256Hex(s: string): string {
+  return createHash("sha256").update(s, "utf8").digest("hex");
+}
+
+function normalizeScopes(raw: unknown): ApiScopes {
+  const s = (raw ?? {}) as Record<string, unknown>;
+  const objects = Array.isArray(s.objects) ? s.objects.filter((o): o is string => typeof o === "string") : ["*"];
+  return {
+    read: s.read !== false, // default read=true unless explicitly disabled
+    write: s.write === true, // default write=false unless explicitly enabled
+    objects: objects.length ? objects : ["*"],
+  };
+}
+
+/**
+ * Resolve the presented bearer token to { tenantId, scopes }. Scoped keys are
+ * matched by hash among live (non-revoked, non-expired) rows; the legacy
+ * plaintext tenants.api_key is the fallback and resolves to a full scope.
+ */
+export async function resolveApiAuth(req: Request): Promise<ApiAuth | null> {
+  const token = bearerToken(req);
   if (!token) return null;
   const { createAdminSupabase } = await import("@/lib/supabase-server");
-  const { data } = await createAdminSupabase().from("tenants").select("id").eq("api_key", token).maybeSingle();
-  return data?.id ?? null;
+  const admin = createAdminSupabase();
+
+  const { data: key } = await admin
+    .from("api_keys")
+    .select("id, tenant_id, scopes, expires_at, revoked_at")
+    .eq("token_hash", sha256Hex(token))
+    .is("revoked_at", null)
+    .maybeSingle();
+
+  if (key) {
+    if (key.expires_at && new Date(key.expires_at as string).getTime() <= Date.now()) return null;
+    // Stamp last-used; best-effort, never blocks or fails the request.
+    admin.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", key.id).then(
+      () => {}, () => {}
+    );
+    return { tenantId: key.tenant_id as string, scopes: normalizeScopes(key.scopes), keyId: key.id as string };
+  }
+
+  // Legacy full-access key.
+  const { data: tenant } = await admin.from("tenants").select("id").eq("api_key", token).maybeSingle();
+  if (tenant) return { tenantId: tenant.id as string, scopes: FULL_SCOPE, keyId: null };
+  return null;
+}
+
+/** Does this scope permit read (write=false) or write (write=true) on `object`? */
+export function scopeAllows(scopes: ApiScopes, object: string, write: boolean): boolean {
+  if (write ? !scopes.write : !scopes.read) return false;
+  return scopes.objects.includes("*") || scopes.objects.includes(object);
+}
+
+export const ERR_403_SCOPE = (object: string, write: boolean) =>
+  jsonError(403, "Forbidden", {
+    message: `This API key is not scoped for ${write ? "write" : "read"} access to "${object}".`,
+  });
+
+/**
+ * One-call route guard. Resolves the key, enforces read/write + object scope,
+ * and returns either the tenantId to use or a ready-to-return error Response.
+ *
+ *   const a = await authorizeApi(req, "quotations", true);
+ *   if ("error" in a) return a.error;
+ *   const { tenantId } = a;
+ */
+export async function authorizeApi(
+  req: Request,
+  object: string,
+  write = false
+): Promise<{ tenantId: string; scopes: ApiScopes } | { error: Response }> {
+  const auth = await resolveApiAuth(req);
+  if (!auth) return { error: ERR_401_TENANT() };
+  if (!scopeAllows(auth.scopes, object, write)) return { error: ERR_403_SCOPE(object, write) };
+  return { tenantId: auth.tenantId, scopes: auth.scopes };
+}
+
+/**
+ * Object-agnostic tenant resolution for the meta endpoints (index, metadata,
+ * openapi, changes) -- any live key with read scope resolves its tenant.
+ * Kept as the original name so those routes are untouched.
+ */
+export async function resolveTenantFromBearer(req: Request): Promise<string | null> {
+  const auth = await resolveApiAuth(req);
+  if (!auth || !auth.scopes.read) return null;
+  return auth.tenantId;
 }
 
 export const READ_METHODS = "GET, OPTIONS";

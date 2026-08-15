@@ -1,5 +1,5 @@
 import { listCasesForTenant } from "@/lib/data";
-import { resolveTenantFromBearer, ERR_401_TENANT } from "../_auth";
+import { authorizeApi } from "../_auth";
 import { enrichedList } from "../_list";
 import type { QueryableField } from "@/lib/api/query";
 
@@ -20,8 +20,9 @@ const CASE_QUERYABLE: QueryableField[] = [
 ];
 
 export async function GET(req: Request) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "cases");
+  if ("error" in auth) return auth.error;
+  const { tenantId } = auth;
 
   const url = new URL(req.url);
   const cases = await listCasesForTenant(tenantId);

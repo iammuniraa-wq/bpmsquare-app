@@ -1,4 +1,4 @@
-import { resolveTenantFromBearer, ERR_401_TENANT } from "../_auth";
+import { authorizeApi } from "../_auth";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { enrichedList } from "../_list";
 import type { QueryableField } from "@/lib/api/query";
@@ -18,8 +18,9 @@ const INVENTORY_QUERYABLE: QueryableField[] = [
 ];
 
 export async function GET(req: Request) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "inventory");
+  if ("error" in auth) return auth.error;
+  const { tenantId } = auth;
 
   const { searchParams } = new URL(req.url);
   const lowStock = searchParams.get("low_stock") === "true";

@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     version: "1.0",
     generated_at: new Date().toISOString(),
     authentication:
-      "Bearer token — a per-tenant API key, generated in Settings → Admin → this tenant. Every endpoint resolves the tenant from that key; there is no global/shared key. The key grants writes as well as reads, so treat it like a password.",
+      "Bearer token — a per-tenant API key. Two kinds: the tenant's full-access key (Settings → General → Developer), or a scoped key you mint there (read-only vs write, and per-object). Every endpoint resolves the tenant from the key; there is no global/shared key. Treat any key like a password — scoped keys can be revoked individually.",
     start_here: {
       openapi: "GET /api/v1/openapi.json — OpenAPI 3.0 spec (import into Postman/Insomnia/SAP CPI or run codegen)",
       metadata: "GET /api/v1/metadata — every documented entity",
@@ -55,10 +55,12 @@ export async function GET(req: Request) {
       aggregate: "?aggregate=count,sum:total,avg:total — inline aggregates over the FILTERED set, returned in meta.aggregates. (Most CRM REST APIs make you pull every row and total client-side.)",
       example:   "GET /api/v1/quotations?filter=status:eq:draft;total:gte:50000&select=ref,total,account.name&sort=-total&aggregate=sum:total",
     },
+    access_control:
+      "Scoped API keys are live. A key carries a scope: read and/or write, and either all objects or a named subset (quotations, accounts, cases, inventory, invoices, purchase-orders). A read-only key gets 403 on any write; a key scoped to a subset gets 403 on any object outside it. Mint and revoke keys in Settings → General → Developer.",
     coming_soon: [
       "Write endpoints for cases, accounts and invoices — the metadata/validation structure is in place, each needs its own entity definition",
       "POST /api/v1/webhooks     — register a webhook (push); the /changes feed already backs the replay",
-      "Scoped API keys (read-only vs write, per-object) and POST /api/v1/ask (natural-language query compiled to the same safe engine)",
+      "POST /api/v1/ask          — natural-language query compiled to the same safe query engine",
     ],
   });
 }

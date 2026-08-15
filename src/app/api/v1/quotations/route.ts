@@ -11,7 +11,7 @@ import {
   API_ACTOR_EMAIL, buildLineRows, sanitizeQuoteValues, serializeQuote, totalsFor, verifyQuoteRelations,
 } from "@/lib/api/quoteService";
 import {
-  resolveTenantFromBearer, ERR_401_TENANT, jsonOk, jsonCreated, jsonError, jsonValidationError,
+  authorizeApi, jsonCreated, jsonError, jsonValidationError,
   readJsonBody, optionsResponse, RW_METHODS,
 } from "../_auth";
 
@@ -33,8 +33,9 @@ const QUOTE_QUERYABLE: QueryableField[] = [
 ];
 
 export async function GET(req: Request) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "quotations");
+  if ("error" in auth) return auth.error;
+  const { tenantId } = auth;
 
   const url = new URL(req.url);
   // Fetch is tenant-scoped + PII-decrypted by the data layer; the engine only
@@ -69,8 +70,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await authorizeApi(req, "quotations", true);
+  if ("error" in auth) return auth.error;
+  const { tenantId } = auth;
 
   const parsed = await readJsonBody(req);
   if (!parsed.ok) return parsed.response;
