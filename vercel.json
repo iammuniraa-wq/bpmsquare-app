@@ -10,6 +10,10 @@
     {
       "path": "/api/wfm/cron/retention",
       "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/webhooks/cron",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

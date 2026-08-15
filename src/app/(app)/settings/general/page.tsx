@@ -11,6 +11,7 @@ import { cardStyle } from "@/components/Shell";
 import { useTenant, useUiTheme, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
 import ApiKeysPanel from "./ApiKeysPanel";
+import WebhooksPanel from "./WebhooksPanel";
 
 const PILLAR_DOT: Record<string, string> = {
   blue: "#378ADD", purple: "var(--purple)", teal: "var(--teal)",
@@ -537,6 +538,7 @@ export default function GeneralSettingsPage() {
         )}
 
         {role === "admin" && <ApiKeysPanel />}
+        {role === "admin" && <WebhooksPanel />}
 
         {/* Endpoints */}
         <div style={{ marginBottom: 12 }}>
