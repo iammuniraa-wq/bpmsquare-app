@@ -193,6 +193,10 @@ export default function GeneralSettingsPage() {
         const childRows = item.children
           .filter((ch) => !ch.featureKey || tenantFeatures?.[ch.featureKey] === true)
           .map((ch) => ({ ...ch, group: `${grp.group} · ${item.label}`, indent: true }));
+        // A bundled parent (Sales, Service, …) has no featureKey of its own --
+        // when every child is feature-filtered out, drop the parent row too
+        // instead of offering a toggle for an empty ghost group.
+        if (childRows.length === 0) return [];
         return [parentRow, ...childRows];
       })
   );
@@ -399,8 +403,8 @@ export default function GeneralSettingsPage() {
         </div>
       </Section>
 
-      {/* ── 2. Quote types ── */}
-      <Section title="Quote types" description="Show or hide offer types in the New Quotation picker. Hidden types (including Coming Soon ones you don't need) won't appear there at all.">
+      {/* ── 2. Quote types (only for tenants with the Quotations module) ── */}
+      {tenantFeatures?.quotations === true && <Section title="Quote types" description="Show or hide offer types in the New Quotation picker. Hidden types (including Coming Soon ones you don't need) won't appear there at all.">
         <div style={{ display: "flex", flexDirection: "column" }}>
           {QUOTE_TYPES.map((qt, idx) => {
             const visible = isQtVisible(qt.id as QuoteTypeId);
@@ -421,7 +425,7 @@ export default function GeneralSettingsPage() {
             );
           })}
         </div>
-      </Section>
+      </Section>}
 
       {/* ── 3. Appearance ── */}
       <Section title="Appearance" description="Applies to your whole workspace — every user, every device.">
@@ -618,8 +622,7 @@ export default function GeneralSettingsPage() {
       </Section>
 
       <div style={{ padding: "12px 4px", fontSize: 11.5, color: c.hint, lineHeight: 1.8 }}>
-        VeveyCRM · v0.1 · Vikas Pioneers India Pvt Ltd<br />
-        Seed data mode · Supabase + live API coming next
+        BPMSquare{tenant?.name ? ` · ${tenant.name}` : ""}
       </div>
     </div>
   );
