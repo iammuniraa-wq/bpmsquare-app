@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig } from "@/lib/constants";
+import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig, type TenantFeatures } from "@/lib/constants";
 import { formatQuoteRef } from "@/lib/quoteRefFormat";
 
 // The single home for business-ID configuration. Quotations are fully
@@ -28,20 +28,22 @@ const td: React.CSSProperties = { fontSize: 12.5, color: c.ink, padding: "7px 8p
 // masterRef.ts, employeeRef.ts, invoiceRef.ts, poRef.ts, standardQuoteRef.ts,
 // api/cases (CS-). Listed here so admins have ONE page that answers "what
 // will the next ID look like" for every object.
-const FIXED_RANGES: { object: string; example: string; reset: string; note?: string }[] = [
-  { object: "Accounts", example: "ACC-0001", reset: "Never" },
-  { object: "Contacts", example: "CON-0001", reset: "Never" },
-  { object: "Assets", example: "AST-0001", reset: "Never" },
-  { object: "Suppliers", example: "SUP-0001", reset: "Never" },
-  { object: "Inventory items", example: "INV-0001", reset: "Never" },
-  { object: "Employees", example: "EMP-0001", reset: "Never", note: "Immutable after creation" },
-  { object: "Standard Quotes", example: "SQ-2026-0001", reset: "Yearly" },
-  { object: "Invoices", example: "INV-2026-0001", reset: "Yearly" },
-  { object: "Purchase Orders", example: "PO-2026-0001", reset: "Yearly" },
-  { object: "Cases", example: "CS-2026-0001", reset: "Yearly" },
+const FIXED_RANGES: { object: string; example: string; reset: string; note?: string; feature: keyof TenantFeatures }[] = [
+  { object: "Accounts", example: "ACC-0001", reset: "Never", feature: "accounts" },
+  { object: "Contacts", example: "CON-0001", reset: "Never", feature: "contacts" },
+  { object: "Assets", example: "AST-0001", reset: "Never", feature: "assets" },
+  { object: "Suppliers", example: "SUP-0001", reset: "Never", feature: "suppliers" },
+  { object: "Inventory items", example: "INV-0001", reset: "Never", feature: "purchasing" },
+  { object: "Employees", example: "EMP-0001", reset: "Never", note: "Immutable after creation", feature: "business_roles" },
+  { object: "Standard Quotes", example: "SQ-2026-0001", reset: "Yearly", feature: "standard_quotes" },
+  { object: "Invoices", example: "INV-2026-0001", reset: "Yearly", feature: "invoices" },
+  { object: "Purchase Orders", example: "PO-2026-0001", reset: "Yearly", feature: "purchasing" },
+  { object: "Cases", example: "CS-2026-0001", reset: "Yearly", feature: "cases" },
 ];
 
-export default function NumberRangesClient() {
+export default function NumberRangesClient({ features = {} }: { features?: Partial<TenantFeatures> }) {
+  const showQuoteFormat = features.quotations === true;
+  const visibleRanges = FIXED_RANGES.filter((r) => features[r.feature] === true);
   const [fmt, setFmt] = useState<QuoteIdFormat>(DEFAULT_QUOTE_ID_FORMAT);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,6 +51,7 @@ export default function NumberRangesClient() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    if (!showQuoteFormat) { setLoading(false); return; }
     fetch("/api/settings/entities")
       .then((r) => r.json())
       .then((cfg: TenantConfig) => setFmt({ ...DEFAULT_QUOTE_ID_FORMAT, ...(cfg.quote_id_format ?? {}) }))
@@ -82,8 +85,8 @@ export default function NumberRangesClient() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 860 }}>
-      {/* ── Quotations: configurable ── */}
-      <section style={cardStyle}>
+      {/* ── Quotations: configurable (hidden for tenants without the module) ── */}
+      {showQuoteFormat && <section style={cardStyle}>
         <h2 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: c.ink }}>Quotations — configurable</h2>
         <p style={{ margin: "0 0 16px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>
           Tokens: <code style={mono}>{"{PREFIX}"}</code> <code style={mono}>{"{YYYY}"}</code> <code style={mono}>{"{YY}"}</code>{" "}
@@ -138,7 +141,7 @@ export default function NumberRangesClient() {
             {error && <div style={{ fontSize: 12, color: "var(--err-ink)", marginTop: 8 }}>{error}</div>}
           </>
         )}
-      </section>
+      </section>}
 
       {/* ── System-fixed ranges ── */}
       <section style={cardStyle}>
@@ -152,7 +155,7 @@ export default function NumberRangesClient() {
             <tr><th style={th}>Object</th><th style={th}>Format</th><th style={th}>Sequence resets</th><th style={th}></th></tr>
           </thead>
           <tbody>
-            {FIXED_RANGES.map((r) => (
+            {visibleRanges.map((r) => (
               <tr key={r.object}>
                 <td style={td}>{r.object}</td>
                 <td style={{ ...td, ...mono }}>{r.example}</td>
