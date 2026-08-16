@@ -31,16 +31,18 @@ export type SearchObjectDef = {
  * objects". Adding a new searchable object means one entry here plus one
  * ObjectQuerySpec in lib/data/live.ts's globalSearchLive(). */
 export const SEARCH_OBJECTS: SearchObjectDef[] = [
-  { type: "account", label: "Accounts", icon: "▣", workcenters: ["accounts"] },
-  { type: "contact", label: "Contacts", icon: "◉", workcenters: ["contacts"] },
-  { type: "case", label: "Cases", icon: "☎", workcenters: ["cases"] },
-  { type: "quote", label: "Quotations", icon: "₹", workcenters: ["quotations"] },
-  { type: "work_order", label: "Work Orders", icon: "▦", workcenters: ["work_orders"] },
+  // Core objects carry their 0067 module flag too -- without it a tenant
+  // that never bought a module (e.g. WFM-only) still got its search scope.
+  { type: "account", label: "Accounts", icon: "▣", featureKeys: ["accounts"], workcenters: ["accounts"] },
+  { type: "contact", label: "Contacts", icon: "◉", featureKeys: ["contacts"], workcenters: ["contacts"] },
+  { type: "case", label: "Cases", icon: "☎", featureKeys: ["cases"], workcenters: ["cases"] },
+  { type: "quote", label: "Quotations", icon: "₹", featureKeys: ["quotations"], workcenters: ["quotations"] },
+  { type: "work_order", label: "Work Orders", icon: "▦", featureKeys: ["work_orders"], workcenters: ["work_orders"] },
   { type: "invoice", label: "Invoices", icon: "▥", featureKeys: ["invoices"], workcenters: ["invoices"] },
   { type: "purchase_order", label: "Purchase Orders", icon: "▤", featureKeys: ["purchasing"], workcenters: ["purchase_orders"] },
-  { type: "asset", label: "Assets", icon: "⚙", workcenters: ["assets"] },
+  { type: "asset", label: "Assets", icon: "⚙", featureKeys: ["assets"], workcenters: ["assets"] },
   { type: "inventory_item", label: "Inventory", icon: "▧", featureKeys: ["purchasing"], workcenters: ["inventory"] },
-  { type: "supplier", label: "Suppliers", icon: "⌂", workcenters: ["suppliers"] },
+  { type: "supplier", label: "Suppliers", icon: "⌂", featureKeys: ["suppliers"], workcenters: ["suppliers"] },
   { type: "lead", label: "Leads", icon: "✦", featureKeys: ["leads"], workcenters: ["leads"] },
   // Workforce: visible via the Employees master-data grant, or to WFM
   // supervisors (whose access comes from wfm canEdit / employee record, not
