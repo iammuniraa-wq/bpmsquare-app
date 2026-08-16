@@ -324,6 +324,19 @@ per-API-key rate limiting.
   flag for demo tenants only). The dev tenant's force-enable of
   `pricing_engine` was direct SQL on dev only — do NOT run on main.
 
+**Update 2026-08-17 — first client tenant provisioned (BIM Infotech).**
+WFM-only tenant live at bim.bpmsquare.com (slug `bim`, Small business
+plan): flags wfm/business_roles/administration/reports/data_workbench/
+change_history; admin alias sap.rashid+bim@gmail.com; users seeded (Abdul
+Rasheed admin via Team, Syed Shabbir EMP-0001 supervisor, Aliya Ain
+EMP-0002 employee). Remaining before UAT: WFM config (sites/shifts/leave/
+holidays) — deliberately left to the client admin + QA. Provisioning
+exposed ~10 ungated surfaces (nav ghost parents, dashboard blocks,
+analytics widgets, global search, General-settings sections, hardcoded
+"VP" avatar + Vikas footer) — all fixed and promoted to main same day.
+The whole flow is now codified in **TENANT_PROVISIONING.md** (pointer in
+bpmsquarecore.md §2b): follow it 100% for every future client tenant.
+
 **Open items:**
 - **Pricing cockpit UX redesign — brainstorm in progress (2026-08-15
   evening), decision pending.** Owner verdict: the JSON-based cockpit tabs
