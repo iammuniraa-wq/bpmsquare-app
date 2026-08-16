@@ -25,6 +25,10 @@ type SettingsCard = {
    * tied to the module it configures -- a Workforce-only client shouldn't
    * be offered Sales config or Entities & Tax. */
   featureKey?: keyof TenantFeatures;
+  /** Shown when ANY of these features is on -- for tiles serving several
+   * modules (Custom fields, Deleted records cover the CRM object families).
+   * A tenant with none of them (e.g. Workforce-only) shouldn't see the tile. */
+  featureAnyOf?: (keyof TenantFeatures)[];
   /** For an adminOnly tile: also reachable by a non-admin whose Business
    * Role(s) grant EDIT on this workcenter -- e.g. a Sales Admin can
    * configure quote statuses without the tenant-wide admin flag. Omitted
@@ -59,8 +63,8 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
       { label: "Small Scale Pricing", description: "Static standard rates for labour, materials, testing and transport — the simple pricing model for small tenants", href: ROUTES.configPricing, icon: "₹", pillarKey: "amber", adminOnly: false, featureKey: "quotations" },
       { label: "Pricing Engine", description: "Dynamic pricing: rules, cost models, versions and the explainable price waterfall — powers Pricing-as-a-Service", href: ROUTES.configPricingEngine, icon: "◬", pillarKey: "amber", adminOnly: true, featureKey: "pricing_engine" },
       { label: "Text templates", description: "Saved snippets for line items, notes and terms", href: ROUTES.configTemplates, icon: "❑", pillarKey: "amber", adminOnly: false, featureKey: "quotations" },
-      { label: "Custom fields", description: "Add fields to any object — included automatically in the API and MCP", href: ROUTES.configCustomFields, icon: "✦", pillarKey: "amber", adminOnly: false },
-      { label: "Deleted records", description: "Audit log of permanently deleted objects", href: ROUTES.settingsDeletionLog, icon: "⌫", pillarKey: "red", adminOnly: true },
+      { label: "Custom fields", description: "Add fields to any object — included automatically in the API and MCP", href: ROUTES.configCustomFields, icon: "✦", pillarKey: "amber", adminOnly: false, featureAnyOf: ["accounts", "contacts", "quotations", "cases", "work_orders", "assets", "suppliers", "purchasing", "invoices"] },
+      { label: "Deleted records", description: "Audit log of permanently deleted objects", href: ROUTES.settingsDeletionLog, icon: "⌫", pillarKey: "red", adminOnly: true, featureAnyOf: ["accounts", "contacts", "quotations", "cases", "work_orders", "assets", "suppliers", "purchasing", "invoices"] },
     ],
   },
   {
@@ -108,7 +112,8 @@ export default async function SettingsHubPage() {
   const isAdmin = role === "admin";
   const canReach = (item: SettingsCard) =>
     (!item.adminOnly || isAdmin || (item.relatedWorkcenter ? canEditWorkcenter(perms, item.relatedWorkcenter) : false)) &&
-    (!item.featureKey || features?.[item.featureKey] === true);
+    (!item.featureKey || features?.[item.featureKey] === true) &&
+    (!item.featureAnyOf || item.featureAnyOf.some((k) => features?.[k] === true));
 
   return (
     <div style={{ maxWidth: 780 }}>
