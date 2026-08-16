@@ -39,26 +39,10 @@ export default function PageHeader({
           </div>
         )}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {action}
-        <div
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: "50%",
-            background: `var(--modern-accent-bg, ${c.accentbg})`,
-            color: "var(--modern-accent, var(--blueink))",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 600,
-            fontSize: 12,
-            flexShrink: 0,
-          }}
-        >
-          VP
-        </div>
-      </div>
+      {/* The decorative avatar that used to sit here hardcoded "VP" (a
+          prototype-era Vikas Pioneers leftover, shown to every tenant) --
+          removed rather than dynamized: it carried no information. */}
+      {action && <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{action}</div>}
     </div>
   );
 }
