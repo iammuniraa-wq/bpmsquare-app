@@ -338,24 +338,45 @@ The whole flow is now codified in **TENANT_PROVISIONING.md** (pointer in
 bpmsquarecore.md §2b): follow it 100% for every future client tenant.
 
 **Open items:**
-- **Pricing cockpit UX redesign — brainstorm in progress (2026-08-15
-  evening), decision pending.** Owner verdict: the JSON-based cockpit tabs
-  are not understandable; wanted a self-explanatory flow "from strategy
-  selection to final price output". Direction sketched and discussed (no
-  code written — owner explicitly paused building to brainstorm): a guided
-  wizard — (1) pick strategy in plain words: Cost-plus vs Price list, with
-  value-based as situational-adjustment sentences layered on either
-  ("When customer tier is gold → discount of 5%"); (2) enter numbers in
-  simple tables; (3) try a sample job rendered like a customer-facing bill,
-  then "go live". Wizard compiles to the existing config API; JSON tabs
-  become an Advanced view. Four open questions put to the owner, unanswered:
-  which advanced features (scales, per-document-type) are needed day one;
-  primary persona (small-tenant admin vs enterprise pricing manager); a
-  separate dead-simple daily "update today's rates" screen; SAP-flavored
-  vs plain terminology. Also discussed competitive framing: SAP condition
-  technique = mechanical benchmark, Pricefx = usability benchmark; our seam
-  is self-service setup + customer-showable price explanation at mid-market
-  price. Resume here.
+- **Pricing product definition — brainstorm nearly complete (resume
+  2026-08-18), NO code written yet, spec doc still at v1.4.** Agreed across
+  the 2026-08-16/17 sessions, in order:
+  1. **Five-pillar lifecycle** (owner's frame): Strategy (AI advisory) /
+     Management (engine — built, badly surfaced) / Execution (quoting,
+     deal desk, overrides, margin-floor approvals — where clients live) /
+     Analysis (realized-vs-list, leakage, win-loss — aggregated traces) /
+     Governance (versions built; approvals+audit pending). Build order:
+     Execution → Analysis → Strategy (execution generates the traces
+     analysis needs; analysis feeds strategy). Recommended in-app
+     execution first (Standard Quote + deal desk), PaaS second.
+  2. **Enterprise methods taxonomy** (owner's frame): cost-based ("ERP
+     cost simulator" = our COST_UP + cost models; name the screen "Cost
+     simulator"), price-list (multi-dimensional by sales org/customer
+     group/material group = dimensions + "most specific price wins"),
+     value-based (adjustment sentences on value-driver dimensions),
+     PLUS variant pricing (configured products; options = line-attribute
+     dimensions with ALL_APPLY; combination rules = multi-attribute
+     rules). All four coexist per tenant via **Price Books** (=
+     pricing_area, already in schema). Manufacturing-first = a starter
+     TEMPLATE (pre-registered dimensions in SAP-familiar weight order +
+     standard components + two starter books), not engine code.
+  3. **Self-explanatory face** (owner verdict: even versions/governance
+     too complicated): rate-card metaphor; invisible versioning ("unsaved
+     changes" / "Go live" / "Discard", never v7-DRAFT); three doors —
+     Today's rates (weekly), Pricing setup (wizard: strategy → numbers →
+     adjustment sentences → sample priced like a customer bill), History
+     (timeline + as-of-date view); JSON tabs demoted to Advanced.
+  4. **Structure decision:** Pricing becomes its OWN workcenter with its
+     own Business Role — config areas as separate workcenters, NOT one
+     Settings page with tabs. To be designed after scenarios finish.
+  Scenario walkthrough (one-by-one, story format with real numbers —
+  owner's preferred learning mode): 1 cost-plus ✓, 2 price-list ✓,
+  3 value-based ✓, 4 variant ✓; **NEXT: scenario 5 — one company running
+  all four at once (the Price Books story), then design the workcenter
+  split, then write everything as spec v1.5.**
+  Competitive framing agreed: SAP condition technique = mechanical
+  benchmark, Pricefx = usability benchmark; our seam = self-service setup
+  + customer-showable price explanation at mid-market price.
 - Password-reset loop bug (QA, Jira KAN-12/major): code fully traced, three
   candidate mechanisms identified, waiting on QA's repro details.
 - Vercel Hobby constraint (hard-learned): crons may fire at most once per
