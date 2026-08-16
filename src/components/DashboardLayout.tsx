@@ -44,40 +44,46 @@ interface Props {
 
 const SIDEBAR_IDS = new Set(["quick_create"]);
 
-const NATIVE_META: Record<string, { label: string; sidebar?: boolean }> = {
-  overview_strip:  { label: "Overview" },
-  revenue_card:    { label: "Revenue" },
-  invoice_budget:  { label: "Invoiced vs paid" },
-  overdue_tasks:   { label: "Overdue tasks" },
-  tech_workload:   { label: "Work orders by technician" },
-  top_accounts:    { label: "Top accounts by revenue" },
-  quick_create:    { label: "Quick create", sidebar: true },
+// `features` = show when ANY of these module flags is on (0067). Native
+// blocks predate the core-module flags and were rendered unconditionally --
+// a WFM-only tenant saw pipeline/case/work-order tiles for modules it
+// never bought.
+const NATIVE_META: Record<string, { label: string; sidebar?: boolean; features?: (keyof TenantFeatures)[] }> = {
+  overview_strip:  { label: "Overview", features: ["quotations", "cases", "work_orders", "assets"] },
+  revenue_card:    { label: "Revenue", features: ["quotations"] },
+  invoice_budget:  { label: "Invoiced vs paid", features: ["invoices"] },
+  overdue_tasks:   { label: "Overdue tasks", features: ["accounts", "cases", "quotations", "work_orders"] },
+  tech_workload:   { label: "Work orders by technician", features: ["technicians", "work_orders"] },
+  top_accounts:    { label: "Top accounts by revenue", features: ["accounts"] },
+  quick_create:    { label: "Quick create", sidebar: true, features: ["accounts", "cases", "contacts", "quotations", "assets"] },
 };
 
 const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures }> = {
-  accounts:                { label: "Accounts" },
-  contacts:                { label: "Contacts" },
-  assets:                  { label: "Assets" },
-  open_cases:              { label: "Open cases" },
-  work_orders:             { label: "Work orders" },
+  // Core-module widgets carry their module's 0067 flag -- previously only
+  // the optional-module widgets (amc/leads/invoices/wfm) were gated.
+  accounts:                { label: "Accounts",         feature: "accounts" },
+  contacts:                { label: "Contacts",         feature: "contacts" },
+  assets:                  { label: "Assets",           feature: "assets" },
+  open_cases:              { label: "Open cases",       feature: "cases" },
+  work_orders:             { label: "Work orders",      feature: "work_orders" },
   contracts:               { label: "AMC contracts",    feature: "amc" },
   leads:                   { label: "Leads",            feature: "leads" },
-  technicians:             { label: "Technicians" },
-  accounts_by_type:        { label: "Accounts by type" },
+  technicians:             { label: "Technicians",      feature: "technicians" },
+  accounts_by_type:        { label: "Accounts by type", feature: "accounts" },
   lead_funnel:             { label: "Lead funnel",      feature: "leads" },
-  assets_by_kind:          { label: "Assets by kind" },
-  quote_trend:             { label: "Quote pipeline" },
-  case_status:             { label: "Case status" },
-  work_order_status:       { label: "Work order status" },
-  technician_availability: { label: "Technician availability" },
-  revenue_overview:        { label: "Revenue overview" },
+  assets_by_kind:          { label: "Assets by kind",   feature: "assets" },
+  quote_trend:             { label: "Quote pipeline",   feature: "quotations" },
+  case_status:             { label: "Case status",      feature: "cases" },
+  work_order_status:       { label: "Work order status", feature: "work_orders" },
+  technician_availability: { label: "Technician availability", feature: "technicians" },
+  revenue_overview:        { label: "Revenue overview", feature: "invoices" },
   invoices_by_status:      { label: "Invoices by status", feature: "invoices" },
-  loaner_availability:     { label: "Loaner availability" },
+  loaner_availability:     { label: "Loaner availability", feature: "assets" },
   recent_activity:         { label: "Recent activity (analytics)" },
-  account_news:            { label: "Client news" },
-  quote_outcomes:          { label: "Quote won/lost value" },
-  quote_overdue:           { label: "Quote overdue" },
-  quote_source:            { label: "Quote source (cases vs standalone)" },
+  account_news:            { label: "Client news",      feature: "accounts" },
+  quote_outcomes:          { label: "Quote won/lost value", feature: "quotations" },
+  quote_overdue:           { label: "Quote overdue",    feature: "quotations" },
+  quote_source:            { label: "Quote source (cases vs standalone)", feature: "quotations" },
   wfm_attendance_today:    { label: "Attendance by site (today)", feature: "wfm" },
   wfm_night_shift_cost:    { label: "Night shift cost (today)",   feature: "wfm" },
   wfm_corrections_queue:    { label: "Corrections queue",          feature: "wfm" },
@@ -104,24 +110,24 @@ const DEFAULT_LAYOUT: DashLayoutItem[] = [
 // right for the bundle; everything else falls back to blockSize()'s default.
 type BundleBlock = { id: string; size?: "compact" | "half" | "full" };
 const BUNDLES: { id: string; label: string; feature?: keyof TenantFeatures; blocks: BundleBlock[] }[] = [
-  { id: "accounts",     label: "Accounts",      blocks: [
+  { id: "accounts",     label: "Accounts",      feature: "accounts", blocks: [
     { id: "accounts" }, { id: "accounts_by_type" }, { id: "top_accounts" }, { id: "account_news" },
   ] },
-  { id: "contacts",     label: "Contacts",      blocks: [{ id: "contacts" }] },
-  { id: "quotations",   label: "Quotations",    blocks: [
+  { id: "contacts",     label: "Contacts",      feature: "contacts", blocks: [{ id: "contacts" }] },
+  { id: "quotations",   label: "Quotations",    feature: "quotations", blocks: [
     { id: "quote_trend" }, { id: "revenue_card" }, { id: "quote_outcomes" },
     { id: "quote_overdue", size: "compact" }, { id: "quote_source", size: "half" },
   ] },
-  { id: "cases",        label: "Cases",         blocks: [{ id: "open_cases" }, { id: "case_status" }] },
-  { id: "work_orders",  label: "Work orders",   blocks: [
+  { id: "cases",        label: "Cases",         feature: "cases", blocks: [{ id: "open_cases" }, { id: "case_status" }] },
+  { id: "work_orders",  label: "Work orders",   feature: "work_orders", blocks: [
     { id: "work_orders" }, { id: "work_order_status" }, { id: "tech_workload" },
   ] },
-  { id: "assets",       label: "Assets",        blocks: [
+  { id: "assets",       label: "Assets",        feature: "assets", blocks: [
     { id: "assets" }, { id: "assets_by_kind" }, { id: "loaner_availability", size: "half" },
   ] },
   { id: "contracts",    label: "AMC / Contracts", feature: "amc", blocks: [{ id: "contracts", size: "half" }] },
   { id: "leads",        label: "Leads",         feature: "leads", blocks: [{ id: "leads" }, { id: "lead_funnel" }] },
-  { id: "technicians",  label: "Technicians",   blocks: [
+  { id: "technicians",  label: "Technicians",   feature: "technicians", blocks: [
     { id: "technicians" }, { id: "technician_availability" }, { id: "tech_workload" },
   ] },
   { id: "invoices",     label: "Invoices",      feature: "invoices", blocks: [
@@ -132,6 +138,20 @@ const BUNDLES: { id: string; label: string; feature?: keyof TenantFeatures; bloc
     { id: "wfm_site_headcount" }, { id: "wfm_workforce_composition", size: "half" }, { id: "wfm_night_shift_cost", size: "compact" },
   ] },
 ];
+
+/** Central feature gate for a dashboard block: native blocks show when ANY
+ * of their module flags is on, analytics widgets follow their own flag.
+ * Applied at RENDER time (not just in the customize picker) so a saved or
+ * default layout can never surface a module the tenant doesn't have. */
+function blockAllowed(id: string, features: TenantFeatures): boolean {
+  const native = NATIVE_META[id];
+  if (native) return !native.features || native.features.some((f) => features[f] === true);
+  if (isAnalyticsId(id)) {
+    const feat = ANALYTICS_META[id].feature;
+    return !feat || features[feat] === true;
+  }
+  return true;
+}
 
 function resolveLayout(saved: DashLayoutItem[]): DashLayoutItem[] {
   if (!saved || saved.length === 0) return DEFAULT_LAYOUT;
@@ -1137,7 +1157,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   }
 
   // Split layout into main (left col) and sidebar (right col)
-  const visibleBlocks = layout.filter((b) => !b.hidden);
+  const visibleBlocks = layout.filter((b) => !b.hidden && blockAllowed(b.id, features));
   const mainBlocks = visibleBlocks.filter((b) => !SIDEBAR_IDS.has(b.id));
   const sidebarBlocks = visibleBlocks.filter((b) => SIDEBAR_IDS.has(b.id));
 
@@ -1487,11 +1507,11 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <section style={{ ...cardStyle, padding: "14px 14px 12px" }}>
         <div style={nextgen ? { fontSize: 13, fontWeight: 620, color: c.ink, marginBottom: 10 } : { fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Quick create</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <QCBtn href={ROUTES.accountNew}   label="New account"    icon={<Globe size={13} color={pillar.purple.base} />}   tint={pillar.purple} />
-          <QCBtn href={ROUTES.caseNew}      label="New case"       icon={<Activity size={13} color={pillar.teal.base} />}  tint={pillar.teal} />
-          <QCBtn href={ROUTES.contactNew}   label="New contact"    icon={<Phone size={13} color={pillar.blue.base} />}     tint={pillar.blue} />
-          <QCBtn href={ROUTES.quotationNew} label="New quotation"  icon={<Package size={13} color={pillar.amber.base} />}  tint={pillar.amber} />
-          <QCBtn href={ROUTES.assetNew}     label="New asset"      icon={<Gear size={13} color={pillar.green.base} />}     tint={pillar.green} />
+          {features.accounts === true && <QCBtn href={ROUTES.accountNew}   label="New account"    icon={<Globe size={13} color={pillar.purple.base} />}   tint={pillar.purple} />}
+          {features.cases === true && <QCBtn href={ROUTES.caseNew}      label="New case"       icon={<Activity size={13} color={pillar.teal.base} />}  tint={pillar.teal} />}
+          {features.contacts === true && <QCBtn href={ROUTES.contactNew}   label="New contact"    icon={<Phone size={13} color={pillar.blue.base} />}     tint={pillar.blue} />}
+          {features.quotations === true && <QCBtn href={ROUTES.quotationNew} label="New quotation"  icon={<Package size={13} color={pillar.amber.base} />}  tint={pillar.amber} />}
+          {features.assets === true && <QCBtn href={ROUTES.assetNew}     label="New asset"      icon={<Gear size={13} color={pillar.green.base} />}     tint={pillar.green} />}
         </div>
       </section>
     );
