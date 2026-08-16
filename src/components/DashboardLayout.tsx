@@ -153,12 +153,34 @@ function blockAllowed(id: string, features: TenantFeatures): boolean {
   return true;
 }
 
-function resolveLayout(saved: DashLayoutItem[]): DashLayoutItem[] {
-  if (!saved || saved.length === 0) return DEFAULT_LAYOUT;
+function resolveLayout(saved: DashLayoutItem[], features: TenantFeatures): DashLayoutItem[] {
+  if (!saved || saved.length === 0) return defaultLayoutFor(features);
   // Ensure native blocks that aren't in saved layout appear (as hidden) so user can un-hide them
   const savedIds = new Set(saved.map((b) => b.id));
   const missing = Object.keys(NATIVE_META).filter((id) => !savedIds.has(id));
   return [...saved, ...missing.map((id) => ({ id, hidden: true }))];
+}
+
+/** The default layout was written when every tenant had every module: all
+ * six native CRM blocks. For a scoped tenant (e.g. WFM-only) those are all
+ * feature-blocked, which used to resolve to an EMPTY dashboard. When that
+ * happens, fall back to composing the default from the enabled modules'
+ * starter bundles instead -- a Workforce-only tenant opens to the WFM
+ * widgets with zero setup. Tenants with a saved layout are untouched. */
+function defaultLayoutFor(features: TenantFeatures): DashLayoutItem[] {
+  const nativeVisible = DEFAULT_LAYOUT.filter((b) => blockAllowed(b.id, features));
+  if (nativeVisible.some((b) => !NATIVE_META[b.id]?.sidebar)) return DEFAULT_LAYOUT;
+  const seen = new Set<string>();
+  const fromBundles: DashLayoutItem[] = [];
+  for (const bundle of BUNDLES) {
+    if (bundle.feature && features[bundle.feature] !== true) continue;
+    for (const b of bundle.blocks) {
+      if (seen.has(b.id) || !blockAllowed(b.id, features)) continue;
+      seen.add(b.id);
+      fromBundles.push(b.size ? { id: b.id, size: b.size } : { id: b.id });
+    }
+  }
+  return [...fromBundles, ...nativeVisible];
 }
 
 function isAnalyticsId(id: string): id is AnalyticsMetricId {
@@ -1114,7 +1136,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   const uiTheme = useUiTheme();
   const modern = uiTheme !== "classic";
   const nextgen = uiTheme === "nextgen";
-  const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout));
+  const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout, features));
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [personalizeOpen, setPersonalizeOpen] = useState(false);
   const [saving, startSave] = useTransition();
