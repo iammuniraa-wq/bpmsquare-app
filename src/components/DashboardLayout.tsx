@@ -972,6 +972,10 @@ export function AdaptDrawer({
             Drag to reorder
           </div>
           {layout.map((block, i) => {
+            // Feature-blocked blocks can't render, so don't offer them for
+            // reordering/unhiding either. Returning null (not filtering the
+            // array) keeps `i` aligned with `layout` for the drag handlers.
+            if (!blockAllowed(block.id, features)) return null;
             const label = blockLabel(block.id);
             const isOver = overIdx === i && dragIdx.current !== i;
             const resizable = !block.hidden && !NATIVE_META[block.id]?.sidebar;
