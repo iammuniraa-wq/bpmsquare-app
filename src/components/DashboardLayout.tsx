@@ -1254,19 +1254,31 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   // Rule-based v1, computed from data already on the page -- honest and free.
   // A real LLM summary can replace the sentence later without changing the UI.
   function renderNextgenBrief() {
+    // Module-aware: each chip source is gated by its module flag, and WFM
+    // tenants get their own chips (pending corrections/leave) -- previously
+    // this strip only knew CRM, so a WFM-only workspace was told "all caught
+    // up" no matter how many approvals were actually waiting.
     const chips: { text: string; color: string; href: string }[] = [];
-    if (analytics.quoteOverdueCount > 0) {
+    if (features.quotations === true && analytics.quoteOverdueCount > 0) {
       chips.push({ text: `${analytics.quoteOverdueCount} quote${analytics.quoteOverdueCount > 1 ? "s" : ""} past validity`, color: "var(--nextgen-warn, #a16207)", href: ROUTES.quotations });
     }
-    if (overdueInvoiceItems.length > 0) {
+    if (features.invoices === true && overdueInvoiceItems.length > 0) {
       const due = overdueInvoices.reduce((s, i) => s + Math.max(0, i.total - i.paid_amount), 0);
       chips.push({ text: `${overdueInvoiceItems.length} overdue invoice${overdueInvoiceItems.length > 1 ? "s" : ""} · ${inr(due)}`, color: "var(--nextgen-bad, #c2402f)", href: ROUTES.invoices });
     }
-    if (kpis.awaitingApproval > 0) {
+    if (features.quotations === true && kpis.awaitingApproval > 0) {
       chips.push({ text: `${kpis.awaitingApproval} quote${kpis.awaitingApproval > 1 ? "s" : ""} awaiting response`, color: "var(--modern-accent, #2e6be6)", href: ROUTES.quotations });
     }
-    if (overdueWorkOrders.length > 0) {
+    if (features.work_orders === true && overdueWorkOrders.length > 0) {
       chips.push({ text: `${overdueWorkOrders.length} work order${overdueWorkOrders.length > 1 ? "s" : ""} past schedule`, color: "var(--nextgen-bad, #c2402f)", href: ROUTES.workOrders });
+    }
+    if (features.wfm === true) {
+      const pendingOf = (rows: Array<{ status: string; count: number }>) =>
+        rows.filter((r) => r.status === "pending").reduce((s, r) => s + r.count, 0);
+      const corr = pendingOf(analytics.wfmCorrectionsByStatus) + pendingOf(analytics.wfmRecheckByStatus);
+      const leave = pendingOf(analytics.wfmLeaveRequestsByStatus);
+      if (corr > 0) chips.push({ text: `${corr} correction${corr > 1 ? "s" : ""} awaiting review`, color: "var(--nextgen-warn, #a16207)", href: ROUTES.wfmCorrections });
+      if (leave > 0) chips.push({ text: `${leave} leave request${leave > 1 ? "s" : ""} pending`, color: "var(--modern-accent, #2e6be6)", href: ROUTES.wfmLeave });
     }
     const headline = chips.length > 0
       ? `${chips.length} thing${chips.length > 1 ? "s" : ""} need${chips.length > 1 ? "" : "s"} your attention today.`
