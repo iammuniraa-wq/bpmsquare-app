@@ -44,10 +44,19 @@ function isItemViewable(item: NavItem, viewable: ViewableWorkcenters): boolean {
   return viewable.includes(item.workcenterKey as WorkcenterKey);
 }
 
+/** A bundled parent (Sales, Service, Marketing, …) has no featureKey of its
+ * own -- it earns its row only if at least one child survives the feature/
+ * workcenter filter. Without this, a single-module tenant (e.g. WFM-only)
+ * sees empty ghost groups for every module it didn't buy. */
+function hasVisibleChild(item: NavItem, features?: Record<string, boolean>, viewable: ViewableWorkcenters = "all"): boolean {
+  if (!item.children?.length) return true;
+  return item.children.some((ch) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable));
+}
+
 function flattenNav(features?: Record<string, boolean>, viewable: ViewableWorkcenters = "all"): FlatItem[] {
   return NAV.flatMap((grp) =>
     grp.items
-      .filter((item) => (!item.featureKey || features?.[item.featureKey] === true) && isItemViewable(item, viewable))
+      .filter((item) => (!item.featureKey || features?.[item.featureKey] === true) && isItemViewable(item, viewable) && hasVisibleChild(item, features, viewable))
       .map((item) => ({ ...item, group: grp.group }))
   );
 }
@@ -210,6 +219,9 @@ function DraggableSection({
     <div onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       {items.map((item, idx) => {
         const hasChildren = !!item.children?.length;
+        // Saved nav state can still carry a parent every child of which is
+        // feature-filtered out -- skip it here too, not just in flattenNav.
+        if (hasChildren && !hasVisibleChild(item, features, viewable)) return null;
         const childActive = hasChildren && item.children!.some((ch) => isActive(ch.href));
         const on         = isActive(item.href) || childActive;
         const isDragging = dragIdx.current === idx;
