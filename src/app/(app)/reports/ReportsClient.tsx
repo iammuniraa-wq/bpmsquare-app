@@ -983,9 +983,10 @@ export default function ReportsClient({
       </div>
       )}
 
-      {/* ── Quote table (gated by the quotations workcenter — a WFM-only
-          Business Role granted Analytics must not see or export quotes) ── */}
-      {canViewWc("quotations") && (
+      {/* ── Quote table (gated by the quotations MODULE and workcenter — the
+          workcenter check alone doesn't stop a tenant admin, who sees every
+          workcenter, in a workspace that never bought Quotations) ── */}
+      {features?.quotations === true && canViewWc("quotations") && (
       <div style={{ ...cardStyle }}>
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
