@@ -71,6 +71,18 @@ ext.extraCustomFields("asset")
 
 ---
 
+## 2b. Tenant provisioning — follow the runbook, 100%
+
+Whenever the task involves **provisioning a tenant for a new client** —
+creating it, scoping its modules, wiring its domain, seeding its users, or
+handing it over — **read and follow `TENANT_PROVISIONING.md` before doing
+anything.** It is the single source of truth for that flow (owner decision
+2026-08-17, written after the first single-module tenant exposed every gap
+in the improvised process). Do not re-derive the steps from memory; if the
+flow changes, update the runbook in the same piece of work.
+
+---
+
 ## 3. Record identity — every record has a real ID
 
 Every record this product creates — standard object or custom, and this
