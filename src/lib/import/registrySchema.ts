@@ -174,6 +174,29 @@ function resolveOptions(field: FieldConfigResult["sections"][number]["fields"][n
 }
 
 /**
+ * A tenant's custom fields as importable columns, for objects whose spec is
+ * hand-authored (employees) instead of built from field-config. Without this
+ * the definitions exist and the import route accepts cf_ values, but the
+ * downloadable template never offers the columns — so nobody could actually
+ * fill them in.
+ */
+export function customFieldSpecs(fieldConfig: FieldConfigResult): FieldSpec[] {
+  return fieldConfig.sections
+    .flatMap((s) => s.fields)
+    .filter((f) => f.kind === "custom" && !f.hidden)
+    .map((f) => ({
+      key: f.field_key,
+      label: f.label,
+      type: WIDGET_TO_TYPE[f.widget],
+      required: f.required,
+      hint: f.options?.length ? f.options.join(" · ") : `Custom field — ${f.label}`,
+      options: f.options,
+      aliases: [f.label],
+      custom: true,
+    } satisfies FieldSpec));
+}
+
+/**
  * Builds an ObjectSpec for the import/export pipeline from live field-config
  * — the same merged standard+custom+overrides data the Adapt UI reads.
  * Hidden fields are excluded (a tenant who hid a field doesn't want it in
