@@ -65,6 +65,8 @@ const API_ENDPOINTS = [
   { method: "GET", path: "/api/v1/invoices/:id",        desc: "Invoice detail — lines, payments, balance due" },
   { method: "GET", path: "/api/v1/purchase-orders",     desc: "List POs · filter: ?status= &supplier_id=" },
   { method: "GET", path: "/api/v1/purchase-orders/:id", desc: "Purchase order detail + receiving progress" },
+  { method: "GET", path: "/api/v1/employees",           desc: "List staff · filter: ?status= &department= · key must name the employees scope" },
+  { method: "GET", path: "/api/v1/employees/:id",       desc: "Employee detail" },
 ];
 
 const API_COMING_SOON = [

@@ -4,10 +4,10 @@ import DataWorkbenchClient from "./DataWorkbenchClient";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { getTenant, requireFeature } from "@/lib/tenant";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
-import { REGISTRY_OBJECT_TYPE, buildObjectSpec, customFieldSpecs } from "@/lib/import/registrySchema";
+import { REGISTRY_OBJECT_TYPE, buildObjectSpec } from "@/lib/import/registrySchema";
 import { USERS_SPEC } from "@/lib/import/usersSchema";
 import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
-import { EMPLOYEES_SPEC } from "@/lib/import/employeesSchema";
+import { EMPLOYEES_SPEC, buildEmployeesSpec } from "@/lib/import/employeesSchema";
 import { requireWorkcenterView } from "@/lib/permissions";
 import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 
@@ -44,15 +44,13 @@ export default async function DataWorkbenchPage() {
     await Promise.all(
       objectOrder.map(async (id): Promise<ObjectSpec> => {
         const registryType = REGISTRY_OBJECT_TYPE[id];
-        if (!registryType) {
-          const spec = STATIC_SPECS[id]!;
-          // Employees carries tenant custom fields even though its spec is
-          // static -- append them so the template offers the cf_ columns the
-          // import route already accepts.
-          if (id !== "employees") return spec;
-          const custom = customFieldSpecs(await getEffectiveFieldConfig(supabase, tenantId, "employee"));
-          return custom.length > 0 ? { ...spec, fields: [...spec.fields, ...custom] } : spec;
+        // Employees has a static spec but still carries tenant custom fields
+        // and a read-only code column -- buildEmployeesSpec assembles both,
+        // and the export/update routes build through the same function.
+        if (id === "employees") {
+          return buildEmployeesSpec(await getEffectiveFieldConfig(supabase, tenantId, "employee"));
         }
+        if (!registryType) return STATIC_SPECS[id]!;
         const fieldConfig = await getEffectiveFieldConfig(supabase, tenantId, registryType);
         return buildObjectSpec(id, fieldConfig, salesConfig);
       })

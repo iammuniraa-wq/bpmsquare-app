@@ -117,6 +117,85 @@ ID is the only reference contract that's ever safe to build on:
 
 ---
 
+## 3b. NEW OBJECT / NEW TABLE — wire every surface, not just the screen
+
+> Owner instruction 2026-08-18, after employee custom fields shipped and were
+> found to reach the app but not the API, MCP or half of Data Workbench.
+> **Work through this list every single time a new object or a new
+> tenant-scoped table is created — and again whenever an existing object
+> gains a capability (a custom-data column, a new field family).** An object
+> that exists on one surface and is silently absent from the others is a
+> defect, not a phase 2. If a point genuinely doesn't apply, say so
+> explicitly in the PR/commit rather than leaving it unmentioned.
+
+**1 — Database**
+- [ ] `tenant_id uuid not null references tenants(id)` on the table.
+- [ ] `enable row level security` **plus** an isolation policy, in the *same*
+      tracked migration (`MULTI_TENANT_GUARDRAILS.md` has the template — and
+      check the module's own convention first: WFM tables are select-only).
+- [ ] `custom_data jsonb` if the object is user-facing at all — retrofitting
+      it later means a second migration and a second round of wiring.
+- [ ] The migration is a file in `supabase/migrations/`, numbered next, and
+      added to PROJECT.md's operational ledger as **pending on both DBs**.
+      Nothing auto-applies it (see that ledger); the owner runs it by hand.
+
+**2 — Types & registry**
+- [ ] Entity type in `src/lib/types.ts`.
+- [ ] `PilotObjectType` **and** the runtime `PILOT_OBJECT_TYPES` array in
+      `src/lib/fieldRegistry.ts` — adding one without the other leaves the
+      registry entry dead code (exactly the 2026-08-18 employee bug).
+- [ ] `FIELD_REGISTRY` entry: sections + every standard field, with
+      system-generated ids marked `locked/editable:false/exportOnly`.
+
+**3 — Custom fields**
+- [ ] `VALID_OBJECTS` in `src/app/api/settings/custom-fields/route.ts`.
+- [ ] Tab in `src/app/(app)/settings/custom-fields/page.tsx`, carrying the
+      `featureKey` of the module that owns the object.
+- [ ] The object's PATCH route accepts a `cf_`-filtered `custom_data`.
+- [ ] The detail screen mounts `ObjectSections` (exclude the keys the page
+      hand-renders itself).
+
+**4 — Data Workbench — all three modes, not just import**
+- [ ] Import route (`collectCustomData(values)` into the insert).
+- [ ] Export route (`/api/export/<object>`), emitting the real `id` column.
+- [ ] Update route (`/api/update/<object>`), matching on `id` only — never a
+      business key (§3).
+- [ ] The spec/template offers the tenant's `cf_` columns. For a static spec
+      (users, employees) that means a `build…Spec(fieldConfig)` builder the
+      DW page **and** the export/update routes all share — one source, or
+      the three drift.
+- [ ] Any mode you deliberately exclude is commented with why, in
+      `DataWorkbenchClient.tsx`.
+
+**5 — v1 API**
+- [ ] `LIST_SOURCES` entry in `src/lib/api/listSources.ts` (field whitelist +
+      tenant-scoped `load()`), which also makes it queryable by `/api/v1/ask`.
+- [ ] `GET /api/v1/<object>` + `/[id]` routes via `authorizeApi` +
+      `enrichedList`.
+- [ ] Feature-flag check, so a tenant without the module gets 404, not data.
+- [ ] `UNDOCUMENTED_ENDPOINTS` (or a full `EntityDef` in `API_ENTITIES`,
+      which earns metadata + OpenAPI automatically).
+- [ ] The `/api/v1` index listing, `SCOPABLE_OBJECTS` in `ApiKeysPanel.tsx`,
+      and the endpoint table in Settings → General.
+- [ ] **Personal or sensitive data → add it to `EXPLICIT_SCOPE_ONLY` in
+      `api/v1/_auth.ts`.** Existing keys carry `objects: ["*"]`; without this
+      a new endpoint silently widens every key already in the wild.
+
+**6 — MCP** — `list_<object>` / `get_<object>` in `mcp-server/mcp.json`, and
+bump its `version`.
+
+**7 — Cross-cutting app surfaces**
+- [ ] Feature flag in `TenantFeatures` + the nav/workcenter gate (a tenant
+      that didn't buy the module must not see the object anywhere).
+- [ ] Change history (`logChange` on create/update/delete).
+- [ ] Global search, if the object is something people look up by name.
+- [ ] Advanced filtering / saved queries, if it has a list page.
+
+**8 — Docs** — refresh the matching Drive guide in the same piece of work
+(§9), and note in the commit which guide changed.
+
+---
+
 ## 4. Do not hallucinate
 
 Before writing ANY code, verify:

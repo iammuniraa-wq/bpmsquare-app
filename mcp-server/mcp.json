@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -25,9 +25,14 @@
       "path": "/api/v1/accounts/{id}",
       "inputSchema": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "properties": {
-          "id": { "type": "string", "description": "Account ID, e.g. acc_krishna" }
+          "id": {
+            "type": "string",
+            "description": "Account ID, e.g. acc_krishna"
+          }
         }
       }
     },
@@ -42,9 +47,25 @@
           "status": {
             "type": "string",
             "description": "Filter by case status",
-            "enum": ["intake","inspection","report_sent","report_approved","quote_sent","quote_approved","in_repair","qa","ready","closed","buyback","scrapped"]
+            "enum": [
+              "intake",
+              "inspection",
+              "report_sent",
+              "report_approved",
+              "quote_sent",
+              "quote_approved",
+              "in_repair",
+              "qa",
+              "ready",
+              "closed",
+              "buyback",
+              "scrapped"
+            ]
           },
-          "account_id": { "type": "string", "description": "Filter by account ID" }
+          "account_id": {
+            "type": "string",
+            "description": "Filter by account ID"
+          }
         }
       }
     },
@@ -59,9 +80,17 @@
           "status": {
             "type": "string",
             "description": "Filter by quote status",
-            "enum": ["draft","sent","approved","rejected"]
+            "enum": [
+              "draft",
+              "sent",
+              "approved",
+              "rejected"
+            ]
           },
-          "account_id": { "type": "string", "description": "Filter by account ID" }
+          "account_id": {
+            "type": "string",
+            "description": "Filter by account ID"
+          }
         }
       }
     },
@@ -73,7 +102,10 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "low_stock": { "type": "boolean", "description": "If true, only return items at or below their reorder level" }
+          "low_stock": {
+            "type": "boolean",
+            "description": "If true, only return items at or below their reorder level"
+          }
         }
       }
     },
@@ -84,9 +116,14 @@
       "path": "/api/v1/inventory/{id}",
       "inputSchema": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "properties": {
-          "id": { "type": "string", "description": "Inventory item ID" }
+          "id": {
+            "type": "string",
+            "description": "Inventory item ID"
+          }
         }
       }
     },
@@ -101,9 +138,18 @@
           "status": {
             "type": "string",
             "description": "Filter by purchase order status",
-            "enum": ["draft","sent","partially_received","received","cancelled"]
+            "enum": [
+              "draft",
+              "sent",
+              "partially_received",
+              "received",
+              "cancelled"
+            ]
           },
-          "supplier_id": { "type": "string", "description": "Filter by supplier ID" }
+          "supplier_id": {
+            "type": "string",
+            "description": "Filter by supplier ID"
+          }
         }
       }
     },
@@ -114,9 +160,14 @@
       "path": "/api/v1/purchase-orders/{id}",
       "inputSchema": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "properties": {
-          "id": { "type": "string", "description": "Purchase order ID" }
+          "id": {
+            "type": "string",
+            "description": "Purchase order ID"
+          }
         }
       }
     },
@@ -131,9 +182,19 @@
           "status": {
             "type": "string",
             "description": "Filter by invoice status",
-            "enum": ["draft","sent","partial","paid","overdue","cancelled"]
+            "enum": [
+              "draft",
+              "sent",
+              "partial",
+              "paid",
+              "overdue",
+              "cancelled"
+            ]
           },
-          "account_id": { "type": "string", "description": "Filter by account ID" }
+          "account_id": {
+            "type": "string",
+            "description": "Filter by account ID"
+          }
         }
       }
     },
@@ -144,9 +205,51 @@
       "path": "/api/v1/invoices/{id}",
       "inputSchema": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "properties": {
-          "id": { "type": "string", "description": "Invoice ID" }
+          "id": {
+            "type": "string",
+            "description": "Invoice ID"
+          }
+        }
+      }
+    },
+    {
+      "name": "list_employees",
+      "description": "List staff records for this tenant — employee code, name, work email/phone, department, designation, employment dates, status. Personal data: the API key must be scoped to \"employees\" explicitly (the all-objects wildcard does not cover it), and the tenant must have the employees module enabled.",
+      "method": "GET",
+      "path": "/api/v1/employees",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Filter by status: active or inactive"
+          },
+          "department": {
+            "type": "string",
+            "description": "Filter by department"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_employee",
+      "description": "Get one employee record by id, including any tenant-defined custom fields.",
+      "method": "GET",
+      "path": "/api/v1/employees/{id}",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Employee id (UUID) as returned by list_employees"
+          }
         }
       }
     }

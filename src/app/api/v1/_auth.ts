@@ -69,9 +69,21 @@ export async function resolveApiAuth(req: Request): Promise<ApiAuth | null> {
   return null;
 }
 
+/**
+ * Objects a wildcard scope does NOT reach -- they need naming explicitly.
+ * "employees" is staff personal data (name, work email, phone, employment
+ * dates); every key minted before that endpoint existed carries objects
+ * ["*"], and so does the legacy plaintext tenants.api_key, so honouring the
+ * wildcard here would silently hand existing integrations a category of data
+ * their owner never granted. Opting in is one checkbox in Settings →
+ * General → Developer.
+ */
+const EXPLICIT_SCOPE_ONLY = new Set(["employees"]);
+
 /** Does this scope permit read (write=false) or write (write=true) on `object`? */
 export function scopeAllows(scopes: ApiScopes, object: string, write: boolean): boolean {
   if (write ? !scopes.write : !scopes.read) return false;
+  if (EXPLICIT_SCOPE_ONLY.has(object)) return scopes.objects.includes(object);
   return scopes.objects.includes("*") || scopes.objects.includes(object);
 }
 
