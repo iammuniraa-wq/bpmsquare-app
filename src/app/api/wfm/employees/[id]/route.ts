@@ -109,6 +109,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if (["employee", "supervisor"].includes(body.wfm_role)) patch.wfm_role = body.wfm_role;
   if (["active", "inactive"].includes(body.status)) patch.status = body.status;
+  // Custom-field values (cf_* keys only — the shape CustomFields/
+  // ObjectSections write; anything else in the object is dropped).
+  if (typeof body.custom_data === "object" && body.custom_data !== null && !Array.isArray(body.custom_data)) {
+    patch.custom_data = Object.fromEntries(
+      Object.entries(body.custom_data as Record<string, unknown>).filter(([k]) => k.startsWith("cf_"))
+    );
+  }
 
   if ("shift_id" in body) {
     if (body.shift_id === null || body.shift_id === "") {

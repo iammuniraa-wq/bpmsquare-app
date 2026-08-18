@@ -47,6 +47,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ("valid_from" in body) patch.valid_from = cleanDate(body.valid_from);
   if ("valid_to" in body) patch.valid_to = cleanDate(body.valid_to);
   if ("status" in body) patch.status = body.status === "inactive" ? "inactive" : "active";
+  // Custom-field values (cf_* keys only, same shape the CRM objects accept).
+  if (typeof body.custom_data === "object" && body.custom_data !== null && !Array.isArray(body.custom_data)) {
+    patch.custom_data = Object.fromEntries(
+      Object.entries(body.custom_data as Record<string, unknown>).filter(([k]) => k.startsWith("cf_"))
+    );
+  }
 
   const { data, error } = await supabase
     .from("employees")
