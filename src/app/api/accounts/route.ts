@@ -61,6 +61,20 @@ export async function POST(request: NextRequest) {
     if (!referrer) return NextResponse.json({ error: "Referring account not found" }, { status: 404 });
   }
 
+  // Fog of War (engagement layer): is this the FIRST account ever opened in
+  // this territory? Counted before the insert so the new row can't count
+  // itself; the response carries the flag and the client decides whether to
+  // celebrate (3-layer theme only).
+  let territoryDiscovery = false;
+  if (territory) {
+    const { count } = await supabase
+      .from("accounts")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("territory", territory);
+    territoryDiscovery = (count ?? 0) === 0;
+  }
+
   const { data, error } = await insertWithMasterRef(supabase, "accounts", tenantId, {
       tenant_id: tenantId,
       name, type,
@@ -99,5 +113,8 @@ export async function POST(request: NextRequest) {
     }),
   });
 
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json(
+    { ...data, ...(territoryDiscovery ? { territory_discovery: territory } : {}) },
+    { status: 201 }
+  );
 }
