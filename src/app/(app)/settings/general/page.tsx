@@ -8,7 +8,7 @@ import { NAV, ROUTES, QUOTE_TYPES } from "@/lib/constants";
 import type { QuoteTypeId, TenantConfig } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useTenant, useUiTheme, useUserRole } from "@/lib/tenant-context";
+import { useTenant, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
 import ApiKeysPanel from "./ApiKeysPanel";
 import WebhooksPanel from "./WebhooksPanel";
@@ -264,12 +264,19 @@ export default function GeneralSettingsPage() {
   const [compactSidebar, setCompactSidebar] = useState<boolean>(() => tenant?.config?.appearance?.compact_sidebar ?? false);
   const [accentColor, setAccentColor] = useState<string>(() => tenant?.accent_color || ACCENT_PRESETS.blue.color);
   // Provisioning sets the STARTING theme (TenantEditor.tsx); from here on it's
-  // this workspace's own call, same as accent colour. useUiTheme() already
-  // degrades a retired "modern2"/"modern3" value to "modern".
-  const [theme, setTheme] = useState<"classic" | "modern" | "nextgen">(useUiTheme());
+  // this workspace's own call, same as accent colour. useUiTheme() degrades a
+  // retired "modern2"/"modern3" value to "modern" AND folds "nextgen2" into
+  // "nextgen" (they share CSS) -- this picker needs the raw stored value so
+  // a tenant on "nextgen2" sees that option selected, not plain "nextgen".
+  const [theme, setTheme] = useState<"classic" | "modern" | "nextgen" | "nextgen2">(() => {
+    const raw = tenant?.config?.appearance?.ui_theme as string | undefined;
+    if (raw === "nextgen" || raw === "nextgen2") return raw;
+    if (raw === "modern" || raw === "modern2" || raw === "modern3") return "modern";
+    return "classic";
+  });
   const [themeSaving, startThemeSave] = useTransition();
 
-  const saveTheme = (v: "classic" | "modern" | "nextgen") => {
+  const saveTheme = (v: "classic" | "modern" | "nextgen" | "nextgen2") => {
     setTheme(v);
     startThemeSave(async () => {
       await fetch("/api/settings/entities", {
@@ -438,6 +445,7 @@ export default function GeneralSettingsPage() {
               { value: "classic" as const, label: "Classic", desc: "Dark navy sidebar, the original look.", swatch: "linear-gradient(135deg, #152233, #0e1a28)" },
               { value: "modern" as const, label: "Modern", desc: "Denser cards, sharper borders, navy + gold.", swatch: "linear-gradient(135deg, #14294b, #0a1830)" },
               { value: "nextgen" as const, label: "Next-gen", desc: "Flat, minimal, real icons — with dark mode.", swatch: "linear-gradient(135deg, #ffffff, #eef3fe)" },
+              { value: "nextgen2" as const, label: "Next-gen — 3 layer", desc: "Same next-gen look; your name moves to the top bar and the sidebar footer drops.", swatch: "linear-gradient(135deg, #eef3fe, #dbe7fd)" },
             ]).map((opt) => {
               const selected = theme === opt.value;
               return (

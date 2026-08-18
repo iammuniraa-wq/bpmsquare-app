@@ -72,7 +72,16 @@ export function useTenantFeature(key: keyof Tenant["features"]): boolean {
 export function useUiTheme(): "classic" | "modern" | "nextgen" {
   const { tenant } = useContext(TenantContext);
   const t = tenant?.config?.appearance?.ui_theme as string | undefined;
-  if (t === "nextgen") return "nextgen";
+  if (t === "nextgen" || t === "nextgen2") return "nextgen";
   if (t === "modern" || t === "modern2" || t === "modern3") return "modern";
   return "classic";
+}
+
+/** True for the "nextgen2" 3-layer variant specifically -- identity lives in
+ * the top bar instead of the sidebar footer. Every other nextgen visual (CSS
+ * tokens, dark mode, no-AI-dock-for-classic rule) is shared via useUiTheme()
+ * above; this hook exists only for the handful of places that differ. */
+export function useIsNextgen3Layer(): boolean {
+  const { tenant } = useContext(TenantContext);
+  return tenant?.config?.appearance?.ui_theme === "nextgen2";
 }

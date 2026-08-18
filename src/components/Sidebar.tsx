@@ -8,7 +8,7 @@ import type { NavItem } from "@/lib/constants";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon } from "@/components/Icons";
-import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useIsNextgen3Layer } from "@/lib/tenant-context";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -432,6 +432,9 @@ function UserFooter({ accent, collapsed }: { accent: string; collapsed?: boolean
 
 export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const nextgen = useUiTheme() === "nextgen";
+  // 3-layer moves identity to the top bar (Shell.tsx) -- showing it here too
+  // would just be the same email and sign-out button in two places.
+  const identityInTopBar = useIsNextgen3Layer();
   const pathname = usePathname();
   const { settings } = useSettings();
   const tenant = useTenant();
@@ -545,7 +548,13 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           )}
           {!collapsed && (
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, color: "var(--sb-strong)", fontSize: 14 }}>
+              <div
+                title={tenant?.name}
+                style={{
+                  fontWeight: 600, color: "var(--sb-strong)", fontSize: 14,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}
+              >
                 {tenant?.name ?? <span>BPM<span style={{ color: "#7fb4ec" }}>Square</span></span>}
               </div>
               <div style={{
@@ -586,7 +595,10 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </button>
       )}
 
-      <UserFooter accent={accent} collapsed={collapsed} />
+      {/* On mobile the drawer still shows it -- the top-bar identity menu is
+          desktop-only in this phase (Shell.tsx's MobileTopBar has no
+          equivalent yet), so sign-out must stay reachable there. */}
+      {(!identityInTopBar || onNavigate) && <UserFooter accent={accent} collapsed={collapsed} />}
 
       {collapsed ? (
         <nav style={{ overflowY: "auto" }}>
