@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import ObjectSections from "@/components/fields/ObjectSections";
 import { ROUTES } from "@/lib/constants";
 import type {
   WfmShift, WfmSite, CorrectionIssue, WfmCorrectionRequest, WfmLeaveRequest, WfmRecheckRequest,
@@ -34,6 +35,7 @@ type Profile = {
   id: string; employee_code: string | null; first_name: string; last_name: string; phone: string | null;
   status: "active" | "inactive"; employment_type: string; wfm_role: "employee" | "supervisor";
   supervisor_id: string | null; consent_recorded_at: string | null;
+  custom_data?: Record<string, unknown> | null;
   wfm_shifts: { id: string; name: string; start_time: string; end_time: string; is_night_shift: boolean } | { id: string; name: string; start_time: string; end_time: string; is_night_shift: boolean }[] | null;
   wfm_sites: { id: string; name: string } | { id: string; name: string }[] | null;
   supervisor: Person | null;
@@ -456,6 +458,18 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
           </div>
         ) : null}
       </section>
+
+      {/* ── Tenant custom fields (Settings → Custom fields → Employee).
+          Standard keys are excluded — this hub hand-renders them above —
+          so ObjectSections contributes ONLY the tenant-defined cf_ fields,
+          and renders nothing at all when the tenant has defined none. ── */}
+      <ObjectSections
+        objectType="employee"
+        record={profile as unknown as Record<string, unknown>}
+        patchUrl={`/api/wfm/employees/${employeeId}`}
+        onSaved={() => loadCore(month)}
+        exclude={["employee_code", "first_name", "last_name", "email", "phone", "department", "designation", "valid_from", "valid_to", "status"]}
+      />
 
       {/* ── Clickable stat tiles (only when details are expanded) ─────── */}
       {!editing && detailsOpen && (

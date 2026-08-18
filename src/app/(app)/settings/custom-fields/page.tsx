@@ -6,8 +6,10 @@ import { ROUTES } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
+import { useTenant } from "@/lib/tenant-context";
+import type { TenantFeatures } from "@/lib/constants";
 
-type ObjectType = "account" | "contact" | "case" | "quote" | "work_order" | "asset" | "supplier" | "inventory" | "purchase_order" | "invoice";
+type ObjectType = "account" | "contact" | "case" | "quote" | "work_order" | "asset" | "supplier" | "inventory" | "purchase_order" | "invoice" | "employee";
 type FieldType = "text" | "number" | "date" | "select" | "checkbox" | "textarea";
 
 interface CustomField {
@@ -21,17 +23,21 @@ interface CustomField {
   position: number;
 }
 
-const OBJECTS: { key: ObjectType; label: string; icon: string }[] = [
-  { key: "account",    label: "Account",    icon: "▣" },
-  { key: "contact",    label: "Contact",    icon: "◉" },
-  { key: "case",       label: "Case",       icon: "◉" },
-  { key: "quote",      label: "Quote",      icon: "₹" },
-  { key: "work_order", label: "Work Order", icon: "▤" },
-  { key: "asset",      label: "Asset",      icon: "◧" },
-  { key: "supplier",       label: "Supplier",        icon: "◫" },
-  { key: "inventory",      label: "Inventory",       icon: "▨" },
-  { key: "purchase_order", label: "Purchase Order",  icon: "⇱" },
-  { key: "invoice",        label: "Invoice",         icon: "⊟" },
+// Each tab is tied to the module feature that owns the object, so a tenant
+// only configures fields for objects they actually have (a Workforce-only
+// tenant sees just Employee; a CRM tenant without WFM never sees it).
+const OBJECTS: { key: ObjectType; label: string; icon: string; featureKey: keyof TenantFeatures }[] = [
+  { key: "account",    label: "Account",    icon: "▣", featureKey: "accounts" },
+  { key: "contact",    label: "Contact",    icon: "◉", featureKey: "contacts" },
+  { key: "case",       label: "Case",       icon: "◉", featureKey: "cases" },
+  { key: "quote",      label: "Quote",      icon: "₹", featureKey: "quotations" },
+  { key: "work_order", label: "Work Order", icon: "▤", featureKey: "work_orders" },
+  { key: "asset",      label: "Asset",      icon: "◧", featureKey: "assets" },
+  { key: "supplier",       label: "Supplier",        icon: "◫", featureKey: "suppliers" },
+  { key: "inventory",      label: "Inventory",       icon: "▨", featureKey: "purchasing" },
+  { key: "purchase_order", label: "Purchase Order",  icon: "⇱", featureKey: "purchasing" },
+  { key: "invoice",        label: "Invoice",         icon: "⊟", featureKey: "invoices" },
+  { key: "employee",       label: "Employee",        icon: "⚇", featureKey: "business_roles" },
 ];
 
 const FIELD_TYPES: { key: FieldType; label: string }[] = [
@@ -69,6 +75,8 @@ export default function CustomFieldsPage() {
   const router = useRouter();
   const { settings } = useSettings();
   const accent = ACCENT_PRESETS[settings.accentPreset].color;
+  const tenant = useTenant();
+  const visibleObjects = OBJECTS.filter((o) => tenant?.features?.[o.featureKey] === true);
 
   const [activeObj, setActiveObj] = useState<ObjectType>("account");
   const [fields, setFields]       = useState<CustomField[]>([]);
@@ -100,6 +108,15 @@ export default function CustomFieldsPage() {
   }, []);
 
   useEffect(() => { fetchFields(activeObj); }, [activeObj, fetchFields]);
+
+  // The "account" default may be a hidden tab (e.g. a Workforce-only
+  // tenant) -- snap to the first visible object once features are known.
+  useEffect(() => {
+    if (visibleObjects.length > 0 && !visibleObjects.some((o) => o.key === activeObj)) {
+      setActiveObj(visibleObjects[0].key);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant, activeObj]);
 
   const switchObject = (obj: ObjectType) => {
     setActiveObj(obj);
@@ -236,7 +253,7 @@ export default function CustomFieldsPage() {
 
       {/* Object tab bar */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
-        {OBJECTS.map((obj) => {
+        {visibleObjects.map((obj) => {
           const active = activeObj === obj.key;
           return (
             <button

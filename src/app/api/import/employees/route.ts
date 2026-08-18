@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
-import { insertRows, readImportBody, type PreparedRow } from "@/lib/import/server";
+import { collectCustomData, insertRows, readImportBody, type PreparedRow } from "@/lib/import/server";
 import { nextEmployeeCodeSeq, formatEmployeeCode } from "@/lib/employeeRef";
 import type { RowOutcome } from "@/lib/import/types";
 
@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
         valid_from: values.valid_from && DATE_RE.test(values.valid_from.trim()) ? values.valid_from.trim() : null,
         valid_to: values.valid_to && DATE_RE.test(values.valid_to.trim()) ? values.valid_to.trim() : null,
         status: "active",
+        custom_data: collectCustomData(values),
       },
     });
   }

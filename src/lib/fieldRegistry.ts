@@ -81,7 +81,8 @@ export type EffectiveField = {
 
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
-  | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory";
+  | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
+  | "employee";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -399,6 +400,36 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       // FIELD_REGISTRY_ROLLOUT.md). qty_on_hand is excluded: it's a
       // derived running balance from InventoryTransaction rows, changed
       // only via AdjustStockPanel, never a free-edit field.
+    ],
+  },
+
+  // Employees joined the custom-fields family late (2026-08-18, first
+  // requested by a WFM-only tenant for HR master data). The standard
+  // fields below are all hand-rendered by the existing Employee surfaces
+  // (Employee Hub, Employees master) — those surfaces mount ObjectSections
+  // with these keys EXCLUDED, so in practice this entry's job is to let
+  // tenant custom fields (cf_*) attach to the object. WFM-operational
+  // fields (shift/site/supervisor/wfm_role) stay off the registry: they
+  // have dedicated pickers and side effects.
+  employee: {
+    sections: ["Identity", "Contact", "Employment", "Custom fields"],
+    fields: [
+      { key: "employee_code", defaultLabel: "Employee code", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
+      { key: "first_name", defaultLabel: "First name", widget: "text", defaultSection: "Identity", locked: true },
+      { key: "last_name", defaultLabel: "Last name", widget: "text", defaultSection: "Identity" },
+      { key: "email", defaultLabel: "Email", widget: "email", defaultSection: "Contact" },
+      { key: "phone", defaultLabel: "Phone", widget: "tel", defaultSection: "Contact" },
+      { key: "department", defaultLabel: "Department", widget: "text", defaultSection: "Employment" },
+      { key: "designation", defaultLabel: "Designation", widget: "text", defaultSection: "Employment" },
+      { key: "valid_from", defaultLabel: "Valid from", widget: "date", defaultSection: "Employment" },
+      { key: "valid_to", defaultLabel: "Valid to", widget: "date", defaultSection: "Employment" },
+      {
+        key: "status", defaultLabel: "Status", widget: "enum", defaultSection: "Employment",
+        enumOptions: [
+          { value: "active", label: "Active" },
+          { value: "inactive", label: "Inactive" },
+        ],
+      },
     ],
   },
 };
