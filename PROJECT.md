@@ -379,6 +379,20 @@ bpmsquarecore.md §2b): follow it 100% for every future client tenant.
   + customer-showable price explanation at mid-market price.
 - Password-reset loop bug (QA, Jira KAN-12/major): code fully traced, three
   candidate mechanisms identified, waiting on QA's repro details.
+- **KAN-17 (supervisor couldn't see break records) — resolved by policy,
+  root cause open.** Owner decision 2026-08-18: WFM supervisors get full
+  tenant-admin parity ("whatever admin can do, supervisor can do; proper
+  role distinctions later") — implemented as auto-admin membership on
+  supervisor login creation/promotion (commit 62b379f). Static tracing
+  found NO code path where supervisor and admin get different break data
+  (summary + hub both read via the role-immune admin client; 0063 RLS
+  already equates supervisors) — prime suspect is a mis-provisioned QA
+  test account (login not linked to a supervisor employee record, so the
+  RLS supervisor branch failed). Need from QA: exact screen URL + which
+  login was used. MUST be re-root-caused as part of the future
+  proper-roles work: the supervisor-only path is currently unreachable
+  (all supervisors are admins), so the divergence — if real — is latent,
+  not gone.
 - Vercel Hobby constraint (hard-learned): crons may fire at most once per
   day; a sub-daily schedule in `vercel.json` fails EVERY deploy's config
   validation silently. Webhooks cron runs daily 20:30 UTC.
