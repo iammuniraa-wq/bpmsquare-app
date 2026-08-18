@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import type { ServiceCase, Account, WorkOrder, Activity as ActivityRec } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useUiTheme } from "@/lib/tenant-context";
+import { useUiTheme, useIsNextgen3Layer } from "@/lib/tenant-context";
+import SilenceDetector from "@/components/SilenceDetector";
 import { ROUTES } from "@/lib/constants";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
 import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText, Clock } from "@/components/Icons";
@@ -1136,6 +1137,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   const uiTheme = useUiTheme();
   const modern = uiTheme !== "classic";
   const nextgen = uiTheme === "nextgen";
+  const threeLayer = useIsNextgen3Layer();
   const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout, features));
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [personalizeOpen, setPersonalizeOpen] = useState(false);
@@ -1612,6 +1614,10 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       </div>
 
       {nextgen && renderNextgenBrief()}
+
+      {/* Engagement layer (3-layer theme): accounts drifting past their own
+          ordering rhythm. Renders nothing until a tenant has real rhythms. */}
+      {threeLayer && features.quotations === true && <SilenceDetector />}
 
       {/* Two-column layout */}
       {/* Only reserve the 280px right rail when there is actually something to
