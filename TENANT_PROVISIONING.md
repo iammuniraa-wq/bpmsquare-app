@@ -64,6 +64,14 @@ not done because DNS/MX live at the registrar):
    "Generating SSL Certificate" the site loads over plain HTTP —
    **do not log in yet** (session cookies are secure-only in production;
    the login won't stick and the password would travel unencrypted).
+4. **Supabase Auth redirect allowlist** — Supabase → Authentication → URL
+   Configuration → Redirect URLs must cover the new host (add
+   `https://<slug>.bpmsquare.com/**`, or the one-time wildcard
+   `https://*.bpmsquare.com/**` that covers all future tenants). Without
+   it, forgot-password email links bounce to the project Site URL — the
+   WRONG tenant's domain, where the user has no membership — which
+   presents as "password reset loops". The app code builds the link from
+   the tenant's own origin; the allowlist is what lets Supabase honour it.
 
 ## 3. First login + scoping verification
 
