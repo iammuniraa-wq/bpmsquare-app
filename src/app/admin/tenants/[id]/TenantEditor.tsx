@@ -70,8 +70,8 @@ export default function TenantEditor({ tenant, users }: Props) {
   // "modern" here rather than defaulting the radio group to a value it no
   // longer offers.
   const storedTheme = tenant.config?.appearance?.ui_theme as string | undefined;
-  const [uiTheme, setUiTheme]         = useState<"classic" | "modern" | "nextgen">(
-    storedTheme === "nextgen" ? "nextgen"
+  const [uiTheme, setUiTheme]         = useState<"classic" | "modern" | "nextgen" | "nextgen2">(
+    storedTheme === "nextgen" || storedTheme === "nextgen2" ? storedTheme
       : storedTheme === "modern" || storedTheme === "modern2" || storedTheme === "modern3"
       ? "modern"
       : "classic"
@@ -278,6 +278,7 @@ export default function TenantEditor({ tenant, users }: Props) {
             { value: "classic" as const, label: "Classic", desc: "The original look — dark navy sidebar, no card shadows." },
             { value: "modern" as const, label: "Modern — default for new tenants", desc: "Structured-Enterprise direction: denser cards, sharper borders, navy sidebar, no card hairline, AI assistant dock." },
             { value: "nextgen" as const, label: "Next-gen", desc: "Attio/Linear-class direction: flat neutral canvas, hairline borders, real SVG nav icons, no tab bar, AI daily brief on the dashboard, sparkline KPIs, dark mode." },
+            { value: "nextgen2" as const, label: "Next-gen — 3 layer", desc: "Same next-gen look, restructured shell: identity moves to the top bar (click for email/sign out), the sidebar footer drops. Opt-in only." },
           ]).map((opt) => (
             <label key={opt.value} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",

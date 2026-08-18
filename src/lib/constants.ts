@@ -610,8 +610,12 @@ export type TenantConfig = {
      * Settings -> General -> Appearance; the platform admin only sets the
      * starting value at provisioning (TenantEditor.tsx). Retired directions
      * ("modern2" Lightning-blue, "modern3" Fluent) may still be stored on
-     * older tenants -- useUiTheme() degrades them to "modern". */
-    ui_theme?: "classic" | "modern" | "nextgen";
+     * older tenants -- useUiTheme() degrades them to "modern". "nextgen2"
+     * is the 3-layer structural variant of nextgen (identity moved to the
+     * top bar, sidebar footer dropped) -- it shares all of nextgen's CSS
+     * tokens; useUiTheme() folds it into "nextgen" the same way, and
+     * useIsNextgen3Layer() is the separate hook for the structural bit. */
+    ui_theme?: "classic" | "modern" | "nextgen" | "nextgen2";
   };
   // On-demand push to an external system (e.g. an ERP's webhook receiver) --
   // a rep clicks "Push to ERP" on a record; distinct from (and simpler than)

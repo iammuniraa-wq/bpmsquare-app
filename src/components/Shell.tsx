@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { MOBILE_BREAKPOINT } from "@/lib/constants";
 import Logo from "./Logo";
 import Sidebar from "./Sidebar";
@@ -10,7 +10,7 @@ import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
-import { useTenant, useUiTheme, useTenantFeature } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer } from "@/lib/tenant-context";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 // Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
@@ -163,11 +163,94 @@ function DarkToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void })
   );
 }
 
+// ── Identity menu (3-layer nextgen only) ─────────────────────────────────────
+// Moves the sidebar footer's email/sign-out into the top bar, top-right --
+// the corner most SaaS apps already put it, click to open. Same account
+// lookup as Sidebar.tsx's UserFooter, kept separate rather than shared since
+// the two never render at once (Sidebar hides its footer when this is on).
+
+function IdentityMenu() {
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    import("@/lib/supabase-browser").then(({ createBrowserSupabase }) =>
+      createBrowserSupabase().auth.getSession().then(({ data }) => {
+        if (!cancelled) setEmail(data.session?.user?.email ?? null);
+      })
+    ).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  async function signOut() {
+    const { createBrowserSupabase } = await import("@/lib/supabase-browser");
+    await createBrowserSupabase().auth.signOut();
+    router.push("/login");
+  }
+
+  if (!email) return null;
+  const initials = email.slice(0, 2).toUpperCase();
+
+  return (
+    <details style={{ position: "relative", marginLeft: 10 }}>
+      <summary
+        style={{
+          listStyle: "none", cursor: "pointer",
+          display: "flex", alignItems: "center", gap: 7,
+          height: 32, padding: "0 9px 0 5px", borderRadius: 8,
+          border: "1px solid var(--sb-search-border)", background: "var(--sb-search-bg)",
+        }}
+      >
+        <span style={{
+          width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+          background: "var(--sb-hover-strong)", color: "var(--sb-strong)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 9, fontWeight: 700,
+        }}>
+          {initials}
+        </span>
+        <span style={{
+          fontSize: 12, fontWeight: 600, color: "var(--sb-search-icon)",
+          maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {email}
+        </span>
+      </summary>
+      <div style={{
+        position: "absolute", top: "calc(100% + 8px)", right: 0, width: 226, zIndex: 401,
+        background: "var(--sb-panel-bg)", border: "1px solid var(--sb-panel-border)", borderRadius: 10,
+        boxShadow: "0 8px 32px rgba(0,0,0,.5)", padding: 8,
+      }}>
+        <div style={{
+          fontSize: 11.5, color: "var(--sb-panel-text-dim)", padding: "4px 8px 8px",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {email}
+        </div>
+        <button
+          onClick={signOut}
+          style={{
+            width: "100%", textAlign: "left", padding: "8px", border: "none", borderRadius: 7,
+            background: "transparent", color: "var(--sb-panel-text)", fontSize: 12.5, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 8,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sb-panel-hover)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+        >
+          ⏻ Sign out
+        </button>
+      </div>
+    </details>
+  );
+}
+
 // ── Shell ─────────────────────────────────────────────────────────────────────
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const [mobile, setMobile] = useState(false);
   const uiTheme = useUiTheme();
+  const identityInTopBar = useIsNextgen3Layer();
   const aiAllowed = useTenantFeature("ai_assistant") && uiTheme !== "classic";
   const [dark, setDark] = useState(false);
 
@@ -227,6 +310,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           }}>
             <GlobalSearchBar />
             {uiTheme === "nextgen" && <DarkToggle dark={dark} onToggle={toggleDark} />}
+            {identityInTopBar && <IdentityMenu />}
           </div>
           <TabBar />
           {/* overflowX:auto, not hidden -- "hidden" silently clips any page whose content
