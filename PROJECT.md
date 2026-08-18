@@ -323,12 +323,14 @@ the only thing that happens by itself. Every migration is pasted into the
 Supabase SQL editor by hand, staging first (when the feature lands on
 `develop`), production at promotion time. Don't mistake the automatic code
 deploy for an automatic schema change.
-- Dev DB: migrations through **0086** are applied. **0087 pending**
-  (`engagement_events` — Silence Detector saves).
+- Dev DB: migrations through **0086** are applied. **0087 + 0088 pending**
+  (0087 `engagement_events` — Silence Detector saves; 0088
+  `quotes.loss_reason`/`loss_note` — Loss Intelligence).
 - Main/production DB: through **0086** applied (owner confirmed
-  2026-08-18). **0087 pending** (same file). Code tolerates its absence:
-  the Going-quiet card still computes rhythms from quotes; only the
-  "I reached out" save button errors until the table exists.
+  2026-08-18). **0087 + 0088 pending** (same files). Code tolerates their
+  absence: the Going-quiet card computes rhythms from quotes and only the
+  save button errors (0087); the loss-mix card degrades to empty and
+  marking a quote lost errors until 0088 adds the columns.
 - Main/production DB: **0080–0085 were pending at promotion time** — run
   them in order when promoting (0080 employee-code CI unique index — needs
   duplicate cleanup first if any, see KAN-13; 0081 api_keys; 0082 webhooks;

@@ -2,7 +2,7 @@
 // Mirrors the LOCKED data model in PROJECT.md §3.
 
 import type { SegmentFilter } from "@/lib/marketingSegmentation";
-import type { QuoteOutcome } from "@/lib/constants";
+import type { QuoteOutcome, LossReason } from "@/lib/constants";
 
 export type AccountType = "prospect" | "oem" | "direct" | "end_customer";
 
@@ -203,6 +203,10 @@ export type Quote = {
   // closed state (e.g. marked "lost" while still "sent"); a closed status
   // always requires a decided (non-"open") outcome -- enforced server-side.
   outcome: QuoteOutcome;
+  // Loss Intelligence (0088): filed when outcome goes lost/dropped, cleared
+  // when it returns to open/won. Structured reason + free-text nuance.
+  loss_reason?: LossReason | null;
+  loss_note?: string | null;
   total: number;
   created_at: string;
   // The business date on the quote, back-datable by the user. Falls back to
