@@ -71,6 +71,23 @@ const INVENTORY_FIELDS: QueryableField[] = [
   { path: "status", type: "string" },
 ];
 
+const EMPLOYEE_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "employee_code", type: "string", searchable: true },
+  { path: "first_name", type: "string", searchable: true },
+  { path: "last_name", type: "string", searchable: true },
+  { path: "email", type: "string", searchable: true },
+  { path: "phone", type: "string" },
+  { path: "department", type: "string", searchable: true },
+  { path: "designation", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "employment_type", type: "string" },
+  { path: "wfm_role", type: "string" },
+  { path: "valid_from", type: "date" },
+  { path: "valid_to", type: "date" },
+  { path: "created_at", type: "date" },
+];
+
 const INVOICE_FIELDS: QueryableField[] = [
   { path: "id", type: "string" },
   { path: "ref", type: "string", searchable: true },
@@ -153,6 +170,24 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         uom: i.uom, qty_on_hand: i.qty_on_hand, reorder_level: i.reorder_level, unit_cost: i.unit_cost,
         supplier_id: i.supplier_id, status: i.status, custom_data: i.custom_data,
         _links: { self: `/api/v1/inventory/${i.id}` },
+      }));
+    },
+  },
+  employees: {
+    label: "Employees",
+    fields: EMPLOYEE_FIELDS,
+    load: async (tenantId) => {
+      const { data } = await createAdminSupabase()
+        .from("employees").select("*").eq("tenant_id", tenantId).order("employee_code");
+      return (data ?? []).map((e) => ({
+        id: e.id, employee_code: e.employee_code,
+        first_name: e.first_name, last_name: e.last_name,
+        email: e.email, phone: e.phone,
+        department: e.department, designation: e.designation,
+        status: e.status, employment_type: e.employment_type, wfm_role: e.wfm_role,
+        valid_from: e.valid_from, valid_to: e.valid_to, created_at: e.created_at,
+        custom_data: e.custom_data,
+        _links: { self: `/api/v1/employees/${e.id}` },
       }));
     },
   },

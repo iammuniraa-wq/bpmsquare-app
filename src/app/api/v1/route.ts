@@ -35,6 +35,8 @@ export async function GET(req: Request) {
       "GET /api/v1/accounts":             "List all accounts",
       "GET /api/v1/accounts/:id":         "Account detail with contacts, cases, quotes, work orders",
       "GET /api/v1/cases":                "List all service cases",
+      "GET /api/v1/employees":            "List staff records (scope must name \"employees\" explicitly)",
+      "GET /api/v1/employees/:id":        "Employee detail",
       "GET /api/v1/inventory":            "List inventory stock items",
       "GET /api/v1/inventory/:id":        "Inventory item detail with transaction history",
       "GET /api/v1/invoices":             "List invoices",
@@ -58,7 +60,7 @@ export async function GET(req: Request) {
       example:   "GET /api/v1/quotations?filter=status:eq:draft;total:gte:50000&select=ref,total,account.name&sort=-total&aggregate=sum:total",
     },
     access_control:
-      "Scoped API keys are live. A key carries a scope: read and/or write, and either all objects or a named subset (quotations, accounts, cases, inventory, invoices, purchase-orders). A read-only key gets 403 on any write; a key scoped to a subset gets 403 on any object outside it. Mint and revoke keys in Settings → General → Developer.",
+      "Scoped API keys are live. A key carries a scope: read and/or write, and either all objects or a named subset (quotations, accounts, cases, inventory, invoices, purchase-orders). A read-only key gets 403 on any write; a key scoped to a subset gets 403 on any object outside it. \"employees\" is the one object the all-objects wildcard does NOT cover — staff personal data requires a key that names it explicitly. Mint and revoke keys in Settings → General → Developer.",
     webhooks:
       "Live (push). Register an endpoint in Settings → General → Developer; every create/update/delete is delivered as a signed batch (HMAC-SHA256, header X-BPMSquare-Signature) with the same event shape as GET /api/v1/changes. Only events after registration are sent; the /changes feed remains the pull-based backfill.",
     ask: {

@@ -89,8 +89,7 @@ export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) 
   const [activeId, setActiveId] = useState<ImportObjectId>(specs[0]?.id ?? "accounts");
 
   const visibleSpecs = specs.filter((s) => {
-    if (mode === "update") return s.id !== "users" && s.id !== "employees"; // users invite-only; employees import-only for now
-    if (mode === "export") return s.id !== "employees";
+    if (mode === "update") return s.id !== "users"; // users are invite-only
     return true;
   });
   const spec = visibleSpecs.find((s) => s.id === activeId) ?? visibleSpecs[0];

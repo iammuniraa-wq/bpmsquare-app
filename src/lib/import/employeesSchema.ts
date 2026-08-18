@@ -1,11 +1,13 @@
 import type { ObjectSpec } from "./types";
+import type { FieldConfigResult } from "@/lib/fieldConfig";
+import { customFieldSpecs } from "./registrySchema";
 
-// Employees (0057) -- static spec like usersSchema.ts, since employees have
-// no FIELD_REGISTRY entry / custom fields. Employee codes are SYSTEM-
-// GENERATED on import (EMP-#### block, lib/employeeRef.ts) -- the file
-// carries no code column. Import-only for now: bulk-loading
-// staff from an HR export is the use case; edits happen in the Business
-// Users screen.
+// Employees (0057) -- static spec like usersSchema.ts: the standard columns
+// are hand-authored rather than derived from FIELD_REGISTRY, because the WFM
+// surfaces render employee identity themselves. Tenant CUSTOM fields (0086)
+// are appended at request time by buildEmployeesSpec(). Employee codes are
+// SYSTEM-GENERATED on import (EMP-#### block, lib/employeeRef.ts) -- the
+// file carries no code column on the way in, and export emits it read-only.
 export const EMPLOYEES_SPEC: ObjectSpec = {
   id: "employees",
   label: "Employees",
@@ -27,3 +29,24 @@ export const EMPLOYEES_SPEC: ObjectSpec = {
     { first_name: "Priya", last_name: "Sharma", email: "priya@company.com", department: "Service", designation: "Service Engineer", valid_from: "2023-11-15" },
   ],
 };
+
+/**
+ * The employees spec as a tenant actually sees it: the static columns above
+ * plus that tenant's employee custom fields, and -- for export/update only --
+ * the read-only employee_code, so an exported file shows which staff row each
+ * line is. Import never offers employee_code (codes are system-generated).
+ *
+ * Data Workbench, the export route and the update route all build the spec
+ * through here, so a custom field can never appear in one and be missing from
+ * the others.
+ */
+export function buildEmployeesSpec(fieldConfig: FieldConfigResult): ObjectSpec {
+  return {
+    ...EMPLOYEES_SPEC,
+    fields: [
+      { key: "employee_code", label: "Employee code", type: "text", hint: "System-generated — read-only", aliases: ["emp code", "employee id", "staff id"], exportOnly: true },
+      ...EMPLOYEES_SPEC.fields,
+      ...customFieldSpecs(fieldConfig),
+    ],
+  };
+}

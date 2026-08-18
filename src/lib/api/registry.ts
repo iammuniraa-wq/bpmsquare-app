@@ -18,6 +18,7 @@ export const API_ENTITIES: Record<string, EntityDef> = {
 export const UNDOCUMENTED_ENDPOINTS = [
   "/api/v1/accounts",
   "/api/v1/cases",
+  "/api/v1/employees",
   "/api/v1/inventory",
   "/api/v1/invoices",
   "/api/v1/purchase-orders",
