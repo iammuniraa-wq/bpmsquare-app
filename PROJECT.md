@@ -316,7 +316,17 @@ per-API-key rate limiting.
   (Pricing-as-a-Service) with BPMSquare in-app modules as ordinary clients.
 
 **Operational ledger — SQL the owner runs manually (never auto-applied):**
-- Dev DB: migrations through 0085 are applied.
+Nothing in this repo applies migrations for either environment: there is no
+`supabase/config.toml`, no GitHub Action, no Supabase↔GitHub integration.
+Pushing to `develop` auto-deploys the **code** to staging via Vercel — that is
+the only thing that happens by itself. Every migration is pasted into the
+Supabase SQL editor by hand, staging first (when the feature lands on
+`develop`), production at promotion time. Don't mistake the automatic code
+deploy for an automatic schema change.
+- Dev DB: migrations through 0085 are applied. **0086 pending**
+  (`employees.custom_data` — employee custom fields).
+- Main/production DB: **0086 pending** (same file). Code tolerates its
+  absence: no custom section renders and the hub degrades cleanly.
 - Main/production DB: **0080–0085 were pending at promotion time** — run
   them in order when promoting (0080 employee-code CI unique index — needs
   duplicate cleanup first if any, see KAN-13; 0081 api_keys; 0082 webhooks;
