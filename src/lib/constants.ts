@@ -574,6 +574,21 @@ export const DEFAULT_QUOTE_STATUSES: QuoteStatusDef[] = [
 export const QUOTE_OUTCOMES = ["open", "won", "lost", "dropped"] as const;
 export type QuoteOutcome = (typeof QUOTE_OUTCOMES)[number];
 
+// Loss Intelligence (0088): why a quote was lost/dropped -- a fixed small
+// vocabulary like outcome itself, so the reasons AGGREGATE (dashboard loss
+// mix) and the AI can reason over them. The free-text nuance goes in
+// loss_note, never into the reason value.
+export const LOSS_REASONS = ["price", "silent", "competitor", "budget", "timing", "other"] as const;
+export type LossReason = (typeof LOSS_REASONS)[number];
+export const LOSS_REASON_LABEL: Record<LossReason, string> = {
+  price: "Price too high",
+  silent: "Went silent",
+  competitor: "Chose competitor",
+  budget: "Budget cut",
+  timing: "Bad timing",
+  other: "Other",
+};
+
 // TenantConfig — full shape of tenants.config JSONB column.
 export type TenantConfig = {
   entities: TenantEntity[];

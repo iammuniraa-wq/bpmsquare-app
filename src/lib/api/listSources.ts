@@ -22,6 +22,8 @@ const QUOTE_FIELDS: QueryableField[] = [
   { path: "status", type: "string" },
   { path: "total", type: "number" },
   { path: "revision", type: "number" },
+  { path: "outcome", type: "string" },
+  { path: "loss_reason", type: "string" },
   { path: "created_at", type: "date" },
   { path: "quote_date", type: "date" },
   { path: "valid_until", type: "date" },
@@ -124,6 +126,7 @@ export const LIST_SOURCES: Record<string, ListSource> = {
       const quotes = await listQuotesForTenant(tenantId);
       return quotes.map(({ quote: q, account, lineCount }) => ({
         id: q.id, ref: q.ref, status: q.status, total: q.total, revision: q.revision,
+        outcome: q.outcome, loss_reason: q.loss_reason ?? null,
         created_at: q.created_at, quote_date: q.quote_date ?? null, valid_until: q.valid_until,
         account: account ? { id: account.id, name: account.name } : null,
         line_count: lineCount,

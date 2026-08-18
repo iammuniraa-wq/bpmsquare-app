@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Quote, QuoteLine, Account, Contact, Asset, LayoutSection } from "@/lib/types";
 import type { TenantTaxConfig, QuoteStatusDef, QuoteOutcome } from "@/lib/constants";
-import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES } from "@/lib/constants";
+import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, LOSS_REASONS, LOSS_REASON_LABEL, type LossReason } from "@/lib/constants";
 import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -149,18 +149,24 @@ function OutcomeChanger({ quoteId, currentOutcome, currentStatus, statuses, onCh
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Loss Intelligence: picking Lost/Dropped first asks WHY -- the reason
+  // is the aggregable data the loss-mix view and the AI run on.
+  const [losing, setLosing] = useState<"lost" | "dropped" | null>(null);
+  const [lossReason, setLossReason] = useState<LossReason>("price");
+  const [lossNote, setLossNote] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const meta = OUTCOME_META[currentOutcome];
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const handler = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) { setOpen(false); setLosing(null); } };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  async function change(value: QuoteOutcome) {
+  async function change(value: QuoteOutcome, loss?: { reason: LossReason; note: string }) {
     if (value === currentOutcome) { setOpen(false); return; }
+    if ((value === "lost" || value === "dropped") && !loss) { setLosing(value); return; }
 
     // Winning a quote that's still early in the pipeline (not yet closed) is
     // common when the paperwork catches up later -- offer to bump status to
@@ -180,6 +186,7 @@ function OutcomeChanger({ quoteId, currentOutcome, currentStatus, statuses, onCh
     setError("");
     const body: Record<string, unknown> = { outcome: value };
     if (bumpStatus) body.status = "approved";
+    if (loss) { body.loss_reason = loss.reason; body.loss_note = loss.note || null; }
     const res = await fetch(`/api/quotes/${quoteId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -190,6 +197,8 @@ function OutcomeChanger({ quoteId, currentOutcome, currentStatus, statuses, onCh
       onChanged(value);
       if (bumpStatus) onStatusChanged("approved");
       setOpen(false);
+      setLosing(null);
+      setLossNote("");
     }
     else { const j = await res.json().catch(() => ({})); setError(j.error ?? "Failed to update outcome"); }
   }
@@ -214,7 +223,43 @@ function OutcomeChanger({ quoteId, currentOutcome, currentStatus, statuses, onCh
           background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
           boxShadow: "0 8px 24px rgba(0,0,0,.15)", minWidth: 140, overflow: "hidden",
         }}>
-          {(["open", "won", "lost", "dropped"] as const).map((o) => (
+          {losing ? (
+            <div style={{ padding: 12, width: 236, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 650, color: c.ink }}>
+                Why was this {losing === "lost" ? "lost" : "dropped"}?
+              </div>
+              <select
+                value={lossReason}
+                onChange={(e) => setLossReason(e.target.value as LossReason)}
+                style={{ fontSize: 12.5, padding: "7px 9px", borderRadius: 7, border: `1px solid ${c.line}`, background: c.panel, color: c.ink }}
+              >
+                {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
+              </select>
+              <textarea
+                value={lossNote}
+                onChange={(e) => setLossNote(e.target.value)}
+                placeholder="One line of context (optional) — e.g. asked for a phased offer"
+                rows={2}
+                maxLength={500}
+                style={{ fontSize: 12, padding: "7px 9px", borderRadius: 7, border: `1px solid ${c.line}`, background: c.panel, color: c.ink, resize: "vertical", fontFamily: "inherit" }}
+              />
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setLosing(null)}
+                  style={{ fontSize: 12, padding: "6px 11px", borderRadius: 7, border: `1px solid ${c.line}`, background: "transparent", color: c.muted, cursor: "pointer" }}
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => change(losing, { reason: lossReason, note: lossNote.trim() })}
+                  disabled={saving}
+                  style={{ fontSize: 12, fontWeight: 650, padding: "6px 12px", borderRadius: 7, border: "none", background: OUTCOME_META[losing].color, color: "#fff", cursor: "pointer", opacity: saving ? .6 : 1 }}
+                >
+                  Mark as {OUTCOME_META[losing].label}
+                </button>
+              </div>
+            </div>
+          ) : (["open", "won", "lost", "dropped"] as const).map((o) => (
             <button
               key={o}
               onClick={() => change(o)}

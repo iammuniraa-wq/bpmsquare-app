@@ -3,6 +3,7 @@ import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supab
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
 import { applyDateProfile } from "@/lib/api/quoteService";
+import { LOSS_REASONS } from "@/lib/constants";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -74,6 +75,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
 
+  // Loss Intelligence (0088): a structured reason travels with a lost/
+  // dropped outcome (also fileable later on an already-lost quote); winning
+  // or reopening clears both -- a live quote carries no loss story.
+  if ("loss_reason" in body) {
+    const v = body.loss_reason;
+    if (v !== null && !(LOSS_REASONS as readonly string[]).includes(v as string)) {
+      return NextResponse.json({ error: `loss_reason must be one of: ${LOSS_REASONS.join(", ")} (or null)` }, { status: 400 });
+    }
+    patch.loss_reason = v;
+  }
+  if ("loss_note" in body) {
+    const v = body.loss_note;
+    patch.loss_note = typeof v === "string" && v.trim() ? v.trim().slice(0, 500) : null;
+  }
+  if (patch.outcome === "won" || patch.outcome === "open") {
+    patch.loss_reason = null;
+    patch.loss_note = null;
+  }
+
   // Date-profile manual overrides (0059) -- null clears, a valid YYYY-MM-DD
   // sets, anything malformed is a 400 (never a silent clear of an existing
   // business timestamp).
@@ -112,13 +132,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const dateProfile = await applyDateProfile(admin, tenantId, before as Record<string, unknown>, patch);
   if (dateProfile.error) return NextResponse.json({ error: dateProfile.error }, { status: 400 });
 
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from("quotes")
     .update(patch)
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .select("*")
     .single();
+
+  // Deploy-order resilience: code ships before the owner runs migration
+  // 0088 by hand. If the loss columns don't exist yet, retry without them
+  // rather than blocking the outcome change itself.
+  if (error?.code === "42703" && ("loss_reason" in patch || "loss_note" in patch)) {
+    delete patch.loss_reason;
+    delete patch.loss_note;
+    ({ data, error } = await admin
+      .from("quotes").update(patch).eq("id", id).eq("tenant_id", tenantId).select("*").single());
+  }
 
   if (error) { console.error("[quotes PATCH] update failed", error); return NextResponse.json({ error: error.message }, { status: 500 }); }
 
