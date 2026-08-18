@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
   const { data: employee } = await supabase
     .from("employees")
-    .select("id, first_name, last_name, email, valid_from, valid_to")
+    .select("id, first_name, last_name, email, valid_from, valid_to, wfm_role")
     .eq("id", employeeId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -187,9 +187,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // WFM supervisors get a tenant ADMIN membership (KAN-17, owner decision
+  // 2026-08-18): "whatever admin can do, supervisor can do as well" -- full
+  // parity for now, finer role distinctions to come later. This closes the
+  // whole class of supervisor-vs-admin visibility gaps at the root.
+  const memberRole = employee.wfm_role === "supervisor" ? "admin" : "member";
   const { error: insertErr } = await admin
     .from("tenant_users")
-    .insert({ tenant_id: tenantId, user_id: userId, role: "member", ...membershipFields });
+    .insert({ tenant_id: tenantId, user_id: userId, role: memberRole, ...membershipFields });
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
   if (applyRoles) {

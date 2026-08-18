@@ -216,6 +216,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await ensureDefaultWfmRoleAssigned(admin, tenantId, result.userId, effectiveWfmRole);
   }
 
+  // KAN-17 (owner decision 2026-08-18): WFM supervisors have full admin
+  // parity -- "whatever admin can do, supervisor can do as well", proper
+  // role distinctions come later. Promote the linked login to tenant admin
+  // whenever the employee is (or just became) a supervisor. Promotion only:
+  // demoting a supervisor never silently strips an admin membership.
+  {
+    const effectiveWfmRole = (patch.wfm_role as string | undefined) ?? employee.wfm_role;
+    if (effectiveWfmRole === "supervisor") {
+      await admin
+        .from("tenant_users")
+        .update({ role: "admin" })
+        .eq("tenant_id", tenantId)
+        .eq("employee_id", employee.id)
+        .neq("role", "admin");
+    }
+  }
+
   if (Object.keys(patch).length === 0) {
     if (typeof body.invite_email === "string") {
       return NextResponse.json({ ok: true, invited: true });
