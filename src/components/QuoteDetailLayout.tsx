@@ -15,7 +15,8 @@ import { ROUTES } from "@/lib/constants";
 import { MessageSquare, CheckIcon } from "@/components/Icons";
 import QuoteEditPanel from "@/components/QuoteEditPanel";
 import EmailComposeModal from "@/components/EmailComposeModal";
-import { useTenant, useTenantFeature } from "@/lib/tenant-context";
+import { useTenant, useTenantFeature, useIsNextgen3Layer } from "@/lib/tenant-context";
+import { celebrate } from "@/lib/celebrate";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/whatsapp";
 import { richTextToDisplayHtml } from "@/lib/richText";
 
@@ -304,6 +305,16 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   useEffect(() => { setCurrentStatus(quote.status); }, [quote.status]);
   const [currentOutcome, setCurrentOutcome] = useState<QuoteOutcome>(quote.outcome);
   useEffect(() => { setCurrentOutcome(quote.outcome); }, [quote.outcome]);
+  // Engagement layer (3-layer theme only): marking a quote Won earns the
+  // full celebration. Wired at the moment of the USER'S action -- a quote
+  // that loads already-won stays quiet.
+  const celebrateWins = useIsNextgen3Layer();
+  const handleOutcomeChanged = (o: QuoteOutcome) => {
+    if (o === "won" && currentOutcome !== "won" && celebrateWins) {
+      celebrate("Quotation won!", `${quote.ref} · ${inr(quote.total)}`);
+    }
+    setCurrentOutcome(o);
+  };
   // CR-010: GST is optional per quote — no rate entered means no tax row at all
   // (the "GST @ 18%" statement lives in Terms & Conditions text instead).
   const hasGst      = quote.gst_rate !== null && quote.gst_rate !== undefined;
@@ -895,7 +906,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
               currentOutcome={currentOutcome}
               currentStatus={currentStatus}
               statuses={quoteStatuses}
-              onChanged={setCurrentOutcome}
+              onChanged={handleOutcomeChanged}
               onStatusChanged={setCurrentStatus}
             />
           </>

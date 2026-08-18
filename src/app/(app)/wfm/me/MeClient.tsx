@@ -13,6 +13,8 @@ import {
   type PresenceKind, type PunchState, type LeaveRequestStatus,
 } from "@/lib/wfm/types";
 import { enqueuePunch, flushQueue, listQueuedPunches, listRejectedPunches, discardRejectedPunch, type QueuedPunch } from "@/lib/wfm/offlineQueue";
+import { useIsNextgen3Layer } from "@/lib/tenant-context";
+import { celebrate } from "@/lib/celebrate";
 
 // The consent copy ships separately (bilingual EN + regional). Placeholder
 // per requirements: CONSENT_TEXT_DE_EN_PLACEHOLDER.
@@ -226,6 +228,10 @@ function Bars({ points, valueOf, format }: { points: TrendPoint[]; valueOf: (p: 
 }
 
 export default function MeClient({ initialState = null }: { initialState?: MeState | null }) {
+  // Engagement layer (3-layer theme only): checking out at/after your
+  // shift's end earns a full-shift celebration. Judged on wall-clock in
+  // the tenant's timezone against the assigned shift, never on pay math.
+  const celebrateShift = useIsNextgen3Layer();
   const [tab, setTab] = useState<Tab>("home");
   const [timeView, setTimeView] = useState<TimeView>("daily");
   const [month, setMonth] = useState(thisMonth());
@@ -399,6 +405,18 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       if (!res.ok) { setNotice({ tone: "err", text: json.error ?? "Punch failed" }); return; }
       const where = json.site_name ? `at ${json.site_name}` : json.within_geofence === false ? "— location noted" : "";
       setNotice({ tone: json.within_geofence === false ? "warn" : "ok", text: `${KIND_LABEL[kind]} recorded at ${fmtTime(ts)} ${where}.` });
+      // Full-shift celebration: checked out at/after the shift's scheduled
+      // end (tenant-tz wall clock; a night shift's end is "after end and
+      // before next start"). Needs a real day behind it (>= 1h on the clock)
+      // so a stray in/out pair doesn't throw a party.
+      if (celebrateShift && kind === "check_out" && me?.shift && (json.running_minutes ?? 0) >= 60) {
+        const hm = (v: string) => { const [h, m] = v.split(":").map(Number); return h * 60 + m; };
+        const parts = new Intl.DateTimeFormat("en-GB", { timeZone: me.timezone, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+        const now = hm(parts);
+        const start = hm(me.shift.start_time), end = hm(me.shift.end_time);
+        const fullShift = start < end ? now >= end : (now >= end && now < start);
+        if (fullShift) celebrate("Full shift complete!", `${fmtHM(json.running_minutes)} on the clock — well done. See you tomorrow.`);
+      }
       if (selfie) {
         const form = new FormData();
         form.append("event_id", id);
