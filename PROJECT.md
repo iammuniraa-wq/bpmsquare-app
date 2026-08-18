@@ -323,10 +323,9 @@ the only thing that happens by itself. Every migration is pasted into the
 Supabase SQL editor by hand, staging first (when the feature lands on
 `develop`), production at promotion time. Don't mistake the automatic code
 deploy for an automatic schema change.
-- Dev DB: migrations through 0085 are applied. **0086 pending**
-  (`employees.custom_data` — employee custom fields).
-- Main/production DB: **0086 pending** (same file). Code tolerates its
-  absence: no custom section renders and the hub degrades cleanly.
+- Dev DB: migrations through **0086** are applied.
+- Main/production DB: through **0086** applied (owner confirmed
+  2026-08-18; 0086 = `employees.custom_data`, employee custom fields).
 - Main/production DB: **0080–0085 were pending at promotion time** — run
   them in order when promoting (0080 employee-code CI unique index — needs
   duplicate cleanup first if any, see KAN-13; 0081 api_keys; 0082 webhooks;
