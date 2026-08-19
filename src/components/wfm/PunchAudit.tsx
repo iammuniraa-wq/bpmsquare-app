@@ -65,7 +65,12 @@ export default function PunchAudit({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 0" }}>
-      {events.map((e) => (
+      {/* Newest first. The route returns the day in chronological order --
+          which is what a day's SEQUENCE needs, so that contract is left
+          alone -- but on screen the punch someone just made should be the
+          one they see, not the bottom of a growing list. Reversed here, on
+          a copy, so the fetched array is never mutated. */}
+      {[...events].reverse().map((e) => (
         <div key={e.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderBottom: `1px solid ${c.line}` }}>
           {e.selfie_url ? (
             // eslint-disable-next-line @next/next/no-img-element
