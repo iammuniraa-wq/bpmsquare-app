@@ -86,20 +86,34 @@ export async function GET(request: NextRequest) {
   // a punch nobody ever looks at costs nothing. A failure is left null so
   // it's retried next time; a genuine "no address here" is cached as "" so
   // it isn't.
+  // "" counts as unresolved, not as resolved-to-nothing. Caching "" was a
+  // trap: if the provider response were ever parsed wrongly, every viewed
+  // punch would be permanently stamped "" and never retried, so fixing the
+  // parser later would silently fix nothing. Treating "" as outstanding
+  // makes the whole history self-heal on next view instead.
   const needAddress = dayEvents.filter(
-    (e) => e.geo_address == null && e.geo_lat != null && e.geo_lng != null
+    (e) => !e.geo_address && e.geo_lat != null && e.geo_lng != null
   );
   const resolved = new Map<string, string>();
   if (geocodingConfigured() && needAddress.length > 0) {
     await Promise.all(
       needAddress.map(async (e) => {
         const r = await reverseGeocode(Number(e.geo_lat), Number(e.geo_lng));
-        if (r.status === "unavailable") return; // leave null, retry later
-        const value = r.status === "ok" ? r.address : "";
-        resolved.set(e.id as string, value);
+        if (r.status !== "ok") {
+          // Both "unavailable" (call failed) and "empty" (nothing parsed out
+          // of the response) are left unwritten so they retry. The reason is
+          // logged because this is the ONLY place it surfaces -- the screen
+          // itself falls back to coordinates without complaint, by design.
+          console.error(
+            `[wfm/presence] no address for ${e.geo_lat},${e.geo_lng}: ` +
+            (r.status === "unavailable" ? r.reason : "provider returned no parsable address")
+          );
+          return;
+        }
+        resolved.set(e.id as string, r.address);
         await admin
           .from("wfm_presence_events")
-          .update({ geo_address: value })
+          .update({ geo_address: r.address })
           .eq("id", e.id)
           .eq("tenant_id", tenantId);
       })
