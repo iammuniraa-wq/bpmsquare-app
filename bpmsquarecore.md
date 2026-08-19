@@ -286,3 +286,38 @@ Mechanics / caveats when updating these:
   index. When the API changes, those update automatically — the Drive API guide is
   the human-readable snapshot that still needs a manual refresh.
 - Each guide carries a "Snapshot &lt;date&gt;" line — bump it when you refresh.
+
+---
+
+## 10. The Next Experience program — rollout doctrine (owner decision 2026-08-19)
+
+BPMSquare is being rebuilt toward a **"2050" experience** — the ambition is
+an AI-first, keyboard-first, collaborative product with an enterprise-grade
+rich feel, positioned and eventually **named as something beyond "CRM"**
+(working name pending; the feature flag is deliberately neutral so naming
+can change without code churn). The candidate pillars, in intended order:
+command palette (⌘K does everything), AI record creation (paste/forward
+anything → drafted record, reusing the DW extraction engine), record
+timeline + comments + inbox, feel layer (undo-toasts, optimistic saves,
+skeletons, presence).
+
+**The three unbreakable rules of this program:**
+
+1. **Nothing experimental can reach an existing client.** Every Next
+   Experience surface is gated on `features.next_experience` — a
+   **platform-admin-only** flag (set in /admin/tenants, never by a
+   workspace admin), default off, missing-key = false. The 3-layer theme
+   option only appears in a tenant's Settings when the flag is on, and
+   `useIsNextgen3Layer()` requires the flag too, so even a stale stored
+   theme value renders as plain nextgen. New Next Experience code must
+   hang off this same gate (or a narrower one) — never ungated.
+
+2. **Step by step, confirmed before the next.** One capability at a time:
+   build → demo tenant → the owner personally validates → only then the
+   next piece. Never ship the whole remodel at once, and never widen the
+   flag to a client tenant without the owner's explicit go.
+
+3. **The bar is enterprise.** This will be presented to enterprises — every
+   piece must hold a rich, modern, considered feel (SVG-only iconography,
+   both color modes, mobile-fit, reduced-motion respected, real empty
+   states). If a piece looks like "old CRM", it isn't done.

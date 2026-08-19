@@ -429,6 +429,12 @@ export type TenantFeatures = {
   // PricingEngine (docs/pricing-engine-architecture.md): the dynamic pricing
   // product. Demo tenant only until sold; Small Scale Pricing is unaffected.
   pricing_engine: boolean;
+  // The Next Experience program (owner doctrine 2026-08-19, bpmsquarecore
+  // §10): the 3-layer theme, engagement layer, and every future "2050"
+  // interaction change live behind THIS platform-admin-only flag. Missing
+  // key reads false, so every existing tenant is untouched by default --
+  // the demo tenant is where it gets proven before any client sees it.
+  next_experience: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
