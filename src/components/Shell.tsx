@@ -12,6 +12,7 @@ import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
 import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer } from "@/lib/tenant-context";
 import NovaPalette from "@/components/NovaPalette";
+import NovaDraft from "@/components/NovaDraft";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 // Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
@@ -332,6 +333,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {identityInTopBar && <NovaPalette />}
+          {identityInTopBar && <NovaDraft />}
           {aiAllowed && <AIDock />}
         </div>
       </TabsProvider>
@@ -353,6 +355,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {identityInTopBar && <IdentityMenu />}
           </div>
           {identityInTopBar && <NovaPalette />}
+          {identityInTopBar && <NovaDraft />}
           <TabBar />
           {/* overflowX:auto, not hidden -- "hidden" silently clips any page whose content
               runs wider than the viewport with no way to reach it (short of zooming the

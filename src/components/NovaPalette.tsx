@@ -22,7 +22,7 @@ import { useTenant, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/ten
 
 type Item =
   | { kind: "nav"; label: string; sub: string; href: string }
-  | { kind: "create"; label: string; sub: string; href: string }
+  | { kind: "create"; label: string; sub: string; href: string; event?: string }
   | { kind: "record"; label: string; sub: string; href: string; matched: string };
 
 const CREATE_ACTIONS: { label: string; href: string; featureKey: string }[] = [
@@ -94,6 +94,12 @@ export default function NovaPalette() {
       .filter((a) => features?.[a.featureKey] === true)
       .map((a) => ({ kind: "create", label: a.label, sub: "Create", href: a.href }));
 
+    // Pillar 2: AI record creation -- top of the Create list, the way a
+    // record SHOULD start on Nova.
+    if (features?.accounts === true) {
+      create.unshift({ kind: "create", label: "New account from paste", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft" });
+    }
+
     return [...create, ...nav];
   }, [features, viewable, isWfmSupervisor]);
 
@@ -155,6 +161,10 @@ export default function NovaPalette() {
 
   const go = useCallback((item: Item) => {
     setOpen(false);
+    if (item.kind === "create" && item.event) {
+      window.dispatchEvent(new Event(item.event));
+      return;
+    }
     router.push(item.href);
   }, [router]);
 
