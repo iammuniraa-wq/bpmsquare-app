@@ -226,6 +226,24 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
             </select>
             <div style={help}>Sites and their radius are managed in the Sites tab.</div>
           </div>
+
+          <div>
+            <label style={lbl}>Location required to punch</label>
+            <select
+              style={inp}
+              value={cfg.require_location || cfg.geofence_mode === "block" ? "yes" : "no"}
+              disabled={cfg.geofence_mode === "block"}
+              onChange={(e) => setCfg({ ...cfg, require_location: e.target.value === "yes" })}
+            >
+              <option value="no">No — a punch without location is still accepted</option>
+              <option value="yes">Yes — check in / check out is rejected without it</option>
+            </select>
+            <div style={help}>
+              {cfg.geofence_mode === "block"
+                ? "Always on while geofence enforcement is set to Block — otherwise denying location would be a way around the geofence."
+                : "Applies to check in and check out only. Breaks and overtime are never blocked, since those often happen indoors where no fix is available. A selfie is already required for check in and check out."}
+            </div>
+          </div>
         </div>
       </Section>
 

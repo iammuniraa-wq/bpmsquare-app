@@ -42,6 +42,7 @@ type MeState = {
   timezone: string;
   /** Optional punch-type groups this tenant has switched on. */
   punch_types?: { ot: boolean; mobile_work: boolean; business_trip: boolean };
+  require_location?: boolean;
   upcoming: {
     date: string; is_day_off: boolean; shift_name: string | null;
     start_time: string | null; end_time: string | null; is_night_shift: boolean;
@@ -691,7 +692,27 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
 
   // Breaks and OT punches don't need a selfie (only the shift's own
   // in/out do, matching how the camera gate worked before the dropdown).
-  function startPunch(kind: PresenceKind) {
+  async function startPunch(kind: PresenceKind) {
+    const isShiftPunch = kind === "check_in" || kind === "check_out";
+
+    // Location is checked BEFORE the camera opens. Doing it the other way
+    // round means taking a selfie and only then being told the punch can't
+    // happen -- and the punch route rejects it anyway, so the camera step
+    // would have been wasted. A denied permission needs a browser-settings
+    // change, so the message says that rather than just "try again".
+    if (isShiftPunch && me?.require_location) {
+      setBusy(true);
+      const geo = await getGeo(10_000);
+      setBusy(false);
+      if (!geo) {
+        setNotice({
+          tone: "err",
+          text: "Location is required to punch in or out. Allow location for this site in your browser settings, then try again.",
+        });
+        return;
+      }
+    }
+
     if (kind === "check_in" || kind === "check_out" || kind === "mobile_work_start" || kind === "business_trip_start") {
       openCamera(kind);
     } else {

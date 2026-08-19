@@ -465,6 +465,21 @@ export type WfmConfig = {
   // punch succeeds, within_geofence=false + flags.outside_geofence (today's
   // only behavior). off: no site match attempted at all, no flag either.
   geofence_mode: "block" | "flag" | "off";
+  // Hard location gate for the shift punch (check in / check out only --
+  // breaks and OT are left alone, since those often happen indoors where a
+  // fix is slow or impossible). Defaults OFF so no existing tenant's
+  // punching changes; enabled in Settings -> Workforce.
+  //
+  // Enforced SERVER-side in /api/wfm/punch, not just in the UI. It matters
+  // because denying location used to be a way AROUND geofence_mode:"block":
+  // that check only rejects a punch it can PROVE is outside, so a punch it
+  // can't place at all sailed through with a flag. geofence_mode "block"
+  // therefore now implies this too.
+  //
+  // There is no matching require_selfie key on purpose: a selfie is already
+  // mandatory for check in/out (startPunch routes both through the camera,
+  // and a denied camera ends the punch), so a toggle would be a no-op.
+  require_location: boolean;
   // Per-event-type email notification toggles. Each fires synchronously
   // from the route that creates the underlying event -- see src/lib/wfm/notify.ts.
   notifications: {
@@ -511,6 +526,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   face_verification_mode: "off",
   week_off_days: [0],
   geofence_mode: "flag",
+  require_location: false,
   notifications: {
     late_arrival: false,
     correction_pending: true,
