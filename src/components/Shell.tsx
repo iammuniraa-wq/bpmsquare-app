@@ -22,6 +22,9 @@ function MobileTopBar() {
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const tenant = useTenant();
+  // On Nova the search icon opens the command palette instead of the
+  // inline search overlay -- same single-search-surface rule as desktop.
+  const nova = useIsNextgen3Layer();
 
   // Close the drawer/search overlay whenever the route changes.
   useEffect(() => { setOpen(false); setSearchOpen(false); }, [pathname]);
@@ -68,7 +71,10 @@ function MobileTopBar() {
         {/* Search + hamburger -- fixed-size icon buttons that never shrink, so
             they stay tappable regardless of how long the tenant name is. */}
         <button
-          onClick={() => { setSearchOpen(v => !v); setOpen(false); }}
+          onClick={() => {
+            if (nova) { window.dispatchEvent(new Event("nova:open-palette")); setOpen(false); return; }
+            setSearchOpen(v => !v); setOpen(false);
+          }}
           aria-label={searchOpen ? "Close search" : "Search"}
           style={{ ...iconBtn, background: searchOpen ? "var(--sb-hover-strong)" : "transparent" }}
         >
@@ -246,6 +252,38 @@ function IdentityMenu() {
   );
 }
 
+// ── Nova search trigger ──────────────────────────────────────────────────────
+// On Nova the top bar carries no live search input -- this search-shaped
+// button IS the palette's front door (the ⌘K hotkey is the other one). One
+// search surface for records, screens and actions, not two.
+
+function NovaSearchButton({ wide }: { wide?: boolean }) {
+  return (
+    <button
+      onClick={() => window.dispatchEvent(new Event("nova:open-palette"))}
+      aria-label="Search or jump to anything"
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        width: wide ? "100%" : 300, height: 32, padding: "0 10px",
+        borderRadius: 8, cursor: "pointer",
+        border: "1px solid var(--sb-search-border)", background: "var(--sb-search-bg)",
+        color: "var(--sb-search-icon)", font: "inherit",
+      }}
+    >
+      <SearchIcon size={14} color="var(--sb-search-icon)" />
+      <span style={{ flex: 1, textAlign: "left", fontSize: 12.5, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+        Search or jump to…
+      </span>
+      <span style={{
+        fontSize: 9.5, padding: "2px 6px", borderRadius: 4, flexShrink: 0,
+        border: "1px solid var(--sb-search-border)",
+      }}>
+        ⌘K
+      </span>
+    </button>
+  );
+}
+
 // ── Shell ─────────────────────────────────────────────────────────────────────
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -293,6 +331,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <DarkToggle dark={dark} onToggle={toggleDark} />
             </div>
           )}
+          {identityInTopBar && <NovaPalette />}
           {aiAllowed && <AIDock />}
         </div>
       </TabsProvider>
@@ -309,7 +348,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             background: "var(--sb-bar-bg)", borderBottom: "1px solid var(--sb-line)",
             height: 48, minHeight: 48, flexShrink: 0, padding: "0 16px",
           }}>
-            <GlobalSearchBar hotkeyDisabled={identityInTopBar} />
+            {identityInTopBar ? <NovaSearchButton /> : <GlobalSearchBar />}
             {uiTheme === "nextgen" && <DarkToggle dark={dark} onToggle={toggleDark} />}
             {identityInTopBar && <IdentityMenu />}
           </div>
