@@ -60,8 +60,38 @@ export async function POST(request: NextRequest) {
   ]);
   const spec = buildObjectSpec(object, fieldConfig, salesConfig);
 
+  // The client renders review forms from these defs -- server truth (the
+  // tenant's live field config incl. custom fields), never a hardcoded form.
+  const toFieldDefs = (s: typeof spec) => s.fields
+    .filter((f) => !f.exportOnly && f.type !== "ref")
+    .map((f) => ({
+      key: f.key, label: f.label, required: !!f.required,
+      options: f.options && f.options.length > 0 ? [...f.options] : null,
+      long: f.type === "longtext",
+    }));
+
   try {
-    const result = await extractRowsFromDocument(spec, { kind: "text", text }, "pasted text");
+    // A pasted message about a company almost always names a PERSON too --
+    // draft the contact from the same text in parallel (when the tenant has
+    // the module), so account + contact land together. Contact failure never
+    // fails the account draft.
+    const wantContact = object === "accounts" && (await tenantHasFeature(supabase, tenantId, "contacts"));
+    const contactSpecPromise = wantContact
+      ? getEffectiveFieldConfig(supabase, tenantId, "contact").then((fc) => buildObjectSpec("contacts", fc, salesConfig))
+      : null;
+
+    const [result, contactDraft] = await Promise.all([
+      extractRowsFromDocument(spec, { kind: "text", text }, "pasted text"),
+      contactSpecPromise
+        ? contactSpecPromise.then(async (cSpec) => {
+            const r = await extractRowsFromDocument(cSpec, { kind: "text", text }, "pasted text");
+            const c = r.rows[0];
+            if (!c || !c.values.name?.trim()) return null;
+            return { values: c.values, note: c.note ?? null, fields: toFieldDefs(cSpec) };
+          }).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
     const first = result.rows[0];
     if (!first) {
       return NextResponse.json(
@@ -69,22 +99,13 @@ export async function POST(request: NextRequest) {
         { status: 422 }
       );
     }
-    // The client renders the review form from these field defs -- server
-    // truth (tenant's live field config incl. custom fields), never a
-    // hardcoded form.
-    const fields = spec.fields
-      .filter((f) => !f.exportOnly && f.type !== "ref")
-      .map((f) => ({
-        key: f.key, label: f.label, required: !!f.required,
-        options: f.options && f.options.length > 0 ? [...f.options] : null,
-        long: f.type === "longtext",
-      }));
     return NextResponse.json({
       values: first.values,
       note: first.note ?? null,
       document_notes: result.documentNotes,
       more_found: Math.max(0, result.rows.length - 1),
-      fields,
+      fields: toFieldDefs(spec),
+      contact: contactDraft,
     });
   } catch (e) {
     if (e instanceof ExtractionError) return NextResponse.json({ error: e.message }, { status: 422 });
