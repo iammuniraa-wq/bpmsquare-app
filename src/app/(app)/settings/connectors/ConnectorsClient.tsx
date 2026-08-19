@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -142,8 +143,9 @@ function ConnectorTile({
     }
   }
 
+  const { confirm } = useFeel();
   async function disconnect() {
-    if (!window.confirm(`Disconnect ${def.name}? Anything relying on it will stop working.`)) return;
+    if (!(await confirm({ title: `Disconnect ${def.name}?`, body: "Anything relying on it stops working straight away.", confirmLabel: "Disconnect", tone: "danger" }))) return;
     await fetch(`/api/connectors/${def.id}`, { method: "DELETE" });
     onChange();
   }

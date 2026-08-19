@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
 import { WORKCENTERS } from "@/lib/workcenters";
 import { cardStyle } from "@/components/Shell";
@@ -191,8 +192,9 @@ export default function BusinessRolesClient({ territories, features }: { territo
     if (refreshed) startEdit(refreshed);
   }
 
+  const { confirm } = useFeel();
   async function remove(r: BusinessRole) {
-    if (!window.confirm(`Delete the "${r.name}" role? Members holding only this role will revert to full (unrestricted) access.`)) return;
+    if (!(await confirm({ title: `Delete the "${r.name}" role?`, body: "Members holding only this role revert to full, unrestricted access.", tone: "danger" }))) return;
     const res = await fetch(`/api/business-roles/${r.id}`, { method: "DELETE" });
     if (res.ok) load();
   }

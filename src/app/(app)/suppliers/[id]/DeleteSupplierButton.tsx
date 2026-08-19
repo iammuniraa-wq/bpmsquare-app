@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { Supplier } from "@/lib/types";
@@ -13,12 +14,13 @@ export default function DeleteSupplierButton({ supplier }: { supplier: Supplier 
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  function handleDelete() {
-    if (!confirm(`Delete "${supplier.name}"? This cannot be undone.`)) return;
+  const { confirm, toast } = useFeel();
+  async function handleDelete() {
+    if (!(await confirm({ title: `Delete "${supplier.name}"?`, body: "This cannot be undone.", tone: "danger" }))) return;
     startTransition(async () => {
       const res = await fetch(`/api/suppliers/${supplier.id}`, { method: "DELETE" });
       if (res.ok) router.push(ROUTES.suppliers);
-      else { const j = await res.json().catch(() => ({})); alert(j.error ?? "Failed to delete"); }
+      else { const j = await res.json().catch(() => ({})); toast({ text: j.error ?? "Could not delete this supplier", tone: "error" }); }
     });
   }
 

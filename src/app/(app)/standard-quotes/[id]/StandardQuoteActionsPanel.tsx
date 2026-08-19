@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { StandardQuote } from "@/lib/types";
@@ -61,8 +62,9 @@ export default function StandardQuoteActionsPanel({ quote }: { quote: StandardQu
     });
   }
 
+  const { confirm } = useFeel();
   async function handleDelete() {
-    if (!confirm(`Delete draft "${quote.ref}"? This cannot be undone.`)) return;
+    if (!(await confirm({ title: `Delete draft ${quote.ref}?`, body: "This cannot be undone.", tone: "danger" }))) return;
     startTransition(async () => {
       const res = await fetch(`/api/standard-quotes/${quote.id}`, { method: "DELETE" });
       if (res.ok) router.push(ROUTES.standardQuotes);

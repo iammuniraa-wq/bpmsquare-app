@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Quote, QuoteLine, Account, Contact, Asset, LayoutSection } from "@/lib/types";
@@ -165,6 +166,7 @@ function OutcomeChanger({ quoteId, currentOutcome, currentStatus, statuses, onCh
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  const { confirm } = useFeel();
   async function change(value: QuoteOutcome, loss?: { reason: LossReason; note: string }) {
     if (value === currentOutcome) { setOpen(false); return; }
     if ((value === "lost" || value === "dropped") && !loss) { setLosing(value); return; }
@@ -177,9 +179,12 @@ function OutcomeChanger({ quoteId, currentOutcome, currentStatus, statuses, onCh
       const statusDef = statuses.find((s) => s.value === currentStatus);
       const approvedDef = statuses.find((s) => s.value === "approved");
       if (statusDef && !statusDef.is_closed && approvedDef) {
-        bumpStatus = window.confirm(
-          `Mark this quotation as Won. Also move status from "${statusDef.label}" to "${approvedDef.label}"?`
-        );
+        bumpStatus = await confirm({
+          title: "Also move the status?",
+          body: `This quotation is being marked Won while its status is still "${statusDef.label}". Move it to "${approvedDef.label}" at the same time?`,
+          confirmLabel: `Move to ${approvedDef.label}`,
+          cancelLabel: `Leave on ${statusDef.label}`,
+        });
       }
     }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
@@ -34,8 +35,9 @@ export default function SegmentsListClient({ groups }: { groups: MarketingTarget
   const router = useRouter();
   const [items, setItems] = useState(groups);
 
+  const { confirm } = useFeel();
   async function remove(id: string) {
-    if (!window.confirm("Delete this target group? Campaigns already built from it are unaffected.")) return;
+    if (!(await confirm({ title: "Delete this target group?", body: "Campaigns already built from it are unaffected.", tone: "danger" }))) return;
     setItems((current) => current.filter((g) => g.id !== id));
     await fetch(`/api/marketing/target-groups/${id}`, { method: "DELETE" });
     router.refresh();

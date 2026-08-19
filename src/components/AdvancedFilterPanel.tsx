@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { PilotObjectType } from "@/lib/fieldRegistry";
@@ -139,8 +140,9 @@ export default function AdvancedFilterPanel({ object, hideToggle = false }: {
     } finally { setBusy(false); }
   }
 
+  const { confirm } = useFeel();
   async function deleteSaved(id: string) {
-    if (!window.confirm("Delete this saved query?")) return;
+    if (!(await confirm({ title: "Delete this saved query?", body: "Only this saved view goes — the records it filtered are untouched.", tone: "danger" }))) return;
     const res = await fetch(`/api/saved-queries/${id}`, { method: "DELETE" });
     if (res.ok) setSaved((prev) => prev.filter((q) => q.id !== id));
   }

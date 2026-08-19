@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { Invoice } from "@/lib/types";
@@ -14,8 +15,9 @@ export default function InvoiceActionsPanel({ invoice }: { invoice: Invoice }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
-  function setStatus(status: "sent" | "cancelled") {
-    if (status === "cancelled" && !confirm("Cancel this invoice?")) return;
+  const { confirm } = useFeel();
+  async function setStatus(status: "sent" | "cancelled") {
+    if (status === "cancelled" && !(await confirm({ title: "Cancel this invoice?", body: "It stays on record as cancelled — nothing is deleted.", confirmLabel: "Cancel invoice", cancelLabel: "Keep it", tone: "danger" }))) return;
     setError("");
     startTransition(async () => {
       const res = await fetch(`/api/invoices/${invoice.id}`, {
@@ -29,7 +31,7 @@ export default function InvoiceActionsPanel({ invoice }: { invoice: Invoice }) {
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete draft "${invoice.ref}"? This cannot be undone.`)) return;
+    if (!(await confirm({ title: `Delete draft ${invoice.ref}?`, body: "This cannot be undone.", tone: "danger" }))) return;
     startTransition(async () => {
       const res = await fetch(`/api/invoices/${invoice.id}`, { method: "DELETE" });
       if (res.ok) router.push(ROUTES.invoices);

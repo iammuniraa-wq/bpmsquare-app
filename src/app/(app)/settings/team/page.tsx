@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
@@ -145,8 +146,9 @@ export default function TeamPage() {
     if (res.ok) load();
   }
 
+  const { confirm } = useFeel();
   async function removeMember(userId: string, email: string | null) {
-    if (!window.confirm(`Remove ${email ?? "this user"} from the workspace?`)) return;
+    if (!(await confirm({ title: `Remove ${email ?? "this user"} from the workspace?`, body: "They lose access immediately. Their login itself is not deleted.", confirmLabel: "Remove", tone: "danger" }))) return;
     const res = await fetch(`/api/settings/team/${userId}`, { method: "DELETE" });
     if (res.ok) load();
   }
