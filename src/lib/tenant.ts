@@ -139,10 +139,20 @@ export async function tenantHasFeature(
 export function redactTenantForRole(tenant: Tenant, role: "admin" | "member" | null): Tenant {
   if (role === "admin") return tenant;
   const push = tenant.config?.integration_push;
+  const a360 = tenant.config?.account_360;
   return {
     ...tenant,
     api_key: null,
-    config: { ...tenant.config, integration_push: push ? { webhook_url: push.webhook_url } : undefined },
+    config: {
+      ...tenant.config,
+      integration_push: push ? { webhook_url: push.webhook_url } : undefined,
+      // Account 360 source credentials are the same class of secret as the
+      // webhook signing key -- the card list itself is harmless, the auth
+      // header value is not.
+      account_360: a360
+        ? { ...a360, sources: (a360.sources ?? []).map(({ auth_value: _auth, ...rest }) => rest) }
+        : undefined,
+    },
   };
 }
 

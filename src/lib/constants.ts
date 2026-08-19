@@ -116,6 +116,7 @@ export const ROUTES = {
   settingsSales: "/settings/sales",
   settingsDeletionLog: "/settings/deletion-log",
   settingsConnectors: "/settings/connectors",
+  settingsAccount360: "/settings/account-360",
   reports: "/reports",
   admin: "/admin",
   adminTenant: (id: string) => `/admin/tenants/${id}`,
@@ -650,6 +651,40 @@ export type TenantConfig = {
   // WFM module settings (only meaningful when features.wfm is on). Absent
   // keys fall back to DEFAULT_WFM_CONFIG.
   wfm?: Partial<WfmConfig>;
+  // Account 360 drawer: which built-in cards show, in what order, plus the
+  // tenant's own external source cards. Absent = every built-in card, default
+  // order, no external sources.
+  account_360?: Account360Config;
+};
+
+// Account 360 — an external source the tenant plugged in (an ERP, a
+// finance system, a data-enrichment API). The drawer fetches the URL
+// server-side and maps a few JSON paths onto a card, so adding a source is
+// configuration, not code. auth_value is a SECRET: it is redacted for
+// non-admins at the TenantProvider boundary (redactTenantForRole) exactly
+// like the integration-push webhook secret.
+export type Account360SourceDef = {
+  id: string;
+  title: string;
+  /** https URL. Tokens substituted from the account: {account_id} {account_ref}
+   *  {account_name} {gstin} {city} {email} — each URL-encoded. */
+  url: string;
+  auth_header?: string;
+  auth_value?: string;
+  /** Optional dot path to an object inside the response to read fields from. */
+  root_path?: string;
+  /** JSON paths (dot/bracket) mapped to labelled values on the card. */
+  fields: { label: string; path: string }[];
+  enabled: boolean;
+};
+
+export type Account360Config = {
+  /** Built-in card ids the tenant switched off. */
+  hidden_cards?: string[];
+  /** Built-in card ids in the tenant's preferred order; unlisted ones keep
+   *  their registry order after these. */
+  card_order?: string[];
+  sources?: Account360SourceDef[];
 };
 
 // QuoteIdFormat — per-tenant Quote ID naming convention.

@@ -18,6 +18,7 @@ import type { AccountSummary } from "@/lib/data/live";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { Account360Cell, Account360HeadCell } from "@/components/Account360Button";
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
@@ -233,6 +234,7 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
             <tr style={{ borderBottom: `1px solid ${c.line}` }}>
               <th style={{ ...th, width: 88, cursor: "pointer" }} onClick={() => toggleSort("ref")}>ID{sortIndicator("ref")}<ColSearch id="ref" label="ID" colFilters={colFilters} openId={openColSearch} setOpenId={setOpenColSearch} setColFilter={setColFilter} /></th>
               <th style={{ ...th, cursor: "pointer" }} onClick={() => toggleSort("name")}>Account{sortIndicator("name")}<ColSearch id="name" label="Account" colFilters={colFilters} openId={openColSearch} setOpenId={setOpenColSearch} setColFilter={setColFilter} /></th>
+              <Account360HeadCell style={th} />
               {visibleDefs.map((col) => (
                 <th
                   key={col.id}
@@ -278,6 +280,8 @@ export default function AccountsTable({ rows, q, typeFilter }: Props) {
                       </div>
                     </Link>
                   </td>
+                  {/* Nova only: 360 opens the drawer without leaving the list. */}
+                  <Account360Cell accountId={account.id} style={td} />
 
                   {/* Optional columns */}
                   {visibleDefs.map((col) => {

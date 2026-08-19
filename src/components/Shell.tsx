@@ -14,6 +14,7 @@ import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer } from "@/l
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
+import Account360Drawer from "@/components/Account360Drawer";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 // Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
@@ -335,6 +336,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           )}
           {identityInTopBar && <NovaPalette />}
           {identityInTopBar && <NovaDraft />}
+          {identityInTopBar && <Account360Drawer />}
           {aiAllowed && <AIDock />}
         </div>
       </TabsProvider>
@@ -358,6 +360,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
           {identityInTopBar && <NovaPalette />}
           {identityInTopBar && <NovaDraft />}
+          {identityInTopBar && <Account360Drawer />}
           <TabBar />
           {/* overflowX:auto, not hidden -- "hidden" silently clips any page whose content
               runs wider than the viewport with no way to reach it (short of zooming the

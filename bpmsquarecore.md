@@ -329,3 +329,37 @@ skeletons, presence).
    piece must hold a rich, modern, considered feel (SVG-only iconography,
    both color modes, mobile-fit, reduced-motion respected, real empty
    states). If a piece looks like "old CRM", it isn't done.
+
+### 10a. Account 360 — the card contract (owner decision 2026-08-19)
+
+Account 360 is a Nova side drawer holding everything about one account:
+a health rating, what to do next, then one card per dimension, then the
+tenant's own external sources. Its point is that **a card is data, not a
+component** — `Account360Card` (`src/lib/account360/types.ts`) is the only
+shape the drawer knows how to draw, so the renderer never grows a branch
+per card.
+
+Adding a **built-in** card:
+1. Build it in `buildAccount360()` (`src/lib/account360/server.ts`) and add
+   its id to `BUILTIN_CARD_IDS` — that array IS the default order.
+2. Add it to `BUILTINS` in `settings/account-360/Account360Client.tsx` and
+   to `CARD_IDS` in `api/settings/account-360/route.ts`, or a tenant can
+   neither hide nor reorder it.
+
+Adding an **external** source is not a code change at all — Settings →
+Account 360 → Add a source (URL + optional auth header + JSON paths), held
+in `config.account_360.sources`. Two rules that must not be relaxed:
+- The URL is tenant-supplied and fetched by OUR server, so every fetch goes
+  through `assertSafeSourceUrl()` (https only, no private/loopback/link-local
+  address, DNS resolved and re-checked, redirects refused not followed). Any
+  future server-side fetch of a tenant-supplied URL uses that same function.
+- `auth_value` is a credential: admin-only on both GET and PUT of the
+  settings route, and stripped in `redactTenantForRole()` so it never
+  reaches a non-admin's client bundle. A blank value on save means
+  "unchanged", never "clear".
+
+The rating (`src/lib/account360/rating.ts`) is deliberately **not** an AI
+call — a number a rep is told to act on has to be explainable and stable
+across reloads, so it's a weighted rubric that returns its own working.
+The same goes for the suggestions today. AI may later rewrite the
+suggestion *text*, but never the score.

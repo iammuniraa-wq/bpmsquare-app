@@ -20,6 +20,7 @@ import { MapPin, Phone, Mail, Gear, Activity as ActivityIcon, Package, FileText 
 import AccountHeader from "./AccountHeader";
 import AccountPushButton from "./AccountPushButton";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
+import Account360Button from "@/components/Account360Button";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
 
@@ -172,7 +173,10 @@ export default async function AccountHubPage({
       </div>
 
       {/* ── Account header ────────────────────────────────────────────────── */}
-      <AccountHeader isAdmin={role === "admin"} actions={<AccountPushButton accountId={account.id} />}>
+      <AccountHeader
+        isAdmin={role === "admin"}
+        actions={<><Account360Button accountId={account.id} /><AccountPushButton accountId={account.id} /></>}
+      >
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: c.ink }}>{account.name}</h1>
