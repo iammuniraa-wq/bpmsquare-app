@@ -11,6 +11,7 @@ import TabTitle from "@/components/TabTitle";
 import { Phone, Mail, MapPin } from "@/components/Icons";
 import ContactHeader from "./ContactHeader";
 import ContactDetailSections from "./ContactDetailSections";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -132,6 +133,7 @@ export default async function ContactDetailPage({
           )}
         </div>
       )}
+      <NovaTimelineSlot objectType="contacts" objectId={id} />
     </>
   );
 }

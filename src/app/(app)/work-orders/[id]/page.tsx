@@ -15,6 +15,7 @@ import ObjectSections from "@/components/fields/ObjectSections";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Activity } from "@/components/Icons";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
   scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
@@ -289,6 +290,7 @@ export default async function WorkOrderDetailPage({
           )}
         </div>
       </div>
+      <NovaTimelineSlot objectType="work_orders" objectId={id} />
     </>
   );
 }

@@ -11,6 +11,7 @@ import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import DeleteSupplierButton from "./DeleteSupplierButton";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 const TYPE_LABEL: Record<Supplier["type"], string> = {
   vendor: "Vendor", subcontractor: "Subcontractor", both: "Vendor & Sub",
@@ -94,6 +95,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
       </div>
 
       <style>{`@media (max-width: 860px) { .supp-body { grid-template-columns: 1fr !important; } }`}</style>
+      <NovaTimelineSlot objectType="suppliers" objectId={id} />
     </>
   );
 }

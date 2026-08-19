@@ -424,20 +424,40 @@ Sales-config territories), the ⌘K command palette, and palette-as-search
 (the top-bar search on Nova is a button that opens the palette — one
 search surface). Everything double-gated: `features.next_experience`
 (platform-admin only) + theme `nextgen2`.
-The queue, in order (mirrored in the session task list #83–#92):
-1. **AI record creation** — paste WhatsApp/email → drafted record →
-   review → create; reuse the DW extraction engine; palette entry point.
-   ← IN PROGRESS
-2. **Record timeline + comments + @mentions** (new comments table).
-3. **Nova inbox** — in-app notifications (mentions, assignments);
-   depends on 2.
-4. **Feel layer** — undo-toasts replacing window.confirm, optimistic
-   saves, skeletons, Realtime presence.
-5. **Kanban pipeline** — quotes board by status, drag = status change.
-6. **Rival Ghost** and **Boss Battle** (approved concepts mockup:
+Also shipped since: **AI record creation** (paste → drafted account +
+contact → dedup check → create, `/api/nova/draft`), **record timeline +
+comments + @mentions** (0089), and the **Nova inbox** (0090).
+
+The timeline is now mounted on **all twelve object families** —
+accounts, contacts, quotes, standard_quotes, cases, work_orders,
+invoices, assets, suppliers, inventory, purchase_orders, employees — via
+`<NovaTimelineSlot>` (self-gating, so server pages carry no theme
+logic). Three places must agree for a new object: the slot on its detail
+page, `OBJECTS` in `api/nova/comments/route.ts`, and `LABEL`/`TABLE` in
+`api/nova/inbox/route.ts` (see bpmsquarecore §3b point 7).
+**Known exception: `technicians` has no timeline** — nothing writes a
+`technicians` objectType to `change_log`, so a timeline there would show
+comments against an empty change history. Give technicians `logChange`
+coverage first, then add the three entries above.
+
+The queue, in order:
+1. **Account 360 — the account side drawer** ← NEXT, owner's call
+   2026-08-19: "this will be a game changer". Everything about one
+   account in a single drawer: internal data (quotes, cases, invoices,
+   contacts, assets, activity), external/web data, a **rating**, and
+   **suggestions**. Built as **plug-and-play cards** — a card registry so
+   a tenant can add sources (ERP, web enrichment, ...) without touching
+   standard code, configurable per tenant. Nova-gated like everything
+   else.
+2. **Feel layer** — undo-toasts replacing window.confirm, optimistic
+   saves, skeletons, Realtime presence. Explicitly deferred until after
+   Account 360 (owner: "our improvement 86 we will do after account
+   360").
+3. **Kanban pipeline** — quotes board by status, drag = status change.
+4. **Rival Ghost** and **Boss Battle** (approved concepts mockup:
    https://claude.ai/code/artifact/729d72a8-d732-4461-9966-a3421f9e39ab).
-7. **Keyboard layer** — g+a style sequences, ? cheat-sheet.
-8. **Enterprise-readiness audit** — exit criteria before the flag widens
+5. **Keyboard layer** — g+a style sequences, ? cheat-sheet.
+6. **Enterprise-readiness audit** — exit criteria before the flag widens
    beyond demo (dark/light parity, mobile, empty states, performance).
-9. **Nova docs + enterprise pitch** — Drive guide chapter + pending API
+7. **Nova docs + enterprise pitch** — Drive guide chapter + pending API
    doc debt (employees endpoint, loss reasons).

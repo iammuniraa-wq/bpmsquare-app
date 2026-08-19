@@ -19,6 +19,7 @@ import QuickCreateDeck from "@/components/QuickCreateDeck";
 import { MapPin, Phone, Mail, Gear, Activity as ActivityIcon, Package, FileText } from "@/components/Icons";
 import AccountHeader from "./AccountHeader";
 import AccountPushButton from "./AccountPushButton";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
 
@@ -527,6 +528,7 @@ export default async function AccountHubPage({
           )}
         </section>
       )}
+      <NovaTimelineSlot objectType="accounts" objectId={id} />
     </>
   );
 }

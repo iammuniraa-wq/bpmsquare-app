@@ -11,6 +11,7 @@ import TabTitle from "@/components/TabTitle";
 import { ROUTES } from "@/lib/constants";
 import type { StandardQuoteStatus } from "@/lib/types";
 import StandardQuoteActionsPanel from "./StandardQuoteActionsPanel";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 const STATUS_TONE: Record<StandardQuoteStatus, PillarKey> = {
   draft: "blue", sent: "amber", accepted: "green", rejected: "red", expired: "red",
@@ -152,6 +153,7 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
           <StandardQuoteActionsPanel quote={quote} />
         </div>
       </div>
+      <NovaTimelineSlot objectType="standard_quotes" objectId={id} />
     </>
   );
 }
