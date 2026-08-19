@@ -29,6 +29,13 @@ export default function NovaDraft() {
   const [note, setNote] = useState<string | null>(null);
   const [moreFound, setMoreFound] = useState(0);
   const [error, setError] = useState("");
+  // Contact person drafted from the same text (null when none was found or
+  // the tenant has no contacts module).
+  const [contactFields, setContactFields] = useState<DraftField[]>([]);
+  const [contactValues, setContactValues] = useState<Record<string, string>>({});
+  const [includeContact, setIncludeContact] = useState(false);
+  // Set once the account exists, so a contact retry never re-creates it.
+  const [createdAccount, setCreatedAccount] = useState<{ id: string; name: string; territory_discovery?: string } | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -37,6 +44,7 @@ export default function NovaDraft() {
       const initial = typeof carried === "string" ? carried : "";
       setOpen(true); setPhase("input"); setText(initial); setError("");
       setFields([]); setValues({}); setNote(null); setMoreFound(0);
+      setContactFields([]); setContactValues({}); setIncludeContact(false); setCreatedAccount(null);
       // Text pasted into the palette arrives with the event -- start
       // drafting immediately instead of showing the same paste back.
       if (initial.trim().length >= 10) void draft(initial);
@@ -68,40 +76,105 @@ export default function NovaDraft() {
       setValues(json.values ?? {});
       setNote(json.note ?? null);
       setMoreFound(json.more_found ?? 0);
+      if (json.contact) {
+        setContactFields(json.contact.fields ?? []);
+        setContactValues(json.contact.values ?? {});
+        setIncludeContact(true);
+      } else {
+        setContactFields([]); setContactValues({}); setIncludeContact(false);
+      }
       setPhase("review");
     } catch {
       setError("Network error — try again."); setPhase("input");
     }
   }
 
-  async function create() {
-    setPhase("creating"); setError("");
+  function toBody(vals: Record<string, string>): Record<string, unknown> {
     const body: Record<string, unknown> = {};
     const customData: Record<string, string> = {};
-    for (const [k, v] of Object.entries(values)) {
+    for (const [k, v] of Object.entries(vals)) {
       if (!v?.trim()) continue;
       if (k.startsWith("cf_")) customData[k] = v.trim();
       else body[k] = v.trim();
     }
     if (Object.keys(customData).length > 0) body.custom_data = customData;
+    return body;
+  }
+
+  async function create() {
+    setPhase("creating"); setError("");
     try {
-      const res = await fetch("/api/accounts", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!res.ok) { setError(json.error ?? "Could not create the account"); setPhase("review"); return; }
-      setOpen(false);
-      if (json.territory_discovery) {
-        celebrate("New territory opened!", `${json.name} is your first account in ${json.territory_discovery} — the map just got bigger.`);
+      // Account first -- created exactly once; a contact retry reuses it.
+      let account = createdAccount;
+      if (!account) {
+        const res = await fetch("/api/accounts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(toBody(values)),
+        });
+        const json = await res.json();
+        if (!res.ok) { setError(json.error ?? "Could not create the account"); setPhase("review"); return; }
+        account = json;
+        setCreatedAccount(json);
       }
-      router.push(ROUTES.account(json.id));
+
+      if (includeContact && contactValues.name?.trim()) {
+        const res = await fetch("/api/contacts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...toBody(contactValues), account_id: account!.id }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setError(`Account ${account!.name} was created, but the contact failed: ${j.error ?? "unknown error"}. Fix and press Create again — only the contact will retry.`);
+          setPhase("review");
+          return;
+        }
+      }
+
+      setOpen(false);
+      if (account!.territory_discovery) {
+        celebrate("New territory opened!", `${account!.name} is your first account in ${account!.territory_discovery} — the map just got bigger.`);
+      }
+      router.push(ROUTES.account(account!.id));
     } catch {
-      setError("Network error — the account was not created."); setPhase("review");
+      setError("Network error — check Accounts before retrying so nothing is created twice."); setPhase("review");
     }
   }
 
   if (!open) return null;
+
+  function renderGrid(
+    fs: DraftField[],
+    vals: Record<string, string>,
+    setVals: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  ) {
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {fs.map((f) => {
+          const filled = !!vals[f.key]?.trim();
+          // Empty optional fields collapse out of the way -- the review
+          // should read as "check these", not a blank form.
+          if (!filled && !f.required) return null;
+          return (
+            <div key={f.key} style={{ gridColumn: f.long ? "1 / -1" : "auto" }}>
+              <label style={labelStyle}>
+                {f.label}{f.required && <span style={{ color: "#ff8a76" }}> *</span>}
+              </label>
+              {f.options ? (
+                <select value={vals[f.key] ?? ""} onChange={(e) => setVals((v) => ({ ...v, [f.key]: e.target.value }))} style={inputStyle}>
+                  <option value="">—</option>
+                  {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : f.long ? (
+                <textarea value={vals[f.key] ?? ""} onChange={(e) => setVals((v) => ({ ...v, [f.key]: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+              ) : (
+                <input value={vals[f.key] ?? ""} onChange={(e) => setVals((v) => ({ ...v, [f.key]: e.target.value }))} style={inputStyle} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   const inputStyle: React.CSSProperties = {
     width: "100%", padding: "7px 10px", borderRadius: 8, fontSize: 13,
@@ -188,52 +261,45 @@ export default function NovaDraft() {
                   {moreFound > 0 ? `${moreFound} more possible record${moreFound === 1 ? "" : "s"} in that text — use Data Workbench for bulk.` : ""}
                 </div>
               )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {fields.map((f) => {
-                  const filled = !!values[f.key]?.trim();
-                  // Empty optional fields collapse out of the way -- the
-                  // review should read as "check these", not a blank form.
-                  if (!filled && !f.required) return null;
-                  return (
-                    <div key={f.key} style={{ gridColumn: f.long ? "1 / -1" : "auto" }}>
-                      <label style={labelStyle}>
-                        {f.label}{f.required && <span style={{ color: "#ff8a76" }}> *</span>}
-                      </label>
-                      {f.options ? (
-                        <select
-                          value={values[f.key] ?? ""}
-                          onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                          style={inputStyle}
-                        >
-                          <option value="">—</option>
-                          {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : f.long ? (
-                        <textarea
-                          value={values[f.key] ?? ""}
-                          onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                          rows={2}
-                          style={{ ...inputStyle, resize: "vertical" }}
-                        />
-                      ) : (
-                        <input
-                          value={values[f.key] ?? ""}
-                          onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                          style={inputStyle}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              {createdAccount ? (
+                <div style={{
+                  fontSize: 12.5, fontWeight: 600, color: "var(--sb-panel-text)",
+                  background: "rgba(62,207,142,.12)", border: "1px solid rgba(62,207,142,.4)",
+                  borderRadius: 9, padding: "9px 12px",
+                }}>
+                  ✓ Account {createdAccount.name} created — only the contact below will be retried.
+                </div>
+              ) : (
+                renderGrid(fields, values, setValues)
+              )}
+
+              {contactFields.length > 0 && (
+                <>
+                  <label style={{
+                    display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+                    paddingTop: 10, borderTop: "1px solid var(--sb-panel-border)",
+                    fontSize: 12.5, fontWeight: 650, color: "var(--sb-panel-text)",
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={includeContact}
+                      onChange={(e) => setIncludeContact(e.target.checked)}
+                      style={{ width: 15, height: 15, cursor: "pointer" }}
+                    />
+                    Also create the contact person found in the text
+                  </label>
+                  {includeContact && renderGrid(contactFields, contactValues, setContactValues)}
+                </>
+              )}
+
               <div style={{ fontSize: 10.5, color: "var(--sb-panel-text-dim)" }}>
-                Only extracted and required fields are shown — everything else stays editable on the account after creation.
+                Only extracted and required fields are shown — everything else stays editable after creation.
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 {error && <span style={{ fontSize: 12, color: "#ff8a76", flex: 1 }}>{error}</span>}
                 <button
                   onClick={() => { setPhase("input"); setError(""); }}
-                  disabled={phase === "creating"}
+                  disabled={phase === "creating" || !!createdAccount}
                   style={{
                     marginLeft: "auto", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600,
                     padding: "8px 14px", borderRadius: 9, background: "transparent",
@@ -252,7 +318,10 @@ export default function NovaDraft() {
                     opacity: phase === "creating" ? .55 : 1,
                   }}
                 >
-                  {phase === "creating" ? "Creating…" : "Create account"}
+                  {phase === "creating" ? "Creating…"
+                    : createdAccount ? "Retry contact"
+                    : includeContact && contactValues.name?.trim() ? "Create account + contact"
+                    : "Create account"}
                 </button>
               </div>
             </>
