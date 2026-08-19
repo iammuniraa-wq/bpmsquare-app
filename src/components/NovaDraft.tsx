@@ -37,6 +37,7 @@ export default function NovaDraft() {
   // Set once the account exists, so a contact retry never re-creates it.
   const [createdAccount, setCreatedAccount] = useState<{ id: string; name: string; territory_discovery?: string } | null>(null);
   const [dupes, setDupes] = useState<{ id: string; name: string; ref: string | null }[]>([]);
+  const [attaching, setAttaching] = useState<string | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -88,6 +89,39 @@ export default function NovaDraft() {
       setPhase("review");
     } catch {
       setError("Network error — try again."); setPhase("input");
+    }
+  }
+
+  // "Open instead": the drafted contact travels to the EXISTING account --
+  // added there only if no contact with that name already exists on it
+  // (case-insensitive; the tenant-scoped contacts list is small and carries
+  // no PII, so the check is a simple client-side compare).
+  async function openExisting(d: { id: string; name: string }) {
+    const contactName = includeContact ? contactValues.name?.trim() : "";
+    if (!contactName) { setOpen(false); router.push(ROUTES.account(d.id)); return; }
+    setAttaching(d.id); setError("");
+    try {
+      const existing: { account_id: string; name: string }[] = await fetch("/api/contacts").then((r) => r.json());
+      const already = Array.isArray(existing) && existing.some(
+        (c) => c.account_id === d.id && c.name?.trim().toLowerCase() === contactName.toLowerCase()
+      );
+      if (!already) {
+        const res = await fetch("/api/contacts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...toBody(contactValues), account_id: d.id }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setError(`Couldn't add ${contactName} to ${d.name}: ${j.error ?? "unknown error"}. Nothing else was changed.`);
+          setAttaching(null);
+          return;
+        }
+      }
+      setOpen(false);
+      router.push(ROUTES.account(d.id));
+    } catch {
+      setError("Network error — nothing was changed. Try again.");
+      setAttaching(null);
     }
   }
 
@@ -263,18 +297,22 @@ export default function NovaDraft() {
                   {dupes.map((d) => (
                     <button
                       key={d.id}
-                      onClick={() => { setOpen(false); router.push(ROUTES.account(d.id)); }}
+                      onClick={() => openExisting(d)}
+                      disabled={!!attaching}
                       style={{
                         textAlign: "left", cursor: "pointer", font: "inherit", fontSize: 12,
                         border: "none", background: "transparent", padding: 0,
                         color: "var(--modern-accent, var(--accent))", fontWeight: 650,
+                        opacity: attaching && attaching !== d.id ? .5 : 1,
                       }}
                     >
-                      {d.name}{d.ref ? ` · ${d.ref}` : ""} — open instead →
+                      {attaching === d.id ? "Adding contact…" : <>{d.name}{d.ref ? ` · ${d.ref}` : ""} — open instead →</>}
                     </button>
                   ))}
                   <span style={{ fontSize: 11, color: "var(--sb-panel-text-dim)" }}>
-                    Or continue below to create a new one anyway.
+                    {includeContact && contactValues.name?.trim()
+                      ? `Opening an existing account takes ${contactValues.name.trim()} along — added there only if not already a contact.`
+                      : "Or continue below to create a new one anyway."}
                   </span>
                 </div>
               )}
