@@ -15,6 +15,7 @@ import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
 import Account360Drawer from "@/components/Account360Drawer";
+import FeelProvider from "@/components/FeelProvider";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 // Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
@@ -323,6 +324,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   if (mobile) {
     return (
+      <FeelProvider>
       <TabsProvider trackTabs={false}>
         <div data-theme={uiTheme} data-mode={mode} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
           <MobileTopBar />
@@ -340,10 +342,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {aiAllowed && <AIDock />}
         </div>
       </TabsProvider>
+      </FeelProvider>
     );
   }
 
   return (
+    <FeelProvider>
     <TabsProvider>
       <div data-theme={uiTheme} data-mode={mode} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
         <Sidebar />
@@ -372,6 +376,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         {aiAllowed && <AIDock />}
       </div>
     </TabsProvider>
+    </FeelProvider>
   );
 }
 

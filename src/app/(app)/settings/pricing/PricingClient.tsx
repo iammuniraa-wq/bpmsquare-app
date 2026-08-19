@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import type { PricingItem, PricingCategory } from "@/lib/types";
 import { c } from "@/lib/theme";
@@ -113,8 +114,9 @@ function ItemRow({ item, onUpdate, onDelete }: { item: PricingItem; onUpdate: (i
     });
   }
 
-  function del() {
-    if (!window.confirm("Delete this pricing item?")) return;
+  const { confirm } = useFeel();
+  async function del() {
+    if (!(await confirm({ title: "Delete this pricing item?", body: "Quotes already priced with it keep the figures they were given.", tone: "danger" }))) return;
     startTransition(async () => {
       await fetch(`/api/settings/pricing/${item.id}`, { method: "DELETE" });
       onDelete(item.id);

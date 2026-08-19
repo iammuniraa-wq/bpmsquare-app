@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c } from "@/lib/theme";
@@ -45,8 +46,9 @@ export default function TemplatesListClient({ templates }: { templates: Template
     });
   }
 
-  function deleteTemplate(id: string, name: string) {
-    if (!confirm(`Delete template "${name}"? Any quote currently using it falls back to the default layout.`)) return;
+  const { confirm } = useFeel();
+  async function deleteTemplate(id: string, name: string) {
+    if (!(await confirm({ title: `Delete template "${name}"?`, body: "Any quote currently using it falls back to the default layout.", tone: "danger" }))) return;
     startTransition(async () => {
       const res = await fetch(`/api/standard-quote-templates/${id}`, { method: "DELETE" });
       if (res.ok) router.refresh();

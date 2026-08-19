@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import { c } from "@/lib/theme";
@@ -173,8 +174,9 @@ export default function CustomFieldsPage() {
     setEditId(null);
   };
 
+  const { confirm } = useFeel();
   const deleteField = async (id: string) => {
-    if (!window.confirm("Delete this custom field? Existing data in this field will be lost.")) return;
+    if (!(await confirm({ title: "Delete this custom field?", body: "Every value already captured in it is lost, on every record.", tone: "danger" }))) return;
     setDeleting(id);
     const res = await fetch(`/api/settings/custom-fields/${id}`, { method: "DELETE" });
     setDeleting(null);

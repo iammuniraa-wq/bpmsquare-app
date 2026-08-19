@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 
@@ -78,8 +79,9 @@ export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Log
     account:    allLogs.deleted_accounts.length,
   };
 
+  const { confirm } = useFeel();
   async function clearAll() {
-    if (!confirm("Clear the entire deletion log? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Clear the entire deletion log?", body: "The audit trail of what was deleted, and by whom, is erased. This cannot be undone.", confirmLabel: "Clear log", tone: "danger" }))) return;
     setClearing(true);
     const res = await fetch("/api/deletion-log", { method: "DELETE" });
     setClearing(false);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -125,8 +126,9 @@ export default function EmployeesClient({ employees, canEdit }: { employees: Emp
     });
   }
 
-  function remove(e: Employee) {
-    if (!confirm(`Delete ${e.first_name} ${e.last_name}? A business user linked to this employee keeps their login but loses the employee link.`)) return;
+  const { confirm } = useFeel();
+  async function remove(e: Employee) {
+    if (!(await confirm({ title: `Delete ${e.first_name} ${e.last_name}?`, body: "A business user linked to this employee keeps their login, but loses the employee link.", tone: "danger" }))) return;
     startTransition(async () => {
       const res = await fetch(`/api/employees/${e.id}`, { method: "DELETE" });
       if (res.ok) router.refresh();

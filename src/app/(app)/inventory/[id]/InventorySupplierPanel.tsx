@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { InventoryItem } from "@/lib/types";
@@ -47,8 +48,9 @@ export default function InventorySupplierPanel({ item }: { item: InventoryItem }
     });
   }
 
+  const { confirm } = useFeel();
   async function handleDelete() {
-    if (!confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
+    if (!(await confirm({ title: `Delete "${item.name}"?`, body: "This cannot be undone.", tone: "danger" }))) return;
     startTransition(async () => {
       const res = await fetch(`/api/inventory/${item.id}`, { method: "DELETE" });
       if (res.ok) router.push(ROUTES.inventory);

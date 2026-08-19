@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import type { AccentPreset } from "@/lib/settings";
@@ -164,8 +165,9 @@ export default function GeneralSettingsPage() {
     });
   };
 
-  const regeneratePushSecret = () => {
-    if (pushSecret && !window.confirm("Generate a new signing secret? The old one stops verifying — update it on the receiving end too.")) return;
+  const { confirm } = useFeel();
+  const regeneratePushSecret = async () => {
+    if (pushSecret && !(await confirm({ title: "Generate a new signing secret?", body: "The old secret stops verifying the moment this is done — update it on the receiving end too.", confirmLabel: "Generate", tone: "danger" }))) return;
     setPushError("");
     startPushSecretSave(async () => {
       const res = await fetch("/api/settings/integration-push", {
@@ -338,8 +340,8 @@ export default function GeneralSettingsPage() {
 
   // ── Reset ────────────────────────────────────────────────────────────────────
   const [resetting, startReset] = useTransition();
-  const resetTenantDefaults = () => {
-    if (!window.confirm("Reset navigation visibility and compact sidebar to defaults? Accent colour, workspace name and theme are not affected.")) return;
+  const resetTenantDefaults = async () => {
+    if (!(await confirm({ title: "Reset navigation to defaults?", body: "Nav visibility and the compact sidebar go back to their defaults. Accent colour, workspace name and theme are untouched.", confirmLabel: "Reset" }))) return;
     setNavHidden([]);
     setCompactSidebar(false);
     startReset(async () => {
@@ -362,8 +364,8 @@ export default function GeneralSettingsPage() {
     navigator.clipboard.writeText(apiKey).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
-  const regenerateApiKey = () => {
-    if (apiKey && !window.confirm("Generate a new API key? The current key stops working immediately — anything using it (an ERP integration, an AI assistant's MCP config) will need the new one.")) return;
+  const regenerateApiKey = async () => {
+    if (apiKey && !(await confirm({ title: "Generate a new API key?", body: "The current key stops working immediately. Anything using it — an ERP integration, an AI assistant's MCP config — needs the new one.", confirmLabel: "Generate", tone: "danger" }))) return;
     setKeyError("");
     startRegenerate(async () => {
       const res = await fetch("/api/settings/api-key", { method: "POST" });

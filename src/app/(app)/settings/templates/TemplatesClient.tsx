@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import type { TextFragment, FragmentCategory } from "@/lib/types";
 import { c } from "@/lib/theme";
@@ -116,8 +117,9 @@ function FragmentRow({ frag, onUpdate, onDelete }: { frag: TextFragment; onUpdat
     });
   }
 
-  function del() {
-    if (!window.confirm("Delete this template?")) return;
+  const { confirm } = useFeel();
+  async function del() {
+    if (!(await confirm({ title: "Delete this template?", body: "Text already inserted into a quote from it stays as it is.", tone: "danger" }))) return;
     startTransition(async () => {
       await fetch(`/api/settings/templates/${frag.id}`, { method: "DELETE" });
       onDelete(frag.id);

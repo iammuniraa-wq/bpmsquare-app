@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -89,8 +90,9 @@ export default function MarketingCampaignDetail({
     }
   }
 
+  const { confirm } = useFeel();
   async function sendNow() {
-    if (!window.confirm("Send this campaign now? This can't be undone.")) return;
+    if (!(await confirm({ title: "Send this campaign now?", body: "Emails go out immediately to everyone in the audience. This cannot be recalled.", confirmLabel: "Send now" }))) return;
     setError("");
     setSending(true);
     try {

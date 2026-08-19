@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/data/labels";
@@ -101,8 +102,9 @@ export default function TargetAudiencePicker({
     }
   }
 
+  const { confirm } = useFeel();
   async function deleteGroup(id: string) {
-    if (!window.confirm("Delete this saved target group? Campaigns already built from it are unaffected.")) return;
+    if (!(await confirm({ title: "Delete this saved target group?", body: "Campaigns already built from it are unaffected.", tone: "danger" }))) return;
     setGroups((g) => g.filter((x) => x.id !== id));
     if (selectedGroupId === id) setSelectedGroupId("");
     await fetch(`/api/marketing/target-groups/${id}`, { method: "DELETE" });
