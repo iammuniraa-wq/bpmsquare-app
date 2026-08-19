@@ -42,13 +42,21 @@ function MobileTopBar() {
   return (
     <>
       {/* Top bar */}
+      {/* Installed as a home-screen app, iOS draws the status bar OVER the
+          page (statusBarStyle "black-translucent" + viewportFit "cover" in
+          layout.tsx). That combination requires the page to inset itself;
+          nothing did, so the clock and the tenant name were printed on top
+          of each other. The bar keeps its full-bleed background and grows
+          by the inset instead, so it still reaches the top edge. */}
       <header style={{
         position: "sticky", top: 0, zIndex: 100, flexShrink: 0,
         background: "var(--sb-bar-bg)",
-        height: 48,
+        height: "calc(48px + env(safe-area-inset-top, 0px))",
         display: "flex", alignItems: "center",
         gap: 8,
-        padding: "0 10px 0 14px",
+        // Shorthand, so it must carry the top inset itself — a separate
+        // paddingTop above would be silently overwritten by this line.
+        padding: "env(safe-area-inset-top, 0px) 10px 0 14px",
         boxShadow: "0 1px 6px rgba(0,0,0,.45)",
       }}>
         {/* Brand -- minWidth:0 + truncated name so a long tenant name shrinks
@@ -120,7 +128,7 @@ function MobileTopBar() {
         <div
           onClick={() => setOpen(false)}
           style={{
-            position: "fixed", top: 48, left: 0, right: 0, bottom: 0,
+            position: "fixed", top: "calc(48px + env(safe-area-inset-top, 0px))", left: 0, right: 0, bottom: 0,
             background: "rgba(0,0,0,.5)", zIndex: 90,
           }}
         />
@@ -128,7 +136,7 @@ function MobileTopBar() {
 
       {/* Drawer — hosts the shared Sidebar */}
       <div style={{
-        position: "fixed", top: 48, left: 0,
+        position: "fixed", top: "calc(48px + env(safe-area-inset-top, 0px))", left: 0,
         height: "calc(100vh - 48px)",
         zIndex: 95,
         transform: open ? "translateX(0)" : "translateX(-100%)",
@@ -328,11 +336,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <TabsProvider trackTabs={false}>
         <div data-theme={uiTheme} data-mode={mode} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
           <MobileTopBar />
-          <main style={{ flex: 1, padding: 12, overflowX: "auto", minWidth: 0 }}>
+          <main style={{
+            flex: 1, minWidth: 0, overflowX: "auto",
+            padding: "12px",
+            paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+            paddingLeft: "calc(12px + env(safe-area-inset-left, 0px))",
+            paddingRight: "calc(12px + env(safe-area-inset-right, 0px))",
+          }}>
             {children}
           </main>
           {uiTheme === "nextgen" && (
-            <div style={{ position: "fixed", left: 16, bottom: 16, zIndex: 90 }}>
+            <div style={{ position: "fixed", left: 16, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", zIndex: 90 }}>
               <DarkToggle dark={dark} onToggle={toggleDark} />
             </div>
           )}
