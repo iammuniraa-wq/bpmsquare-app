@@ -149,6 +149,10 @@ export async function buildWfmMeState(ctx: WfmContext) {
     shift: shift ?? null,
     timezone: config.timezone,
     punch_types: config.punch_types,
+    // The client refuses BEFORE opening the camera rather than letting
+    // someone take a selfie and only then be rejected. The punch route is
+    // the real enforcement; this is so the refusal happens early.
+    require_location: config.require_location || config.geofence_mode === "block",
     upcoming,
     pending_rechecks: recheckRows ?? [],
   };

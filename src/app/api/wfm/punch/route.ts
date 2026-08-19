@@ -144,6 +144,27 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // A punch with NO coordinates used to be the easiest way around
+  // geofence_mode:"block" -- that check only rejects a punch it can prove is
+  // outside (within === false), so a punch it can't place at all (within ===
+  // null, because location was denied or unavailable) went straight through
+  // with nothing but a no_location flag. Denying permission was therefore
+  // strictly better, for anyone wanting to punch from home, than being
+  // outside the fence.
+  //
+  // A tenant on "block" plainly did not mean "unless you switch GPS off", so
+  // that mode now demands a fix. require_location demands one in every mode,
+  // for a tenant that wants location recorded without fencing it.
+  // Shift punches only: breaks and OT often happen indoors where a fix is
+  // slow or impossible, and blocking those would strand people mid-shift.
+  const isShiftPunch = kind === "check_in" || kind === "check_out";
+  if (lat == null && isShiftPunch && (config.require_location || config.geofence_mode === "block")) {
+    return NextResponse.json(
+      { error: "Location is required to punch in or out. Turn on location for this site in your browser settings, then try again." },
+      { status: 409 }
+    );
+  }
+
   const flags: Record<string, unknown> = {};
   if (within === false) flags.outside_geofence = true;
   if (lat == null && !isOtKind(kind) && kind !== "break_start" && kind !== "break_end") flags.no_location = true;
