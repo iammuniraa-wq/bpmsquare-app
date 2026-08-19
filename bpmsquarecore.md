@@ -289,13 +289,14 @@ Mechanics / caveats when updating these:
 
 ---
 
-## 10. The Next Experience program — rollout doctrine (owner decision 2026-08-19)
+## 10. BPMSquare Nova — the Business OS. Rollout doctrine (owner decisions 2026-08-19)
 
-BPMSquare is being rebuilt toward a **"2050" experience** — the ambition is
-an AI-first, keyboard-first, collaborative product with an enterprise-grade
-rich feel, positioned and eventually **named as something beyond "CRM"**
-(working name pending; the feature flag is deliberately neutral so naming
-can change without code churn). The candidate pillars, in intended order:
+The "2050" experience has a FINAL name: **BPMSquare Nova — the Business
+OS** (owner decision 2026-08-19). Nova is the product's Lightning/Fiori —
+an AI-first, keyboard-first, collaborative experience layer positioned
+beyond "CRM". User-facing labels say Nova; the feature flag stays
+`next_experience` and the theme value stays `nextgen2` (code-level names
+are frozen so branding never causes churn). The candidate pillars, in intended order:
 command palette (⌘K does everything), AI record creation (paste/forward
 anything → drafted record, reusing the DW extraction engine), record
 timeline + comments + inbox, feel layer (undo-toasts, optimistic saves,
