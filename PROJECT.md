@@ -323,15 +323,19 @@ the only thing that happens by itself. Every migration is pasted into the
 Supabase SQL editor by hand, staging first (when the feature lands on
 `develop`), production at promotion time. Don't mistake the automatic code
 deploy for an automatic schema change.
-- Dev DB: migrations through **0089** applied (owner confirmed
-  2026-08-19). **0090 pending** (`nova_inbox_reads` — Nova inbox).
-- Main/production DB: through **0089** applied (same confirmation).
-  **0090 pending** (same file). Code tolerates its absence: the inbox
-  bell shows an empty list rather than breaking; marking read errors
-  with a pointer to the migration.
-  Fog of War (engagement layer) needed no migration — it reads the
-  existing `accounts.territory` against the tenant's Sales-config
-  territory picklist.
+- Dev DB **and** main/production DB: migrations through **0091** applied
+  (owner confirmed 2026-08-19). 0091 is currently the LAST file — nothing
+  is pending on either database.
+- Everything shipped after 0091 is deliberately schema-free, so don't go
+  looking for a migration that doesn't exist: **Account 360** stores its
+  card order and external sources in the existing `tenants.config` JSONB;
+  the **feel layer** (confirm dialog + toasts) is client-side only; the
+  **Flow Board** derives entirely from existing `change_log` + `quotes`
+  rows. Fog of War was the same — it reads `accounts.territory` against
+  the tenant's Sales-config picklist.
+- Next migration will be **0092**, and the first thing likely to need one
+  is the Opportunity object (see the Nova queue's forecast constraint —
+  `quotes.opportunity_id` has to land in that same migration).
 - (Historical: 0080–0085 were run at the 2026-08-18 promotion; the dev
   tenant's force-enable of `pricing_engine` was direct SQL on dev only —
   do NOT run on main.)
