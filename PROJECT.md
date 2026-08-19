@@ -440,24 +440,31 @@ page, `OBJECTS` in `api/nova/comments/route.ts`, and `LABEL`/`TABLE` in
 comments against an empty change history. Give technicians `logChange`
 coverage first, then add the three entries above.
 
+**Account 360 shipped** (owner's call 2026-08-19, "this will be a game
+changer"): a Nova side drawer holding one account's whole picture —
+health rating with its own working shown, what-to-do-next suggestions,
+then cards for pipeline, revenue, service, people, installed base and
+coverage. Opened from the account header or the ⟳ on an accounts list
+row (both self-gating, so a non-Nova tenant sees neither, and the list
+doesn't even grow the column). Tenants configure it in Settings →
+Account 360: hide/reorder built-in cards, and plug in their own external
+sources (ERP, enrichment, anything answering JSON over https) with a URL,
+an optional auth header and a few JSON paths — no code. The card
+contract and the SSRF/credential rules are in bpmsquarecore §10a.
+Still open on it: no v1 API or MCP surface for the 360 payload; external
+source responses aren't cached (each drawer open re-fetches); web/social
+enrichment is a source you configure, not something built in.
+
 The queue, in order:
-1. **Account 360 — the account side drawer** ← NEXT, owner's call
-   2026-08-19: "this will be a game changer". Everything about one
-   account in a single drawer: internal data (quotes, cases, invoices,
-   contacts, assets, activity), external/web data, a **rating**, and
-   **suggestions**. Built as **plug-and-play cards** — a card registry so
-   a tenant can add sources (ERP, web enrichment, ...) without touching
-   standard code, configurable per tenant. Nova-gated like everything
-   else.
-2. **Feel layer** — undo-toasts replacing window.confirm, optimistic
+1. **Feel layer** — undo-toasts replacing window.confirm, optimistic
    saves, skeletons, Realtime presence. Explicitly deferred until after
    Account 360 (owner: "our improvement 86 we will do after account
    360").
-3. **Kanban pipeline** — quotes board by status, drag = status change.
-4. **Rival Ghost** and **Boss Battle** (approved concepts mockup:
+2. **Kanban pipeline** — quotes board by status, drag = status change.
+3. **Rival Ghost** and **Boss Battle** (approved concepts mockup:
    https://claude.ai/code/artifact/729d72a8-d732-4461-9966-a3421f9e39ab).
-5. **Keyboard layer** — g+a style sequences, ? cheat-sheet.
-6. **Enterprise-readiness audit** — exit criteria before the flag widens
+4. **Keyboard layer** — g+a style sequences, ? cheat-sheet.
+5. **Enterprise-readiness audit** — exit criteria before the flag widens
    beyond demo (dark/light parity, mobile, empty states, performance).
-7. **Nova docs + enterprise pitch** — Drive guide chapter + pending API
+6. **Nova docs + enterprise pitch** — Drive guide chapter + pending API
    doc debt (employees endpoint, loss reasons).

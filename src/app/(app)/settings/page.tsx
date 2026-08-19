@@ -71,6 +71,7 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
     group: "Integrations",
     items: [
       { label: "Connectors", description: "Connect BPMSquare to other systems — Slack today, more on the way", href: ROUTES.settingsConnectors, icon: "⇄", pillarKey: "blue", adminOnly: true },
+      { label: "Account 360", description: "The account drawer: which cards it shows, and the external sources plugged into it", href: ROUTES.settingsAccount360, icon: "◎", pillarKey: "blue", adminOnly: true, featureKey: "next_experience" },
     ],
   },
 ];
