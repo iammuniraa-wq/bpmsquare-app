@@ -460,7 +460,14 @@ The queue, in order:
    saves, skeletons, Realtime presence. Explicitly deferred until after
    Account 360 (owner: "our improvement 86 we will do after account
    360").
-2. **Kanban pipeline** — quotes board by status, drag = status change.
+2. **Opportunities** — the object Pipeline actually needs. `/pipeline` is
+   reserved for the Lead → Quoted → Won → Scheduled → In service →
+   Invoiced journey board (§UX principles); the Opportunity that quotes
+   are created FROM does not exist yet (no table, no type, no route).
+   Until it does, Pipeline stays a placeholder. The Nova **Flow Board**
+   (shipped 2026-08-19) is NOT that board — it plots quotes by quote
+   status and lives on Quotations behind a List / Flow board toggle. It
+   was briefly mounted on /pipeline by mistake and moved the same day.
 3. **Rival Ghost** and **Boss Battle** (approved concepts mockup:
    https://claude.ai/code/artifact/729d72a8-d732-4461-9966-a3421f9e39ab).
 4. **Keyboard layer** — g+a style sequences, ? cheat-sheet.

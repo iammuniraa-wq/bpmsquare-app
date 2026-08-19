@@ -6,6 +6,7 @@ import { ROUTES, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/const
 import { c } from "@/lib/theme";
 import { requireWorkcenterView } from "@/lib/permissions";
 import QuotationsList from "./QuotationsList";
+import FlowBoardSlot from "@/components/FlowBoardSlot";
 
 export default async function QuotationsPage() {
   await requireWorkcenterView("quotations");
@@ -31,7 +32,9 @@ export default async function QuotationsPage() {
           </Link>
         }
       />
-      <QuotationsList initialRows={rows} quoteStatuses={quoteStatuses} caseLinkedQuoteIds={caseLinkedQuoteIds} />
+      <FlowBoardSlot
+        list={<QuotationsList initialRows={rows} quoteStatuses={quoteStatuses} caseLinkedQuoteIds={caseLinkedQuoteIds} />}
+      />
     </>
   );
 }
