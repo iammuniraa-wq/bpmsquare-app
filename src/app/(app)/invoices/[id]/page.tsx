@@ -13,6 +13,7 @@ import ObjectSections from "@/components/fields/ObjectSections";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import InvoiceActionsPanel from "./InvoiceActionsPanel";
 import RecordPaymentPanel from "./RecordPaymentPanel";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 const STATUS_TONE: Record<InvoiceStatus, PillarKey> = {
   draft: "blue", sent: "amber", partial: "purple", paid: "green", overdue: "red", cancelled: "red",
@@ -190,6 +191,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           <InvoiceActionsPanel invoice={invoice} />
         </div>
       </div>
+      <NovaTimelineSlot objectType="invoices" objectId={id} />
     </>
   );
 }

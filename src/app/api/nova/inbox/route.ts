@@ -12,11 +12,25 @@ import { tenantHasFeature } from "@/lib/tenant";
  * POST → mark read: { comment_ids: [...] } or { all: true }
  */
 
-const LABEL: Record<string, string> = { quotes: "Quotation", accounts: "Account", contacts: "Contact" };
+const LABEL: Record<string, string> = {
+  accounts: "Account", contacts: "Contact", quotes: "Quotation",
+  standard_quotes: "Quote", cases: "Case", work_orders: "Work Order",
+  invoices: "Invoice", assets: "Asset", suppliers: "Supplier",
+  inventory: "Inventory item", purchase_orders: "Purchase Order", employees: "Employee",
+};
 const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }> = {
-  quotes:   { table: "quotes",   nameCol: "ref" },
-  accounts: { table: "accounts", nameCol: "name", refCol: "ref" },
-  contacts: { table: "contacts", nameCol: "name", refCol: "ref" },
+  accounts:        { table: "accounts",         nameCol: "name", refCol: "ref" },
+  contacts:        { table: "contacts",         nameCol: "name", refCol: "ref" },
+  quotes:          { table: "quotes",           nameCol: "ref" },
+  standard_quotes: { table: "standard_quotes",  nameCol: "ref" },
+  cases:           { table: "service_cases",    nameCol: "ref" },
+  work_orders:     { table: "work_orders",      nameCol: "ref" },
+  invoices:        { table: "invoices",         nameCol: "ref" },
+  assets:          { table: "assets",           nameCol: "name", refCol: "ref" },
+  suppliers:       { table: "suppliers",        nameCol: "name", refCol: "ref" },
+  inventory:       { table: "inventory_items",  nameCol: "name", refCol: "ref" },
+  purchase_orders: { table: "purchase_orders",  nameCol: "ref" },
+  employees:       { table: "employees",        nameCol: "first_name", refCol: "employee_code" },
 };
 
 export async function GET() {

@@ -10,6 +10,7 @@ import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
 import AssetHeaderCard from "./AssetHeaderCard";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -94,6 +95,7 @@ export default async function AssetDetailPage({
           )}
         </div>
       )}
+      <NovaTimelineSlot objectType="assets" objectId={id} />
     </>
   );
 }

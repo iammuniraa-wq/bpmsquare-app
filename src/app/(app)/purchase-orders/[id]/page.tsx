@@ -13,6 +13,7 @@ import type { PurchaseOrderStatus } from "@/lib/types";
 import ObjectSections from "@/components/fields/ObjectSections";
 import PurchaseOrderActionsPanel from "./PurchaseOrderActionsPanel";
 import ReceivePanel from "./ReceivePanel";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 const STATUS_TONE: Record<PurchaseOrderStatus, PillarKey> = {
   draft: "blue", sent: "amber", partially_received: "teal", received: "green", cancelled: "red",
@@ -152,6 +153,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
           <PurchaseOrderActionsPanel po={po} />
         </div>
       </div>
+      <NovaTimelineSlot objectType="purchase_orders" objectId={id} />
     </>
   );
 }

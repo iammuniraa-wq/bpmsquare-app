@@ -190,6 +190,13 @@ bump its `version`.
 - [ ] Change history (`logChange` on create/update/delete).
 - [ ] Global search, if the object is something people look up by name.
 - [ ] Advanced filtering / saved queries, if it has a list page.
+- [ ] **Nova timeline** — `<NovaTimelineSlot objectType="…" objectId={id} />`
+      before the closing tag of the detail page (it self-gates on Nova, so
+      server pages need no theme logic), **plus** an entry in `OBJECTS` in
+      `api/nova/comments/route.ts` (object_type → table) **and** in
+      `LABEL`/`TABLE` in `api/nova/inbox/route.ts` so a mention on it can
+      be rendered in the inbox. All three, or the object gets comments
+      nobody can be notified about.
 
 **8 — Docs** — refresh the matching Drive guide in the same piece of work
 (§9), and note in the commit which guide changed.

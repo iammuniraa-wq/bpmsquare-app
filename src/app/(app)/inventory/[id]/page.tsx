@@ -12,6 +12,7 @@ import { ROUTES } from "@/lib/constants";
 import ObjectSections from "@/components/fields/ObjectSections";
 import InventorySupplierPanel from "./InventorySupplierPanel";
 import AdjustStockPanel from "./AdjustStockPanel";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 const fmtDateTime = (s: string) =>
   new Date(s).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -134,6 +135,7 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
           <InventorySupplierPanel item={item} />
         </div>
       </div>
+      <NovaTimelineSlot objectType="inventory" objectId={id} />
     </>
   );
 }

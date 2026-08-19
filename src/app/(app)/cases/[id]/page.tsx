@@ -17,6 +17,7 @@ import CaseActions from "@/components/CaseActions";
 import CaseAssetsPanel from "./CaseAssetsPanel";
 import { MessageSquare } from "@/components/Icons";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildCaseWhatsAppMessage } from "@/lib/whatsapp";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 // ── Stage groups ──────────────────────────────────────────────────────────────
 
@@ -451,6 +452,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           .case-body { grid-template-columns: 1fr !important; }
         }
       `}</style>
+      <NovaTimelineSlot objectType="cases" objectId={id} />
     </>
   );
 }

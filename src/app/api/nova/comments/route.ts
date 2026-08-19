@@ -13,12 +13,22 @@ import { tenantHasFeature } from "@/lib/tenant";
  * every client-supplied foreign id as unproven until checked.
  */
 
-// object_type → its table, mirroring changeLog's vocabulary. Timeline ships
-// on quotations first; the map is the extension point.
+// object_type → its table. The keys are changeLog's vocabulary (so the
+// timeline can merge both streams on one address) and cover every object
+// family that has a detail screen.
 const OBJECTS: Record<string, string> = {
-  quotes: "quotes",
   accounts: "accounts",
   contacts: "contacts",
+  quotes: "quotes",
+  standard_quotes: "standard_quotes",
+  cases: "service_cases",
+  work_orders: "work_orders",
+  invoices: "invoices",
+  assets: "assets",
+  suppliers: "suppliers",
+  inventory: "inventory_items",
+  purchase_orders: "purchase_orders",
+  employees: "employees",
 };
 
 async function verifyRecord(tenantId: string, objectType: string, objectId: string): Promise<boolean> {
