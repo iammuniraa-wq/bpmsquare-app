@@ -32,13 +32,19 @@ export default function NovaDraft() {
   const textRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    function onOpen() {
-      setOpen(true); setPhase("input"); setText(""); setError("");
+    function onOpen(e: Event) {
+      const carried = (e as CustomEvent).detail?.text;
+      const initial = typeof carried === "string" ? carried : "";
+      setOpen(true); setPhase("input"); setText(initial); setError("");
       setFields([]); setValues({}); setNote(null); setMoreFound(0);
-      setTimeout(() => textRef.current?.focus(), 10);
+      // Text pasted into the palette arrives with the event -- start
+      // drafting immediately instead of showing the same paste back.
+      if (initial.trim().length >= 10) void draft(initial);
+      else setTimeout(() => textRef.current?.focus(), 10);
     }
     window.addEventListener("nova:open-draft", onOpen);
     return () => window.removeEventListener("nova:open-draft", onOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -48,12 +54,13 @@ export default function NovaDraft() {
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
-  async function draft() {
+  async function draft(textArg?: string) {
+    const payload = textArg ?? text;
     setPhase("drafting"); setError("");
     try {
       const res = await fetch("/api/nova/draft", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ object: "accounts", text }),
+        body: JSON.stringify({ object: "accounts", text: payload }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Drafting failed"); setPhase("input"); return; }
@@ -153,7 +160,7 @@ export default function NovaDraft() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 {error && <span style={{ fontSize: 12, color: "#ff8a76", flex: 1 }}>{error}</span>}
                 <button
-                  onClick={draft}
+                  onClick={() => draft()}
                   disabled={phase === "drafting" || text.trim().length < 10}
                   style={{
                     marginLeft: "auto", border: "none", cursor: "pointer", font: "inherit",

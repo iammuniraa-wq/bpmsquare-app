@@ -135,7 +135,8 @@ export default function NovaPalette() {
   // ── Record search: same endpoint as the global bar, debounced ──
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.trim().length < 2) { setRecords([]); return; }
+    // A pasted paragraph is never a record name -- don't burn a search on it.
+    if (query.trim().length < 2 || query.trim().length >= 40 || query.includes("\n")) { setRecords([]); return; }
     debounceRef.current = setTimeout(() => {
       fetch(`/api/search?q=${encodeURIComponent(query.trim())}`)
         .then((r) => r.json())
@@ -146,6 +147,10 @@ export default function NovaPalette() {
   }, [query]);
 
   // ── Visible items: filtered universe + record results ──
+  // A long or multi-line query isn't a query -- it's pasted CONTENT (the
+  // WhatsApp message, the email). Recognize the intent and offer to draft
+  // a record from it right here, instead of a dead "nothing matches".
+  const pastedContent = query.trim().length >= 40 || query.includes("\n");
   const items = useMemo<Item[]>(() => {
     const q = query.trim().toLowerCase();
     const statics = q
@@ -154,19 +159,26 @@ export default function NovaPalette() {
     const recs: Item[] = records.map((r) => ({
       kind: "record", label: r.title, sub: r.subtitle || r.type, href: r.href, matched: r.matched,
     }));
-    return [...statics.slice(0, 10), ...recs.slice(0, 8)];
-  }, [query, universe, records]);
+    const draftOffer: Item[] = pastedContent && features?.accounts === true
+      ? [{ kind: "create", label: "Draft an account from this text", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft" }]
+      : [];
+    return [...draftOffer, ...statics.slice(0, 10), ...recs.slice(0, 8)];
+  }, [query, universe, records, pastedContent, features?.accounts]);
 
   useEffect(() => { setActive(0); }, [items.length, query]);
 
   const go = useCallback((item: Item) => {
     setOpen(false);
     if (item.kind === "create" && item.event) {
-      window.dispatchEvent(new Event(item.event));
+      // Pasted content travels with the event so the draft modal starts
+      // working immediately instead of asking for the same paste twice.
+      window.dispatchEvent(new CustomEvent(item.event, {
+        detail: pastedContent ? { text: query } : undefined,
+      }));
       return;
     }
     router.push(item.href);
-  }, [router]);
+  }, [router, query, pastedContent]);
 
   function onInputKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, items.length - 1)); }
