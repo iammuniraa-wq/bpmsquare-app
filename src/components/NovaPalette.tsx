@@ -97,7 +97,10 @@ export default function NovaPalette() {
     return [...create, ...nav];
   }, [features, viewable, isWfmSupervisor]);
 
-  // ── Open/close + global hotkey ──
+  // ── Open/close: global hotkey + the top-bar search trigger ──
+  // The Nova top bar renders a search-shaped BUTTON (not a live input) that
+  // dispatches this event -- one search surface, two entry points: click for
+  // mouse people, ⌘K for keyboard people.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -107,8 +110,13 @@ export default function NovaPalette() {
         setOpen(false);
       }
     }
+    function onOpenEvent() { setOpen(true); }
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("nova:open-palette", onOpenEvent);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("nova:open-palette", onOpenEvent);
+    };
   }, [open]);
 
   useEffect(() => {
