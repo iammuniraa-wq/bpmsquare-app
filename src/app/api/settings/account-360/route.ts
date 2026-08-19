@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { tenantHasFeature } from "@/lib/tenant";
 import { assertSafeSourceUrl } from "@/lib/account360/externalSource";
 import type { Account360Config, Account360SourceDef } from "@/lib/constants";
 
@@ -19,14 +20,17 @@ function badRequest(message: string) {
 }
 
 export async function GET() {
-  let tenantId, role;
+  let supabase, tenantId, role;
   try {
-    ({ tenantId, role } = await requireTenantUser());
+    ({ supabase, tenantId, role } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
+    return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
+  }
 
   const { data, error } = await createAdminSupabase()
     .from("tenants").select("config").eq("id", tenantId).single();
@@ -44,14 +48,17 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  let tenantId, role;
+  let supabase, tenantId, role;
   try {
-    ({ tenantId, role } = await requireTenantUser());
+    ({ supabase, tenantId, role } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
+    return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== "object") return badRequest("Invalid payload");
