@@ -33,6 +33,22 @@ export default function ResetPasswordForm({ branding }: { branding: Branding }) 
   const [ready, setReady]       = useState(false);
   const [expired, setExpired]   = useState(false);
   const [debugInfo, setDebugInfo] = useState("");
+  const [resendEmail, setResendEmail] = useState("");
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
+
+  async function requestNewLink(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resendEmail.trim()) return;
+    setResending(true);
+    await fetch("/api/auth/request-reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: resendEmail.trim() }),
+    }).catch(() => {});
+    setResending(false);
+    setResent(true);
+  }
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
@@ -43,7 +59,10 @@ export default function ResetPasswordForm({ branding }: { branding: Branding }) 
     // the link itself was rejected before ever reaching our code -- e.g. the
     // token was already used, expired, or consumed by an email link-scanner
     // that pre-fetched it. Surface this instead of guessing.
-    const linkError = url.searchParams.get("error_description") || hashParams.get("error_description")
+    // `error` is ours: /auth/callback now sends a failed recovery here with
+    // the reason instead of dropping the user on a silent login screen.
+    const linkError = url.searchParams.get("error")
+      || url.searchParams.get("error_description") || hashParams.get("error_description")
       || url.searchParams.get("error_code") || hashParams.get("error_code");
     if (linkError) {
       console.error("Reset link rejected by Supabase:", decodeURIComponent(linkError));
@@ -171,11 +190,44 @@ export default function ResetPasswordForm({ branding }: { branding: Branding }) 
                 </div>
               )}
             </div>
-            <a href="/login" style={{
-              fontSize: 13.5, fontWeight: 600, color: c.accent, textDecoration: "none",
-            }}>
-              ← Request a new reset link
-            </a>
+            {/* Asking for a fresh link happens HERE, not back on the login
+                screen -- bouncing someone to a login form they can't use is
+                what made a dead link feel like an unexplained loop. */}
+            {resent ? (
+              <div style={{
+                background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 9,
+                padding: "14px", fontSize: 13.5, color: "#166534", lineHeight: 1.6,
+              }}>
+                If that address has an account here, a new link is on its way.
+                It works on any device — open it from wherever you read your email.
+              </div>
+            ) : (
+              <form onSubmit={requestNewLink} style={{ display: "flex", flexDirection: "column", gap: 10, textAlign: "left" }}>
+                <label style={labelStyle}>Send me a new link</label>
+                <input
+                  type="email"
+                  placeholder="you@company.com"
+                  value={resendEmail}
+                  onChange={(e) => setResendEmail(e.target.value)}
+                  required
+                  style={inputStyle}
+                />
+                <button
+                  type="submit"
+                  disabled={resending}
+                  style={{
+                    width: "100%", height: 44, background: resending ? "#93c5fd" : c.accent,
+                    color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600,
+                    cursor: resending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {resending ? "Sending…" : "Email me a new link"}
+                </button>
+                <a href="/login" style={{ fontSize: 13, color: c.muted, textDecoration: "none", textAlign: "center" }}>
+                  Back to sign in
+                </a>
+              </form>
+            )}
           </div>
         )}
 

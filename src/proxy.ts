@@ -35,6 +35,17 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/reset-password") ||
     pathname.startsWith("/auth/") ||
+    // The two auth endpoints that exist precisely BECAUSE there is no
+    // session yet -- asking for a password-reset email, and exchanging
+    // implicit-flow tokens for real SSR cookies. The session gate below
+    // would redirect both to /login, which is how a reset request could
+    // appear to succeed while silently never sending anything. Neither
+    // reads a client-supplied tenant: request-reset resolves the tenant
+    // from the host and answers identically whether or not the address
+    // exists. /api/auth/complete-password-change is deliberately NOT here
+    // -- it needs a session and calls requireTenantUser() itself.
+    pathname === "/api/auth/request-reset" ||
+    pathname === "/api/auth/session" ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/manifest") ||

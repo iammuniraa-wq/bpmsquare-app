@@ -6,15 +6,21 @@ import { csvCell, downloadCsv } from "@/lib/import/template";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
+// Mirrors EmailLogKind (src/lib/emailLog.ts), redeclared here because that
+// module is server-only.
+type EmailKind = "quote" | "campaign" | "wfm" | "auth";
+
 const KINDS: { value: string; label: string }[] = [
   { value: "", label: "All channels" },
   { value: "quote", label: "Quote emails" },
   { value: "campaign", label: "Campaign sends" },
+  { value: "wfm", label: "Workforce alerts" },
+  { value: "auth", label: "Password resets" },
 ];
 
 type EmailLogRow = {
   id: string;
-  kind: "quote" | "campaign";
+  kind: EmailKind;
   to_email: string;
   subject: string;
   status: "sent" | "failed";
@@ -31,9 +37,13 @@ const STATUS_TONE: Record<EmailLogRow["status"], { bg: string; fg: string }> = {
   failed: { bg: "#fbe9e7", fg: "#c62828" },
 };
 
-const KIND_LABEL: Record<EmailLogRow["kind"], string> = {
+// Every kind the log can actually hold. WFM alerts were already being
+// written but had no entry here, so those rows rendered a blank channel.
+const KIND_LABEL: Record<EmailKind, string> = {
   quote: "Quote",
   campaign: "Campaign",
+  wfm: "Workforce",
+  auth: "Password reset",
 };
 
 export default function OutboundEmailsClient() {
