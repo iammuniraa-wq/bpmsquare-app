@@ -68,20 +68,21 @@ function LoginFormInner({ branding }: { branding: Branding }) {
     setLoading(true);
     setError("");
 
-    const supabase = createBrowserSupabase();
-    const { error: err } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      // Route through /auth/callback so the PKCE code gets exchanged server-side
-      // (Set-Cookie on the redirect response) instead of client-side in
-      // /reset-password's useEffect -- the client-side exchange was unreliable
-      // (Supabase kept reporting "code verifier not found in storage" even in
-      // the same browser/tab that initiated the request).
-      { redirectTo: `${window.location.origin}/auth/callback?next=/reset-password` }
-    );
+    // Sent by us, not by supabase.auth.resetPasswordForEmail -- that one uses
+    // PKCE, so the link only works in the browser that asked for it, which
+    // breaks the moment someone requests the reset on a laptop and opens the
+    // mail on a phone. Ours carries a token_hash instead, valid anywhere.
+    // See api/auth/request-reset for the full reasoning.
+    const res = await fetch("/api/auth/request-reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim() }),
+    }).catch(() => null);
 
     setLoading(false);
-    if (err) {
-      setError(err.message);
+    if (!res || !res.ok) {
+      const json = res ? await res.json().catch(() => ({})) : {};
+      setError(json.error ?? "Could not send the reset email. Try again in a moment.");
     } else {
       setResetSent(true);
     }

@@ -29,7 +29,19 @@ export async function GET(request: NextRequest) {
       }
     );
 
-  // token_hash flow — used by Supabase recovery / magic-link emails
+  // A recovery link that fails here must land back on /reset-password with
+  // a reason, NOT on /login. Falling through to the implicit-flow page below
+  // sent the user to /login?error=auth, which the login screen doesn't even
+  // render a message for -- so a broken link looked exactly like "clicking
+  // reset just opens the login page", and retrying produced the same
+  // silence. The link being dead is a thing the user needs told.
+  const isRecovery = type === "recovery" || next === "/reset-password";
+  const recoveryFailed = (reason: string) =>
+    NextResponse.redirect(`${origin}/reset-password?error=${encodeURIComponent(reason)}`);
+
+  // token_hash flow — used by our own reset email (api/auth/request-reset),
+  // and by any Supabase template that sends {{ .TokenHash }}. No PKCE code
+  // verifier is involved, so it works from any browser or device.
   if (tokenHash && type) {
     const response = NextResponse.redirect(`${origin}${next}`);
     const supabase = makeSupabase(response);
@@ -38,15 +50,20 @@ export async function GET(request: NextRequest) {
       type: type as "recovery" | "email" | "magiclink" | "invite",
     });
     if (!error) return response;
+    if (isRecovery) return recoveryFailed(error.message);
   }
 
-  // PKCE flow — code in query param
+  // PKCE flow — code in query param. Only succeeds in the same browser that
+  // asked for the link (the code verifier is a cookie on that origin).
   if (code) {
     const response = NextResponse.redirect(`${origin}${next}`);
     const supabase = makeSupabase(response);
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) return response;
+    if (isRecovery) return recoveryFailed(error.message);
   }
+
+  if (isRecovery) return recoveryFailed("This reset link is no longer valid.");
 
   // Implicit flow — tokens arrive in URL fragment (client-side only).
   // Client reads fragment, POSTs tokens to /api/auth/session, then redirects.
