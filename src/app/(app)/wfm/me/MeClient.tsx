@@ -295,6 +295,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   // The punch that was refused for location, so "Try again" resumes it.
   const [locationBlocked, setLocationBlocked] = useState<PresenceKind | null>(null);
   const [locationFailure, setLocationFailure] = useState<GeoFailure | null>(null);
+  const [locationCheckedAt, setLocationCheckedAt] = useState<Date | null>(null);
   // True when /state couldn't be reached but we're rendering a cached snapshot
   // -- the punch UI still works and punches queue for later sync.
   const [offline, setOffline] = useState(false);
@@ -730,6 +731,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       setBusy(false);
       if (!geo) {
         setLocationFailure(failure);
+        setLocationCheckedAt(new Date());
         // The panel below explains how to turn it back on for THIS device
         // and retries the same punch, so the worker never has to remember
         // which button they were on.
@@ -738,6 +740,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         return;
       }
       setLocationBlocked(null);
+      setLocationCheckedAt(null);
     }
 
     // Which kinds need a selfie is the tenant's setting now, not a
@@ -837,8 +840,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         <div style={{ marginBottom: 14 }}>
           <LocationHelp
             failure={locationFailure}
+            checkedAt={locationCheckedAt}
             retrying={busy}
-            onRetry={() => { const k = locationBlocked; setLocationBlocked(null); void startPunch(k); }}
+            onDismiss={() => { setLocationBlocked(null); setLocationCheckedAt(null); }}
+            onRetry={() => { void startPunch(locationBlocked); }}
           />
         </div>
       )}
