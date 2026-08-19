@@ -25,6 +25,7 @@ export async function GET() {
 
 const FACE_MODES = ["off", "flag_only"];
 const GEOFENCE_MODES = ["block", "flag", "off"];
+const SELFIE_MODES = ["off", "shift", "all"];
 const NOTIFICATION_KEYS = ["late_arrival", "correction_pending", "leave_pending", "recheck_flagged"] as const;
 const PUNCH_TYPE_KEYS = ["ot", "mobile_work", "business_trip"] as const;
 // Codes are what employees.employment_type stores -- keep them machine-safe
@@ -71,6 +72,12 @@ export async function PUT(request: NextRequest) {
   }
   if (typeof body.geofence_mode === "string" && GEOFENCE_MODES.includes(body.geofence_mode)) {
     next.geofence_mode = body.geofence_mode as WfmConfig["geofence_mode"];
+  }
+  if (typeof body.require_location === "boolean") {
+    next.require_location = body.require_location;
+  }
+  if (typeof body.selfie_mode === "string" && SELFIE_MODES.includes(body.selfie_mode)) {
+    next.selfie_mode = body.selfie_mode as WfmConfig["selfie_mode"];
   }
   if (typeof body.ot_rate_per_hour === "number" && isFinite(body.ot_rate_per_hour) && body.ot_rate_per_hour >= 0) {
     next.ot_rate_per_hour = body.ot_rate_per_hour;
