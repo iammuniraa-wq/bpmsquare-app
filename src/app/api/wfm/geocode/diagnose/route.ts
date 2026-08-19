@@ -1,32 +1,55 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { geocodingConfigured, reverseGeocode } from "@/lib/wfm/geocode";
 
 /**
- * Admin-only: what does Ola Maps ACTUALLY return for a coordinate?
+ * Admin-only: what does Ola Maps ACTUALLY say, and to which endpoint?
  *
  * The address lookup fails silently by design -- a geocoding outage must
- * never break the punch audit, so it just draws coordinates. That is the
- * right behaviour for an employee and a terrible one for whoever has to
- * work out why no address ever appears: "key missing", "key rejected",
- * "provider has no address here" and "we parsed the response wrong" all
- * look identical from the outside.
+ * never break the punch audit, so it just draws coordinates. That is right
+ * for an employee and useless for whoever has to debug it: key missing, key
+ * rejected, no address at that point, and "we parsed the response wrong"
+ * all look identical from the outside.
  *
- * This returns the raw provider response alongside our parse of it, so the
- * four are distinguishable in one call. The API key is never echoed.
+ * This calls BOTH endpoints with the same key and reports the raw bodies
+ * plus key hygiene, because the two results together say what one cannot:
+ *
+ *   both 401          -> the key itself is refused: wrong value, or
+ *                        restricted to referers/domains that a server-side
+ *                        call can never satisfy.
+ *   forward ok, reverse 401 -> the key is fine; the Places/reverse-geocode
+ *                        product is not enabled on it.
+ *   both ok           -> the problem was never auth; look at parsing.
+ *
+ * The key is never echoed -- only its length and whether it had whitespace
+ * around it, which is enough to catch the most common cause of a 401 on a
+ * key that looks perfect in a dashboard.
  *
  * GET /api/wfm/geocode/diagnose?lat=13.61713&lng=77.51772
  */
-export async function GET(request: NextRequest) {
-  let tenantId, role;
+
+const TIMEOUT_MS = 6000;
+
+async function probe(url: string): Promise<{ http_status: number | null; body: unknown }> {
   try {
-    ({ tenantId, role } = await requireTenantUser());
+    const res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const text = (await res.text()).slice(0, 3000);
+    let body: unknown = text;
+    try { body = JSON.parse(text); } catch { /* keep the text */ }
+    return { http_status: res.status, body };
+  } catch (e) {
+    return { http_status: null, body: `Could not reach Ola Maps: ${(e as Error).message}` };
+  }
+}
+
+export async function GET(request: NextRequest) {
+  let role;
+  try {
+    ({ role } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  void tenantId;
 
   const { searchParams } = new URL(request.url);
   const lat = Number(searchParams.get("lat"));
@@ -35,49 +58,31 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "lat and lng are required" }, { status: 400 });
   }
 
-  const key = process.env.OLA_MAPS_API_KEY;
-  if (!key) {
-    return NextResponse.json({
-      configured: false,
-      verdict: "OLA_MAPS_API_KEY is not set in this environment.",
-    });
-  }
+  const rawKey = process.env.OLA_MAPS_API_KEY ?? "";
+  const key = rawKey.trim();
+  if (!key) return NextResponse.json({ configured: false, verdict: "OLA_MAPS_API_KEY is not set in this environment." });
 
-  // The same request reverseGeocode() makes, so the raw body below is
-  // exactly what the parser was given.
-  const url =
-    `https://api.olamaps.io/places/v1/reverse-geocode` +
-    `?latlng=${encodeURIComponent(`${lat},${lng}`)}&api_key=${encodeURIComponent(key)}`;
-
-  let status: number | null = null;
-  let raw: unknown = null;
-  let rawText: string | null = null;
-  try {
-    const res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(6000) });
-    status = res.status;
-    rawText = (await res.text()).slice(0, 4000);
-    try { raw = JSON.parse(rawText); } catch { /* keep the text */ }
-  } catch (e) {
-    return NextResponse.json({
-      configured: true,
-      http_status: null,
-      verdict: `Could not reach Ola Maps: ${(e as Error).message}`,
-    });
-  }
-
-  const parsed = await reverseGeocode(lat, lng);
+  const k = encodeURIComponent(key);
+  const [reverse, forward] = await Promise.all([
+    probe(`https://api.olamaps.io/places/v1/reverse-geocode?latlng=${encodeURIComponent(`${lat},${lng}`)}&api_key=${k}`),
+    probe(`https://api.olamaps.io/places/v1/geocode?address=${encodeURIComponent("Hosapete, Karnataka")}&api_key=${k}`),
+  ]);
 
   const verdict =
-    status !== 200 ? `Ola Maps rejected the request with HTTP ${status} — check the key and that Places is enabled for it.`
-    : parsed.status === "ok" ? "Working. Addresses should appear on the punch audit."
-    : parsed.status === "empty" ? "Ola answered 200 but our parser found no address in it — compare `raw` against what the parser reads (results[0].formatted_address)."
-    : `Call failed: ${parsed.reason}`;
+    reverse.http_status === 200 && forward.http_status === 200
+      ? "Both endpoints answered. Auth is fine — if addresses still don't show, it's the parsing."
+      : reverse.http_status === 401 && forward.http_status === 401
+      ? "The key itself is being refused on BOTH endpoints. Either the value is wrong, or the key is restricted to domains/referers — a server-side call sends no referer, so a domain-restricted key can never pass. Make it unrestricted (or IP-restricted) in the Ola console."
+      : forward.http_status === 200 && reverse.http_status !== 200
+      ? "The key works for forward geocoding but not reverse — so it is valid and the reverse-geocode/Places product is not enabled on it. Enable it in the Ola console."
+      : `Reverse returned ${reverse.http_status}, forward returned ${forward.http_status}.`;
 
   return NextResponse.json({
-    configured: geocodingConfigured(),
-    http_status: status,
-    parsed,
+    configured: true,
+    key_length: key.length,
+    key_had_surrounding_whitespace: rawKey !== key,
+    reverse,
+    forward,
     verdict,
-    raw: raw ?? rawText,
   });
 }
