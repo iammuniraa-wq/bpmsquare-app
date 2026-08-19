@@ -418,6 +418,20 @@ bpmsquarecore.md §2b): follow it 100% for every future client tenant.
   Batch 0 (core tables + statusEngine.ts) shipped; batches 1–7 (per-object
   rollout incl. WFM leave/attendance statuses) not started.
 
+**Update 2026-08-19 — WFM punch location, decided.** The approach is:
+prevention, not recovery. Permission priming (the browser prompt is never
+fired cold — only from a tap the employee made after reading why), the
+"Set up this device" card asking for camera + location before anyone is at
+a gate, and prompting the PWA install (on iOS a home-screen app has its
+own permission store, which is the clean way past a refusal already stuck
+in Safari). All shipped.
+
+**Site QR / kiosk code was proposed and DECLINED by the owner** — a code
+at the gate scanned with the camera, proving presence with no location
+permission at all. Don't re-propose it; if presence-proof comes up again
+the open items are the anti-forgery flags (IP-vs-GPS, impossible travel,
+accuracy plausibility), which were accepted in principle but not built.
+
 **Update 2026-08-19 — BPMSquare Nova roadmap (the tracked to-do; doctrine
 in bpmsquarecore §10 governs how it executes: one pillar → demo tenant →
 owner sign-off → next).**
