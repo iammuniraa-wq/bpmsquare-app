@@ -329,12 +329,9 @@ deploy for an automatic schema change.
   Fog of War (engagement layer) needed no migration — it reads the
   existing `accounts.territory` against the tenant's Sales-config
   territory picklist.
-- Main/production DB: **0080–0085 were pending at promotion time** — run
-  them in order when promoting (0080 employee-code CI unique index — needs
-  duplicate cleanup first if any, see KAN-13; 0081 api_keys; 0082 webhooks;
-  0083 pricing engine ontology; 0084 pricing_usage; 0085 pricing_engine
-  flag for demo tenants only). The dev tenant's force-enable of
-  `pricing_engine` was direct SQL on dev only — do NOT run on main.
+- (Historical: 0080–0085 were run at the 2026-08-18 promotion; the dev
+  tenant's force-enable of `pricing_engine` was direct SQL on dev only —
+  do NOT run on main.)
 
 **Update 2026-08-17 — first client tenant provisioned (BIM Infotech).**
 WFM-only tenant live at bim.bpmsquare.com (slug `bim`, Small business
@@ -413,3 +410,31 @@ bpmsquarecore.md §2b): follow it 100% for every future client tenant.
 - Status-schema engine (see `/root/.claude/plans` history / task #27):
   Batch 0 (core tables + statusEngine.ts) shipped; batches 1–7 (per-object
   rollout incl. WFM leave/attendance statuses) not started.
+
+**Update 2026-08-19 — BPMSquare Nova roadmap (the tracked to-do; doctrine
+in bpmsquarecore §10 governs how it executes: one pillar → demo tenant →
+owner sign-off → next).**
+Shipped and validated: Nova shell (3-layer, identity top-right), the
+engagement layer (celebrations incl. full-shift punch-out, Silence
+Detector + saves, Loss Intelligence + reasons feeding /ask, Fog of War on
+Sales-config territories), the ⌘K command palette, and palette-as-search
+(the top-bar search on Nova is a button that opens the palette — one
+search surface). Everything double-gated: `features.next_experience`
+(platform-admin only) + theme `nextgen2`.
+The queue, in order (mirrored in the session task list #83–#92):
+1. **AI record creation** — paste WhatsApp/email → drafted record →
+   review → create; reuse the DW extraction engine; palette entry point.
+   ← IN PROGRESS
+2. **Record timeline + comments + @mentions** (new comments table).
+3. **Nova inbox** — in-app notifications (mentions, assignments);
+   depends on 2.
+4. **Feel layer** — undo-toasts replacing window.confirm, optimistic
+   saves, skeletons, Realtime presence.
+5. **Kanban pipeline** — quotes board by status, drag = status change.
+6. **Rival Ghost** and **Boss Battle** (approved concepts mockup:
+   https://claude.ai/code/artifact/729d72a8-d732-4461-9966-a3421f9e39ab).
+7. **Keyboard layer** — g+a style sequences, ? cheat-sheet.
+8. **Enterprise-readiness audit** — exit criteria before the flag widens
+   beyond demo (dark/light parity, mobile, empty states, performance).
+9. **Nova docs + enterprise pitch** — Drive guide chapter + pending API
+   doc debt (employees endpoint, loss reasons).
