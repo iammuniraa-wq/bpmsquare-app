@@ -66,7 +66,7 @@ function steps(): { device: string; how: string[] } {
       how: [
         "Open iOS Settings and search for “Safari”, then open it",
         "Scroll right down to Location and set it to Allow",
-        "Come back here and tap Try again — that is normally all it takes",
+        "Come back here and tap Reload page below — Safari will not notice the change on a page that is already open, so Try again alone can keep failing",
         "Only if it still refuses: tap “aA” in the address bar → Website Settings → Location → Allow, or clear a stuck answer via Settings → Safari → Advanced → Website Data → delete bpmsquare.com",
       ],
     };
@@ -89,6 +89,7 @@ function steps(): { device: string; how: string[] } {
         "Tap the padlock (or ⓘ) to the left of the address bar",
         "Permissions → Location → Allow",
         "If Location isn’t listed: browser Settings → Site settings → Location, and remove this site from Blocked",
+        "Then tap Reload page below — a permission changed outside the page isn’t picked up until it reloads",
       ],
     };
   }
@@ -105,8 +106,16 @@ function steps(): { device: string; how: string[] } {
 export type GeoFailure = "denied" | "unavailable" | "timeout" | "unsupported";
 
 export default function LocationHelp({
-  onRetry, retrying, failure,
-}: { onRetry: () => void; retrying?: boolean; failure?: GeoFailure | null }) {
+  onRetry, onDismiss, retrying, failure, checkedAt,
+}: {
+  onRetry: () => void;
+  onDismiss: () => void;
+  retrying?: boolean;
+  failure?: GeoFailure | null;
+  /** Set each time a retry fails, so a repeat refusal visibly changes
+   *  something -- otherwise tapping Try again looks like a dead button. */
+  checkedAt?: Date | null;
+}) {
   const perm = useGeoPermission();
   const { device, how } = steps();
 
@@ -123,8 +132,20 @@ export default function LocationHelp({
       border: `1px solid ${c.line}`, borderRadius: 12, padding: 14,
       background: "color-mix(in srgb, #d97706 8%, transparent)",
     }}>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink, marginBottom: 4 }}>
-        Location is needed to punch in or out
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 4 }}>
+        <div style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: c.ink }}>
+          Location is needed to punch in or out
+        </div>
+        <button
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          style={{
+            border: "none", background: "transparent", cursor: "pointer", color: c.muted,
+            fontSize: 18, lineHeight: 1, padding: "0 2px", flexShrink: 0,
+          }}
+        >
+          ×
+        </button>
       </div>
       <p style={{ margin: "0 0 12px", fontSize: 12.5, lineHeight: 1.6, color: c.muted }}>
         {canJustAsk
@@ -144,17 +165,38 @@ export default function LocationHelp({
         </ol>
       )}
 
-      <button
-        onClick={onRetry}
-        disabled={retrying}
-        style={{
-          padding: "9px 16px", borderRadius: 9, border: "none", cursor: retrying ? "default" : "pointer",
-          background: c.accent, color: "#fff", fontSize: 13, fontWeight: 650, font: "inherit",
-          opacity: retrying ? 0.6 : 1,
-        }}
-      >
-        {retrying ? "Checking…" : canJustAsk ? "Allow location" : "Try again"}
-      </button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <button
+          onClick={onRetry}
+          disabled={retrying}
+          style={{
+            padding: "9px 16px", borderRadius: 9, border: "none", cursor: retrying ? "default" : "pointer",
+            background: c.accent, color: "#fff", fontSize: 13, fontWeight: 650, font: "inherit",
+            opacity: retrying ? 0.6 : 1,
+          }}
+        >
+          {retrying ? "Checking…" : canJustAsk ? "Allow location" : "Try again"}
+        </button>
+        {denied && (
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: "9px 16px", borderRadius: 9, cursor: "pointer", font: "inherit",
+              fontSize: 13, fontWeight: 650, color: c.ink,
+              border: `1px solid ${c.line}`, background: "transparent",
+            }}
+          >
+            Reload page
+          </button>
+        )}
+      </div>
+
+      {checkedAt && (
+        <div style={{ marginTop: 9, fontSize: 11.5, color: c.muted }}>
+          Checked at {checkedAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} — still no location.
+          {denied && " If you just changed the setting, tap Reload page: the browser won’t notice a permission change on a page that is already open."}
+        </div>
+      )}
     </div>
   );
 }
