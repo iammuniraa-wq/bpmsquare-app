@@ -445,7 +445,12 @@ export default function GeneralSettingsPage() {
               { value: "classic" as const, label: "Classic", desc: "Dark navy sidebar, the original look.", swatch: "linear-gradient(135deg, #152233, #0e1a28)" },
               { value: "modern" as const, label: "Modern", desc: "Denser cards, sharper borders, navy + gold.", swatch: "linear-gradient(135deg, #14294b, #0a1830)" },
               { value: "nextgen" as const, label: "Next-gen", desc: "Flat, minimal, real icons — with dark mode.", swatch: "linear-gradient(135deg, #ffffff, #eef3fe)" },
-              { value: "nextgen2" as const, label: "Next-gen — 3 layer", desc: "Same next-gen look; your name moves to the top bar and the sidebar footer drops.", swatch: "linear-gradient(135deg, #eef3fe, #dbe7fd)" },
+              // Next Experience program: offered only to tenants the PLATFORM
+              // admin has flagged in (demo first, clients after validation) --
+              // a workspace admin can't opt into the experiment on their own.
+              ...(tenant?.features?.next_experience === true
+                ? [{ value: "nextgen2" as const, label: "Next-gen — 3 layer", desc: "Same next-gen look; your name moves to the top bar and the sidebar footer drops.", swatch: "linear-gradient(135deg, #eef3fe, #dbe7fd)" }]
+                : []),
             ]).map((opt) => {
               const selected = theme === opt.value;
               return (

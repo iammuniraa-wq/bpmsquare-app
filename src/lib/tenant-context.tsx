@@ -78,10 +78,18 @@ export function useUiTheme(): "classic" | "modern" | "nextgen" {
 }
 
 /** True for the "nextgen2" 3-layer variant specifically -- identity lives in
- * the top bar instead of the sidebar footer. Every other nextgen visual (CSS
- * tokens, dark mode, no-AI-dock-for-classic rule) is shared via useUiTheme()
- * above; this hook exists only for the handful of places that differ. */
+ * the top bar instead of the sidebar footer, and the engagement layer
+ * (celebrations, silence detector, loss intelligence, fog of war) hangs off
+ * this. Every other nextgen visual (CSS tokens, dark mode) is shared via
+ * useUiTheme() above.
+ *
+ * Doubly gated (owner doctrine 2026-08-19): the tenant must ALSO carry the
+ * platform-admin-only `next_experience` feature flag. A stored "nextgen2"
+ * theme with the flag off renders as plain nextgen with zero experimental
+ * behavior -- so existing clients can never reach the experiment, even by a
+ * stale stored value. */
 export function useIsNextgen3Layer(): boolean {
   const { tenant } = useContext(TenantContext);
-  return tenant?.config?.appearance?.ui_theme === "nextgen2";
+  return tenant?.config?.appearance?.ui_theme === "nextgen2"
+    && tenant?.features?.next_experience === true;
 }
