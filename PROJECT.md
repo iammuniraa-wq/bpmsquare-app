@@ -323,12 +323,12 @@ the only thing that happens by itself. Every migration is pasted into the
 Supabase SQL editor by hand, staging first (when the feature lands on
 `develop`), production at promotion time. Don't mistake the automatic code
 deploy for an automatic schema change.
-- Dev DB: migrations through **0088** applied (owner confirmed
-  2026-08-18). **0089 pending** (`record_comments` — Nova timeline).
-- Main/production DB: through **0088** applied (same confirmation).
-  **0089 pending** (same file). Code tolerates its absence: the timeline
-  shows change history only; posting a comment errors with a pointer to
-  the migration.
+- Dev DB: migrations through **0089** applied (owner confirmed
+  2026-08-19). **0090 pending** (`nova_inbox_reads` — Nova inbox).
+- Main/production DB: through **0089** applied (same confirmation).
+  **0090 pending** (same file). Code tolerates its absence: the inbox
+  bell shows an empty list rather than breaking; marking read errors
+  with a pointer to the migration.
   Fog of War (engagement layer) needed no migration — it reads the
   existing `accounts.territory` against the tenant's Sales-config
   territory picklist.

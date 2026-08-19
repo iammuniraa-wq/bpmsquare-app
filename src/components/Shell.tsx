@@ -13,6 +13,7 @@ import { XIcon, SearchIcon } from "@/components/Icons";
 import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer } from "@/lib/tenant-context";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
+import NovaInbox from "@/components/NovaInbox";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 // Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
@@ -352,6 +353,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           }}>
             {identityInTopBar ? <NovaSearchButton /> : <GlobalSearchBar />}
             {uiTheme === "nextgen" && <DarkToggle dark={dark} onToggle={toggleDark} />}
+            {identityInTopBar && <NovaInbox />}
             {identityInTopBar && <IdentityMenu />}
           </div>
           {identityInTopBar && <NovaPalette />}
