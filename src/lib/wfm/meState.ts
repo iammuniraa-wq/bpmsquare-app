@@ -153,6 +153,7 @@ export async function buildWfmMeState(ctx: WfmContext) {
     // someone take a selfie and only then be rejected. The punch route is
     // the real enforcement; this is so the refusal happens early.
     require_location: config.require_location || config.geofence_mode === "block",
+    selfie_mode: config.selfie_mode,
     upcoming,
     pending_rechecks: recheckRows ?? [],
   };

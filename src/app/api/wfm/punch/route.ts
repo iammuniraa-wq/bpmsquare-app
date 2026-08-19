@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isShiftPunch, selfieRequiredFor } from "@/lib/wfm/punchRules";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/lib/wfm/server";
 import { getSupervisorEmails, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
@@ -157,8 +158,7 @@ export async function POST(request: NextRequest) {
   // for a tenant that wants location recorded without fencing it.
   // Shift punches only: breaks and OT often happen indoors where a fix is
   // slow or impossible, and blocking those would strand people mid-shift.
-  const isShiftPunch = kind === "check_in" || kind === "check_out";
-  if (lat == null && isShiftPunch && (config.require_location || config.geofence_mode === "block")) {
+  if (lat == null && isShiftPunch(kind) && (config.require_location || config.geofence_mode === "block")) {
     return NextResponse.json(
       { error: "Location is required to punch in or out. Turn on location for this site in your browser settings, then try again." },
       { status: 409 }
@@ -166,6 +166,13 @@ export async function POST(request: NextRequest) {
   }
 
   const flags: Record<string, unknown> = {};
+  // Stamped when the tenant's setting demanded a selfie for this kind. The
+  // route cannot REJECT on a missing image -- the selfie is uploaded in a
+  // second request, once this event exists to attach it to -- but stamping
+  // the expectation makes "recorded without the photo it was supposed to
+  // have" a findable condition afterwards (selfie_required && !selfie_path)
+  // instead of being indistinguishable from a punch that never needed one.
+  if (selfieRequiredFor(kind, config.selfie_mode)) flags.selfie_required = true;
   if (within === false) flags.outside_geofence = true;
   if (lat == null && !isOtKind(kind) && kind !== "break_start" && kind !== "break_end") flags.no_location = true;
 

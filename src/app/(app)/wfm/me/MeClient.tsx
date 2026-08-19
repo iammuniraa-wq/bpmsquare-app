@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { selfieRequiredFor } from "@/lib/wfm/punchRules";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -43,6 +44,7 @@ type MeState = {
   /** Optional punch-type groups this tenant has switched on. */
   punch_types?: { ot: boolean; mobile_work: boolean; business_trip: boolean };
   require_location?: boolean;
+  selfie_mode?: "off" | "shift" | "all";
   upcoming: {
     date: string; is_day_off: boolean; shift_name: string | null;
     start_time: string | null; end_time: string | null; is_night_shift: boolean;
@@ -713,7 +715,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       }
     }
 
-    if (kind === "check_in" || kind === "check_out" || kind === "mobile_work_start" || kind === "business_trip_start") {
+    // Which kinds need a selfie is the tenant's setting now, not a
+    // hardcoded list -- and it is shared with the punch route rather than
+    // duplicated (lib/wfm/punchRules).
+    if (selfieRequiredFor(kind, me?.selfie_mode ?? "shift")) {
       openCamera(kind);
     } else {
       submitPunch(kind, null);
