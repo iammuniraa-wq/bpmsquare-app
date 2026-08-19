@@ -15,7 +15,7 @@ const MIN_QUERY_LEN = 2;
  * one object type via the dropdown. Ctrl/Cmd+K focuses it from anywhere.
  * `autoFocus` is used by Shell's mobile search overlay, which mounts this
  * component fresh each time it's opened and wants the keyboard up immediately. */
-export default function GlobalSearchBar({ autoFocus }: { autoFocus?: boolean } = {}) {
+export default function GlobalSearchBar({ autoFocus, hotkeyDisabled }: { autoFocus?: boolean; hotkeyDisabled?: boolean } = {}) {
   const router = useRouter();
   const tenant = useTenant();
   const viewableWorkcenters = useViewableWorkcenters();
@@ -50,6 +50,9 @@ export default function GlobalSearchBar({ autoFocus }: { autoFocus?: boolean } =
   }, [autoFocus]);
 
   useEffect(() => {
+    // On Nova, ⌘K belongs to the command palette (NovaPalette) -- this bar
+    // stays clickable but gives up the hotkey so the two never fight.
+    if (hotkeyDisabled) return;
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -62,7 +65,7 @@ export default function GlobalSearchBar({ autoFocus }: { autoFocus?: boolean } =
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [hotkeyDisabled]);
 
   useEffect(() => {
     if (objectType && !searchObjects.some((o) => o.type === objectType)) setObjectType("");

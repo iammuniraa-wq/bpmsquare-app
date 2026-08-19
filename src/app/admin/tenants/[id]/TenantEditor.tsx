@@ -29,7 +29,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "quote_lines_dw",         label: "Quote Lines (Data Workbench)" },
   { key: "wfm",                    label: "Workforce (Attendance & Leave)" },
   { key: "pricing_engine",         label: "Pricing Engine (dynamic pricing)" },
-  { key: "next_experience",        label: "Next Experience (3-layer theme + engagement layer)", premium: true },
+  { key: "next_experience",        label: "Nova — the Business OS experience", premium: true },
   // Core modules (0067). Every existing tenant was backfilled to true, so
   // switching one OFF here is what removes it from that client's navigation
   // -- for a Workforce-only client, turn all of these off except the ones
@@ -279,7 +279,7 @@ export default function TenantEditor({ tenant, users }: Props) {
             { value: "classic" as const, label: "Classic", desc: "The original look — dark navy sidebar, no card shadows." },
             { value: "modern" as const, label: "Modern — default for new tenants", desc: "Structured-Enterprise direction: denser cards, sharper borders, navy sidebar, no card hairline, AI assistant dock." },
             { value: "nextgen" as const, label: "Next-gen", desc: "Attio/Linear-class direction: flat neutral canvas, hairline borders, real SVG nav icons, no tab bar, AI daily brief on the dashboard, sparkline KPIs, dark mode." },
-            { value: "nextgen2" as const, label: "Next-gen — 3 layer", desc: "Same next-gen look, restructured shell: identity moves to the top bar (click for email/sign out), the sidebar footer drops. Opt-in only." },
+            { value: "nextgen2" as const, label: "Nova", desc: "BPMSquare Nova — the Business OS experience: command palette, engagement layer, identity in the top bar. Requires the Nova feature flag; opt-in only." },
           ]).map((opt) => (
             <label key={opt.value} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",

@@ -449,7 +449,7 @@ export default function GeneralSettingsPage() {
               // admin has flagged in (demo first, clients after validation) --
               // a workspace admin can't opt into the experiment on their own.
               ...(tenant?.features?.next_experience === true
-                ? [{ value: "nextgen2" as const, label: "Next-gen — 3 layer", desc: "Same next-gen look; your name moves to the top bar and the sidebar footer drops.", swatch: "linear-gradient(135deg, #eef3fe, #dbe7fd)" }]
+                ? [{ value: "nextgen2" as const, label: "Nova", desc: "BPMSquare Nova — the Business OS. Command palette, engagement layer, identity in the top bar.", swatch: "linear-gradient(135deg, #eef3fe, #dbe7fd)" }]
                 : []),
             ]).map((opt) => {
               const selected = theme === opt.value;
