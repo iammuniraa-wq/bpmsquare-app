@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { selfieRequiredFor } from "@/lib/wfm/punchRules";
+import LocationHelp from "@/components/wfm/LocationHelp";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -273,6 +274,8 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+  // The punch that was refused for location, so "Try again" resumes it.
+  const [locationBlocked, setLocationBlocked] = useState<PresenceKind | null>(null);
   // True when /state couldn't be reached but we're rendering a cached snapshot
   // -- the punch UI still works and punches queue for later sync.
   const [offline, setOffline] = useState(false);
@@ -707,12 +710,14 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       const geo = await getGeo(10_000);
       setBusy(false);
       if (!geo) {
-        setNotice({
-          tone: "err",
-          text: "Location is required to punch in or out. Allow location for this site in your browser settings, then try again.",
-        });
+        // The panel below explains how to turn it back on for THIS device
+        // and retries the same punch, so the worker never has to remember
+        // which button they were on.
+        setNotice(null);
+        setLocationBlocked(kind);
         return;
       }
+      setLocationBlocked(null);
     }
 
     // Which kinds need a selfie is the tenant's setting now, not a
@@ -806,6 +811,15 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           was set but never rendered anywhere the user could see it. */}
       {notice && (
         <div style={{ ...cardStyle, marginBottom: 14, fontSize: 12.5, color: toneColor[notice.tone] }}>{notice.text}</div>
+      )}
+
+      {locationBlocked && (
+        <div style={{ marginBottom: 14 }}>
+          <LocationHelp
+            retrying={busy}
+            onRetry={() => { const k = locationBlocked; setLocationBlocked(null); void startPunch(k); }}
+          />
+        </div>
       )}
 
       {queuedCount > 0 && (
