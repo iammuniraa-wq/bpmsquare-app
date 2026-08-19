@@ -18,7 +18,6 @@ import ObjectSections from "@/components/fields/ObjectSections";
 import QuickCreateDeck from "@/components/QuickCreateDeck";
 import { MapPin, Phone, Mail, Gear, Activity as ActivityIcon, Package, FileText } from "@/components/Icons";
 import AccountHeader from "./AccountHeader";
-import AccountPushButton from "./AccountPushButton";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import Account360Button from "@/components/Account360Button";
 
@@ -175,7 +174,7 @@ export default async function AccountHubPage({
       {/* ── Account header ────────────────────────────────────────────────── */}
       <AccountHeader
         isAdmin={role === "admin"}
-        actions={<><Account360Button accountId={account.id} /><AccountPushButton accountId={account.id} /></>}
+        actions={<Account360Button accountId={account.id} />}
       >
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
