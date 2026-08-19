@@ -480,6 +480,20 @@ export type WfmConfig = {
   // mandatory for check in/out (startPunch routes both through the camera,
   // and a denied camera ends the punch), so a toggle would be a no-op.
   require_location: boolean;
+  // Which punch kinds demand a selfie. "shift" is exactly what the product
+  // did before this setting existed (check in/out plus mobile-work and
+  // business-trip starts), so it is the default and no tenant's behaviour
+  // moves. "off" is the genuinely new capability -- a selfie used to be
+  // mandatory with no way to decline, which a DPDP-conscious tenant may not
+  // want. "all" extends it to breaks and overtime.
+  //
+  // Enforced on the punch screen, which is where a camera permission can
+  // actually be demanded: a denied camera ends the punch, it does not fall
+  // through. The punch route additionally stamps flags.selfie_required so a
+  // recorded punch that never received its image is findable afterwards --
+  // it cannot reject at punch time, because the image is uploaded in a
+  // second request once the event exists.
+  selfie_mode: "off" | "shift" | "all";
   // Per-event-type email notification toggles. Each fires synchronously
   // from the route that creates the underlying event -- see src/lib/wfm/notify.ts.
   notifications: {
@@ -527,6 +541,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   week_off_days: [0],
   geofence_mode: "flag",
   require_location: false,
+  selfie_mode: "shift",
   notifications: {
     late_arrival: false,
     correction_pending: true,

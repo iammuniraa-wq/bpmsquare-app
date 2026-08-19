@@ -241,7 +241,24 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
             <div style={help}>
               {cfg.geofence_mode === "block"
                 ? "Always on while geofence enforcement is set to Block — otherwise denying location would be a way around the geofence."
-                : "Applies to check in and check out only. Breaks and overtime are never blocked, since those often happen indoors where no fix is available. A selfie is already required for check in and check out."}
+                : "Applies to check in and check out only. Breaks and overtime are never blocked, since those often happen indoors where no fix is available."}
+            </div>
+          </div>
+
+          <div>
+            <label style={lbl}>Selfie required to punch</label>
+            <select
+              style={inp}
+              value={cfg.selfie_mode}
+              onChange={(e) => setCfg({ ...cfg, selfie_mode: e.target.value as WfmConfig["selfie_mode"] })}
+            >
+              <option value="shift">Shift punches — check in / out, mobile work and trip starts</option>
+              <option value="all">Every punch — including breaks and overtime</option>
+              <option value="off">Off — no selfie is taken on any punch</option>
+            </select>
+            <div style={help}>
+              A denied camera ends the punch; it is never recorded without the photo. Turning this off
+              stops selfies being captured or stored at all.
             </div>
           </div>
         </div>
