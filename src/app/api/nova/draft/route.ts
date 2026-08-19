@@ -99,7 +99,42 @@ export async function POST(request: NextRequest) {
         { status: 422 }
       );
     }
+
+    // Duplicate check, at DRAFT time where a human can still decide:
+    // name-based (phone/email/GSTIN are encrypted at rest and cannot be
+    // matched), case-insensitive contains both ways, so "Deccan Polymers"
+    // finds "Deccan Polymers Pvt Ltd" and vice versa. Warns, never blocks --
+    // account names are legitimately non-unique in this product.
+    let possibleDuplicates: { id: string; name: string; ref: string | null }[] = [];
+    const draftName = first.values.name?.trim();
+    if (draftName) {
+      const needle = draftName.replace(/[%_,()]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+      if (needle.length >= 3) {
+        const { data: dupes } = await supabase
+          .from("accounts")
+          .select("id, name, ref")
+          .eq("tenant_id", tenantId)
+          .ilike("name", `%${needle}%`)
+          .limit(3);
+        possibleDuplicates = (dupes ?? []).map((d) => ({ id: d.id, name: d.name, ref: d.ref ?? null }));
+        if (possibleDuplicates.length === 0) {
+          // Reverse direction: the DB name may be the shorter one.
+          const firstWords = needle.split(" ").slice(0, 2).join(" ");
+          if (firstWords.length >= 4) {
+            const { data: rev } = await supabase
+              .from("accounts")
+              .select("id, name, ref")
+              .eq("tenant_id", tenantId)
+              .ilike("name", `%${firstWords}%`)
+              .limit(3);
+            possibleDuplicates = (rev ?? []).map((d) => ({ id: d.id, name: d.name, ref: d.ref ?? null }));
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
+      possible_duplicates: possibleDuplicates,
       values: first.values,
       note: first.note ?? null,
       document_notes: result.documentNotes,

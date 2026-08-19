@@ -36,6 +36,7 @@ export default function NovaDraft() {
   const [includeContact, setIncludeContact] = useState(false);
   // Set once the account exists, so a contact retry never re-creates it.
   const [createdAccount, setCreatedAccount] = useState<{ id: string; name: string; territory_discovery?: string } | null>(null);
+  const [dupes, setDupes] = useState<{ id: string; name: string; ref: string | null }[]>([]);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export default function NovaDraft() {
       const initial = typeof carried === "string" ? carried : "";
       setOpen(true); setPhase("input"); setText(initial); setError("");
       setFields([]); setValues({}); setNote(null); setMoreFound(0);
-      setContactFields([]); setContactValues({}); setIncludeContact(false); setCreatedAccount(null);
+      setContactFields([]); setContactValues({}); setIncludeContact(false); setCreatedAccount(null); setDupes([]);
       // Text pasted into the palette arrives with the event -- start
       // drafting immediately instead of showing the same paste back.
       if (initial.trim().length >= 10) void draft(initial);
@@ -76,6 +77,7 @@ export default function NovaDraft() {
       setValues(json.values ?? {});
       setNote(json.note ?? null);
       setMoreFound(json.more_found ?? 0);
+      setDupes(json.possible_duplicates ?? []);
       if (json.contact) {
         setContactFields(json.contact.fields ?? []);
         setContactValues(json.contact.values ?? {});
@@ -250,6 +252,32 @@ export default function NovaDraft() {
 
           {(phase === "review" || phase === "creating") && (
             <>
+              {dupes.length > 0 && !createdAccount && (
+                <div style={{
+                  fontSize: 12, lineHeight: 1.55, color: "var(--sb-panel-text)",
+                  background: "rgba(244,183,64,.12)", border: "1px solid rgba(244,183,64,.4)",
+                  borderRadius: 9, padding: "10px 12px",
+                  display: "flex", flexDirection: "column", gap: 6,
+                }}>
+                  <span style={{ fontWeight: 700 }}>This account may already exist:</span>
+                  {dupes.map((d) => (
+                    <button
+                      key={d.id}
+                      onClick={() => { setOpen(false); router.push(ROUTES.account(d.id)); }}
+                      style={{
+                        textAlign: "left", cursor: "pointer", font: "inherit", fontSize: 12,
+                        border: "none", background: "transparent", padding: 0,
+                        color: "var(--modern-accent, var(--accent))", fontWeight: 650,
+                      }}
+                    >
+                      {d.name}{d.ref ? ` · ${d.ref}` : ""} — open instead →
+                    </button>
+                  ))}
+                  <span style={{ fontSize: 11, color: "var(--sb-panel-text-dim)" }}>
+                    Or continue below to create a new one anyway.
+                  </span>
+                </div>
+              )}
               {(note || moreFound > 0) && (
                 <div style={{
                   fontSize: 11.5, lineHeight: 1.5, color: "var(--sb-panel-text)",
