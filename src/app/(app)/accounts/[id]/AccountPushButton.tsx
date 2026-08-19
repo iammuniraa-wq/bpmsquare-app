@@ -5,6 +5,11 @@ import { c } from "@/lib/theme";
 
 // On-demand push of this account to the tenant's configured external
 // endpoint (Settings -> Push to external systems). See lib/webhookPush.ts.
+//
+// Currently mounted NOWHERE: taken off the account header 2026-08-19 (owner:
+// "we don't need it here, we will see where we keep it later"). Kept intact
+// rather than deleted -- the route behind it is live and this is the working
+// UI for it, waiting on a decision about where it belongs.
 export default function AccountPushButton({ accountId }: { accountId: string }) {
   const [state, setState] = useState<"idle" | "pushing" | "sent" | "error">("idle");
   const [error, setError] = useState("");
