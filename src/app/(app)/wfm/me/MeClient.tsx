@@ -154,15 +154,33 @@ function dayLabel(d: DayRecord): string {
   return "—";
 }
 
-function getGeo(timeoutMs: number): Promise<Geo> {
+/** Why a fix could not be obtained. 1/2/3 mirror GeolocationPositionError. */
+export type GeoFailure = "denied" | "unavailable" | "timeout" | "unsupported";
+
+/**
+ * The failure REASON is returned, not just null. Denied, "the device could
+ * not get a fix" and "it took too long" need completely different advice --
+ * sending someone indoors with poor GPS into their permission settings
+ * wastes their time and leaves them still unable to punch.
+ */
+function getGeoResult(timeoutMs: number): Promise<{ geo: Geo; failure: GeoFailure | null }> {
   return new Promise((resolve) => {
-    if (!navigator.geolocation) return resolve(null);
+    if (!navigator.geolocation) return resolve({ geo: null, failure: "unsupported" });
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy_m: pos.coords.accuracy }),
-      () => resolve(null),
+      (pos) => resolve({ geo: { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy_m: pos.coords.accuracy }, failure: null }),
+      (err) => resolve({
+        geo: null,
+        failure: err.code === err.PERMISSION_DENIED ? "denied"
+          : err.code === err.TIMEOUT ? "timeout"
+          : "unavailable",
+      }),
       { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 30_000 }
     );
   });
+}
+
+async function getGeo(timeoutMs: number): Promise<Geo> {
+  return (await getGeoResult(timeoutMs)).geo;
 }
 
 function frameToBlob(video: HTMLVideoElement): Promise<Blob | null> {
@@ -276,6 +294,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
   // The punch that was refused for location, so "Try again" resumes it.
   const [locationBlocked, setLocationBlocked] = useState<PresenceKind | null>(null);
+  const [locationFailure, setLocationFailure] = useState<GeoFailure | null>(null);
   // True when /state couldn't be reached but we're rendering a cached snapshot
   // -- the punch UI still works and punches queue for later sync.
   const [offline, setOffline] = useState(false);
@@ -707,9 +726,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     // change, so the message says that rather than just "try again".
     if (isShiftPunch && me?.require_location) {
       setBusy(true);
-      const geo = await getGeo(10_000);
+      const { geo, failure } = await getGeoResult(10_000);
       setBusy(false);
       if (!geo) {
+        setLocationFailure(failure);
         // The panel below explains how to turn it back on for THIS device
         // and retries the same punch, so the worker never has to remember
         // which button they were on.
@@ -816,6 +836,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       {locationBlocked && (
         <div style={{ marginBottom: 14 }}>
           <LocationHelp
+            failure={locationFailure}
             retrying={busy}
             onRetry={() => { const k = locationBlocked; setLocationBlocked(null); void startPunch(k); }}
           />

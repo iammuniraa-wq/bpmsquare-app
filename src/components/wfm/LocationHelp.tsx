@@ -48,12 +48,22 @@ function steps(): { device: string; how: string[] } {
   const safari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua);
 
   if (iOS && safari) {
+    // Safari on iOS has THREE independent location gates, and the two
+    // obvious ones can both be correct while the third still blocks
+    // everything. Ordered here from the one people miss to the one they
+    // check first:
+    //   Settings -> Safari -> Location   (applies to every website; "Deny"
+    //                                     here overrides any per-site value)
+    //   aA -> Website Settings -> Location  (this one site)
+    //   Settings -> Privacy -> Location Services -> Safari Websites
+    //                                     (the Safari app itself)
     return {
       device: "iPhone or iPad — Safari",
       how: [
-        "Tap “aA” at the left of the address bar",
-        "Website Settings → Location → Allow",
-        "If it stays blocked: iOS Settings → Privacy & Security → Location Services → Safari Websites → While Using the App",
+        "iOS Settings → Safari → scroll to “Settings for Websites” → Location → set to Ask (this one overrides the others and is easy to miss)",
+        "Back in Safari on this page: tap “aA” at the left of the address bar → Website Settings → Location → Allow",
+        "If Location isn’t listed there, the site has no stored answer yet — tap Try again and answer Allow to the prompt",
+        "Last resort, to clear a stuck answer: iOS Settings → Safari → Advanced → Website Data → swipe to delete bpmsquare.com, then reload",
       ],
     };
   }
@@ -88,12 +98,21 @@ function steps(): { device: string; how: string[] } {
   };
 }
 
-export default function LocationHelp({ onRetry, retrying }: { onRetry: () => void; retrying?: boolean }) {
+export type GeoFailure = "denied" | "unavailable" | "timeout" | "unsupported";
+
+export default function LocationHelp({
+  onRetry, retrying, failure,
+}: { onRetry: () => void; retrying?: boolean; failure?: GeoFailure | null }) {
   const perm = useGeoPermission();
   const { device, how } = steps();
-  // "prompt" means the browser will still ask — retrying IS the fix, so the
-  // settings walkthrough would just be noise.
-  const canJustAsk = perm === "prompt" || perm === "unknown";
+
+  // Only a genuine permission problem earns the settings walkthrough.
+  // "unavailable" and "timeout" mean permission is fine and the DEVICE
+  // could not produce a fix -- sending that person into Settings wastes
+  // their time and leaves them still unable to punch.
+  const denied = failure === "denied" || (failure == null && perm === "denied");
+  const deviceProblem = failure === "unavailable" || failure === "timeout" || failure === "unsupported";
+  const canJustAsk = !denied && !deviceProblem && (perm === "prompt" || perm === "unknown");
 
   return (
     <div style={{
@@ -106,10 +125,16 @@ export default function LocationHelp({ onRetry, retrying }: { onRetry: () => voi
       <p style={{ margin: "0 0 12px", fontSize: 12.5, lineHeight: 1.6, color: c.muted }}>
         {canJustAsk
           ? "Your browser will ask for permission — tap Allow when it does."
+          : failure === "timeout"
+          ? "Your device didn’t return a position in time. Permission is fine — this is usually a weak signal indoors. Step near a window or outside and try again."
+          : failure === "unavailable"
+          ? "Your device couldn’t work out where it is. Permission is fine — check that Location Services is switched on, then try again from a spot with a clearer view of the sky."
+          : failure === "unsupported"
+          ? "This browser can’t provide a location at all. Use Safari or Chrome on the device instead."
           : `Location is blocked for this site, so the browser won’t ask again. Browsers don’t let a page open its own permission settings, so it has to be changed by hand on ${device}:`}
       </p>
 
-      {!canJustAsk && how.length > 0 && (
+      {denied && how.length > 0 && (
         <ol style={{ margin: "0 0 12px", paddingLeft: 18, fontSize: 12.5, lineHeight: 1.85, color: c.ink }}>
           {how.map((s) => <li key={s}>{s}</li>)}
         </ol>
