@@ -10,42 +10,46 @@ type Props = {
   users: { id: string; role: string; created_at: string; user_id: string; email: string | null; confirmed: boolean }[];
 };
 
-const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: boolean }[] = [
-  { key: "leads",        label: "Leads" },
-  { key: "pipeline",     label: "Pipeline" },
-  { key: "amc",          label: "AMC Contracts" },
-  { key: "dispatch",     label: "Dispatch" },
-  { key: "invoices",     label: "Invoices" },
-  { key: "partners",     label: "Partners" },
-  { key: "marketing",    label: "Marketing campaigns" },
-  { key: "purchasing",   label: "Inventory & Purchasing" },
-  { key: "ai_assistant", label: "AI Assistant", premium: true },
-  { key: "db_export",    label: "DB Export",    premium: true },
-  { key: "change_history",         label: "Change History" },
-  { key: "outbound_email",         label: "Outbound Emails" },
-  { key: "business_roles",         label: "Business Roles" },
-  { key: "standard_quotes",        label: "Standard Quotes" },
-  { key: "gmail_reply_threading",  label: "Gmail reply-threading" },
-  { key: "quote_lines_dw",         label: "Quote Lines (Data Workbench)" },
-  { key: "wfm",                    label: "Workforce (Attendance & Leave)" },
-  { key: "pricing_engine",         label: "Pricing Engine (dynamic pricing)" },
-  { key: "next_experience",        label: "Nova — the Business OS experience", premium: true },
+// Grouped so the editor renders collapsible sections instead of one long
+// wall of ~30 toggles (owner request 2026-08-19).
+const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: boolean; group: string }[] = [
   // Core modules (0067). Every existing tenant was backfilled to true, so
   // switching one OFF here is what removes it from that client's navigation
   // -- for a Workforce-only client, turn all of these off except the ones
   // they bought.
-  { key: "accounts",       label: "Accounts" },
-  { key: "contacts",       label: "Contacts" },
-  { key: "quotations",     label: "Quotations" },
-  { key: "cases",          label: "Cases" },
-  { key: "work_orders",    label: "Work Orders" },
-  { key: "technicians",    label: "Technicians" },
-  { key: "assets",         label: "Assets" },
-  { key: "suppliers",      label: "Suppliers" },
-  { key: "reports",        label: "Analytics" },
-  { key: "data_workbench", label: "Data Workbench" },
-  { key: "administration", label: "Administration hub" },
+  { key: "accounts",       label: "Accounts",           group: "Core modules" },
+  { key: "contacts",       label: "Contacts",           group: "Core modules" },
+  { key: "quotations",     label: "Quotations",         group: "Core modules" },
+  { key: "cases",          label: "Cases",              group: "Core modules" },
+  { key: "work_orders",    label: "Work Orders",        group: "Core modules" },
+  { key: "technicians",    label: "Technicians",        group: "Core modules" },
+  { key: "assets",         label: "Assets",             group: "Core modules" },
+  { key: "suppliers",      label: "Suppliers",          group: "Core modules" },
+  { key: "reports",        label: "Analytics",          group: "Core modules" },
+  { key: "data_workbench", label: "Data Workbench",     group: "Core modules" },
+  { key: "administration", label: "Administration hub", group: "Core modules" },
+  { key: "wfm",            label: "Workforce (Attendance & Leave)", group: "Core modules" },
+  { key: "leads",        label: "Leads",                  group: "Sales & Service add-ons" },
+  { key: "pipeline",     label: "Pipeline",               group: "Sales & Service add-ons" },
+  { key: "amc",          label: "AMC Contracts",          group: "Sales & Service add-ons" },
+  { key: "dispatch",     label: "Dispatch",               group: "Sales & Service add-ons" },
+  { key: "invoices",     label: "Invoices",               group: "Sales & Service add-ons" },
+  { key: "partners",     label: "Partners",               group: "Sales & Service add-ons" },
+  { key: "marketing",    label: "Marketing campaigns",    group: "Sales & Service add-ons" },
+  { key: "purchasing",   label: "Inventory & Purchasing", group: "Sales & Service add-ons" },
+  { key: "standard_quotes", label: "Standard Quotes",     group: "Sales & Service add-ons" },
+  { key: "quote_lines_dw",  label: "Quote Lines (Data Workbench)", group: "Sales & Service add-ons" },
+  { key: "ai_assistant",   label: "AI Assistant", premium: true, group: "Platform & automation" },
+  { key: "db_export",      label: "DB Export",    premium: true, group: "Platform & automation" },
+  { key: "change_history",        label: "Change History",         group: "Platform & automation" },
+  { key: "outbound_email",        label: "Outbound Emails",        group: "Platform & automation" },
+  { key: "business_roles",        label: "Business Roles",         group: "Platform & automation" },
+  { key: "gmail_reply_threading", label: "Gmail reply-threading",  group: "Platform & automation" },
+  { key: "pricing_engine",        label: "Pricing Engine (dynamic pricing)", group: "Platform & automation" },
+  { key: "next_experience", label: "Nova — the Business OS experience", premium: true, group: "Programs" },
 ];
+
+const FEATURE_GROUPS = [...new Set(FEATURE_LABELS.map((f) => f.group))];
 
 const inputStyle: React.CSSProperties = {
   height: 38, border: "1px solid #d1d5db", borderRadius: 8,
@@ -240,31 +244,55 @@ export default function TenantEditor({ tenant, users }: Props) {
       {/* Feature flags */}
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
         <h2 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Feature flags</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {FEATURE_LABELS.map(({ key, label, premium }) => (
-            <label key={key} style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "10px 14px", borderRadius: 8,
-              background: features[key] ? "#eff6ff" : "#f9fafb",
-              border: `1px solid ${features[key] ? "#bfdbfe" : "#e5e7eb"}`,
-              cursor: "pointer",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{label}</span>
-                {premium && (
-                  <span style={{ fontSize: 10, background: "#faf5ff", color: "#7e22ce", border: "1px solid #e9d5ff", borderRadius: 10, padding: "1px 7px" }}>
-                    Premium
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {FEATURE_GROUPS.map((group) => {
+            const items = FEATURE_LABELS.filter((f) => f.group === group);
+            const onCount = items.filter((f) => features[f.key]).length;
+            return (
+              <details key={group} style={{ border: "1px solid #e5e7eb", borderRadius: 10, background: "#fafafa" }}>
+                <summary style={{
+                  cursor: "pointer", padding: "11px 14px", fontSize: 13, fontWeight: 600, color: "#374151",
+                  display: "flex", alignItems: "center", gap: 8, listStyle: "none",
+                }}>
+                  <span style={{ flex: 1 }}>{group}</span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 10,
+                    background: onCount > 0 ? "#eff6ff" : "#f3f4f6",
+                    color: onCount > 0 ? "#1d4ed8" : "#9ca3af",
+                    border: `1px solid ${onCount > 0 ? "#bfdbfe" : "#e5e7eb"}`,
+                  }}>
+                    {onCount} of {items.length} on
                   </span>
-                )}
-              </div>
-              <input
-                type="checkbox"
-                checked={features[key]}
-                onChange={() => toggleFeature(key)}
-                style={{ width: 16, height: 16, cursor: "pointer", accentColor: c.accent }}
-              />
-            </label>
-          ))}
+                </summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 12px 12px" }}>
+                  {items.map(({ key, label, premium }) => (
+                    <label key={key} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "10px 14px", borderRadius: 8,
+                      background: features[key] ? "#eff6ff" : "#fff",
+                      border: `1px solid ${features[key] ? "#bfdbfe" : "#e5e7eb"}`,
+                      cursor: "pointer",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{label}</span>
+                        {premium && (
+                          <span style={{ fontSize: 10, background: "#faf5ff", color: "#7e22ce", border: "1px solid #e9d5ff", borderRadius: 10, padding: "1px 7px" }}>
+                            Premium
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={features[key]}
+                        onChange={() => toggleFeature(key)}
+                        style={{ width: 16, height: 16, cursor: "pointer", accentColor: c.accent }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </details>
+            );
+          })}
         </div>
       </section>
 

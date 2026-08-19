@@ -17,6 +17,7 @@ import QuoteEditPanel from "@/components/QuoteEditPanel";
 import EmailComposeModal from "@/components/EmailComposeModal";
 import { useTenant, useTenantFeature, useIsNextgen3Layer } from "@/lib/tenant-context";
 import { celebrate } from "@/lib/celebrate";
+import NovaTimeline from "@/components/NovaTimeline";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/whatsapp";
 import { richTextToDisplayHtml } from "@/lib/richText";
 
@@ -1281,6 +1282,10 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
               </>}
             </div>
           </section>
+
+          {/* Nova pillar 3: the record's timeline -- comments + change
+              stream. Quotations first; other surfaces follow the same mount. */}
+          {celebrateWins && <NovaTimeline objectType="quotes" objectId={quote.id} />}
 
         </div>
       </div>

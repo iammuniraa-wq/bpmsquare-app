@@ -323,9 +323,12 @@ the only thing that happens by itself. Every migration is pasted into the
 Supabase SQL editor by hand, staging first (when the feature lands on
 `develop`), production at promotion time. Don't mistake the automatic code
 deploy for an automatic schema change.
-- Dev DB: migrations through **0088** are applied (owner confirmed
-  2026-08-18; 0087 `engagement_events`, 0088 `quotes.loss_reason`).
+- Dev DB: migrations through **0088** applied (owner confirmed
+  2026-08-18). **0089 pending** (`record_comments` — Nova timeline).
 - Main/production DB: through **0088** applied (same confirmation).
+  **0089 pending** (same file). Code tolerates its absence: the timeline
+  shows change history only; posting a comment errors with a pointer to
+  the migration.
   Fog of War (engagement layer) needed no migration — it reads the
   existing `accounts.territory` against the tenant's Sales-config
   territory picklist.
