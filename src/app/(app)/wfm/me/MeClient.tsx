@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { selfieRequiredFor } from "@/lib/wfm/punchRules";
 import LocationHelp from "@/components/wfm/LocationHelp";
+import DeviceSetupCard from "@/components/wfm/DeviceSetupCard";
+import { geoPermissionState } from "@/lib/wfm/devicePermissions";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -717,7 +719,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
 
   // Breaks and OT punches don't need a selfie (only the shift's own
   // in/out do, matching how the camera gate worked before the dropdown).
-  async function startPunch(kind: PresenceKind) {
+  async function startPunch(kind: PresenceKind, opts?: { ask?: boolean }) {
     const isShiftPunch = kind === "check_in" || kind === "check_out";
 
     // Location is checked BEFORE the camera opens. Doing it the other way
@@ -726,6 +728,17 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     // would have been wasted. A denied permission needs a browser-settings
     // change, so the message says that rather than just "try again".
     if (isShiftPunch && me?.require_location) {
+      // Never fire the browser prompt cold. A reflexive "Deny" here is
+      // permanent and costs an OS-settings trip plus a reload to undo, so
+      // the first ask is always preceded by one line explaining it -- and
+      // if they aren't ready, dismissing OUR panel records no refusal.
+      if (!opts?.ask && (await geoPermissionState()) === "prompt") {
+        setNotice(null);
+        setLocationFailure(null);
+        setLocationCheckedAt(null);
+        setLocationBlocked(kind);
+        return;
+      }
       setBusy(true);
       const { geo, failure } = await getGeoResult(10_000);
       setBusy(false);
@@ -843,7 +856,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
             checkedAt={locationCheckedAt}
             retrying={busy}
             onDismiss={() => { setLocationBlocked(null); setLocationCheckedAt(null); }}
-            onRetry={() => { void startPunch(locationBlocked); }}
+            onRetry={() => { void startPunch(locationBlocked, { ask: true }); }}
           />
         </div>
       )}
@@ -926,6 +939,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
             </section>
           ))}
         </div>
+      )}
+
+      {tab === "home" && me?.employee && (
+        <DeviceSetupCard needsLocation={me.require_location === true} />
       )}
 
       {tab === "home" && (
