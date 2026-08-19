@@ -49,21 +49,25 @@ function steps(): { device: string; how: string[] } {
 
   if (iOS && safari) {
     // Safari on iOS has THREE independent location gates, and the two
-    // obvious ones can both be correct while the third still blocks
-    // everything. Ordered here from the one people miss to the one they
-    // check first:
-    //   Settings -> Safari -> Location   (applies to every website; "Deny"
-    //                                     here overrides any per-site value)
+    // obvious ones can both read correctly while the third still blocks
+    // everything:
+    //   Settings -> Safari -> Location   (every website; overrides the rest)
     //   aA -> Website Settings -> Location  (this one site)
     //   Settings -> Privacy -> Location Services -> Safari Websites
     //                                     (the Safari app itself)
+    // Confirmed on a real device 2026-08-19: setting the FIRST one to
+    // Allow is sufficient on its own -- the other two needed no change,
+    // even with Location Services already correct. Written as ALLOW, not
+    // "Ask": Ask still consults the per-site answer, which is exactly the
+    // stuck Deny that sent the user here. Searching Settings for "Safari"
+    // is how people actually find it; the setting is far down that page.
     return {
       device: "iPhone or iPad — Safari",
       how: [
-        "iOS Settings → Safari → scroll to “Settings for Websites” → Location → set to Ask (this one overrides the others and is easy to miss)",
-        "Back in Safari on this page: tap “aA” at the left of the address bar → Website Settings → Location → Allow",
-        "If Location isn’t listed there, the site has no stored answer yet — tap Try again and answer Allow to the prompt",
-        "Last resort, to clear a stuck answer: iOS Settings → Safari → Advanced → Website Data → swipe to delete bpmsquare.com, then reload",
+        "Open iOS Settings and search for “Safari”, then open it",
+        "Scroll right down to Location and set it to Allow",
+        "Come back here and tap Try again — that is normally all it takes",
+        "Only if it still refuses: tap “aA” in the address bar → Website Settings → Location → Allow, or clear a stuck answer via Settings → Safari → Advanced → Website Data → delete bpmsquare.com",
       ],
     };
   }
