@@ -468,6 +468,30 @@ The queue, in order:
    (shipped 2026-08-19) is NOT that board — it plots quotes by quote
    status and lives on Quotations behind a List / Flow board toggle. It
    was briefly mounted on /pipeline by mistake and moved the same day.
+
+   **Forecast constraint — owner decision 2026-08-19, decide this BEFORE
+   the migration, not after.** Pipeline is a module a client scopes
+   separately (the `pipeline` TenantFeatures flag already exists), so
+   forecast must be reportable from opportunities and from quotes
+   **independently, and combined without double-counting**:
+   - The opportunity carries its OWN forecast inputs — expected value,
+     probability/stage weighting, expected close date — never inferred
+     from a quote. A tenant with the module and no quotes yet still has
+     a forecast; a tenant without the module still has the quote one.
+   - `quotes.opportunity_id` (nullable, tenant-verified like every other
+     foreign id) is what makes the two separable AND combinable. Without
+     that column there is no way to tell, later, whether a ₹5L quote and
+     a ₹5L opportunity are one deal or two — and no migration can
+     reconstruct it. This is the single thing that cannot be added
+     retroactively with the data intact.
+   - Combined forecast rule: once an opportunity has a live quote, the
+     QUOTE's value supersedes the opportunity's estimate for that deal —
+     the estimate is what you had before a real number existed. Report
+     the two as separate columns (weighted pipeline / open quote value)
+     plus a de-duplicated total; never sum all three.
+   - Analytics/reports and the v1 API both need the split, not just the
+     UI — a client scoping Pipeline will ask for its forecast through
+     the API on day one.
 3. **Rival Ghost** and **Boss Battle** (approved concepts mockup:
    https://claude.ai/code/artifact/729d72a8-d732-4461-9966-a3421f9e39ab).
 4. **Keyboard layer** — g+a style sequences, ? cheat-sheet.
