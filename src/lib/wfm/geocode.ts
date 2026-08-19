@@ -24,7 +24,14 @@ export type GeocodeResult =
 const TIMEOUT_MS = 4000;
 
 export function geocodingConfigured(): boolean {
-  return !!process.env.OLA_MAPS_API_KEY;
+  return !!olaKey();
+}
+
+/** Trimmed, because a key pasted into a dashboard with a trailing newline or
+ *  space looks perfectly correct there and is rejected 401 by the provider
+ *  every single time -- the encoded whitespace travels in the query string. */
+function olaKey(): string {
+  return (process.env.OLA_MAPS_API_KEY ?? "").trim();
 }
 
 /**
@@ -34,7 +41,7 @@ export function geocodingConfigured(): boolean {
  * coordinates instead.
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeResult> {
-  const key = process.env.OLA_MAPS_API_KEY;
+  const key = olaKey();
   if (!key) return { status: "unavailable", reason: "OLA_MAPS_API_KEY is not set" };
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return { status: "unavailable", reason: "Invalid coordinates" };
@@ -85,7 +92,7 @@ export type ForwardGeocodeResult =
  * by tens of metres. Never throws, same contract as reverseGeocode.
  */
 export async function forwardGeocode(address: string): Promise<ForwardGeocodeResult> {
-  const key = process.env.OLA_MAPS_API_KEY;
+  const key = olaKey();
   if (!key) return { status: "unavailable", reason: "OLA_MAPS_API_KEY is not set" };
   const q = address.trim();
   if (!q) return { status: "unavailable", reason: "Empty address" };
