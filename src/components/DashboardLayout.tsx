@@ -161,7 +161,21 @@ function resolveLayout(saved: DashLayoutItem[], features: TenantFeatures): DashL
   // Ensure native blocks that aren't in saved layout appear (as hidden) so user can un-hide them
   const savedIds = new Set(saved.map((b) => b.id));
   const missing = Object.keys(NATIVE_META).filter((id) => !savedIds.has(id));
-  return [...saved, ...missing.map((id) => ({ id, hidden: true }))];
+  const merged = [...saved, ...missing.map((id) => ({ id, hidden: true }))];
+
+  // A saved layout was never reconciled against the tenant's MODULES. A
+  // workspace whose saved blocks all belong to modules it doesn't have --
+  // a layout stamped at provisioning, or one left behind when modules
+  // changed -- filtered down to nothing and opened on a blank screen, with
+  // the module's own widgets sitting unused because defaultLayoutFor is
+  // only consulted when nothing is saved at all.
+  //
+  // Deliberately keyed on feature-allowed, NOT on hidden: a user who hid
+  // every block chose that, and is left alone (the empty state below
+  // explains how to bring them back). This only rescues a layout that
+  // cannot show anything no matter what the user un-hides.
+  if (!merged.some((b) => blockAllowed(b.id, features))) return defaultLayoutFor(features);
+  return merged;
 }
 
 /** The default layout was written when every tenant had every module: all
@@ -1628,6 +1642,29 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       {/* Only reserve the 280px right rail when there is actually something to
           put in it. A tenant with no sidebar widgets (e.g. a WFM-only
           dashboard) was left with a dead 280px column down the right edge. */}
+      {/* A dashboard with nothing on it reads as broken, not as empty. This
+          is reachable honestly -- every block hidden by choice -- so it says
+          what happened and how to undo it, rather than leaving a void. */}
+      {visibleBlocks.length === 0 && (
+        <div style={{ ...cardStyle, textAlign: "center", padding: "34px 20px" }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: c.ink }}>Your dashboard is empty</div>
+          <div style={{ fontSize: 12.5, color: c.muted, marginTop: 6, lineHeight: 1.6, maxWidth: 420, margin: "6px auto 0" }}>
+            Every card is currently hidden. Use{" "}
+            <b>{isAdmin ? "Adapt dashboard" : "My layout"}</b> above to bring back the ones you want —
+            or reach the workcenters you use from the menu.
+          </div>
+          <button
+            onClick={() => (isAdmin ? setAdaptOpen(true) : setPersonalizeOpen(true))}
+            style={{
+              marginTop: 14, padding: "9px 18px", borderRadius: 8, cursor: "pointer", font: "inherit",
+              fontSize: 13, fontWeight: 650, border: "none", background: c.accent, color: "#fff",
+            }}
+          >
+            Choose cards
+          </button>
+        </div>
+      )}
+
       <div className="dash-outer" style={{ display: "grid", gridTemplateColumns: sidebarBlocks.length > 0 ? "1fr 280px" : "1fr", gap: 14, alignItems: "start" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
           {mainBlocks.map((b) => (
