@@ -10,6 +10,7 @@ import { useUiTheme, useIsNextgen3Layer } from "@/lib/tenant-context";
 import SilenceDetector from "@/components/SilenceDetector";
 import LossIntelligence from "@/components/LossIntelligence";
 import FogOfWar from "@/components/FogOfWar";
+import WfmSummaryWidget from "@/components/wfm/WfmSummaryWidget";
 import { ROUTES } from "@/lib/constants";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
 import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText, Clock } from "@/components/Icons";
@@ -59,6 +60,10 @@ const NATIVE_META: Record<string, { label: string; sidebar?: boolean; features?:
   tech_workload:   { label: "Work orders by technician", features: ["technicians", "work_orders"] },
   top_accounts:    { label: "Top accounts by revenue", features: ["accounts"] },
   quick_create:    { label: "Quick create", sidebar: true, features: ["accounts", "cases", "contacts", "quotations", "assets"] },
+  // Not an analytics widget: it fetches /api/wfm/summary itself rather than
+  // reading the precomputed analytics payload, which is why it lives here
+  // and renders through the native switch below.
+  wfm_summary:     { label: "Attendance summary (day + month)", features: ["wfm"] },
 };
 
 const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures }> = {
@@ -137,6 +142,7 @@ const BUNDLES: { id: string; label: string; feature?: keyof TenantFeatures; bloc
     { id: "invoice_budget" }, { id: "invoices_by_status" }, { id: "revenue_overview" },
   ] },
   { id: "wfm",          label: "Workforce",     feature: "wfm", blocks: [
+    { id: "wfm_summary", size: "full" },
     { id: "wfm_attendance_today" }, { id: "wfm_corrections_queue" }, { id: "wfm_leave_requests_queue" },
     { id: "wfm_site_headcount" }, { id: "wfm_workforce_composition", size: "half" }, { id: "wfm_night_shift_cost", size: "compact" },
   ] },
@@ -1584,6 +1590,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       case "overdue_tasks":  return <div key={block.id}>{renderOverdueTasks()}</div>;
       case "tech_workload":  return <div key={block.id}>{renderTechWorkload()}</div>;
       case "top_accounts":   return <div key={block.id}>{renderTopAccounts()}</div>;
+      case "wfm_summary":    return <div key={block.id}><WfmSummaryWidget /></div>;
       default: return null;
     }
   }
