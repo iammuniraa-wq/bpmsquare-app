@@ -26,6 +26,7 @@ export async function GET() {
 const FACE_MODES = ["off", "flag_only"];
 const GEOFENCE_MODES = ["block", "flag", "off"];
 const SELFIE_MODES = ["off", "shift", "all"];
+const FACE_PUNCH_MODES = ["off", "kiosk"];
 const NOTIFICATION_KEYS = ["late_arrival", "correction_pending", "leave_pending", "recheck_flagged"] as const;
 const PUNCH_TYPE_KEYS = ["ot", "mobile_work", "business_trip"] as const;
 // Codes are what employees.employment_type stores -- keep them machine-safe
@@ -63,6 +64,9 @@ export async function PUT(request: NextRequest) {
   }
   if (typeof body.face_verification_mode === "string" && FACE_MODES.includes(body.face_verification_mode)) {
     next.face_verification_mode = body.face_verification_mode as WfmConfig["face_verification_mode"];
+  }
+  if (typeof body.face_punch === "string" && FACE_PUNCH_MODES.includes(body.face_punch)) {
+    next.face_punch = body.face_punch as WfmConfig["face_punch"];
   }
   if (
     Array.isArray(body.week_off_days) &&

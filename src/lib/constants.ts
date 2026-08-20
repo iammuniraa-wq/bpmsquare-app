@@ -459,6 +459,11 @@ export type WfmConfig = {
   // flag_only: async face compare vs enrolled photo sets a face_mismatch
   // flag; never blocks a punch.
   face_verification_mode: "off" | "flag_only";
+  // Kiosk face punch: a registered door tablet identifies an enrolled
+  // employee by face (1:N, server-side behind our API) and offers the
+  // valid punch buttons -- no login on the device. Default off; the whole
+  // surface (enrollment, kiosk registration, /kiosk) hangs off this key.
+  face_punch: "off" | "kiosk";
   // Weekly off days, 0 = Sunday … 6 = Saturday.
   week_off_days: number[];
   // block: punch outside every site's geofence is rejected (409). flag:
@@ -538,6 +543,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   leave_carry_forward: false,
   selfie_retention_days: 90,
   face_verification_mode: "off",
+  face_punch: "off",
   week_off_days: [0],
   geofence_mode: "flag",
   require_location: false,

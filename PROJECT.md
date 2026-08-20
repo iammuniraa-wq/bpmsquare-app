@@ -324,10 +324,13 @@ Supabase SQL editor by hand, staging first (when the feature lands on
 `develop`), production at promotion time. Don't mistake the automatic code
 deploy for an automatic schema change.
 - Dev DB **and** main/production DB: migrations through **0091** applied
-  (owner confirmed 2026-08-19). 0091 is currently the LAST file — nothing
-  is pending on either database.
-- Everything shipped after 0091 is deliberately schema-free, so don't go
-  looking for a migration that doesn't exist: **Account 360** stores its
+  (owner confirmed 2026-08-19).
+- **0092_wfm_face_punch.sql — PENDING on both DBs** (written 2026-08-20):
+  face-punch schema (wfm_face_enrollments + wfm_kiosk_devices, WFM
+  select-only/deny-all RLS). Purely additive, nothing reads it until the
+  enrollment/kiosk steps ship; safe to run any time before those.
+- Everything else shipped after 0091 is deliberately schema-free, so don't
+  go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;
   the **feel layer** (confirm dialog + toasts) is client-side only; the
   **Flow Board** derives entirely from existing `change_log` + `quotes`
