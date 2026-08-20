@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 type ObjectType = "quote" | "case" | "work_order" | "account";
 
@@ -60,6 +62,7 @@ export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Log
   const [clearing, setClearing] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [allLogs, setAllLogs] = useState(logs);
+  const [page, setPage] = useState(1);
 
   // Flatten all logs into a unified list
   const unified: Array<DeletedRecord & { objectType: ObjectType }> = [
@@ -70,6 +73,8 @@ export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Log
   ].sort((a, b) => new Date(b.deleted_at).getTime() - new Date(a.deleted_at).getTime());
 
   const filtered = activeType === "all" ? unified : unified.filter((r) => r.objectType === activeType);
+  const cPage = clampPage(page, filtered.length, DEFAULT_PAGE_SIZE);
+  const pageRows = paginate(filtered, cPage, DEFAULT_PAGE_SIZE);
 
   const counts: Record<ObjectType | "all", number> = {
     all:        unified.length,
@@ -153,7 +158,7 @@ export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Log
                       No {TYPE_LABEL[activeType as ObjectType]} deletions logged.
                     </td>
                   </tr>
-                ) : filtered.map((r, i) => (
+                ) : pageRows.map((r, i) => (
                   <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "color-mix(in srgb, var(--panel2) 55%, transparent)" }}>
                     <td style={td}>
                       <span style={{
@@ -197,6 +202,9 @@ export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Log
                 ))}
               </tbody>
             </table>
+            <div style={{ padding: "0 12px 10px" }}>
+              <Pager page={cPage} total={filtered.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+            </div>
           </div>
         </div>
       )}

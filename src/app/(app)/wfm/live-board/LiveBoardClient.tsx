@@ -8,6 +8,8 @@ import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
 import PunchAudit from "@/components/wfm/PunchAudit";
 import { ROUTES } from "@/lib/constants";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 const POLL_MS = 30_000;
 
@@ -98,6 +100,9 @@ export default function LiveBoardClient({ initialBoard = null, initialLanding = 
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [lateOnly, setLateOnly] = useState(false);
+  // Page per site group -- state lives up here because the groups render
+  // inside a map, where a hook per group isn't possible.
+  const [sitePages, setSitePages] = useState<Record<string, number>>({});
   // Which employee's punch audit (selfie + location) is expanded.
   const [auditFor, setAuditFor] = useState<string | null>(null);
   // Recheck-request composer -- set when a supervisor clicks "Flag for recheck".
@@ -338,7 +343,10 @@ export default function LiveBoardClient({ initialBoard = null, initialLanding = 
         </div>
       )}
 
-      {orderedGroups.ordered.map(([siteName, rows]) => (
+      {orderedGroups.ordered.map(([siteName, rows]) => {
+        const sitePage = clampPage(sitePages[siteName] ?? 1, rows.length, DEFAULT_PAGE_SIZE);
+        const pageRows = paginate(rows, sitePage, DEFAULT_PAGE_SIZE);
+        return (
         <section key={siteName} style={{ ...cardStyle, padding: 0, marginBottom: 14, overflowX: "auto" }}>
           <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>
             {siteName}
@@ -358,7 +366,7 @@ export default function LiveBoardClient({ initialBoard = null, initialLanding = 
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {pageRows.map((r) => (
                 <Fragment key={r.employee_id}>
                 <tr
                   onClick={() => setAuditFor((cur) => (cur === r.employee_id ? null : r.employee_id))}
@@ -413,8 +421,17 @@ export default function LiveBoardClient({ initialBoard = null, initialLanding = 
               ))}
             </tbody>
           </table>
+          <div style={{ padding: "0 12px 10px" }}>
+            <Pager
+              page={sitePage}
+              total={rows.length}
+              pageSize={DEFAULT_PAGE_SIZE}
+              onPage={(n) => setSitePages((m) => ({ ...m, [siteName]: n }))}
+            />
+          </div>
         </section>
-      ))}
+        );
+      })}
 
       <div style={{ fontSize: 11.5, color: c.hint }}>
         {board.date} · {board.timezone}

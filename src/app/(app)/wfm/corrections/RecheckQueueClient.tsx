@@ -7,6 +7,8 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { RecheckStatus, RecheckType, WfmRecheckRequest } from "@/lib/wfm/types";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 type Row = WfmRecheckRequest & {
   employees: { first_name: string; last_name: string; employee_code: string | null } | null;
@@ -66,6 +68,10 @@ export default function RecheckQueueClient() {
     }
   }
 
+  const [page, setPage] = useState(1);
+  const cPage = clampPage(page, rows.length, DEFAULT_PAGE_SIZE);
+  const pageRows = paginate(rows, cPage, DEFAULT_PAGE_SIZE);
+
   return (
     <>
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -91,7 +97,7 @@ export default function RecheckQueueClient() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {pageRows.map((r) => (
               <tr key={r.id}>
                 <td style={{ ...td, fontWeight: 600 }}>
                   <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
@@ -124,6 +130,9 @@ export default function RecheckQueueClient() {
             )}
           </tbody>
         </table>
+        <div style={{ padding: "0 12px 10px" }}>
+          <Pager page={cPage} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+        </div>
       </section>
     </>
   );

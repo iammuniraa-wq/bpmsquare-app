@@ -5,6 +5,8 @@ import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import type { OtSessionStatus } from "@/lib/wfm/types";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 type EmployeeRef = { first_name: string; last_name: string; employee_code: string | null } | null;
 
@@ -50,6 +52,7 @@ export default function OtQueueClient() {
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [remark, setRemark] = useState("");
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     const res = await fetch(filter === "pending" ? "/api/wfm/ot-sessions?status=pending" : "/api/wfm/ot-sessions");
@@ -81,6 +84,9 @@ export default function OtQueueClient() {
   }
 
   const pendingTotal = rows.filter((r) => r.status === "pending").reduce((s, r) => s + r.minutes, 0);
+
+  const cPage = clampPage(page, rows.length, DEFAULT_PAGE_SIZE);
+  const pageRows = paginate(rows, cPage, DEFAULT_PAGE_SIZE);
 
   return (
     <>
@@ -131,7 +137,7 @@ export default function OtQueueClient() {
                   </td>
                 </tr>
               )}
-              {rows.map((r) => {
+              {pageRows.map((r) => {
                 const emp = one(r.employees);
                 const crossesMidnight = r.ended_at.slice(0, 10) !== r.started_at.slice(0, 10);
                 return (
@@ -200,6 +206,9 @@ export default function OtQueueClient() {
               })}
             </tbody>
           </table>
+        </div>
+        <div style={{ padding: "0 12px 10px" }}>
+          <Pager page={cPage} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
         </div>
       </div>
     </>
