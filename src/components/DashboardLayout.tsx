@@ -180,7 +180,13 @@ function resolveLayout(saved: DashLayoutItem[], features: TenantFeatures): DashL
   // every block chose that, and is left alone (the empty state below
   // explains how to bring them back). This only rescues a layout that
   // cannot show anything no matter what the user un-hides.
-  if (!merged.some((b) => blockAllowed(b.id, features))) return defaultLayoutFor(features);
+  //
+  // Checked against SAVED, not merged: the merge above injects every
+  // native block as hidden, and on a scoped tenant those injected blocks
+  // are feature-allowed -- which made this check always pass and the
+  // rescue never fire, landing e.g. a WFM-only workspace with a stale
+  // CRM-only saved layout on a blank dashboard instead of its defaults.
+  if (!saved.some((b) => blockAllowed(b.id, features))) return defaultLayoutFor(features);
   return merged;
 }
 
@@ -1164,34 +1170,54 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [personalizeOpen, setPersonalizeOpen] = useState(false);
   const [saving, startSave] = useTransition();
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Shared by both save paths. The layout is applied optimistically, but a
+  // failed PATCH must NOT leave the screen showing a card that was never
+  // persisted -- that reads as "it worked" until the next refresh silently
+  // loses it (an expired mobile session was exactly this: the card appeared,
+  // the 401 was swallowed, the refresh asked to add a widget again). On
+  // failure the layout reverts and the reason is shown.
+  function persistLayout(next: DashLayoutItem[], url: string, body: unknown) {
+    const prev = layout;
+    setLayout(next);
+    setSaveError(null);
+    startSave(async () => {
+      try {
+        const res = await fetch(url, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({} as { error?: string }));
+          setLayout(prev);
+          setSaveError(
+            res.status === 401
+              ? "Your session has expired — reload the page and sign in again, then retry."
+              : `Could not save the layout (${j?.error ?? res.status}).`
+          );
+          return;
+        }
+        router.refresh();
+      } catch {
+        setLayout(prev);
+        setSaveError("Could not reach the server — the layout was not saved.");
+      }
+    });
+  }
 
   // Tenant-wide default -- admin-only, unchanged from before role-based
   // dashboards existed.
   function saveTenantLayout(next: DashLayoutItem[]) {
-    setLayout(next);
-    startSave(async () => {
-      await fetch("/api/settings/entities", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dashboard_layout: next }),
-      });
-      router.refresh();
-    });
+    persistLayout(next, "/api/settings/entities", { dashboard_layout: next });
   }
 
   // The caller's own personal tweaks, layered on top of whichever default
   // (a Business Role's dashboard, or the tenant-wide one) would otherwise
   // apply -- available to every user, not just admins.
   function savePersonalLayout(next: DashLayoutItem[]) {
-    setLayout(next);
-    startSave(async () => {
-      await fetch("/api/dashboard/layout", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ layout: next }),
-      });
-      router.refresh();
-    });
+    persistLayout(next, "/api/dashboard/layout", { layout: next });
   }
 
   function resetPersonalLayout() {
@@ -1610,7 +1636,10 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
           <div style={{ fontSize: 11, color: c.hint, fontWeight: 500, marginBottom: 3 }}>{todayStr()}</div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1.2 }}>{greet()}</h1>
         </div>
-        <div className="desk-only" style={{ display: "flex", gap: 8, flexShrink: 0, marginTop: 4 }}>
+        {/* Not desk-only: on a phone the only way into the layout drawers used
+            to be the empty-state button -- so a mobile user could ADD their
+            first card but never manage the layout again after that. */}
+        <div style={{ display: "flex", gap: 8, flexShrink: 0, marginTop: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
           {isAdmin && (
             <button
               onClick={() => setAdaptOpen(true)}
@@ -1712,6 +1741,30 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
           onReset={hasPersonalOverride ? resetPersonalLayout : undefined}
           resetLabel="Reset to my default"
         />
+      )}
+
+      {/* A failed save must be seen -- above the drawer (zIndex 100), since
+          that's where the action that failed just happened. */}
+      {saveError && (
+        <div
+          role="alert"
+          style={{
+            position: "fixed", left: 12, right: 12, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
+            zIndex: 200, display: "flex", alignItems: "center", gap: 10,
+            maxWidth: 480, margin: "0 auto", padding: "11px 14px", borderRadius: 10,
+            background: "#3b1219", border: "1px solid #e5484d", color: "#ffd1d4",
+            fontSize: 12.5, fontWeight: 600, boxShadow: "0 8px 24px rgba(0,0,0,.35)",
+          }}
+        >
+          <span style={{ flex: 1 }}>{saveError}</span>
+          <button
+            onClick={() => setSaveError(null)}
+            aria-label="Dismiss"
+            style={{ background: "none", border: "none", color: "#ffd1d4", fontSize: 15, cursor: "pointer", padding: "2px 4px", lineHeight: 1 }}
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       <style>{`
