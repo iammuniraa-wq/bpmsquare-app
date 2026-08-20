@@ -134,13 +134,19 @@
    blue accent, and semantic colour reserved for data/status. Dashboard gets
    the rule-based AI brief + sparkline KPIs (DashboardLayout.tsx). */
 [data-theme="nextgen"] {
-  --panel2: #f7f7f8;               /* the canvas -- html/body + section fills read this */
+  /* The canvas is deliberately a clear step darker than a card, not the 2%
+     it used to be (#f7f7f8 against #ffffff, which no eye resolves). With no
+     visible gap between page and card, every surface read as one flat white
+     field and individual elements looked washed out however dark their text
+     got -- which is the real reason light mode kept feeling faint. Cards now
+     sit ON something, and the shadow is strong enough to say so. */
+  --panel2: #eef0f4;               /* the canvas -- html/body + section fills read this */
   --card-radius: 10px;
-  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --card-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.05);
   --card-shadow-hover: 0 10px 24px rgba(16, 24, 40, 0.10), 0 2px 6px rgba(16, 24, 40, 0.06);
   --line: #e9eaee;
   --sidebar-grad: #ffffff;
-  --sb-bar-bg: #f7f7f8;
+  --sb-bar-bg: #ffffff;
   --modern-accent: #2e6be6;
   --modern-accent-bg: #eef3fe;
   --modern-gold: #2e6be6;
