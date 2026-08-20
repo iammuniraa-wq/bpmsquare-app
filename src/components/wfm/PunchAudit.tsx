@@ -16,6 +16,7 @@ type PunchEvent = {
   within_geofence: boolean | null;
   geo_address: string | null;
   selfie_url: string | null;
+  flags?: { face_verified?: boolean; face_mismatch?: boolean; face_unreadable?: boolean } | null;
 };
 
 const KIND_LABEL: Record<PunchEvent["kind"], string> = {
@@ -95,9 +96,12 @@ export default function PunchAudit({
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <span style={{ fontWeight: 600, color: c.ink }}>{KIND_LABEL[e.kind]}</span>
               <span style={{ color: c.hint }}>{fmtTime(e.ts)}</span>
-              {e.source !== "web_selfie" && <Pill label={e.source === "correction" ? "Corrected" : "Manual"} tone="purple" />}
+              {e.source !== "web_selfie" && <Pill label={e.source === "correction" ? "Corrected" : e.source === "kiosk_face" ? "Kiosk" : "Manual"} tone={e.source === "kiosk_face" ? "blue" : "purple"} />}
               {e.within_geofence === true && <Pill label={e.site_name ?? "On site"} tone="green" />}
               {e.within_geofence === false && <Pill label="Outside geofence" tone="amber" />}
+              {e.flags?.face_verified && <Pill label="Face ✓" tone="green" />}
+              {e.flags?.face_mismatch && <Pill label="Face mismatch" tone="red" />}
+              {e.flags?.face_unreadable && <Pill label="Face unreadable" tone="amber" />}
               {canFlag && onFlag && (
                 <button
                   type="button"

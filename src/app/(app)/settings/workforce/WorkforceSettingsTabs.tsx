@@ -8,8 +8,9 @@ import SitesClient from "./SitesClient";
 import ShiftsClient from "./ShiftsClient";
 import LeaveTypesClient from "./LeaveTypesClient";
 import HolidaysClient from "./HolidaysClient";
+import KiosksClient from "./KiosksClient";
 
-type Tab = "general" | "sites" | "shifts" | "leave_types" | "holidays";
+type Tab = "general" | "sites" | "shifts" | "leave_types" | "holidays" | "kiosks";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "general", label: "General" },
@@ -17,6 +18,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "shifts", label: "Shifts" },
   { key: "leave_types", label: "Leave Types" },
   { key: "holidays", label: "Holidays" },
+  { key: "kiosks", label: "Kiosks" },
 ];
 
 export default function WorkforceSettingsTabs({ initial }: { initial: WfmConfig }) {
@@ -41,6 +43,7 @@ export default function WorkforceSettingsTabs({ initial }: { initial: WfmConfig 
       {tab === "shifts" && <ShiftsClient canEdit={true} />}
       {tab === "leave_types" && <LeaveTypesClient />}
       {tab === "holidays" && <HolidaysClient />}
+      {tab === "kiosks" && <KiosksClient />}
     </>
   );
 }

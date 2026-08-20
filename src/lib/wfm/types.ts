@@ -99,7 +99,7 @@ export type PresenceKind =
   | "ot_in" | "ot_out"
   | "mobile_work_start" | "mobile_work_end"
   | "business_trip_start" | "business_trip_end";
-export type PresenceSource = "web_selfie" | "manual_admin" | "correction";
+export type PresenceSource = "web_selfie" | "manual_admin" | "correction" | "kiosk_face";
 
 /** Kinds that OPEN a regular working session. Mobile work and business trip
  * are ordinary working time recorded under a different label -- the hours

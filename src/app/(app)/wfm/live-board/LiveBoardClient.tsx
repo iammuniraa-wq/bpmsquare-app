@@ -51,6 +51,7 @@ type Row = {
   absent: boolean;
   on_leave: boolean;
   outside_geofence: boolean;
+  face_mismatch?: boolean;
   punches: number;
 };
 
@@ -396,7 +397,9 @@ export default function LiveBoardClient({ initialBoard = null, initialLanding = 
                   </td>
                   <td style={td}>{fmtTime(r.last_out, board.timezone)}</td>
                   <td style={td}>
-                    {r.outside_geofence ? <Pill label="Outside geofence" tone="amber" /> : "—"}
+                    {r.outside_geofence && <Pill label="Outside geofence" tone="amber" />}
+                    {r.face_mismatch && <span style={{ marginLeft: r.outside_geofence ? 4 : 0 }}><Pill label="Face mismatch" tone="red" /></span>}
+                    {!r.outside_geofence && !r.face_mismatch && "—"}
                   </td>
                 </tr>
                 {auditFor === r.employee_id && (

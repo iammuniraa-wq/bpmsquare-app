@@ -334,6 +334,7 @@ export type WfmLiveBoardRow = {
   absent: boolean;
   on_leave: boolean;
   outside_geofence: boolean;
+  face_mismatch: boolean;
   punches: number;
 };
 
@@ -458,6 +459,9 @@ export async function getWfmLiveBoardSnapshot(
     }
 
     const outsideGeofence = empEvents.some((e) => e.within_geofence === false);
+    const faceMismatch = empEvents.some(
+      (e) => ((e.flags as Record<string, unknown> | null) ?? {})["face_mismatch"] === true
+    );
 
     return {
       employee_id: emp.id,
@@ -476,6 +480,7 @@ export async function getWfmLiveBoardSnapshot(
       absent,
       on_leave: onLeave,
       outside_geofence: outsideGeofence,
+      face_mismatch: faceMismatch,
       punches: empEvents.length,
     };
   });

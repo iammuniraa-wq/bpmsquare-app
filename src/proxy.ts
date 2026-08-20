@@ -46,6 +46,15 @@ export async function proxy(request: NextRequest) {
     // -- it needs a session and calls requireTenantUser() itself.
     pathname === "/api/auth/request-reset" ||
     pathname === "/api/auth/session" ||
+    // The attendance kiosk: a wall tablet with no user session. Its whole
+    // credential is a registered device token, verified by
+    // authenticateKiosk() inside each of these three routes (and the page
+    // itself renders a setup screen until a valid token is stored). The
+    // admin device-management route (/api/wfm/kiosk/devices) is
+    // deliberately NOT here -- it requires a real session. $-anchored so
+    // nothing deeper ever rides along.
+    pathname === "/kiosk" ||
+    /^\/api\/wfm\/kiosk\/(session|identify|punch)$/.test(pathname) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/manifest") ||

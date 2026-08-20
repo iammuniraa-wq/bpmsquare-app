@@ -63,7 +63,11 @@ export async function GET(request: NextRequest) {
   if (!key) return NextResponse.json({ configured: false, verdict: "OLA_MAPS_API_KEY is not set in this environment." });
 
   const k = encodeURIComponent(key);
-  const [reverse, forward] = await Promise.all([
+  // Two reverse probes: literal comma (what the app now sends) vs the old
+  // percent-encoded pair. Observed 2026-08-20: with a valid key, %2C got
+  // "zero_results" for central Bengaluru -- Ola's parser wants the raw comma.
+  const [reverse, reverseEncoded, forward] = await Promise.all([
+    probe(`https://api.olamaps.io/places/v1/reverse-geocode?latlng=${lat},${lng}&api_key=${k}`),
     probe(`https://api.olamaps.io/places/v1/reverse-geocode?latlng=${encodeURIComponent(`${lat},${lng}`)}&api_key=${k}`),
     probe(`https://api.olamaps.io/places/v1/geocode?address=${encodeURIComponent("Hosapete, Karnataka")}&api_key=${k}`),
   ]);
@@ -82,6 +86,7 @@ export async function GET(request: NextRequest) {
     key_length: key.length,
     key_had_surrounding_whitespace: rawKey !== key,
     reverse,
+    reverse_encoded_comma: reverseEncoded,
     forward,
     verdict,
   });

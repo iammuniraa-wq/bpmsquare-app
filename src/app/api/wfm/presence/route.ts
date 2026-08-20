@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
         within_geofence: e.within_geofence,
         geo_address: address || null,
         selfie_url,
+        flags: e.flags ?? null,
       };
     })
   );
