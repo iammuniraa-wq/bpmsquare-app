@@ -275,7 +275,7 @@ function DraggableSection({
           // fontWeight, so every nav label rendered at 400 -- and 400 at 13px
           // on a high-DPI phone puts down strokes thin enough to look washed
           // out even at 8.4:1 contrast, which is what --sb-text already is.
-          fontWeight: on ? 650 : 550,
+          fontWeight: on ? 700 : 600,
           color: on ? "var(--sb-active-ink, #fff)" : "var(--sb-text)",
           background: on ? `var(--sb-active-bg, ${accent})` : "transparent",
           opacity: isDragging ? 0.35 : 1,
@@ -318,7 +318,7 @@ function DraggableSection({
                           display: "flex", alignItems: "center", gap: 8,
                           padding: `${py} 10px`,
                           borderRadius: 8, fontSize: 12.5, marginBottom: 1,
-                          fontWeight: childOn ? 650 : 520,
+                          fontWeight: childOn ? 700 : 560,
                           color: childOn ? "var(--sb-active-ink, #fff)" : "var(--sb-text)",
                           background: childOn ? `var(--sb-active-bg, ${accent})` : "transparent",
                           textDecoration: "none",
@@ -353,7 +353,7 @@ function IconRailItem({ item, active, accent, onNavigate }: {
       style={{
         display: "flex", alignItems: "center", justifyContent: "center",
         width: 36, height: 36, margin: "0 auto 4px", borderRadius: 8,
-        fontWeight: active ? 650 : 550,
+        fontWeight: active ? 700 : 600,
         color: active ? "var(--sb-active-ink, #fff)" : "var(--sb-text)",
         background: active ? `var(--sb-active-bg, ${accent})` : "transparent",
         textDecoration: "none", fontSize: 15,

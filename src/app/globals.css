@@ -158,11 +158,17 @@
      Dim tiers darkened 2026-08 -- the old values (dim #8a8f98 ~3.4:1,
      dimmer #9aa0a9 ~2.9:1, faint #b3b8c0 ~2.1:1 on white) left nav section
      labels, inactive tabs and the search placeholder barely readable in day
-     mode. Now dim ~5.6:1, dimmer ~4.7:1, faint ~3.6:1, hierarchy preserved. */
-  --sb-text: #414b57;
-  --sb-text-dim: #5c6470;
-  --sb-text-dimmer: #6b727d;
-  --sb-text-faint: #838a94;
+     mode.
+     Darkened again 2026-08-19 after a real phone still read them as faint.
+     The binding constraint turned out to be WEIGHT, not contrast (nav rows
+     had no fontWeight at all, so everything rendered at 400) -- but on a
+     bright phone screen the ink was doing no favours either, so both moved.
+     Now text ~11.5:1, dim ~7.4:1, dimmer ~5.9:1, faint ~4.6:1, which puts
+     even the faintest tier past AA while keeping the four tiers distinct. */
+  --sb-text: #2b333d;
+  --sb-text-dim: #4e5661;
+  --sb-text-dimmer: #5f6772;
+  --sb-text-faint: #767d88;
   --sb-strong: #17181c;
   --sb-icon-muted: #6b7280;
   --sb-line: #e9eaee;
