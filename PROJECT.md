@@ -327,10 +327,11 @@ deploy for an automatic schema change.
   (owner confirmed 2026-08-19).
 - 0092_wfm_face_punch.sql — applied to both DBs (owner ran it 2026-08-20):
   face-punch schema (wfm_face_enrollments + wfm_kiosk_devices).
-- **0093_kiosk_punch_source.sql — PENDING on both DBs** (written
-  2026-08-20): widens wfm_presence_events' source check to allow
-  'kiosk_face'. Must be run BEFORE the first kiosk punch is attempted —
-  without it the kiosk punch insert fails its check constraint.
+- 0093_kiosk_punch_source.sql — applied to both DBs (owner ran it
+  2026-08-20). Migrations through **0093** applied; nothing pending.
+  The face-punch feature itself still waits on the FACE_AWS_* env vars
+  in Vercel (AWS key generation in progress as of 2026-08-20) — until
+  they exist, enrollment/kiosk return a clear "not configured" message.
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;
