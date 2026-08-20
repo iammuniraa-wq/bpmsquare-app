@@ -127,6 +127,26 @@ export async function searchFace(tenantId: string, jpeg: Buffer): Promise<FaceMa
   }
 }
 
+/**
+ * Is this selfie the enrolled face of THIS employee? (Mobile punch
+ * verification, face_verification_mode: "flag_only".) Implemented as a
+ * collection search rather than CompareFaces so no enrollment photo has
+ * to be re-fetched: verified = the best match in the tenant's collection
+ * IS this employee. "mismatch" therefore also covers "matches a
+ * different enrolled employee" — the buddy-punch case this exists for.
+ * Returns null when the frame has no usable face (blur/dark), which is
+ * flagged distinctly from a mismatch.
+ */
+export async function verifyFace(
+  tenantId: string,
+  employeeId: string,
+  jpeg: Buffer
+): Promise<{ verified: boolean; matchedOther: boolean } | null> {
+  const match = await searchFace(tenantId, jpeg);
+  if (!match) return null;
+  return { verified: match.employeeId === employeeId, matchedOther: match.employeeId !== employeeId };
+}
+
 /** Employee deactivated or enrollment revoked -> template gone same call. */
 export async function deleteFaces(tenantId: string, faceIds: string[]): Promise<void> {
   if (faceIds.length === 0) return;
