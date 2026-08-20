@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Donut from "@/components/Donut";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 type BreakSegment = { start: string; end: string | null; minutes: number };
 type WorkSession = { in: string; out: string | null; gross_minutes: number; break_minutes: number; net_minutes: number; breaks: BreakSegment[] };
@@ -75,6 +77,9 @@ function dayStatus(d: DayRecord) {
 // ── Monthly view: one row per employee (the CA-facing roll-up) ─────────────
 
 function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[] }) {
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage((p) => clampPage(p, rows.length, DEFAULT_PAGE_SIZE)); }, [rows.length]);
+  const pageRows = paginate(rows, page, DEFAULT_PAGE_SIZE);
   return (
     <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
       <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>
@@ -91,7 +96,7 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {pageRows.map((r) => (
             <tr key={r.employee_id}>
               <td style={{ ...td, fontFamily: "monospace" }}>{r.employee_code ?? "—"}</td>
               <td style={{ ...td, fontWeight: 600, color: c.ink }}>{r.full_name}</td>
@@ -114,6 +119,9 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
           {rows.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={16}>No employees in this section.</td></tr>}
         </tbody>
       </table>
+      <div style={{ padding: "0 12px 10px" }}>
+        <Pager page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+      </div>
     </section>
   );
 }
@@ -227,6 +235,7 @@ export default function SummaryClient({ initial = null }: {
   const [view, setView] = useState<"daily" | "monthly">("monthly");
   // Daily view's optional single-date focus ("" = the whole month).
   const [dayFilter, setDayFilter] = useState("");
+  const [dailyPage, setDailyPage] = useState(1);
   const [month, setMonth] = useState(initial?.month ?? new Date().toISOString().slice(0, 7));
   const [rows, setRows] = useState<EmployeeSummary[]>(initial?.employees ?? []);
   const [deductBreaks, setDeductBreaks] = useState(initial?.deduct_breaks ?? true);
@@ -401,8 +410,11 @@ export default function SummaryClient({ initial = null }: {
             Click an employee to see every punch they booked. Total worked ={" "}
             {deductBreaks ? "check-out − check-in − breaks" : "check-out − check-in (breaks not deducted)"}.
           </div>
-          {filtered.map((emp) => <DailyEmployee key={emp.employee_id} emp={emp} deductBreaks={deductBreaks} dayFilter={dayFilter || undefined} />)}
+          {paginate(filtered, clampPage(dailyPage, filtered.length, DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE).map((emp) => (
+            <DailyEmployee key={emp.employee_id} emp={emp} deductBreaks={deductBreaks} dayFilter={dayFilter || undefined} />
+          ))}
           {filtered.length === 0 && <div style={{ ...cardStyle, color: c.hint, fontSize: 12.5 }}>No employees.</div>}
+          <Pager page={clampPage(dailyPage, filtered.length, DEFAULT_PAGE_SIZE)} total={filtered.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setDailyPage} />
         </>
       )}
     </>

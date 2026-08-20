@@ -7,6 +7,8 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { CorrectionIssue, CorrectionStatus, WfmCorrectionRequest } from "@/lib/wfm/types";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 type Row = WfmCorrectionRequest & {
   employees: { first_name: string; last_name: string; employee_code: string | null } | null;
@@ -96,6 +98,10 @@ export default function CorrectionsQueueClient() {
     );
   });
 
+  const [page, setPage] = useState(1);
+  const cPage = clampPage(page, visible.length, DEFAULT_PAGE_SIZE);
+  const pageRows = paginate(visible, cPage, DEFAULT_PAGE_SIZE);
+
   return (
     <>
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -130,7 +136,7 @@ export default function CorrectionsQueueClient() {
             </tr>
           </thead>
           <tbody>
-            {visible.map((r) => (
+            {pageRows.map((r) => (
               <tr key={r.id}>
                 <td style={{ ...td, fontWeight: 600 }}>
                   <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
@@ -175,6 +181,9 @@ export default function CorrectionsQueueClient() {
             )}
           </tbody>
         </table>
+        <div style={{ padding: "0 12px 10px" }}>
+          <Pager page={cPage} total={visible.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+        </div>
       </section>
     </>
   );

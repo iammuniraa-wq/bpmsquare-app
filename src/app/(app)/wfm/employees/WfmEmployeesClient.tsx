@@ -7,6 +7,8 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { WfmSite, WfmShift } from "@/lib/wfm/types";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 type Row = {
   id: string;
@@ -81,6 +83,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   const [statusFilter, setStatusFilter] = useState("active");
   const [roleFilter, setRoleFilter] = useState("");
   const [siteFilter, setSiteFilter] = useState("");
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     const [empRes, shiftRes, siteRes] = await Promise.all([
@@ -336,7 +339,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
             </tr>
           </thead>
           <tbody>
-            {visible.map((r) => (
+            {paginate(visible, clampPage(page, visible.length, DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE).map((r) => (
               <tr key={r.id}>
                 <td style={{ ...td, fontFamily: "monospace" }}>{r.employee_code ?? "—"}</td>
                 <td style={{ ...td, fontWeight: 600 }}>
@@ -395,6 +398,9 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
             )}
           </tbody>
         </table>
+        <div style={{ padding: "0 12px 10px" }}>
+          <Pager page={clampPage(page, visible.length, DEFAULT_PAGE_SIZE)} total={visible.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+        </div>
       </section>
     </>
   );

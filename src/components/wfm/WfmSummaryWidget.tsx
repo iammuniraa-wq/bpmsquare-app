@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 /**
  * Attendance summary on the dashboard, for a supervisor.
@@ -70,6 +72,7 @@ export default function WfmSummaryWidget() {
   // business seeing an error card about it on their dashboard -- the widget
   // just isn't for them, so it removes itself.
   const [forbidden, setForbidden] = useState(false);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     try { setOpen(localStorage.getItem(OPEN_KEY) === "1"); } catch { /* private mode */ }
@@ -105,6 +108,7 @@ export default function WfmSummaryWidget() {
   function changeMonth(m: string) {
     setMonth(m);
     setRows(null);
+    setPage(1);
     void load(m);
   }
 
@@ -132,6 +136,10 @@ export default function WfmSummaryWidget() {
   // shift assigned (whom the summary never marks absent -- lateness/absence
   // are judged against a shift) and zero punches counted as present.
   const dayPresent = dayRows.filter((d) => d.day.first_in && !d.day.on_leave).length;
+  const listTotal = view === "day" ? dayRows.length : (rows ?? []).length;
+  const cPage = clampPage(page, listTotal, DEFAULT_PAGE_SIZE);
+  const pageDayRows = paginate(dayRows, cPage, DEFAULT_PAGE_SIZE);
+  const pageMonthRows = paginate(rows ?? [], cPage, DEFAULT_PAGE_SIZE);
   const dayMinutes = dayRows.reduce((t, d) => t + d.day.net_minutes, 0);
 
   const th: React.CSSProperties = {
@@ -171,7 +179,7 @@ export default function WfmSummaryWidget() {
               {([["Day", "day"], ["Month", "month"]] as const).map(([label, v]) => (
                 <button
                   key={v}
-                  onClick={() => setView(v)}
+                  onClick={() => { setView(v); setPage(1); }}
                   style={{
                     padding: "6px 13px", borderRadius: 6, cursor: "pointer", font: "inherit",
                     fontSize: 12.5, fontWeight: 650, border: "none",
@@ -255,7 +263,7 @@ export default function WfmSummaryWidget() {
                     {view === "day" && dayRows.length === 0 && (
                       <tr><td style={{ ...td, color: c.hint }} colSpan={5}>Nothing recorded on this day.</td></tr>
                     )}
-                    {view === "day" && dayRows.map(({ emp, day }) => (
+                    {view === "day" && pageDayRows.map(({ emp, day }) => (
                       <tr key={emp.employee_id} style={{ borderBottom: `1px solid ${c.line}` }}>
                         <td style={td}>{emp.full_name}{emp.site_name ? <span style={{ color: c.hint }}> · {emp.site_name}</span> : null}</td>
                         <td style={td}>{fmtTime(day.first_in)}</td>
@@ -279,7 +287,7 @@ export default function WfmSummaryWidget() {
 
                     {view === "month" && (rows.length === 0
                       ? <tr><td style={{ ...td, color: c.hint }} colSpan={6}>No employees in this month.</td></tr>
-                      : rows.map((r) => (
+                      : pageMonthRows.map((r) => (
                         <tr key={r.employee_id} style={{ borderBottom: `1px solid ${c.line}` }}>
                           <td style={td}>{r.full_name}{r.site_name ? <span style={{ color: c.hint }}> · {r.site_name}</span> : null}</td>
                           <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>{r.totals.days_present}</td>
@@ -291,6 +299,7 @@ export default function WfmSummaryWidget() {
                       )))}
                   </tbody>
                 </table>
+                <Pager page={cPage} total={listTotal} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
               </div>
             </>
           )}

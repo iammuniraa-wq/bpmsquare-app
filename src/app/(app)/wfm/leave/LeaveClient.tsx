@@ -7,6 +7,8 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { LeaveRequestStatus, WfmLeaveRequest } from "@/lib/wfm/types";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 type LeaveType = { id: string; name: string; category: "paid" | "unpaid" | "half_day"; active: boolean; annual_quota: number };
 type LeaveRecord = {
@@ -45,6 +47,8 @@ export default function LeaveClient({ initial = null }: {
   const serverSeeded = useRef(initial != null);
   const [requestFilter, setRequestFilter] = useState<"pending" | "all">("pending");
   const [requestQuery, setRequestQuery] = useState("");
+  const [requestPage, setRequestPage] = useState(1);
+  const [recordPage, setRecordPage] = useState(1);
   const [recordQuery, setRecordQuery] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -147,6 +151,11 @@ export default function LeaveClient({ initial = null }: {
     (r.wfm_leave_types?.name ?? "").toLowerCase().includes(dq)
   );
 
+  const rqPage = clampPage(requestPage, visibleRequests.length, DEFAULT_PAGE_SIZE);
+  const pageRequests = paginate(visibleRequests, rqPage, DEFAULT_PAGE_SIZE);
+  const rcPage = clampPage(recordPage, visibleRecords.length, DEFAULT_PAGE_SIZE);
+  const pageRecords = paginate(visibleRecords, rcPage, DEFAULT_PAGE_SIZE);
+
   return (
     <>
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
@@ -168,7 +177,7 @@ export default function LeaveClient({ initial = null }: {
             </tr>
           </thead>
           <tbody>
-            {visibleRequests.map((r) => (
+            {pageRequests.map((r) => (
               <tr key={r.id}>
                 <td style={{ ...td, fontWeight: 600 }}>
                   <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
@@ -213,6 +222,9 @@ export default function LeaveClient({ initial = null }: {
             )}
           </tbody>
         </table>
+        <div style={{ padding: "0 12px 10px" }}>
+          <Pager page={rqPage} total={visibleRequests.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setRequestPage} />
+        </div>
       </section>
 
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
@@ -223,7 +235,7 @@ export default function LeaveClient({ initial = null }: {
         <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><th style={th}>Employee</th><th style={th}>Type</th><th style={th}>From</th><th style={th}>To</th><th style={th}>Half-day</th><th style={th}>Remarks</th><th style={th}></th></tr></thead>
           <tbody>
-            {visibleRecords.map((r) => (
+            {pageRecords.map((r) => (
               <tr key={r.id}>
                 <td style={{ ...td, fontWeight: 600 }}>
                   <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
@@ -241,6 +253,9 @@ export default function LeaveClient({ initial = null }: {
             {visibleRecords.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No leave records yet.</td></tr>}
           </tbody>
         </table>
+        <div style={{ padding: "0 12px 4px" }}>
+          <Pager page={rcPage} total={visibleRecords.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setRecordPage} />
+        </div>
         <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ flex: "1 1 160px" }}>
             <label style={lbl}>Employee</label>
