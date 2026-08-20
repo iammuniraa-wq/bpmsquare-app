@@ -328,7 +328,13 @@ deploy for an automatic schema change.
 - 0092_wfm_face_punch.sql — applied to both DBs (owner ran it 2026-08-20):
   face-punch schema (wfm_face_enrollments + wfm_kiosk_devices).
 - 0093_kiosk_punch_source.sql — applied to both DBs (owner ran it
-  2026-08-20). Migrations through **0093** applied; nothing pending.
+  2026-08-20).
+- **0094_wfm_rls_pii_narrowing.sql — PENDING on both DBs** (written
+  2026-08-20, WFM security audit): narrows the SELECT policy on
+  wfm_face_enrollments and wfm_leave_records from tenant-wide to
+  own-row-or-supervisor (both were readable by any member via direct
+  PostgREST; the app reads them through the service-role client so this
+  changes nothing for the app). Safe to run any time.
   The face-punch feature itself still waits on the FACE_AWS_* env vars
   in Vercel (AWS key generation in progress as of 2026-08-20) — until
   they exist, enrollment/kiosk return a clear "not configured" message.

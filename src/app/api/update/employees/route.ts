@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { requireTenantUser, getAuthUser, createAdminSupabase } from "@/lib/supabase-server";
+import { revokeFaceEnrollment } from "@/lib/wfm/faceEnrollment";
 import { tenantHasFeature } from "@/lib/tenant";
 import { readImportBody } from "@/lib/import/server";
 import { summariseUpdate, updateRows, type PreparedUpdate } from "@/lib/import/updateServer";
@@ -59,7 +60,29 @@ export async function POST(request: NextRequest) {
 
   if (prepared.length === 0) return NextResponse.json(summariseUpdate(outcomes));
   const user = await getAuthUser();
-  return NextResponse.json(await updateRows(supabase, "employees", tenantId, prepared, outcomes, {
+  const result = await updateRows(supabase, "employees", tenantId, prepared, outcomes, {
     objectType: "employees", labelField: "first_name", actorId: user?.id, actorEmail: user?.email,
-  }));
+  });
+
+  // "Deactivated must also mean un-enrolled" -- the WFM PATCH route revokes
+  // face enrollment on status->inactive, but this bulk path bypassed it, so
+  // a Data Workbench deactivation left AWS templates + enrollment photos
+  // live and the row `active` (biometric data outliving employment -- DPDP).
+  // Revoke for every row this file set inactive. Best-effort, never fails
+  // the import; the ids are the ones we just updated in-tenant.
+  const deactivatedIds = prepared
+    .filter((p) => p.patch.status === "inactive")
+    .map((p) => p.id);
+  if (deactivatedIds.length > 0) {
+    const admin = createAdminSupabase();
+    await Promise.all(
+      deactivatedIds.map((id) =>
+        revokeFaceEnrollment(admin, tenantId, id).catch((e) =>
+          console.error("DW employee deactivate: face revoke failed:", (e as Error).message)
+        )
+      )
+    );
+  }
+
+  return NextResponse.json(result);
 }
