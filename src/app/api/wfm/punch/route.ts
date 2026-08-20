@@ -5,10 +5,10 @@ import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/l
 import { getSupervisorEmails, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 import {
-  applyPunch, stateFromLastKind, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
+  applyPunch, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
   type PresenceKind, type WfmSite,
 } from "@/lib/wfm/types";
-import { computeDayHours, shiftDayKey } from "@/lib/wfm/hours";
+import { computeDayHours, shiftDayKey, punchStateAt } from "@/lib/wfm/hours";
 
 const KINDS: PresenceKind[] = [
   "check_in", "check_out", "break_start", "break_end",
@@ -80,18 +80,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, duplicate: true, event: existing });
   }
 
-  // Validate the transition against the employee's current state.
-  const { data: last } = await admin
-    .from("wfm_presence_events")
-    .select("kind, ts")
-    .eq("tenant_id", tenantId)
-    .eq("employee_id", employee.id)
-    .is("superseded_by", null)
-    .order("ts", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Validate the transition against the employee's current state. Config and
+  // shift are needed HERE (not just later) because the state applies the
+  // shift-day boundary: a forgotten check-out must not carry "in" into the
+  // next day, where it would reject the morning check-in and admit breaks
+  // on a day with no check-in (see punchStateAt in lib/wfm/hours.ts).
+  const [config, { data: shift }, { data: last }] = await Promise.all([
+    getWfmConfig(admin, tenantId),
+    employee.shift_id
+      ? admin.from("wfm_shifts").select("name, start_time, grace_minutes, crosses_midnight").eq("id", employee.shift_id).eq("tenant_id", tenantId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    admin
+      .from("wfm_presence_events")
+      .select("kind, ts")
+      .eq("tenant_id", tenantId)
+      .eq("employee_id", employee.id)
+      .is("superseded_by", null)
+      .order("ts", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  const state = stateFromLastKind((last?.kind as PresenceKind) ?? null);
+  const state = punchStateAt(
+    last ? { kind: last.kind as PresenceKind, ts: last.ts as string } : null,
+    tsDate, config.timezone, shift
+  );
   const next = applyPunch(state, kind);
   if (!next) {
     // Includes the client's "no OT between check-in and check-out" rule:
@@ -104,13 +117,6 @@ export async function POST(request: NextRequest) {
   if (last && tsDate.getTime() <= new Date(last.ts).getTime()) {
     return NextResponse.json({ error: "Punch time predates your last punch" }, { status: 409 });
   }
-
-  const [config, { data: shift }] = await Promise.all([
-    getWfmConfig(admin, tenantId),
-    employee.shift_id
-      ? admin.from("wfm_shifts").select("name, start_time, grace_minutes, crosses_midnight").eq("id", employee.shift_id).eq("tenant_id", tenantId).maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
 
   // An optional punch type this tenant hasn't switched on must be refused
   // server-side too -- the dropdown hides it, but the API is the real gate.

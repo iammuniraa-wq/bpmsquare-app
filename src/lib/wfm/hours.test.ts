@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { breakSegments, computeDayHours, shiftDayKey, workSessions } from "./hours";
+import { breakSegments, computeDayHours, shiftDayKey, workSessions, punchStateAt } from "./hours";
 
 const TZ = "Asia/Kolkata"; // UTC+5:30, no DST -- deterministic for tests
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -229,5 +229,58 @@ describe("shiftDayKey — midnight-crossing shift attribution (spec §6)", () =>
     const checkOut = ist(2026, 8, 6, 6, 0);
     const day = shiftDayKey(checkIn, TZ, nightShift);
     expect(shiftDayKey(checkOut, TZ, nightShift)).toBe(day);
+  });
+});
+
+describe("punchStateAt — shift-day rollover on a forgotten check-out", () => {
+  // The BIM 2026-08-20 report: checked in yesterday, never checked out.
+  // Carrying "in" into today rejected the morning check-in while letting
+  // break punches through -- a live-board row saying "In" with no first-in.
+  const dayShift = { start_time: "09:00:00", crosses_midnight: false };
+  const nightShift = { start_time: "21:00:00", crosses_midnight: true };
+
+  it("resets plain shift work to out on a new shift-day", () => {
+    const lastIn = { kind: "check_in" as const, ts: ist(2026, 8, 19, 9, 5).toISOString() };
+    expect(punchStateAt(lastIn, ist(2026, 8, 20, 9, 0), TZ, dayShift)).toBe("out");
+    const lastBreakEnd = { kind: "break_end" as const, ts: ist(2026, 8, 19, 15, 0).toISOString() };
+    expect(punchStateAt(lastBreakEnd, ist(2026, 8, 20, 9, 0), TZ, dayShift)).toBe("out");
+    const lastBreakStart = { kind: "break_start" as const, ts: ist(2026, 8, 19, 15, 0).toISOString() };
+    expect(punchStateAt(lastBreakStart, ist(2026, 8, 20, 9, 0), TZ, dayShift)).toBe("out");
+  });
+
+  it("carries state within the same shift-day", () => {
+    const lastIn = { kind: "check_in" as const, ts: ist(2026, 8, 20, 9, 5).toISOString() };
+    expect(punchStateAt(lastIn, ist(2026, 8, 20, 13, 0), TZ, dayShift)).toBe("in");
+    const lastBreak = { kind: "break_start" as const, ts: ist(2026, 8, 20, 13, 0).toISOString() };
+    expect(punchStateAt(lastBreak, ist(2026, 8, 20, 13, 30), TZ, dayShift)).toBe("break");
+  });
+
+  it("a night shift's 05:40 punch still belongs to yesterday's shift-day", () => {
+    const lastIn = { kind: "check_in" as const, ts: ist(2026, 8, 19, 21, 10).toISOString() };
+    // 05:40 next calendar day, before the 21:00 start -> same shift-day, still in
+    expect(punchStateAt(lastIn, ist(2026, 8, 20, 5, 40), TZ, nightShift)).toBe("in");
+    // 21:05 the next evening -> a NEW shift-day, forgotten check-out resets
+    expect(punchStateAt(lastIn, ist(2026, 8, 20, 21, 5), TZ, nightShift)).toBe("out");
+  });
+
+  it("multi-day sessions keep carrying across shift-days", () => {
+    const trip = { kind: "business_trip_start" as const, ts: ist(2026, 8, 18, 8, 0).toISOString() };
+    expect(punchStateAt(trip, ist(2026, 8, 20, 18, 0), TZ, dayShift)).toBe("in");
+    const ot = { kind: "ot_in" as const, ts: ist(2026, 8, 19, 22, 0).toISOString() };
+    expect(punchStateAt(ot, ist(2026, 8, 20, 1, 30), TZ, dayShift)).toBe("ot");
+    const mobile = { kind: "mobile_work_start" as const, ts: ist(2026, 8, 19, 10, 0).toISOString() };
+    expect(punchStateAt(mobile, ist(2026, 8, 20, 10, 0), TZ, dayShift)).toBe("in");
+  });
+
+  it("no last event, or a closing kind, is simply out", () => {
+    expect(punchStateAt(null, ist(2026, 8, 20, 9, 0), TZ, dayShift)).toBe("out");
+    const lastOut = { kind: "check_out" as const, ts: ist(2026, 8, 20, 18, 0).toISOString() };
+    expect(punchStateAt(lastOut, ist(2026, 8, 20, 18, 5), TZ, dayShift)).toBe("out");
+  });
+
+  it("no shift configured falls back to calendar-day rollover", () => {
+    const lastIn = { kind: "check_in" as const, ts: ist(2026, 8, 19, 9, 0).toISOString() };
+    expect(punchStateAt(lastIn, ist(2026, 8, 19, 23, 0), TZ, null)).toBe("in");
+    expect(punchStateAt(lastIn, ist(2026, 8, 20, 0, 30), TZ, null)).toBe("out");
   });
 });
