@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { isSessionStart, isSessionEnd, type PresenceKind } from "@/lib/wfm/types";
 
@@ -58,27 +57,18 @@ function buildSegments(events: Ev[], now: number): { segs: Seg[]; firstIn: numbe
 }
 
 export default function DayColumn({
-  events, active, workedMinutes, breakMinutes,
+  events, now, workedMinutes, breakMinutes,
 }: {
   events: Ev[];
-  /** Still in / on break — drives the live tick. */
-  active: boolean;
-  /** Net worked minutes for the day (from the server's own computation). */
+  /** Live clock (ms) owned by the parent, so the bar and the worked total
+   *  tick from ONE source. 0 = not yet mounted; falls back to the last
+   *  event so the server render and first client paint agree. */
+  now: number;
+  /** Live worked minutes (already net/gross per the tenant's setting). */
   workedMinutes: number;
   breakMinutes: number;
 }) {
-  // Starts at 0 so the server render and the first client render agree (no
-  // hydration mismatch on a time-derived height); the effect sets the real
-  // clock immediately on mount, then ticks it while the day is open.
-  const [now, setNow] = useState(0);
-  useEffect(() => {
-    setNow(Date.now());
-    if (!active) return;
-    const id = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, [active]);
-
-  const liveEnd = active ? (now || maxEnd(events)) : maxEnd(events);
+  const liveEnd = now || maxEnd(events);
   const { segs, firstIn } = buildSegments(events, liveEnd);
   if (firstIn === null || segs.length === 0) {
     return (
@@ -96,7 +86,7 @@ export default function DayColumn({
   const yOf = (ms: number) => ((ms - firstIn) / 3_600_000) * PX_PER_HOUR * scale;
 
   return (
-    <div style={{ display: "flex", gap: 14, alignItems: "flex-end" }}>
+    <div style={{ display: "flex", gap: 14, alignItems: "flex-end", flexWrap: "wrap" }}>
       {/* The bar. Bottom = check-in, top = now / check-out. */}
       <div
         style={{

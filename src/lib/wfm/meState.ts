@@ -172,6 +172,9 @@ export async function buildWfmMeState(ctx: WfmContext) {
     // employee hasn't enrolled yet.
     face_punch: config.face_punch,
     face_enrolled: (faceRow as { status?: string } | null)?.status === "active",
+    // So the client can tick the running total live (net vs gross) the same
+    // way the server computed running_minutes at load.
+    deduct_breaks: config.deduct_breaks,
     upcoming,
     pending_rechecks: recheckRows ?? [],
   };
