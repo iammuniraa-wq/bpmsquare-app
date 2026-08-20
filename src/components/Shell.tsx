@@ -16,6 +16,7 @@ import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
 import Account360Drawer from "@/components/Account360Drawer";
 import FeelProvider from "@/components/FeelProvider";
+import MobileTabBar from "@/components/MobileTabBar";
 
 // ── Mobile: top bar + slide-in drawer ────────────────────────────────────────
 // Renders the same <Sidebar> as desktop so nav items, ordering, favourites and
@@ -146,6 +147,10 @@ function MobileTopBar() {
       }}>
         <Sidebar onNavigate={() => setOpen(false)} />
       </div>
+
+      {/* Bottom tabs (Nova only). Renders nothing for every other tenant, so
+          their phones keep the hamburger they have today. */}
+      <MobileTabBar onMore={() => { setOpen((v) => !v); setSearchOpen(false); }} />
     </>
   );
 }
@@ -339,7 +344,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <main style={{
             flex: 1, minWidth: 0, overflowX: "auto",
             padding: "12px",
-            paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+            // Clears the fixed bottom tab bar (Nova) as well as the home
+            // indicator. Harmless where no tab bar renders -- it is the same
+            // spare inch a phone wants at the end of a scroll anyway.
+            paddingBottom: "calc(74px + env(safe-area-inset-bottom, 0px))",
             paddingLeft: "calc(12px + env(safe-area-inset-left, 0px))",
             paddingRight: "calc(12px + env(safe-area-inset-right, 0px))",
           }}>

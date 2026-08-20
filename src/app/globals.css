@@ -143,6 +143,23 @@
   --panel2: #eef0f4;               /* the canvas -- html/body + section fills read this */
   --card-radius: 10px;
   --card-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.05);
+
+  /* Four surfaces, not one. A UI built from a single white has nothing to
+     read as structure: a table header, an input well and the card they sit
+     in are all the same plane, so the eye gets no help and the whole screen
+     flattens -- which is what "white on white" actually meant. Ordered
+     recessed -> raised:
+       sunken   table headers, input wells, anything set INTO a card
+       subtle   grouped sub-panels inside a card
+       (card)   --card-bg, the default plane
+       raised   modals, drawers, popovers, which need to clear the page
+     hover/selected are the interaction tints that go with them. */
+  --surface-sunken:   #e4e8ef;
+  --surface-subtle:   #f4f6fa;
+  --surface-raised:   #ffffff;
+  --surface-hover:    rgba(16, 24, 40, 0.04);
+  --surface-selected: #e6eefc;
+  --shadow-raised:    0 12px 32px rgba(16, 24, 40, 0.16), 0 2px 8px rgba(16, 24, 40, 0.08);
   --card-shadow-hover: 0 10px 24px rgba(16, 24, 40, 0.10), 0 2px 6px rgba(16, 24, 40, 0.06);
   --line: #e9eaee;
   --sidebar-grad: #ffffff;
@@ -226,6 +243,16 @@
   --hint: #7c828c;
   --line: #26282e;
   --accentbg: #1c2740;
+
+  /* The same four surfaces, inverted. Dark mode gets the ramp the other way
+     round -- recessed is DARKER than the card here, raised is lighter --
+     because a raised plane catches more light, not less. */
+  --surface-sunken:   #0c0d10;
+  --surface-subtle:   #1c1e23;
+  --surface-raised:   #212429;
+  --surface-hover:    rgba(255, 255, 255, 0.045);
+  --surface-selected: #1b2740;
+  --shadow-raised:    0 12px 34px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
   /* Shadows barely register on a dark canvas at light-mode alphas -- go
      deeper, and let the hover border emphasis carry most of the affordance. */
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -499,4 +526,38 @@ main textarea::placeholder { color: var(--hint); opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .connector-tile:active { transform: none; }
+}
+
+
+/* ── Surface ramp, applied ─────────────────────────────────────────────────
+   Reached through element selectors rather than per-component edits: the
+   sizes and colours in this codebase are inline px literals on thousands of
+   elements, so a stylesheet is the only lever that moves everything at once.
+   Inline styles still win where a component sets its own background on
+   purpose -- these only fill in the flat-white gaps.
+   Scoped to nextgen so the classic and modern themes are untouched. */
+
+[data-theme="nextgen"] main thead tr {
+  background: var(--surface-sunken);
+}
+[data-theme="nextgen"] main thead th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+[data-theme="nextgen"] main thead th:last-child  { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+
+/* A row the pointer is on should say so. Kept very light: on a dense table
+   a strong hover reads as a selection the user didn't make. */
+[data-theme="nextgen"] main tbody tr { transition: background .12s; }
+[data-theme="nextgen"] main tbody tr:hover { background: var(--surface-hover); }
+
+/* Inputs sit INTO the surface they're on, rather than being another white
+   rectangle on white. Excludes the sidebar, whose own tokens already handle
+   this, and anything that sets its own background inline. */
+[data-theme="nextgen"] main input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="nextgen"] main select,
+[data-theme="nextgen"] main textarea {
+  background: var(--surface-subtle);
+}
+[data-theme="nextgen"] main input:focus,
+[data-theme="nextgen"] main select:focus,
+[data-theme="nextgen"] main textarea:focus {
+  background: var(--card-bg);
 }

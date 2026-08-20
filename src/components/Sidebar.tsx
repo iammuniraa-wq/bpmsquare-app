@@ -119,7 +119,10 @@ const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; color?: st
   [ROUTES.wfmCorrections]: CheckIcon,
 };
 
-function NavGlyph({ href, fallback, size = 14 }: { href: string; fallback: string; size?: number }) {
+// Exported so MobileTabBar draws the SAME glyph for a destination as the
+// sidebar does -- a second copy of the map would drift the first time an
+// icon changed.
+export function NavGlyph({ href, fallback, size = 14 }: { href: string; fallback: string; size?: number }) {
   const nextgen = useUiTheme() === "nextgen";
   const Icon = NAV_GLYPHS[href];
   if (nextgen && Icon) return <Icon size={size} color="currentColor" />;
