@@ -25,12 +25,12 @@ type Seg = { mode: "work" | "break"; start: number; end: number; open: boolean }
 const PX_PER_HOUR = 44;
 const MIN_PX = 170;   // always tall enough to read as a real cylinder
 const MAX_PX = 320;
-const RX = 46;   // cylinder radius (x)
-const RY = 13;   // cap ellipse radius (y) — the "3D" flatten
-const PAD = 6;
+const RX = 48;   // cylinder radius (x)
+const RY = 14;   // cap ellipse radius (y) — the "3D" flatten
+const PAD = 10;
 
-const WORK = { edge: "1D4ED8", mid: "60A5FA", lid: "93C5FD" };
-const BREAK = { edge: "9D174D", mid: "F472B6", lid: "F9A8D4" };
+const WORK = { edge: "163C86", g1: "2456C9", hi: "7DB0FF", g2: "1E4FC0", lid: "AFD0FF", dot: "2563EB" };
+const BREAK = { edge: "7A0F3E", g1: "C42571", hi: "FBA6D4", g2: "AA1856", lid: "FBC7E2", dot: "DB2777" };
 
 const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
 const t = (ms: number) => new Date(ms).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
@@ -86,49 +86,94 @@ export default function DayColumn({
   const upFromBase = (ms: number) => ((ms - firstIn) / 3_600_000) * PX_PER_HOUR * scale;
 
   const svgW = 2 * RX + 2 * PAD, cx = PAD + RX;
-  const svgH = bodyH + 2 * RY;
+  const svgH = bodyH + 2 * RY + 14; // +room for the ground shadow
   const baseCy = RY + bodyH;   // bottom ellipse centre (y from top)
   const yTopOf = (ms: number) => RY + (bodyH - upFromBase(ms)); // segment edge, svg-y
 
   const topSeg = segs[segs.length - 1];
-  const topLid = topSeg.mode === "work" ? WORK.lid : BREAK.lid;
+  const topC = topSeg.mode === "work" ? WORK : BREAK;
+  // internal boundaries (between adjacent segments) for the liquid-layer line
+  const boundaries = segs.slice(1).map((s) => yTopOf(s.start));
 
   return (
     <div style={{ display: "flex", gap: 14, alignItems: "flex-end", flexWrap: "wrap" }}>
       <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ flexShrink: 0, overflow: "visible" }} aria-hidden="true">
         <defs>
-          <linearGradient id="dc-work" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor={`#${WORK.edge}`} /><stop offset="0.5" stopColor={`#${WORK.mid}`} /><stop offset="1" stopColor={`#${WORK.edge}`} />
+          {[["work", WORK], ["break", BREAK]].map(([id, k]) => {
+            const col = k as typeof WORK;
+            return (
+              <linearGradient key={id as string} id={`dc-${id}`} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stopColor={`#${col.edge}`} />
+                <stop offset="0.16" stopColor={`#${col.g1}`} />
+                <stop offset="0.34" stopColor={`#${col.hi}`} />
+                <stop offset="0.52" stopColor={`#${col.g1}`} />
+                <stop offset="0.80" stopColor={`#${col.g2}`} />
+                <stop offset="1" stopColor={`#${col.edge}`} />
+              </linearGradient>
+            );
+          })}
+          {/* continuous glass gloss across the whole body */}
+          <linearGradient id="dc-gloss" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#fff" stopOpacity="0" />
+            <stop offset="0.07" stopColor="#fff" stopOpacity="0.10" />
+            <stop offset="0.17" stopColor="#fff" stopOpacity="0.62" />
+            <stop offset="0.26" stopColor="#fff" stopOpacity="0.12" />
+            <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
+            <stop offset="0.8" stopColor="#fff" stopOpacity="0" />
+            <stop offset="0.9" stopColor="#fff" stopOpacity="0.16" />
+            <stop offset="1" stopColor="#fff" stopOpacity="0" />
           </linearGradient>
-          <linearGradient id="dc-break" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor={`#${BREAK.edge}`} /><stop offset="0.5" stopColor={`#${BREAK.mid}`} /><stop offset="1" stopColor={`#${BREAK.edge}`} />
-          </linearGradient>
+          {/* top surface: bright toward the light, tinted by the current stretch */}
+          <radialGradient id="dc-lid" cx="0.4" cy="0.32" r="0.85">
+            <stop offset="0" stopColor="#ffffff" stopOpacity="0.95" />
+            <stop offset="0.45" stopColor={`#${topC.lid}`} stopOpacity="0.98" />
+            <stop offset="1" stopColor={`#${topC.g1}`} stopOpacity="0.98" />
+          </radialGradient>
           <clipPath id="dc-body">
             <rect x={cx - RX} y={RY} width={2 * RX} height={bodyH} />
             <ellipse cx={cx} cy={RY} rx={RX} ry={RY} />
             <ellipse cx={cx} cy={baseCy} rx={RX} ry={RY} />
           </clipPath>
+          <filter id="dc-soft" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="3" />
+          </filter>
         </defs>
 
-        {/* Filled segments, clipped to the cylinder silhouette. */}
+        {/* ground shadow */}
+        <ellipse cx={cx} cy={baseCy + 9} rx={RX * 0.82} ry={RY * 0.7} fill="#000" opacity="0.22" filter="url(#dc-soft)" />
+
         <g clipPath="url(#dc-body)">
+          {/* segment fills */}
           {segs.map((s, i) => {
-            const yTop = yTopOf(s.end);
-            const yBot = yTopOf(s.start);
+            const yTop = yTopOf(s.end), yBot = yTopOf(s.start);
             return (
               <rect key={i} x={cx - RX} y={yTop} width={2 * RX} height={Math.max(0.5, yBot - yTop)}
-                fill={s.mode === "work" ? "url(#dc-work)" : "url(#dc-break)"} />
+                fill={s.mode === "work" ? "url(#dc-work)" : "url(#dc-break)"} opacity="0.92" />
             );
           })}
+          {/* liquid-layer separators */}
+          {boundaries.map((y, i) => (
+            <rect key={`b${i}`} x={cx - RX} y={y - 0.75} width={2 * RX} height="1.5" fill="#000" opacity="0.16" />
+          ))}
+          {/* the continuous gloss on top of everything */}
+          <rect x={cx - RX} y={RY - RY} width={2 * RX} height={bodyH + 2 * RY} fill="url(#dc-gloss)" />
+          {/* inner rim shading at the very edges for glass thickness */}
+          <rect x={cx - RX} y={RY} width={3.5} height={bodyH} fill="#000" opacity="0.16" />
+          <rect x={cx + RX - 3.5} y={RY} width={3.5} height={bodyH} fill="#000" opacity="0.22" />
         </g>
 
-        {/* The visible top face (the 3D lid), coloured by the current stretch. */}
-        <ellipse cx={cx} cy={RY} rx={RX} ry={RY} fill={`#${topLid}`} stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
+        {/* back rim of the base (see-through hint) */}
+        <path d={`M ${cx - RX} ${baseCy} A ${RX} ${RY} 0 0 1 ${cx + RX} ${baseCy}`} stroke="#fff" strokeOpacity="0.18" strokeWidth="1" fill="none" />
 
-        {/* Outline: sides, front-bottom curve. */}
-        <path d={`M ${cx - RX} ${RY} L ${cx - RX} ${baseCy}`} stroke="rgba(0,0,0,0.28)" strokeWidth="1" fill="none" />
-        <path d={`M ${cx + RX} ${RY} L ${cx + RX} ${baseCy}`} stroke="rgba(0,0,0,0.28)" strokeWidth="1" fill="none" />
-        <path d={`M ${cx - RX} ${baseCy} A ${RX} ${RY} 0 0 0 ${cx + RX} ${baseCy}`} stroke="rgba(0,0,0,0.28)" strokeWidth="1" fill="none" />
+        {/* the glossy top surface */}
+        <ellipse cx={cx} cy={RY} rx={RX} ry={RY} fill="url(#dc-lid)" stroke="#fff" strokeOpacity="0.55" strokeWidth="1" />
+        {/* specular glint on the lid */}
+        <ellipse cx={cx - RX * 0.34} cy={RY - RY * 0.28} rx={RX * 0.30} ry={RY * 0.34} fill="#fff" opacity="0.5" filter="url(#dc-soft)" />
+
+        {/* silhouette: edges + front-bottom curve */}
+        <path d={`M ${cx - RX} ${RY} L ${cx - RX} ${baseCy}`} stroke="#fff" strokeOpacity="0.35" strokeWidth="1" fill="none" />
+        <path d={`M ${cx + RX} ${RY} L ${cx + RX} ${baseCy}`} stroke="#000" strokeOpacity="0.30" strokeWidth="1" fill="none" />
+        <path d={`M ${cx - RX} ${baseCy} A ${RX} ${RY} 0 0 0 ${cx + RX} ${baseCy}`} stroke="#000" strokeOpacity="0.30" strokeWidth="1.2" fill="none" />
       </svg>
 
       {/* Labels, aligned to the cylinder's own boundaries. */}
