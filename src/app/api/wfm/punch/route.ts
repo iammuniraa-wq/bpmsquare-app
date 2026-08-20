@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isShiftPunch, selfieRequiredFor } from "@/lib/wfm/punchRules";
+import { locationRequiredFor, selfieRequiredFor } from "@/lib/wfm/punchRules";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/lib/wfm/server";
 import { getSupervisorEmails, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
@@ -162,11 +162,12 @@ export async function POST(request: NextRequest) {
   // A tenant on "block" plainly did not mean "unless you switch GPS off", so
   // that mode now demands a fix. require_location demands one in every mode,
   // for a tenant that wants location recorded without fencing it.
-  // Shift punches only: breaks and OT often happen indoors where a fix is
-  // slow or impossible, and blocking those would strand people mid-shift.
-  if (lat == null && isShiftPunch(kind) && (config.require_location || config.geofence_mode === "block")) {
+  // Applies to shift punches AND breaks (locationRequiredFor); OT and
+  // mobile/trip punches stay exempt — they happen off-site or after hours
+  // where demanding a fix would strand people.
+  if (lat == null && locationRequiredFor(kind) && (config.require_location || config.geofence_mode === "block")) {
     return NextResponse.json(
-      { error: "Location is required to punch in or out. Turn on location for this site in your browser settings, then try again." },
+      { error: "Location is required for this punch. Turn on location for this site in your browser settings, then try again." },
       { status: 409 }
     );
   }
@@ -180,7 +181,9 @@ export async function POST(request: NextRequest) {
   // instead of being indistinguishable from a punch that never needed one.
   if (selfieRequiredFor(kind, config.selfie_mode)) flags.selfie_required = true;
   if (within === false) flags.outside_geofence = true;
-  if (lat == null && !isOtKind(kind) && kind !== "break_start" && kind !== "break_end") flags.no_location = true;
+  // Breaks are location-mandated now (see above), so a break that lands
+  // without coordinates in a soft mode is flagged like any shift punch.
+  if (lat == null && !isOtKind(kind)) flags.no_location = true;
 
   const { data: event, error } = await admin
     .from("wfm_presence_events")
