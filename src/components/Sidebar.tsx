@@ -207,7 +207,7 @@ function DraggableSection({
 
   if (items.length === 0 && isFavSection) {
     return (
-      <div style={{ padding: "5px 10px 8px", fontSize: 11, color: "var(--sb-text-faint)", fontStyle: "italic" }}>
+      <div style={{ padding: "5px 10px 8px", fontSize: 11, color: "var(--sb-text-dim)", fontStyle: "italic" }}>
         Hover an item below · click <StarOutline size={10} color="#f6b23c" /> to pin
       </div>
     );
@@ -271,6 +271,11 @@ function DraggableSection({
           display: "flex", alignItems: "center", gap: 9,
           padding: `${py} 10px`,
           borderRadius: 8, fontSize: 13, marginBottom: 1,
+          // Weight, not colour, was why these read as faint. Nothing set a
+          // fontWeight, so every nav label rendered at 400 -- and 400 at 13px
+          // on a high-DPI phone puts down strokes thin enough to look washed
+          // out even at 8.4:1 contrast, which is what --sb-text already is.
+          fontWeight: on ? 650 : 550,
           color: on ? "var(--sb-active-ink, #fff)" : "var(--sb-text)",
           background: on ? `var(--sb-active-bg, ${accent})` : "transparent",
           opacity: isDragging ? 0.35 : 1,
@@ -313,6 +318,7 @@ function DraggableSection({
                           display: "flex", alignItems: "center", gap: 8,
                           padding: `${py} 10px`,
                           borderRadius: 8, fontSize: 12.5, marginBottom: 1,
+                          fontWeight: childOn ? 650 : 520,
                           color: childOn ? "var(--sb-active-ink, #fff)" : "var(--sb-text)",
                           background: childOn ? `var(--sb-active-bg, ${accent})` : "transparent",
                           textDecoration: "none",
@@ -347,6 +353,7 @@ function IconRailItem({ item, active, accent, onNavigate }: {
       style={{
         display: "flex", alignItems: "center", justifyContent: "center",
         width: 36, height: 36, margin: "0 auto 4px", borderRadius: 8,
+        fontWeight: active ? 650 : 550,
         color: active ? "var(--sb-active-ink, #fff)" : "var(--sb-text)",
         background: active ? `var(--sb-active-bg, ${accent})` : "transparent",
         textDecoration: "none", fontSize: 15,
