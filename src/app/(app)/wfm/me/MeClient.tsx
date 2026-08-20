@@ -1022,7 +1022,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
             {me.today.length > 0 && (
               <section style={cardStyle}>
                 <div style={capStyle}>Your day</div>
-                <div style={{ marginTop: 12, overflowX: "auto" }}>
+                <div style={{ marginTop: 16, paddingBottom: 6 }}>
                   <DayColumn events={me.today} now={liveNow} workedMinutes={liveWorked} breakMinutes={liveBreak} />
                 </div>
               </section>
