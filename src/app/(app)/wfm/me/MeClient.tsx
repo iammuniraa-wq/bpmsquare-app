@@ -5,6 +5,7 @@ import { selfieRequiredFor, locationRequiredFor } from "@/lib/wfm/punchRules";
 import LocationHelp from "@/components/wfm/LocationHelp";
 import DeviceSetupCard from "@/components/wfm/DeviceSetupCard";
 import FaceEnrollModal from "@/components/wfm/FaceEnrollModal";
+import DayColumn from "@/components/wfm/DayColumn";
 import { geoPermissionState } from "@/lib/wfm/devicePermissions";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -1055,6 +1056,20 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
               <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View full calendar</button>
             </section>
           </div>
+
+          {me.today.length > 0 && (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <div style={capStyle}>Your day</div>
+              <div style={{ marginTop: 12, overflowX: "auto" }}>
+                <DayColumn
+                  events={me.today}
+                  active={me.state === "in" || me.state === "break" || me.state === "ot"}
+                  workedMinutes={me.running_minutes}
+                  breakMinutes={me.break_minutes}
+                />
+              </div>
+            </section>
+          )}
 
           {me.today.length > 0 && (
             <section style={{ ...cardStyle, marginBottom: 14 }}>
