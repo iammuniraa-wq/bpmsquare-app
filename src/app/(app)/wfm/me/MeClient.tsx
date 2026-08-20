@@ -6,6 +6,7 @@ import LocationHelp from "@/components/wfm/LocationHelp";
 import DeviceSetupCard from "@/components/wfm/DeviceSetupCard";
 import FaceEnrollModal from "@/components/wfm/FaceEnrollModal";
 import DayColumn from "@/components/wfm/DayColumn";
+import { computeDayHours } from "@/lib/wfm/hours";
 import { geoPermissionState } from "@/lib/wfm/devicePermissions";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -51,6 +52,7 @@ type MeState = {
   require_location?: boolean;
   selfie_mode?: "off" | "shift" | "all";
   face_punch?: "off" | "kiosk";
+  deduct_breaks?: boolean;
   face_enrolled?: boolean;
   upcoming: {
     date: string; is_day_off: boolean; shift_name: string | null;
@@ -287,6 +289,27 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   // instead of waiting for a post-load fetch; the ref makes the mount
   // effect skip the redundant /state refetch exactly once.
   const [me, setMe] = useState<MeState | null>(initialState);
+
+  // Live clock so the running total climbs on its own (ADP-style) instead of
+  // freezing at the value the server computed on load. Starts at 0 so the
+  // server render and first client paint agree (no hydration mismatch on a
+  // time-derived number); the effect stamps the real time on mount and ticks
+  // every 15s while the shift is open.
+  const meActive = me?.state === "in" || me?.state === "break" || me?.state === "ot";
+  const [liveNow, setLiveNow] = useState(0);
+  useEffect(() => {
+    setLiveNow(Date.now());
+    if (!meActive) return;
+    const id = setInterval(() => setLiveNow(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, [meActive]);
+  const liveHours = me && liveNow > 0
+    ? computeDayHours(me.today as { kind: PresenceKind; ts: string }[], new Date(liveNow))
+    : null;
+  const liveWorked = liveHours
+    ? (me?.deduct_breaks === false ? liveHours.gross_minutes : liveHours.net_minutes)
+    : (me?.running_minutes ?? 0);
+  const liveBreak = liveHours ? liveHours.break_minutes : (me?.break_minutes ?? 0);
   const serverSeeded = useRef(initialState != null);
   const [monthTotals, setMonthTotals] = useState<MonthTotals | null>(null);
   const [days, setDays] = useState<DayRecord[]>([]);
@@ -780,14 +803,14 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     <section className="stat-tile" style={{ ...cardStyle, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
       <div>
         <div style={capStyle}>Punch</div>
-        <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1, color: c.ink }}>{fmtHM(me.running_minutes)}</div>
+        <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{fmtHM(liveWorked)}</div>
         <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
           {me.state === "out" && me.today.length === 0 && "Not checked in yet"}
           {me.state === "out" && me.today.length > 0 && "Checked out for today"}
           {me.state === "in" && "You're checked in"}
           {me.state === "break" && "On break"}
           {me.state === "ot" && "On overtime"}
-          {me.break_minutes > 0 && ` · breaks ${fmtHM(me.break_minutes)} (not counted)`}
+          {liveBreak > 0 && ` · breaks ${fmtHM(liveBreak)}`}
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14, alignItems: "center" }}>
@@ -988,88 +1011,23 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
 
       {tab === "home" && (
         <>
-          <div style={{ ...grid(260), marginBottom: 14 }}>
+          {/* Home is deliberately just the two things you came here to do and
+              see: punch, and today's shape. Month totals, leave, holidays and
+              the roster live on their own tabs (and the Analytics tab carries
+              the at-a-glance summary). Punch and the day column sit side by
+              side on desktop and stack on a phone. */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14, marginBottom: 14, alignItems: "stretch" }}>
             {punchTile}
 
-            <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("time")}>
-              <div style={capStyle}>This month</div>
-              {monthTotals ? (
-                <>
-                  <Stat value={fmtHM(monthTotals.working_minutes)} label={`working hours · ${monthTotals.days_present} days present`} />
-                  <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 11.5, color: c.muted, flexWrap: "wrap" }}>
-                    <span style={{ color: monthTotals.late_marks > 0 ? statusInk.warn : undefined }}>{monthTotals.late_marks} late</span>
-                    <span>{monthTotals.paid_leave_days + monthTotals.unpaid_leave_days} leave</span>
-                    <span>{monthTotals.holiday_days} holidays</span>
-                  </div>
-                </>
-              ) : <div style={{ fontSize: 12, color: c.hint }}>—</div>}
-              <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("time")}>View timesheet</button>
-            </section>
-
-            <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("leave")}>
-              <div style={capStyle}>Leave</div>
-              {leaveBalance.length === 0 ? (
-                <div style={{ fontSize: 12, color: c.hint }}>No leave types configured.</div>
-              ) : (
-                leaveBalance.slice(0, 3).map((lb) => (
-                  <div key={lb.leave_type_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "3px 0" }}>
-                    <span style={{ color: c.ink }}>{lb.name}</span>
-                    <span style={{ color: lb.balance <= 0 ? statusInk.bad : c.muted }}>{lb.balance} / {lb.quota}</span>
-                  </div>
-                ))
-              )}
-              {pendingLeave > 0 && <div style={{ fontSize: 11.5, color: statusInk.warn, marginTop: 8 }}>{pendingLeave} request(s) awaiting approval</div>}
-              <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("leave")}>Request leave</button>
-            </section>
-
-            <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("calendar")}>
-              <div style={capStyle}>Next holiday</div>
-              {nextHoliday ? (
-                <>
-                  <Stat value={fmtDate(nextHoliday.date)} label={nextHoliday.name} />
-                  <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8 }}>
-                    in {Math.max(0, Math.round((new Date(nextHoliday.date + "T00:00:00").getTime() - new Date(todayKey() + "T00:00:00").getTime()) / 86_400_000))} day(s)
-                  </div>
-                </>
-              ) : <div style={{ fontSize: 12, color: c.hint }}>None scheduled.</div>}
-              <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View calendar</button>
-            </section>
-
-            <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("calendar")}>
-              <div style={capStyle}>My shift — next few days</div>
-              {me.upcoming.length === 0 ? (
-                <div style={{ fontSize: 12, color: c.hint }}>No shift assigned.</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {me.upcoming.slice(0, 3).map((u) => (
-                    <div key={u.date} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "2px 0" }}>
-                      <span style={{ color: c.ink }}>
-                        {new Date(u.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}
-                      </span>
-                      <span style={{ color: u.is_day_off ? statusInk.bad : c.muted }}>
-                        {u.is_day_off ? "Day off" : u.shift_name ? `${u.shift_name} ${u.start_time?.slice(0, 5)}–${u.end_time?.slice(0, 5)}` : "— none —"}
-                      </span>
-                    </div>
-                  ))}
+            {me.today.length > 0 && (
+              <section style={cardStyle}>
+                <div style={capStyle}>Your day</div>
+                <div style={{ marginTop: 12, overflowX: "auto" }}>
+                  <DayColumn events={me.today} now={liveNow} workedMinutes={liveWorked} breakMinutes={liveBreak} />
                 </div>
-              )}
-              <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View full calendar</button>
-            </section>
+              </section>
+            )}
           </div>
-
-          {me.today.length > 0 && (
-            <section style={{ ...cardStyle, marginBottom: 14 }}>
-              <div style={capStyle}>Your day</div>
-              <div style={{ marginTop: 12, overflowX: "auto" }}>
-                <DayColumn
-                  events={me.today}
-                  active={me.state === "in" || me.state === "break" || me.state === "ot"}
-                  workedMinutes={me.running_minutes}
-                  breakMinutes={me.break_minutes}
-                />
-              </div>
-            </section>
-          )}
 
           {me.today.length > 0 && (
             <section style={{ ...cardStyle, marginBottom: 14 }}>
@@ -1542,6 +1500,75 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       {tab === "analytics" && (
         analytics ? (
           <>
+            {/* At-a-glance overview (moved off the Home tab, which is now just
+                punch + the day column). Each still links to its own tab. */}
+            <div style={{ ...grid(240), marginBottom: 14 }}>
+              <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("time")}>
+                <div style={capStyle}>This month</div>
+                {monthTotals ? (
+                  <>
+                    <Stat value={fmtHM(monthTotals.working_minutes)} label={`working hours · ${monthTotals.days_present} days present`} />
+                    <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 11.5, color: c.muted, flexWrap: "wrap" }}>
+                      <span style={{ color: monthTotals.late_marks > 0 ? statusInk.warn : undefined }}>{monthTotals.late_marks} late</span>
+                      <span>{monthTotals.paid_leave_days + monthTotals.unpaid_leave_days} leave</span>
+                      <span>{monthTotals.holiday_days} holidays</span>
+                    </div>
+                  </>
+                ) : <div style={{ fontSize: 12, color: c.hint }}>—</div>}
+                <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("time")}>View timesheet</button>
+              </section>
+
+              <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("leave")}>
+                <div style={capStyle}>Leave</div>
+                {leaveBalance.length === 0 ? (
+                  <div style={{ fontSize: 12, color: c.hint }}>No leave types configured.</div>
+                ) : (
+                  leaveBalance.slice(0, 3).map((lb) => (
+                    <div key={lb.leave_type_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "3px 0" }}>
+                      <span style={{ color: c.ink }}>{lb.name}</span>
+                      <span style={{ color: lb.balance <= 0 ? statusInk.bad : c.muted }}>{lb.balance} / {lb.quota}</span>
+                    </div>
+                  ))
+                )}
+                {pendingLeave > 0 && <div style={{ fontSize: 11.5, color: statusInk.warn, marginTop: 8 }}>{pendingLeave} request(s) awaiting approval</div>}
+                <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("leave")}>Request leave</button>
+              </section>
+
+              <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("calendar")}>
+                <div style={capStyle}>Next holiday</div>
+                {nextHoliday ? (
+                  <>
+                    <Stat value={fmtDate(nextHoliday.date)} label={nextHoliday.name} />
+                    <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8 }}>
+                      in {Math.max(0, Math.round((new Date(nextHoliday.date + "T00:00:00").getTime() - new Date(todayKey() + "T00:00:00").getTime()) / 86_400_000))} day(s)
+                    </div>
+                  </>
+                ) : <div style={{ fontSize: 12, color: c.hint }}>None scheduled.</div>}
+                <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View calendar</button>
+              </section>
+
+              <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("calendar")}>
+                <div style={capStyle}>My shift — next few days</div>
+                {me.upcoming.length === 0 ? (
+                  <div style={{ fontSize: 12, color: c.hint }}>No shift assigned.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {me.upcoming.slice(0, 3).map((u) => (
+                      <div key={u.date} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "2px 0" }}>
+                        <span style={{ color: c.ink }}>
+                          {new Date(u.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}
+                        </span>
+                        <span style={{ color: u.is_day_off ? statusInk.bad : c.muted }}>
+                          {u.is_day_off ? "Day off" : u.shift_name ? `${u.shift_name} ${u.start_time?.slice(0, 5)}–${u.end_time?.slice(0, 5)}` : "— none —"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View full calendar</button>
+              </section>
+            </div>
+
             <div style={{ ...grid(200), marginBottom: 14 }}>
               <section style={cardStyle}>
                 <div style={capStyle}>On-time rate</div>
