@@ -59,6 +59,10 @@ export default function WfmSummaryWidget() {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"day" | "month">("day");
   const [month, setMonth] = useState(thisMonth());
+  // The daily view is any date, not just today -- the month payload already
+  // carries every employee's days, so picking a date inside the loaded month
+  // is a free client-side projection; another month triggers one fetch.
+  const [day, setDay] = useState(today());
   const [rows, setRows] = useState<Summary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -104,9 +108,15 @@ export default function WfmSummaryWidget() {
     void load(m);
   }
 
-  const dayKey = today();
+  function changeDay(d: string) {
+    if (!d) return;
+    setDay(d);
+    const m = d.slice(0, 7);
+    if (m !== month) changeMonth(m);
+  }
+
   const dayRows = (rows ?? [])
-    .map((r) => ({ emp: r, day: r.days.find((d) => d.date === dayKey) }))
+    .map((r) => ({ emp: r, day: r.days.find((d) => d.date === day) }))
     .filter((x): x is { emp: Summary; day: DayRecord } => !!x.day);
 
   const monthTotals = (rows ?? []).reduce(
@@ -118,7 +128,10 @@ export default function WfmSummaryWidget() {
     }),
     { present: 0, minutes: 0, ot: 0, late: 0 }
   );
-  const dayPresent = dayRows.filter((d) => !d.day.absent && !d.day.on_leave).length;
+  // "Present" requires an actual check-in. Without this, an employee with no
+  // shift assigned (whom the summary never marks absent -- lateness/absence
+  // are judged against a shift) and zero punches counted as present.
+  const dayPresent = dayRows.filter((d) => d.day.first_in && !d.day.on_leave).length;
   const dayMinutes = dayRows.reduce((t, d) => t + d.day.net_minutes, 0);
 
   const th: React.CSSProperties = {
@@ -142,7 +155,7 @@ export default function WfmSummaryWidget() {
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: c.ink }}>Attendance summary</span>
           <span style={{ display: "block", fontSize: 11.5, color: c.muted, marginTop: 2 }}>
-            Today and this month, for everyone you supervise
+            Any day or month, for everyone you supervise
           </span>
         </span>
         <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"
@@ -155,7 +168,7 @@ export default function WfmSummaryWidget() {
         <div style={{ marginTop: 14 }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
             <div style={{ display: "flex", gap: 2, padding: 2, borderRadius: 8, border: `1px solid ${c.line}` }}>
-              {([["Today", "day"], ["Month", "month"]] as const).map(([label, v]) => (
+              {([["Day", "day"], ["Month", "month"]] as const).map(([label, v]) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
@@ -171,15 +184,28 @@ export default function WfmSummaryWidget() {
               ))}
             </div>
 
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => changeMonth(e.target.value)}
-              style={{
-                padding: "7px 10px", borderRadius: 8, border: `1px solid ${c.line}`,
-                background: c.panel, color: c.ink, fontSize: 12.5, font: "inherit",
-              }}
-            />
+            {view === "day" ? (
+              <input
+                type="date"
+                value={day}
+                max={today()}
+                onChange={(e) => changeDay(e.target.value)}
+                style={{
+                  padding: "7px 10px", borderRadius: 8, border: `1px solid ${c.line}`,
+                  background: c.panel, color: c.ink, fontSize: 12.5, font: "inherit",
+                }}
+              />
+            ) : (
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => changeMonth(e.target.value)}
+                style={{
+                  padding: "7px 10px", borderRadius: 8, border: `1px solid ${c.line}`,
+                  background: c.panel, color: c.ink, fontSize: 12.5, font: "inherit",
+                }}
+              />
+            )}
 
             <a
               href={`/api/wfm/summary/export?month=${month}`}
@@ -199,7 +225,7 @@ export default function WfmSummaryWidget() {
             <>
               <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 10 }}>
                 {(view === "day"
-                  ? [["Present today", String(dayPresent)], ["Hours today", hm(dayMinutes)], ["Records", String(dayRows.length)]]
+                  ? [["Present", String(dayPresent)], ["Hours", hm(dayMinutes)], ["Records", String(dayRows.length)]]
                   : [["Days present", String(monthTotals.present)], ["Hours", hm(monthTotals.minutes)], ["Overtime", hm(monthTotals.ot)], ["Late marks", String(monthTotals.late)]]
                 ).map(([label, value]) => (
                   <div key={label}>
@@ -227,7 +253,7 @@ export default function WfmSummaryWidget() {
                   </thead>
                   <tbody>
                     {view === "day" && dayRows.length === 0 && (
-                      <tr><td style={{ ...td, color: c.hint }} colSpan={5}>Nothing recorded today yet.</td></tr>
+                      <tr><td style={{ ...td, color: c.hint }} colSpan={5}>Nothing recorded on this day.</td></tr>
                     )}
                     {view === "day" && dayRows.map(({ emp, day }) => (
                       <tr key={emp.employee_id} style={{ borderBottom: `1px solid ${c.line}` }}>
@@ -241,7 +267,12 @@ export default function WfmSummaryWidget() {
                             : day.absent ? <span style={{ color: "#e5484d" }}>Absent</span>
                             : day.incomplete ? <span style={{ color: "#d97706" }}>Incomplete</span>
                             : day.late ? <span style={{ color: "#d97706" }}>Late</span>
-                            : <span style={{ color: "#12a150" }}>Present</span>}
+                            /* "Present" needs a punch behind it. An employee with
+                               no shift is never marked absent (absence is judged
+                               against a shift), so without this a no-punch day
+                               read as green Present. */
+                            : day.first_in ? <span style={{ color: "#12a150" }}>Present</span>
+                            : <span style={{ color: c.hint }}>No punch</span>}
                         </td>
                       </tr>
                     ))}
