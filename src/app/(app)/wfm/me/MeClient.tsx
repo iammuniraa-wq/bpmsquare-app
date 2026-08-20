@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { selfieRequiredFor } from "@/lib/wfm/punchRules";
+import { selfieRequiredFor, locationRequiredFor } from "@/lib/wfm/punchRules";
 import LocationHelp from "@/components/wfm/LocationHelp";
 import DeviceSetupCard from "@/components/wfm/DeviceSetupCard";
 import { geoPermissionState } from "@/lib/wfm/devicePermissions";
@@ -423,7 +423,11 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     setNotice(null);
     const id = crypto.randomUUID();
     const ts = new Date().toISOString();
-    const geo = await getGeo(kind === "break_start" || kind === "break_end" ? 5000 : 10_000);
+    // Breaks get a shorter best-effort window UNLESS location is mandated --
+    // then they deserve the same full budget as a check-in, since a timeout
+    // now means a rejected punch instead of a tolerated blank.
+    const isBreak = kind === "break_start" || kind === "break_end";
+    const geo = await getGeo(isBreak && !me?.require_location ? 5000 : 10_000);
     try {
       const res = await fetch("/api/wfm/punch", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -717,17 +721,15 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     return c.accent;
   }
 
-  // Breaks and OT punches don't need a selfie (only the shift's own
-  // in/out do, matching how the camera gate worked before the dropdown).
   async function startPunch(kind: PresenceKind, opts?: { ask?: boolean }) {
-    const isShiftPunch = kind === "check_in" || kind === "check_out";
-
     // Location is checked BEFORE the camera opens. Doing it the other way
     // round means taking a selfie and only then being told the punch can't
     // happen -- and the punch route rejects it anyway, so the camera step
     // would have been wasted. A denied permission needs a browser-settings
     // change, so the message says that rather than just "try again".
-    if (isShiftPunch && me?.require_location) {
+    // Which kinds the mandate covers (shift punches + breaks) is the shared
+    // rule the punch route enforces -- lib/wfm/punchRules.
+    if (locationRequiredFor(kind) && me?.require_location) {
       // Never fire the browser prompt cold. A reflexive "Deny" here is
       // permanent and costs an OS-settings trip plus a reload to undo, so
       // the first ask is always preceded by one line explaining it -- and
