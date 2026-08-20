@@ -6,6 +6,7 @@ import { cardStyle } from "@/components/Shell";
 import Donut from "@/components/Donut";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { useIsMobile } from "@/lib/useIsMobile";
 
 type BreakSegment = { start: string; end: string | null; minutes: number };
 type WorkSession = { in: string; out: string | null; gross_minutes: number; break_minutes: number; net_minutes: number; breaks: BreakSegment[] };
@@ -74,12 +75,106 @@ function dayStatus(d: DayRecord) {
   return { label: "—", color: c.hint };
 }
 
+/** Mobile: one collapsible card per employee instead of the 16-column
+ * table — sideways-scrolling a payroll table on a phone hides all but two
+ * columns, which is what the BIM screenshot showed. Collapsed carries the
+ * two figures a supervisor scans for (hours, days present); expanding
+ * lays out every column the desktop table has, as label/value pairs. */
+function MonthlyEmployeeCard({ r }: { r: EmployeeSummary }) {
+  const [open, setOpen] = useState(false);
+  const rupees = (v: number) => `₹${Math.round(v).toLocaleString("en-IN")}`;
+  const items: [string, React.ReactNode][] = [
+    ["Site", r.site_name ?? "—"],
+    ["Days present", r.totals.days_present],
+    ["Absent", <span key="a" style={{ color: r.totals.absent_days > 0 ? statusInk.bad : undefined }}>{r.totals.absent_days || "—"}</span>],
+    ["Late marks", <span key="l" style={{ color: r.totals.late_marks > 0 ? statusInk.warn : undefined }}>{r.totals.late_marks || "—"}</span>],
+    ["Half-day ded.", r.totals.half_day_deductions || "—"],
+    ["Paid leave", r.totals.paid_leave_days || "—"],
+    ["Unpaid leave", r.totals.unpaid_leave_days || "—"],
+    ["Holidays", r.totals.holiday_days || "—"],
+    ["Night shifts", r.totals.night_shifts || "—"],
+    ["Night allowance", r.totals.night_allowance_total ? rupees(r.totals.night_allowance_total) : "—"],
+    ["OT hours", r.totals.ot_minutes ? fmtHM(r.totals.ot_minutes) : "—"],
+    ["OT amount", r.totals.ot_amount ? rupees(r.totals.ot_amount) : "—"],
+    ["Incomplete days", <span key="i" style={{ color: r.totals.incomplete_days > 0 ? statusInk.bad : undefined }}>{r.totals.incomplete_days || "—"}</span>],
+  ];
+  return (
+    <div style={{ borderBottom: `1px solid ${c.line}` }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 12px",
+          background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left",
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.full_name}</span>
+          {r.employee_code && <span style={{ fontSize: 11, color: c.hint, fontFamily: "monospace" }}>{r.employee_code}</span>}
+        </span>
+        <span style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+          <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{fmtHM(r.totals.working_minutes)}</span>
+          <span style={{ fontSize: 11, color: c.muted }}>{r.totals.days_present} days</span>
+        </span>
+        <span style={{ fontSize: 10, color: c.hint, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
+      </button>
+      {open && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 14px", padding: "0 12px 12px" }}>
+          {items.map(([label, value]) => (
+            <div key={label}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: c.hint }}>{label}</div>
+              <div style={{ fontSize: 12.5, color: c.ink, marginTop: 1, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Mobile shell for the three donuts: collapsed by default, so the numbers
+ * a supervisor came for aren't below three screens of charts. */
+function CollapsibleCharts({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section style={{ ...cardStyle, marginBottom: 14, padding: 0 }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%",
+          padding: "12px", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left",
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Charts — how the month went</span>
+        <span style={{ fontSize: 10, color: c.hint, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
+      </button>
+      {open && <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: "0 12px 12px" }}>{children}</div>}
+    </section>
+  );
+}
+
 // ── Monthly view: one row per employee (the CA-facing roll-up) ─────────────
 
 function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[] }) {
   const [page, setPage] = useState(1);
+  const isMobile = useIsMobile();
   useEffect(() => { setPage((p) => clampPage(p, rows.length, DEFAULT_PAGE_SIZE)); }, [rows.length]);
   const pageRows = paginate(rows, page, DEFAULT_PAGE_SIZE);
+  if (isMobile) {
+    return (
+      <section style={{ ...cardStyle, padding: 0, marginBottom: 18 }}>
+        <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>
+          {title} <span style={{ color: c.hint, fontWeight: 400 }}>({rows.length})</span>
+        </div>
+        {pageRows.map((r) => <MonthlyEmployeeCard key={r.employee_id} r={r} />)}
+        {rows.length === 0 && <div style={{ padding: "14px 12px", fontSize: 12, color: c.hint }}>No employees in this section.</div>}
+        <div style={{ padding: "0 12px 10px" }}>
+          <Pager page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+        </div>
+      </section>
+    );
+  }
   return (
     <section style={{ ...cardStyle, padding: 0, marginBottom: 18, overflowX: "auto" }}>
       <div style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: c.ink, borderBottom: `1px solid ${c.line}` }}>
@@ -232,6 +327,7 @@ function DailyEmployee({ emp, deductBreaks, dayFilter }: { emp: EmployeeSummary;
 export default function SummaryClient({ initial = null }: {
   initial?: { month: string; employees: EmployeeSummary[]; deduct_breaks: boolean } | null;
 }) {
+  const isMobile = useIsMobile();
   const [view, setView] = useState<"daily" | "monthly">("monthly");
   // Daily view's optional single-date focus ("" = the whole month).
   const [dayFilter, setDayFilter] = useState("");
@@ -362,6 +458,19 @@ export default function SummaryClient({ initial = null }: {
 
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
 
+      {isMobile ? (
+        <CollapsibleCharts>
+          <Donut slices={dayMix} title="How the month went" centerLabel="days" />
+          <Donut
+            slices={attentionMix}
+            title="Needs attention"
+            centerLabel="employees"
+            selected={attentionFilter}
+            onSelect={setAttentionFilter}
+          />
+          <Donut slices={headcountMix} title="Headcount by site" centerLabel="employees" />
+        </CollapsibleCharts>
+      ) : (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14, marginBottom: 14 }}>
         <section style={cardStyle}><Donut slices={dayMix} title="How the month went" centerLabel="days" /></section>
         <section style={cardStyle}>
@@ -375,6 +484,7 @@ export default function SummaryClient({ initial = null }: {
         </section>
         <section style={cardStyle}><Donut slices={headcountMix} title="Headcount by site" centerLabel="employees" /></section>
       </div>
+      )}
 
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <input
