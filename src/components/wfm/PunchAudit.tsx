@@ -95,7 +95,7 @@ export default function PunchAudit({
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <span style={{ fontWeight: 600, color: c.ink }}>{KIND_LABEL[e.kind]}</span>
               <span style={{ color: c.hint }}>{fmtTime(e.ts)}</span>
-              {e.source !== "web_selfie" && <Pill label={e.source === "correction" ? "Corrected" : "Manual"} tone="purple" />}
+              {e.source !== "web_selfie" && <Pill label={e.source === "correction" ? "Corrected" : e.source === "kiosk_face" ? "Kiosk" : "Manual"} tone={e.source === "kiosk_face" ? "blue" : "purple"} />}
               {e.within_geofence === true && <Pill label={e.site_name ?? "On site"} tone="green" />}
               {e.within_geofence === false && <Pill label="Outside geofence" tone="amber" />}
               {canFlag && onFlag && (

@@ -325,10 +325,12 @@ Supabase SQL editor by hand, staging first (when the feature lands on
 deploy for an automatic schema change.
 - Dev DB **and** main/production DB: migrations through **0091** applied
   (owner confirmed 2026-08-19).
-- **0092_wfm_face_punch.sql — PENDING on both DBs** (written 2026-08-20):
-  face-punch schema (wfm_face_enrollments + wfm_kiosk_devices, WFM
-  select-only/deny-all RLS). Purely additive, nothing reads it until the
-  enrollment/kiosk steps ship; safe to run any time before those.
+- 0092_wfm_face_punch.sql — applied to both DBs (owner ran it 2026-08-20):
+  face-punch schema (wfm_face_enrollments + wfm_kiosk_devices).
+- **0093_kiosk_punch_source.sql — PENDING on both DBs** (written
+  2026-08-20): widens wfm_presence_events' source check to allow
+  'kiosk_face'. Must be run BEFORE the first kiosk punch is attempted —
+  without it the kiosk punch insert fails its check constraint.
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;
