@@ -4,6 +4,7 @@ import { createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-s
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { buildEmployeeHubProfile } from "@/lib/wfm/employeeHub";
 import { PRIMARY_HOST } from "@/lib/constants";
+import { revokeFaceEnrollment } from "@/lib/wfm/faceEnrollment";
 
 // GET /api/wfm/employees/[id] — one employee's full hub profile: identity,
 // site/shift/supervisor, who reports to them, this month's attendance
@@ -260,5 +261,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Deactivated must also mean un-enrolled: the face templates and photo
+  // copies go the moment the employee does. Best-effort -- a provider
+  // hiccup logs loudly but never blocks the deactivation itself.
+  if (patch.status === "inactive") {
+    await revokeFaceEnrollment(admin, tenantId, id).catch((e) =>
+      console.error("employee deactivate: face revoke failed:", (e as Error).message)
+    );
+  }
+
   return NextResponse.json(data);
 }

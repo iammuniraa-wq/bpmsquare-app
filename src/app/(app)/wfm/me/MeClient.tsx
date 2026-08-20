@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { selfieRequiredFor, locationRequiredFor } from "@/lib/wfm/punchRules";
 import LocationHelp from "@/components/wfm/LocationHelp";
 import DeviceSetupCard from "@/components/wfm/DeviceSetupCard";
+import FaceEnrollModal from "@/components/wfm/FaceEnrollModal";
 import { geoPermissionState } from "@/lib/wfm/devicePermissions";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -48,6 +49,8 @@ type MeState = {
   punch_types?: { ot: boolean; mobile_work: boolean; business_trip: boolean };
   require_location?: boolean;
   selfie_mode?: "off" | "shift" | "all";
+  face_punch?: "off" | "kiosk";
+  face_enrolled?: boolean;
   upcoming: {
     date: string; is_day_off: boolean; shift_name: string | null;
     start_time: string | null; end_time: string | null; is_night_shift: boolean;
@@ -252,6 +255,7 @@ function Bars({ points, valueOf, format }: { points: TrendPoint[]; valueOf: (p: 
 }
 
 export default function MeClient({ initialState = null }: { initialState?: MeState | null }) {
+  const [faceEnrollOpen, setFaceEnrollOpen] = useState(false);
   // Engagement layer (3-layer theme only): checking out at/after your
   // shift's end earns a full-shift celebration. Judged on wall-clock in
   // the tenant's timezone against the assigned shift, never on pay math.
@@ -945,6 +949,40 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
 
       {tab === "home" && me?.employee && (
         <DeviceSetupCard needsLocation={me.require_location === true} />
+      )}
+
+      {/* Self-service face enrollment (client decision 2026-08-20):
+          employees with logins set up their own face here; the door kiosk
+          then recognizes them from this same enrollment. Disappears once
+          enrolled. */}
+      {tab === "home" && me?.employee && me.face_punch === "kiosk" && !me.face_enrolled && (
+        <section style={{ ...cardStyle, marginBottom: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>Set up face punch</div>
+            <div style={{ fontSize: 12, color: c.muted, marginTop: 3, lineHeight: 1.5 }}>
+              Enroll your face once from your own login, and you can punch in and out on the office kiosk — no phone needed at the door.
+            </div>
+          </div>
+          <button
+            style={{
+              padding: "9px 16px", fontSize: 12.5, fontWeight: 650, borderRadius: 8, border: "none",
+              background: "var(--tenant-accent, #378ADD)", color: "#fff", cursor: "pointer",
+            }}
+            onClick={() => setFaceEnrollOpen(true)}
+          >
+            Set up
+          </button>
+        </section>
+      )}
+
+      {faceEnrollOpen && me?.employee && (
+        <FaceEnrollModal
+          self
+          employeeId={me.employee.id}
+          employeeName={me.employee.full_name}
+          onClose={() => setFaceEnrollOpen(false)}
+          onDone={() => void load()}
+        />
       )}
 
       {tab === "home" && (

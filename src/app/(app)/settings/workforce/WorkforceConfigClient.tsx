@@ -202,6 +202,19 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
           </div>
 
           <div>
+            <label style={lbl}>Face punch (kiosk)</label>
+            <select
+              style={inp}
+              value={cfg.face_punch}
+              onChange={(e) => setCfg({ ...cfg, face_punch: e.target.value as WfmConfig["face_punch"] })}
+            >
+              <option value="off">Off</option>
+              <option value="kiosk">On — kiosk tablet identifies enrolled faces</option>
+            </select>
+            <div style={help}>Employees enroll their own face from their login (My Workforce), or a supervisor enrolls them from Employees. A registered door tablet then recognizes them to punch.</div>
+          </div>
+
+          <div>
             <label style={lbl}>Face verification</label>
             <select
               style={inp}
