@@ -47,9 +47,15 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeR
     return { status: "unavailable", reason: "Invalid coordinates" };
   }
 
+  // The comma is sent LITERALLY, not as %2C. With a valid key Ola answered
+  // "zero_results" for dense central Bengaluru when the pair was
+  // percent-encoded (observed 2026-08-20) -- their parser evidently splits
+  // latlng on the raw comma before decoding. A comma is a legal query
+  // character (RFC 3986 sub-delim), and lat/lng are validated finite
+  // numbers, so raw interpolation is safe.
   const url =
     `https://api.olamaps.io/places/v1/reverse-geocode` +
-    `?latlng=${encodeURIComponent(`${lat},${lng}`)}&api_key=${encodeURIComponent(key)}`;
+    `?latlng=${lat},${lng}&api_key=${encodeURIComponent(key)}`;
 
   try {
     const res = await fetch(url, {
