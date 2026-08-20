@@ -120,17 +120,24 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
 
 // ── Daily view: one row per employee per day, every punch as booked ────────
 
-function DailyEmployee({ emp, deductBreaks }: { emp: EmployeeSummary; deductBreaks: boolean }) {
+function DailyEmployee({ emp, deductBreaks, dayFilter }: { emp: EmployeeSummary; deductBreaks: boolean; dayFilter?: string }) {
   const [open, setOpen] = useState(false);
   // Only days the employee actually did something on -- a month of empty
-  // future/week-off rows per employee would bury the real data.
-  const rows = emp.days.filter((d) => d.punches > 0 || d.on_leave || d.holiday || d.absent);
+  // future/week-off rows per employee would bury the real data. A date
+  // filter overrides that: the chosen day is shown even when nothing was
+  // booked on it (an empty row IS the answer for that day).
+  const rows = emp.days.filter((d) =>
+    dayFilter ? d.date === dayFilter : d.punches > 0 || d.on_leave || d.holiday || d.absent
+  );
+  // One chosen day auto-expands everyone -- collapsed cards would make the
+  // supervisor click through the whole team to see a single date.
+  const expanded = open || !!dayFilter;
 
   return (
     <section style={{ ...cardStyle, padding: 0, marginBottom: 14, overflowX: "auto" }}>
       <div
         onClick={() => setOpen((o) => !o)}
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", cursor: "pointer", borderBottom: open ? `1px solid ${c.line}` : "none" }}
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", cursor: "pointer", borderBottom: expanded ? `1px solid ${c.line}` : "none" }}
       >
         <div style={{ minWidth: 0 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{emp.full_name}</span>
@@ -140,11 +147,11 @@ function DailyEmployee({ emp, deductBreaks }: { emp: EmployeeSummary; deductBrea
         <div style={{ display: "flex", gap: 14, alignItems: "center", fontSize: 12, color: c.muted, whiteSpace: "nowrap" }}>
           <span>{emp.totals.days_present} days</span>
           <span style={{ color: c.ink, fontWeight: 700 }}>{fmtHM(emp.totals.working_minutes)}</span>
-          <span style={{ fontSize: 10, color: c.hint, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
+          <span style={{ fontSize: 10, color: c.hint, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>▸</span>
         </div>
       </div>
 
-      {open && (
+      {expanded && (
         <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -197,9 +204,9 @@ function DailyEmployee({ emp, deductBreaks }: { emp: EmployeeSummary; deductBrea
                 </tr>
               );
             })}
-            {rows.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={8}>No activity this month.</td></tr>}
+            {rows.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={8}>{dayFilter ? "Not on the roster this day." : "No activity this month."}</td></tr>}
           </tbody>
-          <tfoot>
+          {!dayFilter && <tfoot>
             <tr>
               <td style={{ ...td, fontWeight: 700, color: c.ink }} colSpan={4}>Month total</td>
               <td style={{ ...td, fontWeight: 700 }}>{fmtHM(emp.days.reduce((s, d) => s + d.break_minutes, 0))}</td>
@@ -207,7 +214,7 @@ function DailyEmployee({ emp, deductBreaks }: { emp: EmployeeSummary; deductBrea
               <td style={{ ...td, fontWeight: 700, color: c.ink }}>{fmtHM(emp.totals.working_minutes)}</td>
               <td style={td}></td>
             </tr>
-          </tfoot>
+          </tfoot>}
         </table>
       )}
     </section>
@@ -218,6 +225,8 @@ export default function SummaryClient({ initial = null }: {
   initial?: { month: string; employees: EmployeeSummary[]; deduct_breaks: boolean } | null;
 }) {
   const [view, setView] = useState<"daily" | "monthly">("monthly");
+  // Daily view's optional single-date focus ("" = the whole month).
+  const [dayFilter, setDayFilter] = useState("");
   const [month, setMonth] = useState(initial?.month ?? new Date().toISOString().slice(0, 7));
   const [rows, setRows] = useState<EmployeeSummary[]>(initial?.employees ?? []);
   const [deductBreaks, setDeductBreaks] = useState(initial?.deduct_breaks ?? true);
@@ -320,7 +329,24 @@ export default function SummaryClient({ initial = null }: {
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <button style={view === "daily" ? btnActive : btn} onClick={() => setView("daily")}>Daily — detailed</button>
         <button style={view === "monthly" ? btnActive : btn} onClick={() => setView("monthly")}>Monthly summary</button>
-        <input style={inp} type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+        <input style={inp} type="month" value={month} onChange={(e) => { const m = e.target.value; setMonth(m); if (dayFilter && !dayFilter.startsWith(m)) setDayFilter(""); }} />
+        {view === "daily" && (
+          <input
+            style={inp}
+            type="date"
+            value={dayFilter}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => {
+              const d = e.target.value;
+              setDayFilter(d);
+              if (d && d.slice(0, 7) !== month) setMonth(d.slice(0, 7));
+            }}
+            title="Show one date only — clear to see the whole month"
+          />
+        )}
+        {view === "daily" && dayFilter && (
+          <button style={btn} onClick={() => setDayFilter("")}>All days</button>
+        )}
         <a style={btnPrimary} href={`/api/wfm/summary/export?month=${month}`}>Export to Excel</a>
         {loading && <span style={{ fontSize: 12, color: c.hint }}>Loading…</span>}
       </div>
@@ -375,7 +401,7 @@ export default function SummaryClient({ initial = null }: {
             Click an employee to see every punch they booked. Total worked ={" "}
             {deductBreaks ? "check-out − check-in − breaks" : "check-out − check-in (breaks not deducted)"}.
           </div>
-          {filtered.map((emp) => <DailyEmployee key={emp.employee_id} emp={emp} deductBreaks={deductBreaks} />)}
+          {filtered.map((emp) => <DailyEmployee key={emp.employee_id} emp={emp} deductBreaks={deductBreaks} dayFilter={dayFilter || undefined} />)}
           {filtered.length === 0 && <div style={{ ...cardStyle, color: c.hint, fontSize: 12.5 }}>No employees.</div>}
         </>
       )}
