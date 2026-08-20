@@ -2,7 +2,7 @@
 // day's non-superseded events sorted ascending by ts, output is minutes.
 // Unit-testable per requirements §6.
 
-import { isSessionStart, isSessionEnd, type PresenceEvent, type PresenceKind } from "./types";
+import { isSessionStart, isSessionEnd, stateFromLastKind, type PresenceEvent, type PresenceKind, type PunchState } from "./types";
 
 export type DayHours = {
   /** last check_out (or endRef while still in/break) − first check_in */
@@ -264,4 +264,37 @@ export function shiftDayKey(ts: Date, timezone: string, shift: ShiftDayInfo): st
   const local = localHHMM(ts, timezone);
   const startHHMM = shift.start_time.slice(0, 5);
   return local < startHHMM ? addDays(calendarDay, -1) : calendarDay;
+}
+
+/**
+ * The employee's punch state at `at`, given their last non-superseded event —
+ * with the shift-day boundary applied.
+ *
+ * stateFromLastKind alone carries state forever: an employee who forgot to
+ * check out yesterday was still "in" this morning, so today's check-in was
+ * rejected ("Cannot check in while in") while break punches sailed through —
+ * producing a live-board row that reads "In" with no first-in and an audit
+ * trail of breaks with no check-in (the BIM report of 2026-08-20).
+ *
+ * The rollover is keyed on the last KIND, not the state, because some
+ * sessions legitimately span shift-days and must keep carrying:
+ *   - ot_in            → an overnight OT stretch still needs its ot_out
+ *   - business_trip_*  → a trip runs for days
+ *   - mobile_work_*    → same treatment, conservatively
+ * Only plain shift work (check_in / break_start / break_end) resets to "out"
+ * on a new shift-day — yesterday stays incomplete, which the monthly summary
+ * already flags and the corrections flow already repairs.
+ */
+export function punchStateAt(
+  last: { kind: PresenceKind; ts: string } | null,
+  at: Date,
+  timezone: string,
+  shift: ShiftDayInfo
+): PunchState {
+  if (!last) return "out";
+  const state = stateFromLastKind(last.kind);
+  if (state === "out") return state;
+  if (shiftDayKey(new Date(last.ts), timezone, shift) === shiftDayKey(at, timezone, shift)) return state;
+  const plainShiftWork = last.kind === "check_in" || last.kind === "break_start" || last.kind === "break_end";
+  return plainShiftWork ? "out" : state;
 }

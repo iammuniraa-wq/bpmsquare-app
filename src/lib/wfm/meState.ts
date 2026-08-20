@@ -2,12 +2,14 @@ import "server-only";
 
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { getWfmConfig, dateKeyInTz, type WfmContext } from "@/lib/wfm/server";
-// The state machine's own mapping -- NOT a local copy. A second copy here
-// silently went stale the moment OT/mobile-work kinds were added (it would
-// have reported "out" for an employee mid-overtime, offering them a check-in
-// the API would then reject).
-import { stateFromLastKind, type PresenceKind } from "@/lib/wfm/types";
-import { computeDayHours, shiftDayKey } from "@/lib/wfm/hours";
+import { type PresenceKind } from "@/lib/wfm/types";
+// punchStateAt is the state machine's own derivation -- NOT a local copy. A
+// second copy here silently went stale the moment OT/mobile-work kinds were
+// added (it would have reported "out" for an employee mid-overtime, offering
+// them a check-in the API would then reject). Same function the punch route
+// uses, shift-day rollover included, so the button offered and the punch
+// accepted always agree.
+import { computeDayHours, shiftDayKey, punchStateAt } from "@/lib/wfm/hours";
 
 /**
  * The /wfm/me punch screen's bootstrap payload: who am I, current punch
@@ -78,8 +80,11 @@ export async function buildWfmMeState(ctx: WfmContext) {
   ]);
 
   const events = recent ?? [];
-  const lastKind = (events[events.length - 1]?.kind as PresenceKind) ?? null;
-  const state = stateFromLastKind(lastKind);
+  const lastEvent = events[events.length - 1] ?? null;
+  const state = punchStateAt(
+    lastEvent ? { kind: lastEvent.kind as PresenceKind, ts: lastEvent.ts as string } : null,
+    now, config.timezone, shift
+  );
 
   // "Today" from THIS employee's shift perspective -- at 2am mid-way
   // through a night shift, that's still yesterday's shift-day.
