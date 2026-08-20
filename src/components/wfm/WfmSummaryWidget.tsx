@@ -30,6 +30,7 @@ type DayRecord = {
   last_out: string | null;
   net_minutes: number;
   gross_minutes: number;
+  break_minutes: number;
   late: boolean;
   absent: boolean;
   incomplete: boolean;
@@ -250,7 +251,7 @@ export default function WfmSummaryWidget() {
                       <th style={th}>Employee</th>
                       {view === "day" ? (
                         <>
-                          <th style={th}>In</th><th style={th}>Out</th><th style={th}>Hours</th><th style={th}>Status</th>
+                          <th style={th}>In</th><th style={th}>Out</th><th style={th}>Breaks</th><th style={th}>Hours</th><th style={th}>Status</th>
                         </>
                       ) : (
                         <>
@@ -261,13 +262,14 @@ export default function WfmSummaryWidget() {
                   </thead>
                   <tbody>
                     {view === "day" && dayRows.length === 0 && (
-                      <tr><td style={{ ...td, color: c.hint }} colSpan={5}>Nothing recorded on this day.</td></tr>
+                      <tr><td style={{ ...td, color: c.hint }} colSpan={6}>Nothing recorded on this day.</td></tr>
                     )}
                     {view === "day" && pageDayRows.map(({ emp, day }) => (
                       <tr key={emp.employee_id} style={{ borderBottom: `1px solid ${c.line}` }}>
                         <td style={td}>{emp.full_name}{emp.site_name ? <span style={{ color: c.hint }}> · {emp.site_name}</span> : null}</td>
                         <td style={td}>{fmtTime(day.first_in)}</td>
                         <td style={td}>{fmtTime(day.last_out)}</td>
+                        <td style={{ ...td, fontVariantNumeric: "tabular-nums", color: c.muted }}>{day.break_minutes > 0 ? hm(day.break_minutes) : "—"}</td>
                         <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>{day.net_minutes > 0 ? hm(day.net_minutes) : "—"}</td>
                         <td style={td}>
                           {day.on_leave ? <span style={{ color: c.muted }}>{day.on_leave.name}</span>

@@ -563,7 +563,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
           <div style={{ overflowX: "auto" }}>
             <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr><th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th><th style={th}>Worked</th><th style={th}>Status</th></tr>
+                <tr><th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th><th style={th}>Gross</th><th style={th}>Breaks</th><th style={th}>Worked</th><th style={th}>Status</th></tr>
               </thead>
               <tbody>
                 {(profile.month_summary?.days ?? []).filter((d) => d.date <= todayKey()).slice().reverse().map((d) => (
@@ -571,6 +571,12 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
                     <td style={{ ...td, fontWeight: 600, color: c.ink, whiteSpace: "nowrap" }}>{fmtDate(d.date)}</td>
                     <td style={{ ...td, whiteSpace: "nowrap" }}>{d.first_in ? new Date(d.first_in).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
                     <td style={{ ...td, whiteSpace: "nowrap" }}>{d.last_out ? new Date(d.last_out).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                    {/* Worked is net of breaks. Without gross and breaks on
+                        the row, In 09:19 / Out 11:47 / Worked 0h21m reads as a
+                        calculation bug (the BIM report) when it is a long
+                        break -- show the arithmetic instead of hiding it. */}
+                    <td style={{ ...td, whiteSpace: "nowrap", color: c.muted }}>{d.punches > 0 ? fmtHM(d.gross_minutes) : "—"}</td>
+                    <td style={{ ...td, whiteSpace: "nowrap", color: c.muted }}>{d.break_minutes > 0 ? fmtHM(d.break_minutes) : "—"}</td>
                     <td style={{ ...td, whiteSpace: "nowrap", fontWeight: 600 }}>{d.punches > 0 ? fmtHM(d.net_minutes) : "—"}</td>
                     <td style={td}>
                       {d.holiday ? <Pill label={d.holiday} tone="blue" />
@@ -585,7 +591,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
                   </tr>
                 ))}
                 {(profile.month_summary?.days ?? []).length === 0 && (
-                  <tr><td style={{ ...td, color: c.hint }} colSpan={5}>No records this month.</td></tr>
+                  <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No records this month.</td></tr>
                 )}
               </tbody>
             </table>
