@@ -37,7 +37,7 @@ export async function buildWfmMeState(ctx: WfmContext) {
   const todayStr = dateKeyInTz(now, config.timezone);
   const endStr = dateKeyInTz(new Date(now.getTime() + UPCOMING_DAYS * 24 * 60 * 60 * 1000), config.timezone);
 
-  const [{ data: recent }, { data: shift }, { data: site }, { data: roster }, { data: recheckRows }] = await Promise.all([
+  const [{ data: recent }, { data: shift }, { data: site }, { data: roster }, { data: recheckRows }, { data: faceRow }] = await Promise.all([
     admin
       .from("wfm_presence_events")
       .select("id, kind, ts, site_id, within_geofence, flags")
@@ -77,6 +77,14 @@ export async function buildWfmMeState(ctx: WfmContext) {
       .eq("employee_id", employee.id)
       .eq("status", "pending")
       .order("created_at", { ascending: false }),
+    config.face_punch === "off"
+      ? Promise.resolve({ data: null })
+      : admin
+          .from("wfm_face_enrollments")
+          .select("status")
+          .eq("tenant_id", tenantId)
+          .eq("employee_id", employee.id)
+          .maybeSingle(),
   ]);
 
   const events = recent ?? [];
@@ -159,6 +167,11 @@ export async function buildWfmMeState(ctx: WfmContext) {
     // the real enforcement; this is so the refusal happens early.
     require_location: config.require_location || config.geofence_mode === "block",
     selfie_mode: config.selfie_mode,
+    // Self-service face setup (client decision 2026-08-20): the Me page
+    // offers enrollment when the tenant runs kiosk face punch and this
+    // employee hasn't enrolled yet.
+    face_punch: config.face_punch,
+    face_enrolled: (faceRow as { status?: string } | null)?.status === "active",
     upcoming,
     pending_rechecks: recheckRows ?? [],
   };

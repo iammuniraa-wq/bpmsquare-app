@@ -9,6 +9,7 @@ import { ROUTES } from "@/lib/constants";
 import type { WfmSite, WfmShift } from "@/lib/wfm/types";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import FaceEnrollModal from "@/components/wfm/FaceEnrollModal";
 
 type Row = {
   id: string;
@@ -84,6 +85,30 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   const [roleFilter, setRoleFilter] = useState("");
   const [siteFilter, setSiteFilter] = useState("");
   const [page, setPage] = useState(1);
+  // Face-punch enrollment status (self-gating: the route says enabled:false
+  // when the tenant hasn't switched face_punch on, and the column hides).
+  const [faceEnabled, setFaceEnabled] = useState(false);
+  const [faceMap, setFaceMap] = useState<Record<string, string>>({});
+  const [enrolling, setEnrolling] = useState<Row | null>(null);
+
+  const loadFace = useCallback(async () => {
+    try {
+      const res = await fetch("/api/wfm/face/enrollments");
+      if (!res.ok) return;
+      const json = await res.json();
+      setFaceEnabled(json.enabled === true);
+      const map: Record<string, string> = {};
+      for (const e of json.enrollments ?? []) map[e.employee_id] = e.status;
+      setFaceMap(map);
+    } catch { /* leave hidden */ }
+  }, []);
+  useEffect(() => { void loadFace(); }, [loadFace]);
+
+  async function revokeFace(r: Row) {
+    if (!confirm(`Remove ${r.first_name}'s face enrollment? Their photos and face template are deleted.`)) return;
+    await fetch(`/api/wfm/face/enrollments?employee_id=${r.id}`, { method: "DELETE" });
+    void loadFace();
+  }
 
   const load = useCallback(async () => {
     const [empRes, shiftRes, siteRes] = await Promise.all([
@@ -334,6 +359,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
               <th style={th}>Supervisor</th>
               <th style={th}>Login</th>
               <th style={th}>Consent</th>
+              {faceEnabled && <th style={th}>Face</th>}
               <th style={th}>Status</th>
               <th style={th}></th>
             </tr>
@@ -358,6 +384,18 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                 </td>
                 <td style={td}>{r.has_login ? <Pill label="Linked" tone="green" /> : <Pill label="No login" tone="amber" />}</td>
                 <td style={td}>{r.consent_recorded_at ? <Pill label="Given" tone="green" /> : "—"}</td>
+                {faceEnabled && (
+                  <td style={{ ...td, whiteSpace: "nowrap" }}>
+                    {faceMap[r.id] === "active" ? (
+                      <>
+                        <Pill label="Enrolled" tone="green" />{" "}
+                        <button style={{ ...btn, padding: "3px 8px", fontSize: 11 }} disabled={busy} onClick={() => revokeFace(r)}>Remove</button>
+                      </>
+                    ) : r.status === "active" ? (
+                      <button style={{ ...btn, padding: "3px 8px", fontSize: 11 }} disabled={busy} onClick={() => setEnrolling(r)}>Enroll</button>
+                    ) : "—"}
+                  </td>
+                )}
                 <td style={td}><Pill label={r.status === "active" ? "Active" : "Inactive"} tone={r.status === "active" ? "green" : "red"} /></td>
                 <td style={{ ...td, whiteSpace: "nowrap" }}>
                   <button
@@ -390,7 +428,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
               </tr>
             ))}
             {visible.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={11}>
+              <tr><td style={{ ...td, color: c.hint }} colSpan={faceEnabled ? 12 : 11}>
                 {rows.length === 0
                   ? "No employees yet — use + New employee above, or bulk-load via Data Workbench."
                   : "No employees match these filters."}
@@ -402,6 +440,15 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
           <Pager page={clampPage(page, visible.length, DEFAULT_PAGE_SIZE)} total={visible.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
         </div>
       </section>
+
+      {enrolling && (
+        <FaceEnrollModal
+          employeeId={enrolling.id}
+          employeeName={[enrolling.first_name, enrolling.last_name].filter(Boolean).join(" ")}
+          onClose={() => setEnrolling(null)}
+          onDone={() => void loadFace()}
+        />
+      )}
     </>
   );
 }
