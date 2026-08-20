@@ -98,11 +98,15 @@ export async function POST(request: NextRequest) {
   );
   const kinds = allowedKinds(state).filter((k) => KIOSK_KINDS.includes(k));
 
+  // The kiosk screen renders only the name and the buttons. employee_code
+  // and the match confidence are deliberately NOT returned -- a device-
+  // token holder could otherwise turn identify into an oracle ("does this
+  // face belong to an employee here, what's their code, are they on site")
+  // by submitting arbitrary photos. Confidence is kept server-side (stamped
+  // into the punch event's flags), never handed to the tablet.
   return NextResponse.json({
     match: true,
     name: [employee.first_name, employee.last_name].filter(Boolean).join(" "),
-    employee_code: employee.employee_code,
-    confidence: Math.round(match.confidence * 10) / 10,
     state,
     kinds,
     ticket: signMatchTicket(employee.id, device.id),

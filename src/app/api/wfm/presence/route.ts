@@ -104,8 +104,12 @@ export async function GET(request: NextRequest) {
           // of the response) are left unwritten so they retry. The reason is
           // logged because this is the ONLY place it surfaces -- the screen
           // itself falls back to coordinates without complaint, by design.
+          // Deliberately does NOT log the coordinates -- exact lat/lng of a
+          // named employee's punch is location PII, and platform logs are
+          // retained and broadly readable. The event id + reason is enough
+          // to diagnose; look up the row if the coordinate is needed.
           console.error(
-            `[wfm/presence] no address for ${e.geo_lat},${e.geo_lng}: ` +
+            `[wfm/presence] no address for event ${e.id}: ` +
             (r.status === "unavailable" ? r.reason : "provider returned no parsable address")
           );
           return;

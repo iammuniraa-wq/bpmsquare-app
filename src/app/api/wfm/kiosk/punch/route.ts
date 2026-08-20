@@ -8,6 +8,7 @@ import { applyPunch, PUNCH_KIND_LABEL, type PresenceKind } from "@/lib/wfm/types
 
 const KIOSK_KINDS: PresenceKind[] = ["check_in", "check_out", "break_start", "break_end"];
 const MAX_BYTES = 2 * 1024 * 1024;
+const KIOSK_SELFIE_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 // POST /api/wfm/kiosk/punch — record the punch the matched person chose.
 // Multipart: kind, ticket (from identify, ≤60s old), frame (the matched
@@ -95,13 +96,29 @@ export async function POST(request: NextRequest) {
 
   // Selfie first, so the event row can carry its path from birth — no
   // second request, no punch-without-its-photo window.
+  //
+  // MIME is validated and the stored content-type + extension are derived
+  // from the VALIDATED type, never from the attacker-controlled frame.type
+  // (this route takes a device bearer token, not a user session). Without
+  // this, a device-token holder could store image/svg+xml or text/html
+  // under a .jpg name; Supabase serves it with the stored content-type, and
+  // the punch-audit view opens the selfie as a top-level document -> stored
+  // active content. The two sibling upload routes (punch/selfie,
+  // face/enrollments) already do exactly this; this one had drifted.
   const eventId = randomUUID();
   let selfiePath: string | null = null;
-  if (frame instanceof File && frame.size > 0 && frame.size <= MAX_BYTES) {
-    const path = `${device.tenant_id}/${employee.id}/${now.toISOString().slice(0, 7)}/${eventId}.jpg`;
+  if (frame instanceof File && frame.size > 0) {
+    if (frame.size > MAX_BYTES) {
+      return NextResponse.json({ error: "Selfie too large" }, { status: 400 });
+    }
+    const ext = KIOSK_SELFIE_EXT[frame.type];
+    if (!ext) {
+      return NextResponse.json({ error: "Selfie must be JPEG, PNG or WebP" }, { status: 400 });
+    }
+    const path = `${device.tenant_id}/${employee.id}/${now.toISOString().slice(0, 7)}/${eventId}.${ext}`;
     const { error: upErr } = await admin.storage
       .from("wfm")
-      .upload(path, frame, { contentType: frame.type || "image/jpeg", upsert: false });
+      .upload(path, frame, { contentType: frame.type, upsert: false });
     if (upErr) console.error("kiosk punch: selfie upload failed:", upErr.message);
     else selfiePath = path;
   }

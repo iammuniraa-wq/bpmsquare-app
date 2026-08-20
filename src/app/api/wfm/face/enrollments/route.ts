@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { randomUUID } from "crypto";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, getWfmConfig } from "@/lib/wfm/server";
-import { faceConfigured, indexFace } from "@/lib/wfm/face";
+import { faceConfigured, indexFace, deleteFaces } from "@/lib/wfm/face";
 import { revokeFaceEnrollment } from "@/lib/wfm/faceEnrollment";
 
 const MAX_FRAMES = 3;
@@ -173,7 +173,19 @@ export async function POST(request: NextRequest) {
     { onConflict: "tenant_id,employee_id" }
   );
   if (upsertErr) {
-    console.error("face enroll: row upsert failed:", upsertErr.message);
+    // The AWS templates and photos already exist at this point. If the row
+    // that references them never lands, they are orphaned biometric data --
+    // no revoke or retention path can ever reach them (both key off this
+    // row), a DPDP erasure-right violation. Clean them up here. deleteFaces
+    // is idempotent; the bucket paths we just wrote are removed directly
+    // (revokeFaceEnrollment can't run -- there's no row to read them from).
+    console.error("face enroll: row upsert failed, rolling back provider + photos:", upsertErr.message);
+    await deleteFaces(tenantId, faceIds).catch((e) =>
+      console.error("face enroll rollback: provider delete failed:", (e as Error).message)
+    );
+    if (photoPaths.length > 0) {
+      await admin.storage.from("wfm").remove(photoPaths).catch(() => {});
+    }
     return NextResponse.json({ error: "Could not save the enrollment" }, { status: 500 });
   }
 

@@ -117,7 +117,14 @@ export async function getMonthlySummary(
     .select("id, employee_code, first_name, last_name, employment_type, shift_id, site_id, status")
     .eq("tenant_id", tenantId)
     .eq("status", "active");
-  if (employeeIds && employeeIds.length > 0) employeeQuery = employeeQuery.in("id", employeeIds);
+  // `undefined` is the ONLY "unrestricted" signal. An empty array means
+  // "this scoped caller may see nobody" -- it must yield zero rows, never
+  // fall through to the whole tenant. (A zero-scope supervisor -- one with
+  // wfm_role=supervisor but no assigned site -- passes scope.employeeIds
+  // = [] here; the `&& length > 0` guard was leaking every employee's
+  // hours/pay to them via the summary + Excel export. Matches
+  // getWfmLiveBoardSnapshot's `if (employeeIds)` at server.ts.)
+  if (employeeIds) employeeQuery = employeeQuery.in("id", employeeIds);
 
   const [{ data: employees }, { data: sites }, { data: shifts }, { data: holidays }, { data: leaves }, { data: otRows }, { data: rosterRows }] = await Promise.all([
     employeeQuery,
