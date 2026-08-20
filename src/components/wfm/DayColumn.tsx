@@ -1,6 +1,7 @@
 "use client";
 
 import { c } from "@/lib/theme";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { isSessionStart, isSessionEnd, type PresenceKind } from "@/lib/wfm/types";
 
 /**
@@ -29,8 +30,8 @@ const RX = 48;   // cylinder radius (x)
 const RY = 14;   // cap ellipse radius (y) — the "3D" flatten
 const PAD = 10;
 
-const WORK = { edge: "163C86", g1: "2456C9", hi: "7DB0FF", g2: "1E4FC0", lid: "AFD0FF", dot: "2563EB" };
-const BREAK = { edge: "7A0F3E", g1: "C42571", hi: "FBA6D4", g2: "AA1856", lid: "FBC7E2", dot: "DB2777" };
+const WORK = { edge: "2A55B8", g1: "4A7CE4", hi: "A6C8FF", g2: "3E70DC", lid: "CBE0FF", dot: "3B82F6" };
+const BREAK = { edge: "C0468A", g1: "E162A6", hi: "FCC8E4", g2: "D2559A", lid: "FBDAEE", dot: "EC4899" };
 
 const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
 const t = (ms: number) => new Date(ms).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
@@ -71,6 +72,7 @@ export default function DayColumn({
   workedMinutes: number;
   breakMinutes: number;
 }) {
+  const isMobile = useIsMobile();
   const liveEnd = now || maxEnd(events);
   const { segs, firstIn } = buildSegments(events, liveEnd);
   if (firstIn === null || segs.length === 0) {
@@ -95,8 +97,17 @@ export default function DayColumn({
   // internal boundaries (between adjacent segments) for the liquid-layer line
   const boundaries = segs.slice(1).map((s) => yTopOf(s.start));
 
+  const worked = (
+    <div style={{ textAlign: isMobile ? "left" : "right", flexShrink: 0 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: c.hint }}>Worked</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{hm(workedMinutes)}</div>
+      {breakMinutes > 0 && <div style={{ fontSize: 11, color: `#${BREAK.dot}`, marginTop: 2 }}>{hm(breakMinutes)} break</div>}
+    </div>
+  );
+
   return (
-    <div style={{ display: "flex", gap: 14, alignItems: "flex-end", flexWrap: "wrap" }}>
+    <div>
+    <div style={{ display: "flex", gap: 14, alignItems: "flex-end", flexWrap: "nowrap" }}>
       <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ flexShrink: 0, overflow: "visible" }} aria-hidden="true">
         <defs>
           {[["work", WORK], ["break", BREAK]].map(([id, k]) => {
@@ -177,35 +188,37 @@ export default function DayColumn({
       </svg>
 
       {/* Labels, aligned to the cylinder's own boundaries. */}
-      <div style={{ position: "relative", height: svgH, minWidth: 150, flex: 1 }}>
-        <Label bottom={RY} dot={WORK.edge} time={t(firstIn)} text="Checked in" />
+      <div style={{ position: "relative", height: svgH, minWidth: 0, flex: 1 }}>
+        <Label bottom={RY} dot={WORK.dot} time={t(firstIn)} text="Checked in" mobile={isMobile} />
         {segs.map((s, i) => {
           if (s.mode !== "break") return null;
           const midBottom = RY + (upFromBase(s.start) + upFromBase(s.end)) / 2;
           const mins = Math.round((s.end - s.start) / 60000);
-          return <Label key={i} bottom={midBottom} dot={BREAK.edge} time={`${t(s.start)}–${t(s.end)}`} text={`Break · ${mins}m`} muted />;
+          // Full range on desktop; just the start + duration on a phone so it
+          // never overruns the label column beside the cylinder.
+          const time = isMobile ? t(s.start) : `${t(s.start)}–${t(s.end)}`;
+          return <Label key={i} bottom={midBottom} dot={BREAK.dot} time={time} text={`Break · ${mins}m`} muted mobile={isMobile} />;
         })}
         {topSeg.open
-          ? <Label bottom={RY + bodyH} dot={WORK.edge} time={t(lastEnd)} text="Now" />
-          : <Label bottom={RY + bodyH} dot="ef4444" time={t(lastEnd)} text="Checked out" />}
+          ? <Label bottom={RY + bodyH} dot={WORK.dot} time={t(lastEnd)} text="Now" mobile={isMobile} />
+          : <Label bottom={RY + bodyH} dot="ef4444" time={t(lastEnd)} text="Checked out" mobile={isMobile} />}
       </div>
 
-      {/* The running total. */}
-      <div style={{ textAlign: "right", flexShrink: 0, alignSelf: "flex-start" }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: c.hint }}>Worked</div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{hm(workedMinutes)}</div>
-        {breakMinutes > 0 && <div style={{ fontSize: 11, color: `#${BREAK.edge}`, marginTop: 2 }}>{hm(breakMinutes)} break</div>}
-      </div>
+      {/* Worked total — beside the cylinder on desktop. */}
+      {!isMobile && <div style={{ alignSelf: "flex-start" }}>{worked}</div>}
+    </div>
+    {/* On a phone the total drops below, full width, so the labels keep the room. */}
+    {isMobile && <div style={{ marginTop: 12 }}>{worked}</div>}
     </div>
   );
 }
 
-function Label({ bottom, dot, time, text, muted }: { bottom: number; dot: string; time: string; text: string; muted?: boolean }) {
+function Label({ bottom, dot, time, text, muted, mobile }: { bottom: number; dot: string; time: string; text: string; muted?: boolean; mobile?: boolean }) {
   return (
-    <div style={{ position: "absolute", left: 0, bottom, transform: "translateY(50%)", display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap" }}>
+    <div style={{ position: "absolute", left: 0, bottom, transform: "translateY(50%)", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", maxWidth: "100%" }}>
       <span style={{ width: 8, height: 8, borderRadius: 4, background: `#${dot}`, flexShrink: 0 }} />
-      <span style={{ fontSize: 12, fontWeight: 700, color: muted ? c.muted : c.ink, fontVariantNumeric: "tabular-nums" }}>{time}</span>
-      <span style={{ fontSize: 11.5, color: c.hint }}>{text}</span>
+      <span style={{ fontSize: mobile ? 11.5 : 12, fontWeight: 700, color: muted ? c.muted : c.ink, fontVariantNumeric: "tabular-nums" }}>{time}</span>
+      <span style={{ fontSize: mobile ? 11 : 11.5, color: c.hint, overflow: "hidden", textOverflow: "ellipsis" }}>{text}</span>
     </div>
   );
 }
