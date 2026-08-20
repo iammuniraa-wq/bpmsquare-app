@@ -230,8 +230,8 @@ function DraggableSection({
 
         const rowContent = (
           <>
-            <span style={{ width: 16, textAlign: "center", fontSize: 14, flexShrink: 0, display: "inline-flex", justifyContent: "center" }}>
-              <NavGlyph href={item.href} fallback={item.icon} />
+            <span style={{ width: isMobile ? 19 : 16, textAlign: "center", fontSize: isMobile ? 16 : 14, flexShrink: 0, display: "inline-flex", justifyContent: "center" }}>
+              <NavGlyph href={item.href} fallback={item.icon} size={isMobile ? 16 : 14} />
             </span>
             <span style={{ flex: 1 }}>{item.label}</span>
             {/* A "bundled" nav item (Sales, Service, Marketing, Master data --
@@ -270,7 +270,7 @@ function DraggableSection({
         const rowStyle: React.CSSProperties = {
           display: "flex", alignItems: "center", gap: 9,
           padding: `${py} 10px`,
-          borderRadius: 8, fontSize: 13, marginBottom: 1,
+          borderRadius: 8, fontSize: isMobile ? 15 : 13, marginBottom: 1,
           // Weight, not colour, was why these read as faint. Nothing set a
           // fontWeight, so every nav label rendered at 400 -- and 400 at 13px
           // on a high-DPI phone puts down strokes thin enough to look washed
@@ -317,7 +317,7 @@ function DraggableSection({
                         style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: `${py} 10px`,
-                          borderRadius: 8, fontSize: 12.5, marginBottom: 1,
+                          borderRadius: 8, fontSize: isMobile ? 14 : 12.5, marginBottom: 1,
                           fontWeight: childOn ? 700 : 560,
                           color: childOn ? "var(--sb-active-ink, #fff)" : "var(--sb-text)",
                           background: childOn ? `var(--sb-active-bg, ${accent})` : "transparent",
@@ -325,7 +325,7 @@ function DraggableSection({
                           transition: "background 0.12s",
                         }}
                       >
-                        <span style={{ width: 14, textAlign: "center", fontSize: 12, flexShrink: 0, display: "inline-flex", justifyContent: "center" }}><NavGlyph href={ch.href} fallback={ch.icon} size={12} /></span>
+                        <span style={{ width: isMobile ? 17 : 14, textAlign: "center", fontSize: isMobile ? 15 : 12, flexShrink: 0, display: "inline-flex", justifyContent: "center" }}><NavGlyph href={ch.href} fallback={ch.icon} size={isMobile ? 15 : 12} /></span>
                         <span>{ch.label}</span>
                       </Link>
                     );

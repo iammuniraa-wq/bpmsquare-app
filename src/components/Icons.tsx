@@ -12,7 +12,7 @@ function Svg({ size = 16, color = "currentColor", style, className, children }: 
       viewBox="0 0 24 24"
       fill="none"
       stroke={color}
-      strokeWidth={1.75}
+      strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
       style={{ display: "inline-block", verticalAlign: "middle", flexShrink: 0, ...style }}
