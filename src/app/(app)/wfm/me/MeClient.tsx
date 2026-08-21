@@ -8,6 +8,7 @@ import FaceEnrollModal from "@/components/wfm/FaceEnrollModal";
 import DayColumn from "@/components/wfm/DayColumn";
 import { computeDayHours } from "@/lib/wfm/hours";
 import { geoPermissionState } from "@/lib/wfm/devicePermissions";
+import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -38,6 +39,7 @@ type MeState = {
   employee: {
     id: string; full_name: string; employee_code: string | null;
     wfm_role: "employee" | "supervisor"; consent_recorded_at: string | null;
+    phone?: string | null; employment_type?: string | null;
   } | null;
   is_supervisor: boolean;
   state: PunchState;
@@ -51,6 +53,7 @@ type MeState = {
   punch_types?: { ot: boolean; mobile_work: boolean; business_trip: boolean };
   require_location?: boolean;
   selfie_mode?: "off" | "shift" | "all";
+  employee_self_service?: boolean;
   face_punch?: "off" | "kiosk";
   deduct_breaks?: boolean;
   face_enrolled?: boolean;
@@ -105,13 +108,14 @@ type Analytics = {
 };
 
 type Geo = { lat: number; lng: number; accuracy_m: number } | null;
-type Tab = "home" | "time" | "timeline" | "leave" | "calendar" | "analytics";
+type Tab = "profile" | "home" | "time" | "timeline" | "leave" | "calendar" | "analytics";
 type TimeView = "daily" | "monthly";
 
 const LEAVE_INSIGHTS_LS_KEY = "bms_wfm_leave_insights";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "home", label: "Home" },
+  { key: "profile", label: "Home" },
+  { key: "home", label: "Attendance" },
   { key: "time", label: "Time" },
   { key: "timeline", label: "Timeline" },
   { key: "leave", label: "Leave" },
@@ -223,6 +227,45 @@ const grid = (min: number): React.CSSProperties => ({
   display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))`, gap: 14,
 });
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
+/** One expandable profile tile in the portal Home hub. */
+function ProfileTile({ title, subtitle, open, onToggle, children }: {
+  title: string; subtitle: string; open: boolean; onToggle: () => void; children?: React.ReactNode;
+}) {
+  return (
+    <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 12, padding: "15px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left",
+        }}
+      >
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 14, fontWeight: 650, color: c.ink }}>{title}</span>
+          <span style={{ display: "block", fontSize: 12, color: c.muted, marginTop: 2 }}>{subtitle}</span>
+        </span>
+        <span aria-hidden style={{ color: c.hint, fontSize: 15, transform: open ? "rotate(90deg)" : "none", transition: "transform .15s", flexShrink: 0 }}>›</span>
+      </button>
+      {open && <div style={{ padding: "0 16px 16px" }}>{children}</div>}
+    </section>
+  );
+}
+
+function KV({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderTop: `1px solid ${c.line}` }}>
+      <span style={{ fontSize: 12.5, color: c.muted }}>{label}</span>
+      <span style={{ fontSize: 12.5, color: c.ink, fontWeight: 550, textAlign: "right" }}>{value}</span>
+    </div>
+  );
+}
+
 function Stat({ value, label, tone }: { value: string; label: string; tone?: string }) {
   return (
     <div>
@@ -259,11 +302,18 @@ function Bars({ points, valueOf, format }: { points: TrendPoint[]; valueOf: (p: 
 
 export default function MeClient({ initialState = null }: { initialState?: MeState | null }) {
   const [faceEnrollOpen, setFaceEnrollOpen] = useState(false);
+  // Profile hub (portal Home): which tile is expanded, plus the change-password
+  // form state used inside the Account settings tile.
+  const [openTile, setOpenTile] = useState<string | null>(null);
+  const [pwCur, setPwCur] = useState("");
+  const [pwNew, setPwNew] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMsg, setPwMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   // Engagement layer (3-layer theme only): checking out at/after your
   // shift's end earns a full-shift celebration. Judged on wall-clock in
   // the tenant's timezone against the assigned shift, never on pay math.
   const celebrateShift = useIsNextgen3Layer();
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>("profile");
   const [timeView, setTimeView] = useState<TimeView>("daily");
   const [month, setMonth] = useState(thisMonth());
   const [dayFilter, setDayFilter] = useState<string | null>(null);
@@ -741,6 +791,39 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   });
   const activeKind = selectedKind && punchOptions.includes(selectedKind) ? selectedKind : punchOptions[0] ?? null;
 
+  // Supervisor-managed workforce (client decision 2026-08-21): when a tenant
+  // turns employee self-service off, employees no longer punch from their
+  // own phone or self-enroll their face -- attendance is captured at the
+  // office kiosk by face, and a supervisor enrolls them. The Me page still
+  // shows their hours and today's shape (read-only), and Leave/Correction
+  // stay available. Defaults on, so every existing tenant is unchanged.
+  const selfService = me.employee_self_service !== false;
+
+  async function changePassword() {
+    if (!pwCur || pwNew.length < 8) return;
+    setPwBusy(true);
+    setPwMsg(null);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current_password: pwCur, new_password: pwNew }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setPwMsg({ tone: "err", text: json.error ?? "Could not change your password." }); return; }
+      setPwMsg({ tone: "ok", text: "Password changed." });
+      setPwCur("");
+      setPwNew("");
+    } finally {
+      setPwBusy(false);
+    }
+  }
+
+  async function logout() {
+    await createBrowserSupabase().auth.signOut().catch(() => {});
+    window.location.href = "/login";
+  }
+
   function punchTone(kind: PresenceKind | null): string {
     if (!kind) return c.accent;
     if (kind === "check_in") return "#10b981";
@@ -814,7 +897,11 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14, alignItems: "center" }}>
-        {punchOptions.length === 0 ? (
+        {!selfService ? (
+          <span style={{ fontSize: 12, color: c.hint, lineHeight: 1.5 }}>
+            Punch in and out at the office kiosk — it recognises you by face, no phone needed. Your hours here update automatically.
+          </span>
+        ) : punchOptions.length === 0 ? (
           <span style={{ fontSize: 12, color: c.hint }}>No punch action available right now.</span>
         ) : (
           <>
@@ -971,6 +1058,98 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         </div>
       )}
 
+      {tab === "profile" && me?.employee && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 640 }}>
+          {/* Identity header — name, avatar, and the employee-ID badge. */}
+          <section style={{ ...cardStyle, display: "flex", gap: 14, alignItems: "center" }}>
+            <div style={{
+              width: 54, height: 54, borderRadius: "50%", flexShrink: 0,
+              background: "var(--tenant-accent, #378ADD)", color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 700,
+            }}>
+              {initials(me.employee.full_name)}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: c.ink }}>{me.employee.full_name}</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 5, flexWrap: "wrap" }}>
+                {me.employee.employee_code && (
+                  <span style={{
+                    fontSize: 11.5, fontWeight: 700, color: "var(--tenant-accent, #378ADD)",
+                    background: "color-mix(in srgb, var(--tenant-accent, #378ADD) 13%, transparent)",
+                    padding: "2px 10px", borderRadius: 999,
+                  }}>
+                    #ID {me.employee.employee_code}
+                  </span>
+                )}
+                {me.employee.wfm_role === "supervisor" && <Pill label="Supervisor" tone="purple" />}
+              </div>
+            </div>
+          </section>
+
+          <ProfileTile
+            title="Personal Info"
+            subtitle="Your contact details"
+            open={openTile === "personal"}
+            onToggle={() => setOpenTile(openTile === "personal" ? null : "personal")}
+          >
+            <KV label="Full name" value={me.employee.full_name} />
+            <KV label="Employee ID" value={me.employee.employee_code ?? "—"} />
+            <KV label="Phone" value={me.employee.phone || "—"} />
+          </ProfileTile>
+
+          <ProfileTile
+            title="Employment Information"
+            subtitle="Role, shift and site"
+            open={openTile === "employment"}
+            onToggle={() => setOpenTile(openTile === "employment" ? null : "employment")}
+          >
+            <KV label="Role" value={me.employee.wfm_role === "supervisor" ? "Supervisor" : "Employee"} />
+            <KV label="Employment type" value={me.employee.employment_type ? me.employee.employment_type.replace(/_/g, " ") : "—"} />
+            <KV label="Shift" value={me.shift ? `${me.shift.name} (${me.shift.start_time.slice(0, 5)}–${me.shift.end_time.slice(0, 5)})` : "—"} />
+            <KV label="Site" value={me.home_site?.name ?? "—"} />
+          </ProfileTile>
+
+          <ProfileTile
+            title="Account Settings"
+            subtitle="Change your password or sign out"
+            open={openTile === "account"}
+            onToggle={() => setOpenTile(openTile === "account" ? null : "account")}
+          >
+            <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <label style={{ ...capStyle, marginBottom: 5 }}>Current password</label>
+                <input
+                  type="password" value={pwCur} onChange={(e) => setPwCur(e.target.value)}
+                  placeholder="Current password" autoComplete="current-password"
+                  style={{ width: "100%", padding: "9px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, boxSizing: "border-box", outline: "none" }}
+                />
+              </div>
+              <div>
+                <label style={{ ...capStyle, marginBottom: 5 }}>New password</label>
+                <input
+                  type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)}
+                  placeholder="At least 8 characters" autoComplete="new-password"
+                  style={{ width: "100%", padding: "9px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, boxSizing: "border-box", outline: "none" }}
+                />
+              </div>
+              {pwMsg && (
+                <div style={{ fontSize: 12.5, color: pwMsg.tone === "ok" ? statusInk.good : statusInk.bad }}>{pwMsg.text}</div>
+              )}
+              <div>
+                <button style={{ ...btnPrimary }} disabled={pwBusy || !pwCur || pwNew.length < 8} onClick={changePassword}>
+                  {pwBusy ? "Saving…" : "Change password"}
+                </button>
+              </div>
+              <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 12, marginTop: 2 }}>
+                <button style={{ ...btn, color: statusInk.bad, borderColor: "transparent" }} onClick={logout}>
+                  Sign out
+                </button>
+              </div>
+            </div>
+          </ProfileTile>
+        </div>
+      )}
+
       {tab === "home" && me?.employee && (
         <DeviceSetupCard needsLocation={me.require_location === true} />
       )}
@@ -979,7 +1158,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           employees with logins set up their own face here; the door kiosk
           then recognizes them from this same enrollment. Disappears once
           enrolled. */}
-      {tab === "home" && me?.employee && me.face_punch === "kiosk" && !me.face_enrolled && (
+      {tab === "home" && selfService && me?.employee && me.face_punch === "kiosk" && !me.face_enrolled && (
         <section style={{ ...cardStyle, marginBottom: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>Set up face punch</div>

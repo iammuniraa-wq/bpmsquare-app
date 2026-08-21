@@ -149,6 +149,36 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
           </div>
 
           <div>
+            <label style={lbl}>Employee self-service</label>
+            <select
+              style={inp}
+              value={cfg.employee_self_service === false ? "off" : "on"}
+              onChange={(e) => setCfg({ ...cfg, employee_self_service: e.target.value === "on" })}
+            >
+              <option value="on">On — employees punch and enroll from their own login</option>
+              <option value="off">Off — supervisor-managed; attendance only at the kiosk</option>
+            </select>
+            <div style={help}>
+              When off, employees don&apos;t punch from their phone or set up their own face — they punch at the office kiosk and a supervisor enrolls them from the Employees screen. Leave and corrections stay available.
+            </div>
+          </div>
+
+          <div>
+            <label style={lbl}>Employee login</label>
+            <select
+              style={inp}
+              value={cfg.login_mode === "code" ? "code" : "email"}
+              onChange={(e) => setCfg({ ...cfg, login_mode: e.target.value as WfmConfig["login_mode"] })}
+            >
+              <option value="email">Email address</option>
+              <option value="code">Employee ID (no personal email needed)</option>
+            </select>
+            <div style={help}>
+              How employees sign in to the self-service portal. With Employee ID, they log in with their code and a password — no personal email. Create each employee&apos;s login from the Employees screen. Admins always sign in by email.
+            </div>
+          </div>
+
+          <div>
             <label style={lbl}>Working hours</label>
             <select
               style={inp}
@@ -212,6 +242,21 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
               <option value="kiosk">On — kiosk tablet identifies enrolled faces</option>
             </select>
             <div style={help}>Employees enroll their own face from their login (My Workforce), or a supervisor enrolls them from Employees. A registered door tablet then recognizes them to punch.</div>
+          </div>
+
+          <div>
+            <label style={lbl}>Face sign-in (portal)</label>
+            <select
+              style={inp}
+              value={cfg.face_login ? "on" : "off"}
+              onChange={(e) => setCfg({ ...cfg, face_login: e.target.value === "on" })}
+            >
+              <option value="off">Off</option>
+              <option value="on">On — employees can sign in by face</option>
+            </select>
+            <div style={help}>
+              Lets employees sign in to the app by face, as an alternative to ID/email + password. Needs Face punch on (so a face is enrolled). Note: without liveness detection a photo of the employee could sign in — enable deliberately.
+            </div>
           </div>
 
           <div>

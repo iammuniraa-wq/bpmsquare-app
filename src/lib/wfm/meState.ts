@@ -152,6 +152,9 @@ export async function buildWfmMeState(ctx: WfmContext) {
       employee_code: employee.employee_code,
       wfm_role: employee.wfm_role,
       consent_recorded_at: employee.consent_recorded_at,
+      // Shown read-only on the portal's profile hub (Personal / Employment).
+      phone: employee.phone,
+      employment_type: employee.employment_type,
     },
     is_supervisor: isSupervisor,
     state,
@@ -172,6 +175,10 @@ export async function buildWfmMeState(ctx: WfmContext) {
     // employee hasn't enrolled yet.
     face_punch: config.face_punch,
     face_enrolled: (faceRow as { status?: string } | null)?.status === "active",
+    // Supervisor-managed workforce (client decision 2026-08-21): when off,
+    // the Me page withdraws self-punch and self-enrollment -- attendance is
+    // captured at the kiosk by face. Defaults on for every existing tenant.
+    employee_self_service: config.employee_self_service,
     // So the client can tick the running total live (net vs gross) the same
     // way the server computed running_minutes at load.
     deduct_breaks: config.deduct_breaks,
