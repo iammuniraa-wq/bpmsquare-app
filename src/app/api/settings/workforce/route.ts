@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidateTag } from "next/cache";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { DEFAULT_WFM_CONFIG, type TenantConfig, type WfmConfig } from "@/lib/constants";
@@ -136,5 +137,12 @@ export async function PUT(request: NextRequest) {
 
   const { error } = await admin.from("tenants").update({ config: merged }).eq("id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // The login page's branding is cached (unstable_cache, 5 min) and carries
+  // login_mode/face_login, so bust it now -- otherwise a just-toggled
+  // "Face sign-in" or "Employee login" wouldn't reach the login screen until
+  // the cache expired.
+  revalidateTag("tenant-branding", { expire: 0 });
+
   return NextResponse.json({ ...DEFAULT_WFM_CONFIG, ...merged.wfm });
 }

@@ -200,7 +200,10 @@ export const getTenantBrandingByHost = unstable_cache(
     };
   },
   ["tenant-branding-by-host"],
-  { revalidate: 300 }
+  // Tagged so a WFM/settings save can bust it immediately (revalidateTag
+  // "tenant-branding") -- otherwise a just-enabled flag like face_login or
+  // login_mode wouldn't reach the login page for up to 5 minutes.
+  { revalidate: 300, tags: ["tenant-branding"] }
 );
 
 /** Admin: list all tenants. Uses service role. */
