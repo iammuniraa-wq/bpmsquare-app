@@ -42,3 +42,21 @@ export function employeeSyntheticEmail(tenantId: string, code: string | null | u
 export function isEmployeeSyntheticEmail(email: string | null | undefined): boolean {
   return typeof email === "string" && email.endsWith(`@${EMPLOYEE_LOGIN_DOMAIN}`);
 }
+
+/**
+ * A human-friendly default User ID from a name: "vani.iyer". Lowercased,
+ * only [a-z0-9.], the login handle the employee types. The synthetic email is
+ * still derived from it (employeeSyntheticEmail slugs the dots to dashes), so
+ * typing the User ID at login reconstructs the same address the create route
+ * stored. The admin can override the suggestion; the route dedupes it.
+ */
+export function suggestUsername(first: string | null | undefined, last?: string | null): string {
+  const clean = (s: string) => (s ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const base = [clean(first ?? ""), clean(last ?? "")].filter(Boolean).join(".");
+  return base || "user";
+}
+
+/** Normalise an admin-typed or generated User ID to the stored/handle form. */
+export function normalizeUsername(username: string): string {
+  return username.trim().toLowerCase().replace(/[^a-z0-9.]+/g, ".").replace(/\.+/g, ".").replace(/^\.|\.$/g, "");
+}

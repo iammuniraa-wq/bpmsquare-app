@@ -183,10 +183,10 @@ function LoginFormInner({ branding }: { branding: Branding }) {
         {mode === "login" && (
           <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
-              <label style={labelStyle}>{codeLogin ? "Email or Employee ID" : "Email address"}</label>
+              <label style={labelStyle}>{codeLogin ? "User ID" : "Email address"}</label>
               <input
                 type={codeLogin ? "text" : "email"}
-                placeholder={codeLogin ? "Employee ID or email" : "you@company.com"}
+                placeholder={codeLogin ? "Your user ID" : "you@company.com"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

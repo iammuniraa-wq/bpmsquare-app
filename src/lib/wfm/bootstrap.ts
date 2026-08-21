@@ -26,7 +26,7 @@ export async function wfmEmployeesPayload(supabase: SupabaseClient, tenantId: st
     supabase
       .from("employees")
       .select(
-        "id, employee_code, first_name, last_name, phone, status, employment_type, wfm_role, shift_id, site_id, supervisor_id, consent_recorded_at, wfm_shifts(name), wfm_sites!site_id(name)"
+        "id, employee_code, first_name, last_name, phone, status, employment_type, wfm_role, shift_id, site_id, supervisor_id, consent_recorded_at, custom_data, wfm_shifts(name), wfm_sites!site_id(name)"
       )
       .eq("tenant_id", tenantId)
       .order("employee_code"),
@@ -38,7 +38,13 @@ export async function wfmEmployeesPayload(supabase: SupabaseClient, tenantId: st
   ]);
   const employees = orThrow(empRes);
   const linked = new Set((memberships ?? []).map((m) => m.employee_id));
-  return employees.map((e) => ({ ...e, has_login: linked.has(e.id) }));
+  // Surface only the login User ID from custom_data (the rest of custom_data
+  // isn't needed by this screen and needn't be shipped to the client).
+  return employees.map(({ custom_data, ...e }) => ({
+    ...e,
+    has_login: linked.has(e.id),
+    login_username: ((custom_data ?? {}) as { login_username?: string }).login_username ?? null,
+  }));
 }
 
 export async function wfmShiftsPayload(supabase: SupabaseClient, tenantId: string) {

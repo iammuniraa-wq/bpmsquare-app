@@ -10,6 +10,7 @@ import type { WfmSite, WfmShift } from "@/lib/wfm/types";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import FaceEnrollModal from "@/components/wfm/FaceEnrollModal";
+import { suggestUsername } from "@/lib/wfm/employeeLogin";
 
 type Row = {
   id: string;
@@ -25,6 +26,7 @@ type Row = {
   supervisor_id: string | null;
   consent_recorded_at: string | null;
   has_login: boolean;
+  login_username: string | null;
   wfm_shifts: { name: string } | null;
   wfm_sites: { name: string } | null;
 };
@@ -95,8 +97,10 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   const [enrolling, setEnrolling] = useState<Row | null>(null);
   // Code-login create/reset (loginMode === "code"): a small password prompt.
   const [loginRow, setLoginRow] = useState<Row | null>(null);
+  const [loginUser, setLoginUser] = useState("");
   const [loginPw, setLoginPw] = useState("");
   const [loginMsg, setLoginMsg] = useState("");
+  const [loginDone, setLoginDone] = useState<string | null>(null);
 
   const loadFace = useCallback(async () => {
     try {
@@ -119,24 +123,25 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
 
   function openLogin(r: Row) {
     setLoginRow(r);
+    setLoginUser(r.login_username || suggestUsername(r.first_name, r.last_name));
     setLoginPw("");
     setLoginMsg("");
+    setLoginDone(null);
   }
 
   async function submitLogin() {
-    if (!loginRow || loginPw.length < 8) return;
+    if (!loginRow || loginPw.length < 8 || !loginUser.trim()) return;
     setBusy(true);
     setLoginMsg("");
     try {
       const res = await fetch(`/api/wfm/employees/${loginRow.id}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: loginPw }),
+        body: JSON.stringify({ username: loginUser.trim(), password: loginPw }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setLoginMsg(json.error ?? "Could not set the login."); return; }
-      setLoginRow(null);
-      setLoginPw("");
+      setLoginDone(json.username ?? loginUser.trim());
       await load();
     } finally {
       setBusy(false);
@@ -415,7 +420,13 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                     ? [rows.find((s) => s.id === r.supervisor_id)?.first_name, rows.find((s) => s.id === r.supervisor_id)?.last_name].filter(Boolean).join(" ") || "—"
                     : "—"}
                 </td>
-                <td style={td}>{r.has_login ? <Pill label="Linked" tone="green" /> : <Pill label="No login" tone="amber" />}</td>
+                <td style={td}>
+                  {r.has_login
+                    ? (loginMode === "code" && r.login_username
+                        ? <span style={{ fontFamily: "monospace", fontSize: 12 }}>{r.login_username}</span>
+                        : <Pill label="Linked" tone="green" />)
+                    : <Pill label="No login" tone="amber" />}
+                </td>
                 <td style={td}>{r.consent_recorded_at ? <Pill label="Given" tone="green" /> : "—"}</td>
                 {faceEnabled && (
                   <td style={{ ...td, whiteSpace: "nowrap" }}>
@@ -497,32 +508,57 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
           onClick={() => !busy && setLoginRow(null)}
         >
           <div style={{ ...cardStyle, width: 400, maxWidth: "100%" }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: c.ink, marginBottom: 4 }}>
-              {loginRow.has_login ? "Reset password" : "Create portal login"}
-            </div>
-            <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>
-              {[loginRow.first_name, loginRow.last_name].filter(Boolean).join(" ")} signs in with employee ID{" "}
-              <strong style={{ color: c.ink }}>{loginRow.employee_code ?? "—"}</strong> and this password. They&apos;ll be asked to change it on first sign-in.
-            </div>
-            <label style={lbl}>Initial password</label>
-            <input
-              type="text"
-              value={loginPw}
-              onChange={(e) => setLoginPw(e.target.value)}
-              placeholder="At least 8 characters"
-              autoFocus
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              style={inp}
-            />
-            {loginMsg && <div style={{ fontSize: 12.5, color: statusInk.bad, marginTop: 8 }}>{loginMsg}</div>}
-            <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
-              <button style={btn} disabled={busy} onClick={() => setLoginRow(null)}>Cancel</button>
-              <button style={btnPrimary} disabled={busy || loginPw.length < 8} onClick={submitLogin}>
-                {busy ? "Saving…" : loginRow.has_login ? "Reset password" : "Create login"}
-              </button>
-            </div>
+            {loginDone ? (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: statusInk.good, marginBottom: 8 }}>✓ Login ready</div>
+                <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 12, lineHeight: 1.5 }}>
+                  Give {[loginRow.first_name, loginRow.last_name].filter(Boolean).join(" ")} their User ID and the password you just set. They&apos;ll change the password on first sign-in.
+                </div>
+                <div style={{ fontSize: 12, color: c.hint, marginBottom: 3 }}>User ID</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: c.ink, fontFamily: "monospace", marginBottom: 16 }}>{loginDone}</div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button style={btnPrimary} onClick={() => setLoginRow(null)}>Done</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: c.ink, marginBottom: 4 }}>
+                  {loginRow.has_login ? "Reset login" : "Create portal login"}
+                </div>
+                <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>
+                  {[loginRow.first_name, loginRow.last_name].filter(Boolean).join(" ")} signs in with this User ID and password — no email. They&apos;ll change the password on first sign-in.
+                </div>
+                <label style={lbl}>User ID</label>
+                <input
+                  type="text"
+                  value={loginUser}
+                  onChange={(e) => setLoginUser(e.target.value)}
+                  placeholder="e.g. firstname.lastname"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  style={{ ...inp, fontFamily: "monospace" }}
+                />
+                <label style={{ ...lbl, marginTop: 12 }}>Initial password</label>
+                <input
+                  type="text"
+                  value={loginPw}
+                  onChange={(e) => setLoginPw(e.target.value)}
+                  placeholder="At least 8 characters"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  style={inp}
+                />
+                {loginMsg && <div style={{ fontSize: 12.5, color: statusInk.bad, marginTop: 8 }}>{loginMsg}</div>}
+                <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+                  <button style={btn} disabled={busy} onClick={() => setLoginRow(null)}>Cancel</button>
+                  <button style={btnPrimary} disabled={busy || loginPw.length < 8 || !loginUser.trim()} onClick={submitLogin}>
+                    {busy ? "Saving…" : loginRow.has_login ? "Save" : "Create login"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
