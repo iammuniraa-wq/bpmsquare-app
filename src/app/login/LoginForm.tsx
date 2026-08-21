@@ -219,12 +219,19 @@ function LoginFormInner({ branding }: { branding: Branding }) {
         {/* Footer links */}
         <div style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: c.hint }}>
           {mode === "login" ? (
+            // In User ID mode there is no email to reset against and employees
+            // don't self-reset -- a supervisor resets them from the Employees
+            // screen -- so the email-based "Forgot password" is hidden here.
+            codeLogin ? (
+              <span style={{ fontSize: 12.5, color: c.hint }}>Forgot your password? Ask your supervisor to reset it.</span>
+            ) : (
             <button
               onClick={() => { setMode("forgot"); setError(""); }}
               style={{ background: "none", border: "none", color: c.accent, cursor: "pointer", fontSize: 13, fontWeight: 500 }}
             >
               Forgot your password?
             </button>
+            )
           ) : (
             <button
               onClick={() => { setMode("login"); setError(""); setResetSent(false); }}
