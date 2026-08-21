@@ -101,6 +101,9 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   const [loginPw, setLoginPw] = useState("");
   const [loginMsg, setLoginMsg] = useState("");
   const [loginDone, setLoginDone] = useState<string | null>(null);
+  // Set when the employee's existing login is EMAIL-based: the server asks for
+  // an explicit confirmation before converting it to a User ID login.
+  const [loginConvert, setLoginConvert] = useState<string | null>(null);
 
   const loadFace = useCallback(async () => {
     try {
@@ -127,9 +130,10 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
     setLoginPw("");
     setLoginMsg("");
     setLoginDone(null);
+    setLoginConvert(null);
   }
 
-  async function submitLogin() {
+  async function submitLogin(convert = false) {
     if (!loginRow || loginPw.length < 8 || !loginUser.trim()) return;
     setBusy(true);
     setLoginMsg("");
@@ -137,10 +141,18 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
       const res = await fetch(`/api/wfm/employees/${loginRow.id}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: loginUser.trim(), password: loginPw }),
+        body: JSON.stringify({ username: loginUser.trim(), password: loginPw, ...(convert ? { convert: true } : {}) }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) { setLoginMsg(json.error ?? "Could not set the login."); return; }
+      if (!res.ok) {
+        if (json.needs_convert) {
+          setLoginConvert(json.current_email ?? "their email");
+          return;
+        }
+        setLoginMsg(json.error ?? "Could not set the login.");
+        return;
+      }
+      setLoginConvert(null);
       setLoginDone(json.username ?? loginUser.trim());
       await load();
     } finally {
@@ -551,11 +563,22 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                   style={inp}
                 />
                 {loginMsg && <div style={{ fontSize: 12.5, color: statusInk.bad, marginTop: 8 }}>{loginMsg}</div>}
+                {loginConvert && (
+                  <div style={{ fontSize: 12.5, color: statusInk.warn, marginTop: 10, lineHeight: 1.5 }}>
+                    This employee currently signs in with <strong>{loginConvert}</strong>. Converting gives them the User ID login above instead — the email will no longer sign in. Continue?
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
                   <button style={btn} disabled={busy} onClick={() => setLoginRow(null)}>Cancel</button>
-                  <button style={btnPrimary} disabled={busy || loginPw.length < 8 || !loginUser.trim()} onClick={submitLogin}>
-                    {busy ? "Saving…" : loginRow.has_login ? "Save" : "Create login"}
-                  </button>
+                  {loginConvert ? (
+                    <button style={btnPrimary} disabled={busy} onClick={() => submitLogin(true)}>
+                      {busy ? "Converting…" : "Convert to User ID login"}
+                    </button>
+                  ) : (
+                    <button style={btnPrimary} disabled={busy || loginPw.length < 8 || !loginUser.trim()} onClick={() => submitLogin()}>
+                      {busy ? "Saving…" : loginRow.has_login ? "Save" : "Create login"}
+                    </button>
+                  )}
                 </div>
               </>
             )}

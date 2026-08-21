@@ -118,7 +118,35 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { data: userRes } = await admin.auth.admin.getUserById(existingLink.user_id);
     const currentEmail = userRes?.user?.email ?? null;
     if (!isEmployeeSyntheticEmail(currentEmail)) {
-      return NextResponse.json({ error: "This employee already has an email login." }, { status: 409 });
+      // An EMAIL login. Converting it to a User ID login rewrites the auth
+      // account's email to the synthetic address -- after which the old email
+      // no longer signs in. That's exactly what a User-ID tenant wants for its
+      // employees, but it must be (a) explicitly confirmed by the admin
+      // (convert: true), and (b) refused when the auth account also belongs to
+      // ANOTHER tenant -- it's a platform-wide account, and rewriting its email
+      // would break that person's login everywhere else.
+      const { data: otherMemberships } = await admin
+        .from("tenant_users")
+        .select("tenant_id")
+        .eq("user_id", existingLink.user_id)
+        .neq("tenant_id", tenantId)
+        .limit(1);
+      if (otherMemberships && otherMemberships.length > 0) {
+        return NextResponse.json(
+          { error: "This login is also used in another workspace, so it can't be converted to a User ID. Unlink it and create a fresh login instead." },
+          { status: 409 }
+        );
+      }
+      if (body?.convert !== true) {
+        return NextResponse.json(
+          {
+            needs_convert: true,
+            current_email: currentEmail,
+            error: `This employee currently signs in with ${currentEmail}. Converting gives them a User ID login instead — the email will no longer sign in.`,
+          },
+          { status: 409 }
+        );
+      }
     }
     const update: { password: string; email?: string; email_confirm?: boolean } = { password };
     if (currentEmail !== synthEmail) { update.email = synthEmail; update.email_confirm = true; }
