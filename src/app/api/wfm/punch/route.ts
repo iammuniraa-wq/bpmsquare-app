@@ -101,6 +101,20 @@ export async function POST(request: NextRequest) {
       .maybeSingle(),
   ]);
 
+  // Supervisor-managed workforce (client decision 2026-08-21): with employee
+  // self-service off, this phone-punch endpoint is closed -- attendance is
+  // captured only at the kiosk (its own route, unaffected). The UI already
+  // hides the punch controls; this is the real gate, so a saved bookmark or
+  // a direct POST can't punch from a phone either. Offline replays of a punch
+  // made while self-service was still on stay accepted via the idempotency
+  // short-circuit above (they never reach here).
+  if (!config.employee_self_service) {
+    return NextResponse.json(
+      { error: "Punching from your phone is turned off — punch in and out at the office kiosk." },
+      { status: 403 }
+    );
+  }
+
   const state = punchStateAt(
     last ? { kind: last.kind as PresenceKind, ts: last.ts as string } : null,
     tsDate, config.timezone, shift

@@ -526,6 +526,18 @@ export type WfmConfig = {
   // (exact minutes, no rounding). 0 = OT hours are tracked but no cost is
   // computed, which is the safe default until a tenant sets a real rate.
   ot_rate_per_hour: number;
+  // Employee self-service. Default true = the model every existing tenant
+  // runs: employees log in, punch from their own phone, self-enroll their
+  // face, and file their own leave/corrections.
+  //
+  // false (client decision 2026-08-21, for BIM) = a supervisor-managed
+  // workforce: employees do NOT punch from their own phone and do NOT
+  // self-enroll their face -- attendance happens only at the office kiosk,
+  // by face, and enrollment is done for them by a supervisor. Leave and
+  // correction stay available to any employee who does hold a login, since a
+  // tenant still needs a way to record them; only the punch/enroll
+  // self-service is withdrawn. Per-tenant so Vikas/demo are untouched.
+  employee_self_service: boolean;
 };
 
 /** Seed list for tenants that have never edited their employment types --
@@ -557,6 +569,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   employment_types: DEFAULT_EMPLOYMENT_TYPES,
   punch_types: { ot: false, mobile_work: false, business_trip: false },
   ot_rate_per_hour: 0,
+  employee_self_service: true,
 };
 
 // All metric IDs available in the Analytics page.

@@ -80,6 +80,9 @@ export async function PUT(request: NextRequest) {
   if (typeof body.require_location === "boolean") {
     next.require_location = body.require_location;
   }
+  if (typeof body.employee_self_service === "boolean") {
+    next.employee_self_service = body.employee_self_service;
+  }
   if (typeof body.selfie_mode === "string" && SELFIE_MODES.includes(body.selfie_mode)) {
     next.selfie_mode = body.selfie_mode as WfmConfig["selfie_mode"];
   }

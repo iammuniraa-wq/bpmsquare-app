@@ -149,6 +149,21 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
           </div>
 
           <div>
+            <label style={lbl}>Employee self-service</label>
+            <select
+              style={inp}
+              value={cfg.employee_self_service === false ? "off" : "on"}
+              onChange={(e) => setCfg({ ...cfg, employee_self_service: e.target.value === "on" })}
+            >
+              <option value="on">On — employees punch and enroll from their own login</option>
+              <option value="off">Off — supervisor-managed; attendance only at the kiosk</option>
+            </select>
+            <div style={help}>
+              When off, employees don&apos;t punch from their phone or set up their own face — they punch at the office kiosk and a supervisor enrolls them from the Employees screen. Leave and corrections stay available.
+            </div>
+          </div>
+
+          <div>
             <label style={lbl}>Working hours</label>
             <select
               style={inp}

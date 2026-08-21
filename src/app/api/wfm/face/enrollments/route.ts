@@ -26,12 +26,16 @@ async function guard() {
     err.status = 404;
     throw err;
   }
-  return { ...ctx, admin };
+  return { ...ctx, admin, selfService: config.employee_self_service };
 }
 
-/** Self on their own record, or any supervisor. */
+/** Self on their own record, or any supervisor. But on a supervisor-managed
+ *  workforce (employee_self_service off, client decision 2026-08-21),
+ *  self-enrollment is withdrawn -- only a supervisor enrolls anyone, so an
+ *  employee's own session can no longer manage their record. */
 function mayManage(ctx: Awaited<ReturnType<typeof guard>>, employeeId: string): boolean {
-  return ctx.isSupervisor || ctx.employee?.id === employeeId;
+  if (ctx.isSupervisor) return true;
+  return ctx.selfService && ctx.employee?.id === employeeId;
 }
 
 // GET — enrollment status per employee, for the Employees screen. The

@@ -51,6 +51,7 @@ type MeState = {
   punch_types?: { ot: boolean; mobile_work: boolean; business_trip: boolean };
   require_location?: boolean;
   selfie_mode?: "off" | "shift" | "all";
+  employee_self_service?: boolean;
   face_punch?: "off" | "kiosk";
   deduct_breaks?: boolean;
   face_enrolled?: boolean;
@@ -741,6 +742,14 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   });
   const activeKind = selectedKind && punchOptions.includes(selectedKind) ? selectedKind : punchOptions[0] ?? null;
 
+  // Supervisor-managed workforce (client decision 2026-08-21): when a tenant
+  // turns employee self-service off, employees no longer punch from their
+  // own phone or self-enroll their face -- attendance is captured at the
+  // office kiosk by face, and a supervisor enrolls them. The Me page still
+  // shows their hours and today's shape (read-only), and Leave/Correction
+  // stay available. Defaults on, so every existing tenant is unchanged.
+  const selfService = me.employee_self_service !== false;
+
   function punchTone(kind: PresenceKind | null): string {
     if (!kind) return c.accent;
     if (kind === "check_in") return "#10b981";
@@ -814,7 +823,11 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14, alignItems: "center" }}>
-        {punchOptions.length === 0 ? (
+        {!selfService ? (
+          <span style={{ fontSize: 12, color: c.hint, lineHeight: 1.5 }}>
+            Punch in and out at the office kiosk — it recognises you by face, no phone needed. Your hours here update automatically.
+          </span>
+        ) : punchOptions.length === 0 ? (
           <span style={{ fontSize: 12, color: c.hint }}>No punch action available right now.</span>
         ) : (
           <>
@@ -979,7 +992,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           employees with logins set up their own face here; the door kiosk
           then recognizes them from this same enrollment. Disappears once
           enrolled. */}
-      {tab === "home" && me?.employee && me.face_punch === "kiosk" && !me.face_enrolled && (
+      {tab === "home" && selfService && me?.employee && me.face_punch === "kiosk" && !me.face_enrolled && (
         <section style={{ ...cardStyle, marginBottom: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>Set up face punch</div>
