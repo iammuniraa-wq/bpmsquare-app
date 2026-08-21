@@ -245,6 +245,21 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
           </div>
 
           <div>
+            <label style={lbl}>Face sign-in (portal)</label>
+            <select
+              style={inp}
+              value={cfg.face_login ? "on" : "off"}
+              onChange={(e) => setCfg({ ...cfg, face_login: e.target.value === "on" })}
+            >
+              <option value="off">Off</option>
+              <option value="on">On — employees can sign in by face</option>
+            </select>
+            <div style={help}>
+              Lets employees sign in to the app by face, as an alternative to ID/email + password. Needs Face punch on (so a face is enrolled). Note: without liveness detection a photo of the employee could sign in — enable deliberately.
+            </div>
+          </div>
+
+          <div>
             <label style={lbl}>Face verification</label>
             <select
               style={inp}

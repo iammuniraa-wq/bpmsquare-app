@@ -7,6 +7,7 @@ import { c, g, sh } from "@/lib/theme";
 import Logo from "@/components/Logo";
 import { safeInternalPath } from "@/lib/safeRedirect";
 import { employeeSyntheticEmail } from "@/lib/wfm/employeeLogin";
+import FaceLoginButton from "@/components/FaceLoginButton";
 import type { TenantBranding } from "@/lib/tenant";
 
 type Branding = TenantBranding | null;
@@ -211,6 +212,7 @@ function LoginFormInner({ branding }: { branding: Branding }) {
             <button type="submit" disabled={loading} style={btnStyle(loading)}>
               {loading ? "Signing in…" : "Sign in"}
             </button>
+            {branding?.employee_face_login && <FaceLoginButton next={next} />}
           </form>
         )}
 

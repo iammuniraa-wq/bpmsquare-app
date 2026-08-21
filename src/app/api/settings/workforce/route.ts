@@ -86,6 +86,9 @@ export async function PUT(request: NextRequest) {
   if (body.login_mode === "email" || body.login_mode === "code") {
     next.login_mode = body.login_mode;
   }
+  if (typeof body.face_login === "boolean") {
+    next.face_login = body.face_login;
+  }
   if (typeof body.selfie_mode === "string" && SELFIE_MODES.includes(body.selfie_mode)) {
     next.selfie_mode = body.selfie_mode as WfmConfig["selfie_mode"];
   }

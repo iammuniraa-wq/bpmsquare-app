@@ -176,6 +176,9 @@ export type TenantBranding = {
   // to accept an employee ID in place of an email; tenant id is included so the
   // form can construct the synthetic address (see lib/wfm/employeeLogin.ts).
   employee_code_login: boolean;
+  // True when this tenant lets employees sign in by face (config.wfm.face_login).
+  // The login page shows a "Sign in with face" option when set.
+  employee_face_login: boolean;
 };
 
 export const getTenantBrandingByHost = unstable_cache(
@@ -193,6 +196,7 @@ export const getTenantBrandingByHost = unstable_cache(
       name: data.name as string,
       logo_url: (data.logo_url as string | null) ?? null,
       employee_code_login: features.wfm === true && config.wfm?.login_mode === "code",
+      employee_face_login: features.wfm === true && config.wfm?.face_login === true,
     };
   },
   ["tenant-branding-by-host"],

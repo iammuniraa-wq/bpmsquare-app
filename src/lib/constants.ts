@@ -545,6 +545,15 @@ export type WfmConfig = {
   // address minted from it (src/lib/wfm/employeeLogin.ts). Admins and other
   // business users always sign in by email regardless of this setting.
   login_mode: "email" | "code";
+  // Let employees sign in to the portal by FACE, as an alternative to their
+  // ID/email + password (client decision 2026-08-21). Default false and
+  // opt-in: a face match here grants account ACCESS, unlike a kiosk punch
+  // where a wrong match is only a bad attendance row -- so login uses a
+  // stricter similarity bar than punching, and this is deliberately off until
+  // a tenant turns it on. Requires face enrollment (Face punch on) so a
+  // template exists to match against. No liveness yet, so treat it as basic
+  // face auth (a photo of the employee could sign in) until liveness ships.
+  face_login: boolean;
 };
 
 /** Seed list for tenants that have never edited their employment types --
@@ -578,6 +587,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   ot_rate_per_hour: 0,
   employee_self_service: true,
   login_mode: "email",
+  face_login: false,
 };
 
 // All metric IDs available in the Analytics page.
