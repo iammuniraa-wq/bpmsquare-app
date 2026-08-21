@@ -13,6 +13,8 @@ import type { QuoteSummary, AnalyticsData } from "@/lib/data/labels";
 import type { TenantFeatures } from "@/lib/constants";
 import type { WorkcenterKey, ViewableWorkcenters } from "@/lib/workcenters";
 import { AlertTriangle, CheckIcon } from "@/components/Icons";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -435,6 +437,7 @@ export default function ReportsClient({
   const [sortKey, setSortKey]             = useState<"date" | "total" | "ref">("date");
   const [sortDir, setSortDir]             = useState<"asc" | "desc">("desc");
   const [filtersOpen, setFiltersOpen]     = useState(false);
+  const [page, setPage]                   = useState(1);
   const [adaptOpen, setAdaptOpen]         = useState(false);
   const [hidden, setHidden]               = useState<Set<AnalyticsMetricId>>(new Set(initialHidden));
   const [saving, setSaving]               = useState(false);
@@ -478,6 +481,9 @@ export default function ReportsClient({
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [rows, filterStatus, filterAccount, sortKey, sortDir]);
+
+  const quotePage = clampPage(page, filtered.length, DEFAULT_PAGE_SIZE);
+  const pageQuotes = paginate(filtered, quotePage, DEFAULT_PAGE_SIZE);
 
   const toggleSort = (key: typeof sortKey) => {
     if (sortKey === key) setSortDir((d) => d === "asc" ? "desc" : "asc");
@@ -1093,7 +1099,7 @@ export default function ReportsClient({
                     No quotes match filters
                   </td>
                 </tr>
-              ) : filtered.map(({ quote, account, lineCount }) => (
+              ) : pageQuotes.map(({ quote, account, lineCount }) => (
                 <tr key={quote.id}>
                   <td style={td}>
                     <Link href={ROUTES.quotation(quote.id)}
@@ -1114,6 +1120,9 @@ export default function ReportsClient({
               ))}
             </tbody>
           </table>
+        </div>
+        <div style={{ padding: "4px 2px 0" }}>
+          <Pager page={quotePage} total={filtered.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
         </div>
       </div>
       )}
