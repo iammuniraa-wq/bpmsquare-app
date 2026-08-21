@@ -167,14 +167,33 @@ export function redactTenantForRole(tenant: Tenant, role: "admin" | "member" | n
  * (custom_domain), so it's a safe unstable_cache key — no cross-tenant
  * sharing risk, just a bounded staleness window if branding changes (5 min).
  */
+export type TenantBranding = {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  // True when this tenant runs the WFM self-service portal with employee-code
+  // login (config.wfm.login_mode === "code"). The pre-auth login form uses it
+  // to accept an employee ID in place of an email; tenant id is included so the
+  // form can construct the synthetic address (see lib/wfm/employeeLogin.ts).
+  employee_code_login: boolean;
+};
+
 export const getTenantBrandingByHost = unstable_cache(
-  async (host: string): Promise<Pick<Tenant, "name" | "logo_url"> | null> => {
+  async (host: string): Promise<TenantBranding | null> => {
     const { data } = await createAdminSupabase()
       .from("tenants")
-      .select("name, logo_url")
+      .select("id, name, logo_url, features, config")
       .eq("custom_domain", host)
       .maybeSingle();
-    return data ?? null;
+    if (!data) return null;
+    const features = (data.features ?? {}) as TenantFeatures;
+    const config = (data.config ?? {}) as TenantConfig;
+    return {
+      id: data.id as string,
+      name: data.name as string,
+      logo_url: (data.logo_url as string | null) ?? null,
+      employee_code_login: features.wfm === true && config.wfm?.login_mode === "code",
+    };
   },
   ["tenant-branding-by-host"],
   { revalidate: 300 }

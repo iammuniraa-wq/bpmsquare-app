@@ -6,8 +6,10 @@ import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { c, g, sh } from "@/lib/theme";
 import Logo from "@/components/Logo";
 import { safeInternalPath } from "@/lib/safeRedirect";
+import { employeeSyntheticEmail } from "@/lib/wfm/employeeLogin";
+import type { TenantBranding } from "@/lib/tenant";
 
-type Branding = { name: string; logo_url: string | null } | null;
+type Branding = TenantBranding | null;
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -42,21 +44,39 @@ function LoginFormInner({ branding }: { branding: Branding }) {
   const [resetSent, setResetSent] = useState(false);
   const [mode, setMode]         = useState<"login" | "forgot">("login");
 
+  const codeLogin = branding?.employee_code_login === true;
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password) return;
     setLoading(true);
     setError("");
 
+    // In code-login mode an entry without "@" is an employee ID: resolve it to
+    // the same synthetic address the admin-create route stored (pure, no
+    // lookup). Anything with "@" is still treated as a real email, so an admin
+    // on this same host signs in normally.
+    const raw = email.trim();
+    let loginEmail = raw;
+    if (codeLogin && !raw.includes("@") && branding) {
+      const synth = employeeSyntheticEmail(branding.id, raw);
+      if (!synth) {
+        setLoading(false);
+        setError("Enter a valid employee ID or email.");
+        return;
+      }
+      loginEmail = synth;
+    }
+
     const supabase = createBrowserSupabase();
     const { error: err } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: loginEmail,
       password,
     });
 
     setLoading(false);
     if (err) {
-      setError("Incorrect email or password. Please try again.");
+      setError(codeLogin ? "Incorrect ID or password. Please try again." : "Incorrect email or password. Please try again.");
     } else {
       window.location.href = next;
     }
@@ -162,14 +182,17 @@ function LoginFormInner({ branding }: { branding: Branding }) {
         {mode === "login" && (
           <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
-              <label style={labelStyle}>Email address</label>
+              <label style={labelStyle}>{codeLogin ? "Email or Employee ID" : "Email address"}</label>
               <input
-                type="email"
-                placeholder="you@company.com"
+                type={codeLogin ? "text" : "email"}
+                placeholder={codeLogin ? "Employee ID or email" : "you@company.com"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoFocus
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 style={inputStyle}
               />
             </div>

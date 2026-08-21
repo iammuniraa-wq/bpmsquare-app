@@ -164,6 +164,21 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
           </div>
 
           <div>
+            <label style={lbl}>Employee login</label>
+            <select
+              style={inp}
+              value={cfg.login_mode === "code" ? "code" : "email"}
+              onChange={(e) => setCfg({ ...cfg, login_mode: e.target.value as WfmConfig["login_mode"] })}
+            >
+              <option value="email">Email address</option>
+              <option value="code">Employee ID (no personal email needed)</option>
+            </select>
+            <div style={help}>
+              How employees sign in to the self-service portal. With Employee ID, they log in with their code and a password — no personal email. Create each employee&apos;s login from the Employees screen. Admins always sign in by email.
+            </div>
+          </div>
+
+          <div>
             <label style={lbl}>Working hours</label>
             <select
               style={inp}

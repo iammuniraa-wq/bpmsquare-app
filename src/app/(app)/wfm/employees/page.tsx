@@ -32,7 +32,7 @@ export default async function WfmEmployeesPage() {
         title="Employees"
         subtitle="Shift and site assignment, punch access and roles. Shares the Employees master data — HR fields live in Master data → Employees."
       />
-      <WfmEmployeesClient initial={initial} employmentTypes={config.employment_types} />
+      <WfmEmployeesClient initial={initial} employmentTypes={config.employment_types} loginMode={config.login_mode} />
     </>
   );
 }

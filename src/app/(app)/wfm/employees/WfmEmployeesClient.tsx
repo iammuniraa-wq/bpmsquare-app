@@ -66,10 +66,13 @@ const emptyDraft = (): Draft => ({
   invite_email: "", invite_password: "",
 });
 
-export default function WfmEmployeesClient({ initial = null, employmentTypes = [] }: {
+export default function WfmEmployeesClient({ initial = null, employmentTypes = [], loginMode = "email" }: {
   initial?: { rows: Row[]; shifts: WfmShift[]; sites: WfmSite[] } | null;
   /** The tenant's configured employment types (Settings -> Workforce). */
   employmentTypes?: { code: string; label: string }[];
+  /** How employees sign in (Settings -> Workforce). In "code" mode the screen
+   *  offers a Create/Reset login action that sets a code+password login. */
+  loginMode?: "email" | "code";
 }) {
   const typeLabel = (code: string) => employmentTypes.find((t) => t.code === code)?.label ?? code;
   const [rows, setRows] = useState<Row[]>(initial?.rows ?? []);
@@ -90,6 +93,10 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   const [faceEnabled, setFaceEnabled] = useState(false);
   const [faceMap, setFaceMap] = useState<Record<string, string>>({});
   const [enrolling, setEnrolling] = useState<Row | null>(null);
+  // Code-login create/reset (loginMode === "code"): a small password prompt.
+  const [loginRow, setLoginRow] = useState<Row | null>(null);
+  const [loginPw, setLoginPw] = useState("");
+  const [loginMsg, setLoginMsg] = useState("");
 
   const loadFace = useCallback(async () => {
     try {
@@ -108,6 +115,32 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
     if (!confirm(`Remove ${r.first_name}'s face enrollment? Their photos and face template are deleted.`)) return;
     await fetch(`/api/wfm/face/enrollments?employee_id=${r.id}`, { method: "DELETE" });
     void loadFace();
+  }
+
+  function openLogin(r: Row) {
+    setLoginRow(r);
+    setLoginPw("");
+    setLoginMsg("");
+  }
+
+  async function submitLogin() {
+    if (!loginRow || loginPw.length < 8) return;
+    setBusy(true);
+    setLoginMsg("");
+    try {
+      const res = await fetch(`/api/wfm/employees/${loginRow.id}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: loginPw }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setLoginMsg(json.error ?? "Could not set the login."); return; }
+      setLoginRow(null);
+      setLoginPw("");
+      await load();
+    } finally {
+      setBusy(false);
+    }
   }
 
   const load = useCallback(async () => {
@@ -424,6 +457,14 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                   <button style={btn} disabled={busy} onClick={() => toggleStatus(r)}>
                     {r.status === "active" ? "Deactivate" : "Activate"}
                   </button>
+                  {loginMode === "code" && r.status === "active" && (
+                    <>
+                      {" "}
+                      <button style={btn} disabled={busy} onClick={() => openLogin(r)}>
+                        {r.has_login ? "Reset password" : "Create login"}
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -448,6 +489,42 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
           onClose={() => setEnrolling(null)}
           onDone={() => void loadFace()}
         />
+      )}
+
+      {loginRow && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}
+          onClick={() => !busy && setLoginRow(null)}
+        >
+          <div style={{ ...cardStyle, width: 400, maxWidth: "100%" }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: c.ink, marginBottom: 4 }}>
+              {loginRow.has_login ? "Reset password" : "Create portal login"}
+            </div>
+            <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>
+              {[loginRow.first_name, loginRow.last_name].filter(Boolean).join(" ")} signs in with employee ID{" "}
+              <strong style={{ color: c.ink }}>{loginRow.employee_code ?? "—"}</strong> and this password. They&apos;ll be asked to change it on first sign-in.
+            </div>
+            <label style={lbl}>Initial password</label>
+            <input
+              type="text"
+              value={loginPw}
+              onChange={(e) => setLoginPw(e.target.value)}
+              placeholder="At least 8 characters"
+              autoFocus
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              style={inp}
+            />
+            {loginMsg && <div style={{ fontSize: 12.5, color: statusInk.bad, marginTop: 8 }}>{loginMsg}</div>}
+            <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+              <button style={btn} disabled={busy} onClick={() => setLoginRow(null)}>Cancel</button>
+              <button style={btnPrimary} disabled={busy || loginPw.length < 8} onClick={submitLogin}>
+                {busy ? "Saving…" : loginRow.has_login ? "Reset password" : "Create login"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

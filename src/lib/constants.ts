@@ -538,6 +538,13 @@ export type WfmConfig = {
   // tenant still needs a way to record them; only the punch/enroll
   // self-service is withdrawn. Per-tenant so Vikas/demo are untouched.
   employee_self_service: boolean;
+  // How employees sign in to the self-service portal (client decision
+  // 2026-08-21). "email" = a real email address, the model every existing
+  // tenant uses. "code" = employee code + password, no personal email: the
+  // login screen takes the code and signs in against a synthetic internal
+  // address minted from it (src/lib/wfm/employeeLogin.ts). Admins and other
+  // business users always sign in by email regardless of this setting.
+  login_mode: "email" | "code";
 };
 
 /** Seed list for tenants that have never edited their employment types --
@@ -570,6 +577,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   punch_types: { ot: false, mobile_work: false, business_trip: false },
   ot_rate_per_hour: 0,
   employee_self_service: true,
+  login_mode: "email",
 };
 
 // All metric IDs available in the Analytics page.
