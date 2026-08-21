@@ -152,6 +152,9 @@ export async function buildWfmMeState(ctx: WfmContext) {
       employee_code: employee.employee_code,
       wfm_role: employee.wfm_role,
       consent_recorded_at: employee.consent_recorded_at,
+      // Shown read-only on the portal's profile hub (Personal / Employment).
+      phone: employee.phone,
+      employment_type: employee.employment_type,
     },
     is_supervisor: isSupervisor,
     state,
