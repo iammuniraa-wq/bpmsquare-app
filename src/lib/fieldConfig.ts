@@ -4,6 +4,10 @@ import {
   DEFAULT_FIELD_RULES, FIELD_REGISTRY, isPilotObjectType,
   type EffectiveField, type FieldRule, type PilotObjectType,
 } from "@/lib/fieldRegistry";
+import {
+  normalizePicklist, normalizeCategoryTree,
+  type PicklistItem, type ProductCategoryNode,
+} from "@/lib/picklists";
 
 type CustomFieldRow = {
   id: string;
@@ -121,20 +125,19 @@ export async function getEffectiveFieldConfig(
 }
 
 export type SalesConfig = {
-  territories: string[];
-  sales_orgs: string[];
-  product_categories: import("@/lib/constants").ProductCategoryDef[];
+  territories: PicklistItem[];
+  sales_orgs: PicklistItem[];
+  product_categories: ProductCategoryNode[];
 };
 
+// normalize* tolerates both the coded shape and the legacy plain-string
+// shape, so the app works whether or not migration 0100 has run yet.
 export async function getSalesConfig(supabase: SupabaseClient, tenantId: string): Promise<SalesConfig> {
   const { data } = await supabase.from("tenants").select("config").eq("id", tenantId).single();
-  const cfg = (data?.config ?? {}) as {
-    territories?: string[]; sales_orgs?: string[];
-    product_categories?: import("@/lib/constants").ProductCategoryDef[];
-  };
+  const cfg = (data?.config ?? {}) as Record<string, unknown>;
   return {
-    territories: cfg.territories ?? [],
-    sales_orgs: cfg.sales_orgs ?? [],
-    product_categories: cfg.product_categories ?? [],
+    territories: normalizePicklist(cfg.territories),
+    sales_orgs: normalizePicklist(cfg.sales_orgs),
+    product_categories: normalizeCategoryTree(cfg.product_categories),
   };
 }

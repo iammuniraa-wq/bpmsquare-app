@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { normalizePicklist, normalizeCategoryTree } from "@/lib/picklists";
 
 export async function GET() {
   let tenantId;
@@ -17,14 +18,11 @@ export async function GET() {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const cfg = (data?.config ?? {}) as {
-    territories?: string[]; sales_orgs?: string[];
-    product_categories?: { name: string; subs: string[] }[];
-  };
+  const cfg = (data?.config ?? {}) as Record<string, unknown>;
   return NextResponse.json({
-    territories: cfg.territories ?? [],
-    sales_orgs: cfg.sales_orgs ?? [],
-    product_categories: cfg.product_categories ?? [],
+    territories: normalizePicklist(cfg.territories),
+    sales_orgs: normalizePicklist(cfg.sales_orgs),
+    product_categories: normalizeCategoryTree(cfg.product_categories),
   });
 }
 
@@ -38,32 +36,13 @@ export async function PUT(request: NextRequest) {
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = await request.json() as {
-    territories?: string[]; sales_orgs?: string[];
-    product_categories?: { name?: unknown; subs?: unknown }[];
-  };
-  const territories: string[] = Array.isArray(body.territories)
-    ? body.territories.map((t) => t.trim()).filter(Boolean)
-    : [];
-  const sales_orgs: string[] = Array.isArray(body.sales_orgs)
-    ? body.sales_orgs.map((s) => s.trim()).filter(Boolean)
-    : [];
-  // Two-level tree, shape-validated: category names unique + non-empty,
-  // subs deduped strings. Depth beyond two is silently impossible here —
-  // that's the OOB contract, not an oversight.
-  const seenCat = new Set<string>();
-  const product_categories = (Array.isArray(body.product_categories) ? body.product_categories : [])
-    .map((pc) => ({
-      name: typeof pc?.name === "string" ? pc.name.trim() : "",
-      subs: Array.isArray(pc?.subs)
-        ? [...new Set(pc.subs.filter((s): s is string => typeof s === "string").map((s) => s.trim()).filter(Boolean))]
-        : [],
-    }))
-    .filter((pc) => {
-      if (!pc.name || seenCat.has(pc.name)) return false;
-      seenCat.add(pc.name);
-      return true;
-    });
+  // normalizePicklist/normalizeCategoryTree do the validation: name required,
+  // code derived from the name when blank, codes canonicalised (uppercase,
+  // A-Z0-9_, 40 chars) and deduped. Two-level tree depth is the OOB contract.
+  const body = await request.json() as Record<string, unknown>;
+  const territories = normalizePicklist(body.territories);
+  const sales_orgs = normalizePicklist(body.sales_orgs);
+  const product_categories = normalizeCategoryTree(body.product_categories);
 
   const admin = createAdminSupabase();
   const { data: current, error: readErr } = await admin

@@ -12,6 +12,8 @@ import ObjectSections from "@/components/fields/ObjectSections";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import DeleteProductButton from "./DeleteProductButton";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
+import { getSalesConfig } from "@/lib/fieldConfig";
+import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
 
 const inr = (n: number | null) =>
   n == null ? "—" : "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
@@ -41,6 +43,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   if (!data) notFound();
   const product = data as Product;
+  // Stored category values are codes; the header shows display names.
+  const salesConfig = await getSalesConfig(supabase, tenantId);
+  const catName = categoryLabel(salesConfig.product_categories, product.category);
+  const subName = subCategoryLabel(salesConfig.product_categories, product.sub_category);
   const margin = product.list_price != null && product.cost_price != null && product.list_price > 0
     ? Math.round(((product.list_price - product.cost_price) / product.list_price) * 1000) / 10
     : null;
@@ -57,7 +63,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
       <PageHeader
         title={product.name}
-        subtitle={`${product.ref ? `${product.ref} · ` : ""}${product.category ?? "Product"}${product.sub_category ? ` › ${product.sub_category}` : ""}${product.sku ? ` · ${product.sku}` : ""}`}
+        subtitle={`${product.ref ? `${product.ref} · ` : ""}${catName || "Product"}${subName ? ` › ${subName}` : ""}${product.sku ? ` · ${product.sku}` : ""}`}
         action={<AdaptObjectDrawer objectType="product" objectLabel="Product" isAdmin={role === "admin"} />}
       />
 
@@ -76,7 +82,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <section style={{ ...cardStyle, padding: "14px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <Pill label={product.status === "active" ? "Active" : "Inactive"} tone={product.status === "active" ? "green" : "red"} />
-              {product.category && <Pill label={product.sub_category ? `${product.category} › ${product.sub_category}` : product.category} tone="blue" />}
+              {product.category && <Pill label={subName ? `${catName} › ${subName}` : catName} tone="blue" />}
             </div>
             <CtxRow label="List price" value={inr(product.list_price)} />
             <CtxRow label="Cost price" value={inr(product.cost_price)} />

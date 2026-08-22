@@ -16,6 +16,8 @@ import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { getSalesConfig } from "@/lib/fieldConfig";
+import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
 
 const inr = (n: number | null) =>
   n == null ? "—" : "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
@@ -54,8 +56,16 @@ export default async function ProductsPage({
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
 
-  const { data: rows } = await supabase.from("products").select("*").eq("tenant_id", tenantId).order("name");
+  const [{ data: rows }, salesConfig] = await Promise.all([
+    supabase.from("products").select("*").eq("tenant_id", tenantId).order("name"),
+    getSalesConfig(supabase, tenantId),
+  ]);
   const products: Product[] = rows ?? [];
+  const tree = salesConfig.product_categories;
+  // Stored values are codes; the table shows display names (code falls
+  // through for values not in the tree, e.g. legacy free-typed ones).
+  const catName = (p: Product) => categoryLabel(tree, p.category);
+  const subName = (p: Product) => subCategoryLabel(tree, p.sub_category);
 
   // No per-category chip row here (owner decision 2026-08-22): the list shows
   // everything, and category/sub-category narrowing is the advanced filter's
@@ -67,7 +77,9 @@ export default async function ProductsPage({
       p.name.toLowerCase().includes(term) ||
       (p.sku ?? "").toLowerCase().includes(term) ||
       (p.category ?? "").toLowerCase().includes(term) ||
+      catName(p).toLowerCase().includes(term) ||
       (p.sub_category ?? "").toLowerCase().includes(term) ||
+      subName(p).toLowerCase().includes(term) ||
       (p.description ?? "").toLowerCase().includes(term)
     );
   });
@@ -151,8 +163,8 @@ export default async function ProductsPage({
                     </td>
                     <td style={{ ...td, color: c.muted, fontSize: 12, fontFamily: "monospace" }}>{p.sku ?? "—"}</td>
                     <td style={{ ...td, color: c.muted, fontSize: 13 }}>
-                      {p.category ?? "—"}
-                      {p.sub_category && <span style={{ color: c.hint }}>{" › "}{p.sub_category}</span>}
+                      {p.category ? catName(p) : "—"}
+                      {p.sub_category && <span style={{ color: c.hint }}>{" › "}{subName(p)}</span>}
                     </td>
                     <td style={{ ...td, color: c.muted, fontSize: 13 }}>{p.uom ?? "—"}</td>
                     <td style={{ ...td, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{inr(p.list_price)}</td>

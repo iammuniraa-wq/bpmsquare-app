@@ -34,10 +34,11 @@ export default function NewProductPage() {
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
   // Category values come from the tenant's tree (Settings -> Sales config);
-  // sub-category options depend on the chosen category. No tree configured
-  // -> free-text entry, so a fresh tenant is never blocked.
+  // the record stores the CODE, the dropdown shows the name, and sub-category
+  // options depend on the chosen category. No tree configured -> free-text
+  // entry, so a fresh tenant is never blocked.
   const { product_categories: catTree } = useSalesConfig();
-  const subs = catTree.find((pc) => pc.name === form.category)?.subs ?? [];
+  const subs = catTree.find((pc) => pc.code === form.category)?.subs ?? [];
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,7 +84,7 @@ export default function NewProductPage() {
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value, sub_category: "" }))}
               >
                 <option value="">— None —</option>
-                {catTree.map((pc) => <option key={pc.name} value={pc.name}>{pc.name}</option>)}
+                {catTree.map((pc) => <option key={pc.code} value={pc.code}>{pc.name}</option>)}
               </select>
             ) : (
               <input style={inp} value={form.category} onChange={set("category")} placeholder="Elevators" />
@@ -99,7 +100,7 @@ export default function NewProductPage() {
                 disabled={subs.length === 0}
               >
                 <option value="">{subs.length ? "— None —" : "No sub-categories"}</option>
-                {subs.map((s) => <option key={s} value={s}>{s}</option>)}
+                {subs.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
               </select>
             ) : (
               <input style={inp} value={form.sub_category} onChange={set("sub_category")} placeholder="Passenger" />

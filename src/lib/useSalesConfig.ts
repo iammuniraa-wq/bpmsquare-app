@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  normalizePicklist, normalizeCategoryTree,
+  type PicklistItem, type ProductCategoryNode,
+} from "@/lib/picklists";
 
-export type ProductCategoryDef = { name: string; subs: string[] };
-export type SalesConfig = { territories: string[]; sales_orgs: string[]; product_categories: ProductCategoryDef[] };
+export type SalesConfig = {
+  territories: PicklistItem[];
+  sales_orgs: PicklistItem[];
+  product_categories: ProductCategoryNode[];
+};
 
 const EMPTY: SalesConfig = { territories: [], sales_orgs: [], product_categories: [] };
 const cache: { data: SalesConfig | null; fetched: boolean } = { data: null, fetched: false };
@@ -16,11 +23,11 @@ export function useSalesConfig(): SalesConfig {
     cache.fetched = true;
     fetch("/api/settings/sales-config")
       .then((r) => r.json())
-      .then((data: Partial<SalesConfig>) => {
+      .then((data: Record<string, unknown>) => {
         const norm: SalesConfig = {
-          territories: data.territories ?? [],
-          sales_orgs: data.sales_orgs ?? [],
-          product_categories: data.product_categories ?? [],
+          territories: normalizePicklist(data.territories),
+          sales_orgs: normalizePicklist(data.sales_orgs),
+          product_categories: normalizeCategoryTree(data.product_categories),
         };
         cache.data = norm; setCfg(norm);
       })

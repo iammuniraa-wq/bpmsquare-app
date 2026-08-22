@@ -58,7 +58,7 @@ function summarizeGrants(grants: Grant[]): string {
 const inputStyle: React.CSSProperties = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, background: c.panel, color: c.ink, width: "100%" };
 const checkboxCell: React.CSSProperties = { textAlign: "center", padding: "6px 8px" };
 
-export default function BusinessRolesClient({ territories, features }: { territories: string[]; features: TenantFeatures }) {
+export default function BusinessRolesClient({ territories, features }: { territories: { code: string; name: string }[]; features: TenantFeatures }) {
   const [roles, setRoles] = useState<BusinessRole[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -317,9 +317,9 @@ export default function BusinessRolesClient({ territories, features }: { territo
                               ) : (
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                   {territories.map((t) => (
-                                    <label key={t} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: c.muted, border: `1px solid ${c.line}`, borderRadius: 5, padding: "2px 6px", cursor: "pointer" }}>
-                                      <input type="checkbox" checked={g.territories.includes(t)} onChange={() => toggleTerritory(w.key, t)} disabled={readOnly} style={{ width: 11, height: 11 }} />
-                                      {t}
+                                    <label key={t.code} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: c.muted, border: `1px solid ${c.line}`, borderRadius: 5, padding: "2px 6px", cursor: "pointer" }}>
+                                      <input type="checkbox" checked={g.territories.includes(t.code)} onChange={() => toggleTerritory(w.key, t.code)} disabled={readOnly} style={{ width: 11, height: 11 }} />
+                                      {t.name}
                                     </label>
                                   ))}
                                 </div>

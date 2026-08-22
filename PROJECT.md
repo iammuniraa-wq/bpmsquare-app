@@ -356,6 +356,18 @@ deploy for an automatic schema change.
   `products.sub_category`. Categories are tenant config now
   (`config.product_categories`, Settings → Sales config), OOB depth
   exactly two levels (owner decision 2026-08-22).
+- **0100_picklist_codes.sql — PENDING on both DBs** (written 2026-08-22,
+  owner decision same day): every picklist value (territory, sales org,
+  product category/sub-category) becomes { code, name } — records store
+  the stable CODE, screens show the renameable name, integrations match
+  on codes. Converts tenants.config AND backfills stored values on
+  accounts/contacts/quotes/service_cases (territory, sales_org), products
+  (category, sub_category) and business_role_grants.territories, all in
+  one transaction, idempotently (re-run safe). The SQL derivation rule
+  mirrors deriveCode() in src/lib/picklists.ts — keep in sync. The app
+  normalizes legacy plain-string config on read, so code deploys safely
+  BEFORE the migration runs; record values only get codes when 0100 runs.
+  **Run order: 0098 → 0099 → 0100 → seed-products-demo.sql.**
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;

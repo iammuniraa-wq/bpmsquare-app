@@ -33,9 +33,11 @@ export async function GET() {
   // territories there is no fog worth drawing, and the card stays hidden.
   if (territories.length < 2) return NextResponse.json({ cells: [] });
 
+  // Accounts store the territory CODE; hexes display the name.
+  const codes = new Set(territories.map((t) => t.code));
   const byTerritory = new Map<string, { count: number; first: { name: string; at: string } | null }>();
   for (const a of accounts ?? []) {
-    if (!a.territory || !territories.includes(a.territory)) continue;
+    if (!a.territory || !codes.has(a.territory)) continue;
     const cur = byTerritory.get(a.territory) ?? { count: 0, first: null };
     cur.count++;
     if (!cur.first || a.created_at < cur.first.at) cur.first = { name: a.name, at: a.created_at };
@@ -43,9 +45,9 @@ export async function GET() {
   }
 
   const cells = territories.map((t) => {
-    const hit = byTerritory.get(t);
+    const hit = byTerritory.get(t.code);
     return {
-      territory: t,
+      territory: t.name,
       count: hit?.count ?? 0,
       first_account: hit?.first?.name ?? null,
       first_at: hit?.first?.at ?? null,

@@ -633,8 +633,13 @@ export type CustomFieldDef = {
 };
 
 // One node of the tenant's two-level product category tree (see
-// TenantConfig.product_categories).
-export type ProductCategoryDef = { name: string; subs: string[] };
+// TenantConfig.product_categories). code is stable and stored on records;
+// name is the renameable display label (src/lib/picklists.ts).
+export type ProductCategoryDef = {
+  code: string;
+  name: string;
+  subs: { code: string; name: string }[];
+};
 
 export type QuoteStatusDef = {
   value: string;      // stored in DB, e.g. "draft", "po_received"

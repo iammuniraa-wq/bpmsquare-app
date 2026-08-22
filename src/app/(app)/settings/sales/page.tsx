@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 import SalesConfigClient from "./SalesConfigClient";
+import { normalizePicklist, normalizeCategoryTree } from "@/lib/picklists";
 
 export default async function SalesConfigPage() {
   let tenantId: string, role: string;
@@ -19,10 +20,7 @@ export default async function SalesConfigPage() {
     .eq("id", tenantId!)
     .single();
 
-  const cfg = (data?.config ?? {}) as {
-    territories?: string[]; sales_orgs?: string[];
-    product_categories?: { name: string; subs: string[] }[];
-  };
+  const cfg = (data?.config ?? {}) as Record<string, unknown>;
 
   return (
     <>
@@ -31,9 +29,9 @@ export default async function SalesConfigPage() {
         subtitle="Manage territory, sales org and product category picklist values"
       />
       <SalesConfigClient
-        initialTerritories={cfg.territories ?? []}
-        initialSalesOrgs={cfg.sales_orgs ?? []}
-        initialProductCategories={cfg.product_categories ?? []}
+        initialTerritories={normalizePicklist(cfg.territories)}
+        initialSalesOrgs={normalizePicklist(cfg.sales_orgs)}
+        initialProductCategories={normalizeCategoryTree(cfg.product_categories)}
       />
     </>
   );

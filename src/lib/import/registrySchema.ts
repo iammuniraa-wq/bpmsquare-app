@@ -169,15 +169,17 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
 };
 
 function resolveOptions(field: FieldConfigResult["sections"][number]["fields"][number], salesConfig: SalesConfig): string[] | undefined {
-  if (field.selectSource === "territory") return salesConfig.territories;
-  if (field.selectSource === "sales_org") return salesConfig.sales_orgs;
+  // Picklists are {code, name}; files carry the CODE (same contract as the
+  // API and the DB) — an Export emits codes, so round-tripping just works.
+  if (field.selectSource === "territory") return salesConfig.territories.map((i) => i.code);
+  if (field.selectSource === "sales_org") return salesConfig.sales_orgs.map((i) => i.code);
   if (field.selectSource === "product_category") {
-    const names = salesConfig.product_categories.map((pc) => pc.name);
-    return names.length ? names : undefined; // no tree configured -> free text
+    const codes = salesConfig.product_categories.map((pc) => pc.code);
+    return codes.length ? codes : undefined; // no tree configured -> free text
   }
   if (field.selectSource === "product_sub_category") {
-    const subs = [...new Set(salesConfig.product_categories.flatMap((pc) => pc.subs))];
-    return subs.length ? subs : undefined;
+    const codes = [...new Set(salesConfig.product_categories.flatMap((pc) => pc.subs.map((s) => s.code)))];
+    return codes.length ? codes : undefined;
   }
   if (field.enumOptions?.length) return field.enumOptions.map((o) => o.value);
   if (field.options?.length) return field.options;

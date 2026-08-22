@@ -28,13 +28,26 @@ type Props = {
   onChange?: (value: unknown) => void;
 };
 
+// Resolve a selectSource field's options as {value: code, label: name} pairs
+// — records store the CODE, screens show the name (src/lib/picklists.ts).
+// Custom select fields keep their plain string options (value === label).
+function selectOptions(field: EffectiveField, salesCfg: ReturnType<typeof useSalesConfig>): { value: string; label: string }[] {
+  const items = field.selectSource === "territory" ? salesCfg.territories
+    : field.selectSource === "sales_org" ? salesCfg.sales_orgs
+    : field.selectSource === "product_category" ? salesCfg.product_categories
+    : field.selectSource === "product_sub_category" ? [...new Map(salesCfg.product_categories.flatMap((pc) => pc.subs).map((s) => [s.code, s])).values()]
+    : null;
+  if (items) return items.map((i) => ({ value: i.code, label: i.name }));
+  return (field.options ?? []).map((o) => ({ value: o, label: o }));
+}
+
 export default function FieldWidget({ field, mode, value, onChange }: Props) {
   const salesCfg = useSalesConfig();
-  if (mode === "view") return <FieldValueView field={field} value={value} />;
+  if (mode === "view") return <FieldValueView field={field} value={value} salesCfg={salesCfg} />;
   return <FieldValueEdit field={field} value={value} onChange={onChange!} salesCfg={salesCfg} />;
 }
 
-function FieldValueView({ field, value }: { field: EffectiveField; value: unknown }) {
+function FieldValueView({ field, value, salesCfg }: { field: EffectiveField; value: unknown; salesCfg: ReturnType<typeof useSalesConfig> }) {
   if (value === null || value === undefined || value === "") {
     return <span style={{ color: c.hint }}>—</span>;
   }
@@ -56,8 +69,12 @@ function FieldValueView({ field, value }: { field: EffectiveField; value: unknow
       const opt = field.enumOptions?.find((o) => o.value === value);
       return <span>{opt?.label ?? String(value)}</span>;
     }
-    case "select":
-      return <span>{String(value)}</span>;
+    case "select": {
+      // Stored value is a code — show its display name; a value no longer in
+      // the config (or a legacy free-typed one) falls back to itself.
+      const opt = selectOptions(field, salesCfg).find((o) => o.value === value);
+      return <span>{opt?.label ?? String(value)}</span>;
+    }
     case "textarea":
       return <p style={{ margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{String(value)}</p>;
     case "number":
@@ -111,11 +128,7 @@ function FieldValueEdit({ field, value, onChange, salesCfg }: {
         </select>
       );
     case "select": {
-      const options = field.selectSource === "territory" ? salesCfg.territories
-        : field.selectSource === "sales_org" ? salesCfg.sales_orgs
-        : field.selectSource === "product_category" ? salesCfg.product_categories.map((pc) => pc.name)
-        : field.selectSource === "product_sub_category" ? [...new Set(salesCfg.product_categories.flatMap((pc) => pc.subs))]
-        : field.options ?? [];
+      const options = selectOptions(field, salesCfg);
       // A tenant with no category tree configured keeps free-text entry —
       // an empty dropdown would make the field un-fillable.
       const productSource = field.selectSource === "product_category" || field.selectSource === "product_sub_category";
@@ -125,8 +138,8 @@ function FieldValueEdit({ field, value, onChange, salesCfg }: {
       return (
         <select style={{ ...inp, cursor: "pointer" }} value={strValue} onChange={(e) => onChange(e.target.value)}>
           <option value="">— None —</option>
-          {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-          {strValue && !options.includes(strValue) && <option value={strValue}>{strValue}</option>}
+          {options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          {strValue && !options.some((o) => o.value === strValue) && <option value={strValue}>{strValue}</option>}
         </select>
       );
     }

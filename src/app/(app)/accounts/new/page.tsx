@@ -240,14 +240,14 @@ export default function NewAccountPage() {
           <label style={label}>Territory</label>
           <select style={input} value={form.territory} onChange={set("territory")}>
             <option value="">— none —</option>
-            {salesCfg.territories.map((t) => <option key={t} value={t}>{t}</option>)}
+            {salesCfg.territories.map((t) => <option key={t.code} value={t.code}>{t.name}</option>)}
           </select>
         </div>
         <div>
           <label style={label}>Sales org</label>
           <select style={input} value={form.sales_org} onChange={set("sales_org")}>
             <option value="">— none —</option>
-            {salesCfg.sales_orgs.map((s) => <option key={s} value={s}>{s}</option>)}
+            {salesCfg.sales_orgs.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
           </select>
         </div>
       </div>
