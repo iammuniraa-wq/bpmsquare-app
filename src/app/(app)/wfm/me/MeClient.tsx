@@ -320,6 +320,18 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [bankLoaded, setBankLoaded] = useState(false);
   const [bankBusy, setBankBusy] = useState(false);
   const [bankMsg, setBankMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  // Broadcast messages: loaded once on mount (the Attendance tab shows an
+  // unread banner), read-marked when the tile is opened.
+  const [bcList, setBcList] = useState<{ id: string; title: string; body: string; created_by_name: string | null; created_at: string; read: boolean }[]>([]);
+  const [bcUnread, setBcUnread] = useState(0);
+  const [bcCanCompose, setBcCanCompose] = useState(false);
+  const [bcTitle, setBcTitle] = useState("");
+  const [bcBody, setBcBody] = useState("");
+  const [bcBusy, setBcBusy] = useState(false);
+  const [bcMsg, setBcMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  // My Approvals (supervisors): loaded when the tile is opened.
+  type ApprovalQueue = { count: number; items: { id: string; who: string; when: string }[] };
+  const [approvals, setApprovals] = useState<{ corrections: ApprovalQueue; leave: ApprovalQueue; overtime: ApprovalQueue } | null>(null);
   // Engagement layer (3-layer theme only): checking out at/after your
   // shift's end earns a full-shift celebration. Judged on wall-clock in
   // the tenant's timezone against the assigned shift, never on pay math.
@@ -833,6 +845,59 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     }
   }
 
+  const loadBroadcasts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/wfm/broadcasts");
+      if (!res.ok) return;
+      const json = await res.json();
+      setBcList(json.broadcasts ?? []);
+      setBcUnread(json.unread ?? 0);
+      setBcCanCompose(json.can_compose === true);
+    } catch { /* tile just stays empty */ }
+  }, []);
+  useEffect(() => { if (me?.employee) void loadBroadcasts(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.employee?.id]);
+
+  function openBroadcasts() {
+    setTab("profile");
+    setOpenTile("broadcasts");
+    // Mark everything unread as read -- fire and forget; the badge clears now.
+    const unreadIds = bcList.filter((b) => !b.read).map((b) => b.id);
+    if (unreadIds.length > 0) {
+      setBcList((l) => l.map((b) => ({ ...b, read: true })));
+      setBcUnread(0);
+      unreadIds.forEach((id) => { fetch(`/api/wfm/broadcasts/${id}`, { method: "POST" }).catch(() => {}); });
+    }
+  }
+
+  async function postBroadcast() {
+    if (!bcTitle.trim()) return;
+    setBcBusy(true);
+    setBcMsg(null);
+    try {
+      const res = await fetch("/api/wfm/broadcasts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: bcTitle, body: bcBody }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setBcMsg({ tone: "err", text: json.error ?? "Could not post." }); return; }
+      setBcTitle("");
+      setBcBody("");
+      setBcMsg({ tone: "ok", text: "Posted to everyone." });
+      await loadBroadcasts();
+    } finally {
+      setBcBusy(false);
+    }
+  }
+
+  async function loadApprovals() {
+    try {
+      const res = await fetch("/api/wfm/approvals");
+      if (res.ok) setApprovals(await res.json());
+    } catch { /* tile shows a dash */ }
+  }
+
   async function loadBank() {
     if (bankLoaded) return;
     try {
@@ -1203,6 +1268,86 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
             </div>
           </section>
 
+          {me.is_supervisor && (
+            <ProfileTile
+              title="My Approvals"
+              subtitle="Corrections, leave and overtime waiting on you"
+              open={openTile === "approvals"}
+              onToggle={() => {
+                const opening = openTile !== "approvals";
+                setOpenTile(opening ? "approvals" : null);
+                if (opening) void loadApprovals();
+              }}
+            >
+              <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 4 }}>
+                {!approvals ? (
+                  <div style={{ fontSize: 12.5, color: c.hint, padding: "8px 0" }}>Loading…</div>
+                ) : (
+                  ([
+                    ["Corrections", approvals.corrections, "/wfm/corrections"],
+                    ["Leave requests", approvals.leave, "/wfm/leave"],
+                    ["Overtime", approvals.overtime, "/wfm/corrections"],
+                  ] as const).map(([label, q, href]) => (
+                    <a key={label} href={href} style={{ display: "block", padding: "9px 0", borderBottom: `1px solid ${c.line}`, textDecoration: "none" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{label}</span>
+                        <span style={{
+                          fontSize: 12, fontWeight: 700, minWidth: 22, textAlign: "center", padding: "2px 8px", borderRadius: 999,
+                          background: q.count > 0 ? "var(--tenant-accent, #378ADD)" : c.line, color: q.count > 0 ? "#fff" : c.muted,
+                        }}>{q.count}</span>
+                      </div>
+                      {q.items.length > 0 && (
+                        <div style={{ fontSize: 11.5, color: c.muted, marginTop: 3 }}>
+                          {q.items.map((it) => `${it.who} · ${it.when}`).join("  ·  ")}
+                        </div>
+                      )}
+                    </a>
+                  ))
+                )}
+                <div style={{ fontSize: 11, color: c.hint, marginTop: 8 }}>Tap a queue to review and approve.</div>
+              </div>
+            </ProfileTile>
+          )}
+
+          <ProfileTile
+            title="Broadcast Messages"
+            subtitle={bcUnread > 0 ? `${bcUnread} new — from your employer` : "Announcements from your employer"}
+            open={openTile === "broadcasts"}
+            onToggle={() => (openTile === "broadcasts" ? setOpenTile(null) : openBroadcasts())}
+          >
+            <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+              {bcCanCompose && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingBottom: 10, borderBottom: `1px solid ${c.line}` }}>
+                  <input
+                    value={bcTitle} onChange={(e) => setBcTitle(e.target.value)} placeholder="Announcement title"
+                    style={{ width: "100%", padding: "9px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, boxSizing: "border-box", outline: "none" }}
+                  />
+                  <textarea
+                    value={bcBody} onChange={(e) => setBcBody(e.target.value)} rows={3} placeholder="Message to every employee…"
+                    style={{ width: "100%", padding: "9px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, boxSizing: "border-box", outline: "none", resize: "vertical" }}
+                  />
+                  {bcMsg && <div style={{ fontSize: 12.5, color: bcMsg.tone === "ok" ? statusInk.good : statusInk.bad }}>{bcMsg.text}</div>}
+                  <div>
+                    <button style={btnPrimary} disabled={bcBusy || !bcTitle.trim()} onClick={postBroadcast}>
+                      {bcBusy ? "Posting…" : "Post to everyone"}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {bcList.length === 0 && <div style={{ fontSize: 12.5, color: c.hint }}>No announcements yet.</div>}
+              {bcList.map((b) => (
+                <div key={b.id} style={{ paddingBottom: 10, borderBottom: `1px solid ${c.line}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 650, color: c.ink }}>{b.title}</div>
+                  {b.body && <div style={{ fontSize: 12.5, color: c.muted, marginTop: 3, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{b.body}</div>}
+                  <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>
+                    {b.created_by_name ? `${b.created_by_name} · ` : ""}
+                    {new Date(b.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ProfileTile>
+
           <ProfileTile
             title="Personal Info"
             subtitle="Your contact details"
@@ -1325,6 +1470,19 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
             </div>
           </ProfileTile>
         </div>
+      )}
+
+      {tab === "home" && bcUnread > 0 && (
+        <section
+          onClick={openBroadcasts}
+          style={{ ...cardStyle, marginBottom: 14, display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}
+        >
+          <span aria-hidden>📢</span>
+          <span style={{ flex: 1, fontSize: 12.5, color: c.ink }}>
+            {bcUnread} new announcement{bcUnread === 1 ? "" : "s"} from your employer
+          </span>
+          <span style={{ fontSize: 12.5, fontWeight: 650, color: "var(--tenant-accent, #378ADD)" }}>View</span>
+        </section>
       )}
 
       {tab === "home" && me?.employee && (
