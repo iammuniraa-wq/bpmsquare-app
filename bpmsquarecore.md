@@ -121,12 +121,17 @@ ID is the only reference contract that's ever safe to build on:
 
 > Owner instruction 2026-08-18, after employee custom fields shipped and were
 > found to reach the app but not the API, MCP or half of Data Workbench.
-> **Work through this list every single time a new object or a new
-> tenant-scoped table is created — and again whenever an existing object
-> gains a capability (a custom-data column, a new field family).** An object
-> that exists on one surface and is silently absent from the others is a
-> defect, not a phase 2. If a point genuinely doesn't apply, say so
-> explicitly in the PR/commit rather than leaving it unmentioned.
+> **Reaffirmed and expanded 2026-08-22 after the Products build: when the
+> owner asks for a new object, executing this ENTIRE list is the task —
+> without being asked for any individual step.** "Build X" always means
+> "build X on every surface below." Work through it every single time a new
+> object or a new tenant-scoped table is created — and again whenever an
+> existing object gains a capability (a custom-data column, a new field
+> family). An object that exists on one surface and is silently absent from
+> the others is a defect, not a phase 2. If a point genuinely doesn't
+> apply, say so explicitly in the PR/commit rather than leaving it
+> unmentioned. The Products build (commit `ba5bcba`, 2026-08-22) is the
+> reference implementation — when in doubt, mirror how products did it.
 
 **1 — Database**
 - [ ] `tenant_id uuid not null references tenants(id)` on the table.
@@ -138,9 +143,19 @@ ID is the only reference contract that's ever safe to build on:
 - [ ] The migration is a file in `supabase/migrations/`, numbered next, and
       added to PROJECT.md's operational ledger as **pending on both DBs**.
       Nothing auto-applies it (see that ledger); the owner runs it by hand.
+- [ ] Because the owner applies SQL manually, **the code must degrade
+      cleanly while the migration is pending** — a missing table (42P01)
+      renders as an empty list / hidden module, never a crash.
+- [ ] **Demo/sample data**: a `scripts/seed-<object>-demo.sql` seeding
+      realistic rows for the `is_demo` tenant (idempotent, and it flips the
+      module's feature flag on for demo tenants). Listed in the ledger next
+      to its migration, marked "run AFTER <migration>".
 
 **2 — Types & registry**
 - [ ] Entity type in `src/lib/types.ts`.
+- [ ] Business ref: table + prefix in `MASTER_REF_TABLES`
+      (`src/lib/masterRef.ts`); the create route inserts via
+      `insertWithMasterRef` so every record gets a `XXX-####` ref.
 - [ ] `PilotObjectType` **and** the runtime `PILOT_OBJECT_TYPES` array in
       `src/lib/fieldRegistry.ts` — adding one without the other leaves the
       registry entry dead code (exactly the 2026-08-18 employee bug).
@@ -155,7 +170,25 @@ ID is the only reference contract that's ever safe to build on:
 - [ ] The detail screen mounts `ObjectSections` (exclude the keys the page
       hand-renders itself).
 
+**3½ — App CRUD + screens** (mirror suppliers — the cleanest reference)
+- [ ] `/api/<object>` (GET/POST) + `/api/<object>/[id]` (GET/PATCH/DELETE):
+      `requireTenantUser()` first, explicit PATCH field allowlist,
+      `diffForLog`/`logChange` on every mutation.
+- [ ] List page (`requireWorkcenterView` + `requireFeature`, ListFilterBar,
+      sortable columns, pager), detail page, create page. Routes in
+      `ROUTES` (`src/lib/constants.ts`).
+- [ ] Nav item in `NAV` (`constants.ts`) with `featureKey` +
+      `workcenterKey`, placed in the section the owner's workcenter layout
+      dictates; `WorkcenterKey` + catalog entry in `src/lib/workcenters.ts`
+      so business roles can grant/deny it.
+- [ ] Feature flag: `TenantFeatures` (`constants.ts`), a row in the admin
+      `TenantEditor.tsx` FEATURES list, and `DEFAULT_FEATURES` in
+      `NewTenantForm.tsx` (default **off** — modules are sold, not leaked).
+
 **4 — Data Workbench — all three modes, not just import**
+- [ ] `ImportObjectId` (`src/lib/import/types.ts`) + `REGISTRY_OBJECT_TYPE`
+      / `REQUIRED_KEYS` / `OBJECT_META` (`registrySchema.ts`) +
+      `OBJECT_ORDER` and its feature filter in `data-workbench/page.tsx`.
 - [ ] Import route (`collectCustomData(values)` into the insert).
 - [ ] Export route (`/api/export/<object>`), emitting the real `id` column.
 - [ ] Update route (`/api/update/<object>`), matching on `id` only — never a
@@ -180,6 +213,10 @@ ID is the only reference contract that's ever safe to build on:
 - [ ] **Personal or sensitive data → add it to `EXPLICIT_SCOPE_ONLY` in
       `api/v1/_auth.ts`.** Existing keys carry `objects: ["*"]`; without this
       a new endpoint silently widens every key already in the wild.
+- [ ] **Internal-only columns stay internal**: any field that is margin,
+      cost, or otherwise not for customers/integrations (like
+      `products.cost_price`) is excluded from every API select — v1 routes
+      AND the `LIST_SOURCES` load — with a comment saying it's deliberate.
 
 **6 — MCP** — `list_<object>` / `get_<object>` in `mcp-server/mcp.json`, and
 bump its `version`.
@@ -187,19 +224,46 @@ bump its `version`.
 **7 — Cross-cutting app surfaces**
 - [ ] Feature flag in `TenantFeatures` + the nav/workcenter gate (a tenant
       that didn't buy the module must not see the object anywhere).
-- [ ] Change history (`logChange` on create/update/delete).
-- [ ] Global search, if the object is something people look up by name.
+- [ ] Change history (`logChange` on create/update/delete) **and** the
+      object's entry in the filter dropdown in
+      `administration/change-history/ChangeHistoryClient.tsx`.
+- [ ] Global search, if the object is something people look up by name:
+      a `SEARCH_SPECS` spec in `src/lib/data/live.ts` **and**
+      `SearchObjectType` + `SEARCH_OBJECTS` in `src/lib/globalSearch.ts`
+      (featureKeys + workcenters on the spec, or search leaks the module).
 - [ ] Advanced filtering / saved queries, if it has a list page.
 - [ ] **Nova timeline** — `<NovaTimelineSlot objectType="…" objectId={id} />`
       before the closing tag of the detail page (it self-gates on Nova, so
       server pages need no theme logic), **plus** an entry in `OBJECTS` in
       `api/nova/comments/route.ts` (object_type → table) **and** in
-      `LABEL`/`TABLE` in `api/nova/inbox/route.ts` so a mention on it can
-      be rendered in the inbox. All three, or the object gets comments
-      nobody can be notified about.
+      `LABEL`/`TABLE` in `api/nova/inbox/route.ts` **and** `ROUTE_FOR` in
+      `NovaInbox.tsx` so a mention on it can be rendered AND clicked in the
+      inbox. All four, or the object gets comments nobody can act on.
+- [ ] ⌘K palette: a "New <object>" entry in `CREATE_ACTIONS`
+      (`NovaPalette.tsx`), feature-gated like the nav item.
+
+**7½ — Analytics & reporting**
+- [ ] `AnalyticsMetricId` (`constants.ts`) + the totals count in
+      `getAnalyticsDataLive` (`live.ts`, tolerating a missing table) + the
+      matching key in `data/labels.ts`.
+- [ ] Dashboard tile: `ANALYTICS_META` entry + a `renderWidget` case in
+      `DashboardLayout.tsx`.
+- [ ] Reports metric: `METRIC_META` in `ReportsClient.tsx` (feature +
+      workcenter keys).
+
+**7¾ — Cross-object integration** — an object that no other module can use
+is a shelf ornament. Walk Sales (quotes/pipeline), Service, Marketing,
+WFM and ask where this object plugs in; wire the touchpoints that make
+sense now (e.g. products → a catalog tab in the quote form, with the
+foreign id tenant-verified on the write routes per the guardrails) and
+state the ones deliberately deferred in the commit.
 
 **8 — Docs** — refresh the matching Drive guide in the same piece of work
 (§9), and note in the commit which guide changed.
+
+**9 — Prove it** — `npx tsc --noEmit` and `npx next build` both clean
+before commit; the commit message reports the checklist including every
+deliberate skip and the exact SQL files the owner must run.
 
 ---
 
