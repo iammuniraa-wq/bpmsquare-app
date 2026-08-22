@@ -54,6 +54,10 @@ export async function proxy(request: NextRequest) {
     // gate 307'd the POST to /login, which is why face sign-in "never
     // recognised" anyone: the route was never reached.
     pathname === "/api/auth/face-login" ||
+    // Passkey sign-in's pre-session pair -- same reasoning as face-login. The
+    // REGISTER pair is deliberately NOT here: it requires a session.
+    pathname === "/api/auth/passkey/login-options" ||
+    pathname === "/api/auth/passkey/login-verify" ||
     // The attendance kiosk: a wall tablet with no user session. Its whole
     // credential is a registered device token, verified by
     // authenticateKiosk() inside each of these three routes (and the page

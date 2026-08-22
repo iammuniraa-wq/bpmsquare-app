@@ -55,6 +55,7 @@ type MeState = {
   require_location?: boolean;
   selfie_mode?: "off" | "shift" | "all";
   employee_self_service?: boolean;
+  passkey_login?: boolean;
   face_punch?: "off" | "kiosk";
   deduct_breaks?: boolean;
   face_enrolled?: boolean;
@@ -312,6 +313,8 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [pwNew, setPwNew] = useState("");
   const [pwBusy, setPwBusy] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  const [pkBusy, setPkBusy] = useState(false);
+  const [pkMsg, setPkMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   // Engagement layer (3-layer theme only): checking out at/after your
   // shift's end earns a full-shift celebration. Judged on wall-clock in
   // the tenant's timezone against the assigned shift, never on pay math.
@@ -825,6 +828,45 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     }
   }
 
+  async function addPasskey() {
+    setPkBusy(true);
+    setPkMsg(null);
+    try {
+      const optRes = await fetch("/api/auth/passkey/register-options", { method: "POST" });
+      const options = await optRes.json();
+      if (!optRes.ok) { setPkMsg({ tone: "err", text: options.error ?? "Passkeys aren't available." }); return; }
+
+      const { startRegistration } = await import("@simplewebauthn/browser");
+      let attestation;
+      try {
+        attestation = await startRegistration({ optionsJSON: options });
+      } catch (e) {
+        const name = (e as { name?: string }).name;
+        if (name === "InvalidStateError") {
+          setPkMsg({ tone: "ok", text: "This device already has a passkey for your account." });
+        } else if (name !== "NotAllowedError" && name !== "AbortError") {
+          setPkMsg({ tone: "err", text: "This device or browser doesn't support passkeys." });
+        }
+        return;
+      }
+
+      const ua = navigator.userAgent;
+      const label = /iPhone|iPad/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : "This device";
+      const verRes = await fetch("/api/auth/passkey/register-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response: attestation, device_label: label }),
+      });
+      const json = await verRes.json().catch(() => ({}));
+      if (!verRes.ok) { setPkMsg({ tone: "err", text: json.error ?? "Could not save the passkey." }); return; }
+      setPkMsg({ tone: "ok", text: "Passkey added — next time, sign in with Face ID / fingerprint from the login screen." });
+    } catch {
+      setPkMsg({ tone: "err", text: "Network error — try again." });
+    } finally {
+      setPkBusy(false);
+    }
+  }
+
   async function logout() {
     await createBrowserSupabase().auth.signOut().catch(() => {});
     window.location.href = "/login";
@@ -1171,6 +1213,19 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                   {pwBusy ? "Saving…" : "Change password"}
                 </button>
               </div>
+              {me.passkey_login && (
+                <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 12, marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: c.muted, marginBottom: 8, lineHeight: 1.5 }}>
+                    Add a passkey to sign in with this phone&apos;s Face ID or fingerprint — no password to type.
+                  </div>
+                  <button style={btn} disabled={pkBusy} onClick={addPasskey}>
+                    {pkBusy ? "Waiting for your device…" : "✦ Add a passkey"}
+                  </button>
+                  {pkMsg && (
+                    <div style={{ fontSize: 12.5, color: pkMsg.tone === "ok" ? statusInk.good : statusInk.bad, marginTop: 8 }}>{pkMsg.text}</div>
+                  )}
+                </div>
+              )}
               <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 12, marginTop: 2 }}>
                 <button style={{ ...btn, color: statusInk.bad, borderColor: "transparent" }} onClick={logout}>
                   Sign out

@@ -554,6 +554,11 @@ export type WfmConfig = {
   // template exists to match against. No liveness yet, so treat it as basic
   // face auth (a photo of the employee could sign in) until liveness ships.
   face_login: boolean;
+  // Passkey (WebAuthn) sign-in: the employee's own phone biometric -- real
+  // Face ID / fingerprint -- unlocks a device-held key; we store only the
+  // public half, so no biometric data ever reaches the server and photos
+  // can't spoof it. Off by default like every new login surface.
+  passkey_login: boolean;
 };
 
 /** Seed list for tenants that have never edited their employment types --
@@ -588,6 +593,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   employee_self_service: true,
   login_mode: "email",
   face_login: false,
+  passkey_login: false,
 };
 
 // All metric IDs available in the Analytics page.

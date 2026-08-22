@@ -179,6 +179,8 @@ export type TenantBranding = {
   // True when this tenant lets employees sign in by face (config.wfm.face_login).
   // The login page shows a "Sign in with face" option when set.
   employee_face_login: boolean;
+  // True when employees may sign in with a passkey (config.wfm.passkey_login).
+  employee_passkey_login: boolean;
 };
 
 export const getTenantBrandingByHost = unstable_cache(
@@ -197,6 +199,7 @@ export const getTenantBrandingByHost = unstable_cache(
       logo_url: (data.logo_url as string | null) ?? null,
       employee_code_login: features.wfm === true && config.wfm?.login_mode === "code",
       employee_face_login: features.wfm === true && config.wfm?.face_login === true,
+      employee_passkey_login: features.wfm === true && config.wfm?.passkey_login === true,
     };
   },
   ["tenant-branding-by-host"],

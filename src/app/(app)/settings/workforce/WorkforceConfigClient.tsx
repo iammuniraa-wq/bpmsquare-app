@@ -260,6 +260,21 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
           </div>
 
           <div>
+            <label style={lbl}>Passkey sign-in (Face ID / fingerprint)</label>
+            <select
+              style={inp}
+              value={cfg.passkey_login ? "on" : "off"}
+              onChange={(e) => setCfg({ ...cfg, passkey_login: e.target.value === "on" })}
+            >
+              <option value="off">Off</option>
+              <option value="on">On — employees add a passkey from their own login</option>
+            </select>
+            <div style={help}>
+              The employee&apos;s own phone biometric unlocks sign-in (real Face ID / fingerprint). We store only a public key — no biometric data reaches the server, and photos can&apos;t spoof it. Employees add it from Profile → Account Settings after their first sign-in.
+            </div>
+          </div>
+
+          <div>
             <label style={lbl}>Face verification</label>
             <select
               style={inp}

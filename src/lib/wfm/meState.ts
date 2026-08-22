@@ -179,6 +179,8 @@ export async function buildWfmMeState(ctx: WfmContext) {
     // the Me page withdraws self-punch and self-enrollment -- attendance is
     // captured at the kiosk by face. Defaults on for every existing tenant.
     employee_self_service: config.employee_self_service,
+    // Account Settings offers "add a passkey" only when the tenant runs it.
+    passkey_login: config.passkey_login,
     // So the client can tick the running total live (net vs gross) the same
     // way the server computed running_minutes at load.
     deduct_breaks: config.deduct_breaks,

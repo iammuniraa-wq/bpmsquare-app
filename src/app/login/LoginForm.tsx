@@ -8,6 +8,7 @@ import Logo from "@/components/Logo";
 import { safeInternalPath } from "@/lib/safeRedirect";
 import { employeeSyntheticEmail } from "@/lib/wfm/employeeLogin";
 import FaceLoginButton from "@/components/FaceLoginButton";
+import PasskeyLoginButton from "@/components/PasskeyLoginButton";
 import type { TenantBranding } from "@/lib/tenant";
 
 type Branding = TenantBranding | null;
@@ -213,6 +214,7 @@ function LoginFormInner({ branding }: { branding: Branding }) {
               {loading ? "Signing in…" : "Sign in"}
             </button>
             {branding?.employee_face_login && <FaceLoginButton next={next} />}
+            {branding?.employee_passkey_login && <PasskeyLoginButton next={next} />}
           </form>
         )}
 
