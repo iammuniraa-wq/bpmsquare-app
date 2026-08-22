@@ -685,6 +685,8 @@ export type Product = {
   name: string;
   sku: string | null;
   category: string | null;
+  /** Second level of the tenant-configured category tree (0099). */
+  sub_category?: string | null;
   uom: string | null;
   description: string | null;
   list_price: number | null;

@@ -5,7 +5,7 @@ import { summariseUpdate, updateRows, type PreparedUpdate } from "@/lib/import/u
 import type { RowOutcome } from "@/lib/import/types";
 
 // Mirrors src/app/api/products/[id]/route.ts PATCH.
-const ALLOWED = ["name", "sku", "category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data"];
+const ALLOWED = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data"];
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;

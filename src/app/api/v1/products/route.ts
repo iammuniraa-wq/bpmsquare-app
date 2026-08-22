@@ -18,6 +18,8 @@ export async function GET(req: Request) {
   let rows = await src.load(auth.tenantId);
   const category = searchParams.get("category");
   if (category) rows = rows.filter((p) => p.category === category);
+  const subCategory = searchParams.get("sub_category");
+  if (subCategory) rows = rows.filter((p) => p.sub_category === subCategory);
 
   return enrichedList(req, rows, src.fields, {
     self: "/api/v1/products",

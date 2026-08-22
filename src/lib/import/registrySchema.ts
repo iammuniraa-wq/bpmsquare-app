@@ -171,6 +171,14 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
 function resolveOptions(field: FieldConfigResult["sections"][number]["fields"][number], salesConfig: SalesConfig): string[] | undefined {
   if (field.selectSource === "territory") return salesConfig.territories;
   if (field.selectSource === "sales_org") return salesConfig.sales_orgs;
+  if (field.selectSource === "product_category") {
+    const names = salesConfig.product_categories.map((pc) => pc.name);
+    return names.length ? names : undefined; // no tree configured -> free text
+  }
+  if (field.selectSource === "product_sub_category") {
+    const subs = [...new Set(salesConfig.product_categories.flatMap((pc) => pc.subs))];
+    return subs.length ? subs : undefined;
+  }
   if (field.enumOptions?.length) return field.enumOptions.map((o) => o.value);
   if (field.options?.length) return field.options;
   return undefined;

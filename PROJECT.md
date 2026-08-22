@@ -345,9 +345,17 @@ deploy for an automatic schema change.
   refs, custom_data) plus `quote_lines.product_id`. Until it runs, the
   Products module degrades cleanly (empty lists / hidden by the
   `products` feature flag, which no tenant has yet).
-- **scripts/seed-products-demo.sql — PENDING, run AFTER 0098** (dev DB
-  at minimum): seeds 10 elevator-business sample products into every
-  `is_demo` tenant and flips its `features.products` on. Idempotent.
+- **scripts/seed-products-demo.sql — PENDING, run AFTER 0098 and 0099**
+  (dev DB at minimum): seeds 10 elevator-business sample products into
+  every `is_demo` tenant, backfills their sub-categories, writes the demo
+  category tree into `config.product_categories`, and flips
+  `features.products` on. Idempotent — safe to re-run after 0099 even if
+  an earlier version already ran.
+- **0099_product_subcategory.sql — PENDING on both DBs** (written
+  2026-08-22, same session as 0098 — run them together): adds
+  `products.sub_category`. Categories are tenant config now
+  (`config.product_categories`, Settings → Sales config), OOB depth
+  exactly two levels (owner decision 2026-08-22).
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;
@@ -355,7 +363,7 @@ deploy for an automatic schema change.
   **Flow Board** derives entirely from existing `change_log` + `quotes`
   rows. Fog of War was the same — it reads `accounts.territory` against
   the tenant's Sales-config picklist.
-- Next migration will be **0099**; the first thing likely to need one
+- Next migration will be **0100**; the first thing likely to need one
   is the Opportunity object (see the Nova queue's forecast constraint —
   `quotes.opportunity_id` has to land in that same migration).
 - (Historical: 0080–0085 were run at the 2026-08-18 promotion; the dev
@@ -558,7 +566,24 @@ Time Summary rename) shipped same-day.
   validates — same trust model as Nova paste-to-draft.)
 
 **Master data**
-- Products (new object).
+- Products — **shipped 2026-08-22** (commit `ba5bcba` + category-config
+  follow-up; migrations 0098/0099). Categories are tenant config, OOB two
+  levels. Open design decisions captured same-day with the owner:
+  - **Sales-area product availability** (client sells product X only in
+    country/sales org/territory Y): planned as an assignment on the
+    product — `sales_orgs text[]`/`territories text[]` (empty = sold
+    everywhere), reusing the existing Sales-config picklists as the
+    dimensions; quote form then filters the catalog by the account's
+    sales area, and v1 API grows matching filters. SAP analogy: material
+    sales-org/distribution-channel views. Not built yet — build when the
+    first multi-country tenant needs it.
+  - **Multi-ERP distinction** (one CRM tenant, several ERPs behind it):
+    planned as an external-system registry in tenant config — each ERP
+    connection gets a stable system id (SAP "logical system" analogy);
+    synced records carry `external_system` + `external_id` with
+    uniqueness per (tenant, system, external id), and outbound documents
+    route by a sales-org → ERP mapping. Not built yet — design agreed
+    before any ERP sync work starts.
 - Activity (appointments, visits).
 
 **Marketing**

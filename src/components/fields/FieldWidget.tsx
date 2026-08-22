@@ -72,7 +72,7 @@ function FieldValueEdit({ field, value, onChange, salesCfg }: {
   field: EffectiveField;
   value: unknown;
   onChange: (v: unknown) => void;
-  salesCfg: { territories: string[]; sales_orgs: string[] };
+  salesCfg: import("@/lib/useSalesConfig").SalesConfig;
 }) {
   const strValue = value === null || value === undefined ? "" : String(value);
   const widget: WidgetType = field.widget;
@@ -113,7 +113,15 @@ function FieldValueEdit({ field, value, onChange, salesCfg }: {
     case "select": {
       const options = field.selectSource === "territory" ? salesCfg.territories
         : field.selectSource === "sales_org" ? salesCfg.sales_orgs
+        : field.selectSource === "product_category" ? salesCfg.product_categories.map((pc) => pc.name)
+        : field.selectSource === "product_sub_category" ? [...new Set(salesCfg.product_categories.flatMap((pc) => pc.subs))]
         : field.options ?? [];
+      // A tenant with no category tree configured keeps free-text entry —
+      // an empty dropdown would make the field un-fillable.
+      const productSource = field.selectSource === "product_category" || field.selectSource === "product_sub_category";
+      if (productSource && options.length === 0) {
+        return <input type="text" style={inp} value={strValue} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder} />;
+      }
       return (
         <select style={{ ...inp, cursor: "pointer" }} value={strValue} onChange={(e) => onChange(e.target.value)}>
           <option value="">— None —</option>

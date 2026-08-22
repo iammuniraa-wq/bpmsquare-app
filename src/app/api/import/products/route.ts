@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
         name: v.name,
         sku: v.sku ?? null,
         category: v.category ?? null,
+        sub_category: v.sub_category ?? null,
         uom: v.uom ?? null,
         description: v.description ?? null,
         list_price: num(v.list_price),

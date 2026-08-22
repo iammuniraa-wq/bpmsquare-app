@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // cost_price is internal margin data -- never selected for API consumers.
   const { data: product, error } = await admin
     .from("products")
-    .select("id, ref, sku, name, description, category, uom, list_price, tax_percent, status, custom_data, created_at, updated_at")
+    .select("id, ref, sku, name, description, category, sub_category, uom, list_price, tax_percent, status, custom_data, created_at, updated_at")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .maybeSingle();

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
+import { useSalesConfig } from "@/lib/useSalesConfig";
 
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -24,13 +25,19 @@ export default function NewProductPage() {
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
-    name: "", sku: "", category: "", uom: "", description: "",
+    name: "", sku: "", category: "", sub_category: "", uom: "", description: "",
     list_price: "", cost_price: "", tax_percent: "",
   });
 
   const set = (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Category values come from the tenant's tree (Settings -> Sales config);
+  // sub-category options depend on the chosen category. No tree configured
+  // -> free-text entry, so a fresh tenant is never blocked.
+  const { product_categories: catTree } = useSalesConfig();
+  const subs = catTree.find((pc) => pc.name === form.category)?.subs ?? [];
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,7 +76,34 @@ export default function NewProductPage() {
           </div>
           <div style={fw}>
             <label style={lbl}>Category</label>
-            <input style={inp} value={form.category} onChange={set("category")} placeholder="Elevators" />
+            {catTree.length > 0 ? (
+              <select
+                style={{ ...inp, cursor: "pointer" }}
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value, sub_category: "" }))}
+              >
+                <option value="">— None —</option>
+                {catTree.map((pc) => <option key={pc.name} value={pc.name}>{pc.name}</option>)}
+              </select>
+            ) : (
+              <input style={inp} value={form.category} onChange={set("category")} placeholder="Elevators" />
+            )}
+          </div>
+          <div style={fw}>
+            <label style={lbl}>Sub-category</label>
+            {catTree.length > 0 ? (
+              <select
+                style={{ ...inp, cursor: subs.length ? "pointer" : "default" }}
+                value={form.sub_category}
+                onChange={set("sub_category")}
+                disabled={subs.length === 0}
+              >
+                <option value="">{subs.length ? "— None —" : "No sub-categories"}</option>
+                {subs.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            ) : (
+              <input style={inp} value={form.sub_category} onChange={set("sub_category")} placeholder="Passenger" />
+            )}
           </div>
           <div style={fw}>
             <label style={lbl}>Unit of measure</label>

@@ -632,6 +632,10 @@ export type CustomFieldDef = {
   options?: string[]; // only for type = "select"
 };
 
+// One node of the tenant's two-level product category tree (see
+// TenantConfig.product_categories).
+export type ProductCategoryDef = { name: string; subs: string[] };
+
 export type QuoteStatusDef = {
   value: string;      // stored in DB, e.g. "draft", "po_received"
   label: string;      // displayed in UI
@@ -691,6 +695,10 @@ export type TenantConfig = {
   custom_fields?: Record<string, CustomFieldDef[]>;
   // Configurable quote pipeline statuses. Falls back to DEFAULT_QUOTE_STATUSES if absent.
   quote_statuses?: QuoteStatusDef[];
+  // Product category tree, defined by the tenant in Settings -> Sales config.
+  // OOB depth is exactly two levels (category -> sub-categories); absent/empty
+  // means the product form falls back to free-text category entry.
+  product_categories?: ProductCategoryDef[];
   // Which asset fields to print on the quote. Empty/absent = hide the section.
   asset_print_fields?: string[];
   // Quote ID (ref) naming convention. Falls back to DEFAULT_QUOTE_ID_FORMAT if absent.

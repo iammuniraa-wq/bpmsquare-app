@@ -1,6 +1,8 @@
--- Sample products for the DEMO tenant (run AFTER 0098_products.sql).
--- Idempotent: skips any name that already exists for the tenant. Also turns
--- the products feature on for the demo tenant.
+-- Sample products for the DEMO tenant (run AFTER 0098_products.sql AND
+-- 0099_product_subcategory.sql). Idempotent: skips any name that already
+-- exists for the tenant, and safe to RE-RUN on a tenant seeded before 0099 —
+-- the sub-category backfill and category-tree config below update in place.
+-- Also turns the products feature on for the demo tenant.
 
 with demo as (select id from tenants where is_demo = true limit 1)
 insert into products (tenant_id, ref, name, sku, category, uom, description, list_price, cost_price, tax_percent, status)
@@ -21,6 +23,39 @@ from demo,
 where not exists (
   select 1 from products p where p.tenant_id = demo.id and p.name = v.name
 );
+
+-- Sub-category backfill (0099): keyed by ref so it also fixes a tenant that
+-- was seeded before sub_category existed.
+with demo as (select id from tenants where is_demo = true limit 1)
+update products p
+set sub_category = v.sub_category
+from demo,
+(values
+  ('PRD-0001', 'Passenger'),
+  ('PRD-0002', 'Passenger'),
+  ('PRD-0003', 'Hydraulic'),
+  ('PRD-0004', 'Home lifts'),
+  ('PRD-0005', 'Comprehensive'),
+  ('PRD-0006', 'Non-comprehensive'),
+  ('PRD-0007', 'Repairs'),
+  ('PRD-0008', 'Controllers'),
+  ('PRD-0009', 'Doors'),
+  ('PRD-0010', 'Ropes')
+) as v(ref, sub_category)
+where p.tenant_id = demo.id and p.ref = v.ref and p.sub_category is distinct from v.sub_category;
+
+-- Demo category tree (Settings -> Sales config -> Product categories).
+-- Matches the seeded rows so the dependent dropdowns demo properly.
+update tenants
+set config = coalesce(config, '{}'::jsonb) || jsonb_build_object('product_categories', '[
+  {"name": "Elevators",     "subs": ["Passenger", "Home lifts", "Hospital"]},
+  {"name": "Goods lifts",   "subs": ["Hydraulic", "Traction"]},
+  {"name": "Service plans", "subs": ["Comprehensive", "Non-comprehensive"]},
+  {"name": "Services",      "subs": ["Repairs", "Inspections"]},
+  {"name": "Modernisation", "subs": ["Controllers", "Cabins"]},
+  {"name": "Spares",        "subs": ["Doors", "Ropes", "Safety"]}
+]'::jsonb)
+where is_demo = true;
 
 -- Feature flag on for the demo tenant only.
 update tenants

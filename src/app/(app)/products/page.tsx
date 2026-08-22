@@ -32,6 +32,7 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<Product>> = {
   name: (p) => p.name,
   sku: (p) => p.sku,
   category: (p) => p.category,
+  sub_category: (p) => p.sub_category,
   uom: (p) => p.uom,
   list_price: (p) => p.list_price,
   status: (p) => p.status,
@@ -41,13 +42,13 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<Product>> = {
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; sort?: string; dir?: string; page?: string; af?: string } & Record<string, string | undefined>>;
+  searchParams: Promise<{ q?: string; sort?: string; dir?: string; page?: string; af?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("products");
   await requireFeature("products");
   const { supabase, tenantId } = await requireTenantUser();
   const params = await searchParams;
-  const { q, category: catFilter, af } = params;
+  const { q, af } = params;
   const colFilters = parseColFilterParams(params);
   const cfParams = colFilterQueryParams(colFilters);
   const { sort, dir } = readSortParams(params);
@@ -56,16 +57,17 @@ export default async function ProductsPage({
   const { data: rows } = await supabase.from("products").select("*").eq("tenant_id", tenantId).order("name");
   const products: Product[] = rows ?? [];
 
-  const categories = [...new Set(products.map((p) => p.category).filter((x): x is string => !!x))].sort();
-
+  // No per-category chip row here (owner decision 2026-08-22): the list shows
+  // everything, and category/sub-category narrowing is the advanced filter's
+  // and the column filters' job — a tenant's tree can be far too wide for chips.
   const searched = products.filter((p) => {
-    if (catFilter && catFilter !== "all" && p.category !== catFilter) return false;
     if (!q) return true;
     const term = q.toLowerCase();
     return (
       p.name.toLowerCase().includes(term) ||
       (p.sku ?? "").toLowerCase().includes(term) ||
       (p.category ?? "").toLowerCase().includes(term) ||
+      (p.sub_category ?? "").toLowerCase().includes(term) ||
       (p.description ?? "").toLowerCase().includes(term)
     );
   });
@@ -95,29 +97,10 @@ export default async function ProductsPage({
         }
       />
 
-      {categories.length > 0 && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          {[{ id: "all", label: `All (${products.length})` }, ...categories.map((cat) => ({ id: cat, label: cat }))].map(({ id, label }) => {
-            const isActive = (catFilter ?? "all") === id;
-            return (
-              <Link key={id} href={`${ROUTES.products}?category=${encodeURIComponent(id)}${q ? `&q=${encodeURIComponent(q)}` : ""}`} style={{
-                fontSize: 12.5, fontWeight: isActive ? 700 : 500,
-                color: isActive ? c.accent : c.muted,
-                background: isActive ? c.accentbg : c.panel2,
-                border: `1px solid ${isActive ? c.accent + "60" : c.line}`,
-                borderRadius: 6, padding: "5px 12px", textDecoration: "none",
-              }}>
-                {label}
-              </Link>
-            );
-          })}
-        </div>
-      )}
-
       <ListFilterBar
         searchValue={q}
         searchPlaceholder="Search by name, SKU, category or description…"
-        hiddenParams={{ category: catFilter && catFilter !== "all" ? catFilter : undefined, af, ...cfParams }}
+        hiddenParams={{ af, ...cfParams }}
         clearHref={ROUTES.products}
       />
       <AdvancedFilterPanel object="product" />
@@ -140,7 +123,7 @@ export default async function ProductsPage({
               <thead>
                 <tr style={{ borderBottom: `1px solid ${c.line}` }}>
                   {(() => {
-                    const hp = { q, category: catFilter, af, ...cfParams };
+                    const hp = { q, af, ...cfParams };
                     return (
                       <>
                         <SortableTh label="ID" sortKey="ref" searchId="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.products} hiddenParams={hp} style={{ ...th, width: 88 }} />
@@ -167,7 +150,10 @@ export default async function ProductsPage({
                       {p.description && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2, maxWidth: 420, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</div>}
                     </td>
                     <td style={{ ...td, color: c.muted, fontSize: 12, fontFamily: "monospace" }}>{p.sku ?? "—"}</td>
-                    <td style={{ ...td, color: c.muted, fontSize: 13 }}>{p.category ?? "—"}</td>
+                    <td style={{ ...td, color: c.muted, fontSize: 13 }}>
+                      {p.category ?? "—"}
+                      {p.sub_category && <span style={{ color: c.hint }}>{" › "}{p.sub_category}</span>}
+                    </td>
                     <td style={{ ...td, color: c.muted, fontSize: 13 }}>{p.uom ?? "—"}</td>
                     <td style={{ ...td, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{inr(p.list_price)}</td>
                     <td style={td}>
@@ -191,7 +177,7 @@ export default async function ProductsPage({
               total={filtered.length}
               pageSize={DEFAULT_PAGE_SIZE}
               baseHref={ROUTES.products}
-              hiddenParams={{ q, category: catFilter, sort, dir, af, ...cfParams }}
+              hiddenParams={{ q, sort, dir, af, ...cfParams }}
             />
           </div>
         )}

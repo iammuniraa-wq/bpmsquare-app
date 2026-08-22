@@ -21,7 +21,7 @@ export type WidgetType =
   | "tel" | "email" | "url"
   | "enum";
 
-export type SelectSource = "territory" | "sales_org"; // resolved via useSalesConfig()
+export type SelectSource = "territory" | "sales_org" | "product_category" | "product_sub_category"; // resolved via useSalesConfig()
 
 export type StandardFieldDef = {
   /** Permanent DB column name — never renamed, never changes. */
@@ -264,7 +264,10 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "ref",    defaultLabel: "Product ID", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "name",   defaultLabel: "Name",     widget: "text", defaultSection: "Identity", locked: true },
       { key: "sku",    defaultLabel: "SKU",      widget: "text", defaultSection: "Identity" },
-      { key: "category", defaultLabel: "Category", widget: "text", defaultSection: "Identity" },
+      // Category values come from the tenant's own two-level tree
+      // (Settings -> Sales config -> Product categories), not free text.
+      { key: "category",     defaultLabel: "Category",     widget: "select", defaultSection: "Identity", selectSource: "product_category" },
+      { key: "sub_category", defaultLabel: "Sub-category", widget: "select", defaultSection: "Identity", selectSource: "product_sub_category" },
       { key: "status", defaultLabel: "Status",   widget: "enum", defaultSection: "Identity", enumOptions: PRODUCT_STATUS_OPTIONS },
 
       { key: "list_price",  defaultLabel: "List price (₹)", widget: "number", defaultSection: "Pricing" },

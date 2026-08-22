@@ -120,10 +120,21 @@ export async function getEffectiveFieldConfig(
   return { sections, rules };
 }
 
-export type SalesConfig = { territories: string[]; sales_orgs: string[] };
+export type SalesConfig = {
+  territories: string[];
+  sales_orgs: string[];
+  product_categories: import("@/lib/constants").ProductCategoryDef[];
+};
 
 export async function getSalesConfig(supabase: SupabaseClient, tenantId: string): Promise<SalesConfig> {
   const { data } = await supabase.from("tenants").select("config").eq("id", tenantId).single();
-  const cfg = (data?.config ?? {}) as { territories?: string[]; sales_orgs?: string[] };
-  return { territories: cfg.territories ?? [], sales_orgs: cfg.sales_orgs ?? [] };
+  const cfg = (data?.config ?? {}) as {
+    territories?: string[]; sales_orgs?: string[];
+    product_categories?: import("@/lib/constants").ProductCategoryDef[];
+  };
+  return {
+    territories: cfg.territories ?? [],
+    sales_orgs: cfg.sales_orgs ?? [],
+    product_categories: cfg.product_categories ?? [],
+  };
 }

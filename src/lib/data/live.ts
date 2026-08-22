@@ -2093,9 +2093,9 @@ const SEARCH_SPECS: SearchSpec[] = [
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.city, r.type].filter(Boolean).join(" · ") || "Supplier", href: ROUTES.supplier(r.id), matched: "name" }),
   },
   {
-    type: "product", table: "products", columns: "id, ref, name, sku, category",
-    textCols: ["name", "ref", "sku", "category"],
-    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.sku, r.category].filter(Boolean).join(" · ") || "Product", href: ROUTES.product(r.id), matched: "name" }),
+    type: "product", table: "products", columns: "id, ref, name, sku, category, sub_category",
+    textCols: ["name", "ref", "sku", "category", "sub_category"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.sku, r.category, r.sub_category].filter(Boolean).join(" · ") || "Product", href: ROUTES.product(r.id), matched: "name" }),
     featureKeys: ["products"],
   },
   {

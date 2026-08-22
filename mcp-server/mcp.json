@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "BPMSquare MCP server \u2014 field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -129,7 +129,7 @@
     },
     {
       "name": "list_products",
-      "description": "List the tenant's sellable products (catalog): name, SKU, category, unit of measure, list price, tax percent, status. Optionally filter by category or status.",
+      "description": "List the tenant's sellable products (catalog): name, SKU, category and sub-category, unit of measure, list price, tax percent, status. Optionally filter by category, sub_category or status.",
       "method": "GET",
       "path": "/api/v1/products",
       "inputSchema": {
@@ -142,6 +142,10 @@
           "status": {
             "type": "string",
             "description": "active or inactive"
+          },
+          "sub_category": {
+            "type": "string",
+            "description": "Only products in this sub-category"
           }
         }
       }

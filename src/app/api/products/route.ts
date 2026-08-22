@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { name, sku, category, uom, description } = body;
+  const { name, sku, category, sub_category, uom, description } = body;
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
     name: name.trim(),
     sku: sku || null,
     category: category || null,
+    sub_category: sub_category || null,
     uom: uom || null,
     description: description || null,
     list_price: num(body.list_price),

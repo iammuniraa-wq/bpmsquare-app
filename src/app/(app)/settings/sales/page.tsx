@@ -19,17 +19,21 @@ export default async function SalesConfigPage() {
     .eq("id", tenantId!)
     .single();
 
-  const cfg = (data?.config ?? {}) as { territories?: string[]; sales_orgs?: string[] };
+  const cfg = (data?.config ?? {}) as {
+    territories?: string[]; sales_orgs?: string[];
+    product_categories?: { name: string; subs: string[] }[];
+  };
 
   return (
     <>
       <PageHeader
         title="Sales config"
-        subtitle="Manage territory and sales org picklist values"
+        subtitle="Manage territory, sales org and product category picklist values"
       />
       <SalesConfigClient
         initialTerritories={cfg.territories ?? []}
         initialSalesOrgs={cfg.sales_orgs ?? []}
+        initialProductCategories={cfg.product_categories ?? []}
       />
     </>
   );
