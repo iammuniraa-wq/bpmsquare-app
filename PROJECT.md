@@ -529,3 +529,37 @@ The queue, in order:
    beyond demo (dark/light parity, mobile, empty states, performance).
 6. **Nova docs + enterprise pitch** — Drive guide chapter + pending API
    doc debt (employees endpoint, loss reasons).
+
+## 12. Client roadmap — captured 2026-08-22 (build list, not yet started)
+
+Owner-provided wishlist from the workcenter-cleanup session. Nothing here is
+committed to a date; each item gets its own scoping before build. The nav
+reorg that accompanied it (Sales & Procurement, master-data consolidation,
+Time Summary rename) shipped same-day.
+
+**Sales**
+- Pipeline — functionality update (scope TBD with owner).
+
+**Service**
+- AMC contracts, Work orders, Dispatch, Technicians — "update properly"
+  (each needs a gap list from the owner).
+- Voice assistant (agent) to take calls and create a DRAFT for an internal
+  user to validate, or email the concerned person. (Draft-first, human
+  validates — same trust model as Nova paste-to-draft.)
+
+**Master data**
+- Products (new object).
+- Activity (appointments, visits).
+
+**Marketing**
+- Campaign studio: AI newsletter builder, multi-language, placeholders
+  pulling from accounts/contacts.
+- Automation / workflows: smart lists feeding campaigns.
+- Website-embedded forms to track prospects on client sites/shops.
+- Webinar (inbuilt, GoToWebinar-class feature set).
+- LinkedIn integration; Hubilo integration; standard CRM integrations
+  (Salesforce, SAP, ...).
+
+**Pricing**
+- Full-blown pricing, external and internal (extends the pricing-engine
+  skeleton already in src/lib — see PricingEngine Phase 1 batch 0).
