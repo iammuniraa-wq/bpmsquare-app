@@ -46,6 +46,14 @@ export async function proxy(request: NextRequest) {
     // -- it needs a session and calls requireTenantUser() itself.
     pathname === "/api/auth/request-reset" ||
     pathname === "/api/auth/session" ||
+    // Face sign-in: by nature pre-session (the caller is trying to GET a
+    // session). Tenant is resolved from the host inside the route, the
+    // feature is per-tenant opt-in (config.wfm.face_login), and a match only
+    // ever yields a single-use token for the matched employee's own login --
+    // same reasoning as request-reset above. Without this bypass the session
+    // gate 307'd the POST to /login, which is why face sign-in "never
+    // recognised" anyone: the route was never reached.
+    pathname === "/api/auth/face-login" ||
     // The attendance kiosk: a wall tablet with no user session. Its whole
     // credential is a registered device token, verified by
     // authenticateKiosk() inside each of these three routes (and the page
