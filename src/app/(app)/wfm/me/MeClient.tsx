@@ -8,6 +8,7 @@ import FaceEnrollModal from "@/components/wfm/FaceEnrollModal";
 import DayColumn from "@/components/wfm/DayColumn";
 import { computeDayHours } from "@/lib/wfm/hours";
 import { geoPermissionState } from "@/lib/wfm/devicePermissions";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -314,6 +315,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   // the tenant's timezone against the assigned shift, never on pay math.
   const celebrateShift = useIsNextgen3Layer();
   const [tab, setTab] = useState<Tab>("profile");
+  const isMobile = useIsMobile();
   const [timeView, setTimeView] = useState<TimeView>("daily");
   const [month, setMonth] = useState(thisMonth());
   const [dayFilter, setDayFilter] = useState<string | null>(null);
@@ -934,17 +936,42 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
 
   return (
     <>
-      <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap" }}>
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            style={tab === t.key ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn}
+      {/* On a phone, 7 tab buttons wrap into a two-row wall. Show the four
+          everyday tabs and club the rest (Timeline / Calendar / Analytics)
+          into one native "More" dropdown -- one row, no wrapping. */}
+      <div style={{ display: "flex", gap: isMobile ? 5 : 7, marginBottom: 14, flexWrap: isMobile ? "nowrap" : "wrap", alignItems: "center" }}>
+        {(isMobile ? TABS.filter((t) => ["profile", "home", "time", "leave"].includes(t.key)) : TABS).map((t) => {
+          const compact = isMobile ? { padding: "7px 10px", fontSize: 12, whiteSpace: "nowrap" as const } : {};
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              style={tab === t.key
+                ? { ...btn, ...compact, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" }
+                : { ...btn, ...compact }}
+            >
+              {t.label}
+              {t.key === "leave" && pendingLeave > 0 && <span style={{ marginLeft: 6, opacity: 0.85 }}>({pendingLeave})</span>}
+            </button>
+          );
+        })}
+        {isMobile && (
+          <select
+            value={["timeline", "calendar", "analytics"].includes(tab) ? tab : ""}
+            onChange={(e) => { if (e.target.value) setTab(e.target.value as Tab); }}
+            style={{
+              padding: "7px 8px", fontSize: 12, fontWeight: 600, borderRadius: 8,
+              border: `1px solid ${c.line}`, cursor: "pointer", outline: "none",
+              background: ["timeline", "calendar", "analytics"].includes(tab) ? "var(--tenant-accent, #378ADD)" : c.panel,
+              color: ["timeline", "calendar", "analytics"].includes(tab) ? "#fff" : c.ink,
+            }}
           >
-            {t.label}
-            {t.key === "leave" && pendingLeave > 0 && <span style={{ marginLeft: 6, opacity: 0.85 }}>({pendingLeave})</span>}
-          </button>
-        ))}
+            <option value="" disabled>More…</option>
+            <option value="timeline">Timeline</option>
+            <option value="calendar">Calendar</option>
+            <option value="analytics">Analytics</option>
+          </select>
+        )}
       </div>
 
       {offline && (
