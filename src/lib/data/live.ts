@@ -2100,7 +2100,9 @@ const SEARCH_SPECS: SearchSpec[] = [
     toResult: (r) => ({
       id: r.id,
       title: [r.first_name, r.last_name].filter(Boolean).join(" ") || r.employee_code || "Employee",
-      subtitle: [r.designation, r.department, r.status === "inactive" ? "Inactive" : null].filter(Boolean).join(" · ") || "Employee",
+      // Leads with the employee code so two same-named people (or an
+      // accidental duplicate record) are tellable apart in search results.
+      subtitle: [r.employee_code, r.designation, r.department, r.status === "inactive" ? "Inactive" : null].filter(Boolean).join(" · ") || "Employee",
       href: ROUTES.wfmEmployee(r.id),
       matched: "name",
     }),
