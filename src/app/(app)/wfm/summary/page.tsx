@@ -37,9 +37,9 @@ export default async function WfmSummaryPage() {
 
   return (
     <>
-      <TabTitle title="Monthly Summary" />
+      <TabTitle title="Time Summary" />
       <PageHeader
-        title="Monthly Summary"
+        title="Time Summary"
         subtitle="Per-employee attendance for the CA — days present, hours, late marks, leave, holidays and night-shift allowance."
       />
       <SummaryClient initial={initial} />

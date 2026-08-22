@@ -182,12 +182,10 @@ export const NAV: NavGroup[] = [
     group: "WORKSPACE",
     items: [
       { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue", workcenterKey: "dashboard" },
-      { label: "Accounts",  href: ROUTES.accounts,  icon: "▣", pillar: "blue", featureKey: "accounts", workcenterKey: "accounts" },
-      { label: "Contacts",  href: ROUTES.contacts,  icon: "◉", pillar: "blue", featureKey: "contacts", workcenterKey: "contacts" },
     ],
   },
   {
-    group: "SALES",
+    group: "SALES & PROCUREMENT",
     items: [
       {
         label: "Sales", href: ROUTES.quotations, icon: "₹", pillar: "blue",
@@ -196,6 +194,7 @@ export const NAV: NavGroup[] = [
           { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
+          { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
         ],
       },
     ],
@@ -224,7 +223,6 @@ export const NAV: NavGroup[] = [
           { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
           { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
-          { label: "Partners", href: ROUTES.partners, icon: "⌂", pillar: "purple", featureKey: "partners", workcenterKey: "partners" },
         ],
       },
     ],
@@ -238,11 +236,15 @@ export const NAV: NavGroup[] = [
           { label: "Assets",          href: ROUTES.assets,         icon: "⚙", pillar: "green", featureKey: "assets", workcenterKey: "assets" },
           { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", featureKey: "suppliers", workcenterKey: "suppliers" },
           { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
-          { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "green", featureKey: "purchasing", workcenterKey: "purchase_orders" },
           // Employees ships as part of the Business Roles/Business Users
           // bundle, so it shares that bundle's rollout flag rather than
           // getting its own.
           { label: "Employees",       href: ROUTES.employees,      icon: "⚇", pillar: "green", featureKey: "business_roles", workcenterKey: "employees" },
+          // Client reorg 2026-08-22: Partners (from Marketing) and
+          // Accounts/Contacts (from Workspace) live with the master data.
+          { label: "Partners",        href: ROUTES.partners,       icon: "⌂", pillar: "green", featureKey: "partners", workcenterKey: "partners" },
+          { label: "Accounts",        href: ROUTES.accounts,       icon: "▣", pillar: "green", featureKey: "accounts", workcenterKey: "accounts" },
+          { label: "Contacts",        href: ROUTES.contacts,       icon: "◉", pillar: "green", featureKey: "contacts", workcenterKey: "contacts" },
         ],
       },
     ],
@@ -259,7 +261,7 @@ export const NAV: NavGroup[] = [
           { label: "Corrections", href: ROUTES.wfmCorrections, icon: "✓", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Roster", href: ROUTES.wfmRoster, icon: "▦", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Leave & Holidays", href: ROUTES.wfmLeave, icon: "☀", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
-          { label: "Monthly Summary", href: ROUTES.wfmSummary, icon: "▤", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Time Summary", href: ROUTES.wfmSummary, icon: "▤", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
         ],
       },
     ],
