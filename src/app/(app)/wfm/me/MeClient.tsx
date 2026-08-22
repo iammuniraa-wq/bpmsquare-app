@@ -736,6 +736,23 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     pendingCorr: corrections.filter((r) => r.status === "pending").length,
   }), [leaveRequests, corrections]);
 
+  // MUST stay above the early returns below (loading / no-profile / consent /
+  // camera): a hook that renders only on some paths trips React's
+  // "rendered fewer hooks than expected" the moment one of them is taken —
+  // which crashed the whole punch screen when the face camera opened.
+  const loadBroadcasts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/wfm/broadcasts");
+      if (!res.ok) return;
+      const json = await res.json();
+      setBcList(json.broadcasts ?? []);
+      setBcUnread(json.unread ?? 0);
+      setBcCanCompose(json.can_compose === true);
+    } catch { /* tile just stays empty */ }
+  }, []);
+  useEffect(() => { if (me?.employee) void loadBroadcasts(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.employee?.id]);
+
   async function submitLeaveRequest() {
     if (!leaveDraft.date_from || !leaveDraft.date_to) { setNotice({ tone: "err", text: "Please pick the dates on the calendar" }); return; }
     if (!leaveDraft.leave_type_id) { setNotice({ tone: "err", text: "Please choose a leave type" }); return; }
@@ -844,19 +861,6 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       setPwBusy(false);
     }
   }
-
-  const loadBroadcasts = useCallback(async () => {
-    try {
-      const res = await fetch("/api/wfm/broadcasts");
-      if (!res.ok) return;
-      const json = await res.json();
-      setBcList(json.broadcasts ?? []);
-      setBcUnread(json.unread ?? 0);
-      setBcCanCompose(json.can_compose === true);
-    } catch { /* tile just stays empty */ }
-  }, []);
-  useEffect(() => { if (me?.employee) void loadBroadcasts(); // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me?.employee?.id]);
 
   function openBroadcasts() {
     setTab("profile");
