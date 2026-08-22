@@ -325,8 +325,8 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
               value={cfg.selfie_mode}
               onChange={(e) => setCfg({ ...cfg, selfie_mode: e.target.value as WfmConfig["selfie_mode"] })}
             >
-              <option value="shift">Shift punches — check in / out, mobile work and trip starts</option>
-              <option value="all">Every punch — including breaks and overtime</option>
+              <option value="shift">Shift punches — check in / out, breaks, mobile work and trip starts</option>
+              <option value="all">Every punch — including overtime</option>
               <option value="off">Off — no selfie is taken on any punch</option>
             </select>
             <div style={help}>

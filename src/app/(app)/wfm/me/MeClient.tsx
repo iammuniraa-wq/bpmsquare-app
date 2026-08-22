@@ -29,7 +29,7 @@ import { celebrate } from "@/lib/celebrate";
 // per requirements: CONSENT_TEXT_DE_EN_PLACEHOLDER.
 const CONSENT_TEXT = `To record your attendance, this app captures:
 
-• A selfie at every check-in and check-out
+• A selfie at every check-in, check-out and break
 • Your location (GPS) at the time of each punch, which is converted into a street address using a mapping service (Ola Maps) so your supervisor can see where a punch was made
 
 This data is used only for attendance and payroll summary purposes, is visible to your supervisor and employer, and punch selfies are automatically deleted after the configured retention period. You can request deletion of your data when you leave the organisation.

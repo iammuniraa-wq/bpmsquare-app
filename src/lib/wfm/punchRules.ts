@@ -34,18 +34,21 @@ export function locationRequiredFor(kind: PresenceKind): boolean {
  *  off   — never. For a tenant that doesn't want punch photographs at all
  *          (a real DPDP-driven ask; before this setting existed a selfie
  *          was mandatory with no way to decline).
- *  shift — check in / check out, plus the start of mobile work and a
- *          business trip. This is exactly what the product did before the
- *          setting existed, so it is the default and no tenant moves.
- *  all   — every punch kind EXCEPT breaks (overtime included). Breaks are
- *          never selfie-gated in any mode — owner decision 2026-08-20: a
- *          break is location-verified but a camera stop four times a day
- *          is friction with no fraud it could catch (breaks only reduce
- *          payable time).
+ *  shift — check in / check out AND breaks, plus the start of mobile work
+ *          and a business trip.
+ *  all   — every punch kind (overtime included).
+ *
+ * Breaks were selfie-exempt in every mode until 2026-08-22 (the original
+ * 2026-08-20 reasoning: a camera stop four times a day is friction with no
+ * fraud it could catch, since breaks only reduce payable time). Reversed by
+ * owner decision 2026-08-22: a break punch must look and behave exactly
+ * like a shift punch, so the employee sees one consistent flow rather than
+ * a camera that appears for some buttons and not others. Only "off" now
+ * exempts a break.
  */
 export function selfieRequiredFor(kind: PresenceKind, mode: WfmConfig["selfie_mode"]): boolean {
   if (mode === "off") return false;
-  if (isBreakPunch(kind)) return false;
   if (mode === "all") return true;
-  return isShiftPunch(kind) || kind === "mobile_work_start" || kind === "business_trip_start";
+  return isShiftPunch(kind) || isBreakPunch(kind)
+    || kind === "mobile_work_start" || kind === "business_trip_start";
 }
