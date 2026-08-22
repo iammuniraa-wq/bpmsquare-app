@@ -72,8 +72,19 @@ export async function POST(request: NextRequest) {
     console.error("face-login: search failed:", (e as Error).message);
     return NextResponse.json({ error: "Face sign-in isn't available right now." }, { status: 502 });
   }
-  if (!match || match.confidence < FACE_LOGIN_MIN_CONFIDENCE) {
+  // Every refusal below shows the client one GENERIC message (deliberate --
+  // no oracle), so the true reason is logged server-side for operators. Ids
+  // only, no personal data.
+  const refuse = (reason: string) => {
+    console.error(`face-login refused [tenant ${tenantId}]: ${reason}`);
     return NextResponse.json({ error: GENERIC }, { status: 401 });
+  };
+
+  if (!match) {
+    return refuse("no match in collection (not enrolled on this tenant, or frame unusable)");
+  }
+  if (match.confidence < FACE_LOGIN_MIN_CONFIDENCE) {
+    return refuse(`match ${match.employeeId} at ${match.confidence.toFixed(2)}% — below login bar ${FACE_LOGIN_MIN_CONFIDENCE}`);
   }
 
   // The matched employee must be active AND have a usable login for THIS
@@ -86,7 +97,7 @@ export async function POST(request: NextRequest) {
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (!employee || employee.status !== "active") {
-    return NextResponse.json({ error: GENERIC }, { status: 401 });
+    return refuse(`matched ${match.employeeId} but employee is ${employee ? employee.status : "not found in tenant"}`);
   }
 
   const { data: membership } = await admin
@@ -96,16 +107,16 @@ export async function POST(request: NextRequest) {
     .eq("employee_id", match.employeeId)
     .maybeSingle();
   if (!membership || membership.is_locked) {
-    return NextResponse.json({ error: GENERIC }, { status: 401 });
+    return refuse(`matched ${match.employeeId} but ${membership ? "login is locked" : "no login is linked to this employee"}`);
   }
   const today = new Date().toISOString().slice(0, 10);
   if ((membership.valid_from && today < membership.valid_from) || (membership.valid_to && today > membership.valid_to)) {
-    return NextResponse.json({ error: GENERIC }, { status: 401 });
+    return refuse(`matched ${match.employeeId} but membership outside validity window`);
   }
 
   const { data: userRes } = await admin.auth.admin.getUserById(membership.user_id);
   const email = userRes?.user?.email;
-  if (!email) return NextResponse.json({ error: GENERIC }, { status: 401 });
+  if (!email) return refuse(`matched ${match.employeeId} but auth user has no email`);
 
   // Mint a single-use magic-link token for this login. Same mechanism as the
   // password-reset email (api/auth/request-reset) — generateLink returns the
