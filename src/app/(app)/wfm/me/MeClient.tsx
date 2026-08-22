@@ -315,6 +315,11 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [pwMsg, setPwMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const [pkBusy, setPkBusy] = useState(false);
   const [pkMsg, setPkMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  // Bank Details tile (Profile): loaded on first expand, saved via PUT.
+  const [bank, setBank] = useState({ account_holder: "", bank_name: "", account_number: "", ifsc: "", upi_id: "" });
+  const [bankLoaded, setBankLoaded] = useState(false);
+  const [bankBusy, setBankBusy] = useState(false);
+  const [bankMsg, setBankMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   // Engagement layer (3-layer theme only): checking out at/after your
   // shift's end earns a full-shift celebration. Judged on wall-clock in
   // the tenant's timezone against the assigned shift, never on pay math.
@@ -828,6 +833,45 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     }
   }
 
+  async function loadBank() {
+    if (bankLoaded) return;
+    try {
+      const res = await fetch("/api/wfm/me/bank");
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.bank) {
+        setBank({
+          account_holder: json.bank.account_holder ?? "",
+          bank_name: json.bank.bank_name ?? "",
+          account_number: json.bank.account_number ?? "",
+          ifsc: json.bank.ifsc ?? "",
+          upi_id: json.bank.upi_id ?? "",
+        });
+      } else if (!res.ok) {
+        setBankMsg({ tone: "err", text: json.error ?? "Could not load your bank details." });
+      }
+    } catch { /* form stays editable; save will surface errors */ }
+    setBankLoaded(true);
+  }
+
+  async function saveBank() {
+    setBankBusy(true);
+    setBankMsg(null);
+    try {
+      const res = await fetch("/api/wfm/me/bank", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bank),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setBankMsg({ tone: "err", text: json.error ?? "Could not save." }); return; }
+      setBankMsg({ tone: "ok", text: "Saved." });
+    } catch {
+      setBankMsg({ tone: "err", text: "Network error — try again." });
+    } finally {
+      setBankBusy(false);
+    }
+  }
+
   async function addPasskey() {
     setPkBusy(true);
     setPkMsg(null);
@@ -1168,6 +1212,53 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
             <KV label="Full name" value={me.employee.full_name} />
             <KV label="Employee ID" value={me.employee.employee_code ?? "—"} />
             <KV label="Phone" value={me.employee.phone || "—"} />
+          </ProfileTile>
+
+          <ProfileTile
+            title="Your Bank Details"
+            subtitle="For salary — only you and your employer can see these"
+            open={openTile === "bank"}
+            onToggle={() => {
+              const opening = openTile !== "bank";
+              setOpenTile(opening ? "bank" : null);
+              if (opening) void loadBank();
+            }}
+          >
+            <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              {([
+                ["Account holder name", "account_holder", "As per your bank records", "text"],
+                ["Bank name", "bank_name", "e.g. HDFC Bank", "text"],
+                ["Account number", "account_number", "9–18 digits", "text"],
+                ["IFSC", "ifsc", "e.g. HDFC0001234", "text"],
+                ["UPI ID (optional)", "upi_id", "name@bank", "text"],
+              ] as const).map(([label, key, ph]) => (
+                <div key={key}>
+                  <label style={{ ...capStyle, marginBottom: 5 }}>{label}</label>
+                  <input
+                    type="text"
+                    inputMode={key === "account_number" ? "numeric" : undefined}
+                    value={bank[key]}
+                    onChange={(e) => setBank({ ...bank, [key]: e.target.value })}
+                    placeholder={ph}
+                    autoCapitalize={key === "ifsc" ? "characters" : "none"}
+                    autoCorrect="off"
+                    spellCheck={false}
+                    style={{ width: "100%", padding: "9px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, boxSizing: "border-box", outline: "none" }}
+                  />
+                </div>
+              ))}
+              {bankMsg && (
+                <div style={{ fontSize: 12.5, color: bankMsg.tone === "ok" ? statusInk.good : statusInk.bad }}>{bankMsg.text}</div>
+              )}
+              <div>
+                <button style={btnPrimary} disabled={bankBusy || !bankLoaded} onClick={saveBank}>
+                  {bankBusy ? "Saving…" : "Save bank details"}
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.5 }}>
+                Your account number and UPI ID are stored encrypted.
+              </div>
+            </div>
           </ProfileTile>
 
           <ProfileTile
