@@ -42,6 +42,8 @@ interface Props {
    * override (rather than a role-derived or tenant-wide default) -- shown
    * so the personalize drawer can offer a "reset to my default" action. */
   hasPersonalOverride: boolean;
+  /** First name for the greeting ("Good afternoon, Vani"); null = greeting only. */
+  userName?: string | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1160,7 +1162,7 @@ export function AdaptDrawer({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin, hasPersonalOverride }: Props) {
+export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin, hasPersonalOverride, userName }: Props) {
   const router = useRouter();
   const uiTheme = useUiTheme();
   const modern = uiTheme !== "classic";
@@ -1634,7 +1636,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <div style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 11, color: c.hint, fontWeight: 500, marginBottom: 3 }}>{todayStr()}</div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1.2 }}>{greet()}</h1>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1.2 }}>{greet()}{userName ? `, ${userName}` : ""}</h1>
         </div>
         {/* Not desk-only: on a phone the only way into the layout drawers used
             to be the empty-state button -- so a mobile user could ADD their

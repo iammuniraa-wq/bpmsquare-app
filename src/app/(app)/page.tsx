@@ -38,9 +38,19 @@ export default async function DashboardPage() {
   // default (role-derived or tenant-wide) would otherwise apply -- always
   // wins outright when set. Self-service; see /api/dashboard/layout.
   const { data: membership } = await supabase
-    .from("tenant_users").select("dashboard_layout_override").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
+    .from("tenant_users").select("dashboard_layout_override, display_name, employee_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
   const personalOverride = membership?.dashboard_layout_override as DashLayoutItem[] | null;
   if (Array.isArray(personalOverride) && personalOverride.length > 0) effectiveLayout = personalOverride;
+
+  // First name for the greeting ("Good afternoon, Vani"): the membership's
+  // display_name (set whenever a login is created from an employee), falling
+  // back to the linked employee record for older memberships without one.
+  let firstName = (membership?.display_name ?? "").trim().split(/\s+/)[0] || null;
+  if (!firstName && membership?.employee_id) {
+    const { data: emp } = await supabase
+      .from("employees").select("first_name").eq("id", membership.employee_id).eq("tenant_id", tenantId).maybeSingle();
+    firstName = emp?.first_name?.trim() || null;
+  }
 
   return (
     <DashboardLayout
@@ -55,6 +65,7 @@ export default async function DashboardPage() {
       dashLayout={effectiveLayout}
       isAdmin={role === "admin"}
       hasPersonalOverride={Array.isArray(personalOverride) && personalOverride.length > 0}
+      userName={firstName}
     />
   );
 }
