@@ -83,6 +83,10 @@ function MobileTopBar() {
 
         {/* Search + hamburger -- fixed-size icon buttons that never shrink, so
             they stay tappable regardless of how long the tenant name is. */}
+        {/* Mention inbox on mobile too -- it only rendered in the desktop bar,
+            leaving @mention notifications unreachable on a phone (2026-08-22
+            Nova audit). Self-gates on Nova like the desktop mount. */}
+        {nova && <NovaInbox />}
         <button
           onClick={() => {
             if (nova) { window.dispatchEvent(new Event("nova:open-palette")); setOpen(false); return; }

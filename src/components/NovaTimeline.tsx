@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { c } from "@/lib/theme";
+import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 
 /**
@@ -35,6 +35,11 @@ const fmtWhen = (iso: string) => {
 
 const who = (email: string | null) => (email ? email.split("@")[0] : "someone");
 
+// Tenant/theme-aware accent -- NOT c.accent (a hardcoded hex that ignores the
+// tenant color and does not remap in dark mode; the 2026-08-22 Nova audit's
+// top finding).
+const ACCENT = "var(--modern-accent, var(--accent))";
+
 function summarizeChange(ch: ChangeRow): string {
   if (ch.action === "create") return "created this record";
   if (ch.action === "delete") return "deleted this record";
@@ -53,6 +58,7 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -63,6 +69,7 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
     ]);
     if (cRes) { setComments(cRes.comments ?? []); setMentionables(cRes.mentionables ?? []); }
     if (Array.isArray(hRes)) setChanges(hRes);
+    setLoaded(true);
   }, [objectType, objectId]);
   useEffect(() => { load(); }, [load]);
 
@@ -111,7 +118,7 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
     <section style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2.5 3.5h11v7h-6l-3 2.8V10.5h-2z" fill="none" stroke={c.accent} strokeWidth="1.5" strokeLinejoin="round" />
+          <path d="M2.5 3.5h11v7h-6l-3 2.8V10.5h-2z" fill="none" stroke={ACCENT} strokeWidth="1.5" strokeLinejoin="round" />
         </svg>
         <span style={{ fontSize: 13, fontWeight: 650, color: c.ink }}>Timeline</span>
         <span style={{ fontSize: 11, color: c.hint }}>comments and every change, in one stream</span>
@@ -125,7 +132,7 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); post(); } }}
           rows={2}
-          placeholder="Write a comment — @ to mention a teammate · ⌘↵ to post"
+          placeholder={`Write a comment — @ to mention a teammate · ${typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform ?? "") ? "⌘" : "Ctrl+"}Enter to post`}
           style={{
             width: "100%", boxSizing: "border-box", resize: "vertical",
             padding: "9px 11px", borderRadius: 9, fontSize: 12.5, lineHeight: 1.5,
@@ -150,14 +157,14 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
           </div>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
-          {error && <span style={{ fontSize: 11.5, color: "#c2402f", flex: 1 }}>{error}</span>}
+          {error && <span style={{ fontSize: 11.5, color: statusInk.bad, flex: 1 }}>{error}</span>}
           <button
             onClick={post}
             disabled={posting || !draft.trim()}
             style={{
               marginLeft: "auto", border: "none", cursor: "pointer", font: "inherit",
               fontSize: 12, fontWeight: 650, color: "#fff", padding: "7px 14px", borderRadius: 8,
-              background: c.accent, opacity: posting || !draft.trim() ? .55 : 1,
+              background: ACCENT, opacity: posting || !draft.trim() ? .55 : 1,
             }}
           >
             {posting ? "Posting…" : "Comment"}
@@ -166,7 +173,13 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
       </div>
 
       {/* Stream */}
-      {entries.length === 0 ? (
+      {!loaded ? (
+        <div aria-hidden style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 2px" }}>
+          {[72, 54, 63].map((w, i) => (
+            <div key={i} style={{ height: 12, width: `${w}%`, borderRadius: 6, background: "var(--panel2)" }} />
+          ))}
+        </div>
+      ) : entries.length === 0 ? (
         <div style={{ fontSize: 12, color: c.hint, padding: "6px 2px" }}>
           Nothing yet — the first comment starts this record&apos;s story.
         </div>
@@ -181,8 +194,8 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
                 width: 24, height: 24, borderRadius: "50%", flexShrink: 0, marginTop: 1,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 9, fontWeight: 700,
-                background: en.kind === "comment" ? `color-mix(in srgb, ${c.accent} 18%, transparent)` : "var(--panel2)",
-                color: en.kind === "comment" ? c.accent : c.hint,
+                background: en.kind === "comment" ? `color-mix(in srgb, ${ACCENT} 18%, transparent)` : "var(--panel2)",
+                color: en.kind === "comment" ? ACCENT : c.hint,
               }}>
                 {en.kind === "comment"
                   ? who(en.c.author_email).slice(0, 2).toUpperCase()

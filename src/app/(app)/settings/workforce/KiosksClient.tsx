@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useFeel } from "@/components/FeelProvider";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -78,8 +79,9 @@ export default function KiosksClient() {
     }
   }
 
+  const { confirm: feelConfirm } = useFeel();
   async function deactivate(d: Device) {
-    if (!confirm(`Deactivate "${d.name}"? The tablet stops working immediately.`)) return;
+    if (!(await feelConfirm({ title: `Deactivate "${d.name}"?`, body: "The tablet stops working immediately.", confirmLabel: "Deactivate", tone: "danger" }))) return;
     setBusy(true);
     await fetch(`/api/wfm/kiosk/devices?id=${d.id}`, { method: "DELETE" });
     setBusy(false);

@@ -48,6 +48,12 @@ export type ToastOptions = {
 type FeelApi = {
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   toast: (options: ToastOptions) => void;
+  /** The deferred-destructive pattern the docblock describes, packaged:
+   *  `action` runs after `duration` ms unless the toast's Undo cancels it.
+   *  Off-flag it runs immediately (the old chrome had no undo, and §10
+   *  rule 1 forbids behaviour changes for tenants without Nova). Pending
+   *  actions flush on pagehide so leaving the app can't lose a delete. */
+  undoable: (options: { text: string; action: () => void | Promise<void>; duration?: number }) => void;
 };
 
 const FeelContext = createContext<FeelApi | null>(null);
@@ -62,6 +68,7 @@ export function useFeel(): FeelApi {
   const fallback = useRef<FeelApi>({
     confirm: async (o) => window.confirm(o.body ? `${o.title}\n\n${o.body}` : o.title),
     toast: (o) => { if (o.tone === "error") window.alert(o.text); },
+    undoable: (o) => { void o.action(); },
   });
   return ctx ?? fallback.current;
 }
@@ -98,8 +105,36 @@ export default function FeelProvider({ children }: { children: React.ReactNode }
     return new Promise<boolean>((resolve) => setPending({ ...options, resolve }));
   }, [nova]);
 
-  const api = useRef<FeelApi>({ confirm, toast });
-  api.current = { confirm, toast };
+  // Deferred destructive actions (undo toasts). Held provider-level so an
+  // in-app navigation never cancels a pending delete -- only Undo does.
+  const pendingActions = useRef(new Set<{ run: () => void }>());
+  useEffect(() => {
+    const flush = () => {
+      pendingActions.current.forEach((p) => p.run());
+      pendingActions.current.clear();
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, []);
+
+  const undoable = useCallback(({ text, action, duration = 6000 }: { text: string; action: () => void | Promise<void>; duration?: number }) => {
+    if (!nova) { void action(); return; }
+    let done = false;
+    const entry = {
+      run: () => { if (!done) { done = true; void action(); } },
+    };
+    pendingActions.current.add(entry);
+    const timer = setTimeout(() => { entry.run(); pendingActions.current.delete(entry); }, duration);
+    toast({
+      text,
+      tone: "info",
+      duration,
+      undo: () => { done = true; clearTimeout(timer); pendingActions.current.delete(entry); },
+    });
+  }, [nova, toast]);
+
+  const api = useRef<FeelApi>({ confirm, toast, undoable });
+  api.current = { confirm, toast, undoable };
 
   return (
     <FeelContext.Provider value={api.current}>

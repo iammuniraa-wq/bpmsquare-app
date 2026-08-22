@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import { celebrate } from "@/lib/celebrate";
+import { XIcon, CheckIcon } from "@/components/Icons";
+
+// Theme-aware error ink (the raw #ff8a76 failed contrast on the light panel)
+// and the Nova brand gradient, defined once.
+const ERR_INK = "var(--redink, #ff8a76)";
+const NOVA_GRADIENT = "linear-gradient(135deg, #8b6cff, #ff6fae)";
 
 /**
  * Nova pillar 2 — "paste anything, get a record". The review-first modal:
@@ -184,7 +190,11 @@ export default function NovaDraft() {
     setVals: React.Dispatch<React.SetStateAction<Record<string, string>>>
   ) {
     return (
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div className="novadraft-grid" style={{ display: "grid", gap: 10 }}>
+        <style>{`
+          .novadraft-grid { grid-template-columns: 1fr 1fr; }
+          @media (max-width: 640px) { .novadraft-grid { grid-template-columns: 1fr; } }
+        `}</style>
         {fs.map((f) => {
           const filled = !!vals[f.key]?.trim();
           // Empty optional fields collapse out of the way -- the review
@@ -193,7 +203,7 @@ export default function NovaDraft() {
           return (
             <div key={f.key} style={{ gridColumn: f.long ? "1 / -1" : "auto" }}>
               <label style={labelStyle}>
-                {f.label}{f.required && <span style={{ color: "#ff8a76" }}> *</span>}
+                {f.label}{f.required && <span style={{ color: ERR_INK }}> *</span>}
               </label>
               {f.options ? (
                 <select value={vals[f.key] ?? ""} onChange={(e) => setVals((v) => ({ ...v, [f.key]: e.target.value }))} style={inputStyle}>
@@ -251,7 +261,9 @@ export default function NovaDraft() {
             </div>
           </div>
           <button onClick={() => setOpen(false)} aria-label="Close"
-            style={{ border: "none", background: "transparent", color: "var(--sb-panel-text-dim)", fontSize: 16, cursor: "pointer", padding: 4 }}>×</button>
+            style={{ border: "none", background: "transparent", color: "var(--sb-panel-text-dim)", cursor: "pointer", padding: 4, display: "flex" }}>
+            <XIcon size={15} color="currentColor" />
+          </button>
         </div>
 
         <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -267,14 +279,14 @@ export default function NovaDraft() {
                 style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
               />
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                {error && <span style={{ fontSize: 12, color: "#ff8a76", flex: 1 }}>{error}</span>}
+                {error && <span style={{ fontSize: 12, color: ERR_INK, flex: 1 }}>{error}</span>}
                 <button
                   onClick={() => draft()}
                   disabled={phase === "drafting" || text.trim().length < 10}
                   style={{
                     marginLeft: "auto", border: "none", cursor: "pointer", font: "inherit",
                     fontSize: 12.5, fontWeight: 700, color: "#fff", padding: "9px 18px", borderRadius: 9,
-                    background: "linear-gradient(135deg, #8b6cff, #ff6fae)",
+                    background: NOVA_GRADIENT,
                     opacity: phase === "drafting" || text.trim().length < 10 ? .55 : 1,
                   }}
                 >
@@ -289,7 +301,7 @@ export default function NovaDraft() {
               {dupes.length > 0 && !createdAccount && (
                 <div style={{
                   fontSize: 12, lineHeight: 1.55, color: "var(--sb-panel-text)",
-                  background: "rgba(244,183,64,.12)", border: "1px solid rgba(244,183,64,.4)",
+                  background: "color-mix(in srgb, var(--amberink, #f4b740) 13%, transparent)", border: "1px solid color-mix(in srgb, var(--amberink, #f4b740) 40%, transparent)",
                   borderRadius: 9, padding: "10px 12px",
                   display: "flex", flexDirection: "column", gap: 6,
                 }}>
@@ -330,10 +342,12 @@ export default function NovaDraft() {
               {createdAccount ? (
                 <div style={{
                   fontSize: 12.5, fontWeight: 600, color: "var(--sb-panel-text)",
-                  background: "rgba(62,207,142,.12)", border: "1px solid rgba(62,207,142,.4)",
+                  background: "color-mix(in srgb, var(--greenink, #3ecf8e) 13%, transparent)", border: "1px solid color-mix(in srgb, var(--greenink, #3ecf8e) 40%, transparent)",
                   borderRadius: 9, padding: "9px 12px",
                 }}>
-                  ✓ Account {createdAccount.name} created — only the contact below will be retried.
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <CheckIcon size={12} color="currentColor" /> Account {createdAccount.name} created — only the contact below will be retried.
+                  </span>
                 </div>
               ) : (
                 renderGrid(fields, values, setValues)
@@ -362,7 +376,7 @@ export default function NovaDraft() {
                 Only extracted and required fields are shown — everything else stays editable after creation.
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                {error && <span style={{ fontSize: 12, color: "#ff8a76", flex: 1 }}>{error}</span>}
+                {error && <span style={{ fontSize: 12, color: ERR_INK, flex: 1 }}>{error}</span>}
                 <button
                   onClick={() => { setPhase("input"); setError(""); }}
                   disabled={phase === "creating" || !!createdAccount}
@@ -380,7 +394,7 @@ export default function NovaDraft() {
                   style={{
                     border: "none", cursor: "pointer", font: "inherit",
                     fontSize: 12.5, fontWeight: 700, color: "#fff", padding: "9px 18px", borderRadius: 9,
-                    background: "linear-gradient(135deg, #8b6cff, #ff6fae)",
+                    background: NOVA_GRADIENT,
                     opacity: phase === "creating" ? .55 : 1,
                   }}
                 >

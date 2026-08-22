@@ -61,6 +61,7 @@ export default function NovaPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [records, setRecords] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -136,12 +137,14 @@ export default function NovaPalette() {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     // A pasted paragraph is never a record name -- don't burn a search on it.
-    if (query.trim().length < 2 || query.trim().length >= 40 || query.includes("\n")) { setRecords([]); return; }
+    if (query.trim().length < 2 || query.trim().length >= 40 || query.includes("\n")) { setRecords([]); setSearching(false); return; }
+    setSearching(true);
     debounceRef.current = setTimeout(() => {
       fetch(`/api/search?q=${encodeURIComponent(query.trim())}`)
         .then((r) => r.json())
         .then((json) => setRecords(Array.isArray(json.results) ? json.results : []))
-        .catch(() => setRecords([]));
+        .catch(() => setRecords([]))
+        .finally(() => setSearching(false));
     }, DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
@@ -236,7 +239,7 @@ export default function NovaPalette() {
         <div style={{ maxHeight: "52vh", overflowY: "auto", padding: 6 }}>
           {items.length === 0 && (
             <div style={{ padding: "22px 14px", fontSize: 12.5, color: "var(--sb-panel-text-dim)", textAlign: "center" }}>
-              {query.trim().length >= 2 ? "Nothing matches — try a name, ref, or screen." : "Type to search screens, actions and records."}
+              {searching ? "Searching…" : query.trim().length >= 2 ? "Nothing matches — try a name, ref, or screen." : "Type to search screens, actions and records."}
             </div>
           )}
           {items.map((item, idx) => {

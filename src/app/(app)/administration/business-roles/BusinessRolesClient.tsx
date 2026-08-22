@@ -192,11 +192,16 @@ export default function BusinessRolesClient({ territories, features }: { territo
     if (refreshed) startEdit(refreshed);
   }
 
-  const { confirm } = useFeel();
+  const { confirm, undoable } = useFeel();
   async function remove(r: BusinessRole) {
     if (!(await confirm({ title: `Delete the "${r.name}" role?`, body: "Members holding only this role revert to full, unrestricted access.", tone: "danger" }))) return;
-    const res = await fetch(`/api/business-roles/${r.id}`, { method: "DELETE" });
-    if (res.ok) load();
+    undoable({
+      text: `Role "${r.name}" deleted`,
+      action: async () => {
+        await fetch(`/api/business-roles/${r.id}`, { method: "DELETE", keepalive: true });
+        load();
+      },
+    });
   }
 
   /** The supported way to customise a standard role: copy it, then edit the copy. */

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
+import { useFeel } from "@/components/FeelProvider";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
@@ -79,6 +80,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
 }) {
   const typeLabel = (code: string) => employmentTypes.find((t) => t.code === code)?.label ?? code;
   const isMobile = useIsMobile();
+  const { confirm: feelConfirm } = useFeel();
   const [rows, setRows] = useState<Row[]>(initial?.rows ?? []);
   const [shifts, setShifts] = useState<WfmShift[]>(initial?.shifts ?? []);
   const [sites, setSites] = useState<WfmSite[]>(initial?.sites ?? []);
@@ -121,7 +123,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   useEffect(() => { void loadFace(); }, [loadFace]);
 
   async function revokeFace(r: Row) {
-    if (!confirm(`Remove ${r.first_name}'s face enrollment? Their photos and face template are deleted.`)) return;
+    if (!(await feelConfirm({ title: `Remove ${r.first_name}'s face enrollment?`, body: "Their photos and face template are deleted.", confirmLabel: "Remove", tone: "danger" }))) return;
     await fetch(`/api/wfm/face/enrollments?employee_id=${r.id}`, { method: "DELETE" });
     void loadFace();
   }

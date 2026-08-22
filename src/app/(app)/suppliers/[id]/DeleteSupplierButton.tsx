@@ -14,13 +14,20 @@ export default function DeleteSupplierButton({ supplier }: { supplier: Supplier 
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  const { confirm, toast } = useFeel();
+  const { confirm, toast, undoable } = useFeel();
   async function handleDelete() {
-    if (!(await confirm({ title: `Delete "${supplier.name}"?`, body: "This cannot be undone.", tone: "danger" }))) return;
-    startTransition(async () => {
-      const res = await fetch(`/api/suppliers/${supplier.id}`, { method: "DELETE" });
-      if (res.ok) router.push(ROUTES.suppliers);
-      else { const j = await res.json().catch(() => ({})); toast({ text: j.error ?? "Could not delete this supplier", tone: "error" }); }
+    if (!(await confirm({ title: `Delete "${supplier.name}"?`, body: "You'll have a few seconds to undo.", tone: "danger" }))) return;
+    // Deferred delete: navigate away now, actually delete when the undo
+    // window closes. Undo cancels it before anything is destroyed.
+    startTransition(() => {
+      undoable({
+        text: `"${supplier.name}" deleted`,
+        action: async () => {
+          const res = await fetch(`/api/suppliers/${supplier.id}`, { method: "DELETE", keepalive: true });
+          if (!res.ok) { const j = await res.json().catch(() => ({})); toast({ text: j.error ?? "Could not delete this supplier", tone: "error" }); }
+        },
+      });
+      router.push(ROUTES.suppliers);
     });
   }
 

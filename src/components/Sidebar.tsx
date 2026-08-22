@@ -117,6 +117,15 @@ const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; color?: st
   [ROUTES.wfmLiveBoard]: Clock,
   [ROUTES.wfmEmployees]: Users,
   [ROUTES.wfmCorrections]: CheckIcon,
+  // Added 2026-08-22 (Nova readiness audit): these routes fell back to their
+  // NAV text/emoji glyph on Nova surfaces -- an SVG-only violation.
+  [ROUTES.standardQuotes]: FileText,
+  [ROUTES.wfmRoster]: CalendarCheck,
+  [ROUTES.wfmLeave]: CalendarCheck,
+  [ROUTES.wfmSummary]: BarChart2,
+  [ROUTES.employees]: Users,
+  [ROUTES.administration]: Gear,
+  [ROUTES.settings]: Gear,
 };
 
 // Exported so MobileTabBar draws the SAME glyph for a destination as the

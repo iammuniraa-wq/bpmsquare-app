@@ -146,11 +146,16 @@ export default function TeamPage() {
     if (res.ok) load();
   }
 
-  const { confirm } = useFeel();
+  const { confirm, undoable } = useFeel();
   async function removeMember(userId: string, email: string | null) {
-    if (!(await confirm({ title: `Remove ${email ?? "this user"} from the workspace?`, body: "They lose access immediately. Their login itself is not deleted.", confirmLabel: "Remove", tone: "danger" }))) return;
-    const res = await fetch(`/api/settings/team/${userId}`, { method: "DELETE" });
-    if (res.ok) load();
+    if (!(await confirm({ title: `Remove ${email ?? "this user"} from the workspace?`, body: "They lose access when the undo window closes. Their login itself is not deleted.", confirmLabel: "Remove", tone: "danger" }))) return;
+    undoable({
+      text: `${email ?? "Member"} removed`,
+      action: async () => {
+        await fetch(`/api/settings/team/${userId}`, { method: "DELETE", keepalive: true });
+        load();
+      },
+    });
   }
 
   return (

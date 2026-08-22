@@ -114,6 +114,11 @@ export async function POST(request: NextRequest) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+  // Same gate as GET -- §10 rule 1, no Nova surface ungated. (Was the one
+  // missing gate found by the 2026-08-22 readiness audit.)
+  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
+    return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
+  }
 
   const user = await getAuthUser();
   const email = user?.email?.toLowerCase();

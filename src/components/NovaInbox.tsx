@@ -37,6 +37,7 @@ export default function NovaInbox() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [unread, setUnread] = useState(0);
+  const [loaded, setLoaded] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -46,6 +47,7 @@ export default function NovaInbox() {
       const json = await res.json();
       setItems(json.items ?? []);
       setUnread(json.unread ?? 0);
+      setLoaded(true);
     } catch { /* stay quiet -- a bell that errors is worse than a bell that waits */ }
   }, []);
 
@@ -109,7 +111,7 @@ export default function NovaInbox() {
         {unread > 0 && (
           <span style={{
             position: "absolute", top: -4, right: -4, minWidth: 16, height: 16, padding: "0 4px",
-            borderRadius: 999, background: "#e5484d", color: "#fff",
+            borderRadius: 999, background: "var(--redink, #e5484d)", color: "#fff",
             fontSize: 9.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center",
             fontVariantNumeric: "tabular-nums",
           }}>
@@ -120,7 +122,7 @@ export default function NovaInbox() {
 
       {open && (
         <div style={{
-          position: "absolute", top: "calc(100% + 8px)", right: 0, width: 330, zIndex: 401,
+          position: "absolute", top: "calc(100% + 8px)", right: 0, width: "min(330px, calc(100vw - 24px))", zIndex: 401,
           background: "var(--sb-panel-bg)", border: "1px solid var(--sb-panel-border)", borderRadius: 12,
           boxShadow: "0 16px 44px rgba(0,0,0,.5)", overflow: "hidden",
         }}>
@@ -140,7 +142,13 @@ export default function NovaInbox() {
           </div>
 
           <div style={{ maxHeight: "58vh", overflowY: "auto" }}>
-            {items.length === 0 ? (
+            {!loaded ? (
+              <div aria-hidden style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                {[78, 62, 70].map((w, i) => (
+                  <div key={i} style={{ height: 11, width: `${w}%`, borderRadius: 6, background: "var(--sb-hover, rgba(255,255,255,.08))" }} />
+                ))}
+              </div>
+            ) : items.length === 0 ? (
               <div style={{ padding: "26px 16px", textAlign: "center", fontSize: 12, color: "var(--sb-panel-text-dim)", lineHeight: 1.6 }}>
                 Nothing for you yet.<br />
                 <span style={{ fontSize: 11 }}>When a teammate @mentions you on a record, it lands here.</span>

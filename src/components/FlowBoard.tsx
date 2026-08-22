@@ -229,7 +229,21 @@ export default function FlowBoard() {
   }
 
   if (error) return <p className="flow__error">{error}</p>;
-  if (!data) return <div className="flow__loading">Reading the pipeline…</div>;
+  if (!data) {
+    // Skeleton columns instead of a bare sentence (Nova audit: loading states).
+    return (
+      <div aria-hidden style={{ display: "flex", gap: 12, padding: "4px 2px", overflow: "hidden" }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} style={{ flex: "0 0 220px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ height: 13, width: "55%", borderRadius: 6, background: "var(--panel2)" }} />
+            {[0, 1, 2].map((j) => (
+              <div key={j} style={{ height: 58, borderRadius: 10, background: "var(--panel2)" }} />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   const viewed = new Date(at);
   const dragQuote = drag ? data.quotes.find((q) => q.id === drag.id) : null;
