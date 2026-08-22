@@ -114,12 +114,14 @@ type TimeView = "daily" | "monthly";
 
 const LEAVE_INSIGHTS_LS_KEY = "bms_wfm_leave_insights";
 
+// Attendance leads (client decision 2026-08-22): punching in and out is what
+// the page is for -- the profile hub is a tab, not the landing.
 const TABS: { key: Tab; label: string }[] = [
-  { key: "profile", label: "Home" },
   { key: "home", label: "Attendance" },
   { key: "time", label: "Time" },
-  { key: "timeline", label: "Timeline" },
   { key: "leave", label: "Leave" },
+  { key: "profile", label: "Profile" },
+  { key: "timeline", label: "Timeline" },
   { key: "calendar", label: "Calendar" },
   { key: "analytics", label: "Analytics" },
 ];
@@ -314,8 +316,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   // shift's end earns a full-shift celebration. Judged on wall-clock in
   // the tenant's timezone against the assigned shift, never on pay math.
   const celebrateShift = useIsNextgen3Layer();
-  const [tab, setTab] = useState<Tab>("profile");
+  const [tab, setTab] = useState<Tab>("home");
   const isMobile = useIsMobile();
+  // Mobile-only: the Time tab's two charts, collapsed until asked for.
+  const [showCharts, setShowCharts] = useState(false);
   const [timeView, setTimeView] = useState<TimeView>("daily");
   const [month, setMonth] = useState(thisMonth());
   const [dayFilter, setDayFilter] = useState<string | null>(null);
@@ -939,8 +943,8 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       {/* On a phone, 7 tab buttons wrap into a two-row wall. Show the four
           everyday tabs and club the rest (Timeline / Calendar / Analytics)
           into one native "More" dropdown -- one row, no wrapping. */}
-      <div style={{ display: "flex", gap: isMobile ? 5 : 7, marginBottom: 14, flexWrap: isMobile ? "nowrap" : "wrap", alignItems: "center" }}>
-        {(isMobile ? TABS.filter((t) => ["profile", "home", "time", "leave"].includes(t.key)) : TABS).map((t) => {
+      <div style={{ display: "flex", gap: isMobile ? 5 : 7, marginBottom: 14, flexWrap: isMobile ? "nowrap" : "wrap", alignItems: "center", overflowX: isMobile ? "auto" : undefined }}>
+        {(isMobile ? TABS.filter((t) => ["home", "time", "leave", "profile"].includes(t.key)) : TABS).map((t) => {
           const compact = isMobile ? { padding: "7px 10px", fontSize: 12, whiteSpace: "nowrap" as const } : {};
           return (
             <button
@@ -1278,19 +1282,28 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       {tab === "time" && (
         <>
           <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <button style={timeView === "daily" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setTimeView("daily")}>Daily — detailed</button>
-            <button style={timeView === "monthly" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setTimeView("monthly")}>Monthly summary</button>
+            <button style={timeView === "daily" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setTimeView("daily")}>{isMobile ? "Daily" : "Daily — detailed"}</button>
+            <button style={timeView === "monthly" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setTimeView("monthly")}>{isMobile ? "Monthly" : "Monthly summary"}</button>
             <input style={{ ...inp, width: "auto" }} type="month" max={thisMonth()} value={month} onChange={(e) => setMonth(e.target.value)} />
+            {isMobile && (
+              <button style={btn} onClick={() => setShowCharts((v) => !v)} aria-expanded={showCharts}>
+                {showCharts ? "Hide charts" : "Charts ▾"}
+              </button>
+            )}
           </div>
 
-          <div style={{ ...grid(300), marginBottom: 14 }}>
-            <section style={cardStyle}>
-              <Donut slices={dayMix} title="How your month is going" centerLabel="days" selected={dayFilter} onSelect={setDayFilter} />
-            </section>
-            <section style={cardStyle}>
-              <Donut slices={hoursMix} title={`Hours split — ${deductBreaks ? "breaks deducted" : "breaks included"}`} centerLabel="hours" />
-            </section>
-          </div>
+          {/* Phone: the two donuts are half a screen each -- behind a toggle,
+              so the actual daily record is the first thing on the tab. */}
+          {(!isMobile || showCharts) && (
+            <div style={{ ...grid(300), marginBottom: 14 }}>
+              <section style={cardStyle}>
+                <Donut slices={dayMix} title="How your month is going" centerLabel="days" selected={dayFilter} onSelect={setDayFilter} />
+              </section>
+              <section style={cardStyle}>
+                <Donut slices={hoursMix} title={`Hours split — ${deductBreaks ? "breaks deducted" : "breaks included"}`} centerLabel="hours" />
+              </section>
+            </div>
+          )}
 
           {timeView === "daily" && (
             <section style={{ ...cardStyle, padding: 0, marginBottom: 14, overflowX: "auto" }}>
@@ -1310,16 +1323,63 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                   <span style={{ fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>{visibleDays.length} of {elapsedDays.length}</span>
                 </div>
               </div>
+              {/* Phone: 8 columns forced a sideways scroll. Club to four --
+                  Date, In–Out (sessions on one line each), Worked, Status;
+                  break detail stays on desktop and in the charts. */}
               <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
-                    <th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th>
-                    <th style={th}>Breaks taken</th><th style={th}>Break total</th>
-                    <th style={th}>Gross</th><th style={th}>Total worked</th><th style={th}>Status</th>
+                    {isMobile ? (
+                      <>
+                        <th style={th}>Date</th><th style={th}>In – Out</th>
+                        <th style={th}>Worked</th><th style={th}>Status</th>
+                      </>
+                    ) : (
+                      <>
+                        <th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th>
+                        <th style={th}>Breaks taken</th><th style={th}>Break total</th>
+                        <th style={th}>Gross</th><th style={th}>Total worked</th><th style={th}>Status</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleDays.map((d) => (
+                  {visibleDays.map((d) => {
+                    const statusCell = (
+                      <td style={{ ...td, verticalAlign: "top" }}>
+                        {d.holiday ? <Pill label={d.holiday} tone="blue" />
+                          : d.on_leave ? <Pill label={d.on_leave.name} tone="purple" />
+                          : d.is_week_off ? <span style={{ color: c.hint }}>Week off</span>
+                          : d.incomplete ? <Pill label="Incomplete" tone="red" />
+                          : d.absent ? <Pill label="Absent" tone="red" />
+                          : d.late ? <Pill label="Late" tone="amber" />
+                          : d.punches > 0 ? <Pill label="Present" tone="green" />
+                          : <span style={{ color: c.hint }}>—</span>}
+                      </td>
+                    );
+                    if (isMobile) {
+                      return (
+                        <tr key={d.date}>
+                          <td style={{ ...td, color: c.ink, fontWeight: 600, whiteSpace: "nowrap", verticalAlign: "top" }}>{fmtDate(d.date)}</td>
+                          <td style={{ ...td, whiteSpace: "nowrap", verticalAlign: "top", fontSize: 12 }}>
+                            {d.sessions.length === 0 ? "—" : (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                {d.sessions.map((s) => (
+                                  <span key={s.in}>
+                                    {fmtTime(s.in)} – {s.out ? fmtTime(s.out) : <span style={{ color: statusInk.bad }}>missing</span>}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ ...td, whiteSpace: "nowrap", fontWeight: 700, color: c.ink, verticalAlign: "top" }}>
+                            {d.punches > 0 ? fmtHM(deductBreaks ? d.net_minutes : d.gross_minutes) : "—"}
+                          </td>
+                          {statusCell}
+                        </tr>
+                      );
+                    }
+                    return (
                     <tr key={d.date}>
                       <td style={{ ...td, color: c.ink, fontWeight: 600, whiteSpace: "nowrap", verticalAlign: "top" }}>{fmtDate(d.date)}</td>
                       <td style={{ ...td, whiteSpace: "nowrap", verticalAlign: "top" }}>
@@ -1358,28 +1418,30 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                       <td style={{ ...td, whiteSpace: "nowrap", fontWeight: 700, color: c.ink, verticalAlign: "top" }}>
                         {d.punches > 0 ? fmtHM(deductBreaks ? d.net_minutes : d.gross_minutes) : "—"}
                       </td>
-                      <td style={{ ...td, verticalAlign: "top" }}>
-                        {d.holiday ? <Pill label={d.holiday} tone="blue" />
-                          : d.on_leave ? <Pill label={d.on_leave.name} tone="purple" />
-                          : d.is_week_off ? <span style={{ color: c.hint }}>Week off</span>
-                          : d.incomplete ? <Pill label="Incomplete" tone="red" />
-                          : d.absent ? <Pill label="Absent" tone="red" />
-                          : d.late ? <Pill label="Late" tone="amber" />
-                          : d.punches > 0 ? <Pill label="Present" tone="green" />
-                          : <span style={{ color: c.hint }}>—</span>}
-                      </td>
+                      {statusCell}
                     </tr>
-                  ))}
-                  {visibleDays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={8}>{dayFilter ? `No "${dayFilter}" days this month.` : "No records this month."}</td></tr>}
+                    );
+                  })}
+                  {visibleDays.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={isMobile ? 4 : 8}>{dayFilter ? `No "${dayFilter}" days this month.` : "No records this month."}</td></tr>}
                 </tbody>
                 {monthTotals && (
                   <tfoot>
                     <tr>
-                      <td style={{ ...td, fontWeight: 700, color: c.ink }} colSpan={4}>Month total</td>
-                      <td style={{ ...td, fontWeight: 700 }}>{fmtHM(days.reduce((s, d) => s + d.break_minutes, 0))}</td>
-                      <td style={{ ...td, fontWeight: 700, color: c.muted }}>{fmtHM(days.reduce((s, d) => s + d.gross_minutes, 0))}</td>
-                      <td style={{ ...td, fontWeight: 700, color: c.ink }}>{fmtHM(monthTotals.working_minutes)}</td>
-                      <td style={td}></td>
+                      {isMobile ? (
+                        <>
+                          <td style={{ ...td, fontWeight: 700, color: c.ink }} colSpan={2}>Month total</td>
+                          <td style={{ ...td, fontWeight: 700, color: c.ink }}>{fmtHM(monthTotals.working_minutes)}</td>
+                          <td style={td}></td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ ...td, fontWeight: 700, color: c.ink }} colSpan={4}>Month total</td>
+                          <td style={{ ...td, fontWeight: 700 }}>{fmtHM(days.reduce((s, d) => s + d.break_minutes, 0))}</td>
+                          <td style={{ ...td, fontWeight: 700, color: c.muted }}>{fmtHM(days.reduce((s, d) => s + d.gross_minutes, 0))}</td>
+                          <td style={{ ...td, fontWeight: 700, color: c.ink }}>{fmtHM(monthTotals.working_minutes)}</td>
+                          <td style={td}></td>
+                        </>
+                      )}
                     </tr>
                   </tfoot>
                 )}
@@ -1388,7 +1450,9 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           )}
 
           {timeView === "monthly" && (
-            <div style={{ ...grid(200), marginBottom: 14 }}>
+            /* Phone: minmax(200px) stacked these one per row -- eight tall
+               cards. 140px puts two per row. */
+            <div style={{ ...grid(isMobile ? 140 : 200), marginBottom: 14 }}>
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Total worked</div><Stat value={fmtHM(monthTotals?.working_minutes ?? 0)} label={deductBreaks ? "breaks deducted" : "breaks not deducted"} /></section>
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Days present</div><Stat value={String(monthTotals?.days_present ?? 0)} label="days with a punch" /></section>
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Break time</div><Stat value={fmtHM(days.reduce((s, d) => s + d.break_minutes, 0))} label="total this month" /></section>
@@ -1516,7 +1580,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                 </section>
               )}
 
-              <div style={{ ...grid(200), marginBottom: 14 }}>
+              <div style={{ ...grid(isMobile ? 140 : 200), marginBottom: 14 }}>
                 {leaveBalance.map((lb) => (
                   <section key={lb.leave_type_id} style={cardStyle}>
                     <div style={capStyle}>{lb.name}</div>
@@ -1775,7 +1839,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
               </section>
             </div>
 
-            <div style={{ ...grid(200), marginBottom: 14 }}>
+            <div style={{ ...grid(isMobile ? 140 : 200), marginBottom: 14 }}>
               <section style={cardStyle}>
                 <div style={capStyle}>On-time rate</div>
                 <Stat
