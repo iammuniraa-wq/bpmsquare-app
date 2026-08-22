@@ -12,9 +12,11 @@ import { isSessionStart, isSessionEnd, type PresenceKind } from "@/lib/wfm/types
  * stretch growing live, and check-out (or "now") at the top, with the day's
  * worked total beside it.
  *
- * Height maps to elapsed time (PX_PER_HOUR), floored so it always reads as a
- * cylinder and capped at MAX so a long day can't run off the card — past the
- * cap it compresses proportionally rather than clipping.
+ * Height maps to elapsed time (PX_PER_HOUR) only for the first stretch of the
+ * day; the cap is a hard ~2in (client decision 2026-08-22 — it was growing to
+ * half a phone screen by evening). Past the cap the WHOLE day compresses
+ * proportionally into the fixed height, times and bands included, so the
+ * cylinder stays one size and never overgrows the card.
  *
  * Pure presentation: the parent owns the live clock (`now`) and the already-
  * computed worked/break minutes, so the bar and the number tick as one.
@@ -24,8 +26,8 @@ type Ev = { kind: PresenceKind; ts: string };
 type Seg = { mode: "work" | "break"; start: number; end: number; open: boolean };
 
 const PX_PER_HOUR = 44;
-const MIN_PX = 170;   // always tall enough to read as a real cylinder
-const MAX_PX = 320;
+const MIN_PX = 160;   // always tall enough to read as a real cylinder
+const MAX_PX = 192;   // hard cap: 2in at CSS 96px/in — the day scales inside it
 const RX = 48;   // cylinder radius (x)
 const RY = 14;   // cap ellipse radius (y) — the "3D" flatten
 const PAD = 10;
@@ -96,6 +98,20 @@ export default function DayColumn({
   const topC = topSeg.mode === "work" ? WORK : BREAK;
   // internal boundaries (between adjacent segments) for the liquid-layer line
   const boundaries = segs.slice(1).map((s) => yTopOf(s.start));
+
+  // With the body capped at ~2in, a many-break day can put label midpoints
+  // closer together than a label row is tall. Keep check-in and the top label
+  // always; drop a break label that would land within a row of one already
+  // placed (its pink band still shows in the cylinder).
+  const LABEL_GAP = 16;
+  const reserved: number[] = [RY, RY + bodyH];
+  const breakLabelVisible = segs.map((s) => {
+    if (s.mode !== "break") return false;
+    const mid = RY + (upFromBase(s.start) + upFromBase(s.end)) / 2;
+    if (reserved.some((r) => Math.abs(r - mid) < LABEL_GAP)) return false;
+    reserved.push(mid);
+    return true;
+  });
 
   const worked = (
     <div style={{ textAlign: isMobile ? "left" : "right", flexShrink: 0 }}>
@@ -191,7 +207,7 @@ export default function DayColumn({
       <div style={{ position: "relative", height: svgH, minWidth: 0, flex: 1 }}>
         <Label bottom={RY} dot={WORK.dot} time={t(firstIn)} text="Checked in" mobile={isMobile} />
         {segs.map((s, i) => {
-          if (s.mode !== "break") return null;
+          if (s.mode !== "break" || !breakLabelVisible[i]) return null;
           const midBottom = RY + (upFromBase(s.start) + upFromBase(s.end)) / 2;
           const mins = Math.round((s.end - s.start) / 60000);
           // Full range on desktop; just the start + duration on a phone so it
