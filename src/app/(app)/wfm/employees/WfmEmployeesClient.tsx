@@ -11,6 +11,7 @@ import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import FaceEnrollModal from "@/components/wfm/FaceEnrollModal";
 import { suggestUsername } from "@/lib/wfm/employeeLogin";
+import { useIsMobile } from "@/lib/useIsMobile";
 
 type Row = {
   id: string;
@@ -77,6 +78,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   loginMode?: "email" | "code";
 }) {
   const typeLabel = (code: string) => employmentTypes.find((t) => t.code === code)?.label ?? code;
+  const isMobile = useIsMobile();
   const [rows, setRows] = useState<Row[]>(initial?.rows ?? []);
   const [shifts, setShifts] = useState<WfmShift[]>(initial?.shifts ?? []);
   const [sites, setSites] = useState<WfmSite[]>(initial?.sites ?? []);
@@ -375,24 +377,27 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
             + New employee
           </button>
         </div>
-        <div style={{ display: "flex", gap: 8, padding: "10px 12px", borderBottom: `1px solid ${c.line}`, flexWrap: "wrap", alignItems: "center" }}>
+        {/* Phone: search on its own line, then the three filters SHARE one
+            compact row (each flex:1) -- stacked full-width selects were
+            pushing the table itself below the fold. Desktop unchanged. */}
+        <div style={{ display: "flex", gap: isMobile ? 6 : 8, padding: "10px 12px", borderBottom: `1px solid ${c.line}`, flexWrap: "wrap", alignItems: "center" }}>
           <input
-            style={{ ...inp, flex: "1 1 200px", maxWidth: 280 }}
+            style={{ ...inp, flex: isMobile ? "1 1 100%" : "1 1 200px", maxWidth: isMobile ? undefined : 280 }}
             placeholder="Search name, code or phone…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <select style={{ ...inp, width: "auto" }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select style={{ ...inp, ...(isMobile ? { flex: "1 1 0", minWidth: 0, fontSize: 12, padding: "8px 6px" } : { width: "auto" }) }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="active">Active only</option>
             <option value="inactive">Inactive only</option>
             <option value="">All statuses</option>
           </select>
-          <select style={{ ...inp, width: "auto" }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+          <select style={{ ...inp, ...(isMobile ? { flex: "1 1 0", minWidth: 0, fontSize: 12, padding: "8px 6px" } : { width: "auto" }) }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
             <option value="">All roles</option>
             <option value="supervisor">Supervisors</option>
             <option value="employee">Employees</option>
           </select>
-          <select style={{ ...inp, width: "auto" }} value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
+          <select style={{ ...inp, ...(isMobile ? { flex: "1 1 0", minWidth: 0, fontSize: 12, padding: "8px 6px" } : { width: "auto" }) }} value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
             <option value="">All sites</option>
             {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>

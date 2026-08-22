@@ -5,6 +5,7 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { useIsMobile } from "@/lib/useIsMobile";
 
 /**
  * Attendance summary on the dashboard, for a supervisor.
@@ -74,6 +75,7 @@ export default function WfmSummaryWidget() {
   // just isn't for them, so it removes itself.
   const [forbidden, setForbidden] = useState(false);
   const [page, setPage] = useState(1);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     try { setOpen(localStorage.getItem(OPEN_KEY) === "1"); } catch { /* private mode */ }
@@ -163,9 +165,11 @@ export default function WfmSummaryWidget() {
       >
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: c.ink }}>Attendance summary</span>
-          <span style={{ display: "block", fontSize: 11.5, color: c.muted, marginTop: 2 }}>
-            Any day or month, for everyone you supervise
-          </span>
+          {!isMobile && (
+            <span style={{ display: "block", fontSize: 11.5, color: c.muted, marginTop: 2 }}>
+              Any day or month, for everyone you supervise
+            </span>
+          )}
         </span>
         <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"
           style={{ flexShrink: 0, transition: "transform .2s", transform: open ? "rotate(180deg)" : undefined }}>
@@ -220,10 +224,10 @@ export default function WfmSummaryWidget() {
               href={`/api/wfm/summary/export?month=${month}`}
               style={{
                 marginLeft: "auto", padding: "7px 13px", borderRadius: 8, textDecoration: "none",
-                fontSize: 12.5, fontWeight: 650, color: c.ink, border: `1px solid ${c.line}`,
+                fontSize: 12.5, fontWeight: 650, color: c.ink, border: `1px solid ${c.line}`, whiteSpace: "nowrap",
               }}
             >
-              ↓ Export to Excel
+              {isMobile ? "↓ Excel" : "↓ Export to Excel"}
             </a>
           </div>
 
@@ -232,17 +236,32 @@ export default function WfmSummaryWidget() {
 
           {!loading && !error && rows && (
             <>
-              <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 10 }}>
-                {(view === "day"
+              {(() => {
+                const stats: [string, string][] = view === "day"
                   ? [["Present", String(dayPresent)], ["Hours", hm(dayMinutes)], ["Records", String(dayRows.length)]]
-                  : [["Days present", String(monthTotals.present)], ["Hours", hm(monthTotals.minutes)], ["Overtime", hm(monthTotals.ot)], ["Late marks", String(monthTotals.late)]]
-                ).map(([label, value]) => (
-                  <div key={label}>
-                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: c.hint }}>{label}</div>
-                    <div style={{ fontSize: 17, fontWeight: 750, color: c.ink, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+                  : [["Days present", String(monthTotals.present)], ["Hours", hm(monthTotals.minutes)], ["Overtime", hm(monthTotals.ot)], ["Late marks", String(monthTotals.late)]];
+                // Phone: one quiet inline line instead of a stat-tile row --
+                // the header block was pushing the actual table below the fold.
+                return isMobile ? (
+                  <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 10, fontVariantNumeric: "tabular-nums" }}>
+                    {stats.map(([label, value], i) => (
+                      <span key={label}>
+                        {i > 0 && <span style={{ opacity: 0.5 }}> · </span>}
+                        {label} <strong style={{ color: c.ink }}>{value}</strong>
+                      </span>
+                    ))}
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 10 }}>
+                    {stats.map(([label, value]) => (
+                      <div key={label}>
+                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: c.hint }}>{label}</div>
+                        <div style={{ fontSize: 17, fontWeight: 750, color: c.ink, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
 
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
