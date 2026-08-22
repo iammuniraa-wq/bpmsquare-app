@@ -89,4 +89,7 @@ export type SearchResult = {
   /** Which field matched -- shown as a small hint, e.g. "phone" for a PII
    * fallback match that wouldn't otherwise be obvious from title/subtitle. */
   matched: string;
+  /** Row creation time -- lets the palette sort a category's expanded list
+   * newest-first. Optional: legacy callers and odd tables may omit it. */
+  created_at?: string | null;
 };

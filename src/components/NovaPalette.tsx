@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { NAV, ROUTES } from "@/lib/constants";
 import type { NavItem } from "@/lib/constants";
 import type { SearchResult } from "@/lib/globalSearch";
+import { getSearchObject } from "@/lib/globalSearch";
 import { useTenant, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/tenant-context";
 
 /**
@@ -23,7 +24,11 @@ import { useTenant, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/ten
 type Item =
   | { kind: "nav"; label: string; sub: string; href: string }
   | { kind: "create"; label: string; sub: string; href: string; event?: string }
-  | { kind: "record"; label: string; sub: string; href: string; matched: string };
+  | { kind: "record"; label: string; sub: string; href: string; matched: string }
+  // A record CATEGORY header (client request 2026-08-22): results group by
+  // object type instead of one long mixed list; the arrow expands that
+  // category, newest-first. Enter/click toggles -- it never closes the palette.
+  | { kind: "group"; label: string; sub: string; href: string; type: string; expanded: boolean };
 
 const CREATE_ACTIONS: { label: string; href: string; featureKey: string }[] = [
   { label: "New Account",   href: "/accounts/new",    featureKey: "accounts" },
@@ -35,7 +40,7 @@ const CREATE_ACTIONS: { label: string; href: string; featureKey: string }[] = [
 ];
 
 const SECTION_LABEL: Record<Item["kind"], string> = {
-  nav: "Go to", create: "Create", record: "Records",
+  nav: "Go to", create: "Create", record: "Records", group: "Records",
 };
 
 const DEBOUNCE_MS = 250;
@@ -62,6 +67,9 @@ export default function NovaPalette() {
   const [query, setQuery] = useState("");
   const [records, setRecords] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  // Which record categories are expanded; resets with each new query.
+  const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
+  useEffect(() => { setExpandedTypes(new Set()); }, [query]);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -159,18 +167,49 @@ export default function NovaPalette() {
     const statics = q
       ? universe.filter((i) => i.label.toLowerCase().includes(q) || i.sub.toLowerCase().includes(q))
       : universe.slice(0, 12);
-    const recs: Item[] = records.map((r) => ({
-      kind: "record", label: r.title, sub: r.subtitle || r.type, href: r.href, matched: r.matched,
-    }));
+    // Group records by object type, in order of first appearance (which is
+    // relevance order). One category alone is auto-expanded -- a header with
+    // nothing under it would just be a click tax.
+    const groups = new Map<string, SearchResult[]>();
+    for (const r of records) {
+      const list = groups.get(r.type);
+      if (list) list.push(r); else groups.set(r.type, [r]);
+    }
+    const recs: Item[] = [];
+    for (const [type, list] of groups) {
+      const label = getSearchObject(type)?.label ?? type;
+      const isOpen = expandedTypes.has(type) || groups.size === 1;
+      recs.push({
+        kind: "group", type, label, expanded: isOpen, href: `@group-${type}`,
+        sub: `${list.length} result${list.length === 1 ? "" : "s"}`,
+      });
+      if (isOpen) {
+        const sorted = [...list].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+        for (const r of sorted) {
+          recs.push({ kind: "record", label: r.title, sub: r.subtitle || r.type, href: r.href, matched: r.matched });
+        }
+      }
+    }
     const draftOffer: Item[] = pastedContent && features?.accounts === true
       ? [{ kind: "create", label: "Draft an account from this text", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft" }]
       : [];
-    return [...draftOffer, ...statics.slice(0, 10), ...recs.slice(0, 8)];
-  }, [query, universe, records, pastedContent, features?.accounts]);
+    return [...draftOffer, ...statics.slice(0, 10), ...recs.slice(0, 40)];
+  }, [query, universe, records, pastedContent, features?.accounts, expandedTypes]);
 
-  useEffect(() => { setActive(0); }, [items.length, query]);
+  // New query -> highlight back to the top; a mere expand/collapse only
+  // clamps, so the cursor stays where the user was.
+  useEffect(() => { setActive(0); }, [query]);
+  useEffect(() => { setActive((a) => Math.max(0, Math.min(a, items.length - 1))); }, [items.length]);
 
   const go = useCallback((item: Item) => {
+    if (item.kind === "group") {
+      setExpandedTypes((prev) => {
+        const next = new Set(prev);
+        if (next.has(item.type)) next.delete(item.type); else next.add(item.type);
+        return next;
+      });
+      return;
+    }
     setOpen(false);
     if (item.kind === "create" && item.event) {
       // Pasted content travels with the event so the draft modal starts
@@ -191,8 +230,9 @@ export default function NovaPalette() {
 
   if (!open) return null;
 
-  // Section headers appear when the kind changes between consecutive rows.
-  let lastKind: Item["kind"] | null = null;
+  // Section headers appear when the SECTION changes between consecutive rows
+  // (group + record rows share the "Records" section).
+  let lastSection: string | null = null;
 
   return (
     <div
@@ -243,9 +283,10 @@ export default function NovaPalette() {
             </div>
           )}
           {items.map((item, idx) => {
-            const showHeader = item.kind !== lastKind;
-            lastKind = item.kind;
+            const showHeader = SECTION_LABEL[item.kind] !== lastSection;
+            lastSection = SECTION_LABEL[item.kind];
             const isActive = idx === active;
+            const isGroup = item.kind === "group";
             return (
               <div key={`${item.kind}-${item.href}-${idx}`}>
                 {showHeader && (
@@ -267,10 +308,14 @@ export default function NovaPalette() {
                     color: "var(--sb-panel-text)",
                   }}
                 >
-                  <span style={{ color: isActive ? "var(--modern-accent, var(--accent))" : "var(--sb-panel-text-dim)", display: "flex" }}>
+                  <span style={{
+                    color: isActive ? "var(--modern-accent, var(--accent))" : "var(--sb-panel-text-dim)", display: "flex",
+                    marginLeft: item.kind === "record" ? 14 : 0,
+                    transform: isGroup && item.expanded ? "rotate(90deg)" : undefined, transition: "transform .12s",
+                  }}>
                     <Icon d={item.kind === "create" ? ICON_ADD : item.kind === "record" ? ICON_DOC : ICON_NAV} />
                   </span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: 550 }}>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: isGroup ? 700 : 550 }}>
                     {item.label}
                   </span>
                   <span style={{ fontSize: 10.5, color: "var(--sb-panel-text-dim)", flexShrink: 0, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

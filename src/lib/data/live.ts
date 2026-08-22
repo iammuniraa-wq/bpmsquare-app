@@ -2165,13 +2165,15 @@ export async function globalSearchLive(
   const byType = await Promise.all(
     specs.map(async (spec): Promise<SearchResult[]> => {
       const orFilter = spec.textCols.map((col) => `${col}.ilike.%${term}%`).join(",");
+      // created_at is appended generically (no spec selects it itself) so the
+      // palette can sort an expanded category newest-first.
       const { data } = await supabase
         .from(spec.table)
-        .select(spec.columns)
+        .select(`${spec.columns}, created_at`)
         .eq("tenant_id", tenantId)
         .or(orFilter)
         .limit(perTypeLimit);
-      return (data ?? []).map((r) => ({ type: spec.type, ...spec.toResult(r) }));
+      return (data ?? []).map((r) => ({ type: spec.type, ...spec.toResult(r), created_at: (r as { created_at?: string }).created_at ?? null }));
     })
   );
   const results = byType.flat();
@@ -2183,14 +2185,14 @@ export async function globalSearchLive(
     if ((!objectType || objectType === "account") && typeAllowed("account")) {
       const { data: accountRows } = await supabase
         .from("accounts")
-        .select("id, name, city, type, phone, phone2, email, email2")
+        .select("id, name, city, type, phone, phone2, email, email2, created_at")
         .eq("tenant_id", tenantId);
-      for (const row of (accountRows ?? []) as Account[]) {
+      for (const row of (accountRows ?? []) as unknown as Account[]) {
         if (seen.has(`account:${row.id}`)) continue;
         const a = decryptAccount(row);
         const hit = [a.phone, a.phone2, a.email, a.email2].some((v) => v?.toLowerCase().includes(lowerTerm));
         if (hit) {
-          results.push({ type: "account", id: a.id, title: a.name, subtitle: [a.city, a.type].filter(Boolean).join(" · ") || "Account", href: ROUTES.account(a.id), matched: "phone/email" });
+          results.push({ type: "account", id: a.id, title: a.name, subtitle: [a.city, a.type].filter(Boolean).join(" · ") || "Account", href: ROUTES.account(a.id), matched: "phone/email", created_at: (row as { created_at?: string }).created_at ?? null });
           seen.add(`account:${a.id}`);
         }
       }
@@ -2199,14 +2201,14 @@ export async function globalSearchLive(
     if ((!objectType || objectType === "contact") && typeAllowed("contact")) {
       const { data: contactRows } = await supabase
         .from("contacts")
-        .select("id, name, role, phone, phone2, phone3, email, email2")
+        .select("id, name, role, phone, phone2, phone3, email, email2, created_at")
         .eq("tenant_id", tenantId);
-      for (const row of (contactRows ?? []) as Contact[]) {
+      for (const row of (contactRows ?? []) as unknown as Contact[]) {
         if (seen.has(`contact:${row.id}`)) continue;
         const ct = decryptContact(row);
         const hit = [ct.phone, ct.phone2, ct.phone3, ct.email, ct.email2].some((v) => v?.toLowerCase().includes(lowerTerm));
         if (hit) {
-          results.push({ type: "contact", id: ct.id, title: ct.name, subtitle: ct.role || "Contact", href: ROUTES.contact(ct.id), matched: "phone/email" });
+          results.push({ type: "contact", id: ct.id, title: ct.name, subtitle: ct.role || "Contact", href: ROUTES.contact(ct.id), matched: "phone/email", created_at: (row as { created_at?: string }).created_at ?? null });
           seen.add(`contact:${ct.id}`);
         }
       }
