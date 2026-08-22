@@ -38,6 +38,7 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   inventory: "inventory",
   users: null,
   employees: null,
+  products: "product",
 };
 
 export type ReferenceFieldDef = {
@@ -106,6 +107,7 @@ const REQUIRED_KEYS: Partial<Record<ImportObjectId, string[]>> = {
   purchase_orders: [],
   inventory: ["name"],
   users: ["name", "email", "role"],
+  products: ["name"],
 };
 
 /** Quote line items — fixed shape, one row per line, never tenant-customizable. */
@@ -159,6 +161,7 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   invoices: { label: "Invoices", icon: "⊟", description: "Billing documents against a quote or work order", dependsOn: ["accounts", "contacts", "quotes", "work_orders"] },
   purchase_orders: { label: "Purchase Orders", icon: "◫", description: "Orders placed with suppliers", dependsOn: ["suppliers", "quotes"] },
   inventory: { label: "Inventory", icon: "◧", description: "Stocked parts and spares", dependsOn: ["suppliers"] },
+  products: { label: "Products", icon: "▩", description: "Sellable catalog — goods and service plans with list/cost prices", dependsOn: [] },
   users: { label: "Users", icon: "◍", description: "Invite team members and assign roles — each person receives an email invite", dependsOn: [] },
   // Never read -- employees is null in REGISTRY_OBJECT_TYPE (static spec,
   // same as users/quote_lines). Present only for the Record type.

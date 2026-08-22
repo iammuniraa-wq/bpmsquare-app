@@ -73,6 +73,19 @@ const INVENTORY_FIELDS: QueryableField[] = [
   { path: "status", type: "string" },
 ];
 
+const PRODUCT_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "sku", type: "string", searchable: true },
+  { path: "name", type: "string", searchable: true },
+  { path: "description", type: "string", searchable: true },
+  { path: "category", type: "string", searchable: true },
+  { path: "uom", type: "string" },
+  { path: "list_price", type: "number" },
+  { path: "tax_percent", type: "number" },
+  { path: "status", type: "string" },
+];
+
 const EMPLOYEE_FIELDS: QueryableField[] = [
   { path: "id", type: "string" },
   { path: "employee_code", type: "string", searchable: true },
@@ -173,6 +186,23 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         uom: i.uom, qty_on_hand: i.qty_on_hand, reorder_level: i.reorder_level, unit_cost: i.unit_cost,
         supplier_id: i.supplier_id, status: i.status, custom_data: i.custom_data,
         _links: { self: `/api/v1/inventory/${i.id}` },
+      }));
+    },
+  },
+  products: {
+    label: "Products (sellable catalog)",
+    fields: PRODUCT_FIELDS,
+    load: async (tenantId) => {
+      // cost_price is INTERNAL (margin data) and deliberately not selected --
+      // no API consumer, whatever its scope, receives it.
+      const { data } = await createAdminSupabase()
+        .from("products")
+        .select("id, ref, sku, name, description, category, uom, list_price, tax_percent, status, custom_data")
+        .eq("tenant_id", tenantId)
+        .order("name");
+      return (data ?? []).map((p) => ({
+        ...p,
+        _links: { self: `/api/v1/products/${p.id}` },
       }));
     },
   },

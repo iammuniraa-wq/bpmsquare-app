@@ -338,6 +338,16 @@ deploy for an automatic schema change.
   The face-punch feature itself still waits on the FACE_AWS_* env vars
   in Vercel (AWS key generation in progress as of 2026-08-20) — until
   they exist, enrollment/kiosk return a clear "not configured" message.
+- 0095–0097 (passkeys, bank details, broadcasts/approvals) — **applied to
+  both DBs** (owner confirmed "SQL is executed" 2026-08-22).
+- **0098_products.sql — PENDING on both DBs** (written 2026-08-22): the
+  `products` table (catalog master data, RLS + tenant isolation, PRD-
+  refs, custom_data) plus `quote_lines.product_id`. Until it runs, the
+  Products module degrades cleanly (empty lists / hidden by the
+  `products` feature flag, which no tenant has yet).
+- **scripts/seed-products-demo.sql — PENDING, run AFTER 0098** (dev DB
+  at minimum): seeds 10 elevator-business sample products into every
+  `is_demo` tenant and flips its `features.products` on. Idempotent.
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;
@@ -345,7 +355,7 @@ deploy for an automatic schema change.
   **Flow Board** derives entirely from existing `change_log` + `quotes`
   rows. Fog of War was the same — it reads `accounts.territory` against
   the tenant's Sales-config picklist.
-- Next migration will be **0092**, and the first thing likely to need one
+- Next migration will be **0099**; the first thing likely to need one
   is the Opportunity object (see the Nova queue's forecast constraint —
   `quotes.opportunity_id` has to land in that same migration).
 - (Historical: 0080–0085 were run at the 2026-08-18 promotion; the dev

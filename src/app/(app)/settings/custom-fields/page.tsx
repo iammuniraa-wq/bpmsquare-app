@@ -10,7 +10,7 @@ import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantFeatures } from "@/lib/constants";
 
-type ObjectType = "account" | "contact" | "case" | "quote" | "work_order" | "asset" | "supplier" | "inventory" | "purchase_order" | "invoice" | "employee";
+type ObjectType = "account" | "contact" | "case" | "quote" | "work_order" | "asset" | "supplier" | "inventory" | "purchase_order" | "invoice" | "employee" | "product";
 type FieldType = "text" | "number" | "date" | "select" | "checkbox" | "textarea";
 
 interface CustomField {
@@ -35,6 +35,7 @@ const OBJECTS: { key: ObjectType; label: string; icon: string; featureKey: keyof
   { key: "work_order", label: "Work Order", icon: "▤", featureKey: "work_orders" },
   { key: "asset",      label: "Asset",      icon: "◧", featureKey: "assets" },
   { key: "supplier",       label: "Supplier",        icon: "◫", featureKey: "suppliers" },
+  { key: "product",        label: "Product",         icon: "▩", featureKey: "products" },
   { key: "inventory",      label: "Inventory",       icon: "▨", featureKey: "purchasing" },
   { key: "purchase_order", label: "Purchase Order",  icon: "⇱", featureKey: "purchasing" },
   { key: "invoice",        label: "Invoice",         icon: "⊟", featureKey: "invoices" },

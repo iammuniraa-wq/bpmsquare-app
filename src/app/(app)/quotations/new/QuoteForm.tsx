@@ -88,9 +88,11 @@ type LineItem = {
   category: PricingCategory | ""; deduction: string;
   group_id?: string | null; group_label?: string | null;
   inventory_item_id?: string | null;
+  product_id?: string | null;
 };
 
 type InventoryOption = { id: string; sku: string | null; name: string; uom: string; unit_cost: number | null; qty_on_hand: number };
+export type ProductOption = { id: string; sku: string | null; name: string; uom: string | null; list_price: number | null; category: string | null };
 type GroupRow = {
   kind: "group"; id: string; label: string; group_description: string;
   items: LineItem[]; group_type: "additive" | "alternative";
@@ -138,6 +140,7 @@ function editLinesToRows(lines: QuoteLine[]): Row[] {
       qty: String(l.qty), rate: String(l.rate), discount: String(l.discount_pct ?? 0),
       category: (l.category as PricingCategory) ?? "", deduction: String(l.deduction ?? 0),
       inventory_item_id: l.inventory_item_id ?? null,
+      product_id: l.product_id ?? null,
     };
     if (l.group_id) {
       let idx = groupIndex.get(l.group_id);
@@ -167,6 +170,7 @@ type Props = {
   assets: Asset[];
   pricingItems: PricingItem[];
   inventoryItems?: InventoryOption[];
+  products?: ProductOption[];
   textFragments: TextFragment[];
   offerType: import("@/lib/types").QuoteOfferType;
   tenantEntities: TenantEntity[];
@@ -177,7 +181,7 @@ type Props = {
   editQuote?: EditQuoteData;
 };
 
-export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], textFragments, offerType, tenantEntities, isAdmin, editQuote }: Props) {
+export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], products = [], textFragments, offerType, tenantEntities, isAdmin, editQuote }: Props) {
   const router = useRouter();
   const eq = editQuote?.quote;
   const isTechnical = offerType === "technical";
@@ -331,7 +335,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   // UI panels
   const [catalogOpen, setCatalogOpen]     = useState(false);
   const [catalogTarget, setCatalogTarget] = useState<string | null>(null);
-  const [catalogCat, setCatalogCat]       = useState<PricingCategory | "" | "inventory">("");
+  const [catalogCat, setCatalogCat]       = useState<PricingCategory | "" | "inventory" | "products">("");
   const [fragTarget, setFragTarget]       = useState<"notes" | "terms" | null>(null);
   const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set());
   const toggleDesc = (id: string) => setExpandedDescs((prev) => {
@@ -738,7 +742,25 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     if (catalogTarget) { updateLine(catalogTarget, "description", item.description); updateLine(catalogTarget, "rate", String(item.rate)); }
     setCatalogOpen(false); setCatalogTarget(null);
   };
-  const filteredCatalog = catalogCat && catalogCat !== "inventory" ? pricingItems.filter((p) => p.category === catalogCat) : pricingItems;
+  const filteredCatalog = catalogCat && catalogCat !== "inventory" && catalogCat !== "products" ? pricingItems.filter((p) => p.category === catalogCat) : pricingItems;
+  const insertProduct = (item: ProductOption) => {
+    const target = catalogTarget;
+    const desc = item.sku ? `${item.name} (${item.sku})` : item.name;
+    if (target) {
+      setRows((p) => p.map((r) => {
+        if (r.kind === "line" && r.id === target) {
+          return { ...r, description: desc, uom: item.uom ?? r.uom, rate: item.list_price != null ? String(item.list_price) : r.rate, product_id: item.id };
+        }
+        if (r.kind === "group") {
+          return { ...r, items: r.items.map((i) => i.id === target
+            ? { ...i, description: desc, uom: item.uom ?? i.uom, rate: item.list_price != null ? String(item.list_price) : i.rate, product_id: item.id }
+            : i) };
+        }
+        return r;
+      }));
+    }
+    setCatalogOpen(false); setCatalogTarget(null);
+  };
   const insertInventoryItem = (item: InventoryOption) => {
     const target = catalogTarget;
     if (target) {
@@ -784,11 +806,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         sl_no: string | null; description: string; uom: string; qty: string; rate: string;
         discount_pct: number; group_id: string | null; group_label: string | null;
         group_type: string | null; group_description: string | null;
-        category: PricingCategory | null; deduction: number; inventory_item_id: string | null;
+        category: PricingCategory | null; deduction: number; inventory_item_id: string | null; product_id: string | null;
       }[] =>
         r.kind === "line"
-          ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null, category: r.category || null, deduction: r.category === "material" ? Math.max(0, parseFloat(r.deduction) || 0) : 0, inventory_item_id: r.inventory_item_id ?? null }]
-          : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null, category: i.category || null, deduction: i.category === "material" ? Math.max(0, parseFloat(i.deduction) || 0) : 0, inventory_item_id: i.inventory_item_id ?? null }))
+          ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null, category: r.category || null, deduction: r.category === "material" ? Math.max(0, parseFloat(r.deduction) || 0) : 0, inventory_item_id: r.inventory_item_id ?? null, product_id: r.product_id ?? null }]
+          : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null, category: i.category || null, deduction: i.category === "material" ? Math.max(0, parseFloat(i.deduction) || 0) : 0, inventory_item_id: i.inventory_item_id ?? null, product_id: i.product_id ?? null }))
       );
 
       const url = editQuote ? `/api/quotes/${editQuote.quote.id}/edit` : "/api/quotes";
@@ -1511,13 +1533,30 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               <button onClick={() => setCatalogOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: c.muted, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
             <div style={{ display: "flex", gap: 6, padding: "12px 16px", borderBottom: `1px solid ${c.line}`, flexWrap: "wrap" }}>
-              {(["", "labour", "material", "testing", "transport", ...(inventoryItems.length > 0 ? ["inventory" as const] : [])] as const).map((cat) => (
+              {(["", "labour", "material", "testing", "transport", ...(products.length > 0 ? ["products" as const] : []), ...(inventoryItems.length > 0 ? ["inventory" as const] : [])] as const).map((cat) => (
                 <button key={cat} onClick={() => setCatalogCat(cat)} style={{ fontSize: 11.5, padding: "4px 10px", borderRadius: 20, border: "none", cursor: "pointer", fontWeight: 600, background: catalogCat === cat ? c.accent : c.panel2, color: catalogCat === cat ? "#fff" : c.muted }}>
-                  {cat === "" ? "All" : cat === "inventory" ? "Inventory" : CAT_LABEL[cat as PricingCategory]}
+                  {cat === "" ? "All" : cat === "inventory" ? "Inventory" : cat === "products" ? "Products" : CAT_LABEL[cat as PricingCategory]}
                 </button>
               ))}
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+              {catalogCat === "products" && (
+                <div>
+                  <div style={{ padding: "8px 20px 4px", fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.08em" }}>Products</div>
+                  {products.length === 0 ? (
+                    <div style={{ padding: "10px 20px", fontSize: 12, color: c.hint }}>No products yet.</div>
+                  ) : products.map((item) => (
+                    <button key={item.id} onClick={() => insertProduct(item)} style={{ width: "100%", textAlign: "left", padding: "10px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: `1px solid ${c.line}` }} onMouseEnter={(e) => (e.currentTarget.style.background = c.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
+                      <div style={{ fontSize: 12.5, color: c.ink, fontWeight: 500, lineHeight: 1.4 }}>{item.name}{item.sku ? ` (${item.sku})` : ""}</div>
+                      <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>{item.list_price != null ? `₹${item.list_price.toLocaleString("en-IN")}` : "—"}</span>
+                        {item.uom && <span style={{ fontSize: 11, color: c.hint }}>/ {item.uom}</span>}
+                        {item.category && <span style={{ fontSize: 11, color: c.hint }}>· {item.category}</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
               {catalogCat === "inventory" && (
                 <div>
                   <div style={{ padding: "8px 20px 4px", fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.08em" }}>Inventory</div>

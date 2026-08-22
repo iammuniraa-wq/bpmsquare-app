@@ -26,6 +26,7 @@ const OBJECTS: Record<string, string> = {
   invoices: "invoices",
   assets: "assets",
   suppliers: "suppliers",
+  products: "products",
   inventory: "inventory_items",
   purchase_orders: "purchase_orders",
   employees: "employees",

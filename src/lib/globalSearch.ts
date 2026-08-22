@@ -8,7 +8,7 @@ import type { WorkcenterKey, ViewableWorkcenters } from "./workcenters";
 export type SearchObjectType =
   | "account" | "contact" | "asset" | "case" | "quote"
   | "work_order" | "purchase_order" | "invoice" | "inventory_item"
-  | "supplier" | "lead" | "employee";
+  | "supplier" | "lead" | "employee" | "product";
 
 export type SearchObjectDef = {
   type: SearchObjectType;
@@ -43,6 +43,7 @@ export const SEARCH_OBJECTS: SearchObjectDef[] = [
   { type: "asset", label: "Assets", icon: "⚙", featureKeys: ["assets"], workcenters: ["assets"] },
   { type: "inventory_item", label: "Inventory", icon: "▧", featureKeys: ["purchasing"], workcenters: ["inventory"] },
   { type: "supplier", label: "Suppliers", icon: "⌂", featureKeys: ["suppliers"], workcenters: ["suppliers"] },
+  { type: "product", label: "Products", icon: "▩", featureKeys: ["products"], workcenters: ["products"] },
   { type: "lead", label: "Leads", icon: "✦", featureKeys: ["leads"], workcenters: ["leads"] },
   // Workforce: visible via the Employees master-data grant, or to WFM
   // supervisors (whose access comes from wfm canEdit / employee record, not

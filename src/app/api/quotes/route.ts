@@ -143,8 +143,27 @@ export async function POST(request: NextRequest) {
           category:          l.category          ?? null,
           deduction:         l.category === "material" ? Math.max(0, parseFloat(l.deduction) || 0) : 0,
           inventory_item_id: l.inventory_item_id  ?? null,
+          product_id:        l.product_id         ?? null,
         };
       });
+    // Line-level inventory/product references are foreign ids from the body
+    // like any other -- verify they belong to this tenant before writing.
+    // (The edit route already did this for inventory; create didn't -- the
+    // sibling gap MULTI_TENANT_GUARDRAILS tells us to close in the same pass.)
+    const invIds = [...new Set(lineRows.map((l) => l.inventory_item_id).filter((x): x is string => typeof x === "string"))];
+    if (invIds.length > 0) {
+      const { data: invRows } = await supabase.from("inventory_items").select("id").in("id", invIds).eq("tenant_id", tenantId);
+      if (!invRows || invRows.length !== invIds.length) {
+        return NextResponse.json({ error: "One or more inventory items were not found" }, { status: 404 });
+      }
+    }
+    const prodIds = [...new Set(lineRows.map((l) => l.product_id).filter((x): x is string => typeof x === "string"))];
+    if (prodIds.length > 0) {
+      const { data: prodRows } = await supabase.from("products").select("id").in("id", prodIds).eq("tenant_id", tenantId);
+      if (!prodRows || prodRows.length !== prodIds.length) {
+        return NextResponse.json({ error: "One or more products were not found" }, { status: 404 });
+      }
+    }
     if (lineRows.length > 0) {
       const { error: lErr } = await supabase.from("quote_lines").insert(lineRows);
       if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 });

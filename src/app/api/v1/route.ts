@@ -41,6 +41,8 @@ export async function GET(req: Request) {
       "GET /api/v1/inventory/:id":        "Inventory item detail with transaction history",
       "GET /api/v1/invoices":             "List invoices",
       "GET /api/v1/invoices/:id":         "Invoice detail with line items and payments",
+      "GET /api/v1/products":             "List products (sellable catalog; list price, tax, category)",
+      "GET /api/v1/products/:id":         "Product detail",
       "GET /api/v1/purchase-orders":      "List purchase orders",
       "GET /api/v1/purchase-orders/:id":  "Purchase order detail with line items",
     },

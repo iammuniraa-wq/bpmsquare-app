@@ -382,6 +382,7 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   accounts:               { label: "Accounts KPI",         feature: "accounts", workcenter: "accounts" },
   contacts:               { label: "Contacts KPI",         feature: "contacts", workcenter: "contacts" },
   assets:                 { label: "Assets KPI",           feature: "assets", workcenter: "assets" },
+  products:               { label: "Products KPI",         feature: "products", workcenter: "products" },
   open_cases:             { label: "Open Cases KPI",       feature: "cases", workcenter: "cases" },
   work_orders:            { label: "Work Orders KPI",      feature: "work_orders", workcenter: "work_orders" },
   contracts:              { label: "Contracts KPI",       feature: "amc",      workcenter: "amc" },

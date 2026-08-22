@@ -7,7 +7,7 @@ export type WorkcenterKey =
   | "cases" | "amc" | "work_orders" | "dispatch" | "technicians"
   | "marketing" | "marketing_segments" | "leads" | "partners"
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
-  | "reports" | "data_workbench" | "administration" | "wfm";
+  | "reports" | "data_workbench" | "administration" | "wfm" | "products";
 
 /**
  * territoryScopable marks the workcenters backed by an object that actually
@@ -36,12 +36,13 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string; territoryScopable
   { key: "assets", label: "Assets" },
   { key: "suppliers", label: "Suppliers" },
   { key: "inventory", label: "Inventory" },
+  { key: "products", label: "Products" },
   { key: "purchase_orders", label: "Purchase Orders" },
   { key: "employees", label: "Employees" },
   { key: "wfm", label: "Workforce" },
   { key: "reports", label: "Analytics" },
   { key: "data_workbench", label: "Data Workbench" },
-  { key: "administration", label: "Administrator" },
+  { key: "administration", label: "Audit & Users" },
 ];
 
 /** "all" = unrestricted (admins, and members with no Business Role

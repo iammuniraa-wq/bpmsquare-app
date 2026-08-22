@@ -82,7 +82,7 @@ export type EffectiveField = {
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
-  | "employee";
+  | "employee" | "product";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -95,6 +95,11 @@ const SUPPLIER_TYPE_OPTIONS: { value: Supplier["type"]; label: string }[] =
 
 const SUPPLIER_STATUS_OPTIONS: { value: Supplier["status"]; label: string }[] =
   (Object.keys(SUPPLIER_STATUS_LABEL) as Supplier["status"][]).map((value) => ({ value, label: SUPPLIER_STATUS_LABEL[value] }));
+
+const PRODUCT_STATUS_OPTIONS: { value: "active" | "inactive"; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
 
 const DISCOUNT_TYPE_OPTIONS: { value: "pct" | "fixed"; label: string }[] = [
   { value: "pct",   label: "Percentage" },
@@ -250,6 +255,24 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "gstin",  defaultLabel: "GSTIN",  widget: "text",  defaultSection: "Contact" },
 
       { key: "notes",  defaultLabel: "Notes",  widget: "textarea", defaultSection: "Notes" },
+    ],
+  },
+
+  product: {
+    sections: ["Identity", "Pricing", "Details"],
+    fields: [
+      { key: "ref",    defaultLabel: "Product ID", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
+      { key: "name",   defaultLabel: "Name",     widget: "text", defaultSection: "Identity", locked: true },
+      { key: "sku",    defaultLabel: "SKU",      widget: "text", defaultSection: "Identity" },
+      { key: "category", defaultLabel: "Category", widget: "text", defaultSection: "Identity" },
+      { key: "status", defaultLabel: "Status",   widget: "enum", defaultSection: "Identity", enumOptions: PRODUCT_STATUS_OPTIONS },
+
+      { key: "list_price",  defaultLabel: "List price (₹)", widget: "number", defaultSection: "Pricing" },
+      { key: "cost_price",  defaultLabel: "Cost price (₹)", widget: "number", defaultSection: "Pricing" },
+      { key: "tax_percent", defaultLabel: "Tax %",          widget: "number", defaultSection: "Pricing" },
+
+      { key: "uom",         defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
+      { key: "description", defaultLabel: "Description",     widget: "textarea", defaultSection: "Details" },
     ],
   },
 
@@ -462,7 +485,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
-  "employee",
+  "employee", "product",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

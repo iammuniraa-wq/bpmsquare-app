@@ -280,6 +280,8 @@ export type QuoteLine = {
   category?: PricingCategory | null;
   deduction?: number;
   inventory_item_id?: string | null;
+  /** Product the line was inserted from (0098) -- link only; the line keeps its copied text/rate. */
+  product_id?: string | null;
 };
 
 export type WorkOrderStatus =
@@ -665,6 +667,33 @@ export type Supplier = {
   status: SupplierStatus;
   custom_data: Record<string, unknown> | null;
   created_at: string;
+};
+
+// ── Products ──────────────────────────────────────────────────────────────────
+
+export type ProductStatus = "active" | "inactive";
+
+/** Sellable catalog item (0098) — what the business SELLS (goods or a
+ * service plan), distinct from inventory_items (stocked parts). list_price
+ * is the external price; cost_price is internal (margin work) and is kept
+ * out of the v1 API payload. */
+export type Product = {
+  id: string;
+  /** PRD-0001 — display/reference only. */
+  ref?: string | null;
+  tenant_id: string;
+  name: string;
+  sku: string | null;
+  category: string | null;
+  uom: string | null;
+  description: string | null;
+  list_price: number | null;
+  cost_price: number | null;
+  tax_percent: number | null;
+  status: ProductStatus;
+  custom_data: Record<string, unknown> | null;
+  created_at: string;
+  updated_at?: string;
 };
 
 // ── Inventory ─────────────────────────────────────────────────────────────────

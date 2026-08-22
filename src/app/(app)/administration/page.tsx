@@ -87,8 +87,8 @@ export default async function AdministrationHubPage() {
 
   return (
     <>
-      <TabTitle title="Administrator" />
-      <PageHeader title="Administrator" subtitle="Audit trails and operations tooling for your workspace" />
+      <TabTitle title="Audit & Users" />
+      <PageHeader title="Audit & Users" subtitle="Audit trails, user administration and operations tooling" />
       <div style={{ maxWidth: 780 }}>
         {visibleSections.map((section) => (
           <div key={section.group} style={{ marginBottom: 22 }}>

@@ -60,6 +60,8 @@ const API_ENDPOINTS = [
   { method: "GET", path: "/api/v1/accounts/:id",        desc: "Account detail — contacts, cases, quotes, WOs" },
   { method: "GET", path: "/api/v1/cases",               desc: "List cases · filter: ?status= &account_id=" },
   { method: "GET", path: "/api/v1/quotations",          desc: "List quotations · filter: ?status= &account_id=" },
+  { method: "GET", path: "/api/v1/products",            desc: "List products · filters: ?category=, ?status=" },
+  { method: "GET", path: "/api/v1/products/:id",        desc: "Product detail" },
   { method: "GET", path: "/api/v1/inventory",           desc: "List inventory · filter: ?low_stock=true" },
   { method: "GET", path: "/api/v1/inventory/:id",       desc: "Inventory item detail + transaction history" },
   { method: "GET", path: "/api/v1/invoices",            desc: "List invoices · filter: ?status= &account_id=" },

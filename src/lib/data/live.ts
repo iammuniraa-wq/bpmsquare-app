@@ -1310,7 +1310,7 @@ export async function getQuoteFormDataLive() {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
-      accounts: [], contacts: [], assets: [], pricingItems: [], inventoryItems: [], textFragments: [],
+      accounts: [], contacts: [], assets: [], pricingItems: [], inventoryItems: [], products: [], textFragments: [],
       tenantEntities: [] as import("@/lib/constants").TenantEntity[],
       tenantTax: { label: "GST", rate: 18, inclusive: false },
     };
@@ -1323,6 +1323,7 @@ export async function getQuoteFormDataLive() {
     { data: assets },
     { data: pricingItems },
     { data: inventoryItems },
+    { data: products },
     { data: textFragments },
     { data: tenantRow },
   ] = await Promise.all([
@@ -1331,6 +1332,7 @@ export async function getQuoteFormDataLive() {
     admin.from("assets").select("*").eq("tenant_id", tenantId).not("account_id", "is", null).order("name"),
     admin.from("pricing_items").select("*").eq("tenant_id", tenantId).order("category").order("description"),
     admin.from("inventory_items").select("id, sku, name, uom, unit_cost, qty_on_hand").eq("tenant_id", tenantId).eq("status", "active").order("name"),
+    admin.from("products").select("id, sku, name, uom, list_price, category").eq("tenant_id", tenantId).eq("status", "active").order("name"),
     admin.from("text_fragments").select("*").eq("tenant_id", tenantId).order("category").order("label"),
     admin.from("tenants").select("config").eq("id", tenantId).single(),
   ]);
@@ -1344,6 +1346,8 @@ export async function getQuoteFormDataLive() {
     assets:        (assets        ?? []) as Asset[],
     pricingItems:  (pricingItems  ?? []) as PricingItem[],
     inventoryItems: inventoryItems ?? [],
+    // Missing table (0098 not applied yet) degrades to an empty catalog tab.
+    products: products ?? [],
     textFragments: (textFragments ?? []) as TextFragment[],
     tenantEntities: (config.entities ?? []) as import("@/lib/constants").TenantEntity[],
     tenantTax:      config.tax ?? { label: "GST", rate: 18, inclusive: false },
@@ -1460,6 +1464,7 @@ export type AnalyticsData = {
   totals: {
     accounts: number; contacts: number; customerAssets: number; openCases: number;
     workOrders: number; activeContracts: number; leads: number; technicians: number;
+    products: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;
@@ -1499,7 +1504,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
-      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0 },
+      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0 },
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
@@ -1529,7 +1534,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     { data: accounts }, { data: contacts }, { data: assets },
     { data: cases }, { data: workOrders }, { data: contracts },
     { data: leads }, { data: technicians }, { data: quotes },
-    { data: invoices }, { data: activities },
+    { data: invoices }, { data: activities }, { count: productCount },
   ] = await Promise.all([
     getTenant(),
     supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
@@ -1543,6 +1548,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     supabase.from("quotes").select("id, status, outcome, total, valid_until, created_at, account_id, accounts(name)").eq("tenant_id", tenantId).order("created_at"),
     supabase.from("invoices").select("id, status, total, paid_amount, account_id, accounts(name)").eq("tenant_id", tenantId),
     supabase.from("activities").select("*, accounts(name)").eq("tenant_id", tenantId).order("at", { ascending: false }).limit(6),
+    supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("status", "active"),
   ]);
 
   const allAccounts    = (accounts    ?? []) as Array<{ id: string; type: string }>;
@@ -1566,6 +1572,9 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     activeContracts: allContracts.filter((c) => c.status === "active").length,
     leads:           allLeads.length,
     technicians:     allTechnicians.length,
+    // Table may predate migration 0098 on an environment -- a null count
+    // (relation missing) degrades to 0 rather than failing the dashboard.
+    products:        productCount ?? 0,
   };
 
   const accountTypeCounts = new Map<string, number>();
@@ -2082,6 +2091,12 @@ const SEARCH_SPECS: SearchSpec[] = [
     type: "supplier", table: "suppliers", columns: "id, ref, name, city, type",
     textCols: ["name", "ref"],
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.city, r.type].filter(Boolean).join(" · ") || "Supplier", href: ROUTES.supplier(r.id), matched: "name" }),
+  },
+  {
+    type: "product", table: "products", columns: "id, ref, name, sku, category",
+    textCols: ["name", "ref", "sku", "category"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.sku, r.category].filter(Boolean).join(" · ") || "Product", href: ROUTES.product(r.id), matched: "name" }),
+    featureKeys: ["products"],
   },
   {
     // Leads have no detail page (list-only), so every lead result points at

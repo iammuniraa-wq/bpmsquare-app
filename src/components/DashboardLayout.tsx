@@ -74,6 +74,7 @@ const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof
   accounts:                { label: "Accounts",         feature: "accounts" },
   contacts:                { label: "Contacts",         feature: "contacts" },
   assets:                  { label: "Assets",           feature: "assets" },
+  products:                { label: "Products",         feature: "products" },
   open_cases:              { label: "Open cases",       feature: "cases" },
   work_orders:             { label: "Work orders",      feature: "work_orders" },
   contracts:               { label: "AMC contracts",    feature: "amc" },
@@ -717,6 +718,7 @@ function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" |
     case "work_orders":     return <AnalyticsCard title="Work orders" href={ROUTES.workOrders}><StatTile tone={tone} value={a.totals.workOrders} label="Total work orders" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.workOrders} /></AnalyticsCard>;
     case "contracts":       return <AnalyticsCard title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.contractStats.activeCount} label="Active" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /><StatTile tone={tone} value={inr(a.contractStats.totalValue)} label="Total value" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /></div></AnalyticsCard>;
     case "leads":           return <AnalyticsCard title="Leads" href={ROUTES.leads}><StatTile tone={tone} value={a.totals.leads} label="Total leads" icon={<Zap size={14} color={iconColor} />} href={ROUTES.leads} /></AnalyticsCard>;
+    case "products":        return <AnalyticsCard title="Products" href={ROUTES.products}><StatTile tone={tone} value={a.totals.products} label="Active products" icon={<Package size={14} color={iconColor} />} href={ROUTES.products} /></AnalyticsCard>;
     case "technicians":     return <AnalyticsCard title="Technicians" href={ROUTES.technicians}><StatTile tone={tone} value={a.totals.technicians} label="Total technicians" icon={<Clipboard size={14} color={iconColor} />} href={ROUTES.technicians} /></AnalyticsCard>;
     case "accounts_by_type": {
       const segs = a.accountsByType.map((x, i) => ({ label: x.label, value: x.count, color: COLORS[i % COLORS.length], href: `${ROUTES.accounts}?type=${x.type}` }));

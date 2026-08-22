@@ -100,6 +100,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             category,
             deduction,
             inventory_item_id: l.inventory_item_id ?? null,
+            product_id:        l.product_id        ?? null,
           };
         })
     : [];
@@ -112,6 +113,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { data: invRows } = await supabase.from("inventory_items").select("id").in("id", invIds).eq("tenant_id", tenantId);
     if (!invRows || invRows.length !== invIds.length) {
       return NextResponse.json({ error: "One or more inventory items were not found" }, { status: 404 });
+    }
+  }
+  const prodIds = [...new Set(cleanLines.map((l) => l.product_id).filter((x): x is string => typeof x === "string"))];
+  if (prodIds.length > 0) {
+    const { data: prodRows } = await supabase.from("products").select("id").in("id", prodIds).eq("tenant_id", tenantId);
+    if (!prodRows || prodRows.length !== prodIds.length) {
+      return NextResponse.json({ error: "One or more products were not found" }, { status: 404 });
     }
   }
 

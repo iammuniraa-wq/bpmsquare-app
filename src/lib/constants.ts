@@ -123,6 +123,9 @@ export const ROUTES = {
   suppliers: "/suppliers",
   supplierNew: "/suppliers/new",
   supplier: (id: string) => `/suppliers/${id}`,
+  products: "/products",
+  productNew: "/products/new",
+  product: (id: string) => `/products/${id}`,
   inventory: "/inventory",
   inventoryNew: "/inventory/new",
   inventoryItem: (id: string) => `/inventory/${id}`,
@@ -236,6 +239,7 @@ export const NAV: NavGroup[] = [
           { label: "Assets",          href: ROUTES.assets,         icon: "⚙", pillar: "green", featureKey: "assets", workcenterKey: "assets" },
           { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", featureKey: "suppliers", workcenterKey: "suppliers" },
           { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
+          { label: "Products",        href: ROUTES.products,       icon: "▩", pillar: "green", featureKey: "products", workcenterKey: "products" },
           // Employees ships as part of the Business Roles/Business Users
           // bundle, so it shares that bundle's rollout flag rather than
           // getting its own.
@@ -276,7 +280,7 @@ export const NAV: NavGroup[] = [
     group: "ADMIN",
     items: [
       { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal", featureKey: "data_workbench", workcenterKey: "data_workbench" },
-      { label: "Administrator", href: ROUTES.administration, icon: "🛠", pillar: "teal", featureKey: "administration", workcenterKey: "administration" },
+      { label: "Audit & Users", href: ROUTES.administration, icon: "⚙", pillar: "teal", featureKey: "administration", workcenterKey: "administration" },
     ],
   },
 ];
@@ -426,6 +430,7 @@ export type TenantFeatures = {
   technicians: boolean;
   assets: boolean;
   suppliers: boolean;
+  products: boolean;
   reports: boolean;
   data_workbench: boolean;
   administration: boolean;
@@ -600,7 +605,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
 
 // All metric IDs available in the Analytics page.
 export type AnalyticsMetricId =
-  | "accounts" | "contacts" | "assets" | "open_cases" | "work_orders"
+  | "accounts" | "contacts" | "assets" | "open_cases" | "work_orders" | "products"
   | "contracts" | "leads" | "technicians"
   | "accounts_by_type" | "lead_funnel" | "assets_by_kind"
   | "quote_trend" | "case_status" | "work_order_status"

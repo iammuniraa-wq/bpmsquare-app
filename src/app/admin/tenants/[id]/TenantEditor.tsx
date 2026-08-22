@@ -25,6 +25,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "technicians",    label: "Technicians",        group: "Core modules" },
   { key: "assets",         label: "Assets",             group: "Core modules" },
   { key: "suppliers",      label: "Suppliers",          group: "Core modules" },
+  { key: "products",       label: "Products (catalog)", group: "Core modules" },
   { key: "reports",        label: "Analytics",          group: "Core modules" },
   { key: "data_workbench", label: "Data Workbench",     group: "Core modules" },
   { key: "administration", label: "Administration hub", group: "Core modules" },
