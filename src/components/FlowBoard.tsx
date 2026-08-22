@@ -202,6 +202,10 @@ export default function FlowBoard() {
     void move(quote, status.value);
   }
 
+  // Keyboard alternative to drag (a11y): Enter on a focused card opens a
+  // small "move to" menu; picking a stage calls the same move() the drop does.
+  const [kbMenu, setKbMenu] = useState<string | null>(null);
+
   async function move(quote: Quote, status: string, outcome?: string) {
     setSaving(true);
     const body: Record<string, unknown> = { status };
@@ -317,10 +321,36 @@ export default function FlowBoard() {
                     <article
                       data-card={c.quote.id}
                       className={`flow__card ${late ? "is-late" : ""} ${drag?.id === c.quote.id ? "is-lifted" : ""}`}
-                      style={{ ["--age" as string]: `${Math.min(1, c.ageDays / (col.dwell * 3))}` }}
+                      style={{ ["--age" as string]: `${Math.min(1, c.ageDays / (col.dwell * 3))}`, position: "relative" }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${c.quote.ref}, ${c.quote.account}, in ${col.status.label} — Enter to move`}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setKbMenu(kbMenu === c.quote.id ? null : c.quote.id); }
+                        if (e.key === "Escape") setKbMenu(null);
+                      }}
+                      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setKbMenu(null); }}
                       onPointerDown={(e) => onPointerDown(e, c.quote.id)}
                       onDoubleClick={() => router.push(`/quotations/${c.quote.id}`)}
                     >
+                      {kbMenu === c.quote.id && (
+                        <div className="flow__kbMenu" role="menu" aria-label="Move to stage">
+                          {data.statuses.filter((st) => st.value !== col.status.value).map((st) => (
+                            <button key={st.value} role="menuitem" className="flow__kbItem"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setKbMenu(null);
+                                // Same closed-status rule as the drop path: a
+                                // closed stage needs a decided outcome first.
+                                if (st.is_closed && c.quote.outcome === "open") { setPendingClose({ quote: c.quote, status: st }); return; }
+                                void move(c.quote, st.value);
+                              }}>
+                              {st.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="flow__cardTop">
                         <span className="flow__ref">{c.quote.ref}</span>
                         <span className="flow__total">{money(c.quote.total)}</span>
@@ -452,6 +482,13 @@ const CSS = `
 }
 .flow__card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.09); transform: translateY(-1px); }
 .flow__card:active { cursor: grabbing; }
+.flow__card:focus-visible { outline: 2px solid var(--modern-accent, var(--accent)); outline-offset: 2px; }
+.flow__kbMenu { position: absolute; top: 6px; right: 6px; z-index: 30; display: flex; flex-direction: column;
+  background: var(--card-bg); border: 1px solid var(--line); border-radius: 9; border-radius: 9px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25); overflow: hidden; min-width: 150px; }
+.flow__kbItem { border: none; background: transparent; text-align: left; padding: 8px 12px; font: inherit;
+  font-size: 12px; color: var(--ink); cursor: pointer; }
+.flow__kbItem:hover, .flow__kbItem:focus-visible { background: var(--panel2); }
 .flow__card.is-late { border-left: 3px solid color-mix(in srgb, var(--f-late) calc(40% + var(--age) * 60%), transparent); }
 .flow__card.is-lifted { opacity: .35; }
 .flow__cardTop { display: flex; align-items: baseline; gap: 8px; }

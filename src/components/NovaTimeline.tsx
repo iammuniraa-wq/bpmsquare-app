@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { usePresence } from "@/lib/usePresence";
+import { useTenant } from "@/lib/tenant-context";
+import { createBrowserSupabase } from "@/lib/supabase-browser";
 
 /**
  * Nova pillar 3 — the record timeline. One stream where the record's life
@@ -61,6 +64,22 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
   const [loaded, setLoaded] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Presence: who else has this record open right now (pillar 5). Identity
+  // comes from the browser session; the channel is scoped tenant+record.
+  const tenant = useTenant();
+  const [self, setSelf] = useState<{ key: string; name: string } | null>(null);
+  useEffect(() => {
+    createBrowserSupabase().auth.getUser().then(({ data }) => {
+      const u = data.user;
+      if (u) setSelf({ key: u.id, name: (u.email ?? "someone").split("@")[0] });
+    }).catch(() => {});
+  }, []);
+  const viewers = usePresence(
+    tenant ? `${tenant.id}:${objectType}:${objectId}` : null,
+    self?.key ?? null,
+    self?.name ?? null
+  );
 
   const load = useCallback(async () => {
     const [cRes, hRes] = await Promise.all([
@@ -122,6 +141,24 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
         </svg>
         <span style={{ fontSize: 13, fontWeight: 650, color: c.ink }}>Timeline</span>
         <span style={{ fontSize: 11, color: c.hint }}>comments and every change, in one stream</span>
+        {viewers.length > 0 && (
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5 }}
+            title={`Also viewing: ${viewers.join(", ")}`}>
+            {viewers.slice(0, 3).map((v) => (
+              <span key={v} style={{
+                width: 20, height: 20, borderRadius: "50%", fontSize: 8.5, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: `color-mix(in srgb, ${ACCENT} 20%, transparent)`, color: ACCENT,
+                border: "1.5px solid var(--card-bg)", marginLeft: -6,
+              }}>
+                {v.slice(0, 2).toUpperCase()}
+              </span>
+            ))}
+            <span style={{ fontSize: 10.5, color: c.hint }}>
+              {viewers.length === 1 ? `${viewers[0]} is viewing` : `${viewers.length} viewing now`}
+            </span>
+          </span>
+        )}
       </div>
 
       {/* Composer */}
