@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ROUTES, type TenantFeatures, type DashLayoutItem } from "@/lib/constants";
@@ -11,7 +11,52 @@ import { Package, Activity as ActivityIcon, Users, FileText, CheckIcon } from "@
 import { renderWidget } from "@/components/DashboardLayout";
 import { isAnalyticsId } from "@/lib/analyticsMeta";
 import { isNovaNativeId, type NovaBlockId } from "@/lib/nova/streamLayout";
+import { listCachedMarketIntel } from "@/lib/nova/marketIntelClient";
 import NovaAdaptDrawer from "@/components/NovaAdaptDrawer";
+
+const SIGNAL_TONE_COLOR: Record<"positive" | "neutral" | "risk", string> = {
+  positive: "var(--nova-teal-soft)", neutral: "var(--nova-ink-faint)", risk: "var(--nova-orange-soft)",
+};
+
+// Rollup of whatever Market Signals this tab has already fetched per-account
+// (see NovaAccountMarketSignals) -- purely client-cache, no server props, so
+// it's its own small component rather than a prop threaded through the page.
+function NovaMarketSignalsBlock() {
+  const [entries, setEntries] = useState<ReturnType<typeof listCachedMarketIntel>>([]);
+  useEffect(() => { setEntries(listCachedMarketIntel()); }, []);
+
+  if (entries.length === 0) {
+    return (
+      <div>
+        <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginBottom: 12 }}>Market signals</div>
+        <div style={{ border: "1px dashed var(--nova-glass-border)", borderRadius: "var(--nova-radius-card)", padding: "16px 18px", fontSize: 12.5, color: "var(--nova-ink-faint)" }}>
+          Open an account and check its Market signals to see real news, funding and leadership changes roll up here.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginBottom: 12 }}>Market signals</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {entries.slice(0, 4).map((e) => {
+          const top = e.data.signals[0];
+          return (
+            <Link key={e.accountId} href={ROUTES.account(e.accountId)} className="nova-rank-row" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit", background: "var(--nova-glass-bg)", border: "1px solid var(--nova-glass-border)", borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, color: "var(--nova-ink)", fontWeight: 500 }}>{e.accountName}</div>
+                <div style={{ fontSize: 11.5, color: top ? SIGNAL_TONE_COLOR[top.tone] : "var(--nova-ink-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {top ? top.headline : "No notable signals found"}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 type Accent = "orange" | "pink" | "purple" | "teal";
 
@@ -233,6 +278,8 @@ export default function NovaStream({
             </div>
           </div>
         );
+      case "nova_market_signals":
+        return <NovaMarketSignalsBlock key={block.id} />;
       default:
         return null;
     }

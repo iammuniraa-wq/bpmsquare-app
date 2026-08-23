@@ -21,18 +21,27 @@ import { ANALYTICS_META, isAnalyticsId } from "@/lib/analyticsMeta";
 // repeating it on the Stream screen was a straight duplicate. Replaced with
 // nova_rankings -- real leaderboards (top customers, best-selling products,
 // most-repaired asset kind) that tell a genuinely different story.
-export type NovaBlockId = "nova_kpis" | "nova_quick_actions" | "nova_rankings" | "nova_recent_wins";
+// nova_market_signals (2026-08-25): a rollup of whatever Market Signals
+// this browser tab has already fetched for individual accounts (see
+// NovaAccountMarketSignals/marketIntelClient.ts) -- client-cache-only, no
+// server data, since auto-fetching live web search for an arbitrary list of
+// accounts on every Stream load would be both slow and a real billed cost
+// per account. It surfaces what a rep has actually looked into recently,
+// not a silent background job over every account they can see.
+export type NovaBlockId = "nova_kpis" | "nova_quick_actions" | "nova_rankings" | "nova_recent_wins" | "nova_market_signals";
 
 export const NOVA_NATIVE_META: Record<NovaBlockId, { label: string }> = {
   nova_kpis: { label: "KPI strip" },
   nova_quick_actions: { label: "Quick actions" },
   nova_rankings: { label: "Rankings" },
   nova_recent_wins: { label: "Recent wins" },
+  nova_market_signals: { label: "Market signals" },
 };
 
 export const NOVA_DEFAULT_LAYOUT: DashLayoutItem[] = [
   { id: "nova_kpis" },
   { id: "nova_quick_actions" },
+  { id: "nova_market_signals" },
   { id: "nova_rankings" },
   { id: "nova_recent_wins" },
 ];

@@ -21,6 +21,7 @@ import AccountHeader from "./AccountHeader";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import NovaAccountStorySlot from "@/components/NovaAccountStorySlot";
 import NovaAccountCanvasSlot from "@/components/NovaAccountCanvasSlot";
+import NovaAccountMarketSignals from "@/components/NovaAccountMarketSignals";
 import Account360Button from "@/components/Account360Button";
 import { buildAccountStoryEvents, computeAccountHealth } from "@/lib/nova/accountStory";
 import { buildAccountCanvas } from "@/lib/nova/accountCanvas";
@@ -216,6 +217,7 @@ export default async function AccountHubPage({
           </Link>
         </div>
         <NovaAccountStorySlot accountName={account.name} events={storyEvents} health={health} />
+        <NovaAccountMarketSignals accountId={id} accountName={account.name} />
         <NovaAccountCanvasSlot accountName={account.name} accountMeta={canvasMeta} contactNodes={contactNodes} dealNodes={dealNodes} />
       </>
     );

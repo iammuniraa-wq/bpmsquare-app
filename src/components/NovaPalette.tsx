@@ -76,6 +76,14 @@ function looksLikePastedContent(text: string): boolean {
   return EMAIL_RE.test(t) || PHONE_RE.test(t);
 }
 
+// "prep me for my next call with X" is the command bar's OWN advertised
+// example (owner-flagged 2026-08-25, alongside the misfire above) -- this
+// extracts just the account name X so it can be looked up directly, rather
+// than fuzzy-matching the whole sentence against every account name (which
+// is what made the misfire this looks so similar to). Matching account
+// opens straight to Market Signals -- the real call-prep content.
+const CALL_PREP_RE = /\bprep(?:are)?\s+(?:me\s+)?for\s+(?:my\s+|our\s+|the\s+)?(?:next\s+|upcoming\s+)?call\s+(?:with|about|regarding)\s+(.+?)[.?!]*$/i;
+
 export default function NovaPalette() {
   const router = useRouter();
   const tenant = useTenant();
@@ -90,8 +98,10 @@ export default function NovaPalette() {
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
   useEffect(() => { setExpandedTypes(new Set()); }, [query]);
   const [active, setActive] = useState(0);
+  const [callPrepAccount, setCallPrepAccount] = useState<SearchResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callPrepDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const features = tenant?.features as Record<string, boolean> | undefined;
 
@@ -176,6 +186,24 @@ export default function NovaPalette() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
 
+  // ── "prep me for my call with X" -- look up X directly rather than
+  // fuzzy-matching the whole sentence (see CALL_PREP_RE above) ──
+  useEffect(() => {
+    if (callPrepDebounceRef.current) clearTimeout(callPrepDebounceRef.current);
+    const name = query.match(CALL_PREP_RE)?.[1]?.trim();
+    if (!name || features?.accounts !== true) { setCallPrepAccount(null); return; }
+    callPrepDebounceRef.current = setTimeout(() => {
+      fetch(`/api/search?q=${encodeURIComponent(name)}`)
+        .then((r) => r.json())
+        .then((json) => {
+          const results: SearchResult[] = Array.isArray(json.results) ? json.results : [];
+          setCallPrepAccount(results.find((r) => r.type === "account") ?? null);
+        })
+        .catch(() => setCallPrepAccount(null));
+    }, DEBOUNCE_MS);
+    return () => { if (callPrepDebounceRef.current) clearTimeout(callPrepDebounceRef.current); };
+  }, [query, features?.accounts]);
+
   // ── Visible items: filtered universe + record results ──
   // Multi-line, or long AND carrying an email/phone marker, isn't a query --
   // it's pasted CONTENT (the WhatsApp message, the email). A plain sentence
@@ -212,8 +240,14 @@ export default function NovaPalette() {
     const draftOffer: Item[] = pastedContent && features?.accounts === true
       ? [{ kind: "create", label: "Draft an account from this text", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft" }]
       : [];
-    return [...draftOffer, ...statics.slice(0, 10), ...recs.slice(0, 40)];
-  }, [query, universe, records, pastedContent, features?.accounts, expandedTypes]);
+    // "prep me for my call with X" resolved to a real account -- surface
+    // it above everything else, since it's the one thing the user actually
+    // asked for.
+    const callPrepOffer: Item[] = callPrepAccount
+      ? [{ kind: "nav", label: `Prep for call: ${callPrepAccount.title}`, sub: "Nova · Market signals", href: callPrepAccount.href }]
+      : [];
+    return [...callPrepOffer, ...draftOffer, ...statics.slice(0, 10), ...recs.slice(0, 40)];
+  }, [query, universe, records, pastedContent, features?.accounts, expandedTypes, callPrepAccount]);
 
   // New query -> highlight back to the top; a mere expand/collapse only
   // clamps, so the cursor stays where the user was.
