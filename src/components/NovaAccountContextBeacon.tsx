@@ -9,7 +9,7 @@ import { useEffect } from "react";
  * into the rail). The rail is rendered by Shell.tsx, a sibling of the page
  * content, not a descendant, so there's no prop path from the account page
  * down to it -- a window event is the same cross-tree-signal pattern this
- * app already uses for nova:open-palette/nova:open-draft/nova:browse-all.
+ * app already uses for nova:open-palette/nova:open-draft.
  * Renders nothing; clears itself on unmount so navigating away from the
  * account (without landing on another one first) doesn't leave stale
  * context in the rail.

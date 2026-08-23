@@ -180,7 +180,7 @@ export default function NovaAccountCanvas({
             style={{
               position: "absolute", left: `${CENTER.x}%`, top: `${CENTER.y}%`, transform: "translate(-50%, -50%)",
               zIndex: 3, background: "rgba(155,89,245,0.14)", backdropFilter: "blur(12px)",
-              border: "1.5px solid rgba(155,89,245,0.5)", borderRadius: 16, padding: "14px 20px",
+              border: "1.5px solid rgba(155,89,245,0.5)", borderRadius: "var(--nova-radius-card)", padding: "14px 20px",
               textAlign: "center", maxWidth: isMobile ? 190 : 280,
               ["--nova-pulse-color" as string]: "rgba(155,89,245,0.3)",
             }}
@@ -239,7 +239,7 @@ export default function NovaAccountCanvas({
                   onClick={() => setOpenDeal(isOpen ? null : n.id)}
                 >
                 {isOpen ? (
-                  <div style={{ width: isMobile ? 200 : 240, background: "rgba(10,15,30,0.96)", backdropFilter: "blur(16px)", border: `1.5px solid ${accent.border}`, borderRadius: 16, boxShadow: `0 12px 60px rgba(0,0,0,0.5), 0 0 40px ${accent.glow}`, overflow: "hidden" }}>
+                  <div style={{ width: isMobile ? 200 : 240, background: "rgba(10,15,30,0.96)", backdropFilter: "blur(16px)", border: `1.5px solid ${accent.border}`, borderRadius: "var(--nova-radius-card)", boxShadow: `0 12px 60px rgba(0,0,0,0.5), 0 0 40px ${accent.glow}`, overflow: "hidden" }}>
                     <div style={{ padding: "12px 16px 10px", borderBottom: "1px solid var(--nova-line-soft)" }}>
                       <div style={{ fontSize: 11, color: accent.color, letterSpacing: "0.08em", textTransform: "uppercase" }}>Open quote</div>
                       <div className="nova-display" style={{ fontSize: 15, marginTop: 2 }}>{n.ref}</div>
@@ -247,13 +247,13 @@ export default function NovaAccountCanvas({
                     <div style={{ padding: "10px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={{ fontSize: 12.5, color: "var(--nova-ink-dim)" }}>Status: <span style={{ color: "var(--nova-ink)" }}>{n.status}</span></div>
                       <div style={{ fontSize: 12.5, color: "var(--nova-ink-dim)" }}>Value: <span style={{ color: "var(--nova-ink)" }}>{n.meta.split(" · ")[1] ?? ""}</span></div>
-                      <Link href={n.href} style={{ fontSize: 12, fontWeight: 500, color: "#fff", background: "var(--nova-gradient-cta)", borderRadius: 8, padding: "8px 14px", textAlign: "center", textDecoration: "none", marginTop: 4 }}>
+                      <Link href={n.href} style={{ fontSize: 12, fontWeight: 500, color: "var(--nova-ink)", background: "var(--nova-gradient-cta)", borderRadius: 8, padding: "8px 14px", textAlign: "center", textDecoration: "none", marginTop: 4 }}>
                         Open quote →
                       </Link>
                     </div>
                   </div>
                 ) : (
-                  <div style={{ background: accent.bg, backdropFilter: "blur(12px)", border: `1.5px solid ${accent.border}`, borderRadius: 16, padding: "12px 16px", maxWidth: isMobile ? 150 : 210, boxShadow: `0 0 24px ${accent.glow}` }}>
+                  <div style={{ background: accent.bg, backdropFilter: "blur(12px)", border: `1.5px solid ${accent.border}`, borderRadius: "var(--nova-radius-card)", padding: "12px 16px", maxWidth: isMobile ? 150 : 210, boxShadow: `0 0 24px ${accent.glow}` }}>
                     <div style={{ fontSize: 11, color: accent.color, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 3 }}>Open quote</div>
                     <div className="nova-display" style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.label}</div>
                     <div style={{ fontSize: 11, color: "var(--nova-ink-faint)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.meta}</div>

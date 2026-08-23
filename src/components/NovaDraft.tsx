@@ -6,10 +6,13 @@ import { ROUTES } from "@/lib/constants";
 import { celebrate } from "@/lib/celebrate";
 import { XIcon, CheckIcon } from "@/components/Icons";
 
-// Theme-aware error ink (the raw #ff8a76 failed contrast on the light panel)
-// and the Nova brand gradient, defined once.
+// Theme-aware error ink (the raw #ff8a76 failed contrast on the light panel),
+// and the real Nova CTA gradient token -- not a locally hand-picked one, so a
+// tenant's custom accent (--nova-accent-color) carries through here too
+// (2026-08-26 lock audit: this was a hardcoded duplicate with different stop
+// colours than --nova-gradient-cta).
 const ERR_INK = "var(--redink, #ff8a76)";
-const NOVA_GRADIENT = "linear-gradient(135deg, #8b6cff, #ff6fae)";
+const NOVA_GRADIENT = "var(--nova-gradient-cta)";
 
 /**
  * Nova pillar 2 — "paste anything, get a record". The review-first modal:

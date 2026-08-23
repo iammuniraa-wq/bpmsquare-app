@@ -584,6 +584,11 @@ html, body {
   --sb-strong:         var(--nova-ink);
   --sb-text:           var(--nova-ink-dim);
   --sb-text-dim:       var(--nova-ink-dim);
+  /* Missed in the original reskin -- with no override here this fell through
+     to nextgen's light-chrome value (a dark slate meant for a white
+     background), landing on Nova's near-black ground as a legibility bug
+     (2026-08-26 lock audit). */
+  --sb-text-dimmer:    var(--nova-ink-faint);
   --sb-text-faint:     var(--nova-ink-faint);
   --sb-icon-muted:     var(--nova-ink-dim);
   --sb-hover:          var(--nova-glass-bg);

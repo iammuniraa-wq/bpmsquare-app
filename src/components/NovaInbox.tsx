@@ -112,7 +112,7 @@ export default function NovaInbox() {
         {unread > 0 && (
           <span style={{
             position: "absolute", top: -4, right: -4, minWidth: 16, height: 16, padding: "0 4px",
-            borderRadius: 999, background: "var(--redink, #e5484d)", color: "#fff",
+            borderRadius: 999, background: "var(--redink, #e5484d)", color: "var(--nova-ink)",
             fontSize: 9.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center",
             fontVariantNumeric: "tabular-nums",
           }}>

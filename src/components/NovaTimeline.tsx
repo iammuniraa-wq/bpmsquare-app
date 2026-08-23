@@ -38,10 +38,10 @@ const fmtWhen = (iso: string) => {
 
 const who = (email: string | null) => (email ? email.split("@")[0] : "someone");
 
-// Tenant/theme-aware accent -- NOT c.accent (a hardcoded hex that ignores the
-// tenant color and does not remap in dark mode; the 2026-08-22 Nova audit's
-// top finding).
-const ACCENT = "var(--modern-accent, var(--accent))";
+// Nova-exclusive chrome uses the Nova brand token directly, not the classic/
+// modern --accent fallback chain (missed in the original 2026-08-22 sweep,
+// caught by the 2026-08-26 lock audit).
+const ACCENT = "var(--nova-pink)";
 
 function summarizeChange(ch: ChangeRow): string {
   if (ch.action === "create") return "created this record";
@@ -200,7 +200,7 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
             disabled={posting || !draft.trim()}
             style={{
               marginLeft: "auto", border: "none", cursor: "pointer", font: "inherit",
-              fontSize: 12, fontWeight: 650, color: "#fff", padding: "7px 14px", borderRadius: 8,
+              fontSize: 12, fontWeight: 650, color: "var(--nova-ink)", padding: "7px 14px", borderRadius: 8,
               background: ACCENT, opacity: posting || !draft.trim() ? .55 : 1,
             }}
           >

@@ -122,6 +122,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
   // vertically (from the clicked button's own screen position).
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [anchorTop, setAnchorTop] = useState(120);
+  const [anchorMaxWidth, setAnchorMaxWidth] = useState(320);
   const [isMobile, setIsMobile] = useState(false);
   const spacesRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -190,9 +191,14 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
     }
     if (openGroup === g.key) { setOpenGroup(null); return; }
     // Anchor the side panel near the clicked button, clamped so a category
-    // low in the rail can't push the panel past the bottom of the screen.
+    // low in the rail can't push the panel past the bottom of the screen --
+    // and clamp its width against the viewport too (2026-08-26 lock audit:
+    // the panel had no horizontal ceiling, so a long item label on a narrow
+    // desktop window just above the mobile breakpoint could push its right
+    // edge off-screen).
     const rect = e.currentTarget.getBoundingClientRect();
     setAnchorTop(Math.max(8, Math.min(rect.top - 6, window.innerHeight - 440)));
+    setAnchorMaxWidth(Math.max(180, window.innerWidth - 272 - 12));
     setOpenGroup(g.key);
   }
 
@@ -313,7 +319,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
           aria-label={openG.label}
           style={{
             position: "fixed", left: 272, top: anchorTop, zIndex: 130,
-            minWidth: 224, maxHeight: "min(480px, 80vh)", overflowY: "auto",
+            minWidth: 224, maxWidth: anchorMaxWidth, maxHeight: "min(480px, 80vh)", overflowY: "auto",
             background: "rgba(10, 15, 30, 0.96)", backdropFilter: "blur(16px)",
             border: "1px solid var(--nova-glass-border)", borderRadius: 14,
             boxShadow: "0 12px 60px rgba(0,0,0,0.5)", padding: 6,
@@ -339,7 +345,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
                 }}
               >
                 <ItemIcon size={15} color={itemActive ? "var(--nova-pink-soft)" : "var(--nova-ink-dim)"} />
-                <span style={{ flex: 1, fontSize: 13, color: itemActive ? "var(--nova-ink)" : "var(--nova-ink-dim)", whiteSpace: "nowrap" }}>{it.label}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: itemActive ? "var(--nova-ink)" : "var(--nova-ink-dim)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.label}</span>
                 {attentionHrefs.has(it.href) && (
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--nova-orange-soft)", flexShrink: 0 }} />
                 )}
