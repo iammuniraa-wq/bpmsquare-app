@@ -29,7 +29,7 @@ type NavState = {
   rest: string[];
 };
 
-type FlatItem = NavItem & { group: string };
+export type FlatItem = NavItem & { group: string };
 
 
 // A parent "toggle" row (Sales/Service/Marketing/Master data -- anything
@@ -37,7 +37,7 @@ type FlatItem = NavItem & { group: string };
 // least one child is. A leaf item with no workcenterKey at all (shouldn't
 // happen for anything in NAV today) defaults to viewable, same as before
 // this feature existed.
-function isItemViewable(item: NavItem, viewable: ViewableWorkcenters): boolean {
+export function isItemViewable(item: NavItem, viewable: ViewableWorkcenters): boolean {
   if (viewable === "all") return true;
   if (item.children?.length) return item.children.some((ch) => isItemViewable(ch, viewable));
   if (!item.workcenterKey) return true;
@@ -53,7 +53,7 @@ function hasVisibleChild(item: NavItem, features?: Record<string, boolean>, view
   return item.children.some((ch) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable));
 }
 
-function flattenNav(features?: Record<string, boolean>, viewable: ViewableWorkcenters = "all"): FlatItem[] {
+export function flattenNav(features?: Record<string, boolean>, viewable: ViewableWorkcenters = "all"): FlatItem[] {
   return NAV.flatMap((grp) =>
     grp.items
       .filter((item) => (!item.featureKey || features?.[item.featureKey] === true) && isItemViewable(item, viewable) && hasVisibleChild(item, features, viewable))
@@ -91,7 +91,7 @@ function saveNavState(s: NavState) {
 // instead of the unicode glyphs baked into NAV -- the single loudest
 // dated-look signal in the old chrome. Other themes keep the text glyphs.
 
-const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+export const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
   [ROUTES.dashboard]: Monitor,
   [ROUTES.accounts]: Globe,
   [ROUTES.contacts]: Phone,

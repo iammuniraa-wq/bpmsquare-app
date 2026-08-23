@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { MOBILE_BREAKPOINT } from "@/lib/constants";
 import Logo from "./Logo";
 import Sidebar from "./Sidebar";
+import NovaSidebar from "./NovaSidebar";
 import { TabsProvider } from "@/lib/tabs-context";
 import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
@@ -28,7 +29,9 @@ function MobileTopBar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const tenant = useTenant();
   // On Nova the search icon opens the command palette instead of the
-  // inline search overlay -- same single-search-surface rule as desktop.
+  // inline search overlay -- same single-search-surface rule as desktop --
+  // and the drawer hosts NovaSidebar (Needs You Now / Flows / Spaces)
+  // instead of the classic expandable Sidebar.
   const nova = useIsNextgen3Layer();
 
   // Close the drawer/search overlay whenever the route changes.
@@ -149,7 +152,7 @@ function MobileTopBar() {
         overflowY: "auto", scrollbarWidth: "none",
         boxShadow: open ? "2px 0 14px rgba(0,0,0,.45)" : "none",
       }}>
-        <Sidebar onNavigate={() => setOpen(false)} />
+        {nova ? <NovaSidebar onNavigate={() => setOpen(false)} /> : <Sidebar onNavigate={() => setOpen(false)} />}
       </div>
 
       {/* Bottom tabs (Nova only). Renders nothing for every other tenant, so
@@ -376,7 +379,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <FeelProvider>
     <TabsProvider>
       <div data-theme={uiTheme} data-mode={mode} data-nova={identityInTopBar || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
-        <Sidebar />
+        {identityInTopBar ? <NovaSidebar /> : <Sidebar />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "flex-end",
