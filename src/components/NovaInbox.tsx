@@ -135,7 +135,7 @@ export default function NovaInbox() {
             {unread > 0 && (
               <button onClick={markAll} style={{
                 marginLeft: "auto", border: "none", background: "transparent", cursor: "pointer",
-                fontSize: 11, fontWeight: 650, color: "var(--modern-accent, var(--accent))", font: "inherit",
+                fontSize: 11, fontWeight: 650, color: "var(--nova-pink)", font: "inherit",
               }}>
                 Mark all read
               </button>
@@ -161,13 +161,13 @@ export default function NovaInbox() {
                 style={{
                   display: "flex", gap: 10, width: "100%", textAlign: "left", cursor: "pointer",
                   padding: "11px 14px", border: "none", borderBottom: "1px solid var(--sb-panel-border)",
-                  background: it.unread ? "color-mix(in srgb, var(--modern-accent, var(--accent)) 9%, transparent)" : "transparent",
+                  background: it.unread ? "color-mix(in srgb, var(--nova-pink) 9%, transparent)" : "transparent",
                   font: "inherit",
                 }}
               >
                 <span style={{
                   width: 7, height: 7, borderRadius: "50%", flexShrink: 0, marginTop: 5,
-                  background: it.unread ? "var(--modern-accent, var(--accent))" : "transparent",
+                  background: it.unread ? "var(--nova-pink)" : "transparent",
                 }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 12, color: "var(--sb-panel-text)" }}>

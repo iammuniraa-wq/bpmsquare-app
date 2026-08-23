@@ -72,24 +72,31 @@ export default function MobileTabBar({ onMore }: { onMore: () => void }) {
       style={{
         position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 96,
         display: "flex", alignItems: "stretch",
-        background: "var(--surface-raised, var(--card-bg))",
-        borderTop: "1px solid var(--line)",
+        // This bar is Nova-exclusive (returns null above when !nova), so it
+        // reaches for Nova's own dark-glass tokens directly rather than the
+        // app-wide --line/--accent/--muted family, which still resolves to
+        // nextgen's light-mode defaults here (Nova never sets [data-mode=
+        // "dark"] -- its DarkToggle is hidden by design). Same near-black
+        // translucent treatment as the top identity bar (--sb-bar-bg's Nova
+        // override), so the two chrome bars read as one system.
+        background: "rgba(6, 8, 15, 0.92)",
+        borderTop: "1px solid var(--nova-line-soft)",
         // Clears the home indicator; without it the last row of labels sits
         // under the bar iOS draws over the page.
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        boxShadow: "0 -1px 10px rgba(16,24,40,.10)",
+        boxShadow: "0 -1px 10px rgba(0,0,0,.35)",
       }}
     >
       {tabs.map((t) => {
         const on = isActive(t.href);
         return (
-          <Link key={t.href} href={t.href} style={{ ...cell, color: on ? "var(--modern-accent, var(--accent))" : "var(--muted)" }}>
+          <Link key={t.href} href={t.href} style={{ ...cell, color: on ? "var(--nova-pink)" : "var(--nova-ink-faint)" }}>
             <NavGlyph href={t.href} fallback={t.icon} size={21} />
             <span style={{ ...label, fontWeight: on ? 700 : 600 }}>{t.label}</span>
           </Link>
         );
       })}
-      <button onClick={onMore} style={{ ...cell, color: "var(--muted)" }} aria-label="More">
+      <button onClick={onMore} style={{ ...cell, color: "var(--nova-ink-faint)" }} aria-label="More">
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
           <path d="M4 7h16M4 12h16M4 17h16" />
         </svg>

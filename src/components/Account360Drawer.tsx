@@ -395,7 +395,7 @@ const CSS = `
   --a360-line: var(--sb-panel-border, #e5e7eb);
   --a360-ink: var(--sb-panel-text, #111827);
   --a360-dim: var(--sb-panel-text-dim, #8b93a1);
-  --a360-accent: var(--modern-accent, var(--accent, #1f6feb));
+  --a360-accent: var(--nova-pink, var(--modern-accent, var(--accent, #1f6feb)));
   --a360-good: #12a150; --a360-warn: #d97706; --a360-bad: #e5484d;
   --a360-ease: cubic-bezier(.22,1,.36,1);
 }

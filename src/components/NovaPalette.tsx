@@ -305,12 +305,12 @@ export default function NovaPalette() {
                     display: "flex", alignItems: "center", gap: 10, width: "100%",
                     padding: "9px 10px", border: "none", borderRadius: 8, cursor: "pointer",
                     textAlign: "left", font: "inherit",
-                    background: isActive ? "color-mix(in srgb, var(--modern-accent, var(--accent)) 16%, transparent)" : "transparent",
+                    background: isActive ? "color-mix(in srgb, var(--nova-pink) 16%, transparent)" : "transparent",
                     color: "var(--sb-panel-text)",
                   }}
                 >
                   <span style={{
-                    color: isActive ? "var(--modern-accent, var(--accent))" : "var(--sb-panel-text-dim)", display: "flex",
+                    color: isActive ? "var(--nova-pink)" : "var(--sb-panel-text-dim)", display: "flex",
                     marginLeft: item.kind === "record" ? 14 : 0,
                     transform: isGroup && item.expanded ? "rotate(90deg)" : undefined, transition: "transform .12s",
                   }}>

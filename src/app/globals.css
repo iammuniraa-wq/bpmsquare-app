@@ -559,6 +559,12 @@ html, body {
   --sb-hover:          var(--nova-glass-bg);
   --sb-hover-strong:   var(--nova-glass-border);
   --sb-active-bg:      var(--nova-purple-bg);
+  /* Sidebar.tsx falls back to var(--sb-active-ink, #fff) -- but nextgen
+     (which [data-nova="true"] layers on top of) DOES set this one, to its
+     own blue, so the fallback never actually triggers for Nova. Missed in
+     the original --sb-* reskin; caught auditing the maximized-Spaces view
+     (the classic <Sidebar> Nova reuses there) on mobile. */
+  --sb-active-ink:     var(--nova-ink);
 
   --sb-tab-underline:    var(--nova-pink);
   --sb-tab-sub-active:   var(--nova-pink-soft);

@@ -251,7 +251,7 @@ export default function NovaDraft() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "13px 16px", borderBottom: "1px solid var(--sb-panel-border)" }}>
-          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style={{ color: "var(--modern-accent, var(--accent))" }}>
+          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style={{ color: "var(--nova-pink)" }}>
             <path d="M8 1.5 9.4 6 14 7.4 9.4 8.8 8 13.3 6.6 8.8 2 7.4 6.6 6 8 1.5Z" fill="currentColor" />
           </svg>
           <div style={{ flex: 1 }}>
@@ -314,7 +314,7 @@ export default function NovaDraft() {
                       style={{
                         textAlign: "left", cursor: "pointer", font: "inherit", fontSize: 12,
                         border: "none", background: "transparent", padding: 0,
-                        color: "var(--modern-accent, var(--accent))", fontWeight: 650,
+                        color: "var(--nova-pink)", fontWeight: 650,
                         opacity: attaching && attaching !== d.id ? .5 : 1,
                       }}
                     >
@@ -331,8 +331,8 @@ export default function NovaDraft() {
               {(note || moreFound > 0) && (
                 <div style={{
                   fontSize: 11.5, lineHeight: 1.5, color: "var(--sb-panel-text)",
-                  background: "color-mix(in srgb, var(--modern-accent, var(--accent)) 10%, transparent)",
-                  border: "1px solid color-mix(in srgb, var(--modern-accent, var(--accent)) 25%, transparent)",
+                  background: "color-mix(in srgb, var(--nova-pink) 10%, transparent)",
+                  border: "1px solid color-mix(in srgb, var(--nova-pink) 25%, transparent)",
                   borderRadius: 9, padding: "9px 12px",
                 }}>
                   {note}{note && moreFound > 0 ? " · " : ""}
