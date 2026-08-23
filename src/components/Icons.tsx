@@ -284,6 +284,68 @@ export function Users(p: P) {
   );
 }
 
+// Added 2026-08-25 (nav icon audit): Assets/Master data/Technicians/
+// Administration/Products/Suppliers/Segmentation all fell back to Gear or a
+// mismatched reuse of another item's icon -- Gear specifically reads as
+// "settings", which is exactly wrong for a records list. See NAV_GLYPHS
+// (Sidebar.tsx) for where each of these actually gets used.
+export function Database(p: P) {
+  return (
+    <Svg {...p}>
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+      <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" />
+    </Svg>
+  );
+}
+
+export function Box(p: P) {
+  return (
+    <Svg {...p}>
+      <path d="M21 8 12 3 3 8l9 5 9-5Z" />
+      <path d="M3 8v8l9 5 9-5V8" />
+      <path d="M12 13v8" />
+    </Svg>
+  );
+}
+
+export function Shield(p: P) {
+  return (
+    <Svg {...p}>
+      <path d="M12 2 4 5v6c0 5 3.4 8.7 8 11 4.6-2.3 8-6 8-11V5l-8-3Z" />
+      <path d="M9 12l2 2 4-4" />
+    </Svg>
+  );
+}
+
+export function Tag(p: P) {
+  return (
+    <Svg {...p}>
+      <path d="M20.6 12.3 12.7 20.2a2 2 0 0 1-2.8 0l-7-7a2 2 0 0 1 0-2.8L10.8 2.4A2 2 0 0 1 12.3 1.8L20 2l.2 7.7a2 2 0 0 1-.6 1.4Z" />
+      <circle cx="15.5" cy="7.5" r="1.5" />
+    </Svg>
+  );
+}
+
+export function Truck(p: P) {
+  return (
+    <Svg {...p}>
+      <path d="M2 8h11v9H2z" />
+      <path d="M13 11h4l4 4v2h-8z" />
+      <circle cx="6.5" cy="19.5" r="1.8" />
+      <circle cx="16.5" cy="19.5" r="1.8" />
+    </Svg>
+  );
+}
+
+export function Filter(p: P) {
+  return (
+    <Svg {...p}>
+      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+    </Svg>
+  );
+}
+
 export function Dot({ size = 8, color = "currentColor", style }: P) {
   return (
     <svg width={size} height={size} viewBox="0 0 8 8" style={{ display: "inline-block", verticalAlign: "middle", flexShrink: 0, ...style }}>

@@ -84,15 +84,23 @@ export function useUiTheme(): "classic" | "modern" | "nextgen" {
 
 /** True for the "Enterprise" direction specifically (owner request
  * 2026-08-24: nextgen's light content with a dark navy sidebar, styled
- * after a clean-enterprise-SaaS reference) -- unlike nextgen2/Nova, this is
- * a plain opt-in theme choice available to every tenant, not gated behind a
- * feature flag. Shell.tsx stamps data-enterprise="true" from this so
- * globals.css can override just the --sb-* (sidebar chrome) token family
- * back to dark values, while every other nextgen token (cards, KPI tiles,
- * charts, accent) stays exactly as nextgen light already defines it. */
+ * after a clean-enterprise-SaaS reference). Shell.tsx stamps
+ * data-enterprise="true" from this so globals.css can override just the
+ * --sb-* (sidebar chrome) token family back to dark values, while every
+ * other nextgen token (cards, KPI tiles, charts, accent) stays exactly as
+ * nextgen light already defines it.
+ *
+ * Doubly gated, same shape as useIsNextgen3Layer() above -- owner
+ * correction 2026-08-25: it first shipped as a plain opt-in (no flag), and
+ * surfaced directly in the demo tenant's own picker, which is not this
+ * codebase's pattern for new experimental UI. The tenant must ALSO carry
+ * the platform-admin-only enterprise_theme feature flag; a stored
+ * "enterprise" ui_theme with the flag off (e.g. the demo tenant's already-
+ * saved choice) now falls back to plain nextgen rather than rendering. */
 export function useIsEnterpriseSidebar(): boolean {
   const { tenant } = useContext(TenantContext);
-  return tenant?.config?.appearance?.ui_theme === "enterprise";
+  return tenant?.config?.appearance?.ui_theme === "enterprise"
+    && tenant?.features?.enterprise_theme === true;
 }
 
 /** True for the "nextgen2" 3-layer variant specifically -- identity lives in

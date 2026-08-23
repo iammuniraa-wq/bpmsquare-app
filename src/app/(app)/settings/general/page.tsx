@@ -11,6 +11,7 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { useTenant, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
+import Pager from "@/components/Pager";
 import ApiKeysPanel from "./ApiKeysPanel";
 import WebhooksPanel from "./WebhooksPanel";
 
@@ -207,11 +208,11 @@ export default function GeneralSettingsPage() {
     grp.items
       .filter((item) => !item.featureKey || tenantFeatures?.[item.featureKey] === true)
       .flatMap((item) => {
-        const parentRow = { ...item, group: grp.group, indent: false };
+        const parentRow = { ...item, group: grp.group, sub: null as string | null, indent: false };
         if (!item.children?.length) return [parentRow];
         const childRows = item.children
           .filter((ch) => !ch.featureKey || tenantFeatures?.[ch.featureKey] === true)
-          .map((ch) => ({ ...ch, group: `${grp.group} · ${item.label}`, indent: true }));
+          .map((ch) => ({ ...ch, group: grp.group, sub: item.label, indent: true }));
         // A bundled parent (Sales, Service, …) has no featureKey of its own --
         // when every child is feature-filtered out, drop the parent row too
         // instead of offering a toggle for an empty ghost group.
@@ -219,6 +220,21 @@ export default function GeneralSettingsPage() {
         return [parentRow, ...childRows];
       })
   );
+
+  // Grouped by NAV section (owner-flagged 2026-08-25: one long flat list was
+  // hard to scan) -- same top-level names the sidebar itself uses. Paginated
+  // by SECTION, not by row: a section's toggles all stay together on one
+  // page rather than a group getting split mid-way.
+  const navGroups: { group: string; items: typeof allNavItems }[] = [];
+  for (const item of allNavItems) {
+    const last = navGroups[navGroups.length - 1];
+    if (last && last.group === item.group) last.items.push(item);
+    else navGroups.push({ group: item.group, items: [item] });
+  }
+  const NAV_GROUPS_PER_PAGE = 3;
+  const [navGroupPage, setNavGroupPage] = useState(1);
+  const navPageStart = (navGroupPage - 1) * NAV_GROUPS_PER_PAGE;
+  const navGroupsOnPage = navGroups.slice(navPageStart, navPageStart + NAV_GROUPS_PER_PAGE);
 
   // ── Navigation visibility — tenant-wide (tenants.config), not per-browser ──
   const [navSaving, startNavSave] = useTransition();
@@ -428,22 +444,32 @@ export default function GeneralSettingsPage() {
 
       {/* ── 1. Navigation visibility ── */}
       <Section title="Navigation visibility" description="Toggle sidebar items on or off for the whole workspace — every user, every device. Hidden items are still reachable by URL.">
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {allNavItems.map((item, idx) => {
-            const visible = isVisible(item.href);
-            return (
-              <div key={item.href} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", paddingLeft: item.indent ? 28 : 4, borderTop: idx > 0 ? `1px solid ${c.line}` : "none", opacity: visible ? 1 : 0.4, transition: "opacity 0.15s" }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: PILLAR_DOT[item.pillar] ?? "#378ADD" }} />
-                <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{item.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{item.label}</div>
-                  <div style={{ fontSize: 11, color: c.hint }}>{item.group}</div>
-                </div>
-                <Toggle on={visible} onChange={() => toggleNavItem(item.href)} accent={accent} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          {navGroupsOnPage.map((grp) => (
+            <div key={grp.group}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: c.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>
+                {grp.group}
               </div>
-            );
-          })}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {grp.items.map((item, idx) => {
+                  const visible = isVisible(item.href);
+                  return (
+                    <div key={item.href} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", paddingLeft: item.indent ? 28 : 4, borderTop: idx > 0 ? `1px solid ${c.line}` : "none", opacity: visible ? 1 : 0.4, transition: "opacity 0.15s" }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: PILLAR_DOT[item.pillar] ?? "#378ADD" }} />
+                      <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{item.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{item.label}</div>
+                        {item.sub && <div style={{ fontSize: 11, color: c.hint }}>{item.sub}</div>}
+                      </div>
+                      <Toggle on={visible} onChange={() => toggleNavItem(item.href)} accent={accent} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
+        <Pager page={navGroupPage} total={navGroups.length} pageSize={NAV_GROUPS_PER_PAGE} onPage={setNavGroupPage} />
       </Section>
 
       {/* ── 2. Quote types (only for tenants with the Quotations module) ── */}
@@ -479,12 +505,17 @@ export default function GeneralSettingsPage() {
               { value: "classic" as const, label: "Classic", desc: "Dark navy sidebar, the original look.", swatch: "linear-gradient(135deg, #152233, #0e1a28)" },
               { value: "modern" as const, label: "Modern", desc: "Denser cards, sharper borders, navy + gold.", swatch: "linear-gradient(135deg, #14294b, #0a1830)" },
               { value: "nextgen" as const, label: "Next-gen", desc: "Flat, minimal, real icons — with dark mode.", swatch: "linear-gradient(135deg, #ffffff, #eef3fe)" },
-              { value: "enterprise" as const, label: "Enterprise", desc: "Dark navy sidebar, clean white workspace.", swatch: "linear-gradient(135deg, #152233 0%, #152233 42%, #ffffff 42%, #ffffff 100%)" },
               // Next Experience program: offered only to tenants the PLATFORM
               // admin has flagged in (demo first, clients after validation) --
               // a workspace admin can't opt into the experiment on their own.
               ...(tenant?.features?.next_experience === true
                 ? [{ value: "nextgen2" as const, label: "Nova", desc: "BPMSquare Nova — the Business OS. Command palette, engagement layer, identity in the top bar.", swatch: "linear-gradient(135deg, #eef3fe, #dbe7fd)" }]
+                : []),
+              // Same platform-admin-only gate (owner correction 2026-08-25:
+              // this shipped without one and surfaced directly in the demo
+              // tenant's own picker, which isn't this codebase's pattern).
+              ...(tenant?.features?.enterprise_theme === true
+                ? [{ value: "enterprise" as const, label: "Enterprise", desc: "Dark navy sidebar, clean white workspace.", swatch: "linear-gradient(135deg, #152233 0%, #152233 42%, #ffffff 42%, #ffffff 100%)" }]
                 : []),
             ]).map((opt) => {
               const selected = theme === opt.value;

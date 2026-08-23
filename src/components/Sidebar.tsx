@@ -7,7 +7,7 @@ import { NAV, ROUTES } from "@/lib/constants";
 import type { NavItem } from "@/lib/constants";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
-import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon } from "@/components/Icons";
+import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon, Database, Box, Shield, Tag, Truck, Filter } from "@/components/Icons";
 import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useIsNextgen3Layer } from "@/lib/tenant-context";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
@@ -102,14 +102,26 @@ export const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; col
   [ROUTES.amc]: CalendarCheck,
   [ROUTES.workOrders]: Wrench,
   [ROUTES.dispatch]: MapPin,
-  [ROUTES.technicians]: Gear,
+  // Technicians is a people list (field staff), not a settings screen --
+  // was Gear (2026-08-25 icon audit).
+  [ROUTES.technicians]: Users,
   [ROUTES.marketing]: Mail,
-  [ROUTES.marketingSegments]: Package,
+  // Segmentation divides an audience into groups -- a shipping-box icon
+  // (Package, also Inventory's icon) didn't represent that at all.
+  [ROUTES.marketingSegments]: Filter,
   [ROUTES.leads]: Zap,
   [ROUTES.partners]: LinkIcon,
-  [ROUTES.assets]: Gear,
-  [ROUTES.suppliers]: Globe,
+  // Assets is equipment/records, not configuration -- was Gear, which the
+  // "Master data" parent item then inherited too (it reuses Assets' own
+  // href/icon), so BOTH read as "Settings" (owner-flagged 2026-08-25).
+  [ROUTES.assets]: Box,
+  // Suppliers previously reused Accounts' own Globe -- confusing since both
+  // sit in the same Master Data group. Truck reads as supply chain instead.
+  [ROUTES.suppliers]: Truck,
   [ROUTES.inventory]: Package,
+  // Products had no entry at all (silently fell back to Gear). Tag reads as
+  // a catalog/price-tag item, distinct from Inventory's box-of-stock.
+  [ROUTES.products]: Tag,
   [ROUTES.purchaseOrders]: Clipboard,
   [ROUTES.reports]: BarChart2,
   [ROUTES.dataWorkbench]: Clipboard,
@@ -124,7 +136,10 @@ export const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; col
   [ROUTES.wfmLeave]: CalendarCheck,
   [ROUTES.wfmSummary]: BarChart2,
   [ROUTES.employees]: Users,
-  [ROUTES.administration]: Gear,
+  // Audit & Users (administration) previously shared Gear with Settings --
+  // the two are different destinations and looked identical in Spaces
+  // (owner-flagged 2026-08-25). Shield reads as oversight/audit.
+  [ROUTES.administration]: Shield,
   [ROUTES.settings]: Gear,
 };
 

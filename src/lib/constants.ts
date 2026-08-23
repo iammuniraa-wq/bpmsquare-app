@@ -234,9 +234,9 @@ export const NAV: NavGroup[] = [
     group: "MASTER DATA",
     items: [
       {
-        label: "Master data", href: ROUTES.assets, icon: "⚙", pillar: "green",
+        label: "Master data", href: ROUTES.assets, icon: "▧", pillar: "green",
         children: [
-          { label: "Assets",          href: ROUTES.assets,         icon: "⚙", pillar: "green", featureKey: "assets", workcenterKey: "assets" },
+          { label: "Assets",          href: ROUTES.assets,         icon: "▧", pillar: "green", featureKey: "assets", workcenterKey: "assets" },
           { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", featureKey: "suppliers", workcenterKey: "suppliers" },
           { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
           { label: "Products",        href: ROUTES.products,       icon: "▩", pillar: "green", featureKey: "products", workcenterKey: "products" },
@@ -280,7 +280,7 @@ export const NAV: NavGroup[] = [
     group: "ADMIN",
     items: [
       { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal", featureKey: "data_workbench", workcenterKey: "data_workbench" },
-      { label: "Audit & Users", href: ROUTES.administration, icon: "⚙", pillar: "teal", featureKey: "administration", workcenterKey: "administration" },
+      { label: "Audit & Users", href: ROUTES.administration, icon: "⛨", pillar: "teal", featureKey: "administration", workcenterKey: "administration" },
     ],
   },
 ];
@@ -443,6 +443,12 @@ export type TenantFeatures = {
   // key reads false, so every existing tenant is untouched by default --
   // the demo tenant is where it gets proven before any client sees it.
   next_experience: boolean;
+  // The "Enterprise" theme (owner correction 2026-08-25: it shipped without
+  // a gate and surfaced directly in the demo tenant's own picker -- not the
+  // design. Platform-admin-only, same shape as next_experience: proven on
+  // the demo tenant first, missing key reads false so every existing tenant
+  // is untouched.
+  enterprise_theme: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
