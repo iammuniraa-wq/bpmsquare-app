@@ -58,8 +58,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       selected_option_id: null,
       meta:              original.meta ?? null,
       custom_data:       original.custom_data ?? null,
-      territory:         original.territory ?? null,
-      sales_org:         original.sales_org ?? null,
     })
     .select("id, ref")
     .single();

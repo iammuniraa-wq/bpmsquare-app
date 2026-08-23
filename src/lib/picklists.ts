@@ -1,10 +1,12 @@
 // Code + description picklists (owner decision 2026-08-22).
 //
-// Every configurable list value (territory, sales org, product category /
-// sub-category) is a { code, name } pair: the CODE is short, stable and
-// immutable once used — it is what records store and what integrations match
-// on (SAP-style; an ERP's VKORG can literally be the code). The NAME is the
-// display label and can be renamed freely without orphaning any data.
+// Every configurable list value (product category / sub-category -- the
+// original territory/sales_org picklists were removed 2026-08-26 in favour
+// of Coverage's rule-based Segments) is a { code, name } pair: the CODE is
+// short, stable and immutable once used — it is what records store and what
+// integrations match on (SAP-style; an ERP's VKORG can literally be the
+// code). The NAME is the display label and can be renamed freely without
+// orphaning any data.
 //
 // Records created before this change stored the display text itself;
 // migration 0100 backfills them to derived codes using the same derivation

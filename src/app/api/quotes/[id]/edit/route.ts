@@ -22,7 +22,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const body = await request.json();
   const {
     quote_date, valid_until, notes, terms, scope_of_work, lines, selected_option_id, status,
-    territory, sales_org, gst_rate, account_id, contact_id,
+    gst_rate, account_id, contact_id,
     name, entity_id, ref_no, pr_no, po_number, po_amount,
     discount_type, discount_pct, discount_fixed, asset_ids, custom_data,
     inquiry_date,
@@ -178,8 +178,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     scope_of_work: sanitizeRichText(scope_of_work),
     selected_option_id: effectiveAltId,
     ...(quote_date !== undefined ? { quote_date: quote_date || null } : {}),
-    ...(territory !== undefined ? { territory: territory || null } : {}),
-    ...(sales_org !== undefined ? { sales_org: sales_org || null } : {}),
     ...(gst_rate !== undefined ? { gst_rate: gst_rate !== null && gst_rate !== "" ? parseFloat(gst_rate) : null } : {}),
     ...(account_id !== undefined ? { account_id } : {}),
     ...(contact_id !== undefined ? { contact_id: contact_id || null } : {}),

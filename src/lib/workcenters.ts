@@ -9,22 +9,15 @@ export type WorkcenterKey =
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
   | "reports" | "data_workbench" | "administration" | "wfm" | "products";
 
-/**
- * territoryScopable marks the workcenters backed by an object that actually
- * has a `territory` column (accounts, contacts, quotes, service_cases) --
- * the only ones a 'territory' data_scope grant can mean anything for.
- * Territory-scoped row filtering itself is Phase 2 (not wired into any
- * query yet); Phase 1 only lets a role be configured with it.
- */
-export const WORKCENTERS: { key: WorkcenterKey; label: string; territoryScopable?: boolean }[] = [
+export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
-  { key: "accounts", label: "Accounts", territoryScopable: true },
-  { key: "contacts", label: "Contacts", territoryScopable: true },
-  { key: "quotations", label: "Quotations", territoryScopable: true },
+  { key: "accounts", label: "Accounts" },
+  { key: "contacts", label: "Contacts" },
+  { key: "quotations", label: "Quotations" },
   { key: "standard_quotes", label: "Standard Quotes" },
   { key: "pipeline", label: "Pipeline" },
   { key: "invoices", label: "Invoices" },
-  { key: "cases", label: "Cases", territoryScopable: true },
+  { key: "cases", label: "Cases" },
   { key: "amc", label: "AMC Contracts" },
   { key: "work_orders", label: "Work Orders" },
   { key: "dispatch", label: "Dispatch" },

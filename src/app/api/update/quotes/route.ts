@@ -11,7 +11,7 @@ import type { RowOutcome } from "@/lib/import/types";
 // deliberately not bulk-editable.
 const ALLOWED = [
   "type", "valid_until", "ref_no", "pr_no", "po_number", "po_amount",
-  "territory", "sales_org", "notes", "terms", "scope_of_work", "custom_data",
+  "notes", "terms", "scope_of_work", "custom_data",
 ];
 
 export async function POST(request: NextRequest) {

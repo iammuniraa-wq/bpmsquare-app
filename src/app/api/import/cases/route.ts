@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
   const [fieldConfig, salesConfig, accounts, assets, { count: existingCount }] = await Promise.all([
     getEffectiveFieldConfig(supabase, tenantId, "case"),
     getSalesConfig(supabase, tenantId),
-    fetchAllRows<{ id: string; name: string; territory: string | null; sales_org: string | null }>(
-      supabase, "accounts", "id, name, territory, sales_org", tenantId
+    fetchAllRows<{ id: string; name: string }>(
+      supabase, "accounts", "id, name", tenantId
     ),
     fetchAllRows<{ id: string; name: string }>(supabase, "assets", "id, name", tenantId),
     supabase.from("service_cases").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
@@ -102,8 +102,6 @@ export async function POST(request: NextRequest) {
         asset_ids: assetIds,
         intake_at: new Date().toISOString(),
         has_loaner: false,
-        territory: v.territory || account.territory || null,
-        sales_org: v.sales_org || account.sales_org || null,
         notes: v.notes ?? null,
         ...(custom ? { custom_data: custom } : {}),
       },

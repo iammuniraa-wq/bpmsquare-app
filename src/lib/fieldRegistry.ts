@@ -21,7 +21,7 @@ export type WidgetType =
   | "tel" | "email" | "url"
   | "enum";
 
-export type SelectSource = "territory" | "sales_org" | "product_category" | "product_sub_category"; // resolved via useSalesConfig()
+export type SelectSource = "product_category" | "product_sub_category"; // resolved via useSalesConfig()
 
 export type StandardFieldDef = {
   /** Permanent DB column name — never renamed, never changes. */
@@ -156,9 +156,6 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "email2", defaultLabel: "Secondary email", widget: "email", defaultSection: "Communication" },
       { key: "website", defaultLabel: "Website", widget: "url", defaultSection: "Communication" },
 
-      { key: "territory", defaultLabel: "Territory", widget: "select", defaultSection: "Sales", selectSource: "territory" },
-      { key: "sales_org", defaultLabel: "Sales org", widget: "select", defaultSection: "Sales", selectSource: "sales_org" },
-
       { key: "industry", defaultLabel: "Industry", widget: "text", defaultSection: "Business" },
       { key: "employee_count", defaultLabel: "Employees", widget: "text", defaultSection: "Business" },
       { key: "annual_revenue", defaultLabel: "Annual revenue", widget: "text", defaultSection: "Business" },
@@ -195,9 +192,6 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "state", defaultLabel: "State", widget: "text", defaultSection: "Address" },
       { key: "postal_code", defaultLabel: "Postal code", widget: "text", defaultSection: "Address" },
       { key: "country", defaultLabel: "Country", widget: "text", defaultSection: "Address" },
-
-      { key: "territory", defaultLabel: "Territory", widget: "select", defaultSection: "Sales", selectSource: "territory" },
-      { key: "sales_org", defaultLabel: "Sales org", widget: "select", defaultSection: "Sales", selectSource: "sales_org" },
 
       { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
     ],
@@ -291,9 +285,6 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "symptom",         defaultLabel: "Symptom",    widget: "textarea", defaultSection: "Case details" },
       { key: "notes",           defaultLabel: "Internal notes", widget: "textarea", defaultSection: "Case details" },
 
-      { key: "territory", defaultLabel: "Territory", widget: "select", defaultSection: "Sales", selectSource: "territory" },
-      { key: "sales_org", defaultLabel: "Sales org",  widget: "select", defaultSection: "Sales", selectSource: "sales_org" },
-
       { key: "intake_at", defaultLabel: "Intake",  widget: "date", defaultSection: "Timeline", locked: true, editable: false, hiddenByDefault: true },
       { key: "closed_at", defaultLabel: "Closed",   widget: "date", defaultSection: "Timeline", locked: true, editable: false, hiddenByDefault: true },
 
@@ -347,9 +338,6 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "discount_pct",   defaultLabel: "Discount %",      widget: "number", defaultSection: "Commercial", editable: false },
       { key: "discount_fixed", defaultLabel: "Discount amount", widget: "number", defaultSection: "Commercial", editable: false },
       { key: "gst_rate",       defaultLabel: "GST rate %",      widget: "number", defaultSection: "Commercial", editable: false },
-
-      { key: "territory", defaultLabel: "Territory", widget: "select", defaultSection: "Sales", selectSource: "territory" },
-      { key: "sales_org", defaultLabel: "Sales org", widget: "select", defaultSection: "Sales", selectSource: "sales_org" },
 
       { key: "scope_of_work", defaultLabel: "Scope of work", widget: "textarea", defaultSection: "Notes" },
       { key: "notes",         defaultLabel: "Notes",         widget: "textarea", defaultSection: "Notes" },

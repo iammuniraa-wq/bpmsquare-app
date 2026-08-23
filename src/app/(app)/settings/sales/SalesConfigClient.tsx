@@ -76,75 +76,6 @@ function AddRow({ placeholder, onAdd }: { placeholder: string; onAdd: (item: Pic
   );
 }
 
-function ListEditor({
-  title,
-  description,
-  items,
-  onChange,
-  placeholder,
-}: {
-  title: string;
-  description: string;
-  items: PicklistItem[];
-  onChange: (next: PicklistItem[]) => void;
-  placeholder: string;
-}) {
-  function add(item: PicklistItem) {
-    if (!item.code || items.some((i) => i.code === item.code)) return;
-    onChange([...items, item]);
-  }
-
-  function rename(idx: number, name: string) {
-    onChange(items.map((it, i) => (i === idx ? { ...it, name } : it)));
-  }
-
-  function remove(idx: number) {
-    onChange(items.filter((_, i) => i !== idx));
-  }
-
-  function moveUp(idx: number) {
-    if (idx === 0) return;
-    const n = [...items]; [n[idx - 1], n[idx]] = [n[idx], n[idx - 1]]; onChange(n);
-  }
-
-  function moveDown(idx: number) {
-    if (idx >= items.length - 1) return;
-    const n = [...items]; [n[idx], n[idx + 1]] = [n[idx + 1], n[idx]]; onChange(n);
-  }
-
-  return (
-    <div style={{ ...cardStyle, padding: "20px 24px", marginBottom: 20 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: c.ink, marginBottom: 6 }}>{title}</div>
-      <div style={{ fontSize: 13, color: c.muted, marginBottom: 16, lineHeight: 1.6 }}>{description}</div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-        {items.length === 0 && (
-          <div style={{ fontSize: 13, color: c.hint, fontStyle: "italic" }}>No values yet — add one below.</div>
-        )}
-        {items.map((item, idx) => (
-          <div key={item.code} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={codeChip}>{item.code}</span>
-            <input
-              style={{ ...inp, background: c.panel2 }}
-              value={item.name}
-              onChange={(e) => rename(idx, e.target.value)}
-              title="Display name — renaming never affects stored records; the code stays."
-            />
-            <button type="button" onClick={() => moveUp(idx)} disabled={idx === 0}
-              style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 5, cursor: "pointer", color: c.muted, fontSize: 12, padding: "4px 7px" }}>↑</button>
-            <button type="button" onClick={() => moveDown(idx)} disabled={idx === items.length - 1}
-              style={{ background: "none", border: `1px solid ${c.line}`, borderRadius: 5, cursor: "pointer", color: c.muted, fontSize: 12, padding: "4px 7px" }}>↓</button>
-            <button type="button" onClick={() => remove(idx)}
-              style={{ background: "none", border: "1px solid var(--err-line)", borderRadius: 5, cursor: "pointer", color: "var(--err-ink)", fontSize: 12, padding: "4px 7px" }}>×</button>
-          </div>
-        ))}
-      </div>
-
-      <AddRow placeholder={placeholder} onAdd={add} />
-    </div>
-  );
-}
-
 // Two-level product category editor. Same code+name contract on both levels.
 function CategoryTreeEditor({
   items,
@@ -221,16 +152,10 @@ function CategoryTreeEditor({
 }
 
 export default function SalesConfigClient({
-  initialTerritories,
-  initialSalesOrgs,
   initialProductCategories,
 }: {
-  initialTerritories: PicklistItem[];
-  initialSalesOrgs: PicklistItem[];
   initialProductCategories: ProductCategoryNode[];
 }) {
-  const [territories, setTerritories] = useState<PicklistItem[]>(initialTerritories);
-  const [salesOrgs, setSalesOrgs] = useState<PicklistItem[]>(initialSalesOrgs);
   const [productCategories, setProductCategories] = useState<ProductCategoryNode[]>(initialProductCategories);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -243,7 +168,7 @@ export default function SalesConfigClient({
       const res = await fetch("/api/settings/sales-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ territories, sales_orgs: salesOrgs, product_categories: productCategories }),
+        body: JSON.stringify({ product_categories: productCategories }),
       });
       if (res.ok) { flash(); }
       else { const j = await res.json(); setError(j.error ?? "Failed to save"); }
@@ -258,22 +183,6 @@ export default function SalesConfigClient({
         and a display <strong>name</strong> (rename any time — records are unaffected).
         Match codes to your ERP&apos;s keys where an ERP is connected.
       </div>
-
-      <ListEditor
-        title="Territories"
-        description="Sales territories used across accounts, contacts, quotes and cases. Users pick from this list — no free-typing."
-        items={territories}
-        onChange={setTerritories}
-        placeholder="e.g. West India"
-      />
-
-      <ListEditor
-        title="Sales organisations"
-        description="Sales org codes for your team structure. Drives reporting and assignment."
-        items={salesOrgs}
-        onChange={setSalesOrgs}
-        placeholder="e.g. IN-West"
-      />
 
       <CategoryTreeEditor items={productCategories} onChange={setProductCategories} />
 

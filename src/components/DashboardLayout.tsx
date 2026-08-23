@@ -9,7 +9,6 @@ import { cardStyle } from "@/components/Shell";
 import { useUiTheme, useIsNextgen3Layer } from "@/lib/tenant-context";
 import SilenceDetector from "@/components/SilenceDetector";
 import LossIntelligence from "@/components/LossIntelligence";
-import FogOfWar from "@/components/FogOfWar";
 import WfmSummaryWidget from "@/components/wfm/WfmSummaryWidget";
 import { ROUTES } from "@/lib/constants";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
@@ -1636,7 +1635,6 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
           nothing until the tenant has real data behind them. */}
       {threeLayer && features.quotations === true && <SilenceDetector />}
       {threeLayer && features.quotations === true && <LossIntelligence />}
-      {threeLayer && features.accounts === true && <FogOfWar />}
 
       {/* Two-column layout */}
       {/* Only reserve the 280px right rail when there is actually something to

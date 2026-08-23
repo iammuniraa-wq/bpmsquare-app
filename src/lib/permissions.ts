@@ -15,8 +15,6 @@ export type EffectiveGrant = {
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
-  dataScope: "all" | "territory";
-  territories: string[];
 };
 
 export type PermissionSet = {
@@ -65,7 +63,7 @@ export const resolvePermissions = cache(async (
   const roleIds = assignments.map((a) => a.role_id as string);
   const { data: grantRows } = await supabase
     .from("business_role_grants")
-    .select("workcenter, can_view, can_create, can_edit, can_delete, data_scope, territories")
+    .select("workcenter, can_view, can_create, can_edit, can_delete")
     .eq("tenant_id", tenantId)
     .in("role_id", roleIds);
 
@@ -77,8 +75,6 @@ export const resolvePermissions = cache(async (
       grants.set(key, {
         workcenter: key,
         canView: row.can_view, canCreate: row.can_create, canEdit: row.can_edit, canDelete: row.can_delete,
-        dataScope: row.data_scope === "territory" ? "territory" : "all",
-        territories: row.territories ?? [],
       });
       continue;
     }
@@ -86,12 +82,6 @@ export const resolvePermissions = cache(async (
     existing.canCreate ||= row.can_create;
     existing.canEdit ||= row.can_edit;
     existing.canDelete ||= row.can_delete;
-    if (row.data_scope === "all") {
-      existing.dataScope = "all";
-      existing.territories = [];
-    } else if (existing.dataScope === "territory") {
-      existing.territories = [...new Set([...existing.territories, ...(row.territories ?? [])])];
-    }
   }
 
   return { unrestricted: false, grants };

@@ -58,7 +58,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     "address_line1", "address_line2", "city", "state", "postal_code", "country",
     "phone", "phone2", "email", "email2", "website",
     "industry", "employee_count", "annual_revenue", "gstin", "notes",
-    "territory", "sales_org",
     "referred_by_account_id", "custom_data",
   ];
   const PII_FIELDS = new Set(["phone", "phone2", "email", "email2", "gstin"]);
@@ -101,8 +100,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const decrypted = decryptAccount(data as import("@/lib/types").Account);
 
   // Recompute auto-ownership -- a field this update just changed (state,
-  // industry, territory, ...) may move the account into or out of a
-  // different OWNER coverage. Only queried when the module is on.
+  // industry, ...) may move the account into or out of a different OWNER
+  // coverage. Only queried when the module is on.
   const tenant = await getTenant();
   if (tenant?.features?.coverage_model) {
     decrypted.owner_user_id = await applyAutoOwnership(tenantId, decrypted as Account);

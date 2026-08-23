@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
-import { normalizePicklist, normalizeCategoryTree } from "@/lib/picklists";
+import { normalizeCategoryTree } from "@/lib/picklists";
 
 export async function GET() {
   let tenantId;
@@ -20,8 +20,6 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const cfg = (data?.config ?? {}) as Record<string, unknown>;
   return NextResponse.json({
-    territories: normalizePicklist(cfg.territories),
-    sales_orgs: normalizePicklist(cfg.sales_orgs),
     product_categories: normalizeCategoryTree(cfg.product_categories),
   });
 }
@@ -40,8 +38,6 @@ export async function PUT(request: NextRequest) {
   // code derived from the name when blank, codes canonicalised (uppercase,
   // A-Z0-9_, 40 chars) and deduped. Two-level tree depth is the OOB contract.
   const body = await request.json() as Record<string, unknown>;
-  const territories = normalizePicklist(body.territories);
-  const sales_orgs = normalizePicklist(body.sales_orgs);
   const product_categories = normalizeCategoryTree(body.product_categories);
 
   const admin = createAdminSupabase();
@@ -49,7 +45,7 @@ export async function PUT(request: NextRequest) {
     .from("tenants").select("config").eq("id", tenantId).single();
   if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
 
-  const merged = { ...(current?.config ?? {}), territories, sales_orgs, product_categories };
+  const merged = { ...(current?.config ?? {}), product_categories };
   const { error } = await admin.from("tenants").update({ config: merged }).eq("id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     address_line1, address_line2, city, state, postal_code, country,
     phone, phone2, email, email2, website,
     industry, employee_count, annual_revenue, gstin, notes,
-    referred_by_account_id, custom_data, territory, sales_org,
+    referred_by_account_id, custom_data,
   } = body;
 
   if (!name || !type) {
@@ -62,20 +62,6 @@ export async function POST(request: NextRequest) {
   if (referred_by_account_id) {
     const { data: referrer } = await supabase.from("accounts").select("id").eq("id", referred_by_account_id).eq("tenant_id", tenantId).maybeSingle();
     if (!referrer) return NextResponse.json({ error: "Referring account not found" }, { status: 404 });
-  }
-
-  // Fog of War (engagement layer): is this the FIRST account ever opened in
-  // this territory? Counted before the insert so the new row can't count
-  // itself; the response carries the flag and the client decides whether to
-  // celebrate (3-layer theme only).
-  let territoryDiscovery = false;
-  if (territory) {
-    const { count } = await supabase
-      .from("accounts")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      .eq("territory", territory);
-    territoryDiscovery = (count ?? 0) === 0;
   }
 
   const { data, error } = await insertWithMasterRef(supabase, "accounts", tenantId, {
@@ -97,8 +83,6 @@ export async function POST(request: NextRequest) {
       annual_revenue: annual_revenue || null,
       gstin: encrypt(gstin || null),
       notes: notes || null,
-      territory: territory || null,
-      sales_org: sales_org || null,
       referred_by_account_id: referred_by_account_id || null,
       ...(custom_data && Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     }, "*");
@@ -122,12 +106,9 @@ export async function POST(request: NextRequest) {
     changes: diffForLog("accounts", {}, {
       name, type, address_line1, address_line2, city, state, postal_code, country,
       phone, phone2, email, email2, website, industry, employee_count, annual_revenue,
-      gstin, notes, territory, sales_org, referred_by_account_id,
+      gstin, notes, referred_by_account_id,
     }),
   });
 
-  return NextResponse.json(
-    { ...data, ...(territoryDiscovery ? { territory_discovery: territory } : {}) },
-    { status: 201 }
-  );
+  return NextResponse.json(data, { status: 201 });
 }

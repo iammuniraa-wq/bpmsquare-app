@@ -160,8 +160,6 @@ const QUOTE_FIELDS: FieldDef[] = [
     key: "selected_option_id", type: "string", label: "Selected option", maxLength: 64,
     description: "The group_id of the alternative group that counts toward the total. Only meaningful when lines use group_type \"alternative\".",
   },
-  { key: "territory", type: "string", label: "Territory", maxLength: 100, description: "Sales territory. Copied from the account on create when omitted." },
-  { key: "sales_org", type: "string", label: "Sales org", maxLength: 100, description: "Sales organisation. Copied from the account on create when omitted." },
   { key: "custom_data", type: "json", label: "Custom fields", description: "Values for tenant-defined custom fields, keyed by field_key (Settings → Custom fields)." },
   { key: "meta", type: "json", label: "Metadata", description: "Free-form object for your own use. Stored and returned untouched." },
   {

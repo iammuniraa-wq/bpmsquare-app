@@ -14,8 +14,6 @@ export type GrantInput = {
   can_create?: boolean;
   can_edit?: boolean;
   can_delete?: boolean;
-  data_scope?: string;
-  territories?: string[];
 };
 
 /** Drops anything not on the canonical workcenter list and coerces every
@@ -37,8 +35,6 @@ function sanitizeGrants(input: unknown, tenantId: string, roleId: string) {
       can_create: !!g.can_create,
       can_edit: !!g.can_edit,
       can_delete: !!g.can_delete,
-      data_scope: g.data_scope === "territory" ? "territory" : "all",
-      territories: g.data_scope === "territory" && Array.isArray(g.territories) ? g.territories.filter((t) => typeof t === "string") : [],
     });
   }
   return rows;
@@ -78,7 +74,7 @@ export async function GET() {
 
   const { data: grants } = await supabase
     .from("business_role_grants")
-    .select("role_id, workcenter, can_view, can_create, can_edit, can_delete, data_scope, territories")
+    .select("role_id, workcenter, can_view, can_create, can_edit, can_delete")
     .eq("tenant_id", tenantId);
 
   const grantsByRole = new Map<string, unknown[]>();
@@ -124,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     const { data: sourceGrants } = await supabase
       .from("business_role_grants")
-      .select("workcenter, can_view, can_create, can_edit, can_delete, data_scope, territories")
+      .select("workcenter, can_view, can_create, can_edit, can_delete")
       .eq("tenant_id", tenantId)
       .eq("role_id", source.id);
 

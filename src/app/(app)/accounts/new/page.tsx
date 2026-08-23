@@ -8,9 +8,6 @@ import MobileSection from "@/components/MobileSection";
 import { ROUTES } from "@/lib/constants";
 import Link from "next/link";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
-import { useSalesConfig } from "@/lib/useSalesConfig";
-import { useIsNextgen3Layer } from "@/lib/tenant-context";
-import { celebrate } from "@/lib/celebrate";
 
 interface CFDef {
   id: string; field_key: string; field_label: string;
@@ -41,10 +38,6 @@ const sectionHead: React.CSSProperties = { fontSize: 13, fontWeight: 700, color:
 
 export default function NewAccountPage() {
   const router = useRouter();
-  // Fog of War: the API flags when this is the first-ever account in its
-  // territory; the celebration fires only on the 3-layer theme.
-  const celebrateDiscovery = useIsNextgen3Layer();
-  const salesCfg = useSalesConfig();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [cfDefs, setCfDefs] = useState<CFDef[]>([]);
@@ -75,7 +68,6 @@ export default function NewAccountPage() {
     phone: "", phone2: "", email: "", email2: "", website: "",
     // Business
     industry: "", employee_count: "", annual_revenue: "", gstin: "",
-    territory: "", sales_org: "",
     // Notes + referral
     notes: "", referred_by_account_id: "",
   });
@@ -125,9 +117,6 @@ export default function NewAccountPage() {
       });
       const json = await res.json();
       if (res.ok) {
-        if (celebrateDiscovery && json.territory_discovery) {
-          celebrate("New territory opened!", `${json.name} is your first account in ${json.territory_discovery} — the map just got bigger.`);
-        }
         router.push(ROUTES.account(json.id));
       } else {
         setError(json.error ?? "Failed to create account");
@@ -234,22 +223,6 @@ export default function NewAccountPage() {
       <div style={fw}>
         <label style={label}>GSTIN</label>
         <input style={input} value={form.gstin} onChange={set("gstin")} placeholder="27AABCV1234F1Z5" />
-      </div>
-      <div style={{ ...grid2, ...fw }}>
-        <div>
-          <label style={label}>Territory</label>
-          <select style={input} value={form.territory} onChange={set("territory")}>
-            <option value="">— none —</option>
-            {salesCfg.territories.map((t) => <option key={t.code} value={t.code}>{t.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={label}>Sales org</label>
-          <select style={input} value={form.sales_org} onChange={set("sales_org")}>
-            <option value="">— none —</option>
-            {salesCfg.sales_orgs.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
-          </select>
-        </div>
       </div>
       {cfInputs("Business")}
     </>

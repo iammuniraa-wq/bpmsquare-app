@@ -17,7 +17,7 @@ const ALL_TYPES: Account["type"][] = ["prospect", "oem", "direct", "end_customer
 export default async function AccountsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; territory?: string; af?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; af?: string }>;
 }) {
   await requireWorkcenterView("accounts");
   await requireFeature("accounts");

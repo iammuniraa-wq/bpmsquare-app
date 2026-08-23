@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 import SalesConfigClient from "./SalesConfigClient";
-import { normalizePicklist, normalizeCategoryTree } from "@/lib/picklists";
+import { normalizeCategoryTree } from "@/lib/picklists";
 
 export default async function SalesConfigPage() {
   let tenantId: string, role: string;
@@ -26,11 +26,9 @@ export default async function SalesConfigPage() {
     <>
       <PageHeader
         title="Sales config"
-        subtitle="Manage territory, sales org and product category picklist values"
+        subtitle="Manage product category picklist values"
       />
       <SalesConfigClient
-        initialTerritories={normalizePicklist(cfg.territories)}
-        initialSalesOrgs={normalizePicklist(cfg.sales_orgs)}
         initialProductCategories={normalizeCategoryTree(cfg.product_categories)}
       />
     </>

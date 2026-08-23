@@ -7,7 +7,7 @@ import type { RowOutcome } from "@/lib/import/types";
 // Subset of src/app/api/cases/[id]/route.ts PATCH's allowed list — only the fields that
 // are actually FIELD_REGISTRY.case columns (type/disposition are editable:false there;
 // status/assigned_to/asset_ids have dedicated relationship UI, not bulk-editable here).
-const ALLOWED = ["equipment_label", "complaint", "symptom", "notes", "territory", "sales_org", "custom_data"];
+const ALLOWED = ["equipment_label", "complaint", "symptom", "notes", "custom_data"];
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;

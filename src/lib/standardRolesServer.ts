@@ -143,8 +143,6 @@ export function grantRowsFor(template: StandardRoleTemplate, tenantId: string, r
       role_id: roleId,
       workcenter,
       ...expandCrud(crud),
-      data_scope: "all",
-      territories: [] as string[],
     })
   );
 }

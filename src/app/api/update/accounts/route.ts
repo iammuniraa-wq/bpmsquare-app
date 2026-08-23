@@ -12,7 +12,7 @@ const ALLOWED = [
   "address_line1", "address_line2", "city", "state", "postal_code", "country",
   "phone", "phone2", "email", "email2", "website",
   "industry", "employee_count", "annual_revenue", "gstin", "notes",
-  "territory", "sales_org", "custom_data",
+  "custom_data",
 ];
 const PII_FIELDS = new Set(["phone", "phone2", "email", "email2", "gstin"]);
 

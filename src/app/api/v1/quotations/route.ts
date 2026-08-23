@@ -59,7 +59,7 @@ export async function POST(req: Request) {
   if (relErr) return jsonError(404, relErr);
 
   const { data: account } = await supabase
-    .from("accounts").select("id, territory, sales_org").eq("id", header.values.account_id).eq("tenant_id", tenantId).maybeSingle();
+    .from("accounts").select("id").eq("id", header.values.account_id).eq("tenant_id", tenantId).maybeSingle();
 
   const { data: tenantRow } = await supabase.from("tenants").select("config").eq("id", tenantId).maybeSingle();
   const tenantConfig = tenantRow?.config as TenantConfig | null;
@@ -130,8 +130,6 @@ export async function POST(req: Request) {
     closed_at: values.closed_at ?? null,
     updated_at: new Date().toISOString(),
     ...(values.business_status !== undefined ? { business_status: values.business_status } : {}),
-    territory: values.territory ?? account?.territory ?? null,
-    sales_org: values.sales_org ?? account?.sales_org ?? null,
   };
 
   // Retry on a (tenant_id, ref) collision -- narrow race between computing the

@@ -90,8 +90,6 @@ export async function POST(request: NextRequest) {
         state: v.state ?? null,
         postal_code: v.postal_code ?? null,
         country: v.country ?? null,
-        territory: v.territory ?? null,
-        sales_org: v.sales_org ?? null,
         notes: v.notes ?? null,
         ...(custom ? { custom_data: custom } : {}),
       },

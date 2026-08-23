@@ -21,8 +21,6 @@ function sanitizeGrants(input: unknown, tenantId: string, roleId: string) {
       can_create: !!g.can_create,
       can_edit: !!g.can_edit,
       can_delete: !!g.can_delete,
-      data_scope: g.data_scope === "territory" ? "territory" : "all",
-      territories: g.data_scope === "territory" && Array.isArray(g.territories) ? g.territories.filter((t) => typeof t === "string") : [],
     });
   }
   return rows;

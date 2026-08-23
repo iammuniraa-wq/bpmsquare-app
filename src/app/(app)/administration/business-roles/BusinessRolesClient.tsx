@@ -16,8 +16,6 @@ type Grant = {
   can_create: boolean;
   can_edit: boolean;
   can_delete: boolean;
-  data_scope: "all" | "territory";
-  territories: string[];
 };
 type BusinessRole = {
   id: string; name: string; description: string | null; grants: Grant[];
@@ -32,18 +30,18 @@ type BusinessRole = {
   dashboard_layout?: DashLayoutItem[] | null;
 };
 
-type GrantDraft = Record<string, { granted: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean; data_scope: "all" | "territory"; territories: string[] }>;
+type GrantDraft = Record<string, { granted: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>;
 
 function emptyDraft(): GrantDraft {
   const d: GrantDraft = {};
-  for (const w of WORKCENTERS) d[w.key] = { granted: false, can_create: false, can_edit: false, can_delete: false, data_scope: "all", territories: [] };
+  for (const w of WORKCENTERS) d[w.key] = { granted: false, can_create: false, can_edit: false, can_delete: false };
   return d;
 }
 
 function draftFromGrants(grants: Grant[]): GrantDraft {
   const d = emptyDraft();
   for (const g of grants) {
-    d[g.workcenter] = { granted: g.can_view, can_create: g.can_create, can_edit: g.can_edit, can_delete: g.can_delete, data_scope: g.data_scope, territories: g.territories };
+    d[g.workcenter] = { granted: g.can_view, can_create: g.can_create, can_edit: g.can_edit, can_delete: g.can_delete };
   }
   return d;
 }
@@ -58,7 +56,7 @@ function summarizeGrants(grants: Grant[]): string {
 const inputStyle: React.CSSProperties = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, background: c.panel, color: c.ink, width: "100%" };
 const checkboxCell: React.CSSProperties = { textAlign: "center", padding: "6px 8px" };
 
-export default function BusinessRolesClient({ territories, features }: { territories: { code: string; name: string }[]; features: TenantFeatures }) {
+export default function BusinessRolesClient({ features }: { features: TenantFeatures }) {
   const [roles, setRoles] = useState<BusinessRole[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -120,16 +118,6 @@ export default function BusinessRolesClient({ territories, features }: { territo
   function toggleAction(key: string, action: "can_create" | "can_edit" | "can_delete") {
     setDraft((d) => ({ ...d, [key]: { ...d[key], [action]: !d[key][action] } }));
   }
-  function setScope(key: string, scope: "all" | "territory") {
-    setDraft((d) => ({ ...d, [key]: { ...d[key], data_scope: scope } }));
-  }
-  function toggleTerritory(key: string, territory: string) {
-    setDraft((d) => {
-      const current = d[key].territories;
-      const next = current.includes(territory) ? current.filter((t) => t !== territory) : [...current, territory];
-      return { ...d, [key]: { ...d[key], territories: next } };
-    });
-  }
 
   async function save() {
     if (!name.trim()) { setSaveError("Name is required"); return; }
@@ -142,8 +130,6 @@ export default function BusinessRolesClient({ territories, features }: { territo
       can_create: draft[w.key].can_create,
       can_edit: draft[w.key].can_edit,
       can_delete: draft[w.key].can_delete,
-      data_scope: draft[w.key].data_scope,
-      territories: draft[w.key].territories,
     }));
 
     const isNew = editingId === "new";
@@ -271,7 +257,7 @@ export default function BusinessRolesClient({ territories, features }: { territo
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
               <thead>
                 <tr>
-                  {["Workcenter", "View", "Create", "Edit", "Delete", "Data scope"].map((h) => (
+                  {["Workcenter", "View", "Create", "Edit", "Delete"].map((h) => (
                     <th key={h} style={{ padding: "9px 11px", textAlign: h === "Workcenter" ? "left" : "center", color: c.hint, fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, borderBottom: `1px solid ${c.line}`, background: c.panel2, whiteSpace: "nowrap" }}>
                       {h}
                     </th>
@@ -298,37 +284,6 @@ export default function BusinessRolesClient({ territories, features }: { territo
                       </td>
                       <td style={{ ...checkboxCell, borderBottom: `1px solid ${c.line}` }}>
                         <input type="checkbox" disabled={readOnly || !g.granted} checked={g.can_delete} onChange={() => toggleAction(w.key, "can_delete")} />
-                      </td>
-                      <td style={{ padding: "6px 11px", borderBottom: `1px solid ${c.line}`, minWidth: 220 }}>
-                        {w.territoryScopable && g.granted ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            <select
-                              value={g.data_scope}
-                              onChange={(e) => setScope(w.key, e.target.value as "all" | "territory")}
-                              disabled={readOnly}
-                              style={{ padding: "5px 8px", borderRadius: 6, border: `1px solid ${c.line}`, fontSize: 11.5, background: c.panel, color: c.ink }}
-                            >
-                              <option value="all">All territories</option>
-                              <option value="territory">Specific territories</option>
-                            </select>
-                            {g.data_scope === "territory" && (
-                              territories.length === 0 ? (
-                                <span style={{ fontSize: 10.5, color: c.hint }}>No territories configured (Settings → Sales)</span>
-                              ) : (
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                                  {territories.map((t) => (
-                                    <label key={t.code} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: c.muted, border: `1px solid ${c.line}`, borderRadius: 5, padding: "2px 6px", cursor: "pointer" }}>
-                                      <input type="checkbox" checked={g.territories.includes(t.code)} onChange={() => toggleTerritory(w.key, t.code)} disabled={readOnly} style={{ width: 11, height: 11 }} />
-                                      {t.name}
-                                    </label>
-                                  ))}
-                                </div>
-                              )
-                            )}
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: 11, color: c.hint }}>{g.granted ? "N/A" : "—"}</span>
-                        )}
                       </td>
                     </tr>
                   );

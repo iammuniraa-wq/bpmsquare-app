@@ -21,7 +21,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     "phone", "phone2", "phone3", "email", "email2",
     "website", "linkedin_url", "birthday",
     "address_line1", "address_line2", "city", "state", "postal_code", "country",
-    "notes", "territory", "sales_org", "custom_data",
+    "notes", "custom_data",
   ];
   const PII_FIELDS = new Set(["phone", "phone2", "phone3", "email", "email2"]);
   const DATE_FIELDS = new Set(["birthday"]);

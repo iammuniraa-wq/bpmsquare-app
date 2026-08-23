@@ -162,8 +162,6 @@ export async function POST(request: NextRequest) {
       po_amount: group.header.po_amount ? num(group.header.po_amount) : null,
       ref_no: group.header.ref_no ?? null,
       pr_no: group.header.pr_no ?? null,
-      territory: group.header.territory ?? null,
-      sales_org: group.header.sales_org ?? null,
       entity_id: defaultEntityId,
       revision: 1,
       discount_type: discountType,

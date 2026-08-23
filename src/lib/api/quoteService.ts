@@ -274,8 +274,6 @@ export function serializeQuote(
     gst_rate: q.gst_rate,
     asset_ids: q.asset_ids ?? [],
     selected_option_id: q.selected_option_id,
-    territory: q.territory,
-    sales_org: q.sales_org,
     custom_data: q.custom_data,
     meta: q.meta,
     total: q.total,

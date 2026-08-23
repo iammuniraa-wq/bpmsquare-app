@@ -1945,10 +1945,10 @@ export async function resolveMarketingRecipientsLive(
   const supabase = createAdminSupabase();
   const { data } = await supabase
     .from("accounts")
-    .select("id, name, type, email, email2, marketing_opt_out, city, state, country, territory, sales_org, industry, employee_count, annual_revenue, created_at")
+    .select("id, name, type, email, email2, marketing_opt_out, city, state, country, industry, employee_count, annual_revenue, created_at")
     .eq("tenant_id", tenantId);
 
-  const accounts = (data ?? []) as Pick<Account, "id" | "name" | "type" | "email" | "email2" | "marketing_opt_out" | "city" | "state" | "country" | "territory" | "sales_org" | "industry" | "employee_count" | "annual_revenue" | "created_at">[];
+  const accounts = (data ?? []) as Pick<Account, "id" | "name" | "type" | "email" | "email2" | "marketing_opt_out" | "city" | "state" | "country" | "industry" | "employee_count" | "annual_revenue" | "created_at">[];
   const excludeSet = new Set(rule.exclude_account_ids);
   const includeSet = new Set(rule.include_account_ids);
   const typeSet = new Set(rule.account_types as AccountType[]);

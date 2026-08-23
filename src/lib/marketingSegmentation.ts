@@ -53,8 +53,6 @@ export const SEGMENT_FIELDS: SegmentFieldDef[] = [
   { key: "city", label: "City", category: "Location", type: "text", operators: ["equals", "contains", "not_equals"] },
   { key: "state", label: "State", category: "Location", type: "text", operators: ["equals", "contains", "not_equals"] },
   { key: "country", label: "Country", category: "Location", type: "text", operators: ["equals", "contains", "not_equals"] },
-  { key: "territory", label: "Territory", category: "Location", type: "text", operators: ["equals", "contains", "not_equals"] },
-  { key: "sales_org", label: "Sales org", category: "Business", type: "text", operators: ["equals", "contains"] },
   { key: "industry", label: "Industry", category: "Business", type: "text", operators: ["equals", "contains"] },
   { key: "employee_count", label: "Employee count", category: "Business", type: "text", operators: ["equals", "contains"] },
   { key: "annual_revenue", label: "Annual revenue", category: "Business", type: "number", operators: ["gt", "lt", "equals"] },

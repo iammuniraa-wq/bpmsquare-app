@@ -377,6 +377,17 @@ deploy for an automatic schema change.
   `products.available_segment_ids` (availability gating). Until it runs,
   the whole module degrades cleanly behind the `coverage_model` feature
   flag, which no tenant has yet.
+- **0102_drop_territory_sales_org.sql — PENDING on both DBs** (written
+  2026-08-26, owner decision same day, DESTRUCTIVE): drops
+  `territory`/`sales_org` from accounts/contacts/quotes/service_cases, and
+  `data_scope`/`territories` from `business_role_grants`. Any value already
+  stored in those columns is gone once this runs — back up first if there's
+  any chance the values are still wanted. All application code that read or
+  wrote these columns was removed in the same piece of work (Sales config's
+  Territories/Sales orgs picklist editors, FIELD_REGISTRY entries, Data
+  Workbench import/export/update, the v1 quotations API, and the Fog of War
+  engagement feature, which existed purely to gamify territory coverage and
+  was removed outright rather than left pointing at nothing).
 - **scripts/seed-coverage-demo.sql — PENDING, run AFTER 0101** (dev DB at
   minimum): seeds the deck's own worked example (South Pod / Hospital
   Specialists / AMC Service Desk, wired to SOUTH/HOSPITALS/AMC_BASE

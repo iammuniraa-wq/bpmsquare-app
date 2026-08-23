@@ -109,8 +109,6 @@ export async function POST(request: NextRequest) {
         industry: v.industry ?? null,
         employee_count: v.employee_count ?? null,
         annual_revenue: v.annual_revenue ?? null,
-        territory: v.territory ?? null,
-        sales_org: v.sales_org ?? null,
         gstin: encrypt(v.gstin ?? null),
         notes: v.notes ?? null,
         referred_by_account_id: referredBy,

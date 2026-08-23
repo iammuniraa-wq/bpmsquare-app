@@ -4,10 +4,7 @@ import {
   DEFAULT_FIELD_RULES, FIELD_REGISTRY, isPilotObjectType,
   type EffectiveField, type FieldRule, type PilotObjectType,
 } from "@/lib/fieldRegistry";
-import {
-  normalizePicklist, normalizeCategoryTree,
-  type PicklistItem, type ProductCategoryNode,
-} from "@/lib/picklists";
+import { normalizeCategoryTree, type ProductCategoryNode } from "@/lib/picklists";
 
 type CustomFieldRow = {
   id: string;
@@ -125,8 +122,6 @@ export async function getEffectiveFieldConfig(
 }
 
 export type SalesConfig = {
-  territories: PicklistItem[];
-  sales_orgs: PicklistItem[];
   product_categories: ProductCategoryNode[];
 };
 
@@ -136,8 +131,6 @@ export async function getSalesConfig(supabase: SupabaseClient, tenantId: string)
   const { data } = await supabase.from("tenants").select("config").eq("id", tenantId).single();
   const cfg = (data?.config ?? {}) as Record<string, unknown>;
   return {
-    territories: normalizePicklist(cfg.territories),
-    sales_orgs: normalizePicklist(cfg.sales_orgs),
     product_categories: normalizeCategoryTree(cfg.product_categories),
   };
 }

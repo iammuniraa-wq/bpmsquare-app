@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
-import { celebrate } from "@/lib/celebrate";
 import { XIcon, CheckIcon } from "@/components/Icons";
 
 // Theme-aware error ink (the raw #ff8a76 failed contrast on the light panel),
@@ -44,7 +43,7 @@ export default function NovaDraft() {
   const [contactValues, setContactValues] = useState<Record<string, string>>({});
   const [includeContact, setIncludeContact] = useState(false);
   // Set once the account exists, so a contact retry never re-creates it.
-  const [createdAccount, setCreatedAccount] = useState<{ id: string; name: string; territory_discovery?: string } | null>(null);
+  const [createdAccount, setCreatedAccount] = useState<{ id: string; name: string } | null>(null);
   const [dupes, setDupes] = useState<{ id: string; name: string; ref: string | null }[]>([]);
   const [attaching, setAttaching] = useState<string | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -176,9 +175,6 @@ export default function NovaDraft() {
       }
 
       setOpen(false);
-      if (account!.territory_discovery) {
-        celebrate("New territory opened!", `${account!.name} is your first account in ${account!.territory_discovery} — the map just got bigger.`);
-      }
       router.push(ROUTES.account(account!.id));
     } catch {
       setError("Network error — check Accounts before retrying so nothing is created twice."); setPhase("review");

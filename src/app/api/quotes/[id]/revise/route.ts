@@ -75,8 +75,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       asset_ids: original.asset_ids ?? [],
       revision: newRev,
       selected_option_id: original.selected_option_id ?? null,
-      territory: original.territory ?? null,
-      sales_org: original.sales_org ?? null,
       custom_data: original.custom_data ?? null,
       meta: original.meta ?? null,
       superseded_by: null,
