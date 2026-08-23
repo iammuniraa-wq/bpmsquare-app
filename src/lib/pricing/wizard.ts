@@ -7,10 +7,19 @@
 // happens to reuse its types.
 //
 // A method here is just a starting shape for a DRAFT config version: picking
-// one seeds dimensions/components/procedure/cost-model/starter rules that the
-// wizard's later steps let the tenant edit before "Go live". All four methods
-// coexist per tenant via Price Books (pricing_area) — nothing here prevents a
-// tenant from running more than one.
+// one seeds dimensions/components/procedure/cost-model that the wizard's
+// later steps let the tenant edit before "Go live". All four methods coexist
+// per tenant via Price Books (pricing_area) — nothing here prevents a tenant
+// from running more than one.
+//
+// A price element is never one flat number for every customer -- real B2B
+// margin/discount/price varies by segment, region, product line, deal size
+// (the SAP "condition table" / access-sequence pattern, and every modern
+// pricing tool's segmented price bands). The engine already supports this
+// fully: PriceRule.match_attributes on any combination of DimensionRegistry
+// attributes, resolved most-specific-wins. What used to be a single
+// StarterRule per component here is now an EditableComponent whose rate
+// table can carry any number of RateRows, each independently conditioned.
 
 import type {
   PriceComponent, PricingProcedure, CostModel, EntryMode, AttrValue,
@@ -18,13 +27,45 @@ import type {
 
 export type PricingMethodKey = "cost_based" | "price_list" | "value_based" | "variant";
 
-export type StarterRule = {
-  component_code: string;
-  label: string;                      // shown in the wizard's "Numbers" step
-  help?: string;
+export type ScaleEntry = { from: number; value: number };
+
+export type RateRow = {
+  id?: string;
   match_attributes: Record<string, AttrValue>;
-  value: number | null;               // sensible default — always tenant-editable before Go live
+  value: number | null;       // flat components (calc_type PERCENT / FIXED_AMOUNT)
+  tiers?: ScaleEntry[];       // volume-tiered components (calc_type SCALE_TIERED) — at least one band
+};
+
+export type EditableComponent = {
+  component_code: string;
+  label: string;
+  help?: string;
   unit: "currency" | "percent";
+  /** Dimensions this component's rate table may condition on (a subset of
+   * the template's own DimensionRegistry) -- e.g. margin by tier + region. */
+  factors: string[];
+  /** True for a component whose calc_type is SCALE_TIERED (calc_basis
+   * QUANTITY/WEIGHT) -- a genuine "the more they buy, the better the unit
+   * rate" ladder. Deliberately NOT offered for percent-of-subtotal
+   * components (margin, discount, tax): the engine's SCALE_TIERED picks a
+   * band by the basis value and, for a non-quantity/weight basis, returns
+   * that band's number AS THE AMOUNT rather than as a percent applied to
+   * the basis -- so "margin % tiered by deal size" needs a FORMULA + scale()
+   * DSL combination, not this. Tracked as follow-up, not faked here. */
+  tiered: boolean;
+  defaultRows: RateRow[];
+};
+
+/** A margin floor check: a purely statistical component storing the
+ * tenant's minimum acceptable margin, surfaced as a warning on the Sample
+ * bill (actual margin = revenueSubtotal - costSubtotal, compared against the
+ * stored floor) -- never a hard block, since approval routing on a breach
+ * is Phase 2 (PROJECT.md §11 Governance) and not built yet. Only offered
+ * for methods with a real cost basis to floor against. */
+export type MarginGuardrail = {
+  componentCode: string;
+  costSubtotal: string;
+  revenueSubtotal: string;
 };
 
 export type MethodTemplate = {
@@ -37,7 +78,8 @@ export type MethodTemplate = {
   components: PriceComponent[];
   procedure: PricingProcedure;
   costModel?: CostModel;
-  starterRules: StarterRule[];
+  editableComponents: EditableComponent[];
+  marginGuardrail?: MarginGuardrail;
 };
 
 const comp = (over: PriceComponent): PriceComponent => over;
@@ -45,14 +87,19 @@ const comp = (over: PriceComponent): PriceComponent => over;
 // ── 1. Cost-based — "Cost simulator" (COST_UP) ──────────────────────────────
 // Mirrors the Vikas cost-up shape (pricing-core calc.test.ts exit criterion
 // 2): roll up material + labour into a total cost, mark up, discount, tax.
+// Margin is conditioned on tier/region/document type, and a minimum-margin
+// guardrail flags a breach on the Sample bill.
+
+const COST_BASED_FACTORS = ["customer.tier", "region", "document_type"];
 
 const COST_BASED: MethodTemplate = {
   key: "cost_based",
   label: "Cost-based",
-  tagline: "Start from what it costs you, then mark up.",
+  tagline: "Start from what it costs you, then mark up — by segment, not one number for everyone.",
   description:
     "Best when your price has to track real input costs — materials, labour, " +
-    "equipment. You set the cost rates once; the margin on top is a single number.",
+    "equipment. Margin can vary by customer tier, region or document type, " +
+    "and you can set a floor below which a quote should never go.",
   entryMode: "COST_UP",
   dimensions: [
     { attribute: "customer.tier", weight: 30, label: "Customer tier" },
@@ -64,6 +111,7 @@ const COST_BASED: MethodTemplate = {
     comp({ code: "LABOUR_COST", name: "Labour cost", class: "COST_BUILDUP", calc_type: "COST_ROLLUP", calc_basis: "COST_REF", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: false }),
     comp({ code: "MARGIN_MARKUP", name: "Margin", class: "MARKUP", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
     comp({ code: "CUST_DISC", name: "Customer discount", class: "DISCOUNT", calc_type: "PERCENT", calc_basis: "NET_SO_FAR", sign: "NEGATIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
+    comp({ code: "MARGIN_FLOOR", name: "Minimum acceptable margin", class: "STATISTICAL", calc_type: "FIXED_AMOUNT", calc_basis: "GROSS", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: true }),
     comp({ code: "TAX", name: "Tax", class: "TAX", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: false, rounding_rule: { precision: 2, mode: "HALF_UP" } }),
   ],
   procedure: {
@@ -73,6 +121,7 @@ const COST_BASED: MethodTemplate = {
       { step: 10, component: "MATERIAL_COST", cost_model: "STANDARD_COST", ...( { rollup_kind: "MATERIAL" } as object) },
       { step: 20, component: "LABOUR_COST", cost_model: "STANDARD_COST", ...( { rollup_kind: "LABOUR" } as object) },
       { step: 30, subtotal: "TOTAL_COST" },
+      { step: 35, component: "MARGIN_FLOOR", statistical: true },
       { step: 40, component: "MARGIN_MARKUP", calc_basis_ref: "TOTAL_COST" },
       { step: 50, subtotal: "NET_1" },
       { step: 60, component: "CUST_DISC" },
@@ -89,16 +138,38 @@ const COST_BASED: MethodTemplate = {
       { path: "labour.rate_per_hour", kind: "LABOUR", value: 450 },
     ],
   },
-  starterRules: [
-    { component_code: "MARGIN_MARKUP", label: "Margin on cost", match_attributes: {}, value: 25, unit: "percent" },
-    { component_code: "CUST_DISC", label: "Standard customer discount", match_attributes: {}, value: 0, unit: "percent" },
-    { component_code: "TAX", label: "Tax rate", match_attributes: {}, value: 18, unit: "percent" },
+  editableComponents: [
+    {
+      component_code: "MARGIN_MARKUP", label: "Margin", unit: "percent",
+      factors: COST_BASED_FACTORS, tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 25 }],
+    },
+    {
+      component_code: "CUST_DISC", label: "Customer discount", unit: "percent",
+      factors: COST_BASED_FACTORS, tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 0 }],
+    },
+    {
+      component_code: "MARGIN_FLOOR", label: "Minimum acceptable margin", unit: "percent",
+      help: "Warns on the sample bill (and later, any quote) when a price would fall below this — never blocks on its own.",
+      factors: [], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 15 }],
+    },
+    {
+      component_code: "TAX", label: "Tax", unit: "percent",
+      factors: [], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 18 }],
+    },
   ],
+  marginGuardrail: { componentCode: "MARGIN_FLOOR", costSubtotal: "TOTAL_COST", revenueSubtotal: "NET_1" },
 };
 
 // ── 2. Price-list — multi-dimensional, most-specific-wins (LIST_DOWN) ──────
 // Mirrors the SAP-style waterfall (calc.test.ts exit criterion 1): a list
-// price, a customer discount, freight, tax.
+// price, a customer discount, freight, tax. List price is volume-tiered
+// (a genuine per-unit break — SCALE_TIERED against calc_basis QUANTITY).
+
+const PRICE_LIST_FACTORS = ["customer.id", "customer.tier", "region", "document_type"];
 
 const PRICE_LIST: MethodTemplate = {
   key: "price_list",
@@ -107,7 +178,8 @@ const PRICE_LIST: MethodTemplate = {
   description:
     "Best when you sell from a catalog and different customer groups or regions " +
     "get different prices off the same list. Add a row per group; the most " +
-    "specific match always wins — no ordering to think about.",
+    "specific match always wins — no ordering to think about. List price can " +
+    "also step down by order volume.",
   entryMode: "LIST_DOWN",
   dimensions: [
     { attribute: "customer.id", weight: 100, label: "Specific customer" },
@@ -116,7 +188,7 @@ const PRICE_LIST: MethodTemplate = {
     { attribute: "document_type", weight: 15, label: "Document type" },
   ],
   components: [
-    comp({ code: "LIST_PRICE", name: "List price", class: "PRICE", calc_type: "PER_UNIT", calc_basis: "QUANTITY", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
+    comp({ code: "LIST_PRICE", name: "List price", class: "PRICE", calc_type: "SCALE_TIERED", calc_basis: "QUANTITY", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
     comp({ code: "CUST_DISC", name: "Customer discount", class: "DISCOUNT", calc_type: "PERCENT", calc_basis: "NET_SO_FAR", sign: "NEGATIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
     comp({ code: "FREIGHT", name: "Freight", class: "FREIGHT", calc_type: "FIXED_AMOUNT", calc_basis: "NET_SO_FAR", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
     comp({ code: "TAX", name: "Tax", class: "TAX", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: false, rounding_rule: { precision: 2, mode: "HALF_UP" } }),
@@ -134,15 +206,36 @@ const PRICE_LIST: MethodTemplate = {
       { step: 70, subtotal: "FINAL" },
     ],
   },
-  starterRules: [
-    { component_code: "LIST_PRICE", label: "List price", match_attributes: {}, value: 100, unit: "currency" },
-    { component_code: "CUST_DISC", label: "Discount for Tier A customers", match_attributes: { "customer.tier": "A" }, value: 3, unit: "percent" },
-    { component_code: "FREIGHT", label: "Standard freight", match_attributes: {}, value: 50, unit: "currency" },
-    { component_code: "TAX", label: "Tax rate", match_attributes: {}, value: 18, unit: "percent" },
+  editableComponents: [
+    {
+      component_code: "LIST_PRICE", label: "List price", unit: "currency",
+      factors: PRICE_LIST_FACTORS, tiered: true,
+      defaultRows: [{ match_attributes: {}, value: null, tiers: [{ from: 0, value: 100 }] }],
+    },
+    {
+      component_code: "CUST_DISC", label: "Customer discount", unit: "percent",
+      factors: PRICE_LIST_FACTORS, tiered: false,
+      defaultRows: [
+        { match_attributes: { "customer.tier": "A" }, value: 3 },
+        { match_attributes: {}, value: 0 },
+      ],
+    },
+    {
+      component_code: "FREIGHT", label: "Freight", unit: "currency",
+      factors: ["region"], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 50 }],
+    },
+    {
+      component_code: "TAX", label: "Tax", unit: "percent",
+      factors: [], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 18 }],
+    },
   ],
 };
 
 // ── 3. Value-based — adjustment sentences on value-driver dimensions ───────
+
+const VALUE_BASED_FACTORS = ["customer.segment", "use_case", "document_type"];
 
 const VALUE_BASED: MethodTemplate = {
   key: "value_based",
@@ -150,8 +243,8 @@ const VALUE_BASED: MethodTemplate = {
   tagline: "Adjust from a base value by what the customer values.",
   description:
     "Best when the same offering is worth more to some customers than others — " +
-    "a use case, a segment, an urgency. You write plain adjustment sentences " +
-    "on top of one base value instead of a full list per combination.",
+    "a use case, a segment, an urgency. Write one adjustment sentence per " +
+    "situation on top of a base value instead of a full list per combination.",
   entryMode: "LIST_DOWN",
   dimensions: [
     { attribute: "customer.segment", weight: 40, label: "Customer segment" },
@@ -159,7 +252,7 @@ const VALUE_BASED: MethodTemplate = {
     { attribute: "document_type", weight: 15, label: "Document type" },
   ],
   components: [
-    comp({ code: "BASE_VALUE", name: "Base value", class: "PRICE", calc_type: "PER_UNIT", calc_basis: "QUANTITY", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
+    comp({ code: "BASE_VALUE", name: "Base value", class: "PRICE", calc_type: "SCALE_TIERED", calc_basis: "QUANTITY", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
     comp({ code: "ADJUSTMENT", name: "Value adjustment", class: "SURCHARGE", calc_type: "PERCENT", calc_basis: "NET_SO_FAR", sign: "BOTH", manual_override: "ALLOWED_WITH_REASON", is_statistical: false, resolution_strategy: "ALL_APPLY" }),
     comp({ code: "TAX", name: "Tax", class: "TAX", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: false, rounding_rule: { precision: 2, mode: "HALF_UP" } }),
   ],
@@ -174,10 +267,26 @@ const VALUE_BASED: MethodTemplate = {
       { step: 50, subtotal: "FINAL" },
     ],
   },
-  starterRules: [
-    { component_code: "BASE_VALUE", label: "Base value", match_attributes: {}, value: 100, unit: "currency" },
-    { component_code: "ADJUSTMENT", label: "Premium for high-value use case", match_attributes: { use_case: "mission_critical" }, value: 15, unit: "percent" },
-    { component_code: "TAX", label: "Tax rate", match_attributes: {}, value: 18, unit: "percent" },
+  editableComponents: [
+    {
+      component_code: "BASE_VALUE", label: "Base value", unit: "currency",
+      factors: VALUE_BASED_FACTORS, tiered: true,
+      defaultRows: [{ match_attributes: {}, value: null, tiers: [{ from: 0, value: 100 }] }],
+    },
+    {
+      component_code: "ADJUSTMENT", label: "Value adjustment", unit: "percent",
+      help: "Positive = premium, negative = discount — signed because it can go either way.",
+      factors: VALUE_BASED_FACTORS, tiered: false,
+      defaultRows: [
+        { match_attributes: { use_case: "mission_critical" }, value: 15 },
+        { match_attributes: {}, value: 0 },
+      ],
+    },
+    {
+      component_code: "TAX", label: "Tax", unit: "percent",
+      factors: [], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 18 }],
+    },
   ],
 };
 
@@ -197,7 +306,7 @@ const VARIANT: MethodTemplate = {
     { attribute: "option.code", weight: 40, label: "Option" },
   ],
   components: [
-    comp({ code: "BASE_PRICE", name: "Base price", class: "PRICE", calc_type: "PER_UNIT", calc_basis: "QUANTITY", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
+    comp({ code: "BASE_PRICE", name: "Base price", class: "PRICE", calc_type: "SCALE_TIERED", calc_basis: "QUANTITY", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
     comp({ code: "OPTION_PRICE", name: "Option price", class: "PRICE", calc_type: "FIXED_AMOUNT", calc_basis: "NET_SO_FAR", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false, resolution_strategy: "ALL_APPLY" }),
     comp({ code: "TAX", name: "Tax", class: "TAX", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: false, rounding_rule: { precision: 2, mode: "HALF_UP" } }),
   ],
@@ -212,10 +321,22 @@ const VARIANT: MethodTemplate = {
       { step: 50, subtotal: "FINAL" },
     ],
   },
-  starterRules: [
-    { component_code: "BASE_PRICE", label: "Base model price", match_attributes: {}, value: 1000, unit: "currency" },
-    { component_code: "OPTION_PRICE", label: "Add-on option price", match_attributes: { "option.code": "PREMIUM_FINISH" }, value: 150, unit: "currency" },
-    { component_code: "TAX", label: "Tax rate", match_attributes: {}, value: 18, unit: "percent" },
+  editableComponents: [
+    {
+      component_code: "BASE_PRICE", label: "Base model price", unit: "currency",
+      factors: ["product.base_model"], tiered: true,
+      defaultRows: [{ match_attributes: {}, value: null, tiers: [{ from: 0, value: 1000 }] }],
+    },
+    {
+      component_code: "OPTION_PRICE", label: "Option price", unit: "currency",
+      factors: ["option.code"], tiered: false,
+      defaultRows: [{ match_attributes: { "option.code": "PREMIUM_FINISH" }, value: 150 }],
+    },
+    {
+      component_code: "TAX", label: "Tax", unit: "percent",
+      factors: [], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 18 }],
+    },
   ],
 };
 
@@ -247,8 +368,8 @@ export function matchMethodTemplate(procedures: { code: string; entry_mode: stri
 // a template out on a fresh DRAFT version. Dimensions are version-independent
 // (no `version` field); components/cost model/procedure are version-scoped.
 // Rules are deliberately NOT included here — the wizard's "Numbers" step
-// collects the tenant's own values (starterRules are just its defaults) and
-// submits them itself, one rule mutation per number the tenant confirms.
+// collects the tenant's own rate table (defaultRows are just its seed) and
+// submits each row itself, one rule mutation per row the tenant confirms.
 
 export type ConfigMutation = {
   entity: "dimension" | "component" | "procedure" | "cost_model";
@@ -277,30 +398,37 @@ export function templateMutations(template: MethodTemplate, version: number, are
 }
 
 // ── Plain-language rule sentences ───────────────────────────────────────────
-// Turns a rule's match_attributes + value into the "adjustment sentence" the
-// owner's UX doctrine calls for (PROJECT.md §11.3: "adjustment sentences on
+// Turns a rule's match_attributes into the "adjustment sentence" the owner's
+// UX doctrine calls for (PROJECT.md §11.3: "adjustment sentences on
 // value-driver dimensions", never raw JSON). Shared by the setup wizard and
-// the Today's rates read view so the phrasing never drifts between the two.
+// every read view so the phrasing never drifts between them.
 
 function formatDimensionLabel(template: MethodTemplate, attribute: string): string {
   return template.dimensions.find((d) => d.attribute === attribute)?.label ?? attribute;
 }
 
-function formatValue(value: number | null, unit: "currency" | "percent"): string {
-  if (value === null) return "a scale";
-  return unit === "percent" ? `${value}%` : value.toLocaleString();
-}
-
 export function describeCondition(template: MethodTemplate, matchAttributes: Record<string, AttrValue>): string {
   const entries = Object.entries(matchAttributes);
-  if (entries.length === 0) return "For everyone";
+  if (entries.length === 0) return "Everyone else";
   const parts = entries.map(([attr, val]) => `${formatDimensionLabel(template, attr)} is ${val}`);
   return `When ${parts.join(" and ")}`;
 }
 
-export function describeStarterRule(template: MethodTemplate, rule: StarterRule): string {
-  const componentName = template.components.find((c) => c.code === rule.component_code)?.name ?? rule.component_code;
-  return `${describeCondition(template, rule.match_attributes)} → ${componentName}: ${formatValue(rule.value, rule.unit)}`;
+export function formatRateValue(value: number | null, unit: "currency" | "percent"): string {
+  if (value === null) return "—";
+  return unit === "percent" ? `${value}%` : value.toLocaleString();
+}
+
+export function formatTiers(tiers: ScaleEntry[] | null | undefined, unit: "currency" | "percent"): string {
+  if (!tiers || tiers.length === 0) return "—";
+  const sorted = [...tiers].sort((a, b) => a.from - b.from);
+  return sorted
+    .map((t, i) => {
+      const next = sorted[i + 1];
+      const range = next ? `${t.from.toLocaleString()}–${(next.from - 1).toLocaleString()}` : `${t.from.toLocaleString()}+`;
+      return `${range}: ${formatRateValue(t.value, unit)}`;
+    })
+    .join(" · ");
 }
 
 // ── Sample document for the wizard's "Sample bill" step ─────────────────────

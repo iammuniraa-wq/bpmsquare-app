@@ -1,34 +1,45 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo, type Dispatch, type SetStateAction } from "react";
 import Link from "next/link";
 import { c, pillar } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import {
-  PRICING_METHODS, describeCondition, sampleDocumentLine, templateMutations, matchMethodTemplate,
-  type MethodTemplate, type PricingMethodKey,
+  PRICING_METHODS, sampleDocumentLine, templateMutations, matchMethodTemplate,
+  type MethodTemplate, type PricingMethodKey, type EditableComponent, type RateRow, type ScaleEntry,
 } from "@/lib/pricing/wizard";
-import type { AttrValue } from "@/lib/pricing-core";
+import RateSnapshotView, { type SnapshotRule } from "../RateSnapshotView";
 
 type VersionRow = { version: number; status: "DRAFT" | "PUBLISHED" | "SUPERSEDED" };
-type SnapshotComponent = { code: string; name: string; calc_type: string };
 type SnapshotProcedure = { code: string; entry_mode: string };
-type SnapshotRule = { id: string; component_code: string; match_attributes: Record<string, AttrValue>; value: number | null };
-type Snapshot = { components: SnapshotComponent[]; procedures: SnapshotProcedure[]; rules: SnapshotRule[] };
+type Snapshot = { procedures: SnapshotProcedure[]; rules: SnapshotRule[] };
 
-type RuleRow = { id?: string; component_code: string; match_attributes: Record<string, AttrValue>; value: number; unit: "currency" | "percent" };
+type RowsByComponent = Record<string, RateRow[]>;
+type RowsSetter = Dispatch<SetStateAction<RowsByComponent>>;
 
 type Phase = "loading" | "strategy" | "resume" | "numbers" | "sample" | "unsupported";
 
-function rulesFromSnapshot(template: MethodTemplate, snapshot: Snapshot): RuleRow[] {
-  const byComponent = new Map<string, SnapshotRule>();
-  for (const r of snapshot.rules) if (!byComponent.has(r.component_code)) byComponent.set(r.component_code, r);
-  return template.starterRules.map((starter) => {
-    const existing = byComponent.get(starter.component_code);
-    return existing
-      ? { id: existing.id, component_code: starter.component_code, match_attributes: existing.match_attributes, value: Math.abs(existing.value ?? 0), unit: starter.unit }
-      : { component_code: starter.component_code, match_attributes: starter.match_attributes, value: starter.value ?? 0, unit: starter.unit };
-  });
+function rowsFromSnapshot(template: MethodTemplate, snapshot: Snapshot): RowsByComponent {
+  const byComponent = new Map<string, SnapshotRule[]>();
+  for (const r of snapshot.rules) {
+    const list = byComponent.get(r.component_code) ?? [];
+    list.push(r);
+    byComponent.set(r.component_code, list);
+  }
+  const result: RowsByComponent = {};
+  for (const ec of template.editableComponents) {
+    const existing = byComponent.get(ec.component_code);
+    result[ec.component_code] = existing && existing.length > 0
+      ? existing.map((r) => ({ id: r.id, match_attributes: r.match_attributes, value: r.value, tiers: r.scale?.entries }))
+      : ec.defaultRows.map((r) => ({ ...r }));
+  }
+  return result;
+}
+
+function defaultRows(template: MethodTemplate): RowsByComponent {
+  const result: RowsByComponent = {};
+  for (const ec of template.editableComponents) result[ec.component_code] = ec.defaultRows.map((r) => ({ ...r }));
+  return result;
 }
 
 async function postJson(url: string, body: unknown, method = "POST") {
@@ -40,12 +51,86 @@ async function postJson(url: string, body: unknown, method = "POST") {
   return data;
 }
 
+// ── Row mutation helpers — pure updates over the setRows state setter ──────
+
+function addRow(setRows: RowsSetter, ec: EditableComponent) {
+  const firstFactor = ec.factors[0];
+  const newRow: RateRow = {
+    match_attributes: firstFactor ? { [firstFactor]: "" } : {},
+    value: ec.tiered ? null : 0,
+    tiers: ec.tiered ? [{ from: 0, value: 0 }] : undefined,
+  };
+  setRows((prev) => ({ ...prev, [ec.component_code]: [...(prev[ec.component_code] ?? []), newRow] }));
+}
+
+function removeRow(setRows: RowsSetter, code: string, index: number) {
+  setRows((prev) => {
+    const list = prev[code] ?? [];
+    if (list.length <= 1) return prev;
+    return { ...prev, [code]: list.filter((_, i) => i !== index) };
+  });
+}
+
+function updateValue(setRows: RowsSetter, code: string, index: number, value: number) {
+  setRows((prev) => ({ ...prev, [code]: prev[code].map((r, i) => (i === index ? { ...r, value } : r)) }));
+}
+
+function setCondition(setRows: RowsSetter, code: string, index: number, factor: string, value: string) {
+  setRows((prev) => ({
+    ...prev,
+    [code]: prev[code].map((r, i) => (i === index ? { ...r, match_attributes: { ...r.match_attributes, [factor]: value } } : r)),
+  }));
+}
+
+function removeCondition(setRows: RowsSetter, code: string, index: number, factor: string) {
+  setRows((prev) => ({
+    ...prev,
+    [code]: prev[code].map((r, i) => {
+      if (i !== index) return r;
+      const next = { ...r.match_attributes };
+      delete next[factor];
+      return { ...r, match_attributes: next };
+    }),
+  }));
+}
+
+function updateTier(setRows: RowsSetter, code: string, rowIndex: number, tierIndex: number, patch: Partial<ScaleEntry>) {
+  setRows((prev) => ({
+    ...prev,
+    [code]: prev[code].map((r, i) => {
+      if (i !== rowIndex) return r;
+      return { ...r, tiers: (r.tiers ?? []).map((t, ti) => (ti === tierIndex ? { ...t, ...patch } : t)) };
+    }),
+  }));
+}
+
+function addTier(setRows: RowsSetter, code: string, rowIndex: number) {
+  setRows((prev) => ({
+    ...prev,
+    [code]: prev[code].map((r, i) => (i === rowIndex ? { ...r, tiers: [...(r.tiers ?? []), { from: 0, value: 0 }] } : r)),
+  }));
+}
+
+function removeTier(setRows: RowsSetter, code: string, rowIndex: number, tierIndex: number) {
+  setRows((prev) => ({
+    ...prev,
+    [code]: prev[code].map((r, i) => {
+      if (i !== rowIndex) return r;
+      const tiers = (r.tiers ?? []).filter((_, ti) => ti !== tierIndex);
+      return { ...r, tiers: tiers.length ? tiers : [{ from: 0, value: 0 }] };
+    }),
+  }));
+}
+
+const linkBtn: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 };
+const numInput: React.CSSProperties = { width: 90, padding: "6px 8px", fontSize: 13, borderRadius: 6, border: `1px solid ${c.line}`, background: c.bg2, color: c.ink };
+
 export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [template, setTemplate] = useState<MethodTemplate | null>(null);
   const [version, setVersion] = useState<number | null>(null);
   const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
-  const [rules, setRules] = useState<RuleRow[]>([]);
+  const [rows, setRows] = useState<RowsByComponent>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +150,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
         if (!t) { setPhase("unsupported"); return; }
         setTemplate(t);
         setVersion(draft.version);
-        setRules(rulesFromSnapshot(t, snap));
+        setRows(rowsFromSnapshot(t, snap));
         setPhase("numbers");
         return;
       }
@@ -100,7 +185,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
       }
       setTemplate(t);
       setVersion(v);
-      setRules(t.starterRules.map((r) => ({ component_code: r.component_code, match_attributes: r.match_attributes, value: r.value ?? 0, unit: r.unit })));
+      setRows(defaultRows(t));
       setPhase("numbers");
     } catch (e) {
       setError((e as Error).message);
@@ -121,7 +206,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
       if (!t) { setPhase("unsupported"); return; }
       setTemplate(t);
       setVersion(v);
-      setRules(rulesFromSnapshot(t, snap));
+      setRows(rowsFromSnapshot(t, snap));
       setPhase("numbers");
     } catch (e) {
       setError((e as Error).message);
@@ -135,13 +220,19 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      for (const rule of rules) {
-        const componentSign = template.components.find((cmp) => cmp.code === rule.component_code)?.sign;
-        const signedValue = componentSign === "NEGATIVE" ? -Math.abs(rule.value) : rule.value;
-        await postJson("/api/settings/pricing-engine/config", {
-          entity: "rule", op: "upsert", version, area: "default",
-          data: { id: rule.id, component_code: rule.component_code, match_attributes: rule.match_attributes, value: signedValue },
-        });
+      for (const ec of template.editableComponents) {
+        for (const row of rows[ec.component_code] ?? []) {
+          await postJson("/api/settings/pricing-engine/config", {
+            entity: "rule", op: "upsert", version, area: "default",
+            data: {
+              id: row.id,
+              component_code: ec.component_code,
+              match_attributes: row.match_attributes,
+              value: ec.tiered ? null : row.value,
+              scale: ec.tiered ? { entries: row.tiers ?? [] } : null,
+            },
+          });
+        }
       }
       setPhase("sample");
     } catch (e) {
@@ -215,42 +306,15 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
     return (
       <div>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 2 }}>{template.label}</div>
-        <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 16 }}>Set your numbers — you can change these any time before going live.</div>
-        {error && <ErrorBox message={error} />}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {rules.map((rule, i) => {
-            const componentName = template.components.find((cmp) => cmp.code === rule.component_code)?.name ?? rule.component_code;
-            return (
-              <div
-                key={`${rule.component_code}-${i}`}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-                  padding: "10px 14px", borderRadius: 8, border: `1px solid ${c.line}`, background: c.panel,
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{componentName}</div>
-                  <div style={{ fontSize: 11.5, color: c.muted }}>{describeCondition(template, rule.match_attributes)}</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <input
-                    type="number"
-                    disabled={!canEdit}
-                    value={rule.value}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      setRules((prev) => prev.map((r, idx) => (idx === i ? { ...r, value } : r)));
-                    }}
-                    style={{ width: 90, padding: "6px 8px", fontSize: 13, borderRadius: 6, border: `1px solid ${c.line}`, background: c.bg2, color: c.ink }}
-                  />
-                  <span style={{ fontSize: 12.5, color: c.muted, minWidth: 16 }}>{rule.unit === "percent" ? "%" : ""}</span>
-                </div>
-              </div>
-            );
-          })}
+        <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 16 }}>
+          Set your numbers — add a rule for any segment, region or deal size that needs a different rate. You can change these any time before going live.
         </div>
+        {error && <ErrorBox message={error} />}
+        {template.editableComponents.map((ec) => (
+          <RateTable key={ec.component_code} template={template} ec={ec} rows={rows[ec.component_code] ?? []} canEdit={canEdit} setRows={setRows} />
+        ))}
         {canEdit && (
-          <button onClick={saveNumbers} disabled={busy} style={{ ...primaryBtn(busy), marginTop: 16 }}>
+          <button onClick={saveNumbers} disabled={busy} style={{ ...primaryBtn(busy), marginTop: 8 }}>
             {busy ? "Saving…" : "Continue to sample bill"}
           </button>
         )}
@@ -265,9 +329,134 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
   return null;
 }
 
+// ── Rate table editor ────────────────────────────────────────────────────
+
+function RateTable({ template, ec, rows, canEdit, setRows }: {
+  template: MethodTemplate; ec: EditableComponent; rows: RateRow[]; canEdit: boolean; setRows: RowsSetter;
+}) {
+  return (
+    <div style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel, marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700 }}>{ec.label}</div>
+        {ec.factors.length > 0 && canEdit && (
+          <button onClick={() => addRow(setRows, ec)} style={linkBtn}>+ Add a rule for a specific case</button>
+        )}
+      </div>
+      {ec.help && <div style={{ fontSize: 11.5, color: c.muted, marginBottom: 8 }}>{ec.help}</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: ec.help ? 0 : 6 }}>
+        {rows.map((row, i) => (
+          <RateRowEditor key={i} template={template} ec={ec} row={row} index={i} canEdit={canEdit} canRemoveRow={rows.length > 1} setRows={setRows} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RateRowEditor({ template, ec, row, index, canEdit, canRemoveRow, setRows }: {
+  template: MethodTemplate; ec: EditableComponent; row: RateRow; index: number;
+  canEdit: boolean; canRemoveRow: boolean; setRows: RowsSetter;
+}) {
+  const usedFactors = new Set(Object.keys(row.match_attributes));
+  const availableFactors = ec.factors.filter((f) => !usedFactors.has(f));
+  const isCatchAll = Object.keys(row.match_attributes).length === 0;
+  const factorLabel = (attr: string) => template.dimensions.find((d) => d.attribute === attr)?.label ?? attr;
+
+  return (
+    <div style={{ padding: "8px 10px", borderRadius: 8, background: c.bg2, border: `1px solid ${c.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          {isCatchAll && <span style={{ fontSize: 11.5, color: c.muted, fontStyle: "italic" }}>Everyone else</span>}
+          {Object.entries(row.match_attributes).map(([factor, value]) => (
+            <span key={factor} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, padding: "2px 6px", borderRadius: 5, background: pillar.blue.bg, color: pillar.blue.fg }}>
+              {factorLabel(factor)}:
+              <input
+                disabled={!canEdit}
+                value={String(value)}
+                onChange={(e) => setCondition(setRows, ec.component_code, index, factor, e.target.value)}
+                placeholder="value"
+                style={{ width: 60, border: "none", background: "transparent", color: "inherit", fontSize: 11.5, fontWeight: 600, outline: "none" }}
+              />
+              {canEdit && (
+                <button onClick={() => removeCondition(setRows, ec.component_code, index, factor)} style={{ ...linkBtn, color: "inherit" }}>×</button>
+              )}
+            </span>
+          ))}
+          {canEdit && availableFactors.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => { if (e.target.value) setCondition(setRows, ec.component_code, index, e.target.value, ""); }}
+              style={{ fontSize: 11, padding: "2px 4px", borderRadius: 5, border: `1px solid ${c.line}`, background: c.panel, color: c.muted }}
+            >
+              <option value="">+ condition</option>
+              {availableFactors.map((f) => <option key={f} value={f}>{factorLabel(f)}</option>)}
+            </select>
+          )}
+        </div>
+        {canEdit && canRemoveRow && (
+          <button onClick={() => removeRow(setRows, ec.component_code, index)} style={{ ...linkBtn, color: pillar.red.fg }}>Remove</button>
+        )}
+      </div>
+
+      {ec.tiered ? (
+        <TierEditor ec={ec} tiers={row.tiers ?? []} rowIndex={index} canEdit={canEdit} setRows={setRows} />
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input
+            type="number" disabled={!canEdit} value={row.value ?? 0}
+            onChange={(e) => updateValue(setRows, ec.component_code, index, Number(e.target.value))}
+            style={numInput}
+          />
+          <span style={{ fontSize: 12, color: c.muted }}>{ec.unit === "percent" ? "%" : ""}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TierEditor({ ec, tiers, rowIndex, canEdit, setRows }: {
+  ec: EditableComponent; tiers: ScaleEntry[]; rowIndex: number; canEdit: boolean; setRows: RowsSetter;
+}) {
+  return (
+    <div>
+      <div style={{ fontSize: 10.5, color: c.hint, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>
+        Volume bands
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {tiers.map((t, ti) => (
+          <div key={ti} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11.5, color: c.muted }}>From qty</span>
+            <input
+              type="number" disabled={!canEdit} value={t.from}
+              onChange={(e) => updateTier(setRows, ec.component_code, rowIndex, ti, { from: Number(e.target.value) })}
+              style={{ ...numInput, width: 70 }}
+            />
+            <span style={{ fontSize: 11.5, color: c.muted }}>→</span>
+            <input
+              type="number" disabled={!canEdit} value={t.value}
+              onChange={(e) => updateTier(setRows, ec.component_code, rowIndex, ti, { value: Number(e.target.value) })}
+              style={{ ...numInput, width: 70 }}
+            />
+            <span style={{ fontSize: 11.5, color: c.muted }}>{ec.unit === "percent" ? "%" : "/ unit"}</span>
+            {canEdit && tiers.length > 1 && (
+              <button onClick={() => removeTier(setRows, ec.component_code, rowIndex, ti)} style={{ ...linkBtn, color: pillar.red.fg }}>×</button>
+            )}
+          </div>
+        ))}
+      </div>
+      {canEdit && (
+        <button onClick={() => addTier(setRows, ec.component_code, rowIndex)} style={{ ...linkBtn, marginTop: 4 }}>+ Add a volume band</button>
+      )}
+    </div>
+  );
+}
+
+// ── Sample bill ──────────────────────────────────────────────────────────
+
+type SampleLine = { components: Record<string, number>; subtotals: Record<string, number>; net: number; trace: { component?: string; status: string }[] };
+
 function SampleBill({ template, version, canEdit, onBack }: { template: MethodTemplate; version: number; canEdit: boolean; onBack: () => void }) {
   const [qty, setQty] = useState(1);
-  const [line, setLine] = useState<{ components: Record<string, number>; subtotals: Record<string, number>; net: number; trace: { component?: string; status: string }[] } | null>(null);
+  const [line, setLine] = useState<SampleLine | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -290,6 +479,18 @@ function SampleBill({ template, version, canEdit, onBack }: { template: MethodTe
   useEffect(() => { run(qty); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const statusOf = (code: string) => line?.trace.find((t) => t.component === code)?.status;
+  const statisticalCodes = useMemo(() => new Set(template.components.filter((cmp) => cmp.is_statistical).map((cmp) => cmp.code)), [template]);
+
+  const margin = useMemo(() => {
+    const g = template.marginGuardrail;
+    if (!g || !line) return null;
+    const revenue = line.subtotals[g.revenueSubtotal];
+    const cost = line.subtotals[g.costSubtotal];
+    const floor = line.components[g.componentCode];
+    if (revenue === undefined || cost === undefined || !revenue) return null;
+    const actualPct = ((revenue - cost) / revenue) * 100;
+    return { actualPct, floor: floor ?? null, belowFloor: floor !== undefined && actualPct < floor };
+  }, [template, line]);
 
   return (
     <div>
@@ -306,6 +507,23 @@ function SampleBill({ template, version, canEdit, onBack }: { template: MethodTe
         />
       </div>
 
+      {margin && (
+        <div
+          style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+            padding: "8px 14px", marginBottom: 12, borderRadius: 8,
+            background: margin.belowFloor ? pillar.red.bg : pillar.green.bg,
+            color: margin.belowFloor ? pillar.red.fg : pillar.green.fg,
+            fontSize: 12.5, fontWeight: 600,
+          }}
+        >
+          <span>Margin on this bill: {margin.actualPct.toFixed(1)}%</span>
+          {margin.floor !== null && (
+            <span>{margin.belowFloor ? `Below your minimum of ${margin.floor}%` : `At or above your minimum of ${margin.floor}%`}</span>
+          )}
+        </div>
+      )}
+
       <div style={{ borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel, overflow: "hidden" }}>
         {busy && !line && <div style={{ padding: 16, fontSize: 13, color: c.muted }}>Calculating…</div>}
         {line && template.procedure.steps.map((step) => {
@@ -317,7 +535,7 @@ function SampleBill({ template, version, canEdit, onBack }: { template: MethodTe
               </div>
             );
           }
-          if (!step.component) return null;
+          if (!step.component || statisticalCodes.has(step.component)) return null;
           const status = statusOf(step.component);
           if (status === "SKIPPED" || status === "EXCLUDED") return null;
           const name = template.components.find((cmp) => cmp.code === step.component)?.name ?? step.component;
