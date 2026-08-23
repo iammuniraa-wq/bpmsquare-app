@@ -8,6 +8,7 @@ import type { NovaStreamItem } from "@/lib/nova/stream";
 import type { NovaFlow } from "@/lib/nova/flows";
 import { buildSpaces, spaceForHref, type SpaceItem } from "@/lib/nova/spaces";
 import Sidebar from "./Sidebar";
+import Logo from "./Logo";
 
 const TONE_COLOR: Record<NovaStreamItem["accent"], string> = {
   orange: "var(--nova-orange-soft)",
@@ -266,12 +267,23 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
   );
 }
 
+// Tenant identity, not the "Nova" experience name -- this is the same
+// logo/name a user sees in the classic sidebar and top bar, just Nova's
+// own header treatment. Nova is the name of the surface, not a rebrand of
+// which workspace the tenant is looking at.
 function NovaHeader({ loaded, needCount }: { loaded: boolean; needCount: number }) {
+  const tenant = useTenant();
   return (
     <div style={{ padding: "16px 16px 12px", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid var(--nova-line-soft)" }}>
-      <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--nova-gradient)", flexShrink: 0, boxShadow: "0 0 12px rgba(255,107,53,0.4)" }} />
+      {tenant?.logo_url ? (
+        <img src={tenant.logo_url} alt={tenant.name} style={{ width: 28, height: 28, borderRadius: 7, objectFit: "contain", flexShrink: 0 }} />
+      ) : (
+        <Logo size={28} />
+      )}
       <div style={{ minWidth: 0 }}>
-        <div className="nova-display" style={{ fontSize: 15 }}>Nova</div>
+        <div className="nova-display" style={{ fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={tenant?.name}>
+          {tenant?.name ?? <span>BPM<span style={{ color: "var(--nova-orange-soft)" }}>Square</span></span>}
+        </div>
         <div style={{ fontSize: 11, color: "var(--nova-ink-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {loaded ? `${needCount} need${needCount === 1 ? "s" : ""} you` : "…"}
         </div>
