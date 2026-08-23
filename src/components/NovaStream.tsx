@@ -8,7 +8,8 @@ import type { NovaWinItem } from "@/lib/nova/stream";
 import type { NovaRankings, NovaRankingRow } from "@/lib/nova/rankings";
 import type { AnalyticsData } from "@/lib/data/labels";
 import { Package, Activity as ActivityIcon, Users, FileText, CheckIcon } from "@/components/Icons";
-import { renderWidget, isAnalyticsId } from "@/components/DashboardLayout";
+import { renderWidget } from "@/components/DashboardLayout";
+import { isAnalyticsId } from "@/lib/analyticsMeta";
 import { isNovaNativeId, type NovaBlockId } from "@/lib/nova/streamLayout";
 import NovaAdaptDrawer from "@/components/NovaAdaptDrawer";
 
@@ -125,11 +126,21 @@ export default function NovaStream({
   function renderBlock(block: DashLayoutItem): React.ReactNode {
     if (isAnalyticsId(block.id)) {
       if (!analytics) return null;
-      return (
-        <div key={block.id} style={{ marginBottom: 20 }}>
-          {renderWidget(block.id, analytics, "full")}
-        </div>
-      );
+      // renderWidget is the classic dashboard's own widget renderer, reused
+      // as-is (see streamLayout.ts) -- it was never exercised inside a Nova
+      // page before, and a saved layout carried over from before this
+      // tenant had Nova turned on can surface an id here that classic never
+      // hit either. One bad widget must not take the whole Stream down.
+      try {
+        return (
+          <div key={block.id} style={{ marginBottom: 20 }}>
+            {renderWidget(block.id, analytics, "full")}
+          </div>
+        );
+      } catch (e) {
+        console.error(`[NovaStream] widget "${block.id}" failed to render`, e);
+        return null;
+      }
     }
     switch (block.id as NovaBlockId) {
       case "nova_kpis":

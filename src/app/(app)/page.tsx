@@ -9,7 +9,7 @@ import { getNovaRecentWins } from "@/lib/nova/stream";
 import { getNovaRankings } from "@/lib/nova/rankings";
 import { isNovaTenant } from "@/lib/nova/isNovaTenant";
 import { resolveNovaLayout } from "@/lib/nova/streamLayout";
-import { isAnalyticsId } from "@/components/DashboardLayout";
+import { isAnalyticsId } from "@/lib/analyticsMeta";
 import type { TenantFeatures } from "@/lib/constants";
 
 function greetingForHour(hour: number): string {
@@ -26,57 +26,75 @@ export default async function DashboardPage() {
   // dashboard -- still needs the same summary aggregate (kpis, overdue
   // invoices) for its own stat strip, so this is no longer a skip, just a
   // different presentation of the same real numbers.
+  //
+  // Wrapped: Nova is new and experimental, and its "Adapt" layout reuses
+  // tenants.config.dashboard_layout -- a tenant that customized the CLASSIC
+  // dashboard before Nova was ever turned on for them has classic block ids
+  // sitting in that same field. Nothing here should be able to take the
+  // whole page down; on any failure this falls through to the classic
+  // dashboard below (still fully correct/safe for that tenant) and logs the
+  // real error server-side instead of a redacted "Server Components render"
+  // error reaching the browser.
   if (isNovaTenant(tenant)) {
-    const features = (tenant?.features ?? {}) as TenantFeatures;
-    const [{ data: membership }, { kpis, overdueInvoices }, recentWins] = await Promise.all([
-      supabase.from("tenant_users").select("dashboard_layout_override, display_name, employee_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
-      getDashboardSummary(),
-      getNovaRecentWins(tenantId),
-    ]);
-    let firstName = (membership?.display_name ?? "").trim().split(/\s+/)[0] || null;
-    if (!firstName && membership?.employee_id) {
-      const { data: emp } = await supabase
-        .from("employees").select("first_name").eq("id", membership.employee_id).eq("tenant_id", tenantId).maybeSingle();
-      firstName = emp?.first_name?.trim() || null;
+    try {
+      const features = (tenant?.features ?? {}) as TenantFeatures;
+      const [{ data: membership }, { kpis, overdueInvoices }, recentWins] = await Promise.all([
+        supabase.from("tenant_users").select("dashboard_layout_override, display_name, employee_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
+        getDashboardSummary(),
+        getNovaRecentWins(tenantId),
+      ]);
+      let firstName = (membership?.display_name ?? "").trim().split(/\s+/)[0] || null;
+      if (!firstName && membership?.employee_id) {
+        const { data: emp } = await supabase
+          .from("employees").select("first_name").eq("id", membership.employee_id).eq("tenant_id", tenantId).maybeSingle();
+        firstName = emp?.first_name?.trim() || null;
+      }
+
+      // Tenant-wide default + personal override, same DashLayoutItem[]
+      // storage the classic dashboard uses (see lib/nova/streamLayout.ts for
+      // why the Business-Role-derived layer is deliberately not replicated
+      // here). Personal always wins outright when set, same as classic.
+      // Array.isArray guards both -- a malformed/non-array value in either
+      // column (e.g. carried over from before this shape existed) falls
+      // back to the real default instead of crashing resolveNovaLayout.
+      const personalOverrideRaw = membership?.dashboard_layout_override;
+      const personalOverride = Array.isArray(personalOverrideRaw) ? (personalOverrideRaw as DashLayoutItem[]) : null;
+      const tenantDefaultRaw = tenant?.config?.dashboard_layout;
+      const tenantDefault: DashLayoutItem[] = Array.isArray(tenantDefaultRaw) ? tenantDefaultRaw : [];
+      const savedLayout = personalOverride && personalOverride.length > 0 ? personalOverride : tenantDefault;
+      const effectiveLayout = resolveNovaLayout(savedLayout, features);
+
+      const needsAnalytics = effectiveLayout.some((b) => isAnalyticsId(b.id));
+      const [rankings, analytics] = await Promise.all([
+        getNovaRankings(tenantId, features),
+        needsAnalytics ? getAnalyticsData() : Promise.resolve(null),
+      ]);
+      const now = new Date();
+      const overdueTotal = overdueInvoices.reduce((t, inv) => t + Math.max(0, inv.total - inv.paid_amount), 0);
+      return (
+        <NovaStream
+          rankings={rankings}
+          wins={recentWins}
+          userName={firstName}
+          greeting={greetingForHour(now.getHours())}
+          dateLabel={now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+          kpis={{
+            openPipeline: kpis.openQuoteValue,
+            openCases: kpis.openCases,
+            activeContracts: kpis.activeContracts,
+            overdueCount: overdueInvoices.length,
+            overdueTotal,
+          }}
+          features={features}
+          analytics={analytics}
+          dashLayout={effectiveLayout}
+          isAdmin={role === "admin"}
+          hasPersonalOverride={!!personalOverride && personalOverride.length > 0}
+        />
+      );
+    } catch (e) {
+      console.error("[NovaStream] failed to render, falling back to classic dashboard", e);
     }
-
-    // Tenant-wide default + personal override, same DashLayoutItem[]
-    // storage the classic dashboard uses (see lib/nova/streamLayout.ts for
-    // why the Business-Role-derived layer is deliberately not replicated
-    // here). Personal always wins outright when set, same as classic.
-    const personalOverride = membership?.dashboard_layout_override as DashLayoutItem[] | null;
-    const tenantDefault: DashLayoutItem[] = tenant?.config?.dashboard_layout ?? [];
-    const savedLayout = Array.isArray(personalOverride) && personalOverride.length > 0 ? personalOverride : tenantDefault;
-    const effectiveLayout = resolveNovaLayout(savedLayout, features);
-
-    const needsAnalytics = effectiveLayout.some((b) => isAnalyticsId(b.id));
-    const [rankings, analytics] = await Promise.all([
-      getNovaRankings(tenantId, features),
-      needsAnalytics ? getAnalyticsData() : Promise.resolve(null),
-    ]);
-    const now = new Date();
-    const overdueTotal = overdueInvoices.reduce((t, inv) => t + Math.max(0, inv.total - inv.paid_amount), 0);
-    return (
-      <NovaStream
-        rankings={rankings}
-        wins={recentWins}
-        userName={firstName}
-        greeting={greetingForHour(now.getHours())}
-        dateLabel={now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
-        kpis={{
-          openPipeline: kpis.openQuoteValue,
-          openCases: kpis.openCases,
-          activeContracts: kpis.activeContracts,
-          overdueCount: overdueInvoices.length,
-          overdueTotal,
-        }}
-        features={features}
-        analytics={analytics}
-        dashLayout={effectiveLayout}
-        isAdmin={role === "admin"}
-        hasPersonalOverride={Array.isArray(personalOverride) && personalOverride.length > 0}
-      />
-    );
   }
 
   const [{ kpis, attention, readyCases, workOrderRows, recentActivity, overdueInvoices }, analytics] =

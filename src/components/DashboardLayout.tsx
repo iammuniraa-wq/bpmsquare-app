@@ -15,6 +15,7 @@ import { ROUTES } from "@/lib/constants";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
 import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText, Clock } from "@/components/Icons";
 import type { AnalyticsData } from "@/lib/data/labels";
+import { ANALYTICS_META, isAnalyticsId } from "@/lib/analyticsMeta";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,43 +67,6 @@ const NATIVE_META: Record<string, { label: string; sidebar?: boolean; features?:
   // reading the precomputed analytics payload, which is why it lives here
   // and renders through the native switch below.
   wfm_summary:     { label: "Attendance summary (day + month)", features: ["wfm"] },
-};
-
-export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures }> = {
-  // Core-module widgets carry their module's 0067 flag -- previously only
-  // the optional-module widgets (amc/leads/invoices/wfm) were gated.
-  accounts:                { label: "Accounts",         feature: "accounts" },
-  contacts:                { label: "Contacts",         feature: "contacts" },
-  assets:                  { label: "Assets",           feature: "assets" },
-  products:                { label: "Products",         feature: "products" },
-  open_cases:              { label: "Open cases",       feature: "cases" },
-  work_orders:             { label: "Work orders",      feature: "work_orders" },
-  contracts:               { label: "AMC contracts",    feature: "amc" },
-  leads:                   { label: "Leads",            feature: "leads" },
-  technicians:             { label: "Technicians",      feature: "technicians" },
-  accounts_by_type:        { label: "Accounts by type", feature: "accounts" },
-  lead_funnel:             { label: "Lead funnel",      feature: "leads" },
-  assets_by_kind:          { label: "Assets by kind",   feature: "assets" },
-  quote_trend:             { label: "Quote pipeline",   feature: "quotations" },
-  case_status:             { label: "Case status",      feature: "cases" },
-  work_order_status:       { label: "Work order status", feature: "work_orders" },
-  technician_availability: { label: "Technician availability", feature: "technicians" },
-  revenue_overview:        { label: "Revenue overview", feature: "invoices" },
-  invoices_by_status:      { label: "Invoices by status", feature: "invoices" },
-  loaner_availability:     { label: "Loaner availability", feature: "assets" },
-  recent_activity:         { label: "Recent activity (analytics)" },
-  account_news:            { label: "Client news",      feature: "accounts" },
-  quote_outcomes:          { label: "Quote won/lost value", feature: "quotations" },
-  quote_overdue:           { label: "Quote overdue",    feature: "quotations" },
-  quote_source:            { label: "Quote source (cases vs standalone)", feature: "quotations" },
-  wfm_attendance_today:    { label: "Attendance by site (today)", feature: "wfm" },
-  wfm_night_shift_cost:    { label: "Night shift cost (today)",   feature: "wfm" },
-  wfm_corrections_queue:    { label: "Corrections queue",          feature: "wfm" },
-  wfm_leave_requests_queue: { label: "Leave requests queue",       feature: "wfm" },
-  wfm_recheck_queue:        { label: "Recheck requests queue",     feature: "wfm" },
-  wfm_site_headcount:       { label: "Headcount by site",          feature: "wfm" },
-  wfm_workforce_composition:{ label: "Workforce composition",      feature: "wfm" },
-  wfm_leave_taken_by_type:  { label: "Leave taken by type (YTD)",  feature: "wfm" },
 };
 
 const DEFAULT_LAYOUT: DashLayoutItem[] = [
@@ -213,10 +177,6 @@ function defaultLayoutFor(features: TenantFeatures): DashLayoutItem[] {
     }
   }
   return [...fromBundles, ...nativeVisible];
-}
-
-export function isAnalyticsId(id: string): id is AnalyticsMetricId {
-  return id in ANALYTICS_META;
 }
 
 // Single/dual stat-tile widgets are narrow by nature -- default them to compact

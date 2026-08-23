@@ -1,7 +1,7 @@
 "use client";
 
 import type { DashLayoutItem, TenantFeatures, AnalyticsMetricId } from "@/lib/constants";
-import { ANALYTICS_META } from "@/components/DashboardLayout";
+import { ANALYTICS_META } from "@/lib/analyticsMeta";
 import { novaBlockLabel, novaBlockAllowed, isNovaNativeId } from "@/lib/nova/streamLayout";
 
 function move<T>(arr: T[], from: number, to: number): T[] {

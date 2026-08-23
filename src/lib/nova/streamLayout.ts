@@ -1,5 +1,5 @@
 import type { DashLayoutItem, TenantFeatures } from "@/lib/constants";
-import { ANALYTICS_META, isAnalyticsId } from "@/components/DashboardLayout";
+import { ANALYTICS_META, isAnalyticsId } from "@/lib/analyticsMeta";
 
 /**
  * Nova Stream's own "Adapt" layer -- reuses the exact same DashLayoutItem[]
