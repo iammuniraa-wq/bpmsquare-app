@@ -54,7 +54,12 @@ export async function fetchAccountMarketIntel(accountName: string, accountMeta =
   try {
     response = await client().messages.create({
       model: "claude-opus-5",
-      max_tokens: 4000,
+      // Generous headroom: intermediate web_search result content shares
+      // this same output budget with the final answer, so a well-covered
+      // company can burn through a tight budget before Claude gets to write
+      // the closing JSON (2026-08-26: reported as "sometimes it shows,
+      // sometimes it fails" -- 4000 was too tight for that case).
+      max_tokens: 8000,
       tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 4 }],
       messages: [{ role: "user", content: buildPrompt(accountName, accountMeta) }],
     });
@@ -92,14 +97,18 @@ export async function fetchAccountMarketIntel(accountName: string, accountMeta =
   // (web_search_tool_result with an error object), not a thrown exception --
   // Claude works around it and still produces a final text answer, so we
   // only care about the final text here, not every search attempt.
-  const text = response.content
+  const rawText = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("\n")
     .trim();
-  if (!text) {
+  if (!rawText) {
     throw new MarketIntelError("The AI did not return a summary. Try again.");
   }
+  // The prompt asks for no markdown fences, but strip one if it shows up
+  // anyway -- cheap insurance against an otherwise-valid response failing
+  // to parse over a formatting quirk.
+  const text = rawText.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
 
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {

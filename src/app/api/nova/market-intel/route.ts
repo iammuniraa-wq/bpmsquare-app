@@ -3,6 +3,14 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { fetchAccountMarketIntel, MarketIntelError } from "@/lib/nova/marketIntel";
 
+// A web_search-driven turn can run up to 4 searches server-side before
+// Claude answers -- how long that takes varies a lot per account (a
+// well-covered company takes longer than an obscure one), so the platform's
+// default function timeout was a likely source of the "works sometimes"
+// reports: a slow run gets silently killed rather than surfacing one of
+// fetchAccountMarketIntel's own error messages.
+export const maxDuration = 60;
+
 /**
  * GET /api/nova/market-intel?account_id=X -- real, live web search about an
  * account's company (owner request 2026-08-25). Nova-only, same shape as
