@@ -1,7 +1,8 @@
 "use client";
 
+import { useRef, useState } from "react";
 import type { DashLayoutItem, TenantFeatures, AnalyticsMetricId } from "@/lib/constants";
-import { ANALYTICS_META } from "@/lib/analyticsMeta";
+import { ANALYTICS_META, isAnalyticsId } from "@/lib/analyticsMeta";
 import { novaBlockLabel, novaBlockAllowed, isNovaNativeId } from "@/lib/nova/streamLayout";
 
 function move<T>(arr: T[], from: number, to: number): T[] {
@@ -12,10 +13,14 @@ function move<T>(arr: T[], from: number, to: number): T[] {
 }
 
 /**
- * Nova's Stream customization drawer -- add analytics widgets, reorder with
- * up/down, hide/show. Reused for both the tenant-wide default (admin,
- * "Adapt Stream") and the caller's own personal layer ("My Stream"),
- * exactly like the classic dashboard's AdaptDrawer.
+ * Nova's Stream customization drawer -- add analytics widgets, drag to
+ * reorder (with up/down buttons as a keyboard/touch-friendly fallback),
+ * hide/show, and resize analytics widgets (compact/half/full -- Nova's own
+ * 4 native sections stay full-width, see NOVA_SIZE_FLEX in NovaStream.tsx).
+ * Reused for both the tenant-wide default (admin, "Adapt Stream") and the
+ * caller's own personal layer ("My Stream"), exactly like the classic
+ * dashboard's AdaptDrawer (DashboardLayout.tsx), whose drag/resize pattern
+ * this mirrors.
  */
 export default function NovaAdaptDrawer({
   layout,
@@ -24,7 +29,7 @@ export default function NovaAdaptDrawer({
   onClose,
   saving,
   title = "Adapt Stream",
-  subtitle = "Reorder, hide, or add widgets",
+  subtitle = "Drag to reorder, hide, resize, or add widgets",
   onReset,
   resetLabel,
 }: {
@@ -43,6 +48,9 @@ export default function NovaAdaptDrawer({
     .filter((id) => !presentIds.has(id) && novaBlockAllowed(id, features))
     .sort((a, b) => ANALYTICS_META[a].label.localeCompare(ANALYTICS_META[b].label));
 
+  const dragIdx = useRef<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+
   function toggleHidden(index: number) {
     const next = layout.slice();
     next[index] = { ...next[index], hidden: !next[index].hidden };
@@ -53,6 +61,11 @@ export default function NovaAdaptDrawer({
     if (target < 0 || target >= layout.length) return;
     onLayoutChange(move(layout, index, target));
   }
+  function setSize(index: number, size: "compact" | "half" | "full") {
+    const next = layout.slice();
+    next[index] = { ...next[index], size };
+    onLayoutChange(next);
+  }
   function addWidget(id: AnalyticsMetricId) {
     onLayoutChange([...layout, { id }]);
   }
@@ -60,6 +73,16 @@ export default function NovaAdaptDrawer({
     const next = layout.slice();
     next.splice(index, 1);
     onLayoutChange(next);
+  }
+  function onDragStart(i: number) { dragIdx.current = i; }
+  function onDragOver(e: React.DragEvent, i: number) { e.preventDefault(); setOverIdx(i); }
+  function onDragEnd() { dragIdx.current = null; setOverIdx(null); }
+  function onDrop(i: number) {
+    const from = dragIdx.current;
+    dragIdx.current = null;
+    setOverIdx(null);
+    if (from === null || from === i) return;
+    onLayoutChange(move(layout, from, i));
   }
 
   return (
@@ -93,51 +116,87 @@ export default function NovaAdaptDrawer({
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 24 }}>
             {layout.map((block, i) => {
               const native = isNovaNativeId(block.id);
+              // Native sections are each a compound, full-width row (KPI
+              // strip, quick actions, rankings, wins) -- there's no
+              // compact/half rendering for them, so only analytics widgets
+              // get size buttons (matches NOVA_SIZE_FLEX in NovaStream.tsx).
+              const resizable = !block.hidden && isAnalyticsId(block.id);
+              const currentSize = block.size ?? "full";
+              const isOver = overIdx === i && dragIdx.current !== i;
               return (
                 <div
                   key={block.id}
+                  draggable
+                  onDragStart={() => onDragStart(i)}
+                  onDragOver={(e) => onDragOver(e, i)}
+                  onDrop={() => onDrop(i)}
+                  onDragEnd={onDragEnd}
                   style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    background: "var(--nova-glass-bg)", border: "1px solid var(--nova-glass-border)",
-                    borderRadius: 10, padding: "8px 10px", opacity: block.hidden ? 0.5 : 1,
+                    background: "var(--nova-glass-bg)",
+                    border: `1px solid ${isOver ? "var(--nova-pink)" : "var(--nova-glass-border)"}`,
+                    borderRadius: 10, padding: "8px 10px", opacity: dragIdx.current === i ? 0.4 : (block.hidden ? 0.5 : 1),
+                    cursor: "grab", transition: "border-color 0.1s, opacity 0.15s",
                   }}
                 >
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: "var(--nova-ink-faint)", fontSize: 13, flexShrink: 0, userSelect: "none" }}>⠿</span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      <button
+                        type="button"
+                        onClick={() => reorder(i, -1)}
+                        disabled={i === 0}
+                        style={{ background: "none", border: "none", color: "var(--nova-ink-faint)", cursor: i === 0 ? "default" : "pointer", fontSize: 11, padding: 0, lineHeight: 1, opacity: i === 0 ? 0.3 : 1 }}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => reorder(i, 1)}
+                        disabled={i === layout.length - 1}
+                        style={{ background: "none", border: "none", color: "var(--nova-ink-faint)", cursor: i === layout.length - 1 ? "default" : "pointer", fontSize: 11, padding: 0, lineHeight: 1, opacity: i === layout.length - 1 ? 0.3 : 1 }}
+                      >
+                        ▼
+                      </button>
+                    </div>
+                    <div style={{ flex: 1, fontSize: 13, color: "var(--nova-ink)" }}>{novaBlockLabel(block.id)}</div>
                     <button
                       type="button"
-                      onClick={() => reorder(i, -1)}
-                      disabled={i === 0}
-                      style={{ background: "none", border: "none", color: "var(--nova-ink-faint)", cursor: i === 0 ? "default" : "pointer", fontSize: 11, padding: 0, lineHeight: 1, opacity: i === 0 ? 0.3 : 1 }}
+                      onClick={() => toggleHidden(i)}
+                      title={block.hidden ? "Show" : "Hide"}
+                      style={{ background: "none", border: "none", color: "var(--nova-ink-faint)", cursor: "pointer", fontSize: 13 }}
                     >
-                      ▲
+                      {block.hidden ? "◌" : "●"}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => reorder(i, 1)}
-                      disabled={i === layout.length - 1}
-                      style={{ background: "none", border: "none", color: "var(--nova-ink-faint)", cursor: i === layout.length - 1 ? "default" : "pointer", fontSize: 11, padding: 0, lineHeight: 1, opacity: i === layout.length - 1 ? 0.3 : 1 }}
-                    >
-                      ▼
-                    </button>
+                    {!native && (
+                      <button
+                        type="button"
+                        onClick={() => removeWidget(i)}
+                        title="Remove"
+                        style={{ background: "none", border: "none", color: "var(--nova-orange-soft)", cursor: "pointer", fontSize: 13 }}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
-                  <div style={{ flex: 1, fontSize: 13, color: "var(--nova-ink)" }}>{novaBlockLabel(block.id)}</div>
-                  <button
-                    type="button"
-                    onClick={() => toggleHidden(i)}
-                    title={block.hidden ? "Show" : "Hide"}
-                    style={{ background: "none", border: "none", color: "var(--nova-ink-faint)", cursor: "pointer", fontSize: 13 }}
-                  >
-                    {block.hidden ? "◌" : "●"}
-                  </button>
-                  {!native && (
-                    <button
-                      type="button"
-                      onClick={() => removeWidget(i)}
-                      title="Remove"
-                      style={{ background: "none", border: "none", color: "var(--nova-orange-soft)", cursor: "pointer", fontSize: 13 }}
-                    >
-                      ✕
-                    </button>
+                  {resizable && (
+                    <div style={{ display: "flex", gap: 4, marginLeft: 21, marginTop: 6 }}>
+                      {(["compact", "half", "full"] as const).map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => setSize(i, sz)}
+                          style={{
+                            fontSize: 9.5, fontWeight: 600, padding: "3px 8px", borderRadius: 5, cursor: "pointer",
+                            textTransform: "capitalize",
+                            background: currentSize === sz ? "var(--nova-pink-bg)" : "transparent",
+                            border: `1px solid ${currentSize === sz ? "var(--nova-pink)" : "var(--nova-glass-border)"}`,
+                            color: currentSize === sz ? "var(--nova-pink-soft)" : "var(--nova-ink-faint)",
+                          }}
+                        >
+                          {sz === "compact" ? "Small" : sz}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               );

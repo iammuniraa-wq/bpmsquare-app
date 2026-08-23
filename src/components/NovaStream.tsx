@@ -32,6 +32,21 @@ type Kpis = {
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
+// Only analytics widgets are individually resizable -- Nova's own 4 native
+// sections (KPI strip, quick actions, rankings, wins) are each a compound,
+// multi-item row designed to read at full width; there's no "compact"/"half"
+// rendering for them the way a single-stat analytics widget has. Mirrors
+// classic dashboard's SIZE_FLEX (DashboardLayout.tsx) so a tile at a given
+// size occupies the same proportion of the row either place.
+const NOVA_SIZE_FLEX: Record<"compact" | "half" | "full", React.CSSProperties> = {
+  compact: { flex: "1 1 240px", minWidth: 200, maxWidth: 520 },
+  half:    { flex: "1 1 calc(50% - 10px)", minWidth: 260 },
+  full:    { flex: "1 1 100%", minWidth: 0 },
+};
+function blockDisplaySize(block: DashLayoutItem): "compact" | "half" | "full" {
+  return block.size ?? "full";
+}
+
 function openPalette() {
   window.dispatchEvent(new CustomEvent("nova:open-palette"));
 }
@@ -132,11 +147,7 @@ export default function NovaStream({
       // tenant had Nova turned on can surface an id here that classic never
       // hit either. One bad widget must not take the whole Stream down.
       try {
-        return (
-          <div key={block.id} style={{ marginBottom: 20 }}>
-            {renderWidget(block.id, analytics, "full")}
-          </div>
-        );
+        return <div key={block.id}>{renderWidget(block.id, analytics, blockDisplaySize(block))}</div>;
       } catch (e) {
         console.error(`[NovaStream] widget "${block.id}" failed to render`, e);
         return null;
@@ -145,7 +156,7 @@ export default function NovaStream({
     switch (block.id as NovaBlockId) {
       case "nova_kpis":
         return (
-          <div key={block.id} className="nova-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+          <div key={block.id} className="nova-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
             {statTiles.map((tile) => {
               const accent = ACCENT[tile.accent];
               return (
@@ -159,7 +170,7 @@ export default function NovaStream({
         );
       case "nova_quick_actions":
         return (
-          <div key={block.id} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 28 }}>
+          <div key={block.id} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {quickActions.map((a) => {
               const accent = ACCENT[a.accent];
               return (
@@ -180,7 +191,7 @@ export default function NovaStream({
         const anyData = boards.some((b) => b.rows.length > 0);
         if (!anyData) return null;
         return (
-          <div key={block.id} style={{ marginBottom: 20 }}>
+          <div key={block.id}>
             <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginBottom: 14 }}>Rankings</div>
             <div className="nova-rankings-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
               {boards.filter((b) => b.rows.length > 0).map((board) => {
@@ -209,7 +220,7 @@ export default function NovaStream({
       case "nova_recent_wins":
         if (wins.length === 0) return null;
         return (
-          <div key={block.id} style={{ marginBottom: 20 }}>
+          <div key={block.id}>
             <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginBottom: 12 }}>Recent wins</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {wins.map((w) => (
@@ -302,12 +313,33 @@ export default function NovaStream({
         </span>
       </button>
 
+      {isAdmin && hasPersonalOverride && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--nova-ink-dim)", background: "var(--nova-glass-bg)", border: "1px solid var(--nova-glass-border)", borderRadius: 8, padding: "8px 12px", marginBottom: 16 }}>
+          <span style={{ flex: 1 }}>
+            You have a personal Stream layout — it overrides <strong>Adapt Stream</strong>&apos;s shared default for you, so changes made there won&apos;t visibly change what you see below until you reset it.
+          </span>
+          <button type="button" onClick={resetPersonalLayout} style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 600, color: "var(--nova-pink-soft)", background: "transparent", border: "1px solid rgba(232,67,147,0.4)", borderRadius: 6, padding: "5px 10px", cursor: "pointer" }}>
+            Reset to shared default
+          </button>
+        </div>
+      )}
+
       {visibleBlocks.length === 0 ? (
         <div style={{ border: "1px solid var(--nova-line)", borderRadius: "var(--nova-radius-card)", padding: "28px 20px", textAlign: "center", color: "var(--nova-ink-dim)", fontSize: 14 }}>
           Your Stream is empty — every widget is hidden. Use <strong>{isAdmin ? "Adapt Stream" : "My Stream"}</strong> above to bring some back.
         </div>
       ) : (
-        visibleBlocks.map(renderBlock)
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "flex-start" }}>
+          {visibleBlocks.map((block) => {
+            const node = renderBlock(block);
+            if (!node) return null;
+            return (
+              <div key={block.id} style={NOVA_SIZE_FLEX[blockDisplaySize(block)]}>
+                {node}
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {adaptOpen && (
