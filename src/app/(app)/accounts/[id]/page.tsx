@@ -19,7 +19,9 @@ import QuickCreateDeck from "@/components/QuickCreateDeck";
 import { MapPin, Phone, Mail, Gear, Activity as ActivityIcon, Package, FileText } from "@/components/Icons";
 import AccountHeader from "./AccountHeader";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
+import NovaAccountStorySlot from "@/components/NovaAccountStorySlot";
 import Account360Button from "@/components/Account360Button";
+import { buildAccountStoryEvents, computeAccountHealth } from "@/lib/nova/accountStory";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
 
@@ -160,6 +162,24 @@ export default async function AccountHubPage({
 
   const tabHref = (t: Tab) => `${ROUTES.account(id)}?tab=${t}`;
 
+  // Cheap in-memory derivation from data the hub already fetched -- no
+  // extra queries. NovaAccountStorySlot self-gates, so this runs harmlessly
+  // for every tenant rather than threading a theme check through the page.
+  const storyEvents = buildAccountStoryEvents({
+    accountId: id,
+    accountCreatedAt: account.created_at,
+    quotes: hub.quotes,
+    cases: hub.cases,
+    invoices: hub.invoices,
+    contracts: hub.contracts,
+  });
+  const health = computeAccountHealth({
+    quotes: hub.quotes,
+    cases: hub.cases,
+    invoices: hub.invoices,
+    contacts: hub.contacts,
+  });
+
   return (
     <>
       <TabTitle title={account.name} />
@@ -205,6 +225,8 @@ export default async function AccountHubPage({
           </div>
         </div>
       </AccountHeader>
+
+      <NovaAccountStorySlot accountName={account.name} events={storyEvents} health={health} />
 
       {/* ── Tab bar ───────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 0, marginBottom: 14, borderBottom: `1px solid ${c.line}`, overflowX: "auto" }}>
