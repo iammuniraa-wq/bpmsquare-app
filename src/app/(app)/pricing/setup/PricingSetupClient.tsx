@@ -42,6 +42,26 @@ function defaultRows(template: MethodTemplate): RowsByComponent {
   return result;
 }
 
+/**
+ * Re-push a template's dimensions/components/procedure/cost-model onto a
+ * version that already exists (a resumed draft, or one just cloned from
+ * PUBLISHED). Idempotent upsert, always safe to run. Without this, a draft
+ * created under an older build of wizard.ts keeps its STALE component
+ * definitions forever -- e.g. if a component's calc_type changes (as
+ * LIST_PRICE/BASE_VALUE/BASE_PRICE did, PER_UNIT -> SCALE_TIERED, to add
+ * volume tiering), a resumed old draft would still have the DB's PER_UNIT
+ * component but the wizard would submit rules shaped for SCALE_TIERED
+ * (value: null, scale: {...}) -- PER_UNIT reads `rule.value ?? 0`, so a null
+ * value silently prices that component at zero. Every "numbers" entry point
+ * (fresh draft, resumed draft, cloned draft) now syncs first so the DB
+ * definition can never drift from what this build of the wizard assumes.
+ */
+async function syncTemplateDefinitions(t: MethodTemplate, version: number) {
+  for (const mutation of templateMutations(t, version, "default")) {
+    await postJson("/api/settings/pricing-engine/config", mutation);
+  }
+}
+
 async function postJson(url: string, body: unknown, method = "POST") {
   const init: RequestInit = { method, headers: { "Content-Type": "application/json" } };
   if (method !== "GET") init.body = JSON.stringify(body);
@@ -148,6 +168,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
         const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${draft.version}?area=default`, null, "GET");
         const t = matchMethodTemplate(snap.procedures);
         if (!t) { setPhase("unsupported"); return; }
+        await syncTemplateDefinitions(t, draft.version);
         setTemplate(t);
         setVersion(draft.version);
         setRows(rowsFromSnapshot(t, snap));
@@ -180,9 +201,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
     try {
       const created = await postJson("/api/settings/pricing-engine/versions", { area: "default" });
       const v = created.version.version as number;
-      for (const mutation of templateMutations(t, v, "default")) {
-        await postJson("/api/settings/pricing-engine/config", mutation);
-      }
+      await syncTemplateDefinitions(t, v);
       setTemplate(t);
       setVersion(v);
       setRows(defaultRows(t));
@@ -204,6 +223,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
       const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${v}?area=default`, null, "GET");
       const t = matchMethodTemplate(snap.procedures) ?? template;
       if (!t) { setPhase("unsupported"); return; }
+      await syncTemplateDefinitions(t, v);
       setTemplate(t);
       setVersion(v);
       setRows(rowsFromSnapshot(t, snap));
