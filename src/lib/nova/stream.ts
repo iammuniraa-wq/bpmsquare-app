@@ -193,6 +193,70 @@ async function getWfmApprovalItems(admin: SupabaseClient, tenantId: string): Pro
   return items;
 }
 
+export type NovaWinItem = {
+  id: string;
+  title: string;
+  detail: string;
+  href: string;
+  date: string;
+};
+
+// Recent good news -- quotes won and cases closed in the last 14 days,
+// tenant-wide. Balances the action stream's all-urgent framing with real
+// positive signal, same tenant-scoping discipline as every signal above.
+async function getRecentWins(admin: SupabaseClient, tenantId: string, now: Date): Promise<NovaWinItem[]> {
+  const cutoff = new Date(now.getTime() - 14 * DAY_MS).toISOString();
+
+  const [quotesR, casesR] = await Promise.allSettled([
+    admin
+      .from("quotes")
+      .select("id, ref, total, closed_at, accounts(name)")
+      .eq("tenant_id", tenantId)
+      .eq("outcome", "won")
+      .not("closed_at", "is", null)
+      .gte("closed_at", cutoff)
+      .order("closed_at", { ascending: false })
+      .limit(5),
+    admin
+      .from("service_cases")
+      .select("id, ref, closed_at, equipment_label, accounts(name)")
+      .eq("tenant_id", tenantId)
+      .eq("status", "closed")
+      .not("closed_at", "is", null)
+      .gte("closed_at", cutoff)
+      .order("closed_at", { ascending: false })
+      .limit(5),
+  ]);
+
+  const wins: NovaWinItem[] = [];
+  if (quotesR.status === "fulfilled") {
+    for (const q of quotesR.value.data ?? []) {
+      const accountName = (Array.isArray(q.accounts) ? q.accounts[0]?.name : (q.accounts as { name?: string } | null)?.name) ?? "—";
+      wins.push({
+        id: `win:quote:${q.id as string}`,
+        title: `${q.ref as string} won`,
+        detail: `${accountName} · ₹${Number(q.total ?? 0).toLocaleString("en-IN")}`,
+        href: ROUTES.quotation(q.id as string),
+        date: q.closed_at as string,
+      });
+    }
+  }
+  if (casesR.status === "fulfilled") {
+    for (const cs of casesR.value.data ?? []) {
+      const accountName = (Array.isArray(cs.accounts) ? cs.accounts[0]?.name : (cs.accounts as { name?: string } | null)?.name) ?? "—";
+      wins.push({
+        id: `win:case:${cs.id as string}`,
+        title: `${cs.ref as string} closed`,
+        detail: `${accountName}${cs.equipment_label ? " · " + (cs.equipment_label as string) : ""}`,
+        href: ROUTES.case(cs.id as string),
+        date: cs.closed_at as string,
+      });
+    }
+  }
+
+  return wins.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 4);
+}
+
 /**
  * Tenant-scoped (MULTI_TENANT_GUARDRAILS.md: every createAdminSupabase()
  * query here carries its own .eq("tenant_id", tenantId)), sorted highest
@@ -212,4 +276,9 @@ export async function getNovaStreamItems(tenantId: string): Promise<NovaStreamIt
 
   const items = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   return items.sort((a, b) => b.score - a.score);
+}
+
+export async function getNovaRecentWins(tenantId: string): Promise<NovaWinItem[]> {
+  const admin = createAdminSupabase();
+  return getRecentWins(admin, tenantId, new Date());
 }

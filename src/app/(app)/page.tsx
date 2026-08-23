@@ -5,8 +5,9 @@ import { mergeDashLayouts } from "@/lib/dashboardLayout";
 import type { DashLayoutItem } from "@/lib/constants";
 import DashboardLayout from "@/components/DashboardLayout";
 import NovaStream from "@/components/NovaStream";
-import { getNovaStreamItems } from "@/lib/nova/stream";
+import { getNovaStreamItems, getNovaRecentWins } from "@/lib/nova/stream";
 import { isNovaTenant } from "@/lib/nova/isNovaTenant";
+import type { TenantFeatures } from "@/lib/constants";
 
 function greetingForHour(hour: number): string {
   if (hour < 12) return "Morning";
@@ -19,11 +20,15 @@ export default async function DashboardPage() {
   const { supabase, tenantId, userId } = await requireTenantUser();
 
   // Nova tenants get the Stream home screen instead of the classic KPI
-  // dashboard -- skip the (fairly expensive) summary/analytics aggregates
-  // entirely rather than fetching data this screen never renders.
+  // dashboard -- still needs the same summary aggregate (kpis, overdue
+  // invoices) for its own stat strip, so this is no longer a skip, just a
+  // different presentation of the same real numbers.
   if (isNovaTenant(tenant)) {
-    const { data: membership } = await supabase
-      .from("tenant_users").select("display_name, employee_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
+    const [{ data: membership }, { kpis, overdueInvoices }, recentWins] = await Promise.all([
+      supabase.from("tenant_users").select("display_name, employee_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
+      getDashboardSummary(),
+      getNovaRecentWins(tenantId),
+    ]);
     let firstName = (membership?.display_name ?? "").trim().split(/\s+/)[0] || null;
     if (!firstName && membership?.employee_id) {
       const { data: emp } = await supabase
@@ -33,12 +38,22 @@ export default async function DashboardPage() {
 
     const items = await getNovaStreamItems(tenantId);
     const now = new Date();
+    const overdueTotal = overdueInvoices.reduce((t, inv) => t + Math.max(0, inv.total - inv.paid_amount), 0);
     return (
       <NovaStream
         items={items}
+        wins={recentWins}
         userName={firstName}
         greeting={greetingForHour(now.getHours())}
         dateLabel={now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+        kpis={{
+          openPipeline: kpis.openQuoteValue,
+          openCases: kpis.openCases,
+          activeContracts: kpis.activeContracts,
+          overdueCount: overdueInvoices.length,
+          overdueTotal,
+        }}
+        features={(tenant?.features ?? {}) as TenantFeatures}
       />
     );
   }
