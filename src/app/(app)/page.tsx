@@ -6,14 +6,7 @@ import type { DashLayoutItem } from "@/lib/constants";
 import DashboardLayout from "@/components/DashboardLayout";
 import NovaStream from "@/components/NovaStream";
 import { getNovaStreamItems } from "@/lib/nova/stream";
-
-// Mirrors useIsNextgen3Layer() (src/lib/tenant-context.tsx) server-side --
-// the client hook can't run here, so the same two-field check is repeated.
-// Owner decision 2026-08-23: Nova tenants get the Stream home screen
-// instead of the classic KPI dashboard; everyone else is unaffected.
-function isNovaTenant(tenant: Awaited<ReturnType<typeof getTenant>>): boolean {
-  return tenant?.config?.appearance?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true;
-}
+import { isNovaTenant } from "@/lib/nova/isNovaTenant";
 
 function greetingForHour(hour: number): string {
   if (hour < 12) return "Morning";

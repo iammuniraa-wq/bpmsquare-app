@@ -24,6 +24,7 @@ import NovaAccountCanvasSlot from "@/components/NovaAccountCanvasSlot";
 import Account360Button from "@/components/Account360Button";
 import { buildAccountStoryEvents, computeAccountHealth } from "@/lib/nova/accountStory";
 import { buildAccountCanvas } from "@/lib/nova/accountCanvas";
+import { isNovaTenant } from "@/lib/nova/isNovaTenant";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
 
@@ -186,15 +187,54 @@ export default async function AccountHubPage({
   const openQuoteValue = hub.quotes.filter((q) => q.outcome === "open").reduce((t, q) => t + (q.total ?? 0), 0);
   const canvasMeta = `${ACCOUNT_TYPE_LABEL[account.type]} · ${openQuoteCount} open worth ${fmtINR(openQuoteValue)}`;
 
+  // Nova tenants land on the Story + Constellation view; the classic tabbed
+  // hub becomes a distinct "details" destination reached via its own button
+  // rather than stacked underneath. No tab param means landing; any tab
+  // param (tabHref always sets one, including "Go to details" -> overview)
+  // means details -- so a bookmarked/shared tab link still opens directly
+  // into the right tab instead of bouncing through the landing view.
+  const isNova = isNovaTenant(tenant);
+  const showNovaLanding = isNova && !rawTab;
+
+  if (showNovaLanding) {
+    return (
+      <>
+        <TabTitle title={account.name} />
+        <div style={{ marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Link href={ROUTES.accounts} style={{ fontSize: 12.5, color: "var(--nova-ink-faint)", textDecoration: "none" }}>
+            ← Accounts
+          </Link>
+          <Link
+            href={tabHref("overview")}
+            style={{
+              fontSize: 12.5, fontWeight: 500, color: "#fff",
+              background: "var(--nova-gradient-cta)", borderRadius: 8,
+              padding: "8px 16px", textDecoration: "none", flexShrink: 0,
+            }}
+          >
+            Go to details →
+          </Link>
+        </div>
+        <NovaAccountStorySlot accountName={account.name} events={storyEvents} health={health} />
+        <NovaAccountCanvasSlot accountName={account.name} accountMeta={canvasMeta} contactNodes={contactNodes} dealNodes={dealNodes} />
+      </>
+    );
+  }
+
   return (
     <>
       <TabTitle title={account.name} />
 
       {/* ── Breadcrumb ── */}
-      <div style={{ marginBottom: 10 }}>
+      <div style={{ marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <Link href={ROUTES.accounts} style={{ fontSize: 12.5, color: c.muted, textDecoration: "none" }}>
           ← Accounts
         </Link>
+        {isNova && (
+          <Link href={ROUTES.account(id)} style={{ fontSize: 12.5, fontWeight: 600, color: c.accent, textDecoration: "none" }}>
+            ← Back to story
+          </Link>
+        )}
       </div>
 
       {/* ── Account header ────────────────────────────────────────────────── */}
@@ -231,9 +271,6 @@ export default async function AccountHubPage({
           </div>
         </div>
       </AccountHeader>
-
-      <NovaAccountStorySlot accountName={account.name} events={storyEvents} health={health} />
-      <NovaAccountCanvasSlot accountName={account.name} accountMeta={canvasMeta} contactNodes={contactNodes} dealNodes={dealNodes} />
 
       {/* ── Tab bar ───────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 0, marginBottom: 14, borderBottom: `1px solid ${c.line}`, overflowX: "auto" }}>
