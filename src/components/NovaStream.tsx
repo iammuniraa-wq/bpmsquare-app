@@ -4,25 +4,21 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ROUTES, type TenantFeatures, type DashLayoutItem } from "@/lib/constants";
-import type { NovaStreamItem, NovaWinItem } from "@/lib/nova/stream";
+import type { NovaWinItem } from "@/lib/nova/stream";
+import type { NovaRankings, NovaRankingRow } from "@/lib/nova/rankings";
 import type { AnalyticsData } from "@/lib/data/labels";
 import { Package, Activity as ActivityIcon, Users, FileText, CheckIcon } from "@/components/Icons";
 import { renderWidget, isAnalyticsId } from "@/components/DashboardLayout";
 import { isNovaNativeId, type NovaBlockId } from "@/lib/nova/streamLayout";
 import NovaAdaptDrawer from "@/components/NovaAdaptDrawer";
 
-const ACCENT: Record<NovaStreamItem["accent"], { color: string; bg: string; glow: string }> = {
+type Accent = "orange" | "pink" | "purple" | "teal";
+
+const ACCENT: Record<Accent, { color: string; bg: string; glow: string }> = {
   orange: { color: "var(--nova-orange-soft)", bg: "var(--nova-orange-bg)", glow: "rgba(255,107,53,0.22)" },
   pink:   { color: "var(--nova-pink-soft)",   bg: "var(--nova-pink-bg)",   glow: "rgba(232,67,147,0.22)" },
   purple: { color: "var(--nova-purple-softer)", bg: "var(--nova-purple-bg)", glow: "rgba(155,89,245,0.22)" },
   teal:   { color: "var(--nova-teal-soft)",   bg: "var(--nova-teal-bg)",   glow: "rgba(20,200,180,0.22)" },
-};
-
-const CTA_LABEL: Record<NovaStreamItem["kind"], string> = {
-  quote_pending: "Follow up",
-  contract_lapsing: "Renew",
-  product_unquoted: "Quote it",
-  wfm_approval: "Review",
 };
 
 type Kpis = {
@@ -40,7 +36,7 @@ function openPalette() {
 }
 
 export default function NovaStream({
-  items,
+  rankings,
   wins,
   userName,
   greeting,
@@ -52,7 +48,7 @@ export default function NovaStream({
   isAdmin,
   hasPersonalOverride,
 }: {
-  items: NovaStreamItem[];
+  rankings: NovaRankings;
   wins: NovaWinItem[];
   userName: string | null;
   greeting: string;
@@ -108,7 +104,7 @@ export default function NovaStream({
 
   const visibleBlocks = layout.filter((b) => !b.hidden);
 
-  const statTiles: { label: string; value: string; accent: NovaStreamItem["accent"] }[] = [
+  const statTiles: { label: string; value: string; accent: Accent }[] = [
     { label: "Open pipeline", value: money(kpis.openPipeline), accent: "orange" },
     { label: "Open cases", value: String(kpis.openCases), accent: "teal" },
     { label: "Active AMC", value: String(kpis.activeContracts), accent: "purple" },
@@ -119,7 +115,7 @@ export default function NovaStream({
     },
   ];
 
-  const quickActions: { href: string; label: string; icon: React.ReactNode; accent: NovaStreamItem["accent"] }[] = [
+  const quickActions: { href: string; label: string; icon: React.ReactNode; accent: Accent }[] = [
     { href: ROUTES.quotationNew, label: "New quote", icon: <Package size={14} />, accent: "orange" },
     { href: ROUTES.caseNew, label: "New case", icon: <ActivityIcon size={14} />, accent: "teal" },
     { href: ROUTES.accountNew, label: "New account", icon: <Users size={14} />, accent: "purple" },
@@ -164,36 +160,41 @@ export default function NovaStream({
             })}
           </div>
         );
-      case "nova_action_stream":
+      case "nova_rankings": {
+        const boards: { title: string; rows: NovaRankingRow[]; accent: Accent }[] = [
+          { title: "Top customers", rows: rankings.topCustomers, accent: "orange" },
+          { title: "Best-selling products", rows: rankings.topProducts, accent: "teal" },
+          { title: "Most repaired", rows: rankings.mostRepaired, accent: "purple" },
+        ];
+        const anyData = boards.some((b) => b.rows.length > 0);
+        if (!anyData) return null;
         return (
           <div key={block.id} style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <span style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)" }}>Predictive action stream</span>
-              <span style={{ fontSize: 11, color: "var(--nova-teal-soft)", background: "var(--nova-teal-bg)", borderRadius: "var(--nova-radius-pill)", padding: "3px 10px", whiteSpace: "nowrap" }}>{items.length} pending</span>
+            <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginBottom: 14 }}>Rankings</div>
+            <div className="nova-rankings-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+              {boards.filter((b) => b.rows.length > 0).map((board) => {
+                const accent = ACCENT[board.accent];
+                return (
+                  <div key={board.title} style={{ background: "var(--nova-glass-bg)", border: "1px solid var(--nova-glass-border)", borderRadius: 12, padding: "14px 16px", boxShadow: `0 0 18px ${accent.glow}` }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: accent.color, marginBottom: 10 }}>{board.title}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {board.rows.map((row, i) => (
+                        <Link key={row.id} href={row.href} className="nova-rank-row" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "inherit", borderRadius: 6, padding: "3px 4px" }}>
+                          <span style={{ fontSize: 11, color: "var(--nova-ink-faint)", width: 14, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 12.5, color: "var(--nova-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</div>
+                            <div style={{ fontSize: 11, color: "var(--nova-ink-faint)" }}>{row.detail}</div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {items.length === 0 ? (
-              <div style={{ border: "1px solid var(--nova-line)", borderRadius: "var(--nova-radius-card)", padding: "28px 20px", textAlign: "center", color: "var(--nova-ink-dim)", fontSize: 14 }}>
-                You&apos;re all caught up. Nothing is waiting on you right now.
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {items.map((item) => {
-                  const accent = ACCENT[item.accent];
-                  return (
-                    <Link key={item.id} href={item.href} className="nova-action-card" style={{ display: "flex", alignItems: "center", gap: 14, background: "var(--nova-glass-bg)", border: "1px solid var(--nova-glass-border)", borderLeft: `2.5px solid ${accent.color}`, borderRadius: 12, padding: "13px 16px", textDecoration: "none", color: "inherit", boxShadow: `0 0 18px ${accent.glow}` }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: accent.color, background: accent.bg, borderRadius: 6, padding: "3px 8px", minWidth: 22, textAlign: "center", flexShrink: 0 }}>{item.score}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, color: "var(--nova-ink)", opacity: 0.88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
-                        <div style={{ fontSize: 12, color: "var(--nova-ink-faint)", marginTop: 2 }}>{item.detail}</div>
-                      </div>
-                      <span style={{ fontSize: 12, color: accent.color, flexShrink: 0 }}>{CTA_LABEL[item.kind]} →</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
           </div>
         );
+      }
       case "nova_recent_wins":
         if (wins.length === 0) return null;
         return (
@@ -224,19 +225,20 @@ export default function NovaStream({
         }
         .nova-command-bar { animation: nova-stream-pulse 5s ease-in-out infinite; transition: border-color .2s ease, background .2s ease; }
         .nova-command-bar:hover { background: rgba(255,255,255,0.07); border-color: rgba(232,67,147,0.55) !important; }
-        .nova-stat-tile, .nova-action-card, .nova-quick-action, .nova-win-chip {
+        .nova-stat-tile, .nova-quick-action, .nova-win-chip, .nova-rank-row {
           transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
         }
         .nova-stat-tile:hover { transform: translateY(-2px); }
-        .nova-action-card:hover { background: rgba(255,255,255,0.075); transform: translateX(2px); }
         .nova-quick-action:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); }
         .nova-win-chip:hover { background: rgba(255,255,255,0.08); }
+        .nova-rank-row:hover { background: rgba(255,255,255,0.06); }
         @media (prefers-reduced-motion: reduce) {
           .nova-command-bar { animation: none !important; }
-          .nova-stat-tile:hover, .nova-action-card:hover, .nova-quick-action:hover { transform: none !important; }
+          .nova-stat-tile:hover, .nova-quick-action:hover { transform: none !important; }
         }
         @media (max-width: 640px) {
           .nova-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .nova-rankings-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
@@ -258,8 +260,8 @@ export default function NovaStream({
         {greeting}{name}.
       </h1>
       <p style={{ fontSize: 15, fontWeight: 300, color: "var(--nova-ink-dim)", margin: "0 0 24px", maxWidth: 560 }}>
-        Your stream is ranked by what needs you most — overdue follow-ups, lapsing renewals, and approvals waiting on
-        your call.
+        What needs you now lives in the rail on the left. Here&apos;s the bigger picture — pipeline health and who&apos;s
+        actually driving the business.
       </p>
 
       {saveError && (

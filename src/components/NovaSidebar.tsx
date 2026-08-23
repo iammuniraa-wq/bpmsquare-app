@@ -22,23 +22,60 @@ const FLOW_COLOR: Record<NovaFlow["id"], string> = {
   cash: "var(--nova-pink-soft)",
 };
 
+type Section = "needs" | "flows" | "spaces";
+
 function openPalette() {
   window.dispatchEvent(new CustomEvent("nova:open-palette"));
 }
 
-function ProgressRing({ percent, color }: { percent: number; color: string }) {
-  const r = 15;
+function ExpandIcon({ maximized }: { maximized: boolean }) {
+  // Corners pointing outward (maximize) or inward (minimize) -- a plain
+  // SVG toggle, no icon library entry needed for a two-state glyph this small.
+  return maximized ? (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 3H3v6M15 21h6v-6M3 15v6h6M21 9V3h-6" />
+    </svg>
+  ) : (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9V3h6M21 15v6h-6M21 9V3h-6M3 15v6h6" />
+    </svg>
+  );
+}
+
+function SectionHead({ label, section, maximized, onToggle, right }: {
+  label: string; section: Section; maximized: Section | null; onToggle: (s: Section) => void; right?: React.ReactNode;
+}) {
+  const isMax = maximized === section;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+      <span style={{ fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", flex: 1 }}>{label}</span>
+      {right}
+      <button
+        type="button"
+        onClick={() => onToggle(section)}
+        title={isMax ? "Restore" : "Expand"}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 5, background: "transparent", border: "none", color: "var(--nova-ink-faint)", cursor: "pointer", flexShrink: 0 }}
+      >
+        <ExpandIcon maximized={isMax} />
+      </button>
+    </div>
+  );
+}
+
+function ProgressRing({ percent, color, size = 36 }: { percent: number; color: string; size?: number }) {
+  const r = size * 0.42;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.min(100, Math.max(0, percent)) / 100);
+  const center = size / 2;
   return (
-    <svg width={36} height={36} viewBox="0 0 36 36" style={{ flexShrink: 0, transform: "rotate(-90deg)" }}>
-      <circle cx={18} cy={18} r={r} fill="none" stroke="var(--nova-line)" strokeWidth={3} />
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0, transform: "rotate(-90deg)" }}>
+      <circle cx={center} cy={center} r={r} fill="none" stroke="var(--nova-line)" strokeWidth={3} />
       <circle
-        cx={18} cy={18} r={r} fill="none" stroke={color} strokeWidth={3}
+        cx={center} cy={center} r={r} fill="none" stroke={color} strokeWidth={3}
         strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
         style={{ transition: "stroke-dashoffset .4s ease" }}
       />
-      <text x={18} y={18} textAnchor="middle" dominantBaseline="central" fontSize={10} fill={color} transform="rotate(90 18 18)" fontWeight={700}>
+      <text x={center} y={center} textAnchor="middle" dominantBaseline="central" fontSize={size * 0.28} fill={color} transform={`rotate(90 ${center} ${center})`} fontWeight={700}>
         {percent}
       </text>
     </svg>
@@ -56,6 +93,11 @@ function ProgressRing({ percent, color }: { percent: number; color: string }) {
  *  - Spaces: every module the tenant/user can actually open, as an icon
  *    grid instead of an expandable tree -- same gating Sidebar.tsx already
  *    enforces (feature flags, workcenter visibility, WFM supervisor-only).
+ *
+ * Each section's header carries an expand toggle: maximizing one fills the
+ * whole rail with it (more rows, bigger Spaces grid) and hides the other
+ * two; toggling again (or the same button, now a "restore" glyph) returns
+ * to the normal three-section view.
  */
 export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -65,6 +107,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
   const [items, setItems] = useState<NovaStreamItem[]>([]);
   const [flows, setFlows] = useState<NovaFlow[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [maximized, setMaximized] = useState<Section | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +127,14 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
   const spaces: SpaceItem[] = buildSpaces(features, viewable, isWfmSupervisor);
   const attentionSpaces = new Set(items.map((it) => spaceForHref(it.href, spaces)).filter((h): h is string => h !== null));
 
+  function toggle(section: Section) {
+    setMaximized((cur) => (cur === section ? null : section));
+  }
+
+  const showNeeds = maximized === null || maximized === "needs";
+  const showFlows = maximized === null || maximized === "flows";
+  const showSpaces = maximized === null || maximized === "spaces";
+
   return (
     <div style={{ width: 264, flexShrink: 0, height: "100%", position: "sticky", top: 0, background: "var(--nova-bg)", borderRight: "1px solid var(--nova-line)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <style>{`
@@ -93,6 +144,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
         .nova-sb-row:hover { background: rgba(255,255,255,0.06); }
         .nova-sb-space { transition: background .15s ease, transform .15s ease; }
         .nova-sb-space:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); }
+        .nova-sb-expand:hover { background: rgba(255,255,255,0.08); color: var(--nova-ink) !important; }
         @media (prefers-reduced-motion: reduce) {
           .nova-sb-live-dot { animation: none !important; }
           .nova-sb-space:hover { transform: none !important; }
@@ -127,17 +179,19 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
         </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "8px 0 16px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "8px 0 16px", display: "flex", flexDirection: "column", minHeight: 0 }}>
         {/* Needs You Now */}
-        {items.length > 0 && (
-          <div style={{ padding: "12px 16px 4px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-              <span className="nova-sb-live-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--nova-orange-soft)" }} />
-              <span style={{ fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", flex: 1 }}>Needs you now</span>
-              <span style={{ fontSize: 10, color: "var(--nova-ink-faint)" }}>live</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {items.slice(0, 4).map((it) => (
+        {items.length > 0 && showNeeds && (
+          <div style={{ padding: "12px 16px 4px", display: "flex", flexDirection: "column", flex: maximized === "needs" ? 1 : undefined, minHeight: 0 }}>
+            <SectionHead
+              label="Needs you now"
+              section="needs"
+              maximized={maximized}
+              onToggle={toggle}
+              right={<span className="nova-sb-live-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--nova-orange-soft)" }} />}
+            />
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, overflowY: maximized === "needs" ? "auto" : undefined }}>
+              {(maximized === "needs" ? items : items.slice(0, 4)).map((it) => (
                 <Link key={it.id} href={it.href} onClick={onNavigate} className="nova-sb-row" style={{ display: "flex", gap: 8, padding: "7px 8px", borderRadius: 8, textDecoration: "none", color: "inherit" }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: TONE_COLOR[it.accent], flexShrink: 0, marginTop: 5 }} />
                   <div style={{ minWidth: 0 }}>
@@ -151,16 +205,16 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
         )}
 
         {/* Flows */}
-        {flows.length > 0 && (
-          <div style={{ padding: "16px 16px 4px" }}>
-            <div style={{ fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginBottom: 8 }}>Flows</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {flows.length > 0 && showFlows && (
+          <div style={{ padding: "16px 16px 4px", display: "flex", flexDirection: "column", flex: maximized === "flows" ? 1 : undefined, minHeight: 0 }}>
+            <SectionHead label="Flows" section="flows" maximized={maximized} onToggle={toggle} />
+            <div style={{ display: "flex", flexDirection: "column", gap: maximized === "flows" ? 10 : 2, overflowY: maximized === "flows" ? "auto" : undefined }}>
               {flows.map((f) => (
-                <Link key={f.id} href={f.href} onClick={onNavigate} className="nova-sb-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", borderRadius: 8, textDecoration: "none", color: "inherit" }}>
-                  <ProgressRing percent={f.percent} color={FLOW_COLOR[f.id]} />
+                <Link key={f.id} href={f.href} onClick={onNavigate} className="nova-sb-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: maximized === "flows" ? "10px" : "6px 8px", borderRadius: 8, textDecoration: "none", color: "inherit" }}>
+                  <ProgressRing percent={f.percent} color={FLOW_COLOR[f.id]} size={maximized === "flows" ? 48 : 36} />
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, color: "var(--nova-ink)" }}>{f.label}</div>
-                    <div style={{ fontSize: 10.5, color: "var(--nova-ink-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.detail}</div>
+                    <div style={{ fontSize: maximized === "flows" ? 14 : 12.5, color: "var(--nova-ink)" }}>{f.label}</div>
+                    <div style={{ fontSize: maximized === "flows" ? 12 : 10.5, color: "var(--nova-ink-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.detail}</div>
                   </div>
                 </Link>
               ))}
@@ -170,38 +224,47 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
       </div>
 
       {/* Spaces */}
-      <div style={{ borderTop: "1px solid var(--nova-line-soft)", padding: "12px 16px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <span style={{ fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)" }}>Spaces</span>
-          <span style={{ fontSize: 9.5, color: "var(--nova-ink-faint)" }}>hover to identify</span>
+      {showSpaces && (
+        <div style={{ borderTop: "1px solid var(--nova-line-soft)", padding: "12px 16px 16px", display: "flex", flexDirection: "column", flex: maximized === "spaces" ? 1 : undefined, minHeight: maximized === "spaces" ? 0 : undefined, overflowY: maximized === "spaces" ? "auto" : undefined }}>
+          <SectionHead
+            label="Spaces"
+            section="spaces"
+            maximized={maximized}
+            onToggle={toggle}
+            right={maximized !== "spaces" && <span style={{ fontSize: 9.5, color: "var(--nova-ink-faint)" }}>hover to identify</span>}
+          />
+          <div style={{ display: "grid", gridTemplateColumns: maximized === "spaces" ? "repeat(4, 1fr)" : "repeat(6, 1fr)", gap: maximized === "spaces" ? 10 : 6 }}>
+            {spaces.map((s) => {
+              const Icon = s.icon;
+              const active = pathname === s.href || pathname.startsWith(s.href + "/");
+              const hasAttention = attentionSpaces.has(s.href);
+              return (
+                <Link
+                  key={s.href}
+                  href={s.href}
+                  onClick={onNavigate}
+                  title={s.label}
+                  className="nova-sb-space"
+                  style={{
+                    position: "relative", display: "flex", flexDirection: maximized === "spaces" ? "column" : "row", alignItems: "center", justifyContent: "center", gap: maximized === "spaces" ? 6 : 0,
+                    aspectRatio: maximized === "spaces" ? undefined : "1", padding: maximized === "spaces" ? "14px 6px" : 0,
+                    borderRadius: 8, background: active ? "var(--nova-glass-border)" : "var(--nova-glass-bg)",
+                    border: "1px solid var(--nova-glass-border)", textDecoration: "none",
+                  }}
+                >
+                  <Icon size={maximized === "spaces" ? 18 : 15} color={active ? "var(--nova-ink)" : "var(--nova-ink-dim)"} />
+                  {maximized === "spaces" && (
+                    <span style={{ fontSize: 10.5, color: "var(--nova-ink-dim)", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{s.label}</span>
+                  )}
+                  {hasAttention && (
+                    <span style={{ position: "absolute", top: 3, right: 3, width: 5, height: 5, borderRadius: "50%", background: "var(--nova-orange-soft)" }} />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
-          {spaces.map((s) => {
-            const Icon = s.icon;
-            const active = pathname === s.href || pathname.startsWith(s.href + "/");
-            const hasAttention = attentionSpaces.has(s.href);
-            return (
-              <Link
-                key={s.href}
-                href={s.href}
-                onClick={onNavigate}
-                title={s.label}
-                className="nova-sb-space"
-                style={{
-                  position: "relative", aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
-                  borderRadius: 8, background: active ? "var(--nova-glass-border)" : "var(--nova-glass-bg)",
-                  border: "1px solid var(--nova-glass-border)", textDecoration: "none",
-                }}
-              >
-                <Icon size={15} color={active ? "var(--nova-ink)" : "var(--nova-ink-dim)"} />
-                {hasAttention && (
-                  <span style={{ position: "absolute", top: 3, right: 3, width: 5, height: 5, borderRadius: "50%", background: "var(--nova-orange-soft)" }} />
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

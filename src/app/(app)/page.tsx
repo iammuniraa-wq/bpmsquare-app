@@ -5,7 +5,8 @@ import { mergeDashLayouts } from "@/lib/dashboardLayout";
 import type { DashLayoutItem } from "@/lib/constants";
 import DashboardLayout from "@/components/DashboardLayout";
 import NovaStream from "@/components/NovaStream";
-import { getNovaStreamItems, getNovaRecentWins } from "@/lib/nova/stream";
+import { getNovaRecentWins } from "@/lib/nova/stream";
+import { getNovaRankings } from "@/lib/nova/rankings";
 import { isNovaTenant } from "@/lib/nova/isNovaTenant";
 import { resolveNovaLayout } from "@/lib/nova/streamLayout";
 import { isAnalyticsId } from "@/components/DashboardLayout";
@@ -49,15 +50,15 @@ export default async function DashboardPage() {
     const effectiveLayout = resolveNovaLayout(savedLayout, features);
 
     const needsAnalytics = effectiveLayout.some((b) => isAnalyticsId(b.id));
-    const [items, analytics] = await Promise.all([
-      getNovaStreamItems(tenantId),
+    const [rankings, analytics] = await Promise.all([
+      getNovaRankings(tenantId, features),
       needsAnalytics ? getAnalyticsData() : Promise.resolve(null),
     ]);
     const now = new Date();
     const overdueTotal = overdueInvoices.reduce((t, inv) => t + Math.max(0, inv.total - inv.paid_amount), 0);
     return (
       <NovaStream
-        items={items}
+        rankings={rankings}
         wins={recentWins}
         userName={firstName}
         greeting={greetingForHour(now.getHours())}

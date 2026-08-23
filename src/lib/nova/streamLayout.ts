@@ -16,19 +16,24 @@ import { ANALYTICS_META, isAnalyticsId } from "@/components/DashboardLayout";
  * here. Add role-derived Nova layouts later if that's actually wanted.
  */
 
-export type NovaBlockId = "nova_kpis" | "nova_quick_actions" | "nova_action_stream" | "nova_recent_wins";
+// nova_action_stream was dropped (2026-08-23 nav overhaul): "Needs You Now"
+// in NovaSidebar now shows that exact same signal set on every page, so
+// repeating it on the Stream screen was a straight duplicate. Replaced with
+// nova_rankings -- real leaderboards (top customers, best-selling products,
+// most-repaired asset kind) that tell a genuinely different story.
+export type NovaBlockId = "nova_kpis" | "nova_quick_actions" | "nova_rankings" | "nova_recent_wins";
 
 export const NOVA_NATIVE_META: Record<NovaBlockId, { label: string }> = {
   nova_kpis: { label: "KPI strip" },
   nova_quick_actions: { label: "Quick actions" },
-  nova_action_stream: { label: "Predictive action stream" },
+  nova_rankings: { label: "Rankings" },
   nova_recent_wins: { label: "Recent wins" },
 };
 
 export const NOVA_DEFAULT_LAYOUT: DashLayoutItem[] = [
   { id: "nova_kpis" },
   { id: "nova_quick_actions" },
-  { id: "nova_action_stream" },
+  { id: "nova_rankings" },
   { id: "nova_recent_wins" },
 ];
 
