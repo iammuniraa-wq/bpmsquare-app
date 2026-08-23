@@ -156,7 +156,7 @@ export default function NovaStream({
     switch (block.id as NovaBlockId) {
       case "nova_kpis":
         return (
-          <div key={block.id} className="nova-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+          <div key={block.id} className="nova-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
             {statTiles.map((tile) => {
               const accent = ACCENT[tile.accent];
               return (
@@ -193,7 +193,7 @@ export default function NovaStream({
         return (
           <div key={block.id}>
             <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginBottom: 14 }}>Rankings</div>
-            <div className="nova-rankings-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+            <div className="nova-rankings-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
               {boards.filter((b) => b.rows.length > 0).map((board) => {
                 const accent = ACCENT[board.accent];
                 return (
@@ -239,7 +239,17 @@ export default function NovaStream({
   }
 
   return (
-    <div style={{ flex: 1, padding: "48px 24px 80px", maxWidth: 860, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+    // Fluid, not fixed: the old maxWidth 860 was a laptop-sized column that
+    // left growing dead margins on every wider screen (owner-flagged
+    // 2026-08-23 with red boxes). The Stream now fills the viewport up to a
+    // wide ceiling -- 1680 keeps 1fr grid tiles from stretching absurd on a
+    // 4K/ultrawide, where truly unbounded rows stop being readable -- with
+    // side padding that scales with the viewport ON TOP of the 20px/24px
+    // Shell's <main> already puts around every page (which is why the top
+    // pad here is small -- 48px before + main's 20 was the dead band under
+    // the tab strip). Reading-length text (the subtitle) keeps its own
+    // narrow cap; data blocks use the full width.
+    <div style={{ flex: 1, padding: "8px clamp(0px, 2vw, 32px) 60px", maxWidth: 1680, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <style>{`
         @keyframes nova-stream-pulse {
           0%, 100% { box-shadow: 0 0 0 rgba(232,67,147,0); }
@@ -278,10 +288,10 @@ export default function NovaStream({
         </div>
       </div>
 
-      <h1 className="nova-display" style={{ fontSize: 34, margin: "0 0 6px" }}>
+      <h1 className="nova-display" style={{ fontSize: "clamp(30px, 2.2vw, 40px)", margin: "0 0 6px" }}>
         {greeting}{name}.
       </h1>
-      <p style={{ fontSize: 15, fontWeight: 300, color: "var(--nova-ink-dim)", margin: "0 0 24px", maxWidth: 560 }}>
+      <p style={{ fontSize: 15, fontWeight: 300, color: "var(--nova-ink-dim)", margin: "0 0 24px", maxWidth: 640 }}>
         What needs you now lives in the rail on the left. Here&apos;s the bigger picture — pipeline health and who&apos;s
         actually driving the business.
       </p>
