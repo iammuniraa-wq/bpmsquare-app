@@ -343,7 +343,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return (
       <FeelProvider>
       <TabsProvider trackTabs={false}>
-        <div data-theme={uiTheme} data-mode={mode} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
+        <div data-theme={uiTheme} data-mode={mode} data-nova={identityInTopBar || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
           <MobileTopBar />
           <main style={{
             flex: 1, minWidth: 0, overflowX: "auto",
@@ -357,7 +357,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           }}>
             {children}
           </main>
-          {uiTheme === "nextgen" && (
+          {uiTheme === "nextgen" && !identityInTopBar && (
             <div style={{ position: "fixed", left: 16, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", zIndex: 90 }}>
               <DarkToggle dark={dark} onToggle={toggleDark} />
             </div>
@@ -375,7 +375,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <FeelProvider>
     <TabsProvider>
-      <div data-theme={uiTheme} data-mode={mode} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
+      <div data-theme={uiTheme} data-mode={mode} data-nova={identityInTopBar || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
         <Sidebar />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
@@ -384,7 +384,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             height: 48, minHeight: 48, flexShrink: 0, padding: "0 16px",
           }}>
             {identityInTopBar ? <NovaSearchButton /> : <GlobalSearchBar />}
-            {uiTheme === "nextgen" && <DarkToggle dark={dark} onToggle={toggleDark} />}
+            {uiTheme === "nextgen" && !identityInTopBar && <DarkToggle dark={dark} onToggle={toggleDark} />}
             {identityInTopBar && <NovaInbox />}
             {identityInTopBar && <IdentityMenu />}
           </div>
