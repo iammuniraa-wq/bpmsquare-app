@@ -8,6 +8,7 @@ import type { NovaStreamItem } from "@/lib/nova/stream";
 import type { NovaFlow } from "@/lib/nova/flows";
 import { buildSpaceGroups, spaceForHref, type SpaceGroup } from "@/lib/nova/spaces";
 import { readNovaNavCache, fetchNovaNav } from "@/lib/nova/navClient";
+import NovaAccountMarketSignals from "@/components/NovaAccountMarketSignals";
 import { MOBILE_BREAKPOINT } from "@/lib/constants";
 import Sidebar from "./Sidebar";
 import Logo from "./Logo";
@@ -347,6 +348,12 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
           })}
         </div>
       )}
+
+      {/* Market signals -- account-contextual (owner request 2026-08-25:
+          moved out of the account page body into the rail here). Renders
+          nothing on its own when no account is in view, or while a section
+          above is maximized, so it never leaves stray blank space. */}
+      {showSpacesRow && <NovaAccountMarketSignals />}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 0 16px", display: "flex", flexDirection: "column", minHeight: 0 }}>
         {/* Needs You Now */}
