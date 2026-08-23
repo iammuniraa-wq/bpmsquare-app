@@ -58,6 +58,24 @@ const ICON_NAV = "M6.5 3.5 12.5 8 6.5 12.5";                                   /
 const ICON_ADD = "M8 3.5v9M3.5 8h9";                                           // plus: create
 const ICON_DOC = "M4.5 2h5L12 4.5V14h-7.5zM9.5 2v3H12";                        // record
 
+// A single sentence directed AT Nova ("prep me for my call with X") is not
+// pasted correspondence to extract a record from -- it was misclassified as
+// one purely by length (owner-flagged 2026-08-25: "prep me for next call
+// with Hosapate steels" offered "Draft an account from this text" and
+// nothing else). Real pasted contact info is either genuinely multi-line
+// (an email/WhatsApp thread) or carries an actual email/phone marker even
+// on one line (a forwarded signature); a plain question or command has
+// neither. This tightens the heuristic without a length cutoff at all --
+// long is not the same signal as "looks like a record to draft".
+const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/;
+const PHONE_RE = /(?:\+?\d[\d\s-]{7,}\d)/;
+function looksLikePastedContent(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 40) return false;
+  if (t.includes("\n")) return true;
+  return EMAIL_RE.test(t) || PHONE_RE.test(t);
+}
+
 export default function NovaPalette() {
   const router = useRouter();
   const tenant = useTenant();
@@ -146,7 +164,7 @@ export default function NovaPalette() {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     // A pasted paragraph is never a record name -- don't burn a search on it.
-    if (query.trim().length < 2 || query.trim().length >= 40 || query.includes("\n")) { setRecords([]); setSearching(false); return; }
+    if (query.trim().length < 2 || looksLikePastedContent(query)) { setRecords([]); setSearching(false); return; }
     setSearching(true);
     debounceRef.current = setTimeout(() => {
       fetch(`/api/search?q=${encodeURIComponent(query.trim())}`)
@@ -159,10 +177,10 @@ export default function NovaPalette() {
   }, [query]);
 
   // ── Visible items: filtered universe + record results ──
-  // A long or multi-line query isn't a query -- it's pasted CONTENT (the
-  // WhatsApp message, the email). Recognize the intent and offer to draft
-  // a record from it right here, instead of a dead "nothing matches".
-  const pastedContent = query.trim().length >= 40 || query.includes("\n");
+  // Multi-line, or long AND carrying an email/phone marker, isn't a query --
+  // it's pasted CONTENT (the WhatsApp message, the email). A plain sentence
+  // asking Nova something, however long, is not (see looksLikePastedContent).
+  const pastedContent = looksLikePastedContent(query);
   const items = useMemo<Item[]>(() => {
     const q = query.trim().toLowerCase();
     const statics = q
