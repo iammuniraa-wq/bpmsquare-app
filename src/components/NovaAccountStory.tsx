@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { AccountStoryEvent } from "@/lib/nova/accountStory";
 import type { Account360Rating } from "@/lib/account360/types";
@@ -39,6 +39,7 @@ export default function NovaAccountStory({
 }) {
   const [index, setIndex] = useState(events.length - 1);
   const grade = GRADE_COLOR[health.grade];
+  const trackRef = useRef<HTMLDivElement>(null);
 
   const positions = useMemo(() => {
     if (events.length <= 1) return events.map(() => 50);
@@ -57,6 +58,25 @@ export default function NovaAccountStory({
   }
 
   const current = events[index];
+
+  // Single scrub gesture driving the whole card -- click or drag anywhere
+  // along the track, snapping to the nearest event by its real (time-
+  // proportional) position. Replaces what used to be two separate controls
+  // for the same index: the dot row and a native range slider underneath
+  // it, which also duplicated the date the event card already shows
+  // (owner-flagged 2026-08-25: "these 3 sections can be clubbed into one").
+  function scrubToPointer(e: React.PointerEvent<HTMLDivElement>) {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return;
+    const pct = ((e.clientX - rect.left) / rect.width) * 100;
+    let nearest = 0;
+    let best = Infinity;
+    positions.forEach((p, i) => {
+      const d = Math.abs(p - pct);
+      if (d < best) { best = d; nearest = i; }
+    });
+    setIndex(nearest);
+  }
 
   return (
     <div style={{ marginBottom: 28 }}>
@@ -77,62 +97,45 @@ export default function NovaAccountStory({
         </div>
       </div>
 
-      <div style={{ position: "relative", height: 40, marginBottom: 8 }}>
-        <div style={{ position: "absolute", left: 0, right: 0, top: 19, height: 2, background: "var(--nova-line)" }} />
-        {positions.map((pos, i) => (
-          <div
-            key={events[i].id}
-            title={events[i].title}
-            style={{
-              position: "absolute",
-              left: `${pos}%`,
-              top: 14,
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              transform: "translateX(-50%)",
-              background: i === index ? TONE_COLOR[events[i].tone] : "var(--nova-glass-border)",
-              border: i === index ? "2px solid var(--nova-bg)" : "none",
-              boxShadow: i === index ? `0 0 0 2px ${TONE_COLOR[events[i].tone]}` : "none",
-              cursor: "pointer",
-            }}
-            onClick={() => setIndex(i)}
-          />
-        ))}
-      </div>
-
-      <Link
-        href={current.href}
-        style={{
-          display: "block",
-          background: "var(--nova-glass-bg)",
-          border: "1px solid var(--nova-glass-border)",
-          borderRadius: "var(--nova-radius-card)",
-          padding: "14px 18px",
-          textDecoration: "none",
-          color: "inherit",
-        }}
-      >
-        <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: TONE_COLOR[current.tone], marginBottom: 5 }}>
-          {fmtDate(current.date)}
+      <div style={{ border: "1px solid var(--nova-line)", borderRadius: "var(--nova-radius-card)", padding: "18px 20px" }}>
+        <div
+          ref={trackRef}
+          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); scrubToPointer(e); }}
+          onPointerMove={(e) => { if (e.buttons === 1) scrubToPointer(e); }}
+          style={{ position: "relative", height: 32, marginBottom: 4, cursor: "pointer", touchAction: "none" }}
+        >
+          <div style={{ position: "absolute", left: 0, right: 0, top: 15, height: 2, background: "var(--nova-line)" }} />
+          {positions.map((pos, i) => (
+            <div
+              key={events[i].id}
+              title={events[i].title}
+              style={{
+                position: "absolute",
+                left: `${pos}%`,
+                top: 10,
+                width: 12,
+                height: 12,
+                borderRadius: "50%",
+                transform: "translateX(-50%)",
+                background: i === index ? TONE_COLOR[events[i].tone] : "var(--nova-glass-border)",
+                border: i === index ? "2px solid var(--nova-bg)" : "none",
+                boxShadow: i === index ? `0 0 0 2px ${TONE_COLOR[events[i].tone]}` : "none",
+                pointerEvents: "none",
+              }}
+            />
+          ))}
         </div>
-        <div style={{ fontSize: 14, color: "var(--nova-ink)", opacity: 0.9 }}>{current.title}</div>
-        <div style={{ fontSize: 12, color: "var(--nova-ink-faint)", marginTop: 3 }}>{current.detail}</div>
-      </Link>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 16, background: "var(--nova-glass-bg)", border: "1px solid var(--nova-glass-border)", borderRadius: "var(--nova-radius-card)", padding: "14px 18px", marginTop: 14 }}>
-        <span style={{ fontSize: 12, color: "var(--nova-ink-dim)", flexShrink: 0 }}>Scrub history</span>
-        <input
-          type="range"
-          min={0}
-          max={events.length - 1}
-          value={index}
-          onChange={(e) => setIndex(Number(e.target.value))}
-          style={{ flex: 1, accentColor: "var(--nova-teal-soft)" }}
-        />
-        <span style={{ fontSize: 12, color: "var(--nova-teal-soft)", flexShrink: 0, minWidth: 90, textAlign: "right" }}>
-          {fmtDate(current.date)}
-        </span>
+        <Link
+          href={current.href}
+          style={{ display: "block", textDecoration: "none", color: "inherit", paddingTop: 10, borderTop: "1px solid var(--nova-line-soft)" }}
+        >
+          <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: TONE_COLOR[current.tone], marginBottom: 5 }}>
+            {fmtDate(current.date)}
+          </div>
+          <div style={{ fontSize: 14, color: "var(--nova-ink)", opacity: 0.9 }}>{current.title}</div>
+          <div style={{ fontSize: 12, color: "var(--nova-ink-faint)", marginTop: 3 }}>{current.detail}</div>
+        </Link>
       </div>
     </div>
   );
