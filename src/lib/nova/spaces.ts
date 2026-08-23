@@ -1,6 +1,6 @@
 import { NAV, type NavItem } from "@/lib/constants";
 import { NAV_GLYPHS, isItemViewable } from "@/components/Sidebar";
-import { Gear } from "@/components/Icons";
+import { Gear, Monitor, FileText, Wrench, Zap, Package, Users, BarChart2 } from "@/components/Icons";
 import type { ViewableWorkcenters } from "@/lib/workcenters";
 
 /**
@@ -44,6 +44,54 @@ export function buildSpaces(features: Record<string, boolean>, viewable: Viewabl
         out.push({ href: item.href, label: item.label, icon: NAV_GLYPHS[item.href] ?? Gear });
       }
     }
+  }
+  return out;
+}
+
+/**
+ * Category view of the same data (owner direction 2026-08-23): instead of
+ * one flat glyph grid -- which stops being guessable past ~10 unlabeled
+ * icons -- the top bar shows one icon per NAV group ("Sales", "Service",
+ * "Master data", ...) and clicking opens a flyout with that group's
+ * modules, stacked and labeled. Same gating as buildSpaces; a group with
+ * nothing visible disappears entirely, and a single-item group navigates
+ * directly (no one-row flyout).
+ */
+export type SpaceGroup = {
+  key: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+  items: SpaceItem[];
+};
+
+const GROUP_META: Record<string, { label: string; icon: SpaceGroup["icon"] }> = {
+  "WORKSPACE": { label: "Home", icon: Monitor },
+  "SALES & PROCUREMENT": { label: "Sales", icon: FileText },
+  "SERVICE": { label: "Service", icon: Wrench },
+  "MARKETING": { label: "Marketing", icon: Zap },
+  "MASTER DATA": { label: "Master data", icon: Package },
+  "WORKFORCE": { label: "Workforce", icon: Users },
+  "ANALYTICS": { label: "Analytics", icon: BarChart2 },
+  "ADMIN": { label: "Admin", icon: Gear },
+};
+
+export function buildSpaceGroups(features: Record<string, boolean>, viewable: ViewableWorkcenters, isWfmSupervisor: boolean): SpaceGroup[] {
+  const out: SpaceGroup[] = [];
+  const seen = new Set<string>();
+  for (const group of NAV) {
+    const items: SpaceItem[] = [];
+    for (const item of group.items) {
+      const leaves = item.children?.length ? item.children : [item];
+      for (const leaf of leaves) {
+        if (!leafAllowed(leaf, features, viewable, isWfmSupervisor)) continue;
+        if (seen.has(leaf.href)) continue;
+        seen.add(leaf.href);
+        items.push({ href: leaf.href, label: leaf.label, icon: NAV_GLYPHS[leaf.href] ?? Gear });
+      }
+    }
+    if (items.length === 0) continue;
+    const meta = GROUP_META[group.group] ?? { label: group.group, icon: Gear };
+    out.push({ key: group.group, label: meta.label, icon: meta.icon, items });
   }
   return out;
 }

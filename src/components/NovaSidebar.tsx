@@ -7,6 +7,7 @@ import { useTenant, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/ten
 import type { NovaStreamItem } from "@/lib/nova/stream";
 import type { NovaFlow } from "@/lib/nova/flows";
 import { buildSpaces, spaceForHref, type SpaceItem } from "@/lib/nova/spaces";
+import { readNovaNavCache, fetchNovaNav } from "@/lib/nova/navClient";
 import Sidebar from "./Sidebar";
 import Logo from "./Logo";
 
@@ -105,7 +106,7 @@ function ProgressRing({ percent, color, size = 36 }: { percent: number; color: s
  * that's the richer, already-proven way to browse every module. Toggling
  * again (or the same button, now a "restore" glyph) returns to normal.
  */
-export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void }) {
+export default function NovaSidebar({ onNavigate, showSpaces = false }: { onNavigate?: () => void; showSpaces?: boolean }) {
   const pathname = usePathname();
   const tenant = useTenant();
   const viewable = useViewableWorkcenters();
@@ -115,18 +116,29 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
   const [loaded, setLoaded] = useState(false);
   const [maximized, setMaximized] = useState<Section | null>(null);
 
+  // Cache-first, then one shared network refresh (deduped with
+  // NovaSpacesBar via navClient) -- the sections used to sit empty for the
+  // whole cold-function round trip on every hard reload (owner-flagged:
+  // "Needs You Now / Flows take time to load").
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/nova/nav")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled || !data) return;
-        setItems(data.items ?? []);
-        setFlows(data.flows ?? []);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoaded(true); });
+    const apply = (data: { items: NovaStreamItem[]; flows: NovaFlow[] } | null, fromNetwork: boolean) => {
+      if (cancelled || !data) return;
+      setItems(data.items);
+      setFlows(data.flows);
+      if (fromNetwork || data.items.length || data.flows.length) setLoaded(true);
+    };
+    apply(readNovaNavCache(), false);
+    fetchNovaNav().then((data) => { apply(data, true); if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
+  }, []);
+
+  // The top bar's "browse all modules" button raises this -- same classic
+  // sidebar-in-the-rail view the rail's own Spaces maximize toggles.
+  useEffect(() => {
+    const onBrowseAll = () => setMaximized((cur) => (cur === "spaces" ? null : "spaces"));
+    window.addEventListener("nova:browse-all", onBrowseAll);
+    return () => window.removeEventListener("nova:browse-all", onBrowseAll);
   }, []);
 
   const features = (tenant?.features ?? {}) as Record<string, boolean>;
@@ -142,7 +154,10 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
 
   const showNeeds = maximized === null || maximized === "needs";
   const showFlows = maximized === null || maximized === "flows";
-  const showSpacesRow = maximized === null;
+  // Desktop moved Spaces categories into the top bar (NovaSpacesBar); the
+  // compact grid only renders inside the mobile drawer (showSpaces), where
+  // there's no header row to hold them.
+  const showSpacesRow = showSpaces && maximized === null;
   const spacesMaximized = maximized === "spaces";
 
   if (spacesMaximized) {

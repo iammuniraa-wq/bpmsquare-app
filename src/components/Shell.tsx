@@ -13,6 +13,7 @@ import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
 import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer } from "@/lib/tenant-context";
 import NovaPalette from "@/components/NovaPalette";
+import NovaSpacesBar from "@/components/NovaSpacesBar";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
 import Account360Drawer from "@/components/Account360Drawer";
@@ -152,7 +153,7 @@ function MobileTopBar() {
         overflowY: "auto", scrollbarWidth: "none",
         boxShadow: open ? "2px 0 14px rgba(0,0,0,.45)" : "none",
       }}>
-        {nova ? <NovaSidebar onNavigate={() => setOpen(false)} /> : <Sidebar onNavigate={() => setOpen(false)} />}
+        {nova ? <NovaSidebar onNavigate={() => setOpen(false)} showSpaces /> : <Sidebar onNavigate={() => setOpen(false)} />}
       </div>
 
       {/* Bottom tabs (Nova only). Renders nothing for every other tenant, so
@@ -350,10 +351,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         {identityInTopBar ? <NovaSidebar /> : <Sidebar />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
-            display: "flex", alignItems: "center", justifyContent: "flex-end",
+            display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10,
             background: "var(--sb-bar-bg)", borderBottom: "1px solid var(--sb-line)",
             height: 48, minHeight: 48, flexShrink: 0, padding: "0 16px",
           }}>
+            {/* Nova: Spaces categories live here (bigger icons + flyout per
+                group, owner direction 2026-08-23) -- the header had dead
+                space and the rail's flat 30-glyph grid didn't scale. */}
+            {identityInTopBar && <NovaSpacesBar />}
             {/* Nova's own left rail carries its own "Ask or act…" command
                 bar on every page (NovaSidebar) -- a second, identical
                 search trigger up here was pure duplication (owner flagged
