@@ -535,17 +535,25 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   };
 
   return (
-    <aside style={{
-      width: collapsed ? 56 : compact ? 210 : 236,
-      background: "var(--sidebar-grad)",
-      flexShrink: 0,
-      padding: collapsed ? "16px 8px" : "16px 12px",
-      color: "var(--sb-text)",
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      transition: "width 0.2s",
-    }}>
+    <aside
+      // Stable scoping hook for the "Enterprise" theme (globals.css:
+      // [data-enterprise="true"] .bpm-sidebar-rail): that theme keeps
+      // nextgen's light content but wants a dark navy RAIL specifically --
+      // the --sb-* family is shared with the top identity bar and TabBar
+      // too, so overriding it tenant-wide would darken those as well. This
+      // class lets the override target only this element's own subtree.
+      className="bpm-sidebar-rail"
+      style={{
+        width: collapsed ? 56 : compact ? 210 : 236,
+        background: "var(--sidebar-grad)",
+        flexShrink: 0,
+        padding: collapsed ? "16px 8px" : "16px 12px",
+        color: "var(--sb-text)",
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        transition: "width 0.2s",
+      }}>
 
       {/* Logo + collapse toggle -- skipped when embedded inside NovaSidebar's
           maximized Spaces view, which already shows this same tenant

@@ -285,15 +285,15 @@ export default function GeneralSettingsPage() {
   // retired "modern2"/"modern3" value to "modern" AND folds "nextgen2" into
   // "nextgen" (they share CSS) -- this picker needs the raw stored value so
   // a tenant on "nextgen2" sees that option selected, not plain "nextgen".
-  const [theme, setTheme] = useState<"classic" | "modern" | "nextgen" | "nextgen2">(() => {
+  const [theme, setTheme] = useState<"classic" | "modern" | "nextgen" | "nextgen2" | "enterprise">(() => {
     const raw = tenant?.config?.appearance?.ui_theme as string | undefined;
-    if (raw === "nextgen" || raw === "nextgen2") return raw;
+    if (raw === "nextgen" || raw === "nextgen2" || raw === "enterprise") return raw;
     if (raw === "modern" || raw === "modern2" || raw === "modern3") return "modern";
     return "classic";
   });
   const [themeSaving, startThemeSave] = useTransition();
 
-  const saveTheme = (v: "classic" | "modern" | "nextgen" | "nextgen2") => {
+  const saveTheme = (v: "classic" | "modern" | "nextgen" | "nextgen2" | "enterprise") => {
     setTheme(v);
     startThemeSave(async () => {
       await fetch("/api/settings/entities", {
@@ -479,6 +479,7 @@ export default function GeneralSettingsPage() {
               { value: "classic" as const, label: "Classic", desc: "Dark navy sidebar, the original look.", swatch: "linear-gradient(135deg, #152233, #0e1a28)" },
               { value: "modern" as const, label: "Modern", desc: "Denser cards, sharper borders, navy + gold.", swatch: "linear-gradient(135deg, #14294b, #0a1830)" },
               { value: "nextgen" as const, label: "Next-gen", desc: "Flat, minimal, real icons — with dark mode.", swatch: "linear-gradient(135deg, #ffffff, #eef3fe)" },
+              { value: "enterprise" as const, label: "Enterprise", desc: "Dark navy sidebar, clean white workspace.", swatch: "linear-gradient(135deg, #152233 0%, #152233 42%, #ffffff 42%, #ffffff 100%)" },
               // Next Experience program: offered only to tenants the PLATFORM
               // admin has flagged in (demo first, clients after validation) --
               // a workspace admin can't opt into the experiment on their own.

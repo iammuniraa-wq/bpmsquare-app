@@ -11,7 +11,7 @@ import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
-import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useIsEnterpriseSidebar } from "@/lib/tenant-context";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
@@ -282,6 +282,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [mobile, setMobile] = useState(false);
   const uiTheme = useUiTheme();
   const identityInTopBar = useIsNextgen3Layer();
+  const isEnterprise = useIsEnterpriseSidebar();
   const aiAllowed = useTenantFeature("ai_assistant") && uiTheme !== "classic";
   const [dark, setDark] = useState(false);
 
@@ -308,13 +309,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const mode = uiTheme === "nextgen" && dark ? "dark" : undefined;
+  // Enterprise is deliberately light-only for now (the reference it's
+  // styled after has no dark variant) -- guarding `mode` itself, not just
+  // hiding the toggle button, matters because `dark` is a per-browser
+  // localStorage flag shared across every nextgen-family theme; a tenant
+  // who switches FROM nextgen dark mode TO enterprise would otherwise carry
+  // that true value straight into data-mode="dark" on first render.
+  const mode = uiTheme === "nextgen" && !isEnterprise && dark ? "dark" : undefined;
 
   if (mobile) {
     return (
       <FeelProvider>
       <TabsProvider trackTabs={false}>
-        <div data-theme={uiTheme} data-mode={mode} data-nova={identityInTopBar || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
+        <div data-theme={uiTheme} data-mode={mode} data-nova={identityInTopBar || undefined} data-enterprise={isEnterprise || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
           <MobileTopBar />
           <main style={{
             flex: 1, minWidth: 0, overflowX: "auto",
@@ -328,7 +335,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           }}>
             {children}
           </main>
-          {uiTheme === "nextgen" && !identityInTopBar && (
+          {uiTheme === "nextgen" && !isEnterprise && !identityInTopBar && (
             <div style={{ position: "fixed", left: 16, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", zIndex: 90 }}>
               <DarkToggle dark={dark} onToggle={toggleDark} />
             </div>
@@ -346,7 +353,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <FeelProvider>
     <TabsProvider>
-      <div data-theme={uiTheme} data-mode={mode} data-nova={identityInTopBar || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
+      <div data-theme={uiTheme} data-mode={mode} data-nova={identityInTopBar || undefined} data-enterprise={isEnterprise || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
         {identityInTopBar ? <NovaSidebar /> : <Sidebar />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
@@ -359,7 +366,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 search trigger up here was pure duplication (owner flagged
                 2026-08-23). Classic/nextgen keep their inline search. */}
             {!identityInTopBar && <GlobalSearchBar />}
-            {uiTheme === "nextgen" && !identityInTopBar && <DarkToggle dark={dark} onToggle={toggleDark} />}
+            {uiTheme === "nextgen" && !isEnterprise && !identityInTopBar && <DarkToggle dark={dark} onToggle={toggleDark} />}
             {identityInTopBar && <NovaInbox />}
             {identityInTopBar && <IdentityMenu />}
           </div>

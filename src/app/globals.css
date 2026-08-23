@@ -321,6 +321,36 @@
   --drawer-err-border: #57291f;
 }
 
+/* "Enterprise" (owner request 2026-08-24, clean-enterprise-SaaS reference):
+   nextgen's light content area, unchanged, with a dark navy RAIL -- a
+   combination none of the other four themes use (they're each uniformly
+   light or uniformly dark chrome). ui_theme="enterprise" folds into
+   useUiTheme()==="nextgen" for behaviour (see tenant-context.tsx), so this
+   selector is exactly [data-theme="nextgen"] plus the separate
+   data-enterprise stamp -- everything NOT listed here (cards, KPI tiles,
+   charts, tables, the accent) stays identical to nextgen light.
+
+   Scoped to .bpm-sidebar-rail (Sidebar.tsx's own root class), not the whole
+   [data-enterprise="true"] subtree: the --sb-* family is shared with the
+   top identity bar and TabBar (Shell.tsx reads --sb-bar-bg/--sb-line for
+   both), and only the rail itself should go dark here -- unscoped, this
+   would darken the top bar and open-record tab strip too. Values are the
+   same proven dark-navy family nextgen's own dark mode already uses just
+   above, not invented fresh. */
+[data-theme="nextgen"][data-enterprise="true"] .bpm-sidebar-rail {
+  --sidebar-grad: linear-gradient(180deg, #152233 0%, #0e1a28 100%);
+  --sb-text: #cdd8e6;
+  --sb-text-dim: #7a9ab8;
+  --sb-text-dimmer: #8aa0b8;
+  --sb-text-faint: #4a6070;
+  --sb-strong: #ffffff;
+  --sb-icon-muted: #9db3c4;
+  --sb-line: rgba(255, 255, 255, 0.08);
+  --sb-hover: rgba(255, 255, 255, 0.06);
+  --sb-active-bg: #1c2740;
+  --sb-active-ink: #5b8cf0;
+}
+
 /* Real interaction states -- the whole reason this can't just be inline
    styles (React inline style objects can't express :hover/transition).
    Opt a card into this class (only in modern mode) for a genuine hover-lift

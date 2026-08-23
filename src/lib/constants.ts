@@ -730,8 +730,12 @@ export type TenantConfig = {
      * is the 3-layer structural variant of nextgen (identity moved to the
      * top bar, sidebar footer dropped) -- it shares all of nextgen's CSS
      * tokens; useUiTheme() folds it into "nextgen" the same way, and
-     * useIsNextgen3Layer() is the separate hook for the structural bit. */
-    ui_theme?: "classic" | "modern" | "nextgen" | "nextgen2";
+     * useIsNextgen3Layer() is the separate hook for the structural bit.
+     * "enterprise" (owner request 2026-08-24) is nextgen's light content
+     * with a dark navy sidebar -- also folds into "nextgen" for behaviour;
+     * useIsEnterpriseSidebar() is its structural hook, same pattern. Unlike
+     * "nextgen2" it carries no feature-flag gate -- any tenant can pick it. */
+    ui_theme?: "classic" | "modern" | "nextgen" | "nextgen2" | "enterprise";
     /** Nova's own accent hue (owner decision 2026-08-24, superseding the
      * earlier "fixed identity, never tenant-derived" call): a hex string that
      * replaces Nova's default pink (#E84393) everywhere Nova derives its
