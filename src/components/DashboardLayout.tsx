@@ -68,7 +68,7 @@ const NATIVE_META: Record<string, { label: string; sidebar?: boolean; features?:
   wfm_summary:     { label: "Attendance summary (day + month)", features: ["wfm"] },
 };
 
-const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures }> = {
+export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures }> = {
   // Core-module widgets carry their module's 0067 flag -- previously only
   // the optional-module widgets (amc/leads/invoices/wfm) were gated.
   accounts:                { label: "Accounts",         feature: "accounts" },
@@ -215,7 +215,7 @@ function defaultLayoutFor(features: TenantFeatures): DashLayoutItem[] {
   return [...fromBundles, ...nativeVisible];
 }
 
-function isAnalyticsId(id: string): id is AnalyticsMetricId {
+export function isAnalyticsId(id: string): id is AnalyticsMetricId {
   return id in ANALYTICS_META;
 }
 
@@ -705,7 +705,7 @@ const WIDGET_TONE: Partial<Record<string, PillarKey>> = {
   wfm_attendance_today: "blue", wfm_workforce_composition: "purple",
   wfm_leave_taken_by_type: "green",
 };
-function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full"): React.ReactNode {
+export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full"): React.ReactNode {
   const COLORS = [pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.purple.base, pillar.green.base];
   const tone = WIDGET_TONE[id];
   const iconColor = tone ? pillar[tone].base : ledger.accent;

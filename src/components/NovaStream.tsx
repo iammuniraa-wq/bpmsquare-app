@@ -1,9 +1,15 @@
 "use client";
 
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ROUTES, type TenantFeatures } from "@/lib/constants";
+import { ROUTES, type TenantFeatures, type DashLayoutItem } from "@/lib/constants";
 import type { NovaStreamItem, NovaWinItem } from "@/lib/nova/stream";
+import type { AnalyticsData } from "@/lib/data/labels";
 import { Package, Activity as ActivityIcon, Users, FileText, CheckIcon } from "@/components/Icons";
+import { renderWidget, isAnalyticsId } from "@/components/DashboardLayout";
+import { isNovaNativeId, type NovaBlockId } from "@/lib/nova/streamLayout";
+import NovaAdaptDrawer from "@/components/NovaAdaptDrawer";
 
 const ACCENT: Record<NovaStreamItem["accent"], { color: string; bg: string; glow: string }> = {
   orange: { color: "var(--nova-orange-soft)", bg: "var(--nova-orange-bg)", glow: "rgba(255,107,53,0.22)" },
@@ -41,6 +47,10 @@ export default function NovaStream({
   dateLabel,
   kpis,
   features,
+  analytics,
+  dashLayout,
+  isAdmin,
+  hasPersonalOverride,
 }: {
   items: NovaStreamItem[];
   wins: NovaWinItem[];
@@ -49,8 +59,54 @@ export default function NovaStream({
   dateLabel: string;
   kpis: Kpis;
   features: TenantFeatures;
+  analytics: AnalyticsData | null;
+  dashLayout: DashLayoutItem[];
+  isAdmin: boolean;
+  hasPersonalOverride: boolean;
 }) {
+  const router = useRouter();
   const name = userName ? `, ${userName}` : "";
+  const [layout, setLayout] = useState<DashLayoutItem[]>(dashLayout);
+  const [adaptOpen, setAdaptOpen] = useState(false);
+  const [personalizeOpen, setPersonalizeOpen] = useState(false);
+  const [saving, startSave] = useTransition();
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  function persistLayout(next: DashLayoutItem[], url: string, body: unknown) {
+    const prev = layout;
+    setLayout(next);
+    setSaveError(null);
+    startSave(async () => {
+      try {
+        const res = await fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({} as { error?: string }));
+          setLayout(prev);
+          setSaveError(res.status === 401 ? "Your session has expired — reload and sign in again." : `Could not save (${j?.error ?? res.status}).`);
+          return;
+        }
+        router.refresh();
+      } catch {
+        setLayout(prev);
+        setSaveError("Could not reach the server — the layout was not saved.");
+      }
+    });
+  }
+  function saveTenantLayout(next: DashLayoutItem[]) {
+    persistLayout(next, "/api/settings/entities", { dashboard_layout: next });
+  }
+  function savePersonalLayout(next: DashLayoutItem[]) {
+    persistLayout(next, "/api/dashboard/layout", { layout: next });
+  }
+  function resetPersonalLayout() {
+    setPersonalizeOpen(false);
+    startSave(async () => {
+      await fetch("/api/dashboard/layout", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ layout: null }) });
+      router.refresh();
+    });
+  }
+
+  const visibleBlocks = layout.filter((b) => !b.hidden);
 
   const statTiles: { label: string; value: string; accent: NovaStreamItem["accent"] }[] = [
     { label: "Open pipeline", value: money(kpis.openPipeline), accent: "orange" },
@@ -69,6 +125,95 @@ export default function NovaStream({
     { href: ROUTES.accountNew, label: "New account", icon: <Users size={14} />, accent: "purple" },
     ...(features?.invoices ? [{ href: ROUTES.invoiceNew, label: "New invoice", icon: <FileText size={14} />, accent: "pink" as const }] : []),
   ];
+
+  function renderBlock(block: DashLayoutItem): React.ReactNode {
+    if (isAnalyticsId(block.id)) {
+      if (!analytics) return null;
+      return (
+        <div key={block.id} style={{ marginBottom: 20 }}>
+          {renderWidget(block.id, analytics, "full")}
+        </div>
+      );
+    }
+    switch (block.id as NovaBlockId) {
+      case "nova_kpis":
+        return (
+          <div key={block.id} className="nova-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+            {statTiles.map((tile) => {
+              const accent = ACCENT[tile.accent];
+              return (
+                <div key={tile.label} className="nova-stat-tile" style={{ background: "var(--nova-glass-bg)", border: "1px solid var(--nova-glass-border)", borderRadius: 12, padding: 14, boxShadow: `0 0 20px ${accent.glow}` }}>
+                  <div className="nova-display" style={{ fontSize: 18, color: accent.color }}>{tile.value}</div>
+                  <div style={{ fontSize: 11, color: "var(--nova-ink-faint)", marginTop: 3 }}>{tile.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      case "nova_quick_actions":
+        return (
+          <div key={block.id} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 28 }}>
+            {quickActions.map((a) => {
+              const accent = ACCENT[a.accent];
+              return (
+                <Link key={a.href} href={a.href} className="nova-quick-action" style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 500, color: accent.color, background: accent.bg, border: "1px solid var(--nova-glass-border)", borderRadius: "var(--nova-radius-pill)", padding: "8px 14px 8px 12px", textDecoration: "none" }}>
+                  {a.icon}
+                  {a.label}
+                </Link>
+              );
+            })}
+          </div>
+        );
+      case "nova_action_stream":
+        return (
+          <div key={block.id} style={{ marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)" }}>Predictive action stream</span>
+              <span style={{ fontSize: 11, color: "var(--nova-teal-soft)", background: "var(--nova-teal-bg)", borderRadius: "var(--nova-radius-pill)", padding: "3px 10px", whiteSpace: "nowrap" }}>{items.length} pending</span>
+            </div>
+            {items.length === 0 ? (
+              <div style={{ border: "1px solid var(--nova-line)", borderRadius: "var(--nova-radius-card)", padding: "28px 20px", textAlign: "center", color: "var(--nova-ink-dim)", fontSize: 14 }}>
+                You&apos;re all caught up. Nothing is waiting on you right now.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {items.map((item) => {
+                  const accent = ACCENT[item.accent];
+                  return (
+                    <Link key={item.id} href={item.href} className="nova-action-card" style={{ display: "flex", alignItems: "center", gap: 14, background: "var(--nova-glass-bg)", border: "1px solid var(--nova-glass-border)", borderLeft: `2.5px solid ${accent.color}`, borderRadius: 12, padding: "13px 16px", textDecoration: "none", color: "inherit", boxShadow: `0 0 18px ${accent.glow}` }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: accent.color, background: accent.bg, borderRadius: 6, padding: "3px 8px", minWidth: 22, textAlign: "center", flexShrink: 0 }}>{item.score}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, color: "var(--nova-ink)", opacity: 0.88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
+                        <div style={{ fontSize: 12, color: "var(--nova-ink-faint)", marginTop: 2 }}>{item.detail}</div>
+                      </div>
+                      <span style={{ fontSize: 12, color: accent.color, flexShrink: 0 }}>{CTA_LABEL[item.kind]} →</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      case "nova_recent_wins":
+        if (wins.length === 0) return null;
+        return (
+          <div key={block.id} style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginBottom: 12 }}>Recent wins</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {wins.map((w) => (
+                <Link key={w.id} href={w.href} className="nova-win-chip" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--nova-teal-bg)", border: "1px solid rgba(20,200,180,0.35)", borderRadius: "var(--nova-radius-pill)", padding: "7px 14px 7px 10px", textDecoration: "none", color: "inherit", fontSize: 12.5 }}>
+                  <CheckIcon size={13} color="var(--nova-teal-soft)" />
+                  <span style={{ color: "var(--nova-ink)" }}>{w.title}</span>
+                  <span style={{ color: "var(--nova-ink-faint)" }}>· {w.detail}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  }
 
   return (
     <div style={{ flex: 1, padding: "48px 24px 80px", maxWidth: 860, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
@@ -95,7 +240,20 @@ export default function NovaStream({
         }
       `}</style>
 
-      <div style={{ marginBottom: 8, fontSize: 13, color: "var(--nova-ink-faint)" }}>{dateLabel}</div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+        <div style={{ fontSize: 13, color: "var(--nova-ink-faint)" }}>{dateLabel}</div>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          {isAdmin && (
+            <button type="button" onClick={() => setAdaptOpen(true)} style={{ fontSize: 11.5, fontWeight: 600, color: "var(--nova-pink-soft)", background: "transparent", border: "1px solid rgba(232,67,147,0.4)", borderRadius: 7, padding: "6px 14px", cursor: "pointer" }}>
+                ⚙ Adapt Stream
+            </button>
+          )}
+          <button type="button" onClick={() => setPersonalizeOpen(true)} style={{ fontSize: 11.5, fontWeight: 600, color: "var(--nova-ink-dim)", background: "transparent", border: "1px solid var(--nova-glass-border)", borderRadius: 7, padding: "6px 14px", cursor: "pointer" }}>
+            My Stream
+          </button>
+        </div>
+      </div>
+
       <h1 className="nova-display" style={{ fontSize: 34, margin: "0 0 6px" }}>
         {greeting}{name}.
       </h1>
@@ -104,24 +262,22 @@ export default function NovaStream({
         your call.
       </p>
 
+      {saveError && (
+        <div style={{ fontSize: 12, color: "var(--nova-orange-soft)", background: "var(--nova-orange-bg)", border: "1px solid rgba(255,107,53,0.4)", borderRadius: 8, padding: "8px 12px", marginBottom: 16 }}>
+          {saveError}
+        </div>
+      )}
+
       {/* ── Command bar ── */}
       <button
         type="button"
         onClick={openPalette}
         className="nova-command-bar"
         style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          background: "var(--nova-glass-bg)",
-          border: "1px solid rgba(232,67,147,0.35)",
-          borderRadius: 12,
-          padding: "13px 16px",
-          marginBottom: 28,
-          cursor: "pointer",
-          textAlign: "left",
-          fontFamily: "var(--nova-font-body)",
+          width: "100%", display: "flex", alignItems: "center", gap: 12,
+          background: "var(--nova-glass-bg)", border: "1px solid rgba(232,67,147,0.35)",
+          borderRadius: 12, padding: "13px 16px", marginBottom: 28,
+          cursor: "pointer", textAlign: "left", fontFamily: "var(--nova-font-body)",
         }}
       >
         <span style={{ fontSize: 14, color: "var(--nova-pink-soft)", opacity: 0.8 }}>⌘</span>
@@ -133,143 +289,35 @@ export default function NovaStream({
         </span>
       </button>
 
-      {/* ── KPI strip ── */}
-      <div className="nova-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
-        {statTiles.map((tile) => {
-          const accent = ACCENT[tile.accent];
-          return (
-            <div
-              key={tile.label}
-              className="nova-stat-tile"
-              style={{
-                background: "var(--nova-glass-bg)",
-                border: "1px solid var(--nova-glass-border)",
-                borderRadius: 12,
-                padding: "14px 14px",
-                boxShadow: `0 0 20px ${accent.glow}`,
-              }}
-            >
-              <div className="nova-display" style={{ fontSize: 18, color: accent.color }}>{tile.value}</div>
-              <div style={{ fontSize: 11, color: "var(--nova-ink-faint)", marginTop: 3 }}>{tile.label}</div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* ── Quick actions ── */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 28 }}>
-        {quickActions.map((a) => {
-          const accent = ACCENT[a.accent];
-          return (
-            <Link
-              key={a.href}
-              href={a.href}
-              className="nova-quick-action"
-              style={{
-                display: "flex", alignItems: "center", gap: 7,
-                fontSize: 12.5, fontWeight: 500, color: accent.color,
-                background: accent.bg, border: "1px solid var(--nova-glass-border)",
-                borderRadius: "var(--nova-radius-pill)", padding: "8px 14px 8px 12px",
-                textDecoration: "none",
-              }}
-            >
-              {a.icon}
-              {a.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <span style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)" }}>
-          Predictive action stream
-        </span>
-        <span style={{ fontSize: 11, color: "var(--nova-teal-soft)", background: "var(--nova-teal-bg)", borderRadius: "var(--nova-radius-pill)", padding: "3px 10px", whiteSpace: "nowrap" }}>
-          {items.length} pending
-        </span>
-      </div>
-
-      {items.length === 0 ? (
+      {visibleBlocks.length === 0 ? (
         <div style={{ border: "1px solid var(--nova-line)", borderRadius: "var(--nova-radius-card)", padding: "28px 20px", textAlign: "center", color: "var(--nova-ink-dim)", fontSize: 14 }}>
-          You&apos;re all caught up. Nothing is waiting on you right now.
+          Your Stream is empty — every widget is hidden. Use <strong>{isAdmin ? "Adapt Stream" : "My Stream"}</strong> above to bring some back.
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {items.map((item) => {
-            const accent = ACCENT[item.accent];
-            return (
-              <Link
-                key={item.id}
-                href={item.href}
-                className="nova-action-card"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  background: "var(--nova-glass-bg)",
-                  border: "1px solid var(--nova-glass-border)",
-                  borderLeft: `2.5px solid ${accent.color}`,
-                  borderRadius: 12,
-                  padding: "13px 16px",
-                  textDecoration: "none",
-                  color: "inherit",
-                  boxShadow: `0 0 18px ${accent.glow}`,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: accent.color,
-                    background: accent.bg,
-                    borderRadius: 6,
-                    padding: "3px 8px",
-                    minWidth: 22,
-                    textAlign: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  {item.score}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, color: "var(--nova-ink)", opacity: 0.88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {item.title}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--nova-ink-faint)", marginTop: 2 }}>{item.detail}</div>
-                </div>
-                <span style={{ fontSize: 12, color: accent.color, flexShrink: 0 }}>{CTA_LABEL[item.kind]} →</span>
-              </Link>
-            );
-          })}
-        </div>
+        visibleBlocks.map(renderBlock)
       )}
 
-      {/* ── Recent wins ── */}
-      {wins.length > 0 && (
-        <div style={{ marginTop: 28 }}>
-          <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginBottom: 12 }}>
-            Recent wins
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {wins.map((w) => (
-              <Link
-                key={w.id}
-                href={w.href}
-                className="nova-win-chip"
-                style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  background: "var(--nova-teal-bg)", border: "1px solid rgba(20,200,180,0.35)",
-                  borderRadius: "var(--nova-radius-pill)", padding: "7px 14px 7px 10px",
-                  textDecoration: "none", color: "inherit", fontSize: 12.5,
-                }}
-              >
-                <CheckIcon size={13} color="var(--nova-teal-soft)" />
-                <span style={{ color: "var(--nova-ink)" }}>{w.title}</span>
-                <span style={{ color: "var(--nova-ink-faint)" }}>· {w.detail}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
+      {adaptOpen && (
+        <NovaAdaptDrawer
+          layout={layout}
+          features={features}
+          onLayoutChange={saveTenantLayout}
+          onClose={() => setAdaptOpen(false)}
+          saving={saving}
+        />
+      )}
+      {personalizeOpen && (
+        <NovaAdaptDrawer
+          layout={layout}
+          features={features}
+          onLayoutChange={savePersonalLayout}
+          onClose={() => setPersonalizeOpen(false)}
+          saving={saving}
+          title="My Stream"
+          subtitle="Personal changes — only you see these"
+          onReset={hasPersonalOverride ? resetPersonalLayout : undefined}
+          resetLabel="Reset to my default"
+        />
       )}
     </div>
   );
