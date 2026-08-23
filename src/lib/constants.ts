@@ -80,7 +80,6 @@ export const ROUTES = {
   standardQuoteTemplate: (id: string) => `/standard-quotes/templates/${id}`,
   employees: "/employees",
   configPricing: "/settings/pricing",
-  configPricingEngine: "/settings/pricing-engine",
   settingsNumberRanges: "/settings/number-ranges",
   configTemplates: "/settings/templates",
   configCustomFields: "/settings/custom-fields",
@@ -143,6 +142,11 @@ export const ROUTES = {
   wfmLeave: "/wfm/leave",
   wfmSummary: "/wfm/summary",
   settingsWorkforce: "/settings/workforce",
+  pricing: "/pricing",
+  pricingToday: "/pricing/today",
+  pricingSetup: "/pricing/setup",
+  pricingHistory: "/pricing/history",
+  pricingAdvanced: "/pricing/advanced",
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
@@ -269,6 +273,12 @@ export const NAV: NavGroup[] = [
           { label: "Time Summary", href: ROUTES.wfmSummary, icon: "▤", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
         ],
       },
+    ],
+  },
+  {
+    group: "PRICING",
+    items: [
+      { label: "Pricing", href: ROUTES.pricingToday, icon: "₹", pillar: "amber", featureKey: "pricing_engine", workcenterKey: "pricing" },
     ],
   },
   {

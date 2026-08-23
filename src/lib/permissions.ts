@@ -97,6 +97,16 @@ export function canEditWorkcenter(perms: PermissionSet, workcenter: WorkcenterKe
   return perms.grants.get(workcenter)?.canEdit ?? false;
 }
 
+export function canCreateWorkcenter(perms: PermissionSet, workcenter: WorkcenterKey): boolean {
+  if (perms.unrestricted) return true;
+  return perms.grants.get(workcenter)?.canCreate ?? false;
+}
+
+export function canDeleteWorkcenter(perms: PermissionSet, workcenter: WorkcenterKey): boolean {
+  if (perms.unrestricted) return true;
+  return perms.grants.get(workcenter)?.canDelete ?? false;
+}
+
 export function toViewableWorkcenters(perms: PermissionSet): ViewableWorkcenters {
   if (perms.unrestricted) return "all";
   return [...perms.grants.values()].filter((g) => g.canView).map((g) => g.workcenter);

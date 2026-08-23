@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
+import { resolvePermissions, canViewWorkcenter } from "@/lib/permissions";
 import { runPrice, PricingConfigError } from "@/lib/pricing/server";
 import { PricingError, DslError, type DocumentLine } from "@/lib/pricing-core";
 
-// Cockpit test-pricing (admin, session-auth): same engine as POST
-// /api/v1/price but reachable without an API key, and allowed to target a
-// DRAFT version explicitly -- that is the whole point: try a draft against a
-// sample document BEFORE publishing it.
+// Cockpit test-pricing (session-auth, "pricing" workcenter view access):
+// same engine as POST /api/v1/price but reachable without an API key, and
+// allowed to target a DRAFT version explicitly -- that is the whole point:
+// try a draft against a sample document BEFORE publishing it.
 export async function POST(req: Request) {
   let tenantId: string;
   try {
     const auth = await requireTenantUser();
-    if (auth.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const perms = await resolvePermissions(auth.supabase, auth.tenantId, auth.userId, auth.role);
+    if (!canViewWorkcenter(perms, "pricing")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     tenantId = auth.tenantId;
   } catch (e: unknown) {
     const err = e as { status?: number; message?: string };

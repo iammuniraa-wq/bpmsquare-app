@@ -1,21 +1,32 @@
 import { NextResponse } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { resolvePermissions, canViewWorkcenter, canEditWorkcenter } from "@/lib/permissions";
 
-// PricingEngine config versions (spec §7). Admin-only, session-auth. All
-// pricing tables are select-only under RLS -- these service-role routes are
-// the only write path, which is what makes the draft->publish state machine
-// enforceable at all.
+// PricingEngine config versions (spec §7). Gated on the "pricing" workcenter
+// (Business Role scoped -- an admin is always unrestricted) rather than a
+// blunt admin-only check, per the owner decision that Pricing gets its own
+// Business Role. All pricing tables are select-only under RLS -- these
+// service-role routes are the only write path, which is what makes the
+// draft->publish state machine enforceable at all.
 
-async function requireAdmin() {
+async function requireView() {
   const auth = await requireTenantUser();
-  if (auth.role !== "admin") throw { status: 403, message: "Forbidden" };
+  const perms = await resolvePermissions(auth.supabase, auth.tenantId, auth.userId, auth.role);
+  if (!canViewWorkcenter(perms, "pricing")) throw { status: 403, message: "Forbidden" };
+  return auth;
+}
+
+async function requireEdit() {
+  const auth = await requireTenantUser();
+  const perms = await resolvePermissions(auth.supabase, auth.tenantId, auth.userId, auth.role);
+  if (!canEditWorkcenter(perms, "pricing")) throw { status: 403, message: "Forbidden" };
   return auth;
 }
 
 export async function GET(req: Request) {
   let tenantId: string;
   try {
-    ({ tenantId } = await requireAdmin());
+    ({ tenantId } = await requireView());
   } catch (e: unknown) {
     const err = e as { status?: number; message?: string };
     return NextResponse.json({ error: err.message ?? "Unauthorized" }, { status: err.status ?? 401 });
@@ -38,7 +49,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   let tenantId: string, userId: string;
   try {
-    ({ tenantId, userId } = await requireAdmin());
+    ({ tenantId, userId } = await requireEdit());
   } catch (e: unknown) {
     const err = e as { status?: number; message?: string };
     return NextResponse.json({ error: err.message ?? "Unauthorized" }, { status: err.status ?? 401 });

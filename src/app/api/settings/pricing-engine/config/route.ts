@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
 import { parseFormula } from "@/lib/pricing-core";
 
 // One mutation surface for all PricingEngine config entities (admin,
@@ -39,7 +40,8 @@ export async function POST(req: Request) {
   let tenantId: string, userId: string;
   try {
     const auth = await requireTenantUser();
-    if (auth.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const perms = await resolvePermissions(auth.supabase, auth.tenantId, auth.userId, auth.role);
+    if (!canEditWorkcenter(perms, "pricing")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     tenantId = auth.tenantId;
     userId = auth.userId;
   } catch (e: unknown) {

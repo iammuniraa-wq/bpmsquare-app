@@ -1,6 +1,6 @@
 import { NAV, type NavItem } from "@/lib/constants";
 import { NAV_GLYPHS, isItemViewable } from "@/components/Sidebar";
-import { Gear, Monitor, FileText, Wrench, Zap, Package, Users, BarChart2 } from "@/components/Icons";
+import { Gear, Monitor, FileText, Wrench, Zap, Package, Users, BarChart2, Coins } from "@/components/Icons";
 import type { ViewableWorkcenters } from "@/lib/workcenters";
 
 /**
@@ -71,6 +71,7 @@ const GROUP_META: Record<string, { label: string; icon: SpaceGroup["icon"] }> = 
   "MARKETING": { label: "Marketing", icon: Zap },
   "MASTER DATA": { label: "Master data", icon: Package },
   "WORKFORCE": { label: "Workforce", icon: Users },
+  "PRICING": { label: "Pricing", icon: Coins },
   "ANALYTICS": { label: "Analytics", icon: BarChart2 },
   "ADMIN": { label: "Admin", icon: Gear },
 };

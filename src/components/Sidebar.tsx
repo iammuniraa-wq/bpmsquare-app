@@ -7,7 +7,7 @@ import { NAV, ROUTES } from "@/lib/constants";
 import type { NavItem } from "@/lib/constants";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
-import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon, Database, Box, Shield, Tag, Truck, Filter } from "@/components/Icons";
+import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon, Database, Box, Shield, Tag, Truck, Filter, Coins } from "@/components/Icons";
 import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useIsNextgen3Layer } from "@/lib/tenant-context";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
@@ -140,6 +140,7 @@ export const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; col
   // the two are different destinations and looked identical in Spaces
   // (owner-flagged 2026-08-25). Shield reads as oversight/audit.
   [ROUTES.administration]: Shield,
+  [ROUTES.pricingToday]: Coins,
   [ROUTES.settings]: Gear,
 };
 

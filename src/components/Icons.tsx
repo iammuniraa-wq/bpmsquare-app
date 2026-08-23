@@ -346,6 +346,16 @@ export function Filter(p: P) {
   );
 }
 
+export function Coins(p: P) {
+  return (
+    <Svg {...p}>
+      <circle cx="9" cy="9" r="6.5" />
+      <path d="M14.5 8.3A6.5 6.5 0 1 1 8.3 14.5" />
+      <path d="M9 6.5v5M6.7 9h4.6" />
+    </Svg>
+  );
+}
+
 export function Dot({ size = 8, color = "currentColor", style }: P) {
   return (
     <svg width={size} height={size} viewBox="0 0 8 8" style={{ display: "inline-block", verticalAlign: "middle", flexShrink: 0, ...style }}>

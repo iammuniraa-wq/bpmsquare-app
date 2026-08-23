@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
+import { resolvePermissions, canViewWorkcenter, canEditWorkcenter, canDeleteWorkcenter } from "@/lib/permissions";
 import { logChange } from "@/lib/changeLog";
 import { parseFormula } from "@/lib/pricing-core";
 import type { ProcedureStep } from "@/lib/pricing-core";
@@ -8,10 +9,28 @@ import type { ProcedureStep } from "@/lib/pricing-core";
 // pre-publish validation report and, only when clean, flips DRAFT->PUBLISHED
 // (the previous PUBLISHED becomes SUPERSEDED). Validation failures return the
 // report with a 422 -- a broken config can never go live silently (spec §7).
+// DELETE discards a DRAFT outright (the "Pricing setup" wizard's invisible-
+// versioning "Discard changes" action) -- only ever a DRAFT; PUBLISHED/
+// SUPERSEDED versions are immutable history and refuse deletion.
 
-async function requireAdmin() {
+async function requireView() {
   const auth = await requireTenantUser();
-  if (auth.role !== "admin") throw { status: 403, message: "Forbidden" };
+  const perms = await resolvePermissions(auth.supabase, auth.tenantId, auth.userId, auth.role);
+  if (!canViewWorkcenter(perms, "pricing")) throw { status: 403, message: "Forbidden" };
+  return auth;
+}
+
+async function requireEdit() {
+  const auth = await requireTenantUser();
+  const perms = await resolvePermissions(auth.supabase, auth.tenantId, auth.userId, auth.role);
+  if (!canEditWorkcenter(perms, "pricing")) throw { status: 403, message: "Forbidden" };
+  return auth;
+}
+
+async function requireDelete() {
+  const auth = await requireTenantUser();
+  const perms = await resolvePermissions(auth.supabase, auth.tenantId, auth.userId, auth.role);
+  if (!canDeleteWorkcenter(perms, "pricing")) throw { status: 403, message: "Forbidden" };
   return auth;
 }
 
@@ -87,7 +106,7 @@ function validateForPublish(snapshot: Awaited<ReturnType<typeof loadSnapshot>>):
 export async function GET(req: Request, { params }: Ctx) {
   let tenantId: string;
   try {
-    ({ tenantId } = await requireAdmin());
+    ({ tenantId } = await requireView());
   } catch (e: unknown) {
     const err = e as { status?: number; message?: string };
     return NextResponse.json({ error: err.message ?? "Unauthorized" }, { status: err.status ?? 401 });
@@ -104,7 +123,7 @@ export async function GET(req: Request, { params }: Ctx) {
 export async function POST(req: Request, { params }: Ctx) {
   let tenantId: string;
   try {
-    ({ tenantId } = await requireAdmin());
+    ({ tenantId } = await requireEdit());
   } catch (e: unknown) {
     const err = e as { status?: number; message?: string };
     return NextResponse.json({ error: err.message ?? "Unauthorized" }, { status: err.status ?? 401 });
@@ -153,4 +172,52 @@ export async function POST(req: Request, { params }: Ctx) {
   });
 
   return NextResponse.json({ area, version, status: "PUBLISHED" });
+}
+
+// DELETE -- discard a DRAFT outright: the version row and every versioned
+// entity tied to it (components/procedures/rules/cost models). Only ever a
+// DRAFT; PUBLISHED/SUPERSEDED are immutable history (spec §7) and refuse.
+// This is the "Pricing setup" wizard's "Discard changes" button -- the
+// invisible-versioning UX never shows the version number itself.
+export async function DELETE(req: Request, { params }: Ctx) {
+  let tenantId: string, userId: string;
+  try {
+    ({ tenantId, userId } = await requireDelete());
+  } catch (e: unknown) {
+    const err = e as { status?: number; message?: string };
+    return NextResponse.json({ error: err.message ?? "Unauthorized" }, { status: err.status ?? 401 });
+  }
+  const version = parseInt((await params).version, 10);
+  if (!Number.isInteger(version)) return NextResponse.json({ error: "Invalid version" }, { status: 422 });
+  const area = new URL(req.url).searchParams.get("area") ?? "default";
+
+  const admin = createAdminSupabase();
+  const { data: row } = await admin
+    .from("pricing_config_versions")
+    .select("status")
+    .eq("tenant_id", tenantId).eq("pricing_area", area).eq("version", version)
+    .maybeSingle();
+  if (!row) return NextResponse.json({ error: "Version not found" }, { status: 404 });
+  if (row.status !== "DRAFT") {
+    return NextResponse.json({ error: `Only a DRAFT can be discarded (this version is ${row.status}).` }, { status: 409 });
+  }
+
+  for (const table of ["pricing_components", "pricing_procedures", "pricing_rules", "pricing_cost_models"] as const) {
+    const { error } = await admin.from(table).delete().eq("tenant_id", tenantId).eq("config_version", version);
+    if (error) return NextResponse.json({ error: `Discard failed clearing ${table}: ${error.message}` }, { status: 500 });
+  }
+  const { error: delErr } = await admin
+    .from("pricing_config_versions")
+    .delete()
+    .eq("tenant_id", tenantId).eq("pricing_area", area).eq("version", version);
+  if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+
+  const user = await getAuthUser();
+  await logChange(admin, {
+    tenantId, objectType: "pricing_config", objectId: String(version),
+    objectLabel: `${area} v${version}`, action: "delete",
+    actorId: userId, actorEmail: user?.email ?? null,
+  });
+
+  return NextResponse.json({ ok: true });
 }
