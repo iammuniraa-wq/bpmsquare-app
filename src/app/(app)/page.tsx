@@ -4,12 +4,54 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { mergeDashLayouts } from "@/lib/dashboardLayout";
 import type { DashLayoutItem } from "@/lib/constants";
 import DashboardLayout from "@/components/DashboardLayout";
+import NovaStream from "@/components/NovaStream";
+import { getNovaStreamItems } from "@/lib/nova/stream";
+
+// Mirrors useIsNextgen3Layer() (src/lib/tenant-context.tsx) server-side --
+// the client hook can't run here, so the same two-field check is repeated.
+// Owner decision 2026-08-23: Nova tenants get the Stream home screen
+// instead of the classic KPI dashboard; everyone else is unaffected.
+function isNovaTenant(tenant: Awaited<ReturnType<typeof getTenant>>): boolean {
+  return tenant?.config?.appearance?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true;
+}
+
+function greetingForHour(hour: number): string {
+  if (hour < 12) return "Morning";
+  if (hour < 17) return "Afternoon";
+  return "Evening";
+}
 
 export default async function DashboardPage() {
-  const [{ kpis, attention, readyCases, workOrderRows, recentActivity, overdueInvoices }, analytics, tenant, role] =
-    await Promise.all([getDashboardSummary(), getAnalyticsData(), getTenant(), getUserRole()]);
-
+  const [tenant, role] = await Promise.all([getTenant(), getUserRole()]);
   const { supabase, tenantId, userId } = await requireTenantUser();
+
+  // Nova tenants get the Stream home screen instead of the classic KPI
+  // dashboard -- skip the (fairly expensive) summary/analytics aggregates
+  // entirely rather than fetching data this screen never renders.
+  if (isNovaTenant(tenant)) {
+    const { data: membership } = await supabase
+      .from("tenant_users").select("display_name, employee_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
+    let firstName = (membership?.display_name ?? "").trim().split(/\s+/)[0] || null;
+    if (!firstName && membership?.employee_id) {
+      const { data: emp } = await supabase
+        .from("employees").select("first_name").eq("id", membership.employee_id).eq("tenant_id", tenantId).maybeSingle();
+      firstName = emp?.first_name?.trim() || null;
+    }
+
+    const items = await getNovaStreamItems(tenantId);
+    const now = new Date();
+    return (
+      <NovaStream
+        items={items}
+        userName={firstName}
+        greeting={greetingForHour(now.getHours())}
+        dateLabel={now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+      />
+    );
+  }
+
+  const [{ kpis, attention, readyCases, workOrderRows, recentActivity, overdueInvoices }, analytics] =
+    await Promise.all([getDashboardSummary(), getAnalyticsData()]);
   const tenantDefault: DashLayoutItem[] = tenant?.config?.dashboard_layout ?? [];
 
   // A scoped member (>=1 Business Role assigned) sees the union of every
