@@ -14,6 +14,19 @@ import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart
 import ApiKeysPanel from "./ApiKeysPanel";
 import WebhooksPanel from "./WebhooksPanel";
 
+// Nova's own accent presets -- independent of ACCENT_PRESETS (classic/nextgen
+// chrome). "Pink" (color: null) is Nova's shipped default -- it maps to no
+// stored value at all, not a hardcoded hex, so a tenant that picks it back
+// after trying another hue stays on Nova's true default rather than pinning
+// today's hex forever.
+const NOVA_ACCENT_PRESETS: { label: string; color: string | null }[] = [
+  { label: "Pink (default)", color: null },
+  { label: "Orange", color: "#FF6B35" },
+  { label: "Purple", color: "#7B2FBE" },
+  { label: "Teal", color: "#14C8B4" },
+  { label: "Blue", color: "#3C82FF" },
+];
+
 const PILLAR_DOT: Record<string, string> = {
   blue: "#378ADD", purple: "var(--purple)", teal: "var(--teal)",
   amber: "#f6b23c", red: "var(--err-ink)", green: "#639922",
@@ -306,6 +319,23 @@ export default function GeneralSettingsPage() {
     });
   };
 
+  // Nova's own accent hue -- independent of the classic accentColor above
+  // (see the comment on TenantConfig.appearance.nova_accent_color). Empty
+  // string = unset = Nova's default pink.
+  const [novaAccentColor, setNovaAccentColor] = useState<string>(() => tenant?.config?.appearance?.nova_accent_color ?? "");
+  const saveNovaAccentColor = (hex: string | null) => {
+    setNovaAccentColor(hex ?? "");
+    startApSave(async () => {
+      await fetch("/api/settings/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appearance: { ...tenant?.config?.appearance, nova_accent_color: hex || undefined } }),
+      });
+      flashSaved();
+      router.refresh();
+    });
+  };
+
   const saveCompactSidebar = (v: boolean) => {
     setCompactSidebar(v);
     startApSave(async () => {
@@ -493,6 +523,33 @@ export default function GeneralSettingsPage() {
             })}
           </div>
         </div>
+        {tenant?.features?.next_experience === true && (
+          <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Nova accent colour</div>
+            <div style={{ fontSize: 11, color: c.hint, marginBottom: 10 }}>The signature hue Nova uses for its command bar, tab underline and highlights — independent of the accent colour above.</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              {NOVA_ACCENT_PRESETS.map((preset) => {
+                const selected = novaAccentColor === "" ? preset.color === null : novaAccentColor.toLowerCase() === preset.color?.toLowerCase();
+                return (
+                  <button key={preset.label} onClick={() => !apSaving && saveNovaAccentColor(preset.color)} title={preset.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, cursor: "pointer", border: selected ? `2px solid ${preset.color ?? "#E84393"}` : `2px solid ${c.line}`, background: selected ? "var(--panel2)" : "var(--panel)", transition: "all 0.15s" }}>
+                    <span style={{ width: 14, height: 14, borderRadius: "50%", background: preset.color ?? "linear-gradient(135deg, #FF6B35, #E84393)", flexShrink: 0, boxShadow: selected ? `0 0 0 2px ${(preset.color ?? "#E84393")}44` : "none" }} />
+                    <span style={{ fontSize: 12.5, fontWeight: selected ? 600 : 400, color: selected ? (preset.color ?? "#E84393") : c.muted }}>{preset.label}</span>
+                    {selected && <span style={{ fontSize: 12, color: preset.color ?? "#E84393" }}>✓</span>}
+                  </button>
+                );
+              })}
+              <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 8, border: `2px solid ${c.line}`, cursor: "pointer" }}>
+                <input
+                  type="color"
+                  value={/^#[0-9a-fA-F]{6}$/.test(novaAccentColor) ? novaAccentColor : "#E84393"}
+                  onChange={(e) => !apSaving && saveNovaAccentColor(e.target.value)}
+                  style={{ width: 22, height: 22, border: "none", padding: 0, background: "none", cursor: "pointer" }}
+                />
+                <span style={{ fontSize: 12.5, color: c.muted }}>Custom</span>
+              </label>
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>Compact sidebar</div>

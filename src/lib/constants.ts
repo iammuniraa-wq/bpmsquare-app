@@ -732,6 +732,18 @@ export type TenantConfig = {
      * tokens; useUiTheme() folds it into "nextgen" the same way, and
      * useIsNextgen3Layer() is the separate hook for the structural bit. */
     ui_theme?: "classic" | "modern" | "nextgen" | "nextgen2";
+    /** Nova's own accent hue (owner decision 2026-08-24, superseding the
+     * earlier "fixed identity, never tenant-derived" call): a hex string that
+     * replaces Nova's default pink (#E84393) everywhere Nova derives its
+     * signature colour -- tab underline, command-bar glow, gradient midpoint.
+     * Deliberately its OWN field, not aliased to tenants.accent_color (see
+     * the comment above this object) -- Nova's accent and the classic/
+     * nextgen chrome's accent are independent choices; a tenant can run a
+     * blue classic theme and a pink Nova theme, or vice versa. Absent/empty
+     * = the default pink; consumed via a CSS custom-property fallback
+     * (`var(--nova-accent-color, #E84393)` in globals.css), never hardcoded
+     * in a component. */
+    nova_accent_color?: string;
   };
   // On-demand push to an external system (e.g. an ERP's webhook receiver) --
   // a rep clicks "Push to ERP" on a record; distinct from (and simpler than)

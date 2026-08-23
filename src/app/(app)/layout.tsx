@@ -7,6 +7,7 @@ import { getAuthUser, createServerSupabase, getTenantMembership } from "@/lib/su
 import { resolvePermissions, toViewableWorkcenters } from "@/lib/permissions";
 import { LinkIcon } from "@/components/Icons";
 import { ROUTES, PATHNAME_HEADER } from "@/lib/constants";
+import { HEX_COLOR_RE } from "@/lib/standardQuoteTemplateBlocks";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getAuthUser();
@@ -161,7 +162,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       viewableWorkcenters={viewable}
       isWfmSupervisor={isWfmSupervisor}
     >
-      <style>{`:root { --tenant-accent: ${tenant.accent_color}; }`}</style>
+      <style>{`:root {
+        --tenant-accent: ${tenant.accent_color};
+        ${HEX_COLOR_RE.test(tenant.config?.appearance?.nova_accent_color ?? "") ? `--nova-accent-color: ${tenant.config!.appearance!.nova_accent_color};` : ""}
+      }`}</style>
       <Shell>{children}</Shell>
     </TenantProvider>
   );

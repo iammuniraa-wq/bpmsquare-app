@@ -471,9 +471,20 @@ html, body {
    Nova's DarkToggle is hidden by Shell.tsx for the same reason: there is
    nothing to toggle.
 
-   Accent is a FIXED Nova identity (orange -> pink -> purple), not derived
-   from the tenant's own accent_color -- owner decision 2026-08-23: Nova is
-   its own product surface inside BPMSquare, not a per-tenant reskin. */
+   Accent used to be a hard-fixed Nova identity (orange -> pink -> purple),
+   deliberately not derived from the tenant's own accent_color -- owner
+   decision 2026-08-23: "Nova is its own product surface inside BPMSquare,
+   not a per-tenant reskin." Revised 2026-08-24: the owner asked for the
+   pink to be tenant-customisable after seeing it live. Resolution keeps
+   the spirit of the original call -- Nova's accent is still its OWN
+   independent setting (config.appearance.nova_accent_color, see
+   constants.ts), never silently aliased to tenants.accent_color -- it's
+   just no longer hard-coded. Orange and purple stay fixed; only the pink
+   (the identity hue actually used for interactive chrome -- tab
+   underline, command-bar glow) is tenant-configurable, via the
+   --nova-accent-color custom property ((app)/layout.tsx injects it on
+   :root when set); every default below falls through unchanged for a
+   tenant that never sets one. */
 [data-nova="true"] {
   --nova-bg:          #06080F;
   --nova-ink:         #ffffff;
@@ -490,16 +501,23 @@ html, body {
   --nova-glass-blur:    16px;
 
   /* Signature gradient -- three stops for hero/wordmark use, two-stop for
-     buttons/CTAs (the third stop reads muddy at button size). */
-  --nova-gradient:      linear-gradient(135deg, #FF6B35 0%, #E84393 50%, #7B2FBE 100%);
-  --nova-gradient-cta:  linear-gradient(135deg, #FF6B35, #E84393);
+     buttons/CTAs (the third stop reads muddy at button size). Middle stop
+     follows --nova-pink so a tenant's chosen accent carries through here
+     too, not just the flat chrome below. */
+  --nova-gradient:      linear-gradient(135deg, #FF6B35 0%, var(--nova-pink) 50%, #7B2FBE 100%);
+  --nova-gradient-cta:  linear-gradient(135deg, #FF6B35, var(--nova-pink));
 
   --nova-orange:       #FF6B35;
   --nova-orange-soft:  #FF9B72;
   --nova-orange-bg:    rgba(255, 107, 53, 0.15);
-  --nova-pink:         #E84393;
-  --nova-pink-soft:    #E884B8;
-  --nova-pink-bg:      rgba(232, 67, 147, 0.15);
+  /* --nova-accent-color is set on :root only when a tenant has picked a
+     custom hue (see comment above); unset = the default Nova pink. Soft/bg
+     variants are derived via color-mix rather than stored separately, same
+     pattern --tenant-accent already uses elsewhere in this file -- one
+     source value, no second field to drift out of sync. */
+  --nova-pink:         var(--nova-accent-color, #E84393);
+  --nova-pink-soft:    color-mix(in srgb, var(--nova-pink) 70%, white);
+  --nova-pink-bg:      color-mix(in srgb, var(--nova-pink) 15%, transparent);
   --nova-purple:       #7B2FBE;
   --nova-purple-soft:  #9B59F5;
   --nova-purple-softer:#C9A6FF;
