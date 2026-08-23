@@ -156,7 +156,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
           <SectionHead label="Spaces" section="spaces" maximized={maximized} onToggle={toggle} />
         </div>
         <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-          <Sidebar onNavigate={onNavigate} />
+          <Sidebar onNavigate={onNavigate} hideHeader />
         </div>
       </div>
     );

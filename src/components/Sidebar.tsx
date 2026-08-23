@@ -449,7 +449,7 @@ function UserFooter({ accent, collapsed }: { accent: string; collapsed?: boolean
   );
 }
 
-export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () => void; hideHeader?: boolean }) {
   const nextgen = useUiTheme() === "nextgen";
   // 3-layer moves identity to the top bar (Shell.tsx) -- showing it here too
   // would just be the same email and sign-out button in two places.
@@ -547,7 +547,11 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       transition: "width 0.2s",
     }}>
 
-      {/* Logo + collapse toggle */}
+      {/* Logo + collapse toggle -- skipped when embedded inside NovaSidebar's
+          maximized Spaces view, which already shows this same tenant
+          identity in its own header (NovaHeader); showing it twice was the
+          duplicate the owner flagged 2026-08-23. */}
+      {!hideHeader && (
       <div style={{
         display: "flex", alignItems: "center", gap: 9,
         justifyContent: collapsed ? "center" : "space-between",
@@ -599,6 +603,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </button>
         )}
       </div>
+      )}
 
       {collapsed && (
         <button

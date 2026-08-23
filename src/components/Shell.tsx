@@ -276,38 +276,6 @@ function IdentityMenu() {
   );
 }
 
-// ── Nova search trigger ──────────────────────────────────────────────────────
-// On Nova the top bar carries no live search input -- this search-shaped
-// button IS the palette's front door (the ⌘K hotkey is the other one). One
-// search surface for records, screens and actions, not two.
-
-function NovaSearchButton({ wide }: { wide?: boolean }) {
-  return (
-    <button
-      onClick={() => window.dispatchEvent(new Event("nova:open-palette"))}
-      aria-label="Search or jump to anything"
-      style={{
-        display: "flex", alignItems: "center", gap: 8,
-        width: wide ? "100%" : 300, height: 32, padding: "0 10px",
-        borderRadius: 8, cursor: "pointer",
-        border: "1px solid var(--sb-search-border)", background: "var(--sb-search-bg)",
-        color: "var(--sb-search-icon)", font: "inherit",
-      }}
-    >
-      <SearchIcon size={14} color="var(--sb-search-icon)" />
-      <span style={{ flex: 1, textAlign: "left", fontSize: 12.5, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
-        Search or jump to…
-      </span>
-      <span style={{
-        fontSize: 9.5, padding: "2px 6px", borderRadius: 4, flexShrink: 0,
-        border: "1px solid var(--sb-search-border)",
-      }}>
-        ⌘K
-      </span>
-    </button>
-  );
-}
-
 // ── Shell ─────────────────────────────────────────────────────────────────────
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -386,7 +354,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             background: "var(--sb-bar-bg)", borderBottom: "1px solid var(--sb-line)",
             height: 48, minHeight: 48, flexShrink: 0, padding: "0 16px",
           }}>
-            {identityInTopBar ? <NovaSearchButton /> : <GlobalSearchBar />}
+            {/* Nova's own left rail carries its own "Ask or act…" command
+                bar on every page (NovaSidebar) -- a second, identical
+                search trigger up here was pure duplication (owner flagged
+                2026-08-23). Classic/nextgen keep their inline search. */}
+            {!identityInTopBar && <GlobalSearchBar />}
             {uiTheme === "nextgen" && !identityInTopBar && <DarkToggle dark={dark} onToggle={toggleDark} />}
             {identityInTopBar && <NovaInbox />}
             {identityInTopBar && <IdentityMenu />}

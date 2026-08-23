@@ -18,6 +18,17 @@ function greetingForHour(hour: number): string {
   return "Evening";
 }
 
+// A login created without a real name on file often has display_name
+// defaulted to the account's email -- splitting an email on whitespace
+// just returns the whole email back (no spaces to split on), which used
+// to print as e.g. "Morning, sap.rashid@gmail.com." in the greeting.
+// Treat anything with an "@" as not a usable name at all.
+function firstNameFrom(displayName: string | null | undefined): string | null {
+  const trimmed = (displayName ?? "").trim();
+  if (!trimmed || trimmed.includes("@")) return null;
+  return trimmed.split(/\s+/)[0] || null;
+}
+
 export default async function DashboardPage() {
   const [tenant, role] = await Promise.all([getTenant(), getUserRole()]);
   const { supabase, tenantId, userId } = await requireTenantUser();
@@ -43,7 +54,7 @@ export default async function DashboardPage() {
         getDashboardSummary(),
         getNovaRecentWins(tenantId),
       ]);
-      let firstName = (membership?.display_name ?? "").trim().split(/\s+/)[0] || null;
+      let firstName = firstNameFrom(membership?.display_name);
       if (!firstName && membership?.employee_id) {
         const { data: emp } = await supabase
           .from("employees").select("first_name").eq("id", membership.employee_id).eq("tenant_id", tenantId).maybeSingle();
@@ -134,7 +145,7 @@ export default async function DashboardPage() {
   // First name for the greeting ("Good afternoon, Vani"): the membership's
   // display_name (set whenever a login is created from an employee), falling
   // back to the linked employee record for older memberships without one.
-  let firstName = (membership?.display_name ?? "").trim().split(/\s+/)[0] || null;
+  let firstName = firstNameFrom(membership?.display_name);
   if (!firstName && membership?.employee_id) {
     const { data: emp } = await supabase
       .from("employees").select("first_name").eq("id", membership.employee_id).eq("tenant_id", tenantId).maybeSingle();
