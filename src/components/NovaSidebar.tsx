@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTenant, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/tenant-context";
 import type { NovaStreamItem } from "@/lib/nova/stream";
 import type { NovaFlow } from "@/lib/nova/flows";
-import { buildSpaces, spaceForHref, type SpaceItem } from "@/lib/nova/spaces";
+import { buildSpaceGroups, spaceForHref, type SpaceGroup } from "@/lib/nova/spaces";
 import { readNovaNavCache, fetchNovaNav } from "@/lib/nova/navClient";
+import { MOBILE_BREAKPOINT } from "@/lib/constants";
 import Sidebar from "./Sidebar";
 import Logo from "./Logo";
 
@@ -106,8 +107,9 @@ function ProgressRing({ percent, color, size = 36 }: { percent: number; color: s
  * that's the richer, already-proven way to browse every module. Toggling
  * again (or the same button, now a "restore" glyph) returns to normal.
  */
-export default function NovaSidebar({ onNavigate, showSpaces = false }: { onNavigate?: () => void; showSpaces?: boolean }) {
+export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const tenant = useTenant();
   const viewable = useViewableWorkcenters();
   const isWfmSupervisor = useIsWfmSupervisor();
@@ -115,11 +117,40 @@ export default function NovaSidebar({ onNavigate, showSpaces = false }: { onNavi
   const [flows, setFlows] = useState<NovaFlow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [maximized, setMaximized] = useState<Section | null>(null);
+  // Spaces flyout: which category is open, and where its panel anchors
+  // vertically (from the clicked button's own screen position).
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [anchorTop, setAnchorTop] = useState(120);
+  const [isMobile, setIsMobile] = useState(false);
+  const spacesRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  // Cache-first, then one shared network refresh (deduped with
-  // NovaSpacesBar via navClient) -- the sections used to sit empty for the
-  // whole cold-function round trip on every hard reload (owner-flagged:
-  // "Needs You Now / Flows take time to load").
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // Close the flyout on route change, outside click, and Escape.
+  useEffect(() => { setOpenGroup(null); }, [pathname]);
+  useEffect(() => {
+    if (!openGroup) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (spacesRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpenGroup(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpenGroup(null); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [openGroup]);
+
+  // Cache-first, then one shared network refresh (navClient) -- the
+  // sections used to sit empty for the whole cold-function round trip on
+  // every hard reload (owner-flagged: "Needs You Now / Flows take time to
+  // load").
   useEffect(() => {
     let cancelled = false;
     const apply = (data: { items: NovaStreamItem[]; flows: NovaFlow[] } | null, fromNetwork: boolean) => {
@@ -133,20 +164,10 @@ export default function NovaSidebar({ onNavigate, showSpaces = false }: { onNavi
     return () => { cancelled = true; };
   }, []);
 
-  // The top bar's "browse all modules" button raises this -- same classic
-  // sidebar-in-the-rail view the rail's own Spaces maximize toggles.
-  useEffect(() => {
-    const onBrowseAll = () => setMaximized((cur) => (cur === "spaces" ? null : "spaces"));
-    window.addEventListener("nova:browse-all", onBrowseAll);
-    return () => window.removeEventListener("nova:browse-all", onBrowseAll);
-  }, []);
-
   const features = (tenant?.features ?? {}) as Record<string, boolean>;
-  const spaces: SpaceItem[] = buildSpaces(features, viewable, isWfmSupervisor);
-  const attentionSpaces = new Set(items.map((it) => spaceForHref(it.href, spaces)).filter((h): h is string => h !== null));
-  // 6 columns x 2 rows fits without scrolling; a tenant with more modules
-  // than that scrolls the grid itself instead of it growing unbounded.
-  const spacesScrollable = spaces.length > 12;
+  const groups: SpaceGroup[] = buildSpaceGroups(features, viewable, isWfmSupervisor);
+  const allSpaceItems = groups.flatMap((g) => g.items);
+  const attentionHrefs = new Set(items.map((it) => spaceForHref(it.href, allSpaceItems)).filter((h): h is string => h !== null));
 
   function toggle(section: Section) {
     setMaximized((cur) => (cur === section ? null : section));
@@ -154,11 +175,25 @@ export default function NovaSidebar({ onNavigate, showSpaces = false }: { onNavi
 
   const showNeeds = maximized === null || maximized === "needs";
   const showFlows = maximized === null || maximized === "flows";
-  // Desktop moved Spaces categories into the top bar (NovaSpacesBar); the
-  // compact grid only renders inside the mobile drawer (showSpaces), where
-  // there's no header row to hold them.
-  const showSpacesRow = showSpaces && maximized === null;
+  const showSpacesRow = maximized === null;
   const spacesMaximized = maximized === "spaces";
+
+  const openG = groups.find((g) => g.key === openGroup) ?? null;
+
+  function onCategoryClick(g: SpaceGroup, e: React.MouseEvent<HTMLButtonElement>) {
+    if (g.items.length === 1) {
+      setOpenGroup(null);
+      onNavigate?.();
+      router.push(g.items[0].href);
+      return;
+    }
+    if (openGroup === g.key) { setOpenGroup(null); return; }
+    // Anchor the side panel near the clicked button, clamped so a category
+    // low in the rail can't push the panel past the bottom of the screen.
+    const rect = e.currentTarget.getBoundingClientRect();
+    setAnchorTop(Math.max(8, Math.min(rect.top - 6, window.innerHeight - 440)));
+    setOpenGroup(g.key);
+  }
 
   if (spacesMaximized) {
     // The full classic nav experience, exactly as requested -- favourites,
@@ -188,7 +223,9 @@ export default function NovaSidebar({ onNavigate, showSpaces = false }: { onNavi
         .nova-sb-row { transition: background .15s ease; }
         .nova-sb-row:hover { background: rgba(255,255,255,0.06); }
         .nova-sb-space { transition: background .15s ease, transform .15s ease; }
-        .nova-sb-space:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); }
+        .nova-sb-space:hover { background: rgba(255,255,255,0.09) !important; transform: translateY(-1px); }
+        .nova-sb-fly-row { transition: background .12s ease; }
+        .nova-sb-fly-row:hover { background: rgba(255,255,255,0.07); }
         .nova-sb-expand:hover { background: rgba(255,255,255,0.08); color: var(--nova-ink) !important; }
         @media (prefers-reduced-motion: reduce) {
           .nova-sb-live-dot { animation: none !important; }
@@ -199,55 +236,115 @@ export default function NovaSidebar({ onNavigate, showSpaces = false }: { onNavi
       <NovaHeader loaded={loaded} needCount={items.length} />
       <NovaCommandBar />
 
-      {/* Spaces -- compact icon row, now first */}
-      {showSpacesRow && spaces.length > 0 && (
-        <div style={{ padding: "4px 16px 12px", borderBottom: "1px solid var(--nova-line-soft)" }}>
-          <SectionHead
-            label="Spaces"
-            section="spaces"
-            maximized={maximized}
-            onToggle={toggle}
-            right={
-              <span style={{ fontSize: 9.5, color: "var(--nova-ink-faint)" }}>
-                {spacesScrollable ? `${spaces.length} · scroll for more` : "hover to identify"}
-              </span>
-            }
-          />
-          {/* Capped to 2 rows so a tenant with many modules doesn't push
-              Needs/Flows halfway down the rail -- scrolls internally past
-              that instead of growing the section indefinitely. */}
-          <div
-            className={spacesScrollable ? "nova-sb-spaces-scroll" : undefined}
-            style={{
-              display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6,
-              ...(spacesScrollable ? { maxHeight: 76, overflowY: "auto", paddingRight: 2 } : {}),
-            }}
-          >
-            {spaces.map((s) => {
-              const Icon = s.icon;
-              const active = pathname === s.href || pathname.startsWith(s.href + "/");
-              const hasAttention = attentionSpaces.has(s.href);
+      {/* Spaces -- one bigger icon per main area (Sales, Service, Master
+          data, Workforce, ...), where the flat 30-glyph grid used to be
+          (owner direction 2026-08-23: categories here, and the module list
+          opens in a panel NEXT TO the rail, Constellation-popover style --
+          not in the top bar). Unlabeled leaf glyphs stopped being guessable
+          past ~10; eight category icons with a labeled flyout scale
+          indefinitely as modules ship. */}
+      {showSpacesRow && groups.length > 0 && (
+        <div ref={spacesRef} style={{ padding: "4px 16px 12px", borderBottom: "1px solid var(--nova-line-soft)" }}>
+          <SectionHead label="Spaces" section="spaces" maximized={maximized} onToggle={toggle} />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+            {groups.map((g) => {
+              const Icon = g.icon;
+              const active = g.items.some((it) => pathname === it.href || pathname.startsWith(it.href + "/"));
+              const isOpen = openGroup === g.key;
+              const hasAttention = g.items.some((it) => attentionHrefs.has(it.href));
               return (
-                <Link
-                  key={s.href}
-                  href={s.href}
-                  onClick={onNavigate}
-                  title={s.label}
+                <button
+                  key={g.key}
+                  type="button"
+                  title={g.label}
+                  aria-label={g.label}
+                  aria-expanded={g.items.length > 1 ? isOpen : undefined}
+                  onClick={(e) => onCategoryClick(g, e)}
                   className="nova-sb-space"
                   style={{
                     position: "relative", aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
-                    borderRadius: 8, background: active ? "var(--nova-glass-border)" : "var(--nova-glass-bg)",
-                    border: "1px solid var(--nova-glass-border)", textDecoration: "none", minWidth: 0,
+                    borderRadius: 9, background: active || isOpen ? "var(--nova-glass-border)" : "var(--nova-glass-bg)",
+                    border: `1px solid ${isOpen ? "rgba(232,67,147,0.45)" : "var(--nova-glass-border)"}`,
+                    cursor: "pointer", minWidth: 0, padding: 0,
                   }}
                 >
-                  <Icon size={15} color={active ? "var(--nova-ink)" : "var(--nova-ink-dim)"} />
+                  <Icon size={19} color={active || isOpen ? "var(--nova-ink)" : "var(--nova-ink-dim)"} />
                   {hasAttention && (
-                    <span style={{ position: "absolute", top: 3, right: 3, width: 5, height: 5, borderRadius: "50%", background: "var(--nova-orange-soft)" }} />
+                    <span style={{ position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: "50%", background: "var(--nova-orange-soft)" }} />
                   )}
-                </Link>
+                  {active && (
+                    <span style={{ position: "absolute", left: 10, right: 10, bottom: 3, height: 2, borderRadius: 2, background: "var(--nova-pink)" }} />
+                  )}
+                </button>
               );
             })}
           </div>
+
+          {/* Mobile drawer: no room beside the rail, so the list expands
+              inline under the icon row instead of flying out. */}
+          {isMobile && openG && (
+            <div style={{ marginTop: 8, background: "var(--nova-glass-bg)", border: "1px solid var(--nova-glass-border)", borderRadius: 12, padding: 4 }}>
+              {openG.items.map((it) => {
+                const ItemIcon = it.icon;
+                const itemActive = pathname === it.href || pathname.startsWith(it.href + "/");
+                return (
+                  <Link key={it.href} href={it.href} onClick={() => { setOpenGroup(null); onNavigate?.(); }} className="nova-sb-row"
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 8, textDecoration: "none" }}>
+                    <ItemIcon size={15} color={itemActive ? "var(--nova-pink-soft)" : "var(--nova-ink-dim)"} />
+                    <span style={{ flex: 1, fontSize: 13, color: itemActive ? "var(--nova-ink)" : "var(--nova-ink-dim)" }}>{it.label}</span>
+                    {attentionHrefs.has(it.href) && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--nova-orange-soft)", flexShrink: 0 }} />}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Desktop: the category's modules in a glass panel beside the rail
+          (position: fixed escapes the rail's overflow: hidden; the mobile
+          drawer can't use this -- its translateX transform would make
+          "fixed" position against the drawer, hence the inline list above). */}
+      {!isMobile && openG && showSpacesRow && (
+        <div
+          ref={panelRef}
+          role="menu"
+          aria-label={openG.label}
+          style={{
+            position: "fixed", left: 272, top: anchorTop, zIndex: 130,
+            minWidth: 224, maxHeight: "min(480px, 80vh)", overflowY: "auto",
+            background: "rgba(10, 15, 30, 0.96)", backdropFilter: "blur(16px)",
+            border: "1px solid var(--nova-glass-border)", borderRadius: 14,
+            boxShadow: "0 12px 60px rgba(0,0,0,0.5)", padding: 6,
+          }}
+        >
+          <div style={{ fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", padding: "8px 10px 6px" }}>
+            {openG.label}
+          </div>
+          {openG.items.map((it) => {
+            const ItemIcon = it.icon;
+            const itemActive = pathname === it.href || pathname.startsWith(it.href + "/");
+            return (
+              <Link
+                key={it.href}
+                href={it.href}
+                role="menuitem"
+                onClick={() => { setOpenGroup(null); onNavigate?.(); }}
+                className="nova-sb-fly-row"
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "9px 10px",
+                  borderRadius: 9, textDecoration: "none",
+                  background: itemActive ? "var(--nova-glass-bg)" : "transparent",
+                }}
+              >
+                <ItemIcon size={15} color={itemActive ? "var(--nova-pink-soft)" : "var(--nova-ink-dim)"} />
+                <span style={{ flex: 1, fontSize: 13, color: itemActive ? "var(--nova-ink)" : "var(--nova-ink-dim)", whiteSpace: "nowrap" }}>{it.label}</span>
+                {attentionHrefs.has(it.href) && (
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--nova-orange-soft)", flexShrink: 0 }} />
+                )}
+              </Link>
+            );
+          })}
         </div>
       )}
 
