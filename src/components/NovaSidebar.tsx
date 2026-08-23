@@ -132,6 +132,9 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
   const features = (tenant?.features ?? {}) as Record<string, boolean>;
   const spaces: SpaceItem[] = buildSpaces(features, viewable, isWfmSupervisor);
   const attentionSpaces = new Set(items.map((it) => spaceForHref(it.href, spaces)).filter((h): h is string => h !== null));
+  // 6 columns x 2 rows fits without scrolling; a tenant with more modules
+  // than that scrolls the grid itself instead of it growing unbounded.
+  const spacesScrollable = spaces.length > 12;
 
   function toggle(section: Section) {
     setMaximized((cur) => (cur === section ? null : section));
@@ -189,9 +192,22 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
             section="spaces"
             maximized={maximized}
             onToggle={toggle}
-            right={<span style={{ fontSize: 9.5, color: "var(--nova-ink-faint)" }}>hover to identify</span>}
+            right={
+              <span style={{ fontSize: 9.5, color: "var(--nova-ink-faint)" }}>
+                {spacesScrollable ? `${spaces.length} · scroll for more` : "hover to identify"}
+              </span>
+            }
           />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
+          {/* Capped to 2 rows so a tenant with many modules doesn't push
+              Needs/Flows halfway down the rail -- scrolls internally past
+              that instead of growing the section indefinitely. */}
+          <div
+            className={spacesScrollable ? "nova-sb-spaces-scroll" : undefined}
+            style={{
+              display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6,
+              ...(spacesScrollable ? { maxHeight: 76, overflowY: "auto", paddingRight: 2 } : {}),
+            }}
+          >
             {spaces.map((s) => {
               const Icon = s.icon;
               const active = pathname === s.href || pathname.startsWith(s.href + "/");
