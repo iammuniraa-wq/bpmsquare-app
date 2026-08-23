@@ -66,20 +66,20 @@ export default function CoverageSettingsClient() {
     setLoading(true);
     setError("");
     try {
-      const [teamRows, segmentRows, coverageRows, memberRows, pushCfg, accountRows] = await Promise.all([
+      const [teamRows, segmentRows, coverageRows, teamResp, pushCfg, accountRows] = await Promise.all([
         api<Team[]>("/api/settings/coverage/teams"),
         api<Segment[]>("/api/settings/coverage/segments"),
         api<Coverage[]>("/api/settings/coverage/assignments"),
-        api<Member[]>("/api/settings/team"),
+        api<{ members?: Member[] }>("/api/settings/team"),
         api<{ endpoints?: Endpoint[] }>("/api/settings/integration-push"),
         api<AccountLite[]>("/api/accounts"),
       ]);
-      setTeams(teamRows);
-      setSegments(segmentRows);
-      setCoverages(coverageRows);
-      setMembers(memberRows);
+      setTeams(Array.isArray(teamRows) ? teamRows.map((t) => ({ ...t, team_members: Array.isArray(t.team_members) ? t.team_members : [] })) : []);
+      setSegments(Array.isArray(segmentRows) ? segmentRows : []);
+      setCoverages(Array.isArray(coverageRows) ? coverageRows : []);
+      setMembers(teamResp.members ?? []);
       setEndpoints(pushCfg.endpoints ?? []);
-      setAccounts(accountRows);
+      setAccounts(Array.isArray(accountRows) ? accountRows : []);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {

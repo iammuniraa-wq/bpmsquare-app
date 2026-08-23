@@ -18,8 +18,13 @@ export async function GET() {
   const { data, error } = await supabase
     .from("teams").select("*, team_members(user_id)")
     .eq("tenant_id", tenantId).order("name");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  if (error) {
+    // Degrades cleanly while 0101_coverage.sql is still pending (the owner
+    // applies migrations by hand) -- an empty list, never a crash.
+    if ((error as { code?: string }).code === "42P01") return NextResponse.json([]);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json(data ?? []);
 }
 
 export async function POST(request: NextRequest) {
@@ -64,7 +69,12 @@ export async function POST(request: NextRequest) {
     .from("teams")
     .insert({ tenant_id: tenantId, name, lead_user_id: lead_user_id ?? null })
     .select("*").single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    if ((error as { code?: string }).code === "42P01") {
+      return NextResponse.json({ error: "Coverage isn't set up on the server yet." }, { status: 503 });
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   if (memberIds.length > 0) {
     await admin.from("team_members").insert(

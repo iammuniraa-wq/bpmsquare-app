@@ -24,8 +24,11 @@ export async function GET() {
   const { data, error } = await supabase
     .from("coverages").select("*, segments(code, name), teams(name)")
     .eq("tenant_id", tenantId).order("created_at");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  if (error) {
+    if ((error as { code?: string }).code === "42P01") return NextResponse.json([]);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json(data ?? []);
 }
 
 export async function POST(request: NextRequest) {
@@ -67,7 +70,10 @@ export async function POST(request: NextRequest) {
       effective_to: effective_to || null,
     })
     .select("*").single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    if (error.code === "42P01") return NextResponse.json({ error: "Coverage isn't set up on the server yet." }, { status: 503 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   await logChange(supabase, {
     tenantId, objectType: "coverages", objectId: coverage.id,
