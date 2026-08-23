@@ -117,6 +117,7 @@ export const ROUTES = {
   settingsDeletionLog: "/settings/deletion-log",
   settingsConnectors: "/settings/connectors",
   settingsAccount360: "/settings/account-360",
+  settingsCoverage: "/settings/coverage",
   reports: "/reports",
   admin: "/admin",
   adminTenant: (id: string) => `/admin/tenants/${id}`,
@@ -449,6 +450,14 @@ export type TenantFeatures = {
   // the demo tenant first, missing key reads false so every existing tenant
   // is untouched.
   enterprise_theme: boolean;
+  // Coverage (owner decision 2026-08-26, from the "Orbit" proposal): the
+  // rule-based Team/Segment/Coverage org model, replacing flat territory/
+  // sales_org picklists with computed rules -- also drives auto-ownership,
+  // product availability gating, and per-coverage ERP routing. A sold
+  // module like products/pricing_engine, not an experimental-UI flag; still
+  // default OFF (missing key reads false) since it can reassign account
+  // ownership and reroute ERP pushes once on.
+  coverage_model: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -759,10 +768,17 @@ export type TenantConfig = {
   // a rep clicks "Push to ERP" on a record; distinct from (and simpler than)
   // the automatic event-driven Webhooks integration, which is still Coming
   // Soon. webhook_secret signs each push (HMAC-SHA256) so the receiver can
-  // verify it actually came from BPMSquare.
+  // verify it actually came from BPMSquare. webhook_url/webhook_secret
+  // remain the tenant's single DEFAULT endpoint -- unchanged, still used
+  // whenever a record's owning coverage doesn't specify one. `endpoints` is
+  // the multi-ERP addition (Coverage, 2026-08-26): named additional
+  // targets a coverage row can route to via its erp_endpoint_id (a
+  // client-generated id, matched against endpoints[].id -- not a DB fk,
+  // since these live in config jsonb like the default pair already did).
   integration_push?: {
     webhook_url?: string;
     webhook_secret?: string;
+    endpoints?: { id: string; name: string; webhook_url: string; webhook_secret: string }[];
   };
   // WFM module settings (only meaningful when features.wfm is on). Absent
   // keys fall back to DEFAULT_WFM_CONFIG.

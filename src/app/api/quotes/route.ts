@@ -4,6 +4,9 @@ import { generateNextQuoteRef } from "@/lib/quoteRef";
 import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig } from "@/lib/constants";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { getTenant } from "@/lib/tenant";
+import { accountMatchesAnySegment } from "@/lib/coverage/resolve";
+import type { Account } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -159,9 +162,25 @@ export async function POST(request: NextRequest) {
     }
     const prodIds = [...new Set(lineRows.map((l) => l.product_id).filter((x): x is string => typeof x === "string"))];
     if (prodIds.length > 0) {
-      const { data: prodRows } = await supabase.from("products").select("id").in("id", prodIds).eq("tenant_id", tenantId);
+      const { data: prodRows } = await supabase.from("products").select("id, name, available_segment_ids").in("id", prodIds).eq("tenant_id", tenantId);
       if (!prodRows || prodRows.length !== prodIds.length) {
         return NextResponse.json({ error: "One or more products were not found" }, { status: 404 });
+      }
+      // Product availability gating (Coverage) -- a product with
+      // available_segment_ids set is only sellable to an account matching
+      // one of those segments. Unrestricted products (the default) skip
+      // this entirely, so a tenant without the module pays nothing extra.
+      const restricted = (prodRows as { id: string; name: string; available_segment_ids: string[] | null }[])
+        .filter((p) => (p.available_segment_ids ?? []).length > 0);
+      if (restricted.length > 0) {
+        const tenant = await getTenant();
+        if (tenant?.features?.coverage_model) {
+          const { data: fullAccount } = await supabase.from("accounts").select("*").eq("id", account_id).eq("tenant_id", tenantId).maybeSingle();
+          for (const p of restricted) {
+            const ok = fullAccount && await accountMatchesAnySegment(tenantId, fullAccount as Account, p.available_segment_ids ?? []);
+            if (!ok) return NextResponse.json({ error: `"${p.name}" is not available for this account's segment` }, { status: 400 });
+          }
+        }
       }
     }
     if (lineRows.length > 0) {

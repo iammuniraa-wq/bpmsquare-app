@@ -33,7 +33,8 @@ export async function PATCH(request: NextRequest) {
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body: { webhook_url?: string; regenerate_secret?: boolean } = await request.json();
+  type EndpointInput = { id?: string; name: string; webhook_url: string; regenerate_secret?: boolean };
+  const body: { webhook_url?: string; regenerate_secret?: boolean; endpoints?: EndpointInput[] } = await request.json();
 
   const admin = createAdminSupabase();
   const { data: current, error: readErr } = await admin
@@ -45,10 +46,33 @@ export async function PATCH(request: NextRequest) {
 
   const currentConfig = (current?.config ?? {}) as TenantConfig;
   const currentPush = currentConfig.integration_push ?? {};
+
+  // Named ERP endpoints (Coverage's multi-ERP routing) -- full-array
+  // replace, same "blank secret means unchanged" convention Account 360's
+  // external sources already use: an entry with a matching id keeps its
+  // secret unless it asks to regenerate; a new entry (no id) gets a fresh
+  // id + secret. Omitting an existing entry from the array removes it.
+  let endpoints = currentPush.endpoints ?? [];
+  if (Array.isArray(body.endpoints)) {
+    const byId = new Map(endpoints.map((e) => [e.id, e]));
+    endpoints = body.endpoints
+      .filter((e) => e.name?.trim() && e.webhook_url?.trim())
+      .map((e) => {
+        const existing = e.id ? byId.get(e.id) : undefined;
+        return {
+          id: existing?.id ?? randomBytes(8).toString("hex"),
+          name: e.name.trim(),
+          webhook_url: e.webhook_url.trim(),
+          webhook_secret: existing && !e.regenerate_secret ? existing.webhook_secret : randomBytes(24).toString("hex"),
+        };
+      });
+  }
+
   const merged = {
     ...currentPush,
     ...(body.webhook_url !== undefined ? { webhook_url: body.webhook_url || undefined } : {}),
     ...(body.regenerate_secret ? { webhook_secret: randomBytes(24).toString("hex") } : {}),
+    endpoints,
   };
 
   const { error } = await admin

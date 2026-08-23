@@ -1,13 +1,15 @@
 import "server-only";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { LOSS_REASON_LABEL, type Account360Config, type LossReason } from "@/lib/constants";
+import { LOSS_REASON_LABEL, type Account360Config, type LossReason, type TenantFeatures } from "@/lib/constants";
 import type { Account, Contact, Invoice, Quote, ServiceCase } from "@/lib/types";
 import { decryptAccount } from "@/lib/encryption";
 import { computeRating, type RatingSignals } from "./rating";
 import { loadExternalCard } from "./externalSource";
+import { resolveCoverageForAccount } from "@/lib/coverage/resolve";
 import type {
   Account360Card,
   Account360Payload,
+  Account360Row,
   Account360Suggestion,
 } from "./types";
 
@@ -50,6 +52,9 @@ export async function buildAccount360(
   // Decrypted because gstin/email are the identifiers an external source is
   // actually keyed on -- ciphertext would silently match nothing.
   const account = decryptAccount(accountRow as Account);
+
+  const { data: tenantFeatureRow } = await admin.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  const coverageOn = (tenantFeatureRow?.features as TenantFeatures | undefined)?.coverage_model === true;
 
   const [
     { data: contactRows },
@@ -233,9 +238,13 @@ export async function buildAccount360(
     const d = c.end_date ? Math.floor((new Date(c.end_date).getTime() - Date.now()) / DAY) : null;
     return d !== null && d >= 0 && d <= 60;
   });
+  // Titled "Contracts" (not "Coverage") to avoid colliding with the new
+  // Coverage module's own "Sales coverage" card below -- id stays "coverage"
+  // unchanged so a tenant's existing hidden_cards/card_order config isn't
+  // silently orphaned by a rename.
   const coverageCard: Account360Card = {
     id: "coverage",
-    title: "Coverage",
+    title: "Contracts",
     subtitle: activeContracts.length ? `${activeContracts.length} active contract(s)` : "No active contract",
     kind: "internal",
     rows: contracts.slice(0, 5).map((c) => ({
@@ -255,6 +264,29 @@ export async function buildAccount360(
     installed_base: installedCard,
     coverage: coverageCard,
   };
+
+  // ── Sales coverage (Coverage module) ─────────────────────────────────────
+  // Deliberately NOT named "coverage" -- that id is already the contracts
+  // card above (built long before the Coverage feature existed). Only
+  // computed/registered when the tenant has the module on, so a tenant
+  // without it never pays for the extra queries or sees an empty card.
+  let activeBuiltinIds: readonly string[] = BUILTIN_CARD_IDS;
+  if (coverageOn) {
+    const resolved = await resolveCoverageForAccount(tenantId, account);
+    const rows: Account360Row[] = [];
+    if (resolved.owner) rows.push({ title: resolved.owner.team.name, meta: `Owner · ${resolved.owner.segment.code}`, tone: "good" });
+    for (const a of resolved.overlays) rows.push({ title: a.team.name, meta: `Overlay · ${a.segment.code}` });
+    for (const a of resolved.services) rows.push({ title: a.team.name, meta: `Service · ${a.segment.code}` });
+    builtins.sales_coverage = {
+      id: "sales_coverage",
+      title: "Sales coverage",
+      subtitle: resolved.owner ? `Owned by ${resolved.owner.team.name}` : "No matching owner segment",
+      kind: "internal",
+      rows,
+      empty: rows.length === 0 ? "No segment matches this account yet" : undefined,
+    };
+    activeBuiltinIds = [...BUILTIN_CARD_IDS, "sales_coverage"];
+  }
 
   // ── Rating ──────────────────────────────────────────────────────────────
   const activityDates = [
@@ -364,7 +396,7 @@ export async function buildAccount360(
   const order = config?.card_order ?? [];
   const orderedIds = [
     ...order.filter((id) => id in builtins),
-    ...BUILTIN_CARD_IDS.filter((id) => !order.includes(id)),
+    ...activeBuiltinIds.filter((id) => !order.includes(id)),
   ];
   const cards: Account360Card[] = orderedIds.filter((id) => !hidden.has(id)).map((id) => builtins[id]);
 

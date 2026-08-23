@@ -367,6 +367,21 @@ deploy for an automatic schema change.
   mirrors deriveCode() in src/lib/picklists.ts — keep in sync. The app
   normalizes legacy plain-string config on read, so code deploys safely
   BEFORE the migration runs; record values only get codes when 0100 runs.
+- **0101_coverage.sql — PENDING on both DBs** (written 2026-08-26, owner
+  decision same day, full-scope build not phased): the Coverage model —
+  `teams`/`team_members`/`segments`/`coverages` tables (SELECT-only RLS;
+  every write goes through the admin client behind an app-level
+  `role === "admin"` check, since a forged row here can reassign account
+  ownership or reroute ERP push — see the migration's own comment for the
+  risk reasoning), plus `accounts.owner_user_id` (auto-ownership) and
+  `products.available_segment_ids` (availability gating). Until it runs,
+  the whole module degrades cleanly behind the `coverage_model` feature
+  flag, which no tenant has yet.
+- **scripts/seed-coverage-demo.sql — PENDING, run AFTER 0101** (dev DB at
+  minimum): seeds the deck's own worked example (South Pod / Hospital
+  Specialists / AMC Service Desk, wired to SOUTH/HOSPITALS/AMC_BASE
+  segments) into the `is_demo` tenant and flips `features.coverage_model`
+  on. Idempotent.
   **Run order: 0098 → 0099 → 0100 → seed-products-demo.sql.**
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its

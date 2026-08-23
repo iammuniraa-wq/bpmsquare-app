@@ -3,6 +3,9 @@ import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { getTenant } from "@/lib/tenant";
+import { applyAutoOwnership } from "@/lib/coverage/resolve";
+import type { Account } from "@/lib/types";
 
 export async function GET() {
   let supabase, tenantId;
@@ -98,9 +101,19 @@ export async function POST(request: NextRequest) {
       sales_org: sales_org || null,
       referred_by_account_id: referred_by_account_id || null,
       ...(custom_data && Object.keys(custom_data).length > 0 ? { custom_data } : {}),
-    }, "id, name");
+    }, "*");
 
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Insert failed" }, { status: 500 });
+
+  // Auto-ownership (Coverage) -- resolve the new account's OWNER coverage
+  // and set owner_user_id, same as it will be recomputed on every future
+  // update. Only queried when the tenant actually has the module on, so an
+  // account create for every other tenant costs nothing extra.
+  const tenant = await getTenant();
+  if (tenant?.features?.coverage_model) {
+    const ownerUserId = await applyAutoOwnership(tenantId, data as Account);
+    (data as Account).owner_user_id = ownerUserId;
+  }
 
   const user = await getAuthUser();
   await logChange(supabase, {

@@ -91,7 +91,7 @@ const nullAccountFields = {
   address_line1: null, address_line2: null, state: null, postal_code: null, country: null,
   phone2: null, email2: null, website: null, industry: null, employee_count: null,
   annual_revenue: null, gstin: null, notes: null, custom_data: null,
-  territory: null, sales_org: null, marketing_opt_out: false,
+  territory: null, sales_org: null, marketing_opt_out: false, owner_user_id: null,
 };
 
 export const accounts: Account[] = [

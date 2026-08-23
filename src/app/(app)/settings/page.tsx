@@ -54,6 +54,7 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
       { label: "Statuses & assets", description: "Configure pipeline stages and equipment print fields", href: ROUTES.settingsStatuses, icon: "▦", pillarKey: "teal", adminOnly: true, featureKey: "assets", relatedWorkcenter: "quotations" },
       { label: "Sales config", description: "Manage territory and sales org picklist values", href: ROUTES.settingsSales, icon: "▤", pillarKey: "teal", adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
       { label: "Workforce", description: "Attendance rules, timezone, break deduction, leave and retention — plus punch sites and shifts", href: ROUTES.settingsWorkforce, icon: "⧖", pillarKey: "amber", adminOnly: true, featureKey: "wfm", relatedWorkcenter: "wfm" },
+      { label: "Coverage", description: "Teams, rule-based segments and the wiring that replaces flat territory/sales org assignment — also drives auto-ownership, product availability and ERP routing", href: ROUTES.settingsCoverage, icon: "◭", pillarKey: "teal", adminOnly: true, featureKey: "coverage_model" },
     ],
   },
   {

@@ -40,6 +40,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "purchasing",   label: "Inventory & Purchasing", group: "Sales & Service add-ons" },
   { key: "standard_quotes", label: "Standard Quotes",     group: "Sales & Service add-ons" },
   { key: "quote_lines_dw",  label: "Quote Lines (Data Workbench)", group: "Sales & Service add-ons" },
+  { key: "coverage_model",  label: "Coverage (rule-based teams/segments, auto-ownership, ERP routing)", premium: true, group: "Sales & Service add-ons" },
   { key: "ai_assistant",   label: "AI Assistant", premium: true, group: "Platform & automation" },
   { key: "db_export",      label: "DB Export",    premium: true, group: "Platform & automation" },
   { key: "change_history",        label: "Change History",         group: "Platform & automation" },

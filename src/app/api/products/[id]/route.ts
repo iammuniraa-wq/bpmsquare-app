@@ -36,10 +36,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data"];
+  const allowed = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data", "available_segment_ids"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
   patch.updated_at = new Date().toISOString();
+
+  // available_segment_ids (Coverage) are foreign ids from the request body --
+  // verify each belongs to this tenant before writing (MULTI_TENANT_GUARDRAILS.md).
+  if (Array.isArray(patch.available_segment_ids)) {
+    const segIds = [...new Set((patch.available_segment_ids as unknown[]).filter((x): x is string => typeof x === "string"))];
+    if (segIds.length > 0) {
+      const { data: segRows } = await supabase.from("segments").select("id").eq("tenant_id", tenantId).in("id", segIds);
+      if (!segRows || segRows.length !== segIds.length) {
+        return NextResponse.json({ error: "One or more segments were not found" }, { status: 404 });
+      }
+    }
+    patch.available_segment_ids = segIds;
+  }
 
   const { data: before } = await supabase
     .from("products")

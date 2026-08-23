@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { encrypt, decrypt, decryptAccount } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { getTenant } from "@/lib/tenant";
+import { applyAutoOwnership } from "@/lib/coverage/resolve";
+import type { Account } from "@/lib/types";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -95,6 +98,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const decrypted = decryptAccount(data as import("@/lib/types").Account);
+
+  // Recompute auto-ownership -- a field this update just changed (state,
+  // industry, territory, ...) may move the account into or out of a
+  // different OWNER coverage. Only queried when the module is on.
+  const tenant = await getTenant();
+  if (tenant?.features?.coverage_model) {
+    decrypted.owner_user_id = await applyAutoOwnership(tenantId, decrypted as Account);
+  }
+
   const user = await getAuthUser();
   const changes = diffForLog("accounts", beforePlaintext, patchPlaintext);
   if (changes.length > 0) {
@@ -104,5 +117,5 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
   }
 
-  return NextResponse.json(decryptAccount(data as import("@/lib/types").Account));
+  return NextResponse.json(decrypted);
 }

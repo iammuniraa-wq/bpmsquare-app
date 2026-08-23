@@ -3,6 +3,9 @@ import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supab
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
 import { parseDateOverride } from "@/lib/dateProfile";
+import { getTenant } from "@/lib/tenant";
+import { accountMatchesAnySegment } from "@/lib/coverage/resolve";
+import type { Account } from "@/lib/types";
 
 // Full edit of a DRAFT quote: header fields + line items (replaced wholesale).
 // Server enforces draft-only; sent/approved quotes must use /revise instead.
@@ -117,9 +120,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
   const prodIds = [...new Set(cleanLines.map((l) => l.product_id).filter((x): x is string => typeof x === "string"))];
   if (prodIds.length > 0) {
-    const { data: prodRows } = await supabase.from("products").select("id").in("id", prodIds).eq("tenant_id", tenantId);
+    const { data: prodRows } = await supabase.from("products").select("id, name, available_segment_ids").in("id", prodIds).eq("tenant_id", tenantId);
     if (!prodRows || prodRows.length !== prodIds.length) {
       return NextResponse.json({ error: "One or more products were not found" }, { status: 404 });
+    }
+    // Product availability gating (Coverage) -- same check as quote create;
+    // uses the account this quote will have after the save (a body override
+    // if present, else the quote's existing account).
+    const restricted = (prodRows as { id: string; name: string; available_segment_ids: string[] | null }[])
+      .filter((p) => (p.available_segment_ids ?? []).length > 0);
+    if (restricted.length > 0) {
+      const tenant = await getTenant();
+      if (tenant?.features?.coverage_model) {
+        const effectiveAccountId = account_id !== undefined ? account_id : quote.account_id;
+        const { data: fullAccount } = await supabase.from("accounts").select("*").eq("id", effectiveAccountId).eq("tenant_id", tenantId).maybeSingle();
+        for (const p of restricted) {
+          const ok = fullAccount && await accountMatchesAnySegment(tenantId, fullAccount as Account, p.available_segment_ids ?? []);
+          if (!ok) return NextResponse.json({ error: `"${p.name}" is not available for this account's segment` }, { status: 400 });
+        }
+      }
     }
   }
 

@@ -60,6 +60,14 @@ export const SEGMENT_FIELDS: SegmentFieldDef[] = [
   { key: "annual_revenue", label: "Annual revenue", category: "Business", type: "number", operators: ["gt", "lt", "equals"] },
   { key: "marketing_opt_out", label: "Marketing opt-out", category: "Engagement", type: "boolean", operators: ["is_true", "is_false"] },
   { key: "created_at", label: "Customer since", category: "Account info", type: "date", operators: ["before", "after"] },
+  // Coverage (0101) computed fields -- not plain account columns, so the
+  // caller building the `record` object passed to matchesAllFilters has to
+  // compute them first (see src/lib/coverage/resolve.ts's
+  // computeAccountSignals). Listed here, per this file's own extensibility
+  // doctrine, so the same Segment rule builder UI can offer them alongside
+  // the plain fields with no special-casing.
+  { key: "has_active_amc", label: "Has active AMC", category: "Coverage", type: "boolean", operators: ["is_true", "is_false"] },
+  { key: "owned_product_skus", label: "Has bought product (SKU/name)", category: "Coverage", type: "text", operators: ["contains"] },
 ];
 
 export function getSegmentField(key: string): SegmentFieldDef | undefined {

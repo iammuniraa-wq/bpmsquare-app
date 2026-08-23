@@ -39,6 +39,10 @@ export type Account = {
   created_at: string;
   custom_data: Record<string, unknown> | null;
   marketing_opt_out: boolean;
+  /** Coverage (0101) -- auto-resolved from the account's matching OWNER
+   * coverage, never hand-picked from a dropdown. Null when no OWNER
+   * coverage matches. Recomputed after every create/update. */
+  owner_user_id: string | null;
 };
 
 export type MarketingCampaignStatus = "draft" | "sending" | "sent" | "failed";
@@ -696,6 +700,65 @@ export type Product = {
   custom_data: Record<string, unknown> | null;
   created_at: string;
   updated_at?: string;
+  /** Coverage (0101) -- segment ids this product is restricted to selling
+   * within. Empty = sellable everywhere (today's behaviour, unchanged). */
+  available_segment_ids: string[];
+};
+
+// ── Coverage (0101) ──────────────────────────────────────────────────────────
+// Team = people. Segment = a saved rule over accounts. Coverage = the
+// wiring joining them with a role -- see supabase/migrations/0101_coverage.sql
+// for the full design rationale.
+
+export type CoverageRole = "owner" | "overlay" | "service";
+
+export type Team = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  lead_user_id: string | null;
+  custom_data: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TeamMember = {
+  id: string;
+  tenant_id: string;
+  team_id: string;
+  user_id: string;
+  created_at: string;
+};
+
+export type Segment = {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  filters: SegmentFilter[];
+  match: "all" | "any";
+  /** Explicit named-account overrides -- ORed with the filter match. */
+  account_ids: string[];
+  custom_data: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Coverage = {
+  id: string;
+  tenant_id: string;
+  segment_id: string;
+  team_id: string;
+  role: CoverageRole;
+  /** Owner-conflict precedence -- lower wins. Irrelevant to overlay/service. */
+  priority: number;
+  /** Matches config.integration_push.endpoints[].id; null = tenant default. */
+  erp_endpoint_id: string | null;
+  effective_from: string;
+  effective_to: string | null;
+  custom_data: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
 };
 
 // ── Inventory ─────────────────────────────────────────────────────────────────

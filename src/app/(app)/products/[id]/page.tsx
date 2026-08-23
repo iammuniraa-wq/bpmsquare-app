@@ -11,9 +11,11 @@ import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import DeleteProductButton from "./DeleteProductButton";
+import ProductAvailabilityCard from "./ProductAvailabilityCard";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
+import { getTenant } from "@/lib/tenant";
 
 const inr = (n: number | null) =>
   n == null ? "—" : "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
@@ -50,6 +52,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const margin = product.list_price != null && product.cost_price != null && product.list_price > 0
     ? Math.round(((product.list_price - product.cost_price) / product.list_price) * 1000) / 10
     : null;
+  const tenant = await getTenant();
+  const coverageOn = tenant?.features?.coverage_model === true;
 
   return (
     <>
@@ -90,6 +94,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             {product.tax_percent != null && <CtxRow label="Tax" value={`${product.tax_percent}%`} />}
             <CtxRow label="Added" value={fmtDate(product.created_at)} />
           </section>
+
+          {coverageOn && <ProductAvailabilityCard productId={product.id} initial={product.available_segment_ids ?? []} />}
 
           <DeleteProductButton product={product} />
         </div>

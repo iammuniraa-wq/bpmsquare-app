@@ -18,7 +18,8 @@ const BUILTINS: { id: string; label: string; description: string }[] = [
   { id: "service", label: "Service", description: "Open cases, average turnaround, open work orders" },
   { id: "people", label: "People", description: "Every contact attached to the account" },
   { id: "installed_base", label: "Installed base", description: "The assets this account owns" },
-  { id: "coverage", label: "Coverage", description: "Contracts, their dates and value" },
+  { id: "coverage", label: "Contracts", description: "Contracts, their dates and value" },
+  { id: "sales_coverage", label: "Sales coverage", description: "Owner/overlay/service teams from the Coverage module (only shown when it's on)" },
 ];
 
 type SourceDraft = Omit<Account360SourceDef, "auth_value"> & { auth_value?: string; has_secret?: boolean };
