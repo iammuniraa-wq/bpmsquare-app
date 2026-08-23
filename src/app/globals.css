@@ -519,6 +519,42 @@ html, body {
   color: var(--nova-ink);
   font-family: var(--nova-font-body);
 }
+
+/* Shell's top identity bar and TabBar (the open-record tab strip) are
+   shared chrome that renders above every theme's content, driven entirely
+   by the --sb-* ("sidebar") token family -- unlike the page content below
+   them, they were never given a Nova-specific look, so they still showed
+   flat/light classic colours (a blue tab underline, --sb-line borders that
+   read as visible seams against Nova's near-black ground) floating above
+   the dark glass content underneath (owner-flagged 2026-08-24). Overriding
+   the same tokens Sidebar.tsx/TabBar.tsx/IdentityMenu/NovaInbox already
+   consume reskins all of them at once, no component changes needed --
+   same mechanism the classic/nextgen/modern themes already use. */
+[data-nova="true"] {
+  --sb-bar-bg:        rgba(6, 8, 15, 0.92);
+  --sb-line:           var(--nova-line-soft);
+  --sb-strong:         var(--nova-ink);
+  --sb-text:           var(--nova-ink-dim);
+  --sb-text-dim:       var(--nova-ink-dim);
+  --sb-text-faint:     var(--nova-ink-faint);
+  --sb-icon-muted:     var(--nova-ink-dim);
+  --sb-hover:          var(--nova-glass-bg);
+  --sb-hover-strong:   var(--nova-glass-border);
+  --sb-active-bg:      var(--nova-purple-bg);
+
+  --sb-tab-underline:    var(--nova-pink);
+  --sb-tab-sub-active:   var(--nova-pink-soft);
+
+  --sb-search-bg:      var(--nova-glass-bg);
+  --sb-search-border:  var(--nova-glass-border);
+  --sb-search-icon:    var(--nova-ink-dim);
+
+  --sb-panel-bg:       rgba(10, 15, 30, 0.96);
+  --sb-panel-border:   var(--nova-glass-border);
+  --sb-panel-text:     var(--nova-ink);
+  --sb-panel-text-dim: var(--nova-ink-faint);
+  --sb-panel-hover:    var(--nova-glass-border);
+}
 [data-nova="true"] h1,
 [data-nova="true"] h2,
 [data-nova="true"] h3,
