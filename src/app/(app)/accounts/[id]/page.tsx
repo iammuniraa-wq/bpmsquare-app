@@ -20,8 +20,10 @@ import { MapPin, Phone, Mail, Gear, Activity as ActivityIcon, Package, FileText 
 import AccountHeader from "./AccountHeader";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import NovaAccountStorySlot from "@/components/NovaAccountStorySlot";
+import NovaAccountCanvasSlot from "@/components/NovaAccountCanvasSlot";
 import Account360Button from "@/components/Account360Button";
 import { buildAccountStoryEvents, computeAccountHealth } from "@/lib/nova/accountStory";
+import { buildAccountCanvas } from "@/lib/nova/accountCanvas";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
 
@@ -179,6 +181,10 @@ export default async function AccountHubPage({
     invoices: hub.invoices,
     contacts: hub.contacts,
   });
+  const { contactNodes, dealNodes } = buildAccountCanvas({ contacts: hub.contacts, quotes: hub.quotes });
+  const openQuoteCount = hub.quotes.filter((q) => q.outcome === "open").length;
+  const openQuoteValue = hub.quotes.filter((q) => q.outcome === "open").reduce((t, q) => t + (q.total ?? 0), 0);
+  const canvasMeta = `${ACCOUNT_TYPE_LABEL[account.type]} · ${openQuoteCount} open worth ${fmtINR(openQuoteValue)}`;
 
   return (
     <>
@@ -227,6 +233,7 @@ export default async function AccountHubPage({
       </AccountHeader>
 
       <NovaAccountStorySlot accountName={account.name} events={storyEvents} health={health} />
+      <NovaAccountCanvasSlot accountName={account.name} accountMeta={canvasMeta} contactNodes={contactNodes} dealNodes={dealNodes} />
 
       {/* ── Tab bar ───────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 0, marginBottom: 14, borderBottom: `1px solid ${c.line}`, overflowX: "auto" }}>
