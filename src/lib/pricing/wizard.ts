@@ -365,14 +365,27 @@ export function matchMethodTemplate(procedures: { code: string; entry_mode: stri
 
 // ── Draft-seeding mutations ─────────────────────────────────────────────────
 // Ordered list of POST /api/settings/pricing-engine/config bodies that build
-// a template out on a fresh DRAFT version. Dimensions are version-independent
-// (no `version` field); components/cost model/procedure are version-scoped.
-// Rules are deliberately NOT included here — the wizard's "Numbers" step
-// collects the tenant's own rate table (defaultRows are just its seed) and
-// submits each row itself, one rule mutation per row the tenant confirms.
+// a template out on a version. Dimensions are version-independent (no
+// `version` field); components/cost model shell/procedure are version-scoped
+// and safely re-syncable (the config route upserts all three on
+// tenant_id+config_version+code). Rules are deliberately NOT included here —
+// the wizard's "Numbers" step collects the tenant's own rate table
+// (defaultRows are just its seed) and submits each row itself.
+//
+// Cost input RATES are handled separately (missingCostInputMutations, below)
+// rather than folded into this function: pricing_cost_inputs has no
+// config_version column at all (spec §3 -- "cost inputs resolve by
+// effective date only", shared across every version/draft of a tenant's
+// cost model) and the config route's cost_input case is a plain
+// insert/update-by-id, not an upsert keyed on (cost_model_code, path). If
+// this function re-pushed them on every draft resume the way it does the
+// version-scoped entities, a tenant would accumulate duplicate rate rows
+// with identical (null) valid_from every time they reopened Pricing setup
+// -- which the engine correctly refuses to resolve (AMBIGUOUS_COST_INPUT)
+// rather than silently picking one.
 
 export type ConfigMutation = {
-  entity: "dimension" | "component" | "procedure" | "cost_model";
+  entity: "dimension" | "component" | "procedure" | "cost_model" | "cost_input";
   op: "upsert";
   version?: number;
   area?: string;
@@ -395,6 +408,31 @@ export function templateMutations(template: MethodTemplate, version: number, are
     data: { code: template.procedure.procedure_id, name: template.label, entry_mode: template.procedure.entry_mode, steps: template.procedure.steps },
   });
   return mutations;
+}
+
+/**
+ * Seeds a cost model's starter rates, but ONLY for (cost_model_code, path)
+ * pairs that don't already have a rate on file for this tenant -- pass in
+ * whatever pricing_cost_inputs rows the caller already has (any version's
+ * snapshot carries the full tenant-wide list, since these aren't
+ * version-scoped). Safe to call on every entry into the wizard: a brand-new
+ * cost model gets its full starter rate sheet, an already-seeded one (from
+ * an earlier draft, or a rate an admin has since edited) is left untouched
+ * rather than duplicated.
+ */
+export function missingCostInputMutations(
+  template: MethodTemplate,
+  existingCostInputs: { cost_model_code: string; path: string }[],
+  area = "default"
+): ConfigMutation[] {
+  if (!template.costModel) return [];
+  const have = new Set(existingCostInputs.filter((i) => i.cost_model_code === template.costModel!.code).map((i) => i.path));
+  return template.costModel.inputs
+    .filter((input) => !have.has(input.path))
+    .map((input) => ({
+      entity: "cost_input" as const, op: "upsert" as const, area,
+      data: { cost_model_code: template.costModel!.code, path: input.path, kind: input.kind, value: input.value, uom: input.uom ?? null, currency: input.currency ?? null },
+    }));
 }
 
 // ── Plain-language rule sentences ───────────────────────────────────────────

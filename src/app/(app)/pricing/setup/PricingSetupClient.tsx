@@ -5,14 +5,15 @@ import Link from "next/link";
 import { c, pillar } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import {
-  PRICING_METHODS, sampleDocumentLine, templateMutations, matchMethodTemplate,
+  PRICING_METHODS, sampleDocumentLine, templateMutations, missingCostInputMutations, matchMethodTemplate,
   type MethodTemplate, type PricingMethodKey, type EditableComponent, type RateRow, type ScaleEntry,
 } from "@/lib/pricing/wizard";
 import RateSnapshotView, { type SnapshotRule } from "../RateSnapshotView";
 
 type VersionRow = { version: number; status: "DRAFT" | "PUBLISHED" | "SUPERSEDED" };
 type SnapshotProcedure = { code: string; entry_mode: string };
-type Snapshot = { procedures: SnapshotProcedure[]; rules: SnapshotRule[] };
+type SnapshotCostInput = { cost_model_code: string; path: string };
+type Snapshot = { procedures: SnapshotProcedure[]; rules: SnapshotRule[]; cost_inputs: SnapshotCostInput[] };
 
 type RowsByComponent = Record<string, RateRow[]>;
 type RowsSetter = Dispatch<SetStateAction<RowsByComponent>>;
@@ -43,21 +44,28 @@ function defaultRows(template: MethodTemplate): RowsByComponent {
 }
 
 /**
- * Re-push a template's dimensions/components/procedure/cost-model onto a
- * version that already exists (a resumed draft, or one just cloned from
- * PUBLISHED). Idempotent upsert, always safe to run. Without this, a draft
+ * Re-push a template's dimensions/components/procedure/cost-model shell onto
+ * a version that already exists (a resumed draft, or one just cloned from
+ * PUBLISHED), plus any cost-model rate the tenant doesn't already have on
+ * file. Idempotent, always safe to run. Without the structural half, a draft
  * created under an older build of wizard.ts keeps its STALE component
  * definitions forever -- e.g. if a component's calc_type changes (as
  * LIST_PRICE/BASE_VALUE/BASE_PRICE did, PER_UNIT -> SCALE_TIERED, to add
  * volume tiering), a resumed old draft would still have the DB's PER_UNIT
  * component but the wizard would submit rules shaped for SCALE_TIERED
  * (value: null, scale: {...}) -- PER_UNIT reads `rule.value ?? 0`, so a null
- * value silently prices that component at zero. Every "numbers" entry point
- * (fresh draft, resumed draft, cloned draft) now syncs first so the DB
- * definition can never drift from what this build of the wizard assumes.
+ * value silently prices that component at zero. Without the cost-input half,
+ * a COST_ROLLUP component (material/labour cost) has a cost model with no
+ * rates at all -- computeRollup() finds nothing to roll up and contributes
+ * 0, which cascades through margin/discount/tax to a zero Sample bill.
+ * Every "numbers" entry point (fresh draft, resumed draft, cloned draft)
+ * syncs both so the DB can never drift from what this build assumes.
  */
-async function syncTemplateDefinitions(t: MethodTemplate, version: number) {
+async function syncTemplateDefinitions(t: MethodTemplate, version: number, existingCostInputs: SnapshotCostInput[]) {
   for (const mutation of templateMutations(t, version, "default")) {
+    await postJson("/api/settings/pricing-engine/config", mutation);
+  }
+  for (const mutation of missingCostInputMutations(t, existingCostInputs, "default")) {
     await postJson("/api/settings/pricing-engine/config", mutation);
   }
 }
@@ -168,7 +176,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
         const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${draft.version}?area=default`, null, "GET");
         const t = matchMethodTemplate(snap.procedures);
         if (!t) { setPhase("unsupported"); return; }
-        await syncTemplateDefinitions(t, draft.version);
+        await syncTemplateDefinitions(t, draft.version, snap.cost_inputs);
         setTemplate(t);
         setVersion(draft.version);
         setRows(rowsFromSnapshot(t, snap));
@@ -201,7 +209,8 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
     try {
       const created = await postJson("/api/settings/pricing-engine/versions", { area: "default" });
       const v = created.version.version as number;
-      await syncTemplateDefinitions(t, v);
+      const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${v}?area=default`, null, "GET");
+      await syncTemplateDefinitions(t, v, snap.cost_inputs);
       setTemplate(t);
       setVersion(v);
       setRows(defaultRows(t));
@@ -223,7 +232,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
       const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${v}?area=default`, null, "GET");
       const t = matchMethodTemplate(snap.procedures) ?? template;
       if (!t) { setPhase("unsupported"); return; }
-      await syncTemplateDefinitions(t, v);
+      await syncTemplateDefinitions(t, v, snap.cost_inputs);
       setTemplate(t);
       setVersion(v);
       setRows(rowsFromSnapshot(t, snap));
