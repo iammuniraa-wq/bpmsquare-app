@@ -11,6 +11,9 @@ android/
 ios/
 *.iml
 *.lock
+.idea/
+.vscode/
+.DS_Store
 
 # Signing secrets -- never committed, see README step 5.
 android/key.properties
