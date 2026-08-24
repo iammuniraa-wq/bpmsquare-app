@@ -59,6 +59,16 @@ export type ParsedQuery = {
    * unreadable chart -- this caps it at the engine level so every consumer
    * of group_by gets the protection, not just chart-rendering callers. */
   groupLimit: number | null;
+  /** ?having=sum_total:gt:50000 -> filter GROUPS by an aggregate value (or
+   * "count") after group_by -- SQL HAVING semantics. "Accounts whose quote
+   * value exceeds 50k" is a condition on the group's sum, not on any single
+   * row; without this the only expressible query filters individual rows,
+   * which answers a subtly different question. Applied before group_limit. */
+  having: { key: string; op: FilterOp; value: number }[];
+  /** ?group_sort=sum_total (or "count", or "-key") -> which value orders the
+   * groups. Default remains count desc; a value-based question should sort
+   * by its own aggregate so the chart reads biggest-first. */
+  groupSort: { key: string; dir: "asc" | "desc" } | null;
   /** ?count=only -> return meta only, no data rows. */
   countOnly: boolean;
 };
@@ -174,6 +184,50 @@ export function parseListQuery(
     }
   }
 
+  // having -- filter groups by aggregate value or count (HAVING semantics).
+  // Keys are aggregate result keys ("sum_total", "avg_total", ...) or "count";
+  // validated against the aggregates actually requested so a typo fails loudly.
+  const having: { key: string; op: FilterOp; value: number }[] = [];
+  const havingRaw = sp.get("having");
+  if (havingRaw) {
+    const validKeys = new Set(["count", ...aggregates.filter((a) => a.fn !== "count").map((a) => `${a.fn}_${a.path}`)]);
+    for (const clause of havingRaw.split(";").map((s) => s.trim()).filter(Boolean)) {
+      const [key, op, rawValue] = clause.split(":").map((s) => s.trim());
+      if (!key || !op || rawValue === undefined) {
+        errors.push({ param: "having", message: `Malformed clause "${clause}". Use key:op:value (e.g. sum_total:gt:50000).` });
+        continue;
+      }
+      if (!OPS.includes(op as FilterOp) || op === "like" || op === "in" || op === "isnull") {
+        errors.push({ param: "having", message: `having supports eq, ne, gt, gte, lt, lte -- got "${op}".` });
+        continue;
+      }
+      if (!validKeys.has(key)) {
+        errors.push({ param: "having", message: `"${key}" isn't an aggregate in this query. Valid: ${[...validKeys].join(", ")}. Add the aggregate (e.g. aggregate=sum:total) first.` });
+        continue;
+      }
+      const n = Number(rawValue);
+      if (Number.isNaN(n)) { errors.push({ param: "having", message: `"${rawValue}" is not a number.` }); continue; }
+      having.push({ key, op: op as FilterOp, value: n });
+    }
+    if (having.length > 0 && !sp.get("group_by")) {
+      errors.push({ param: "having", message: "having requires group_by." });
+    }
+  }
+
+  // group_sort -- which value orders the groups (default: count desc)
+  let groupSort: { key: string; dir: "asc" | "desc" } | null = null;
+  const groupSortRaw = sp.get("group_sort");
+  if (groupSortRaw) {
+    const dir = groupSortRaw.startsWith("-") ? "desc" : groupSortRaw.startsWith("+") ? "asc" : "desc";
+    const key = groupSortRaw.replace(/^[-+]/, "").trim();
+    const validKeys = new Set(["count", "key", ...aggregates.filter((a) => a.fn !== "count").map((a) => `${a.fn}_${a.path}`)]);
+    if (!validKeys.has(key)) {
+      errors.push({ param: "group_sort", message: `"${key}" isn't sortable here. Valid: ${[...validKeys].join(", ")}.` });
+    } else {
+      groupSort = { key, dir };
+    }
+  }
+
   // count=only -> meta only
   const countOnly = sp.get("count") === "only";
 
@@ -183,7 +237,7 @@ export function parseListQuery(
   const limit = Math.min(MAX_LIMIT, Math.max(1, rawLimit));
 
   if (errors.length) return { ok: false, errors };
-  return { ok: true, query: { select, filters, sort, page, limit, aggregates, search, groupBy, groupLimit, countOnly } };
+  return { ok: true, query: { select, filters, sort, page, limit, aggregates, search, groupBy, groupLimit, having, groupSort, countOnly } };
 }
 
 const INVALID = Symbol("invalid");
@@ -317,8 +371,38 @@ export function applyListQuery<T extends Record<string, unknown>>(
       (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(r);
     }
     groups = [...buckets.entries()]
-      .map(([key, rs]) => ({ key, count: rs.length, ...aggregate(rs, query.aggregates.filter((a) => a.fn !== "count")) }))
-      .sort((a, b) => b.count - a.count);
+      .map(([key, rs]) => ({ key, count: rs.length, ...aggregate(rs, query.aggregates.filter((a) => a.fn !== "count")) }));
+
+    // having -- drop groups failing the aggregate condition (SQL HAVING).
+    // Runs BEFORE group_limit so "Other" never smuggles excluded groups back.
+    if (query.having.length) {
+      groups = groups.filter((g) =>
+        query.having.every((h) => {
+          const v = Number(g[h.key] ?? 0);
+          switch (h.op) {
+            case "eq": return v === h.value;
+            case "ne": return v !== h.value;
+            case "gt": return v > h.value;
+            case "gte": return v >= h.value;
+            case "lt": return v < h.value;
+            case "lte": return v <= h.value;
+            default: return true;
+          }
+        })
+      );
+    }
+
+    // group order: explicit group_sort wins; default stays count desc.
+    const gs = query.groupSort;
+    groups.sort((a, b) => {
+      if (!gs) return b.count - a.count;
+      if (gs.key === "key") {
+        const av = String(a.key ?? ""), bv = String(b.key ?? "");
+        return gs.dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      const av = Number(a[gs.key] ?? 0), bv = Number(b[gs.key] ?? 0);
+      return gs.dir === "asc" ? av - bv : bv - av;
+    });
 
     if (query.groupLimit && groups.length > query.groupLimit) {
       const kept = groups.slice(0, query.groupLimit);

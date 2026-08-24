@@ -118,6 +118,7 @@ export const ROUTES = {
   settingsAccount360: "/settings/account-360",
   settingsCoverage: "/settings/coverage",
   reports: "/reports",
+  reportsTalk: "/reports/talk",
   admin: "/admin",
   adminTenant: (id: string) => `/admin/tenants/${id}`,
   suppliers: "/suppliers",

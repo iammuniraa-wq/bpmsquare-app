@@ -21,7 +21,7 @@ import { baseQueryProperties, compiledQueryToSearchParams, type CompiledQueryInp
 // misinterpret intent (why `interpretation` is mandatory and always shown),
 // but it cannot invent a field or a number.
 
-export const maxDuration = 45;
+export const maxDuration = 60;
 
 type ChartType = "stat" | "bar" | "line" | "table";
 
@@ -188,10 +188,16 @@ export async function POST(req: Request) {
       system:
         `You translate a question about ${src.label} into a structured query over ONLY these fields:\n` +
         src.fields.map((f) => `- ${f.path} (${f.type}${f.searchable ? ", text-searchable" : ""})`).join("\n") +
-        `\nToday is ${today}. Never invent field names outside the list. For "top N" use sort desc + limit + chart_type=table. ` +
-        `For "how many" set count_only=true and chart_type=stat. For a single total use aggregates and chart_type=stat. ` +
-        `For a breakdown by category use group_by + chart_type=bar. For a trend over time use group_by on a DATE-typed field + chart_type=line. ` +
-        `Otherwise use select + chart_type=table. Always fill interpretation with exactly what you measured -- never leave it vague. ` +
+        `\nToday is ${today}. Never invent field names outside the list. Tolerate typos and casual phrasing ("mote than 50k" = "more than 50,000"; "50k" = 50000, "1L"/"1 lakh" = 100000, "1cr" = 10000000).\n` +
+        `\nPick the query SHAPE from the question's real intent:\n` +
+        `- "how many X" -> count_only=true, chart_type=stat.\n` +
+        `- "total/sum of X" -> aggregates=[{fn:sum,field}], chart_type=stat.\n` +
+        `- "X by category" (status, type, month...) -> group_by + the value aggregate + chart_type=bar. Set group_sort to the aggregate key (e.g. "sum_total") when the question is about value; leave count when it's about counts.\n` +
+        `- Trend over time -> group_by on a DATE field + group_sort="+key" + chart_type=line.\n` +
+        `- "top N X by Y" -> group_by X, aggregate Y, group_sort=aggregate key, chart_type=bar (NOT table -- a ranking is a bar chart).\n` +
+        `- GROUP-LEVEL THRESHOLDS: "accounts with quote value over 50k", "customers with more than 3 open cases" -- the condition is on the GROUP's total, not any single row. Use group_by + the aggregate + having (e.g. having=[{key:"sum_total",op:"gt",value:50000}]) + group_sort=that aggregate key + chart_type=bar. Filtering rows by total>50000 instead answers a DIFFERENT question (individual records over the threshold) -- only do that when the question is explicitly about individual records.\n` +
+        `- A list of records ("show me...", "which quotes...") -> select the most useful 4-6 columns + sort + chart_type=table.\n` +
+        `\nAlways fill interpretation with exactly what you measured, including any threshold and whether it applied per-record or per-group -- never vague. ` +
         `If this object's fields genuinely can't answer the question, set answerable=false with a specific reason.`,
       messages: [{ role: "user", content: question }],
     });
@@ -225,7 +231,17 @@ export async function POST(req: Request) {
   const groupByField = compiled.group_by ? src.fields.find((f) => f.path === compiled.group_by) : undefined;
   const chartType = decideChartType(compiled, groupByField?.type ?? null, Boolean(compiled.count_only));
 
-  const sp = compiledQueryToSearchParams({ ...compiled, select: safeSelect });
+  // Engine-side group-order defaults ("engine is truth, model is advisory"):
+  // a time axis reads chronologically; a value breakdown reads biggest-first
+  // by its own aggregate, not by row count.
+  let groupSort = compiled.group_sort;
+  if (compiled.group_by && !groupSort) {
+    const firstAgg = compiled.aggregates?.find((a) => a.fn !== "count" && a.field);
+    if (groupByField?.type === "date") groupSort = "+key";
+    else if (firstAgg) groupSort = `${firstAgg.fn}_${firstAgg.field}`;
+  }
+
+  const sp = compiledQueryToSearchParams({ ...compiled, select: safeSelect, group_sort: groupSort });
   if (compiled.group_by) sp.set("group_limit", "12");
 
   const parsed = parseListQuery(sp, src.fields);

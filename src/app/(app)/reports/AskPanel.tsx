@@ -17,6 +17,17 @@ const EXAMPLES = [
   "Cases by disposition",
 ];
 
+const EXAMPLES_FULL = [
+  "Accounts with quote value over 50k",
+  "Quote value by month this year",
+  "Top 10 accounts by total quote value",
+  "How many quotes are still in draft?",
+  "Average quote value by status",
+  "Open cases by priority",
+  "Total outstanding invoice value",
+  "Products by category",
+];
+
 async function postJson(url: string, body?: unknown) {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
@@ -24,7 +35,7 @@ async function postJson(url: string, body?: unknown) {
   return data;
 }
 
-export default function AskPanel({ canSave }: { canSave: boolean }) {
+export default function AskPanel({ canSave, fullPage = false }: { canSave: boolean; fullPage?: boolean }) {
   const [question, setQuestion] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [payload, setPayload] = useState<ReportPayload | null>(null);
@@ -121,28 +132,35 @@ export default function AskPanel({ canSave }: { canSave: boolean }) {
   }
 
   const busy = phase === "asking";
+  const examples = fullPage ? EXAMPLES_FULL : EXAMPLES;
 
   return (
-    <div style={{ ...cardStyle, padding: 20, marginBottom: 24 }}>
+    <div style={{ ...cardStyle, padding: fullPage ? 24 : 20, marginBottom: 24 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: c.ink }}>Talk to data</div>
+        <div style={{ fontSize: fullPage ? 17 : 15, fontWeight: 700, color: c.ink }}>Talk to data</div>
         <div style={{ fontSize: 11.5, color: c.muted }}>Ask a question in plain English</div>
       </div>
+      {fullPage && (
+        <div style={{ fontSize: 12.5, color: c.muted, marginTop: 2, maxWidth: 620, lineHeight: 1.5 }}>
+          Ask about anything you can see in BPMSquare — quotes, accounts, cases, invoices, products and more.
+          Every answer is computed live from your data, and the line under each chart states exactly what was measured.
+        </div>
+      )}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: fullPage ? 16 : 12 }}>
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !busy) submit(); }}
           placeholder="e.g. Top 5 accounts by open quote value"
           disabled={busy}
-          style={{ flex: 1, padding: "10px 12px", fontSize: 13.5, borderRadius: 8, border: `1px solid ${c.line}`, background: c.panel2, color: c.ink }}
+          style={{ flex: 1, padding: fullPage ? "13px 14px" : "10px 12px", fontSize: fullPage ? 14.5 : 13.5, borderRadius: 8, border: `1px solid ${c.line}`, background: c.panel2, color: c.ink }}
         />
         <button
           onClick={submit}
           disabled={busy || !question.trim()}
           style={{
-            padding: "10px 18px", fontSize: 13, fontWeight: 700, borderRadius: 8, border: "none",
+            padding: fullPage ? "13px 22px" : "10px 18px", fontSize: 13, fontWeight: 700, borderRadius: 8, border: "none",
             background: c.accent, color: "#fff", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
           }}
         >
@@ -152,7 +170,7 @@ export default function AskPanel({ canSave }: { canSave: boolean }) {
 
       {phase === "idle" && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-          {EXAMPLES.map((ex) => (
+          {examples.map((ex) => (
             <button
               key={ex}
               onClick={() => { setQuestion(ex); ask(ex); }}

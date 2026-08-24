@@ -18,6 +18,11 @@ export type CompiledQueryInput = {
   select?: string[];
   aggregates?: { fn: string; field?: string }[];
   group_by?: string;
+  /** HAVING: conditions on group aggregates ("sum_total:gt:50000") or count. */
+  having?: { key: string; op: string; value: number }[];
+  /** Which value orders the groups: "count", "key", or an aggregate key like
+   * "sum_total". Descending unless prefixed "+". */
+  group_sort?: string;
   limit?: number;
   count_only?: boolean;
 };
@@ -55,6 +60,20 @@ export function baseQueryProperties(fields: FieldLike[]): Record<string, unknown
       items: { type: "object", properties: { fn: { type: "string", enum: AGG_FNS }, field: { type: "string", enum: paths } }, required: ["fn"] },
     },
     group_by: { type: "string", enum: paths, description: "Group counts/aggregates by this field." },
+    having: {
+      type: "array",
+      description: "Conditions on GROUP-LEVEL values after group_by (SQL HAVING). Use when the threshold applies to the group's total, not individual rows -- e.g. 'accounts with quote value over 50k' = group_by account, aggregate sum:total, having sum_total gt 50000. Keys: 'count' or '<fn>_<field>' of a requested aggregate.",
+      items: {
+        type: "object",
+        properties: {
+          key: { type: "string", description: "'count' or an aggregate key like 'sum_total' -- must match a requested aggregate." },
+          op: { type: "string", enum: ["eq", "ne", "gt", "gte", "lt", "lte"] },
+          value: { type: "number" },
+        },
+        required: ["key", "op", "value"],
+      },
+    },
+    group_sort: { type: "string", description: "Orders the groups: 'count', 'key' (alphabetical/chronological), or an aggregate key like 'sum_total'. Descending by default; prefix '+' for ascending. For value questions ALWAYS sort by the value aggregate; for time trends use '+key'." },
     limit: { type: "integer", minimum: 1, maximum: 200, description: "Row cap; use with sort for 'top N'." },
     count_only: { type: "boolean", description: "true for 'how many' questions -- returns the count without the rows." },
   };
@@ -70,6 +89,8 @@ export function compiledQueryToSearchParams(q: CompiledQueryInput): URLSearchPar
   if (q.select?.length) sp.set("select", q.select.join(","));
   if (q.aggregates?.length) sp.set("aggregate", q.aggregates.map((a) => (a.field ? `${a.fn}:${a.field}` : a.fn)).join(","));
   if (q.group_by) sp.set("group_by", q.group_by);
+  if (q.having?.length) sp.set("having", q.having.map((h) => `${h.key}:${h.op}:${h.value}`).join(";"));
+  if (q.group_sort) sp.set("group_sort", q.group_sort);
   if (q.limit) sp.set("limit", String(q.limit));
   if (q.count_only) sp.set("count", "only");
   return sp;

@@ -18,11 +18,14 @@ import type { NormalizedReport } from "@/lib/reportView";
 const ACCENT = pillar.blue.base;
 const OTHER = c.hint;
 
+// Indian-market compact numbers: 50K, 4.5L, 2.3Cr -- these are ₹ values far
+// more often than not, and 250M reads foreign to the audience reading them.
 function formatCompact(n: number): string {
   const abs = Math.abs(n);
-  if (abs >= 1_000_000) return (n / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1).replace(/\.0$/, "") + "M";
+  if (abs >= 10_000_000) return (n / 10_000_000).toFixed(abs >= 100_000_000 ? 0 : 1).replace(/\.0$/, "") + "Cr";
+  if (abs >= 100_000) return (n / 100_000).toFixed(abs >= 1_000_000 ? 0 : 1).replace(/\.0$/, "") + "L";
   if (abs >= 1_000) return (n / 1_000).toFixed(abs >= 10_000 ? 0 : 1).replace(/\.0$/, "") + "K";
-  return Math.round(n).toLocaleString();
+  return Math.round(n).toLocaleString("en-IN");
 }
 
 function niceMax(max: number): number {
@@ -43,7 +46,7 @@ function Tooltip({ x, y, label, value }: { x: string; y: string; label: string; 
         padding: "6px 9px", boxShadow: "0 4px 14px rgba(0,0,0,.12)", whiteSpace: "nowrap",
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{value.toLocaleString()}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{value.toLocaleString("en-IN")}</div>
       <div style={{ fontSize: 11, color: c.muted }}>{label}</div>
     </div>
   );
@@ -81,6 +84,63 @@ function TableView({ columns, rows }: { columns: string[]; rows: Record<string, 
           )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// Category breakdowns almost always carry real-world names (accounts,
+// products) far too long for a vertical x-axis -- colliding, truncated
+// labels were exactly the failure mode of the first live report. Horizontal
+// bars give every label a full line of its own; vertical stays only for the
+// short-label, few-category case (statuses, outcome buckets).
+function useHorizontal(series: { key: string; value: number }[]): boolean {
+  return series.length > 6 || series.some((s) => s.key.length > 10);
+}
+
+function HorizontalBarChart({ series }: { series: { key: string; value: number }[] }) {
+  const W = 640, ROW_H = 30, PAD_T = 6, PAD_B = 6, LABEL_W = 170, VALUE_W = 62, PAD_R = 8;
+  const H = PAD_T + PAD_B + series.length * ROW_H;
+  const plotW = W - LABEL_W - VALUE_W - PAD_R;
+  const max = niceMax(Math.max(...series.map((s) => s.value), 1));
+  const [hover, setHover] = useState<number | null>(null);
+  const barH = Math.min(18, ROW_H * 0.62);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Bar chart">
+        {series.map((s, i) => {
+          const y = PAD_T + ROW_H * i;
+          const cy = y + ROW_H / 2;
+          const barW = Math.max((s.value / max) * plotW, 1.5);
+          const isOther = s.key === "Other";
+          const fill = isOther ? OTHER : ACCENT;
+          const label = s.key.length > 24 ? s.key.slice(0, 23) + "…" : s.key;
+          return (
+            <g key={i} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover((h) => (h === i ? null : h))} style={{ cursor: "pointer" }}>
+              <rect x={0} y={y} width={W} height={ROW_H} fill={hover === i ? "color-mix(in srgb, currentColor 4%, transparent)" : "transparent"} />
+              <text x={LABEL_W - 10} y={cy} textAnchor="end" dominantBaseline="middle" fontSize={11.5} fill={isOther ? c.hint : c.muted}>
+                <title>{s.key}</title>
+                {label}
+              </text>
+              <rect x={LABEL_W} y={cy - barH / 2} width={barW} height={barH} rx={4} ry={4}
+                fill={fill} opacity={hover === null || hover === i ? 1 : 0.45} />
+              <text x={LABEL_W + barW + 7} y={cy} dominantBaseline="middle" fontSize={11} fontWeight={650}
+                fill={isOther ? c.hint : c.ink} style={{ fontVariantNumeric: "tabular-nums" }}>
+                {formatCompact(s.value)}
+              </text>
+            </g>
+          );
+        })}
+        <line x1={LABEL_W} x2={LABEL_W} y1={PAD_T} y2={H - PAD_B} stroke={c.line} strokeWidth={1} />
+      </svg>
+      {hover !== null && (
+        <Tooltip
+          x={(LABEL_W + Math.max((series[hover].value / max) * plotW, 1.5) / 2) / W * 100 + "%"}
+          y={(PAD_T + ROW_H * hover + ROW_H / 2) / (PAD_T + PAD_B + series.length * ROW_H) * 100 + "%"}
+          label={series[hover].key}
+          value={series[hover].value}
+        />
+      )}
     </div>
   );
 }
@@ -148,6 +208,10 @@ function BarChart({ series }: { series: { key: string; value: number }[] }) {
   );
 }
 
+function AutoBarChart({ series }: { series: { key: string; value: number }[] }) {
+  return useHorizontal(series) ? <HorizontalBarChart series={series} /> : <BarChart series={series} />;
+}
+
 function LineChart({ series }: { series: { key: string; value: number }[] }) {
   const W = 640, H = 260, PAD_L = 44, PAD_B = 32, PAD_T = 12, PAD_R = 12;
   const plotW = W - PAD_L - PAD_R, plotH = H - PAD_T - PAD_B;
@@ -208,7 +272,7 @@ function LineChart({ series }: { series: { key: string; value: number }[] }) {
 function StatTile({ value }: { value: number }) {
   return (
     <div style={{ padding: "28px 16px", textAlign: "center" }}>
-      <div style={{ fontSize: 48, fontWeight: 700, color: c.ink }}>{value.toLocaleString()}</div>
+      <div style={{ fontSize: 48, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{value.toLocaleString("en-IN")}</div>
     </div>
   );
 }
@@ -244,7 +308,7 @@ export default function ChartRenderer({ report }: { report: NormalizedReport }) 
       {report.chartType === "bar" && report.series && (
         asTable
           ? <TableView columns={["key", "value"]} rows={report.series.map((s) => ({ key: s.key, value: s.value }))} />
-          : <BarChart series={report.series} />
+          : <AutoBarChart series={report.series} />
       )}
 
       {report.chartType === "line" && report.series && (

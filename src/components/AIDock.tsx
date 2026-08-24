@@ -90,6 +90,11 @@ export default function AIDock() {
   async function ask(question: string) {
     const text = question.trim();
     if (!text || busy) return;
+    // History travels with the question so follow-ups keep their context --
+    // text only; the server treats it as conversation, never as a query.
+    const history = [...messages, { from: "me" as const, text }]
+      .slice(-12)
+      .map((m) => ({ role: m.from === "me" ? "user" : "assistant", text: m.text }));
     setMessages((prev) => [...prev, { from: "me", text }]);
     setDraft("");
     setBusy(true);
@@ -97,7 +102,7 @@ export default function AIDock() {
       const res = await fetch("/api/ai/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text }),
+        body: JSON.stringify({ question: text, history }),
       });
       const json = await res.json().catch(() => ({}));
       setMessages((prev) => [
@@ -169,13 +174,13 @@ export default function AIDock() {
         }}>
           <div style={{ padding: "12px 16px", background: "var(--accentbg)", color: c.accent, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
             ✦ BPMSquare Assistant
-            <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 700, color: c.muted, background: "var(--panel2)", border: "1px solid var(--line)", borderRadius: 5, padding: "2px 6px", letterSpacing: 0.4 }}>READ-ONLY</span>
+            <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 700, color: c.muted, background: "var(--panel2)", border: "1px solid var(--line)", borderRadius: 5, padding: "2px 6px", letterSpacing: 0.4 }}>LIVE DATA</span>
           </div>
           <div ref={scrollRef} style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5, flex: 1, overflowY: "auto" }}>
             {messages.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                 <div style={{ color: c.muted, lineHeight: 1.5 }}>
-                  I can answer questions about your data. The chat itself can&apos;t create, change or delete anything.
+                  Ask me anything about your data — I query it live and follow-up questions keep their context. The chat itself can&apos;t change or delete anything.
                   {createChips.length > 0 && " Use the buttons below to draft a new record from pasted text — you review it before anything is created."}
                 </div>
                 {createChips.length > 0 && (

@@ -4,174 +4,64 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PermissionSet } from "@/lib/permissions";
 import { canViewWorkcenter } from "@/lib/permissions";
-import type { WorkcenterKey } from "@/lib/workcenters";
+import { LIST_SOURCES } from "@/lib/api/listSources";
+import { parseListQuery, applyListQuery } from "@/lib/api/query";
+import { compiledQueryToSearchParams, type CompiledQueryInput } from "@/lib/ai/nlCompile";
 
 /**
- * Read-only data assistant.
+ * Conversational data assistant (the bottom-right dock).
  *
  * ── Why it's built this way ────────────────────────────────────────────────
- * The model NEVER writes or sees SQL, and never chooses a tenant. It only
- * picks one entry from a fixed catalog of pre-approved read-only queries
- * (below) plus a couple of scalar parameters; the server then runs that
- * query itself with the caller's own session client and an explicit
- * `.eq("tenant_id", tenantId)` taken from requireTenantUser(). So:
- *   - there is no injection surface (no model-authored query text),
- *   - cross-tenant access is impossible by construction (tenant comes from
- *     the request's session, exactly like every other route), and
- *   - create/update/delete are not merely discouraged, they don't exist as
- *     tools the model can reach.
- * Each intent also declares the workcenter it reads, and is filtered out
- * before the model ever sees it if the caller's Business Roles don't grant
- * view on it -- so the assistant can't become a way around the permission
- * system.
+ * An agentic loop, not a fixed intent catalog: the model can query ANY
+ * object in LIST_SOURCES (permission-filtered before it sees the catalog),
+ * chain several queries, compare results, and answer follow-ups with the
+ * conversation's context. What it still CANNOT do, by construction:
+ *   - write SQL or see a query language -- its only data tool emits the
+ *     same structured shape /api/v1/ask compiles, validated by
+ *     parseListQuery() against the object's field whitelist. A hallucinated
+ *     field is a validation error fed back for self-correction, never a query.
+ *   - reach outside the caller's tenant -- every load() is tenant-scoped by
+ *     the id from requireTenantUser(), exactly like every other route.
+ *   - see an object the caller's Business Roles don't grant view on -- the
+ *     catalog is filtered before the prompt is built.
+ *   - create, update or delete -- no such tool exists in the loop.
+ * Numbers in the reply are composed by the model FROM tool results over
+ * live data; the interpretation duty ("say exactly what you measured")
+ * is part of its instructions, same doctrine as Report Builder.
  */
 
 export class AssistantError extends Error {}
 
-export type IntentId =
-  | "count_accounts" | "count_contacts"
-  | "open_quotes" | "quote_total_value" | "recent_quotes"
-  | "open_cases" | "recent_cases"
-  | "unpaid_invoices" | "invoice_total_outstanding"
-  | "open_leads"
-  | "who_is_in_today";
+const MAX_TURNS = 6;         // model calls per question (tool-use rounds + final)
+const MAX_ROWS_TO_MODEL = 20; // rows a single query returns into context
 
-type IntentDef = {
-  id: IntentId;
-  workcenter: WorkcenterKey;
-  /** Shown to the model so it can choose, and to the user as a capability. */
+export type ChatTurn = { role: "user" | "assistant"; text: string };
+
+// Special lookups for data that isn't (yet) in LIST_SOURCES.
+type QuickLookup = {
+  id: string;
+  workcenter: Parameters<typeof canViewWorkcenter>[1];
   description: string;
-  run: (ctx: RunContext) => Promise<string>;
+  run: (supabase: SupabaseClient, tenantId: string) => Promise<string>;
 };
 
-type RunContext = {
-  supabase: SupabaseClient;
-  tenantId: string;
-  limit: number;
-  status?: string;
-};
-
-const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
-
-// Every query below is tenant-filtered explicitly, on the session client
-// (so RLS is a second line of defence, not the only one).
-const INTENTS: IntentDef[] = [
-  {
-    id: "count_accounts",
-    workcenter: "accounts",
-    description: "How many accounts/customers exist",
-    run: async ({ supabase, tenantId }) => {
-      const { count } = await supabase.from("accounts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
-      return `You have ${count ?? 0} account${count === 1 ? "" : "s"}.`;
-    },
-  },
-  {
-    id: "count_contacts",
-    workcenter: "contacts",
-    description: "How many contacts exist",
-    run: async ({ supabase, tenantId }) => {
-      const { count } = await supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
-      return `You have ${count ?? 0} contact${count === 1 ? "" : "s"}.`;
-    },
-  },
-  {
-    id: "open_quotes",
-    workcenter: "quotations",
-    description: "How many quotations are open / not yet approved or rejected",
-    run: async ({ supabase, tenantId }) => {
-      const { count } = await supabase
-        .from("quotes").select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId).in("status", ["draft", "sent"]);
-      return `${count ?? 0} quotation${count === 1 ? " is" : "s are"} still open (draft or sent).`;
-    },
-  },
-  {
-    id: "quote_total_value",
-    workcenter: "quotations",
-    description: "Total value of open quotations",
-    run: async ({ supabase, tenantId }) => {
-      const { data } = await supabase
-        .from("quotes").select("total").eq("tenant_id", tenantId).in("status", ["draft", "sent"]);
-      const sum = (data ?? []).reduce((s, q) => s + Number(q.total ?? 0), 0);
-      return `Open quotations are worth ${money(sum)} across ${(data ?? []).length} quote${(data ?? []).length === 1 ? "" : "s"}.`;
-    },
-  },
-  {
-    id: "recent_quotes",
-    workcenter: "quotations",
-    description: "The most recent quotations, with their status and value",
-    run: async ({ supabase, tenantId, limit }) => {
-      const { data } = await supabase
-        .from("quotes").select("quote_ref, status, total, created_at")
-        .eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(limit);
-      if (!data?.length) return "There are no quotations yet.";
-      return `The ${data.length} most recent quotation${data.length === 1 ? "" : "s"}:\n` +
-        data.map((q) => `• ${q.quote_ref ?? "(no ref)"} — ${q.status}, ${money(Number(q.total ?? 0))}`).join("\n");
-    },
-  },
-  {
-    id: "open_cases",
-    workcenter: "cases",
-    description: "How many service cases are open / unresolved",
-    run: async ({ supabase, tenantId }) => {
-      const { count } = await supabase
-        .from("service_cases").select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId).not("status", "in", '("closed","cancelled")');
-      return `${count ?? 0} service case${count === 1 ? " is" : "s are"} currently open.`;
-    },
-  },
-  {
-    id: "recent_cases",
-    workcenter: "cases",
-    description: "The most recently created service cases",
-    run: async ({ supabase, tenantId, limit }) => {
-      const { data } = await supabase
-        .from("service_cases").select("case_number, title, status, created_at")
-        .eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(limit);
-      if (!data?.length) return "There are no service cases yet.";
-      return `The ${data.length} most recent case${data.length === 1 ? "" : "s"}:\n` +
-        data.map((x) => `• ${x.case_number ?? ""} ${x.title ?? ""} — ${x.status}`.trim()).join("\n");
-    },
-  },
-  {
-    id: "unpaid_invoices",
-    workcenter: "invoices",
-    description: "How many invoices are unpaid or overdue",
-    run: async ({ supabase, tenantId }) => {
-      const { data } = await supabase
-        .from("invoices").select("status").eq("tenant_id", tenantId).in("status", ["sent", "partial", "overdue"]);
-      const overdue = (data ?? []).filter((i) => i.status === "overdue").length;
-      return `${(data ?? []).length} invoice${(data ?? []).length === 1 ? " is" : "s are"} unpaid` +
-        (overdue > 0 ? `, of which ${overdue} ${overdue === 1 ? "is" : "are"} overdue.` : ".");
-    },
-  },
-  {
-    id: "invoice_total_outstanding",
-    workcenter: "invoices",
-    description: "Total outstanding / unpaid invoice value",
-    run: async ({ supabase, tenantId }) => {
-      const { data } = await supabase
-        .from("invoices").select("total").eq("tenant_id", tenantId).in("status", ["sent", "partial", "overdue"]);
-      const sum = (data ?? []).reduce((s, i) => s + Number(i.total ?? 0), 0);
-      return `Outstanding invoice value is ${money(sum)} across ${(data ?? []).length} invoice${(data ?? []).length === 1 ? "" : "s"}.`;
-    },
-  },
+const QUICK_LOOKUPS: QuickLookup[] = [
   {
     id: "open_leads",
     workcenter: "leads",
-    description: "How many leads are still open (not won or lost)",
-    run: async ({ supabase, tenantId }) => {
+    description: "How many marketing leads are still open (status new/inspecting/quoted)",
+    run: async (supabase, tenantId) => {
       const { count } = await supabase
         .from("leads").select("id", { count: "exact", head: true })
         .eq("tenant_id", tenantId).in("status", ["new", "inspecting", "quoted"]);
-      return `${count ?? 0} lead${count === 1 ? " is" : "s are"} still open.`;
+      return JSON.stringify({ open_leads: count ?? 0 });
     },
   },
   {
     id: "who_is_in_today",
     workcenter: "wfm",
-    description: "How many employees are checked in right now (Workforce)",
-    run: async ({ supabase, tenantId }) => {
+    description: "How many employees are checked in right now / on break (Workforce presence)",
+    run: async (supabase, tenantId) => {
       const since = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from("wfm_presence_events").select("employee_id, kind, ts")
@@ -179,115 +69,239 @@ const INTENTS: IntentDef[] = [
         .order("ts", { ascending: true });
       const last = new Map<string, string>();
       for (const e of data ?? []) last.set(e.employee_id as string, e.kind as string);
-      const inNow = [...last.values()].filter((k) => k === "check_in" || k === "break_end").length;
+      const checkedIn = [...last.values()].filter((k) => k === "check_in" || k === "break_end").length;
       const onBreak = [...last.values()].filter((k) => k === "break_start").length;
-      return `${inNow} employee${inNow === 1 ? " is" : "s are"} checked in right now` +
-        (onBreak > 0 ? `, and ${onBreak} ${onBreak === 1 ? "is" : "are"} on a break.` : ".");
+      return JSON.stringify({ checked_in_now: checkedIn, on_break_now: onBreak });
     },
   },
 ];
 
-/** The intents this caller is actually allowed to use, given Business Roles. */
-export function availableIntents(perms: PermissionSet): IntentDef[] {
-  return INTENTS.filter((i) => canViewWorkcenter(perms, i.workcenter));
+function visibleSources(perms: PermissionSet) {
+  return Object.entries(LIST_SOURCES).filter(([, src]) => canViewWorkcenter(perms, src.relatedWorkcenter));
 }
 
-/** Capability list for the assistant's default/empty state. */
+function visibleQuickLookups(perms: PermissionSet) {
+  return QUICK_LOOKUPS.filter((q) => canViewWorkcenter(perms, q.workcenter));
+}
+
+/** Example-question chips for the dock's empty state, permission-filtered. */
 export function capabilityList(perms: PermissionSet): string[] {
-  return availableIntents(perms).map((i) => i.description);
+  const has = (wc: Parameters<typeof canViewWorkcenter>[1]) => canViewWorkcenter(perms, wc);
+  const out: string[] = [];
+  if (has("accounts")) out.push("Which accounts have quote value over 1 lakh?");
+  if (has("quotations")) out.push("Total value of open quotations");
+  if (has("quotations")) out.push("Quotes by status");
+  if (has("cases")) out.push("How many cases are open, by priority?");
+  if (has("invoices")) out.push("Total outstanding invoice value");
+  if (has("products")) out.push("Which products are in the catalog?");
+  if (has("leads")) out.push("How many leads are still open?");
+  if (has("wfm")) out.push("Who is checked in right now?");
+  return out;
 }
 
-const ANSWER_TOOL = (allowed: IntentDef[]): Anthropic.Tool => ({
-  name: "answer",
-  description:
-    "Choose which read-only lookup answers the user's question, or decline. " +
-    "Never claim to change data -- this system can only read.",
-  input_schema: {
-    type: "object",
-    properties: {
-      intent: {
-        type: "string",
-        enum: [...allowed.map((i) => i.id), "unsupported", "write_request"],
-        description:
-          allowed.map((i) => `${i.id}: ${i.description}`).join(" | ") +
-          " | unsupported: the question is about something this list can't answer" +
-          " | write_request: the user is asking to create, change or delete something",
+// One generic data tool for every object. Field names are plain strings here
+// (per-object enums would need one tool per object); the field catalog lives
+// in the system prompt and parseListQuery() enforces it at execution -- an
+// unknown field comes back as a tool error naming the accepted fields, which
+// the loop lets the model correct.
+function queryDataTool(objects: string[]): Anthropic.Tool {
+  return {
+    name: "query_data",
+    description:
+      "Run one read-only query against a business object and get real data back. " +
+      "Use the field lists in your instructions -- never guess a field name. " +
+      "You can call this several times to answer one question (e.g. to compare two statuses).",
+    input_schema: {
+      type: "object",
+      properties: {
+        object: { type: "string", enum: objects },
+        filters: {
+          type: "array",
+          description: "Row conditions, ANDed. op: eq ne gt gte lt lte like in isnull. Dates ISO yyyy-mm-dd.",
+          items: {
+            type: "object",
+            properties: {
+              field: { type: "string" }, op: { type: "string" },
+              value: { type: "string", description: "Comparison value as a string." },
+            },
+            required: ["field", "op", "value"],
+          },
+        },
+        search: { type: "string", description: "Free-text contains across the object's searchable fields." },
+        sort: { type: "array", items: { type: "object", properties: { field: { type: "string" }, dir: { type: "string", enum: ["asc", "desc"] } }, required: ["field", "dir"] } },
+        select: { type: "array", items: { type: "string" }, description: "Columns to return for row listings. Keep to the 3-6 most useful." },
+        aggregates: { type: "array", items: { type: "object", properties: { fn: { type: "string", enum: ["count", "sum", "avg", "min", "max"] }, field: { type: "string" } }, required: ["fn"] } },
+        group_by: { type: "string", description: "Group counts/aggregates by this field." },
+        having: {
+          type: "array",
+          description: "Group-level conditions after group_by (SQL HAVING), e.g. accounts whose sum_total > 50000. Keys: 'count' or '<fn>_<field>'.",
+          items: { type: "object", properties: { key: { type: "string" }, op: { type: "string", enum: ["eq", "ne", "gt", "gte", "lt", "lte"] }, value: { type: "number" } }, required: ["key", "op", "value"] },
+        },
+        group_sort: { type: "string", description: "'count', 'key', or an aggregate key like 'sum_total'. Descending by default, '+' prefix for ascending." },
+        limit: { type: "integer", minimum: 1, maximum: 25, description: "Row cap for listings (max 25 in chat)." },
+        count_only: { type: "boolean", description: "true when only counts/aggregates/groups are needed -- no rows." },
       },
-      limit: { type: "integer", description: "How many rows to list, 1-10. Default 5.", minimum: 1, maximum: 10 },
+      required: ["object"],
     },
-    required: ["intent"],
-  },
-});
+  };
+}
 
-export type AssistantReply = {
-  answer: string;
-  intent: IntentId | "unsupported" | "write_request";
-};
+function quickLookupTool(lookups: QuickLookup[]): Anthropic.Tool {
+  return {
+    name: "quick_lookup",
+    description: "Special pre-built lookups for data outside query_data's objects.",
+    input_schema: {
+      type: "object",
+      properties: {
+        lookup: {
+          type: "string",
+          enum: lookups.map((l) => l.id),
+          description: lookups.map((l) => `${l.id}: ${l.description}`).join(" | "),
+        },
+      },
+      required: ["lookup"],
+    },
+  };
+}
+
+type QueryDataInput = CompiledQueryInput & { object?: string };
+
+async function runQueryData(
+  input: QueryDataInput,
+  ctx: { tenantId: string; perms: PermissionSet }
+): Promise<string> {
+  const key = input.object ?? "";
+  const src = LIST_SOURCES[key];
+  if (!src || !canViewWorkcenter(ctx.perms, src.relatedWorkcenter)) {
+    return `Error: unknown or inaccessible object "${key}".`;
+  }
+
+  // PII rule, same as Report Builder: aggregate over, never list out.
+  const sensitive = new Set(src.fields.filter((f) => f.sensitive).map((f) => f.path));
+  const select = input.select?.filter((p) => !sensitive.has(p));
+
+  const limit = Math.min(MAX_ROWS_TO_MODEL, Math.max(1, input.limit ?? 10));
+  const sp = compiledQueryToSearchParams({ ...input, select, limit });
+  if (input.group_by) sp.set("group_limit", "15");
+
+  const parsed = parseListQuery(sp, src.fields);
+  if (!parsed.ok) {
+    // Fed back into the loop -- the model corrects and retries.
+    return "Error: " + parsed.errors.map((e) => e.message).join("; ");
+  }
+
+  const rows = await src.load(ctx.tenantId);
+  const result = applyListQuery(rows, parsed.query);
+  return JSON.stringify({
+    object: key,
+    total_matching: result.meta.total,
+    aggregates: result.meta.aggregates ?? undefined,
+    groups: result.meta.groups ?? undefined,
+    rows: input.count_only ? undefined : result.data.slice(0, MAX_ROWS_TO_MODEL),
+  });
+}
+
+function systemPrompt(
+  sources: [string, (typeof LIST_SOURCES)[string]][],
+  lookups: QuickLookup[]
+): string {
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    "You are the BPMSquare Assistant -- the in-app helper for a business running its sales, service and operations on BPMSquare. " +
+    "You answer questions about the user's own business data by querying it live, and you answer questions about what you can do.\n\n" +
+    "OBJECTS you can query with query_data, and their exact fields (NEVER guess a field not listed):\n" +
+    sources
+      .map(([key, src]) =>
+        `- ${key} (${src.label}): ${src.description}\n  fields: ` +
+        src.fields.map((f) => `${f.path}(${f.type}${f.searchable ? ",searchable" : ""})`).join(", ")
+      )
+      .join("\n") +
+    (lookups.length
+      ? "\n\nSPECIAL quick_lookup lookups:\n" + lookups.map((l) => `- ${l.id}: ${l.description}`).join("\n")
+      : "") +
+    `\n\nToday is ${today}.\n\n` +
+    "RULES:\n" +
+    "1. NEVER state a number, list or fact about the user's data without querying for it first in this conversation. If a tool errors, fix the query and retry.\n" +
+    "2. Group-level thresholds ('accounts with quote value over 50k') use group_by + aggregate + having -- the condition is on the group's total, not single rows.\n" +
+    "3. Understand casual Indian business shorthand: 50k=50000, 1L/1 lakh=100000, 1cr=10000000. Format money as ₹ with Indian digit grouping, compact where natural (₹4.5L, ₹2.3Cr).\n" +
+    "4. Keep answers SHORT and direct -- one sentence for a number, a compact bullet list for a breakdown (top items only, note how many more). This renders in a small chat panel.\n" +
+    "5. Say what you measured when it's not obvious (e.g. 'counting draft + sent quotes as open').\n" +
+    "6. You cannot create, change or delete anything from this chat, and you have no tool that can -- if asked to, say so and point to the right place: the Create buttons above this chat or ⌘K can draft a record from pasted text on Nova, and every record has its own New page.\n" +
+    "7. Questions about you: you're the BPMSquare Assistant; this chat reads live tenant data through the same permission system as the app; you can answer follow-ups in context.\n" +
+    "8. Only discuss this workspace's data and BPMSquare itself -- politely decline anything else."
+  );
+}
+
+export type AssistantReply = { answer: string };
 
 export async function askAssistant(
-  question: string,
+  history: ChatTurn[],
   ctx: { supabase: SupabaseClient; tenantId: string; perms: PermissionSet }
 ): Promise<AssistantReply> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new AssistantError("The assistant isn't configured yet (missing ANTHROPIC_API_KEY).");
   }
-  const allowed = availableIntents(ctx.perms);
-  if (allowed.length === 0) {
-    return { answer: "You don't currently have access to any data I can report on.", intent: "unsupported" };
+  const sources = visibleSources(ctx.perms);
+  const lookups = visibleQuickLookups(ctx.perms);
+  if (sources.length === 0 && lookups.length === 0) {
+    return { answer: "You don't currently have access to any data I can report on." };
   }
 
-  let response;
-  try {
-    response = await new Anthropic().messages.create({
-      model: "claude-opus-5",
-      max_tokens: 512,
-      tools: [ANSWER_TOOL(allowed)],
-      tool_choice: { type: "tool", name: "answer" },
-      system:
-        "You route a CRM user's question to ONE read-only lookup. You cannot create, update or delete " +
-        "anything -- if the user asks you to, choose write_request. If no lookup fits, choose unsupported. " +
-        "Do not guess data values; you only pick the lookup.",
-      messages: [{ role: "user", content: question }],
-    });
-  } catch (e) {
-    console.error("Assistant request failed:", e);
-    if (e instanceof Anthropic.AuthenticationError) throw new AssistantError("The AI service rejected ANTHROPIC_API_KEY.");
-    if (e instanceof Anthropic.RateLimitError) throw new AssistantError("The assistant is rate-limited right now. Try again in a moment.");
-    if (e instanceof Anthropic.APIConnectionError) throw new AssistantError("Could not reach the AI service. Try again in a moment.");
-    throw new AssistantError("The assistant is unavailable right now.");
+  const tools: Anthropic.Tool[] = [];
+  if (sources.length) tools.push(queryDataTool(sources.map(([k]) => k)));
+  if (lookups.length) tools.push(quickLookupTool(lookups));
+
+  const anthropic = new Anthropic();
+  const messages: Anthropic.MessageParam[] = history.map((t) => ({ role: t.role, content: t.text }));
+
+  for (let turn = 0; turn < MAX_TURNS; turn++) {
+    let response: Anthropic.Message;
+    try {
+      response = await anthropic.messages.create({
+        model: "claude-opus-5",
+        max_tokens: 1000,
+        tools,
+        system: systemPrompt(sources, lookups),
+        messages,
+      });
+    } catch (e) {
+      console.error("Assistant request failed:", e);
+      if (e instanceof Anthropic.AuthenticationError) throw new AssistantError("The AI service rejected ANTHROPIC_API_KEY.");
+      if (e instanceof Anthropic.RateLimitError) throw new AssistantError("The assistant is rate-limited right now. Try again in a moment.");
+      if (e instanceof Anthropic.APIConnectionError) throw new AssistantError("Could not reach the AI service. Try again in a moment.");
+      throw new AssistantError("The assistant is unavailable right now.");
+    }
+
+    const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+    if (toolUses.length === 0 || response.stop_reason !== "tool_use") {
+      const text = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text).join("").trim();
+      return { answer: text || "I couldn't work out an answer to that. Try rephrasing?" };
+    }
+
+    messages.push({ role: "assistant", content: response.content });
+    const results: Anthropic.ToolResultBlockParam[] = [];
+    for (const tu of toolUses) {
+      let out: string;
+      try {
+        if (tu.name === "query_data") {
+          out = await runQueryData(tu.input as QueryDataInput, ctx);
+        } else if (tu.name === "quick_lookup") {
+          const id = (tu.input as { lookup?: string }).lookup;
+          const lookup = lookups.find((l) => l.id === id);
+          out = lookup ? await lookup.run(ctx.supabase, ctx.tenantId) : `Error: unknown lookup "${id}".`;
+        } else {
+          out = `Error: unknown tool "${tu.name}".`;
+        }
+      } catch (e) {
+        console.error(`Assistant tool ${tu.name} failed:`, e);
+        out = "Error: that lookup failed. Tell the user the data couldn't be read just now.";
+      }
+      results.push({ type: "tool_result", tool_use_id: tu.id, content: out.slice(0, 20_000) });
+    }
+    messages.push({ role: "user", content: results });
   }
 
-  const block = response.content.find((b) => b.type === "tool_use");
-  if (!block || block.type !== "tool_use") {
-    return { answer: "I couldn't work out what to look up. Try rephrasing?", intent: "unsupported" };
-  }
-  const input = block.input as { intent: string; limit?: number };
-
-  if (input.intent === "write_request") {
-    return {
-      intent: "write_request",
-      answer:
-        "I can only look things up — I can't create, change or delete anything. " +
-        "You'll need to do that on the relevant page yourself.",
-    };
-  }
-
-  const intent = allowed.find((i) => i.id === input.intent);
-  if (!intent) {
-    return {
-      intent: "unsupported",
-      answer:
-        "I can't answer that one yet. Right now I can help with:\n" +
-        allowed.map((i) => `• ${i.description}`).join("\n"),
-    };
-  }
-
-  const limit = Math.min(10, Math.max(1, input.limit ?? 5));
-  try {
-    const answer = await intent.run({ supabase: ctx.supabase, tenantId: ctx.tenantId, limit });
-    return { answer, intent: intent.id };
-  } catch (e) {
-    console.error(`Assistant intent ${intent.id} failed:`, e);
-    throw new AssistantError("I couldn't read that data just now. Try again in a moment.");
-  }
+  return { answer: "That took more digging than I can do in one go — try a more specific question." };
 }
