@@ -23,7 +23,7 @@ import { useTenant, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/ten
 
 type Item =
   | { kind: "nav"; label: string; sub: string; href: string }
-  | { kind: "create"; label: string; sub: string; href: string; event?: string }
+  | { kind: "create"; label: string; sub: string; href: string; event?: string; mode?: string }
   | { kind: "record"; label: string; sub: string; href: string; matched: string }
   // A record CATEGORY header (client request 2026-08-22): results group by
   // object type instead of one long mixed list; the arrow expands that
@@ -133,9 +133,19 @@ export default function NovaPalette() {
       .map((a) => ({ kind: "create", label: a.label, sub: "Create", href: a.href }));
 
     // Pillar 2: AI record creation -- top of the Create list, the way a
-    // record SHOULD start on Nova.
+    // record SHOULD start on Nova. Listed in reverse of unshift order so
+    // Account ends up first (the most common paste-to-create starting point).
+    if (features?.products === true) {
+      create.unshift({ kind: "create", label: "New product from paste", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft", mode: "products" });
+    }
+    if (features?.quotations === true) {
+      create.unshift({ kind: "create", label: "New quote from paste", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft", mode: "quotes" });
+    }
+    if (features?.contacts === true) {
+      create.unshift({ kind: "create", label: "New contact from paste", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft", mode: "contacts" });
+    }
     if (features?.accounts === true) {
-      create.unshift({ kind: "create", label: "New account from paste", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft" });
+      create.unshift({ kind: "create", label: "New account from paste", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft", mode: "accounts" });
     }
 
     return [...create, ...nav];
@@ -238,7 +248,7 @@ export default function NovaPalette() {
       }
     }
     const draftOffer: Item[] = pastedContent && features?.accounts === true
-      ? [{ kind: "create", label: "Draft an account from this text", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft" }]
+      ? [{ kind: "create", label: "Draft an account from this text", sub: "Nova AI", href: "@nova-draft", event: "nova:open-draft", mode: "accounts" }]
       : [];
     // "prep me for my call with X" resolved to a real account -- surface
     // it above everything else, since it's the one thing the user actually
@@ -268,7 +278,7 @@ export default function NovaPalette() {
       // Pasted content travels with the event so the draft modal starts
       // working immediately instead of asking for the same paste twice.
       window.dispatchEvent(new CustomEvent(item.event, {
-        detail: pastedContent ? { text: query } : undefined,
+        detail: { mode: item.mode, ...(pastedContent ? { text: query } : {}) },
       }));
       return;
     }

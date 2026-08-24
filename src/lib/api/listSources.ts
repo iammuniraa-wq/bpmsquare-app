@@ -2,16 +2,25 @@ import "server-only";
 import { listQuotesForTenant, listAccountsForTenant, listCasesForTenant } from "@/lib/data";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import type { QueryableField } from "./query";
+import type { WorkcenterKey } from "@/lib/workcenters";
 
-// One place that defines, per v1 list object, both its queryable-field
-// whitelist and how to load its tenant-scoped, PII-decrypted rows. The list
-// routes and POST /api/v1/ask both consume this, so the field set a query is
+// One place that defines, per list object, both its queryable-field
+// whitelist and how to load its tenant-scoped, PII-decrypted rows. The v1
+// REST routes, POST /api/v1/ask, AND the in-app Report Builder
+// (POST /api/reports/ask) all consume this, so the field set a query is
 // validated against and the rows it runs over can never drift apart. Every
 // load() is tenant-scoped (session data helpers, or an explicit
 // .eq("tenant_id", tenantId) on the admin client).
 
 export type ListSource = {
   label: string;              // human name, shown to the NL model
+  description: string;        // one-line disambiguator for Report Builder's
+                               // routing stage (docs/ai-report-builder-architecture.md §2.2)
+                               // -- "quotations" vs "quotes" reads the same to
+                               // a model without this
+  relatedWorkcenter: WorkcenterKey;  // Report Builder's catalog is filtered to
+                                     // canViewWorkcenter() BEFORE the model ever
+                                     // sees this object exists
   fields: QueryableField[];
   load: (tenantId: string) => Promise<Record<string, unknown>[]>;
 };
@@ -37,8 +46,8 @@ const ACCOUNT_FIELDS: QueryableField[] = [
   { path: "name", type: "string", searchable: true },
   { path: "type", type: "string" },
   { path: "city", type: "string", searchable: true },
-  { path: "phone", type: "string" },
-  { path: "email", type: "string", searchable: true },
+  { path: "phone", type: "string", sensitive: true },
+  { path: "email", type: "string", searchable: true, sensitive: true },
   { path: "created_at", type: "date" },
   { path: "referred_by.name", type: "string" },
 ];
@@ -92,8 +101,8 @@ const EMPLOYEE_FIELDS: QueryableField[] = [
   { path: "employee_code", type: "string", searchable: true },
   { path: "first_name", type: "string", searchable: true },
   { path: "last_name", type: "string", searchable: true },
-  { path: "email", type: "string", searchable: true },
-  { path: "phone", type: "string" },
+  { path: "email", type: "string", searchable: true, sensitive: true },
+  { path: "phone", type: "string", sensitive: true },
   { path: "department", type: "string", searchable: true },
   { path: "designation", type: "string", searchable: true },
   { path: "status", type: "string" },
@@ -135,6 +144,8 @@ const PO_FIELDS: QueryableField[] = [
 export const LIST_SOURCES: Record<string, ListSource> = {
   quotations: {
     label: "Quotations",
+    description: "Price quotes sent to customers -- their status, value, and outcome (won/lost).",
+    relatedWorkcenter: "quotations",
     fields: QUOTE_FIELDS,
     load: async (tenantId) => {
       const quotes = await listQuotesForTenant(tenantId);
@@ -150,6 +161,8 @@ export const LIST_SOURCES: Record<string, ListSource> = {
   },
   accounts: {
     label: "Accounts",
+    description: "Companies and organizations you sell to -- customers, their type, city, and relationships.",
+    relatedWorkcenter: "accounts",
     fields: ACCOUNT_FIELDS,
     load: async (tenantId) => {
       const accounts = await listAccountsForTenant(tenantId);
@@ -164,6 +177,8 @@ export const LIST_SOURCES: Record<string, ListSource> = {
   },
   cases: {
     label: "Service cases",
+    description: "Customer service/repair tickets -- equipment complaint, status, disposition, technician.",
+    relatedWorkcenter: "cases",
     fields: CASE_FIELDS,
     load: async (tenantId) => {
       const cases = await listCasesForTenant(tenantId);
@@ -179,6 +194,8 @@ export const LIST_SOURCES: Record<string, ListSource> = {
   },
   inventory: {
     label: "Inventory items",
+    description: "Stocked spare parts/materials you hold -- quantity on hand, reorder level, unit cost.",
+    relatedWorkcenter: "inventory",
     fields: INVENTORY_FIELDS,
     load: async (tenantId) => {
       const { data } = await createAdminSupabase().from("inventory_items").select("*").eq("tenant_id", tenantId).order("name");
@@ -192,6 +209,8 @@ export const LIST_SOURCES: Record<string, ListSource> = {
   },
   products: {
     label: "Products (sellable catalog)",
+    description: "The catalog of products/services you sell -- list price, category, tax rate.",
+    relatedWorkcenter: "products",
     fields: PRODUCT_FIELDS,
     load: async (tenantId) => {
       // cost_price is INTERNAL (margin data) and deliberately not selected --
@@ -209,6 +228,8 @@ export const LIST_SOURCES: Record<string, ListSource> = {
   },
   employees: {
     label: "Employees",
+    description: "Your staff/workforce -- department, designation, employment type, status.",
+    relatedWorkcenter: "employees",
     fields: EMPLOYEE_FIELDS,
     load: async (tenantId) => {
       const { data } = await createAdminSupabase()
@@ -227,6 +248,8 @@ export const LIST_SOURCES: Record<string, ListSource> = {
   },
   invoices: {
     label: "Invoices",
+    description: "Billed amounts to customers -- issued/due dates, total, amount paid, status.",
+    relatedWorkcenter: "invoices",
     fields: INVOICE_FIELDS,
     load: async (tenantId) => {
       const supabase = createAdminSupabase();
@@ -247,6 +270,8 @@ export const LIST_SOURCES: Record<string, ListSource> = {
   },
   "purchase-orders": {
     label: "Purchase orders",
+    description: "Orders placed WITH your suppliers -- what you're buying, status, expected delivery.",
+    relatedWorkcenter: "purchase_orders",
     fields: PO_FIELDS,
     load: async (tenantId) => {
       const supabase = createAdminSupabase();

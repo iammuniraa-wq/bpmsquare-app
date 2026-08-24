@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
+import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
 
 type Msg = { from: "bot" | "me"; text: string };
 
@@ -11,13 +12,31 @@ type Msg = { from: "bot" | "me"; text: string };
 // hides the launcher for themselves, same pattern as bms_nextgen_dark etc.
 const ENABLED_KEY = "bms_ai_dock_enabled";
 
+// Create-from-paste, on Nova tenants only. This is deliberately NOT the
+// chat/ask() path answering with a mutation -- it opens NovaDraft, the
+// same human-review-before-create modal the ⌘K palette uses, so the
+// READ-ONLY badge on the chat below stays true of what it actually labels.
+const CREATE_MODES: { mode: string; label: string; featureKey: "accounts" | "contacts" | "quotations" | "products" }[] = [
+  { mode: "accounts", label: "New account", featureKey: "accounts" },
+  { mode: "contacts", label: "New contact", featureKey: "contacts" },
+  { mode: "quotes", label: "New quote", featureKey: "quotations" },
+  { mode: "products", label: "New product", featureKey: "products" },
+];
+
 /**
- * Read-only data assistant -- a persistent bottom-right launcher that
- * expands into a chat panel. Answers questions about the tenant's own data
- * and nothing else: it cannot create, update or delete, which is enforced
- * server-side (src/lib/ai/assistant.ts), not just stated here. The empty
- * state lists exactly what it can do, scoped to the caller's Business
- * Roles, so nobody has to guess what to type.
+ * Data assistant -- a persistent bottom-right launcher that expands into a
+ * chat panel. The chat itself answers questions about the tenant's own
+ * data and nothing else: it cannot create, update or delete, which is
+ * enforced server-side (src/lib/ai/assistant.ts), not just stated here.
+ * The empty state lists exactly what it can do, scoped to the caller's
+ * Business Roles, so nobody has to guess what to type.
+ *
+ * On Nova tenants, the empty state also offers "create from a paste" —
+ * reusing NovaDraft (nova:open-draft), never a second implementation.
+ * Gated on useIsNextgen3Layer() specifically because NovaDraft itself only
+ * mounts under that same condition; this dock alone can render on tenants
+ * where Nova is off (ai_assistant is a separate flag), and dispatching the
+ * event there would silently no-op.
  */
 export default function AIDock() {
   const [open, setOpen] = useState(false);
@@ -27,6 +46,17 @@ export default function AIDock() {
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const nova = useIsNextgen3Layer();
+  const hasAccounts = useTenantFeature("accounts");
+  const hasContacts = useTenantFeature("contacts");
+  const hasQuotations = useTenantFeature("quotations");
+  const hasProducts = useTenantFeature("products");
+  const featureByKey: Record<string, boolean> = { accounts: hasAccounts, contacts: hasContacts, quotations: hasQuotations, products: hasProducts };
+  const createChips = nova ? CREATE_MODES.filter((m) => featureByKey[m.featureKey]) : [];
+
+  function openDraft(mode: string) {
+    window.dispatchEvent(new CustomEvent("nova:open-draft", { detail: { mode } }));
+  }
 
   useEffect(() => {
     try {
@@ -145,8 +175,26 @@ export default function AIDock() {
             {messages.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                 <div style={{ color: c.muted, lineHeight: 1.5 }}>
-                  I can answer questions about your data. I can&apos;t create, change or delete anything.
+                  I can answer questions about your data. The chat itself can&apos;t create, change or delete anything.
+                  {createChips.length > 0 && " Use the buttons below to draft a new record from pasted text — you review it before anything is created."}
                 </div>
+                {createChips.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {createChips.map((item) => (
+                      <button
+                        key={item.mode}
+                        onClick={() => openDraft(item.mode)}
+                        style={{
+                          background: "var(--accentbg)", border: `1px solid var(--line)`,
+                          borderRadius: 999, padding: "6px 12px", fontSize: 11.5, fontWeight: 650,
+                          color: c.accent, cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        ✦ {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {capabilities === null && <div style={{ color: c.hint }}>Loading…</div>}
                 {capabilities?.length === 0 && (
                   <div style={{ color: c.hint }}>There&apos;s no data I can report on for your account yet.</div>

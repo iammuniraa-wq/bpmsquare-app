@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { authorizeApi, jsonError, jsonValidationError, readJsonBody, optionsResponse, jsonOk, RW_METHODS } from "../_auth";
 import { LIST_SOURCES } from "@/lib/api/listSources";
 import { parseListQuery, applyListQuery } from "@/lib/api/query";
+import { baseQueryProperties, compiledQueryToSearchParams, type CompiledQueryInput } from "@/lib/ai/nlCompile";
 
 // POST /api/v1/ask  { "object": "quotations", "question": "top 5 draft quotes over 50k by value" }
 //
@@ -15,8 +16,6 @@ import { parseListQuery, applyListQuery } from "@/lib/api/query";
 
 export const maxDuration = 30;
 
-const OPS = ["eq", "ne", "gt", "gte", "lt", "lte", "like", "in", "isnull"];
-
 function askTool(fields: { path: string; type: string; searchable?: boolean }[]): Anthropic.Tool {
   return {
     name: "query",
@@ -25,65 +24,14 @@ function askTool(fields: { path: string; type: string; searchable?: boolean }[])
       type: "object",
       properties: {
         answerable: { type: "boolean", description: "false if the question can't be answered from the listed fields." },
-        filters: {
-          type: "array",
-          description: "Conditions, ANDed together. Use only listed field paths.",
-          items: {
-            type: "object",
-            properties: {
-              field: { type: "string", enum: fields.map((f) => f.path) },
-              op: { type: "string", enum: OPS, description: "like = case-insensitive contains; in = comma-separated list; isnull value is 'true'/'false'." },
-              value: { type: "string", description: "The comparison value as a string (dates as ISO yyyy-mm-dd)." },
-            },
-            required: ["field", "op", "value"],
-          },
-        },
-        search: { type: "string", description: "Free-text contains across searchable fields (" + fields.filter((f) => f.searchable).map((f) => f.path).join(", ") + "). Use instead of guessing which text field." },
-        sort: {
-          type: "array",
-          items: { type: "object", properties: { field: { type: "string", enum: fields.map((f) => f.path) }, dir: { type: "string", enum: ["asc", "desc"] } }, required: ["field", "dir"] },
-        },
-        select: { type: "array", items: { type: "string", enum: fields.map((f) => f.path) }, description: "Fields to return; omit for all." },
-        aggregates: {
-          type: "array",
-          description: "Aggregates over the filtered set, e.g. sum of total.",
-          items: { type: "object", properties: { fn: { type: "string", enum: ["count", "sum", "avg", "min", "max"] }, field: { type: "string", enum: fields.map((f) => f.path) } }, required: ["fn"] },
-        },
-        group_by: { type: "string", enum: fields.map((f) => f.path), description: "Group counts/aggregates by this field." },
-        limit: { type: "integer", minimum: 1, maximum: 200, description: "Row cap; use with sort for 'top N'." },
-        count_only: { type: "boolean", description: "true for 'how many' questions -- returns the count without the rows." },
+        ...baseQueryProperties(fields),
       },
       required: ["answerable"],
     },
   };
 }
 
-type QueryInput = {
-  answerable?: boolean;
-  filters?: { field: string; op: string; value: string }[];
-  search?: string;
-  sort?: { field: string; dir: string }[];
-  select?: string[];
-  aggregates?: { fn: string; field?: string }[];
-  group_by?: string;
-  limit?: number;
-  count_only?: boolean;
-};
-
-// Build the same wire query string a REST caller would send, so it runs through
-// the identical validation path.
-function toSearchParams(q: QueryInput): URLSearchParams {
-  const sp = new URLSearchParams();
-  if (q.filters?.length) sp.set("filter", q.filters.map((f) => `${f.field}:${f.op}:${f.value}`).join(";"));
-  if (q.search) sp.set("search", q.search);
-  if (q.sort?.length) sp.set("sort", q.sort.map((s) => (s.dir === "desc" ? "-" : "") + s.field).join(","));
-  if (q.select?.length) sp.set("select", q.select.join(","));
-  if (q.aggregates?.length) sp.set("aggregate", q.aggregates.map((a) => (a.field ? `${a.fn}:${a.field}` : a.fn)).join(","));
-  if (q.group_by) sp.set("group_by", q.group_by);
-  if (q.limit) sp.set("limit", String(q.limit));
-  if (q.count_only) sp.set("count", "only");
-  return sp;
-}
+type QueryInput = CompiledQueryInput & { answerable?: boolean };
 
 export async function POST(req: Request) {
   const parsedBody = await readJsonBody(req);
@@ -134,7 +82,7 @@ export async function POST(req: Request) {
     }, RW_METHODS);
   }
 
-  const sp = toSearchParams(input);
+  const sp = compiledQueryToSearchParams(input);
   const parsed = parseListQuery(sp, src.fields);
   if (!parsed.ok) {
     // The model produced something the engine rejects -- surface it rather than

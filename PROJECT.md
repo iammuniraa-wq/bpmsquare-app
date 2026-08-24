@@ -394,6 +394,18 @@ deploy for an automatic schema change.
   segments) into the `is_demo` tenant and flips `features.coverage_model`
   on. Idempotent.
   **Run order: 0098 → 0099 → 0100 → seed-products-demo.sql.**
+- **0103_ai_reports.sql — PENDING on both DBs** (written 2026-08-24, owner
+  decision same day, full catalog not a curated v1 — see
+  `docs/ai-report-builder-architecture.md` v0.2): the `ai_reports` table —
+  saved "talk to data" reports (question, routed object, the COMPILED query
+  spec, chart type, title, interpretation). Standard tenant-isolation RLS.
+  Stores only the recipe, never model output as fact: re-opening a report
+  re-runs `compiled_query` against live data through the existing
+  `parseListQuery`/`applyListQuery` engine and re-checks the *viewer's*
+  current Business-Role permissions every time, never the creator's at save
+  time. Until this runs, saving/pinning a report degrades cleanly (42P01 →
+  save fails with a clear error, asking still works and just can't persist)
+  behind the `ai_reports` feature flag, which no tenant has yet.
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;

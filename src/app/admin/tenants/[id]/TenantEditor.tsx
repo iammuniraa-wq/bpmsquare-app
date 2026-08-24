@@ -42,6 +42,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "quote_lines_dw",  label: "Quote Lines (Data Workbench)", group: "Sales & Service add-ons" },
   { key: "coverage_model",  label: "Coverage (rule-based teams/segments, auto-ownership, ERP routing)", premium: true, group: "Sales & Service add-ons" },
   { key: "ai_assistant",   label: "AI Assistant", premium: true, group: "Platform & automation" },
+  { key: "ai_reports",     label: "AI Report Builder (talk to data)", premium: true, group: "Platform & automation" },
   { key: "db_export",      label: "DB Export",    premium: true, group: "Platform & automation" },
   { key: "change_history",        label: "Change History",         group: "Platform & automation" },
   { key: "outbound_email",        label: "Outbound Emails",        group: "Platform & automation" },

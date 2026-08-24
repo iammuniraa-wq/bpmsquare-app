@@ -1,10 +1,11 @@
 import { listQuotes, getAnalyticsData } from "@/lib/data";
 import { getTenant, requireFeature } from "@/lib/tenant";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { resolvePermissions, toViewableWorkcenters, requireWorkcenterView } from "@/lib/permissions";
+import { resolvePermissions, toViewableWorkcenters, requireWorkcenterView, canEditWorkcenter } from "@/lib/permissions";
 import PageHeader from "@/components/PageHeader";
 import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import ReportsClient from "./ReportsClient";
+import AskPanel from "./AskPanel";
 
 export default async function ReportsPage() {
   await requireWorkcenterView("reports");
@@ -27,6 +28,9 @@ export default async function ReportsPage() {
   return (
     <>
       <PageHeader title="Analytics" subtitle="Data · Reports · Export" />
+      {tenant?.features?.ai_reports && (
+        <AskPanel canSave={canEditWorkcenter(perms, "reports")} />
+      )}
       <ReportsClient
         rows={rows}
         analytics={analytics}

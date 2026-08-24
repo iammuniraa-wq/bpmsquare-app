@@ -36,7 +36,16 @@ export default function RateSnapshotView({ template, rules }: { template: Method
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {shown.map((cmp) => {
-        const unit: "currency" | "percent" = cmp.calc_type === "PERCENT" ? "percent" : "currency";
+        // Prefer the wizard's own declared unit over guessing from
+        // calc_type: MARGIN_FLOOR is calc_type FIXED_AMOUNT (a plain stored
+        // number, per calc.ts's ruleAmount -- FIXED_AMOUNT returns
+        // rule.value verbatim) but is semantically a percent, so inferring
+        // from calc_type alone showed "15" instead of "15%" here while the
+        // Sample bill (which uses EditableComponent.unit directly) correctly
+        // showed "15%" for the exact same number.
+        const unit: "currency" | "percent" =
+          template.editableComponents.find((ec) => ec.component_code === cmp.code)?.unit
+          ?? (cmp.calc_type === "PERCENT" ? "percent" : "currency");
         return (
           <div key={cmp.code} style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 8 }}>{cmp.name}</div>

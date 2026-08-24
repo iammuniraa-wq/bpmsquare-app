@@ -20,7 +20,14 @@
 // typo in a bulk load fails loudly instead of silently returning everything.
 
 export type QueryableType = "string" | "number" | "boolean" | "date";
-export type QueryableField = { path: string; type: QueryableType; searchable?: boolean };
+export type QueryableField = {
+  path: string; type: QueryableType; searchable?: boolean;
+  /** PII/sensitive (e.g. email, phone, salary). Never a v1-API restriction on
+   * its own -- routes that need field-level PII policy (Report Builder's
+   * table vs aggregate rule, see docs/ai-report-builder-architecture.md §3.7)
+   * read this; it does not change what select/filter/sort already allow. */
+  sensitive?: boolean;
+};
 
 export type FilterOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "like" | "in" | "isnull";
 const OPS: readonly FilterOp[] = ["eq", "ne", "gt", "gte", "lt", "lte", "like", "in", "isnull"];
@@ -46,6 +53,12 @@ export type ParsedQuery = {
   search: { term: string; fields: string[] } | null;
   /** ?group_by=field -> aggregates computed per distinct value, in meta.groups. */
   groupBy: string | null;
+  /** ?group_limit=N -> top-N groups by count, the rest collapsed into one
+   * "Other" bucket. Unbounded group_by on a high-cardinality field (e.g.
+   * account name on a large tenant) is both a payload-size problem and an
+   * unreadable chart -- this caps it at the engine level so every consumer
+   * of group_by gets the protection, not just chart-rendering callers. */
+  groupLimit: number | null;
   /** ?count=only -> return meta only, no data rows. */
   countOnly: boolean;
 };
@@ -149,6 +162,18 @@ export function parseListQuery(
     if (known(groupRaw.trim(), "group_by")) groupBy = groupRaw.trim();
   }
 
+  // group_limit -- top-N groups by count, rest collapsed into "Other"
+  let groupLimit: number | null = null;
+  const groupLimitRaw = sp.get("group_limit");
+  if (groupLimitRaw) {
+    const n = parseInt(groupLimitRaw, 10);
+    if (!Number.isInteger(n) || n < 1) {
+      errors.push({ param: "group_limit", message: "group_limit must be a positive integer." });
+    } else {
+      groupLimit = Math.min(100, n);
+    }
+  }
+
   // count=only -> meta only
   const countOnly = sp.get("count") === "only";
 
@@ -158,7 +183,7 @@ export function parseListQuery(
   const limit = Math.min(MAX_LIMIT, Math.max(1, rawLimit));
 
   if (errors.length) return { ok: false, errors };
-  return { ok: true, query: { select, filters, sort, page, limit, aggregates, search, groupBy, countOnly } };
+  return { ok: true, query: { select, filters, sort, page, limit, aggregates, search, groupBy, groupLimit, countOnly } };
 }
 
 const INVALID = Symbol("invalid");
@@ -294,6 +319,16 @@ export function applyListQuery<T extends Record<string, unknown>>(
     groups = [...buckets.entries()]
       .map(([key, rs]) => ({ key, count: rs.length, ...aggregate(rs, query.aggregates.filter((a) => a.fn !== "count")) }))
       .sort((a, b) => b.count - a.count);
+
+    if (query.groupLimit && groups.length > query.groupLimit) {
+      const kept = groups.slice(0, query.groupLimit);
+      const rest = groups.slice(query.groupLimit);
+      const otherRows = rest.flatMap((g) => buckets.get(g.key) ?? []);
+      groups = [
+        ...kept,
+        { key: "Other", count: rest.reduce((s, g) => s + g.count, 0), ...aggregate(otherRows, query.aggregates.filter((a) => a.fn !== "count")) },
+      ];
+    }
   }
 
   // sort (stable multi-key)

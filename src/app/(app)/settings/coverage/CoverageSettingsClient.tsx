@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { useFeel } from "@/components/FeelProvider";
 import {
   SEGMENT_FIELDS, OPERATOR_LABEL, getSegmentField,
   type SegmentFilter, type SegmentFieldDef,
@@ -136,6 +137,7 @@ function TeamsTab({ teams, members, memberLabel, onChanged }: {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const { confirm } = useFeel();
 
   function startEdit(t: Team) {
     setEditingId(t.id);
@@ -167,7 +169,7 @@ function TeamsTab({ teams, members, memberLabel, onChanged }: {
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this team? Any coverage wired to it goes with it.")) return;
+    if (!(await confirm({ title: "Delete this team?", body: "Any coverage wired to it goes with it.", tone: "danger" }))) return;
     await api(`/api/settings/coverage/teams/${id}`, { method: "DELETE" });
     onChanged();
   }
@@ -249,6 +251,7 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const { confirm } = useFeel();
 
   const categories = useMemo(() => {
     const map = new Map<string, SegmentFieldDef[]>();
@@ -293,7 +296,7 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this segment? Any coverage wired to it goes with it.")) return;
+    if (!(await confirm({ title: "Delete this segment?", body: "Any coverage wired to it goes with it.", tone: "danger" }))) return;
     await api(`/api/settings/coverage/segments/${id}`, { method: "DELETE" });
     onChanged();
   }
@@ -454,6 +457,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
   const [effectiveTo, setEffectiveTo] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const { confirm } = useFeel();
 
   const [endpointName, setEndpointName] = useState("");
   const [endpointUrl, setEndpointUrl] = useState("");
@@ -481,7 +485,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
   }
 
   async function remove(id: string) {
-    if (!confirm("Remove this coverage assignment?")) return;
+    if (!(await confirm({ title: "Remove this coverage assignment?", tone: "danger" }))) return;
     await api(`/api/settings/coverage/assignments/${id}`, { method: "DELETE" });
     onChanged();
   }

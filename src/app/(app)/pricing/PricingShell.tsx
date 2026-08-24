@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { c, pillar } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
+import { useFeel } from "@/components/FeelProvider";
+import { PricingRefreshProvider, usePricingRefresh } from "./PricingRefreshContext";
 
 const TABS = [
   { href: ROUTES.pricingToday, label: "Today's rates" },
@@ -16,8 +18,18 @@ const TABS = [
 type VersionRow = { version: number; status: "DRAFT" | "PUBLISHED" | "SUPERSEDED"; notes: string | null };
 
 export default function PricingShell({ canEdit, children }: { canEdit: boolean; children: React.ReactNode }) {
+  return (
+    <PricingRefreshProvider>
+      <PricingShellInner canEdit={canEdit}>{children}</PricingShellInner>
+    </PricingRefreshProvider>
+  );
+}
+
+function PricingShellInner({ canEdit, children }: { canEdit: boolean; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { confirm } = useFeel();
+  const { bump } = usePricingRefresh();
   const [draft, setDraft] = useState<VersionRow | null | undefined>(undefined);
   const [busy, setBusy] = useState<"publish" | "discard" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +65,7 @@ export default function PricingShell({ canEdit, children }: { canEdit: boolean; 
         return;
       }
       await reload();
+      bump();
       router.push(ROUTES.pricingToday);
       router.refresh();
     } finally {
@@ -62,7 +75,12 @@ export default function PricingShell({ canEdit, children }: { canEdit: boolean; 
 
   async function discard() {
     if (!draft) return;
-    if (!window.confirm("Discard your unsaved pricing changes? This can't be undone.")) return;
+    const ok = await confirm({
+      title: "Discard your unsaved pricing changes?",
+      body: "This can't be undone.",
+      tone: "danger",
+    });
+    if (!ok) return;
     setBusy("discard");
     setError(null);
     try {
@@ -70,6 +88,7 @@ export default function PricingShell({ canEdit, children }: { canEdit: boolean; 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data?.error || "Couldn't discard changes."); return; }
       await reload();
+      bump();
       router.refresh();
     } finally {
       setBusy(null);

@@ -9,6 +9,7 @@ import {
   type MethodTemplate, type PricingMethodKey, type EditableComponent, type RateRow, type ScaleEntry,
 } from "@/lib/pricing/wizard";
 import RateSnapshotView, { type SnapshotRule } from "../RateSnapshotView";
+import { usePricingRefresh } from "../PricingRefreshContext";
 
 type VersionRow = { version: number; status: "DRAFT" | "PUBLISHED" | "SUPERSEDED" };
 type SnapshotProcedure = { code: string; entry_mode: string };
@@ -151,14 +152,21 @@ function removeTier(setRows: RowsSetter, code: string, rowIndex: number, tierInd
 }
 
 const linkBtn: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 };
-const numInput: React.CSSProperties = { width: 90, padding: "6px 8px", fontSize: 13, borderRadius: 6, border: `1px solid ${c.line}`, background: c.bg2, color: c.ink };
+const numInput: React.CSSProperties = { width: 90, padding: "6px 8px", fontSize: 13, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel2, color: c.ink };
 
 export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
+  const { epoch } = usePricingRefresh();
   const [phase, setPhase] = useState<Phase>("loading");
   const [template, setTemplate] = useState<MethodTemplate | null>(null);
   const [version, setVersion] = useState<number | null>(null);
   const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
   const [rows, setRows] = useState<RowsByComponent>({});
+  // The rows as last loaded from (or saved to) the server, keyed by
+  // component_code -- diffed in saveNumbers() against the current `rows` so
+  // a row the tenant removed in the UI actually gets deleted server-side
+  // too, instead of just disappearing from local state while its rule row
+  // keeps applying (and keeps showing up on Today's rates/History).
+  const [originalRows, setOriginalRows] = useState<RowsByComponent>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -177,9 +185,11 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
         const t = matchMethodTemplate(snap.procedures);
         if (!t) { setPhase("unsupported"); return; }
         await syncTemplateDefinitions(t, draft.version, snap.cost_inputs);
+        const initialRows = rowsFromSnapshot(t, snap);
         setTemplate(t);
         setVersion(draft.version);
-        setRows(rowsFromSnapshot(t, snap));
+        setRows(initialRows);
+        setOriginalRows(initialRows);
         setPhase("numbers");
         return;
       }
@@ -200,7 +210,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, epoch]);
 
   async function chooseMethod(key: PricingMethodKey) {
     const t = PRICING_METHODS.find((m) => m.key === key)!;
@@ -214,6 +224,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
       setTemplate(t);
       setVersion(v);
       setRows(defaultRows(t));
+      setOriginalRows({});
       setPhase("numbers");
     } catch (e) {
       setError((e as Error).message);
@@ -233,9 +244,11 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
       const t = matchMethodTemplate(snap.procedures) ?? template;
       if (!t) { setPhase("unsupported"); return; }
       await syncTemplateDefinitions(t, v, snap.cost_inputs);
+      const initialRows = rowsFromSnapshot(t, snap);
       setTemplate(t);
       setVersion(v);
-      setRows(rowsFromSnapshot(t, snap));
+      setRows(initialRows);
+      setOriginalRows(initialRows);
       setPhase("numbers");
     } catch (e) {
       setError((e as Error).message);
@@ -249,9 +262,30 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
     setBusy(true);
     setError(null);
     try {
+      const nextRows: RowsByComponent = {};
       for (const ec of template.editableComponents) {
-        for (const row of rows[ec.component_code] ?? []) {
-          await postJson("/api/settings/pricing-engine/config", {
+        const currentList = rows[ec.component_code] ?? [];
+        const originalList = originalRows[ec.component_code] ?? [];
+        const currentIds = new Set(currentList.map((r) => r.id).filter((id): id is string => Boolean(id)));
+
+        // A row removed in the UI since load must be deleted server-side too
+        // -- otherwise its rule keeps applying (and keeps showing on Today's
+        // rates/History) even though it looks gone in the wizard.
+        for (const original of originalList) {
+          if (original.id && !currentIds.has(original.id)) {
+            await postJson("/api/settings/pricing-engine/config", {
+              entity: "rule", op: "delete", version, area: "default", data: { id: original.id },
+            });
+          }
+        }
+
+        // Capture the id a fresh insert gets back, so saving again (e.g.
+        // "Back to numbers" -> edit -> "Continue" a second time without a
+        // page reload) updates that row in place instead of inserting a
+        // second, duplicate rule for the same condition.
+        const savedList: RateRow[] = [];
+        for (const row of currentList) {
+          const res = await postJson("/api/settings/pricing-engine/config", {
             entity: "rule", op: "upsert", version, area: "default",
             data: {
               id: row.id,
@@ -261,8 +295,12 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
               scale: ec.tiered ? { entries: row.tiers ?? [] } : null,
             },
           });
+          savedList.push({ ...row, id: (res?.id as string | undefined) ?? row.id });
         }
+        nextRows[ec.component_code] = savedList;
       }
+      setRows(nextRows);
+      setOriginalRows(nextRows);
       setPhase("sample");
     } catch (e) {
       setError((e as Error).message);
@@ -391,7 +429,7 @@ function RateRowEditor({ template, ec, row, index, canEdit, canRemoveRow, setRow
   const factorLabel = (attr: string) => template.dimensions.find((d) => d.attribute === attr)?.label ?? attr;
 
   return (
-    <div style={{ padding: "8px 10px", borderRadius: 8, background: c.bg2, border: `1px solid ${c.line}` }}>
+    <div style={{ padding: "8px 10px", borderRadius: 8, background: c.panel2, border: `1px solid ${c.line}` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           {isCatchAll && <span style={{ fontSize: 11.5, color: c.muted, fontStyle: "italic" }}>Everyone else</span>}
@@ -532,7 +570,7 @@ function SampleBill({ template, version, canEdit, onBack }: { template: MethodTe
         <input
           type="number" min={1} value={qty}
           onChange={(e) => { const q = Math.max(1, Number(e.target.value) || 1); setQty(q); run(q); }}
-          style={{ width: 70, padding: "6px 8px", fontSize: 13, borderRadius: 6, border: `1px solid ${c.line}`, background: c.bg2, color: c.ink }}
+          style={{ width: 70, padding: "6px 8px", fontSize: 13, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel2, color: c.ink }}
         />
       </div>
 

@@ -468,6 +468,13 @@ export type TenantFeatures = {
   // default OFF (missing key reads false) since it can reassign account
   // ownership and reroute ERP pushes once on.
   coverage_model: boolean;
+  // AI Report Builder ("talk to data", docs/ai-report-builder-architecture.md):
+  // natural-language questions compiled to the same validated query engine the
+  // v1 API uses, answered with a chart/table over live data. Calls the model
+  // on every fresh question (saved reports don't), so this stays an explicit
+  // opt-in flag like pricing_engine/coverage_model rather than bundled into
+  // the existing `reports` flag -- default OFF, missing key reads false.
+  ai_reports: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
