@@ -32,7 +32,7 @@ type RouteInput = {
   reason?: string;
 };
 
-function routeTool(catalog: { key: string; description: string }[]): Anthropic.Tool {
+function routeTool(catalog: { key: string; description: string; fields: string[] }[]): Anthropic.Tool {
   return {
     name: "route_question",
     description: "Decide which object this question is about, ask for clarification, or decline.",
@@ -125,9 +125,17 @@ export async function POST(req: Request) {
 
   // Catalog: every LIST_SOURCES object the caller's Business Roles grant VIEW
   // on -- filtered BEFORE the model ever sees an object name or description.
+  // Field NAMES (not full types/hints -- that's stage 2's job) travel with
+  // each entry so routing can tell when an object already carries what it
+  // needs via a denormalized reference (e.g. quotations.account.name) and
+  // answer directly, instead of asking to disambiguate purely because two
+  // object names appear in the phrasing -- a real bug found live: "accounts
+  // with quote value over 50k" was asking to choose between accounts and
+  // quotations, when quotations alone (account.name + total) fully answers
+  // it and accounts has no quote-value field at all.
   const catalog = Object.entries(LIST_SOURCES)
     .filter(([, src]) => canViewWorkcenter(perms, src.relatedWorkcenter))
-    .map(([key, src]) => ({ key, label: src.label, description: src.description }));
+    .map(([key, src]) => ({ key, label: src.label, description: src.description, fields: src.fields.map((f) => f.path) }));
 
   if (catalog.length === 0) {
     return NextResponse.json({ status: "declined", reason: "You don't have view access to any reportable object." });
@@ -144,10 +152,12 @@ export async function POST(req: Request) {
       tools: [routeTool(catalog)],
       tool_choice: { type: "tool", name: "route_question" },
       system:
-        "You route a business question to the ONE object (table) that can answer it. Available objects:\n" +
-        catalog.map((c) => `- ${c.key}: ${c.description}`).join("\n") +
-        "\n\nIf the question genuinely needs data from more than one object joined together, or names something not in this list, decline with a specific reason naming what's missing. " +
-        "If it's genuinely ambiguous which object or which meaning applies (e.g. it could mean two different things), ask ONE specific clarifying question that offers the real candidates -- never a vague \"please clarify\". " +
+        "You route a business question to the ONE object (table) that can answer it. Available objects, with their field names:\n" +
+        catalog.map((c) => `- ${c.key}: ${c.description}\n  fields: ${c.fields.join(", ")}`).join("\n") +
+        "\n\nA dotted field like account.name or account.id is a DENORMALIZED reference -- it means that object already carries the parent's identity, specifically so a question phrased around the parent (\"accounts with...\", \"which customers...\") can be answered from THIS object alone, without a join. " +
+        "Prefer routing directly over asking: if exactly one object's fields can fully answer the question, route to it and do NOT ask for clarification just because another object's NAME also appears in the phrasing -- check whether that other object's fields could even express the alternative reading before treating it as a real candidate. " +
+        "Only ask when two DIFFERENT objects could each fully answer the question and would give a meaningfully different number or breakdown -- and when you do, name the real candidate objects/fields, never a vague \"please clarify\". " +
+        "If the question genuinely needs data from two objects joined together in a way no single object's fields (including denormalized ones) can express, or names something not in this list, decline with a specific reason naming what's missing. " +
         "Otherwise pick exactly one object and set status=ready.",
       messages: [{ role: "user", content: question }],
     });
