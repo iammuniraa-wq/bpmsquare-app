@@ -1,0 +1,18 @@
+# Flutter/Dart build artifacts -- generated locally by `flutter create .`
+# and `flutter build`, never committed.
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+android/
+ios/
+*.iml
+*.lock
+
+# Signing secrets -- never committed, see README step 5.
+android/key.properties
+*.jks
+*.keystore

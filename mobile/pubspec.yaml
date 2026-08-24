@@ -1,0 +1,42 @@
+name: bpmsquare
+description: BPMSquare mobile — a native shell around the BPMSquare web app for Android and iOS.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: ^4.8.0
+  url_launcher: ^6.3.0
+  connectivity_plus: ^6.0.5
+  shared_preferences: ^2.3.2
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon/
+
+# `flutter pub run flutter_launcher_icons` regenerates every platform icon
+# from this one source file — see mobile/README.md step 3.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  min_sdk_android: 21
+
+flutter_native_splash:
+  color: "#152233"
+  image: "assets/icon/app_icon.png"
+  android_12:
+    color: "#152233"
+    image: "assets/icon/app_icon.png"
