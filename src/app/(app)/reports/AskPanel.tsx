@@ -6,7 +6,7 @@ import { cardStyle } from "@/components/Shell";
 import ChartRenderer from "@/components/charts/ChartRenderer";
 import { normalizeReport, type ReportPayload } from "@/lib/reportView";
 
-type Phase = "idle" | "asking" | "clarify" | "ready" | "declined" | "error";
+type Phase = "idle" | "asking" | "clarify" | "ready" | "insights" | "declined" | "error";
 
 type SavedReport = { id: string; question: string; title: string; chart_type: string; created_at: string };
 
@@ -26,6 +26,7 @@ const EXAMPLES_FULL = [
   "Open cases by priority",
   "Total outstanding invoice value",
   "Products by category",
+  "Give me insights about quotes",
 ];
 
 async function postJson(url: string, body?: unknown) {
@@ -39,10 +40,14 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
   const [question, setQuestion] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [payload, setPayload] = useState<ReportPayload | null>(null);
+  // "Insights about X" -- broad questions can't answer as one chart, so the
+  // server returns several independently-compiled facets instead. Rendered
+  // as a vertical stream of cards, each with its own Save.
+  const [insightsReports, setInsightsReports] = useState<ReportPayload[]>([]);
+  const [insightsTitle, setInsightsTitle] = useState("");
   const [clarifyingQuestion, setClarifyingQuestion] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [saved, setSaved] = useState<SavedReport[] | null>(null);
 
   const loadSaved = useCallback(async () => {
@@ -60,7 +65,6 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
   async function ask(q: string) {
     setPhase("asking");
     setError(null);
-    setSaveState("idle");
     try {
       const data = await postJson("/api/reports/ask", { question: q });
       if (data.status === "needs_clarification") {
@@ -71,6 +75,12 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
       if (data.status === "declined") {
         setDeclineReason(data.reason);
         setPhase("declined");
+        return;
+      }
+      if (data.status === "insights") {
+        setInsightsReports(Array.isArray(data.reports) ? data.reports : []);
+        setInsightsTitle(data.question ?? q);
+        setPhase("insights");
         return;
       }
       setPayload(data as ReportPayload);
@@ -93,22 +103,6 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
     ask(combined);
   }
 
-  async function saveReport() {
-    if (!payload) return;
-    setSaveState("saving");
-    try {
-      await postJson("/api/reports", {
-        object: payload.object, question: payload.question, chart_type: payload.chart_type,
-        compiled_query: payload.compiled_query, title: payload.title, interpretation: payload.interpretation,
-      });
-      setSaveState("saved");
-      loadSaved();
-    } catch (e) {
-      setError((e as Error).message);
-      setSaveState("idle");
-    }
-  }
-
   async function openSaved(id: string) {
     setPhase("asking");
     setError(null);
@@ -119,7 +113,6 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
       setQuestion(data.question ?? "");
       setPayload(data as ReportPayload);
       setPhase("ready");
-      setSaveState("saved");
     } catch (e) {
       setError((e as Error).message);
       setPhase("error");
@@ -199,23 +192,19 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
       )}
 
       {phase === "ready" && payload && (
-        <div style={{ marginTop: 16, padding: 16, borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel2 }}>
-          <ChartRenderer report={normalizeReport(payload)} />
-          {canSave && (
-            <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 10 }}>
-              <button
-                onClick={saveReport}
-                disabled={saveState !== "idle"}
-                style={{
-                  padding: "6px 14px", fontSize: 12, fontWeight: 600, borderRadius: 6,
-                  border: `1px solid ${c.line}`, background: c.panel, color: c.muted,
-                  cursor: saveState === "idle" ? "pointer" : "default",
-                }}
-              >
-                {saveState === "saved" ? "✓ Saved" : saveState === "saving" ? "Saving…" : "Save this report"}
-              </button>
-            </div>
-          )}
+        <ReportCard payload={payload} canSave={canSave} onSaved={loadSaved} style={{ marginTop: 16 }} />
+      )}
+
+      {phase === "insights" && insightsReports.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 12, color: c.muted, marginBottom: 10 }}>
+            &ldquo;{insightsTitle}&rdquo; is broad, so here&rsquo;s {insightsReports.length} angle{insightsReports.length === 1 ? "" : "s"} on it:
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {insightsReports.map((r, i) => (
+              <ReportCard key={i} payload={r} canSave={canSave} onSaved={loadSaved} />
+            ))}
+          </div>
         </div>
       )}
 
@@ -238,6 +227,52 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
               </div>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One chart + its own Save state -- reused for a single "ready" answer AND
+// for each card in an "insights" stream, so saving one facet never touches
+// the others.
+function ReportCard({ payload, canSave, onSaved, style }: { payload: ReportPayload; canSave: boolean; onSaved: () => void; style?: React.CSSProperties }) {
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  async function save() {
+    setSaveState("saving");
+    setSaveError(null);
+    try {
+      await postJson("/api/reports", {
+        object: payload.object, question: payload.question, chart_type: payload.chart_type,
+        compiled_query: payload.compiled_query, title: payload.title, interpretation: payload.interpretation,
+      });
+      setSaveState("saved");
+      onSaved();
+    } catch (e) {
+      setSaveError((e as Error).message);
+      setSaveState("idle");
+    }
+  }
+
+  return (
+    <div style={{ padding: 16, borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel2, ...style }}>
+      <ChartRenderer report={normalizeReport(payload)} />
+      {canSave && (
+        <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            onClick={save}
+            disabled={saveState !== "idle"}
+            style={{
+              padding: "6px 14px", fontSize: 12, fontWeight: 600, borderRadius: 6,
+              border: `1px solid ${c.line}`, background: c.panel, color: c.muted,
+              cursor: saveState === "idle" ? "pointer" : "default",
+            }}
+          >
+            {saveState === "saved" ? "✓ Saved" : saveState === "saving" ? "Saving…" : "Save this report"}
+          </button>
+          {saveError && <span style={{ fontSize: 11.5, color: pillar.red.fg }}>{saveError}</span>}
         </div>
       )}
     </div>

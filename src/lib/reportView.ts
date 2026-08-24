@@ -31,6 +31,9 @@ export type NormalizedReport = {
   // table
   tableRows?: Record<string, unknown>[];
   tableColumns?: string[];
+  // Total matching rows before the server's page cap -- lets the table
+  // note "showing N of TOTAL" when even the capped set is large.
+  tableTotal?: number;
 };
 
 function firstAggregateValue(aggregates: Record<string, number> | null | undefined): number | undefined {
@@ -76,5 +79,5 @@ export function normalizeReport(payload: ReportPayload): NormalizedReport {
 
   const rows = payload.data ?? [];
   const columns = rows.length > 0 ? Object.keys(rows[0]).filter((k) => k !== "_links") : [];
-  return { ...base, tableRows: rows, tableColumns: columns };
+  return { ...base, tableRows: rows, tableColumns: columns, tableTotal: payload.total };
 }

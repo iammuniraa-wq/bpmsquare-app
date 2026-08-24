@@ -52,38 +52,67 @@ function Tooltip({ x, y, label, value }: { x: string; y: string; label: string; 
   );
 }
 
-function TableView({ columns, rows }: { columns: string[]; rows: Record<string, unknown>[] }) {
+// A "list" answer defaults to a SHORT preview, not a full dump -- a table
+// that just keeps scrolling reads as a data export, not an answer. Expand
+// is one click away, and never hides that more exists.
+const PREVIEW_ROWS = 8;
+
+function TableView({ columns, rows, total }: { columns: string[]; rows: Record<string, unknown>[]; total?: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasMoreToShow = rows.length > PREVIEW_ROWS;
+  const visible = expanded || !hasMoreToShow ? rows : rows.slice(0, PREVIEW_ROWS);
+  // total is the real matching count before the server's own page cap --
+  // can exceed rows.length even fully expanded, e.g. 143 matches, 50 sent.
+  const capped = typeof total === "number" && total > rows.length;
+
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-        <thead>
-          <tr>
-            {columns.map((col) => (
-              <th key={col} style={{ textAlign: "left", padding: "6px 10px", borderBottom: `1px solid ${c.line}`, color: c.hint, fontWeight: 700, fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4 }}>
-                {col.replace(/_/g, " ").replace(/\./g, " ")}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i}>
-              {columns.map((col) => {
-                const v = row[col];
-                const display = v === null || v === undefined ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v);
-                return (
-                  <td key={col} style={{ padding: "6px 10px", borderBottom: `1px solid ${c.line}`, color: c.ink, fontVariantNumeric: "tabular-nums" }}>
-                    {display}
-                  </td>
-                );
-              })}
+    <div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+          <thead>
+            <tr>
+              {columns.map((col) => (
+                <th key={col} style={{ textAlign: "left", padding: "6px 10px", borderBottom: `1px solid ${c.line}`, color: c.hint, fontWeight: 700, fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                  {col.replace(/_/g, " ").replace(/\./g, " ")}
+                </th>
+              ))}
             </tr>
-          ))}
-          {rows.length === 0 && (
-            <tr><td colSpan={columns.length || 1} style={{ padding: "16px 10px", color: c.muted, textAlign: "center" }}>No rows matched.</td></tr>
+          </thead>
+          <tbody>
+            {visible.map((row, i) => (
+              <tr key={i}>
+                {columns.map((col) => {
+                  const v = row[col];
+                  const display = v === null || v === undefined ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v);
+                  return (
+                    <td key={col} style={{ padding: "6px 10px", borderBottom: `1px solid ${c.line}`, color: c.ink, fontVariantNumeric: "tabular-nums" }}>
+                      {display}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={columns.length || 1} style={{ padding: "16px 10px", color: c.muted, textAlign: "center" }}>No rows matched.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {(hasMoreToShow || capped) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, fontSize: 11.5 }}>
+          {hasMoreToShow && (
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              style={{ color: c.accent, fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              {expanded ? `Show fewer` : `Show all ${rows.length} rows`}
+            </button>
           )}
-        </tbody>
-      </table>
+          {capped && (!hasMoreToShow || expanded) && (
+            <span style={{ color: c.hint }}>Showing {rows.length} of {total} total matches — narrow your question for the rest.</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -318,7 +347,7 @@ export default function ChartRenderer({ report }: { report: NormalizedReport }) 
       )}
 
       {report.chartType === "table" && report.tableRows && (
-        <TableView columns={report.tableColumns ?? []} rows={report.tableRows} />
+        <TableView columns={report.tableColumns ?? []} rows={report.tableRows} total={report.tableTotal} />
       )}
     </div>
   );
