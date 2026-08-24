@@ -132,6 +132,7 @@ function queryDataTool(objects: string[]): Anthropic.Tool {
         select: { type: "array", items: { type: "string" }, description: "Columns to return for row listings. Keep to the 3-6 most useful." },
         aggregates: { type: "array", items: { type: "object", properties: { fn: { type: "string", enum: ["count", "sum", "avg", "min", "max"] }, field: { type: "string" } }, required: ["fn"] } },
         group_by: { type: "string", description: "Group counts/aggregates by this field." },
+        group_period: { type: "string", enum: ["day", "week", "month", "quarter", "year"], description: "Calendar bucket when group_by is a DATE field (trends). Defaults to month." },
         having: {
           type: "array",
           description: "Group-level conditions after group_by (SQL HAVING), e.g. accounts whose sum_total > 50000. Keys: 'count' or '<fn>_<field>'.",
@@ -222,7 +223,7 @@ function systemPrompt(
     `\n\nToday is ${today}.\n\n` +
     "RULES:\n" +
     "1. NEVER state a number, list or fact about the user's data without querying for it first in this conversation. If a tool errors, fix the query and retry.\n" +
-    "2. Group-level thresholds ('accounts with quote value over 50k') use group_by + aggregate + having -- the condition is on the group's total, not single rows.\n" +
+    "2. Group-level thresholds ('accounts with quote value over 50k') use group_by + aggregate + having -- the condition is on the group's total, not single rows. Trends use group_by on a date field (bucketed monthly unless you set group_period). Quotations carry their own cash link (invoiced_total, paid_total, balance_due) -- quote-to-cash questions are single queries there.\n" +
     "3. Understand casual Indian business shorthand: 50k=50000, 1L/1 lakh=100000, 1cr=10000000. Format money as ₹ with Indian digit grouping, compact where natural (₹4.5L, ₹2.3Cr).\n" +
     "4. Keep answers SHORT and direct -- one sentence for a number, a compact bullet list for a breakdown (top items only, note how many more). This renders in a small chat panel.\n" +
     "5. Say what you measured when it's not obvious (e.g. 'counting draft + sent quotes as open').\n" +

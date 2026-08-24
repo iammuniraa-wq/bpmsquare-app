@@ -6,6 +6,7 @@ import { tenantHasFeature } from "@/lib/tenant";
 import { LIST_SOURCES } from "@/lib/api/listSources";
 import { parseListQuery, applyListQuery, type QueryableType } from "@/lib/api/query";
 import { baseQueryProperties, compiledQueryToSearchParams, type CompiledQueryInput } from "@/lib/ai/nlCompile";
+import { normalizeReport, type ReportPayload } from "@/lib/reportView";
 
 // POST /api/reports/ask -- "talk to data" (docs/ai-report-builder-architecture.md).
 // Session-authenticated, in-app. Two model calls, not one:
@@ -21,14 +22,17 @@ import { baseQueryProperties, compiledQueryToSearchParams, type CompiledQueryInp
 // misinterpret intent (why `interpretation` is mandatory and always shown),
 // but it cannot invent a field or a number.
 
-export const maxDuration = 60;
+// Insights mode adds one more SEQUENTIAL call (the summary) after the
+// parallel facet compiles, so it needs more headroom than a single-question
+// ask -- bumped from 60 after the summary call was added.
+export const maxDuration = 75;
 
 type ChartType = "stat" | "bar" | "line" | "table";
 
 type RouteInput = {
   status?: "ready" | "insights" | "needs_clarification" | "decline";
   objects?: string[];
-  facets?: string[];
+  facets?: { object?: string; question?: string }[];
   clarifying_question?: string;
   reason?: string;
 };
@@ -52,9 +56,17 @@ function routeTool(catalog: { key: string; description: string; fields: string[]
           description: "Exactly one object -- the single one whose OWN fields (including any already-denormalized related name) answer the question. Never a signal to attempt a join across two objects.",
         },
         facets: {
-          type: "array", items: { type: "string" },
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              object: { type: "string", enum: catalog.map((c) => c.key), description: "The single object THIS facet queries." },
+              question: { type: "string", description: "A complete, standalone question answerable as ONE chart from that object alone -- it never sees the original question's wording." },
+            },
+            required: ["object", "question"],
+          },
           description:
-            "Required when status=insights: 3-6 SPECIFIC sub-questions about the routed object, each answerable as ONE chart on its own (each will be compiled and run independently). Cover different angles, don't overlap: typically one breakdown by category/status, one trend over time, one ranking/top-N by value, one total or count. Phrase each as a complete standalone question -- it never sees the original question's wording.",
+            "Required when status=insights: 3-6 SPECIFIC sub-questions, each answerable as ONE chart from ONE object (each is compiled and run independently). For a broad question about one object, keep every facet on that object. For a whole-business question (\"overview of my business\", \"how are we doing\"), facets may span DIFFERENT objects -- e.g. one on quotations, one on cases, one on invoices. Cover different angles, don't overlap: typically a breakdown by category/status, a trend over time, a top-N ranking by value, a headline total or count.",
         },
         clarifying_question: { type: "string", description: "Required when status=needs_clarification. Offer the real candidate interpretations as part of the question, e.g. \"By revenue do you mean quote value or invoiced amount?\"" },
         reason: { type: "string", description: "Required when status=decline. Specific: name what's missing (a join, an object not in the catalog, etc), not a generic refusal." },
@@ -122,7 +134,7 @@ type ReportResult = {
   dropped_sensitive_fields: string[];
   compiled_query: string;
   data: Record<string, unknown>[];
-  groups: unknown;
+  groups: ReportPayload["groups"];
   aggregates: Record<string, number> | null;
   total: number;
 };
@@ -137,7 +149,8 @@ async function compileAndRun(
   objectKey: string,
   src: (typeof LIST_SOURCES)[string],
   rows: Record<string, unknown>[],
-  today: string
+  today: string,
+  contextPrefix?: string
 ): Promise<CompileOutcome> {
   let compileResponse;
   try {
@@ -153,14 +166,14 @@ async function compileAndRun(
         `\nPick the query SHAPE from the question's real intent:\n` +
         `- "how many X" -> count_only=true, chart_type=stat.\n` +
         `- "total/sum of X" -> aggregates=[{fn:sum,field}], chart_type=stat.\n` +
-        `- "X by category" (status, type, month...) -> group_by + the value aggregate + chart_type=bar. Set group_sort to the aggregate key (e.g. "sum_total") when the question is about value; leave count when it's about counts.\n` +
-        `- Trend over time -> group_by on a DATE field + group_sort="+key" + chart_type=line.\n` +
+        `- "X by category" (status, type...) -> group_by + the value aggregate + chart_type=bar. Set group_sort to the aggregate key (e.g. "sum_total") when the question is about value; leave count when it's about counts.\n` +
+        `- Trend over time -> group_by on a DATE field + chart_type=line. Set group_period to the granularity asked (day, week, month, quarter, year) -- an unset period defaults to month, and the engine orders time buckets chronologically on its own.\n` +
         `- "top N X by Y" -> group_by X, aggregate Y, group_sort=aggregate key, chart_type=bar (NOT table -- a ranking is a bar chart).\n` +
         `- GROUP-LEVEL THRESHOLDS: "accounts with quote value over 50k", "customers with more than 3 open cases" -- the condition is on the GROUP's total, not any single row. Use group_by + the aggregate + having (e.g. having=[{key:"sum_total",op:"gt",value:50000}]) + group_sort=that aggregate key + chart_type=bar. Filtering rows by total>50000 instead answers a DIFFERENT question (individual records over the threshold) -- only do that when the question is explicitly about individual records.\n` +
         `- A list of records ("show me...", "which quotes...") -> select the most useful 4-6 columns + sort + chart_type=table.\n` +
         `\nAlways fill interpretation with exactly what you measured, including any threshold and whether it applied per-record or per-group -- never vague. ` +
         `If this object's fields genuinely can't answer the question, set answerable=false with a specific reason.`,
-      messages: [{ role: "user", content: question }],
+      messages: [{ role: "user", content: contextPrefix ? `${contextPrefix}\n\n${question}` : question }],
     });
   } catch (e) {
     console.error("reports/ask compile stage failed:", e);
@@ -232,6 +245,46 @@ async function compileAndRun(
   };
 }
 
+// One line of ALREADY-COMPUTED fact per report -- the same numbers the
+// chart itself renders, reduced to text. This is what the summary call
+// below is allowed to talk about; it never sees a raw row.
+function digestReport(r: ReportResult): string {
+  const n = normalizeReport(r);
+  if (n.chartType === "stat") return `${n.title}: ${n.statValue?.toLocaleString("en-IN")}`;
+  if ((n.chartType === "bar" || n.chartType === "line") && n.series?.length) {
+    const top = n.series.slice(0, 6).map((s) => `${s.key}=${s.value.toLocaleString("en-IN")}`).join(", ");
+    return `${n.title}: ${top}${n.series.length > 6 ? ` (+${n.series.length - 6} more)` : ""}`;
+  }
+  return `${n.title}: ${n.tableRows?.length ?? 0} record(s)${n.tableTotal && n.tableTotal > (n.tableRows?.length ?? 0) ? ` of ${n.tableTotal} total` : ""}`;
+}
+
+// A short executive summary synthesized ONLY from the facts above -- not a
+// third data call. It cannot invent a number because it isn't given any
+// data to invent from, only text already derived from a real query result
+// (same "engine computes, model narrates" split as everywhere else in this
+// feature). Best-effort: a failure here drops the summary, never the charts.
+async function writeInsightsSummary(anthropic: Anthropic, question: string, reports: ReportResult[]): Promise<string | null> {
+  try {
+    const digest = reports.map(digestReport).join("\n");
+    const response = await anthropic.messages.create({
+      model: "claude-opus-5",
+      max_tokens: 300,
+      system:
+        "You write a short executive summary for a business owner looking at their own live CRM data. " +
+        "You are given a list of ALREADY-COMPUTED facts -- exact numbers, already correct. Reference ONLY the numbers given below; " +
+        "never invent, estimate, round differently, or infer a number not present. " +
+        "Write 3-5 sentences of plain, direct business prose -- no bullet points, no restating every fact mechanically, no hedging or filler. " +
+        "Call out what's actually notable: concentration in one item, a trend, something that looks like a risk or an opportunity -- the thing a busy owner would want to know without scanning every chart themselves.",
+      messages: [{ role: "user", content: `Original question: "${question}"\n\nComputed facts:\n${digest}` }],
+    });
+    const text = response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text?.trim();
+    return text || null;
+  } catch (e) {
+    console.error("reports/ask insights summary failed:", e);
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   let supabase, tenantId, userId, role;
   try {
@@ -253,6 +306,20 @@ export async function POST(req: Request) {
   const question = typeof body?.question === "string" ? body.question.trim() : "";
   if (!question) return NextResponse.json({ error: "Ask me something first." }, { status: 400 });
   if (question.length > 500) return NextResponse.json({ error: "That question is too long." }, { status: 400 });
+
+  // Follow-up context: the previous report this question may be refining
+  // ("now only this year", "as a quarterly trend", "top 5 instead"). TEXT
+  // shown to the model only -- a client-supplied compiled_query is never
+  // executed here; the refinement always recompiles from scratch through
+  // the same validation as a fresh question.
+  const rawCtx = body?.context as { question?: unknown; object?: unknown; compiled_query?: unknown } | undefined;
+  const prevContext = rawCtx && typeof rawCtx.question === "string" && typeof rawCtx.object === "string"
+    ? {
+        question: rawCtx.question.slice(0, 500),
+        object: rawCtx.object.slice(0, 60),
+        compiled_query: typeof rawCtx.compiled_query === "string" ? rawCtx.compiled_query.slice(0, 1000) : "",
+      }
+    : null;
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "Talk to data needs ANTHROPIC_API_KEY set on the server." }, { status: 503 });
@@ -294,7 +361,10 @@ export async function POST(req: Request) {
         "Only ask when two DIFFERENT objects could each fully answer the question and would give a meaningfully different number or breakdown -- and when you do, name the real candidate objects/fields, never a vague \"please clarify\". " +
         "If the question genuinely needs data from two objects joined together in a way no single object's fields (including denormalized ones) can express, or names something not in this list, decline with a specific reason naming what's missing. " +
         "If the question is a SPECIFIC, single measure or breakdown (a count, a total, one category-by-category chart, one ranking, one trend), set status=ready with exactly one object. " +
-        "If instead the question is BROAD and open-ended about an object as a whole -- \"insights about X\", \"how's X doing\", \"overview of X\", \"tell me about X\", a bare object name with no specific measure -- do NOT try to squeeze it into one chart. Set status=insights, route to the one object it's about, and propose 3-6 SPECIFIC, non-overlapping facets in `facets` that together give a rounded picture (typically: a status/category breakdown, a trend over time if a date field exists, a top-N ranking by value if a value field exists, and a headline total or count) -- each phrased as a complete standalone question in its own right.",
+        "If instead the question is BROAD and open-ended -- \"insights about X\", \"how's X doing\", \"overview of X\", \"tell me about X\", \"how is my business doing\", a bare object name with no specific measure -- do NOT try to squeeze it into one chart. Set status=insights and propose 3-6 SPECIFIC, non-overlapping facets, each tagged with the ONE object it queries: for a broad question about one object, keep every facet on that object; for a whole-business question, spread the facets across the most relevant objects (sales via quotations, service via cases, cash via invoices, ...)." +
+        (prevContext
+          ? `\n\nPREVIOUS REPORT -- the user may be refining it rather than asking fresh: they asked "${prevContext.question}", answered from object "${prevContext.object}". If the new message reads as a refinement of that report ("only this year", "top 5 instead", "as a quarterly trend", "same but for cases"), route it as a complete question against the appropriate object (usually the same one) with status=ready. If it clearly stands alone, ignore this context entirely.`
+          : ""),
       messages: [{ role: "user", content: question }],
     });
   } catch (e) {
@@ -311,7 +381,39 @@ export async function POST(req: Request) {
   if (routed.status === "needs_clarification") {
     return NextResponse.json({ status: "needs_clarification", clarifying_question: routed.clarifying_question || "Could you say more about what you mean?" });
   }
-  if ((routed.status !== "ready" && routed.status !== "insights") || !routed.objects?.length) {
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // ── "insights" -- one chart can't answer a broad question, so run each
+  // routed facet as its own compile against ITS OWN object's rows (loaded
+  // once per distinct object) and return a stream of chart cards. Facets
+  // may span objects for whole-business questions. ──
+  if (routed.status === "insights") {
+    const facets = (routed.facets ?? [])
+      .filter((f): f is { object: string; question: string } =>
+        typeof f?.object === "string" && typeof f?.question === "string" && !!f.question.trim() &&
+        !!LIST_SOURCES[f.object] && canViewWorkcenter(perms, LIST_SOURCES[f.object].relatedWorkcenter))
+      .slice(0, 6);
+    if (facets.length === 0) {
+      return NextResponse.json({ status: "declined", reason: "Couldn't work out specific enough angles for that. Try a more specific question." });
+    }
+    const distinctObjects = [...new Set(facets.map((f) => f.object))];
+    const rowsByObject = new Map(
+      await Promise.all(distinctObjects.map(async (o) => [o, await LIST_SOURCES[o].load(tenantId)] as const))
+    );
+    const outcomes = await Promise.all(
+      facets.map((f) => compileAndRun(anthropic, f.question, f.object, LIST_SOURCES[f.object], rowsByObject.get(f.object)!, today))
+    );
+    const reports = outcomes.filter((o): o is Extract<CompileOutcome, { ok: true }> => o.ok).map((o) => o.report);
+    if (reports.length === 0) {
+      return NextResponse.json({ status: "declined", reason: "Couldn't compile any of the angles for that question. Try something more specific." });
+    }
+    const summary = await writeInsightsSummary(anthropic, question, reports);
+    const primary = facets[0].object;
+    return NextResponse.json({ status: "insights", question, object: primary, object_label: LIST_SOURCES[primary].label, summary, reports });
+  }
+
+  if (routed.status !== "ready" || !routed.objects?.length) {
     return NextResponse.json({ status: "declined", reason: routed.reason || "That can't be answered from the data available to you." });
   }
 
@@ -322,27 +424,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "declined", reason: "That object isn't available to you." });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  // ── One specific question -- one chart. When this refines a previous
+  // report on the same object, the compile stage sees that report as text
+  // context (and still recompiles + revalidates from scratch). ──
   const rows = await src.load(tenantId);
-
-  // ── "insights about X" -- one chart can't answer a broad question, so run
-  // the routed facets as independent compiles against the SAME loaded rows
-  // and return a stream of chart cards instead of forcing one shape. ──
-  if (routed.status === "insights") {
-    const facets = (routed.facets ?? []).filter((f) => f.trim()).slice(0, 6);
-    if (facets.length === 0) {
-      return NextResponse.json({ status: "declined", reason: "Couldn't work out specific enough angles for that. Try a more specific question." });
-    }
-    const outcomes = await Promise.all(facets.map((f) => compileAndRun(anthropic, f, objectKey, src, rows, today)));
-    const reports = outcomes.filter((o): o is Extract<CompileOutcome, { ok: true }> => o.ok).map((o) => o.report);
-    if (reports.length === 0) {
-      return NextResponse.json({ status: "declined", reason: "Couldn't compile any of the angles for that question. Try something more specific." });
-    }
-    return NextResponse.json({ status: "insights", question, object: objectKey, object_label: src.label, reports });
-  }
-
-  // ── One specific question -- one chart. ──
-  const outcome = await compileAndRun(anthropic, question, objectKey, src, rows, today);
+  const contextPrefix = prevContext && prevContext.object === objectKey
+    ? `For context, the user's previous report: question "${prevContext.question}", compiled as: ${prevContext.compiled_query || "(n/a)"}. The new request below may refine it -- carry over its constraints unless the new request changes them.`
+    : undefined;
+  const outcome = await compileAndRun(anthropic, question, objectKey, src, rows, today, contextPrefix);
   if (!outcome.ok) {
     return NextResponse.json({ status: "declined", reason: outcome.reason, queryable_fields: src.fields.map((f) => f.path) });
   }

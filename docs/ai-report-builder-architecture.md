@@ -1,7 +1,40 @@
-# AI Report Builder — Architecture Specification v0.2
+# AI Report Builder — Architecture Specification v0.3
 
 **Codename:** "Talk to data" (working title)
-**Status:** Draft for review — architecture only, nothing built yet
+**Status:** BUILT and live (v0.2 was the pre-build draft; §§1-6 below are kept
+as the design record). v0.3 additions, all shipped 2026-08-24:
+
+- **Calendar bucketing** (`group_period=day|week|month|quarter|year` in the
+  query engine). A date `group_by` previously grouped raw timestamps — one
+  bucket per row, a broken trend. The engine now defaults date groupings to
+  month, orders time buckets chronologically, and `group_limit` on a
+  chronological series keeps the most RECENT buckets (older ones collapse
+  into an "Earlier" bucket placed first), not the oldest.
+- **13-object catalog** — contacts, assets, suppliers, work orders and leads
+  joined the original 8 in `LIST_SOURCES`. Contact phone/email (encrypted at
+  rest) are not queryable at all; `contacts` also joined `employees` in
+  `EXPLICIT_SCOPE_ONLY` so wildcard v1 API keys don't silently gain people
+  data.
+- **Quote-to-cash denormalization** — quotations carry `invoice_count`,
+  `invoiced_total`, `paid_total`, `balance_due`, computed from their own
+  linked invoices at load time. Cross-object quote↔invoice questions ("won
+  quotes not yet invoiced") are single-object queries; still no join engine,
+  by design.
+- **Insights mode** — a broad question ("insights about quotes", "how is my
+  business doing") routes to `status=insights` with 3-6 specific facets,
+  each tagged with the ONE object it queries (facets may span objects for
+  whole-business questions). Each facet compiles and runs independently;
+  the response is a stream of chart cards plus an executive summary
+  synthesized ONLY from the already-computed facts (the summary call is
+  handed digest text, never data, so it cannot invent a number).
+- **Follow-up refinement** — the client sends the previous report as text
+  context; the route stage decides whether "only this year" refines it or
+  stands alone. A client-supplied compiled_query is never executed — the
+  refinement recompiles from scratch through full validation.
+- **Presentation** — tables preview 8 rows with Show-all + a true-total
+  note; bar tooltips carry share-of-total %; long-label/many-category
+  breakdowns render as horizontal bars.
+
 **Date:** 2026-08-24
 **Supersedes:** v0.1 (2026-08-24) — v0.1 proposed cutting the object catalog to
 7 for a "v1." Owner decision 2026-08-24: **no object ceiling.** Every object in

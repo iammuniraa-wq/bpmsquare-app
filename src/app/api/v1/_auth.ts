@@ -78,7 +78,12 @@ export async function resolveApiAuth(req: Request): Promise<ApiAuth | null> {
  * their owner never granted. Opting in is one checkbox in Settings →
  * General → Developer.
  */
-const EXPLICIT_SCOPE_ONLY = new Set(["employees"]);
+// Objects carrying personal data never ride the "*" wildcard -- an existing
+// key in the wild must not silently gain them when a new object joins
+// LIST_SOURCES (bpmsquarecore §3b). employees: staff PII; contacts: named
+// people at customer accounts (their phone/email are excluded from the
+// query surface entirely, but even the name/role/account graph is personal).
+const EXPLICIT_SCOPE_ONLY = new Set(["employees", "contacts"]);
 
 /** Does this scope permit read (write=false) or write (write=true) on `object`? */
 export function scopeAllows(scopes: ApiScopes, object: string, write: boolean): boolean {

@@ -35,6 +35,9 @@ const OPS: readonly FilterOp[] = ["eq", "ne", "gt", "gte", "lt", "lte", "like", 
 export type AggFn = "count" | "sum" | "avg" | "min" | "max";
 const AGG_FNS: readonly AggFn[] = ["count", "sum", "avg", "min", "max"];
 
+export type GroupPeriod = "day" | "week" | "month" | "quarter" | "year";
+const GROUP_PERIODS: readonly GroupPeriod[] = ["day", "week", "month", "quarter", "year"];
+
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
@@ -53,6 +56,14 @@ export type ParsedQuery = {
   search: { term: string; fields: string[] } | null;
   /** ?group_by=field -> aggregates computed per distinct value, in meta.groups. */
   groupBy: string | null;
+  /** ?group_period=month -> bucket a DATE group_by into calendar periods
+   * (day|week|month|quarter|year) instead of grouping raw values. Raw
+   * timestamps are near-unique, so an unbucketed date group_by produces one
+   * group per row -- a broken trend chart. When group_by targets a
+   * date-typed field and no period is given, the engine defaults to month
+   * (engine is truth: an unbucketed date grouping is never what anyone
+   * means). Ignored -- with a validation error -- on non-date fields. */
+  groupPeriod: GroupPeriod | null;
   /** ?group_limit=N -> top-N groups by count, the rest collapsed into one
    * "Other" bucket. Unbounded group_by on a high-cardinality field (e.g.
    * account name on a large tenant) is both a payload-size problem and an
@@ -172,6 +183,25 @@ export function parseListQuery(
     if (known(groupRaw.trim(), "group_by")) groupBy = groupRaw.trim();
   }
 
+  // group_period -- calendar bucketing for date group_by (see ParsedQuery).
+  let groupPeriod: GroupPeriod | null = null;
+  const groupPeriodRaw = sp.get("group_period");
+  const groupByIsDate = !!groupBy && byPath.get(groupBy)?.type === "date";
+  if (groupPeriodRaw) {
+    const p = groupPeriodRaw.trim() as GroupPeriod;
+    if (!GROUP_PERIODS.includes(p)) {
+      errors.push({ param: "group_period", message: `group_period must be one of: ${GROUP_PERIODS.join(", ")}.` });
+    } else if (!groupBy) {
+      errors.push({ param: "group_period", message: "group_period requires group_by." });
+    } else if (!groupByIsDate) {
+      errors.push({ param: "group_period", message: `group_period only applies when group_by targets a date field -- "${groupBy}" is ${byPath.get(groupBy)?.type}.` });
+    } else {
+      groupPeriod = p;
+    }
+  } else if (groupByIsDate) {
+    groupPeriod = "month";
+  }
+
   // group_limit -- top-N groups by count, rest collapsed into "Other"
   let groupLimit: number | null = null;
   const groupLimitRaw = sp.get("group_limit");
@@ -237,7 +267,7 @@ export function parseListQuery(
   const limit = Math.min(MAX_LIMIT, Math.max(1, rawLimit));
 
   if (errors.length) return { ok: false, errors };
-  return { ok: true, query: { select, filters, sort, page, limit, aggregates, search, groupBy, groupLimit, having, groupSort, countOnly } };
+  return { ok: true, query: { select, filters, sort, page, limit, aggregates, search, groupBy, groupPeriod, groupLimit, having, groupSort, countOnly } };
 }
 
 const INVALID = Symbol("invalid");
@@ -326,6 +356,36 @@ export type ListResult<T> = {
   links: { next: Record<string, string> | null; prev: Record<string, string> | null };
 };
 
+/** Bucket a date/timestamp value into its calendar period key. Keys are
+ * chosen so plain lexicographic sort IS chronological sort ("2026-08",
+ * "2026-Q3", "2026-W34" all order correctly as strings), which is what
+ * group_sort=+key already does. An unparsable value falls through to null
+ * so junk dates group under "(none)" instead of throwing. */
+function truncateToPeriod(raw: unknown, period: GroupPeriod): string | null {
+  if (raw === null || raw === undefined || raw === "") return null;
+  const d = new Date(String(raw));
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  switch (period) {
+    case "day": return `${y}-${pad(m)}-${pad(d.getUTCDate())}`;
+    case "week": {
+      // ISO week number (Thursday-anchored), year taken from that Thursday.
+      const t = new Date(Date.UTC(y, d.getUTCMonth(), d.getUTCDate()));
+      const dayNum = t.getUTCDay() || 7;
+      t.setUTCDate(t.getUTCDate() + 4 - dayNum);
+      const isoYear = t.getUTCFullYear();
+      const yearStart = new Date(Date.UTC(isoYear, 0, 1));
+      const week = Math.ceil(((t.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+      return `${isoYear}-W${pad(week)}`;
+    }
+    case "month": return `${y}-${pad(m)}`;
+    case "quarter": return `${y}-Q${Math.ceil(m / 3)}`;
+    case "year": return String(y);
+  }
+}
+
 function aggregate(rows: Record<string, unknown>[], aggs: Agg[]): Record<string, number> {
   const out: Record<string, number> = {};
   for (const a of aggs) {
@@ -363,11 +423,14 @@ export function applyListQuery<T extends Record<string, unknown>>(
 
   // group_by -> one aggregate row per distinct value (OData $apply/groupby, but
   // usable). Always includes count; adds any requested aggregates per group.
+  // A date group_by is bucketed by groupPeriod (parse defaults it to month),
+  // so the key is "2026-08", never a raw near-unique timestamp.
   let groups: GroupResult[] | undefined;
   if (query.groupBy) {
     const buckets = new Map<unknown, Record<string, unknown>[]>();
     for (const r of filtered) {
-      const key = getPath(r, query.groupBy);
+      const raw = getPath(r, query.groupBy);
+      const key = query.groupPeriod ? truncateToPeriod(raw, query.groupPeriod) : raw;
       (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(r);
     }
     groups = [...buckets.entries()]
@@ -392,8 +455,9 @@ export function applyListQuery<T extends Record<string, unknown>>(
       );
     }
 
-    // group order: explicit group_sort wins; default stays count desc.
-    const gs = query.groupSort;
+    // group order: explicit group_sort wins; a period-bucketed (date)
+    // grouping defaults to chronological, everything else to count desc.
+    const gs = query.groupSort ?? (query.groupPeriod ? { key: "key", dir: "asc" as const } : null);
     groups.sort((a, b) => {
       if (!gs) return b.count - a.count;
       if (gs.key === "key") {
@@ -405,13 +469,21 @@ export function applyListQuery<T extends Record<string, unknown>>(
     });
 
     if (query.groupLimit && groups.length > query.groupLimit) {
-      const kept = groups.slice(0, query.groupLimit);
-      const rest = groups.slice(query.groupLimit);
+      // A chronological (date-bucketed, key-asc) series keeps the most
+      // RECENT buckets -- trimming from the front would show a trend's
+      // oldest months and hide the ones the question is actually about.
+      // The collapsed remainder goes FIRST as "Earlier" so the axis still
+      // reads left-to-right in time order.
+      const chronological = !!query.groupPeriod && gs?.key === "key" && gs.dir === "asc";
+      const kept = chronological ? groups.slice(-query.groupLimit) : groups.slice(0, query.groupLimit);
+      const rest = chronological ? groups.slice(0, -query.groupLimit) : groups.slice(query.groupLimit);
       const otherRows = rest.flatMap((g) => buckets.get(g.key) ?? []);
-      groups = [
-        ...kept,
-        { key: "Other", count: rest.reduce((s, g) => s + g.count, 0), ...aggregate(otherRows, query.aggregates.filter((a) => a.fn !== "count")) },
-      ];
+      const other = {
+        key: chronological ? "Earlier" : "Other",
+        count: rest.reduce((s, g) => s + g.count, 0),
+        ...aggregate(otherRows, query.aggregates.filter((a) => a.fn !== "count")),
+      };
+      groups = chronological ? [other, ...kept] : [...kept, other];
     }
   }
 

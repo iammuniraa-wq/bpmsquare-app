@@ -18,6 +18,9 @@ export type CompiledQueryInput = {
   select?: string[];
   aggregates?: { fn: string; field?: string }[];
   group_by?: string;
+  /** Calendar bucketing when group_by targets a date field (trend charts).
+   * The engine defaults a date group_by to month even when omitted. */
+  group_period?: string;
   /** HAVING: conditions on group aggregates ("sum_total:gt:50000") or count. */
   having?: { key: string; op: string; value: number }[];
   /** Which value orders the groups: "count", "key", or an aggregate key like
@@ -60,6 +63,7 @@ export function baseQueryProperties(fields: FieldLike[]): Record<string, unknown
       items: { type: "object", properties: { fn: { type: "string", enum: AGG_FNS }, field: { type: "string", enum: paths } }, required: ["fn"] },
     },
     group_by: { type: "string", enum: paths, description: "Group counts/aggregates by this field." },
+    group_period: { type: "string", enum: ["day", "week", "month", "quarter", "year"], description: "When group_by is a DATE field, the calendar bucket for the trend ('quotes by month' = month, 'this week's daily numbers' = day). Only valid on date fields; a date group_by without it defaults to month." },
     having: {
       type: "array",
       description: "Conditions on GROUP-LEVEL values after group_by (SQL HAVING). Use when the threshold applies to the group's total, not individual rows -- e.g. 'accounts with quote value over 50k' = group_by account, aggregate sum:total, having sum_total gt 50000. Keys: 'count' or '<fn>_<field>' of a requested aggregate.",
@@ -89,6 +93,7 @@ export function compiledQueryToSearchParams(q: CompiledQueryInput): URLSearchPar
   if (q.select?.length) sp.set("select", q.select.join(","));
   if (q.aggregates?.length) sp.set("aggregate", q.aggregates.map((a) => (a.field ? `${a.fn}:${a.field}` : a.fn)).join(","));
   if (q.group_by) sp.set("group_by", q.group_by);
+  if (q.group_period) sp.set("group_period", q.group_period);
   if (q.having?.length) sp.set("having", q.having.map((h) => `${h.key}:${h.op}:${h.value}`).join(";"));
   if (q.group_sort) sp.set("group_sort", q.group_sort);
   if (q.limit) sp.set("limit", String(q.limit));

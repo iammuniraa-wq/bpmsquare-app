@@ -39,6 +39,14 @@ const QUOTE_FIELDS: QueryableField[] = [
   { path: "line_count", type: "number" },
   { path: "account.id", type: "string" },
   { path: "account.name", type: "string", searchable: true },
+  // Quote-to-cash link, denormalized from this quote's own invoices at load
+  // time -- makes cross-object questions ("won quotes not yet invoiced",
+  // "quoted vs collected") single-object queries, which is the only kind
+  // this engine runs (no join surface = no join injection surface).
+  { path: "invoice_count", type: "number" },
+  { path: "invoiced_total", type: "number" },
+  { path: "paid_total", type: "number" },
+  { path: "balance_due", type: "number" },
 ];
 
 const ACCOUNT_FIELDS: QueryableField[] = [
@@ -141,22 +149,108 @@ const PO_FIELDS: QueryableField[] = [
   { path: "created_at", type: "date" },
 ];
 
+// Contact phone/email are encrypted at rest (bpmsquarecore §7) -- they are
+// not selected at all here (ciphertext is useless to query and must never
+// leak), so the field list simply doesn't include them.
+const CONTACT_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "name", type: "string", searchable: true },
+  { path: "role", type: "string", searchable: true },
+  { path: "department", type: "string", searchable: true },
+  { path: "city", type: "string", searchable: true },
+  { path: "state", type: "string" },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+];
+
+const ASSET_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "name", type: "string", searchable: true },
+  { path: "kind", type: "string" },
+  { path: "make", type: "string", searchable: true },
+  { path: "model", type: "string", searchable: true },
+  { path: "rating", type: "string" },
+  { path: "serial", type: "string", searchable: true },
+  { path: "is_loaner", type: "boolean" },
+  { path: "loaner_status", type: "string" },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+];
+
+const SUPPLIER_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "name", type: "string", searchable: true },
+  { path: "type", type: "string" },
+  { path: "city", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "phone", type: "string", sensitive: true },
+  { path: "email", type: "string", sensitive: true },
+  { path: "created_at", type: "date" },
+];
+
+const WORK_ORDER_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "auth_kind", type: "string" },
+  { path: "scheduled_for", type: "date" },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+  { path: "asset_name", type: "string", searchable: true },
+  { path: "technician_name", type: "string", searchable: true },
+  { path: "case_ref", type: "string" },
+];
+
+const LEAD_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "title", type: "string", searchable: true },
+  { path: "source", type: "string" },
+  { path: "status", type: "string" },
+  { path: "created_at", type: "date" },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+];
+
 export const LIST_SOURCES: Record<string, ListSource> = {
   quotations: {
     label: "Quotations",
-    description: "Price quotes sent to customers -- their status, value, and outcome (won/lost).",
+    description: "Price quotes sent to customers -- status, value, outcome (won/lost), AND each quote's cash link: how much of it has been invoiced and paid (invoiced_total, paid_total, balance_due), so quote-to-cash questions are answerable here directly.",
     relatedWorkcenter: "quotations",
     fields: QUOTE_FIELDS,
     load: async (tenantId) => {
-      const quotes = await listQuotesForTenant(tenantId);
-      return quotes.map(({ quote: q, account, lineCount }) => ({
-        id: q.id, ref: q.ref, status: q.status, total: q.total, revision: q.revision,
-        outcome: q.outcome, loss_reason: q.loss_reason ?? null,
-        created_at: q.created_at, quote_date: q.quote_date ?? null, valid_until: q.valid_until,
-        account: account ? { id: account.id, name: account.name } : null,
-        line_count: lineCount,
-        _links: { self: `/api/v1/quotations/${q.id}`, pdf: `/quotations/${q.id}/print`, account: `/api/v1/accounts/${q.account_id}` },
-      }));
+      const [quotes, { data: invoices }] = await Promise.all([
+        listQuotesForTenant(tenantId),
+        createAdminSupabase()
+          .from("invoices")
+          .select("quote_id, total, paid_amount, status")
+          .eq("tenant_id", tenantId)
+          .not("quote_id", "is", null)
+          .neq("status", "cancelled"),
+      ]);
+      const cash = new Map<string, { count: number; invoiced: number; paid: number }>();
+      for (const inv of invoices ?? []) {
+        const c = cash.get(inv.quote_id) ?? { count: 0, invoiced: 0, paid: 0 };
+        c.count += 1;
+        c.invoiced += Number(inv.total ?? 0);
+        c.paid += Number(inv.paid_amount ?? 0);
+        cash.set(inv.quote_id, c);
+      }
+      return quotes.map(({ quote: q, account, lineCount }) => {
+        const c = cash.get(q.id) ?? { count: 0, invoiced: 0, paid: 0 };
+        return {
+          id: q.id, ref: q.ref, status: q.status, total: q.total, revision: q.revision,
+          outcome: q.outcome, loss_reason: q.loss_reason ?? null,
+          created_at: q.created_at, quote_date: q.quote_date ?? null, valid_until: q.valid_until,
+          account: account ? { id: account.id, name: account.name } : null,
+          line_count: lineCount,
+          invoice_count: c.count, invoiced_total: c.invoiced, paid_total: c.paid,
+          balance_due: c.invoiced - c.paid,
+          _links: { self: `/api/v1/quotations/${q.id}`, pdf: `/quotations/${q.id}/print`, account: `/api/v1/accounts/${q.account_id}` },
+        };
+      });
     },
   },
   accounts: {
@@ -287,6 +381,112 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         quote_id: po.quote_id, case_id: po.case_id, order_date: po.order_date,
         expected_date: po.expected_date, total: po.total, created_at: po.created_at,
         _links: { self: `/api/v1/purchase-orders/${po.id}` },
+      }));
+    },
+  },
+  contacts: {
+    label: "Contacts",
+    description: "People at customer accounts -- name, role, department, which account they belong to. (Phone/email are encrypted and not queryable.)",
+    relatedWorkcenter: "contacts",
+    fields: CONTACT_FIELDS,
+    load: async (tenantId) => {
+      const supabase = createAdminSupabase();
+      const [{ data: contacts }, { data: accounts }] = await Promise.all([
+        supabase.from("contacts").select("id, ref, name, role, department, city, state, account_id").eq("tenant_id", tenantId).order("name"),
+        supabase.from("accounts").select("id, name").eq("tenant_id", tenantId),
+      ]);
+      const nameById = new Map((accounts ?? []).map((a) => [a.id, a.name]));
+      return (contacts ?? []).map((ct) => ({
+        id: ct.id, ref: ct.ref ?? null, name: ct.name, role: ct.role, department: ct.department,
+        city: ct.city, state: ct.state,
+        account: { id: ct.account_id, name: nameById.get(ct.account_id) ?? null },
+        _links: { self: `/contacts/${ct.id}` },
+      }));
+    },
+  },
+  assets: {
+    label: "Assets (customer equipment)",
+    description: "Motors, transformers, pumps, panels -- customer-owned equipment under service, plus company loaner stock. Make, model, rating, owning account.",
+    relatedWorkcenter: "assets",
+    fields: ASSET_FIELDS,
+    load: async (tenantId) => {
+      const supabase = createAdminSupabase();
+      const [{ data: assets }, { data: accounts }] = await Promise.all([
+        supabase.from("assets").select("id, ref, name, kind, make, model, rating, serial, is_loaner, loaner_status, account_id").eq("tenant_id", tenantId).order("name"),
+        supabase.from("accounts").select("id, name").eq("tenant_id", tenantId),
+      ]);
+      const nameById = new Map((accounts ?? []).map((a) => [a.id, a.name]));
+      return (assets ?? []).map((a) => ({
+        id: a.id, ref: a.ref ?? null, name: a.name, kind: a.kind, make: a.make, model: a.model,
+        rating: a.rating, serial: a.serial, is_loaner: a.is_loaner, loaner_status: a.loaner_status,
+        account: a.account_id ? { id: a.account_id, name: nameById.get(a.account_id) ?? null } : null,
+        _links: { self: `/assets/${a.id}` },
+      }));
+    },
+  },
+  suppliers: {
+    label: "Suppliers",
+    description: "Vendors and subcontractors you buy from -- type, city, active/inactive.",
+    relatedWorkcenter: "suppliers",
+    fields: SUPPLIER_FIELDS,
+    load: async (tenantId) => {
+      const { data } = await createAdminSupabase()
+        .from("suppliers")
+        .select("id, ref, name, type, city, status, phone, email, created_at")
+        .eq("tenant_id", tenantId)
+        .order("name");
+      return (data ?? []).map((s) => ({
+        id: s.id, ref: s.ref ?? null, name: s.name, type: s.type, city: s.city,
+        status: s.status, phone: s.phone, email: s.email, created_at: s.created_at,
+        _links: { self: `/suppliers/${s.id}` },
+      }));
+    },
+  },
+  "work-orders": {
+    label: "Work orders",
+    description: "Field/workshop jobs -- status, schedule date, technician, account, the asset being worked on.",
+    relatedWorkcenter: "work_orders",
+    fields: WORK_ORDER_FIELDS,
+    load: async (tenantId) => {
+      const { data } = await createAdminSupabase()
+        .from("work_orders")
+        .select("id, ref, status, auth_kind, scheduled_for, accounts(id, name), assets(name), technicians(name), service_cases(ref)")
+        .eq("tenant_id", tenantId)
+        .order("scheduled_for", { ascending: false });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []).map((w: any) => {
+        const acc = Array.isArray(w.accounts) ? w.accounts[0] : w.accounts;
+        const asset = Array.isArray(w.assets) ? w.assets[0] : w.assets;
+        const tech = Array.isArray(w.technicians) ? w.technicians[0] : w.technicians;
+        const sc = Array.isArray(w.service_cases) ? w.service_cases[0] : w.service_cases;
+        return {
+          id: w.id, ref: w.ref, status: w.status, auth_kind: w.auth_kind ?? "quote",
+          scheduled_for: w.scheduled_for,
+          account: acc ? { id: acc.id, name: acc.name } : null,
+          asset_name: asset?.name ?? null,
+          technician_name: tech?.name ?? null,
+          case_ref: sc?.ref ?? null,
+          _links: { self: `/work-orders/${w.id}` },
+        };
+      });
+    },
+  },
+  leads: {
+    label: "Leads",
+    description: "Sales leads in the marketing funnel -- source (referral/AMC/direct/campaign), status, which account.",
+    relatedWorkcenter: "leads",
+    fields: LEAD_FIELDS,
+    load: async (tenantId) => {
+      const supabase = createAdminSupabase();
+      const [{ data: leads }, { data: accounts }] = await Promise.all([
+        supabase.from("leads").select("id, title, source, status, created_at, account_id").eq("tenant_id", tenantId).order("created_at", { ascending: false }),
+        supabase.from("accounts").select("id, name").eq("tenant_id", tenantId),
+      ]);
+      const nameById = new Map((accounts ?? []).map((a) => [a.id, a.name]));
+      return (leads ?? []).map((l) => ({
+        id: l.id, title: l.title, source: l.source, status: l.status, created_at: l.created_at,
+        account: { id: l.account_id, name: nameById.get(l.account_id) ?? null },
+        _links: { self: `/leads` },
       }));
     },
   },

@@ -19,14 +19,15 @@ const EXAMPLES = [
 
 const EXAMPLES_FULL = [
   "Accounts with quote value over 50k",
-  "Quote value by month this year",
+  "Quote value by quarter this year",
   "Top 10 accounts by total quote value",
-  "How many quotes are still in draft?",
+  "Won quotes that haven't been invoiced yet",
   "Average quote value by status",
-  "Open cases by priority",
+  "Open cases by status",
   "Total outstanding invoice value",
-  "Products by category",
+  "Assets by make",
   "Give me insights about quotes",
+  "How is my business doing?",
 ];
 
 async function postJson(url: string, body?: unknown) {
@@ -45,6 +46,10 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
   // as a vertical stream of cards, each with its own Save.
   const [insightsReports, setInsightsReports] = useState<ReportPayload[]>([]);
   const [insightsTitle, setInsightsTitle] = useState("");
+  // A short prose synthesis of the facets below -- generated from the
+  // already-computed numbers, never a fresh data call. Optional: a failure
+  // writing it never blocks the charts themselves.
+  const [insightsSummary, setInsightsSummary] = useState<string | null>(null);
   const [clarifyingQuestion, setClarifyingQuestion] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +71,13 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
     setPhase("asking");
     setError(null);
     try {
-      const data = await postJson("/api/reports/ask", { question: q });
+      // The previous single-chart report travels as refinement context, so
+      // "now only this year" or "top 5 instead" continues it -- the server
+      // decides whether the new question refines or stands alone.
+      const context = phase === "ready" && payload
+        ? { question: payload.question, object: payload.object, compiled_query: payload.compiled_query }
+        : undefined;
+      const data = await postJson("/api/reports/ask", { question: q, context });
       if (data.status === "needs_clarification") {
         setClarifyingQuestion(data.clarifying_question);
         setPhase("clarify");
@@ -80,6 +91,7 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
       if (data.status === "insights") {
         setInsightsReports(Array.isArray(data.reports) ? data.reports : []);
         setInsightsTitle(data.question ?? q);
+        setInsightsSummary(typeof data.summary === "string" ? data.summary : null);
         setPhase("insights");
         return;
       }
@@ -145,7 +157,7 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !busy) submit(); }}
-          placeholder="e.g. Top 5 accounts by open quote value"
+          placeholder={phase === "ready" ? "Refine it ('only this year', 'top 5 instead') or ask something new…" : "e.g. Top 5 accounts by open quote value"}
           disabled={busy}
           style={{ flex: 1, padding: fullPage ? "13px 14px" : "10px 12px", fontSize: fullPage ? 14.5 : 13.5, borderRadius: 8, border: `1px solid ${c.line}`, background: c.panel2, color: c.ink }}
         />
@@ -197,8 +209,20 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
 
       {phase === "insights" && insightsReports.length > 0 && (
         <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 12, color: c.muted, marginBottom: 10 }}>
-            &ldquo;{insightsTitle}&rdquo; is broad, so here&rsquo;s {insightsReports.length} angle{insightsReports.length === 1 ? "" : "s"} on it:
+          {insightsSummary && (
+            <div style={{
+              padding: "14px 16px", borderRadius: 10, marginBottom: 16,
+              background: "color-mix(in srgb, " + pillar.blue.base + " 8%, " + c.panel2 + ")",
+              border: `1px solid color-mix(in srgb, ${pillar.blue.base} 25%, transparent)`,
+            }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: pillar.blue.fg, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+                ✦ Summary
+              </div>
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: c.ink }}>{insightsSummary}</div>
+            </div>
+          )}
+          <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
+            The data behind it — {insightsReports.length} angle{insightsReports.length === 1 ? "" : "s"} on &ldquo;{insightsTitle}&rdquo;
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {insightsReports.map((r, i) => (

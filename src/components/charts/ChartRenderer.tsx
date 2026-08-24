@@ -36,7 +36,7 @@ function niceMax(max: number): number {
   return step * magnitude;
 }
 
-function Tooltip({ x, y, label, value }: { x: string; y: string; label: string; value: number }) {
+function Tooltip({ x, y, label, value, pct }: { x: string; y: string; label: string; value: number; pct?: number }) {
   return (
     <div
       style={{
@@ -46,10 +46,22 @@ function Tooltip({ x, y, label, value }: { x: string; y: string; label: string; 
         padding: "6px 9px", boxShadow: "0 4px 14px rgba(0,0,0,.12)", whiteSpace: "nowrap",
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{value.toLocaleString("en-IN")}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>
+        {value.toLocaleString("en-IN")}
+        {pct !== undefined && <span style={{ fontWeight: 600, color: c.muted }}> · {pct}%</span>}
+      </div>
       <div style={{ fontSize: 11, color: c.muted }}>{label}</div>
     </div>
   );
+}
+
+// Share-of-total for a bar's tooltip -- only meaningful when every value is
+// non-negative (a mixed-sign series has no sensible "share").
+function shareOf(series: { value: number }[], i: number): number | undefined {
+  if (series.some((s) => s.value < 0)) return undefined;
+  const total = series.reduce((s, x) => s + x.value, 0);
+  if (total <= 0) return undefined;
+  return Math.round((series[i].value / total) * 100);
 }
 
 // A "list" answer defaults to a SHORT preview, not a full dump -- a table
@@ -168,6 +180,7 @@ function HorizontalBarChart({ series }: { series: { key: string; value: number }
           y={(PAD_T + ROW_H * hover + ROW_H / 2) / (PAD_T + PAD_B + series.length * ROW_H) * 100 + "%"}
           label={series[hover].key}
           value={series[hover].value}
+          pct={shareOf(series, hover)}
         />
       )}
     </div>
@@ -231,6 +244,7 @@ function BarChart({ series }: { series: { key: string; value: number }[] }) {
           y={(PAD_T + plotH - (series[hover].value / max) * plotH) / H * 100 + "%"}
           label={series[hover].key}
           value={series[hover].value}
+          pct={shareOf(series, hover)}
         />
       )}
     </div>
