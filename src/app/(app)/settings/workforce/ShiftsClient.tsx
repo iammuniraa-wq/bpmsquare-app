@@ -29,18 +29,27 @@ const btn: React.CSSProperties = {
 const btnPrimary: React.CSSProperties = {
   ...btn, background: "var(--tenant-accent, #378ADD)", borderColor: "transparent", color: "#fff",
 };
+const btnGhost: React.CSSProperties = {
+  ...btn, background: "none",
+};
 
 const hhmm = (t: string) => t.slice(0, 5);
+
+const BLANK_FORM = {
+  name: "", start_time: "09:00", end_time: "18:00", grace_minutes: "10",
+  is_night_shift: false, night_allowance_amount: "0",
+};
 
 export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
   const [shifts, setShifts] = useState<WfmShift[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [shiftForm, setShiftForm] = useState({
-    name: "", start_time: "09:00", end_time: "18:00", grace_minutes: "10",
-    is_night_shift: false, night_allowance_amount: "0",
-  });
+  // null = adding a new shift; an id = editing that existing one. The form
+  // card above the table always reflects whichever mode is active, so
+  // there's exactly one form on the page, never a second copy per row.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [shiftForm, setShiftForm] = useState(BLANK_FORM);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/wfm/shifts");
@@ -71,19 +80,39 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
     }
   }
 
-  async function addShift() {
+  function startEdit(s: WfmShift) {
+    setEditingId(s.id);
+    setShiftForm({
+      name: s.name,
+      start_time: hhmm(s.start_time),
+      end_time: hhmm(s.end_time),
+      grace_minutes: String(s.grace_minutes),
+      is_night_shift: s.is_night_shift,
+      night_allowance_amount: String(s.night_allowance_amount),
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setShiftForm(BLANK_FORM);
+    setError("");
+  }
+
+  async function saveShift() {
     if (!shiftForm.name.trim()) { setError("Shift needs a name"); return; }
-    const ok = await post("/api/wfm/shifts", {
+    const payload = {
       name: shiftForm.name,
       start_time: shiftForm.start_time,
       end_time: shiftForm.end_time,
       grace_minutes: parseInt(shiftForm.grace_minutes) || 0,
       is_night_shift: shiftForm.is_night_shift,
       night_allowance_amount: parseFloat(shiftForm.night_allowance_amount) || 0,
-    });
-    if (ok) {
-      setShiftForm({ name: "", start_time: "09:00", end_time: "18:00", grace_minutes: "10", is_night_shift: false, night_allowance_amount: "0" });
-    }
+    };
+    const ok = editingId
+      ? await post(`/api/wfm/shifts/${editingId}`, payload, "PATCH")
+      : await post("/api/wfm/shifts", payload);
+    if (ok) cancelEdit();
   }
 
   return (
@@ -92,65 +121,12 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
         <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>
       )}
 
-      <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <div style={{ padding: "12px 12px 10px", borderBottom: `1px solid ${c.line}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Shifts</div>
-          <div style={{ fontSize: 12, color: c.muted, marginTop: 3, maxWidth: 780 }}>
-            Working hours people are expected to keep. <strong>Grace</strong> is how late someone can
-            check in before it counts as a late mark. A shift whose end time is earlier than its start
-            time runs past midnight — tick <strong>crosses midnight</strong> so those night hours are
-            counted on the day the shift started, not split across two days.
+      {canEdit && (
+        <section style={{ ...cardStyle, marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, marginBottom: 10 }}>
+            {editingId ? "Edit shift" : "Add a shift"}
           </div>
-        </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Name</th>
-              <th style={th}>Timing</th>
-              <th style={th}>Grace</th>
-              <th style={th}>Night shift</th>
-              <th style={th}>Night allowance</th>
-              <th style={th}>Status</th>
-              {canEdit && <th style={th}></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {shifts.map((s) => (
-              <tr key={s.id}>
-                <td style={{ ...td, fontWeight: 600, color: c.ink }}>{s.name}</td>
-                <td style={td}>
-                  {hhmm(s.start_time)} – {hhmm(s.end_time)}
-                  {s.crosses_midnight && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>next day</span>}
-                </td>
-                <td style={td}>{s.grace_minutes} min</td>
-                <td style={td}>{s.is_night_shift ? <Pill label="Night" tone="purple" /> : "—"}</td>
-                <td style={td}>{s.is_night_shift ? `₹${s.night_allowance_amount}/shift` : "—"}</td>
-                <td style={td}><Pill label={s.active ? "Active" : "Inactive"} tone={s.active ? "green" : "red"} /></td>
-                {canEdit && (
-                  <td style={td}>
-                    <button
-                      style={btn}
-                      disabled={busy}
-                      onClick={() => post(`/api/wfm/shifts/${s.id}`, { active: !s.active }, "PATCH")}
-                    >
-                      {s.active ? "Deactivate" : "Activate"}
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-            {shifts.length === 0 && (
-              <tr>
-                <td style={{ ...td, color: c.hint }} colSpan={7}>
-                  No shifts yet. Without one, nobody can be marked late or absent — attendance is
-                  recorded but never measured against expected hours.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        {canEdit && (
-          <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div style={{ flex: "1 1 150px" }}>
               <label style={lbl}>Name</label>
               <input style={inp} value={shiftForm.name} onChange={(e) => setShiftForm({ ...shiftForm, name: e.target.value })} placeholder="General shift" />
@@ -184,9 +160,74 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
                 <input style={inp} value={shiftForm.night_allowance_amount} onChange={(e) => setShiftForm({ ...shiftForm, night_allowance_amount: e.target.value })} />
               </div>
             )}
-            <button style={btnPrimary} disabled={busy} onClick={addShift}>Add shift</button>
+            <button style={btnPrimary} disabled={busy} onClick={saveShift}>
+              {busy ? "Saving…" : editingId ? "Save changes" : "Add shift"}
+            </button>
+            {editingId && <button style={btnGhost} disabled={busy} onClick={cancelEdit}>Cancel</button>}
           </div>
-        )}
+          <div style={{ fontSize: 12, color: c.muted, marginTop: 10, maxWidth: 780 }}>
+            Working hours people are expected to keep. <strong>Grace</strong> is how late someone can
+            check in before it counts as a late mark. A shift whose end time is earlier than its start
+            time runs past midnight — tick <strong>Night shift</strong> so those night hours are
+            counted on the day the shift started, not split across two days.
+          </div>
+        </section>
+      )}
+
+      <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
+        <div style={{ padding: "12px 12px 10px", borderBottom: `1px solid ${c.line}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Shifts</div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={th}>Name</th>
+              <th style={th}>Timing</th>
+              <th style={th}>Grace</th>
+              <th style={th}>Night shift</th>
+              <th style={th}>Night allowance</th>
+              <th style={th}>Status</th>
+              {canEdit && <th style={th}></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {shifts.map((s) => (
+              <tr key={s.id} style={editingId === s.id ? { background: c.panel2 } : undefined}>
+                <td style={{ ...td, fontWeight: 600, color: c.ink }}>{s.name}</td>
+                <td style={td}>
+                  {hhmm(s.start_time)} – {hhmm(s.end_time)}
+                  {s.crosses_midnight && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>next day</span>}
+                </td>
+                <td style={td}>{s.grace_minutes} min</td>
+                <td style={td}>{s.is_night_shift ? <Pill label="Night" tone="purple" /> : "—"}</td>
+                <td style={td}>{s.is_night_shift ? `₹${s.night_allowance_amount}/shift` : "—"}</td>
+                <td style={td}><Pill label={s.active ? "Active" : "Inactive"} tone={s.active ? "green" : "red"} /></td>
+                {canEdit && (
+                  <td style={{ ...td, whiteSpace: "nowrap" }}>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button style={btn} disabled={busy} onClick={() => startEdit(s)}>Edit</button>
+                      <button
+                        style={btn}
+                        disabled={busy}
+                        onClick={() => post(`/api/wfm/shifts/${s.id}`, { active: !s.active }, "PATCH")}
+                      >
+                        {s.active ? "Deactivate" : "Activate"}
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+            {shifts.length === 0 && (
+              <tr>
+                <td style={{ ...td, color: c.hint }} colSpan={7}>
+                  No shifts yet. Without one, nobody can be marked late or absent — attendance is
+                  recorded but never measured against expected hours.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </section>
     </>
   );
