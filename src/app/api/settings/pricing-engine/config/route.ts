@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
 import { parseFormula } from "@/lib/pricing-core";
+import { COMPONENT_ENUMS, COST_INPUT_KINDS } from "@/lib/pricing/enums";
 
 // One mutation surface for all PricingEngine config entities (admin,
 // session-auth, service-role writes — the pricing tables are select-only
@@ -12,17 +13,6 @@ import { parseFormula } from "@/lib/pricing-core";
 // cost inputs resolve by effective date (§3).
 //
 // POST { entity, op: "upsert" | "delete", version?, data: {...} }
-
-const COMPONENT_ENUMS = {
-  class: ["PRICE", "COST_BUILDUP", "MARKUP", "DISCOUNT", "SURCHARGE", "FREIGHT", "TAX", "REBATE_ACCRUAL", "STATISTICAL"],
-  calc_type: ["FIXED_AMOUNT", "PERCENT", "PER_UNIT", "SCALE_TIERED", "SCALE_GRADUATED", "FORMULA", "COST_ROLLUP"],
-  calc_basis: ["GROSS", "NET_SO_FAR", "QUANTITY", "WEIGHT", "SUBTOTAL_REF", "COST_REF", "CUSTOM_METRIC"],
-  sign: ["POSITIVE", "NEGATIVE", "BOTH"],
-  manual_override: ["FORBIDDEN", "ALLOWED_WITH_REASON", "FREE"],
-  resolution_strategy: ["MOST_SPECIFIC", "BEST_FOR_CUSTOMER", "ALL_APPLY"],
-} as const;
-
-const COST_INPUT_KINDS = ["MATERIAL", "LABOUR", "EQUIPMENT", "SALVAGE_CREDIT", "OVERHEAD", "INDEX"];
 
 type MutationBody = {
   entity?: "dimension" | "component" | "procedure" | "rule" | "cost_model" | "cost_input";

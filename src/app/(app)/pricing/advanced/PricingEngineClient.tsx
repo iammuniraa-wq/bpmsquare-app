@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { COMPONENT_ENUMS, COST_INPUT_KINDS, enumLabel } from "@/lib/pricing/enums";
 
 // PricingEngine cockpit (admin-only; the routes enforce it server-side).
 // Versions are the spine: everything except Dimensions and Cost Inputs is
@@ -255,88 +256,491 @@ function DimensionsTab({ snapshot, editable, mutate }: { snapshot: Snapshot; edi
   );
 }
 
+const fieldLabel: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "block", marginBottom: 3 };
+
+function EnumSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: readonly string[] }) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} style={{ ...input, minWidth: 160 }}>
+      {options.map((o) => <option key={o} value={o}>{enumLabel(o)}</option>)}
+    </select>
+  );
+}
+
+const BLANK_COMPONENT = {
+  code: "", name: "", class: "PRICE", calc_type: "FIXED_AMOUNT", calc_basis: "NET_SO_FAR",
+  sign: "BOTH", manual_override: "FORBIDDEN", resolution_strategy: "MOST_SPECIFIC", is_statistical: false,
+};
+
 function ComponentsTab({ snapshot, editable, mutate }: { snapshot: Snapshot; editable: boolean; mutate: MutateFn }) {
-  const [json, setJson] = useState('{\n  "code": "CUST_DISC",\n  "name": "Customer discount",\n  "class": "DISCOUNT",\n  "calc_type": "PERCENT",\n  "sign": "NEGATIVE"\n}');
+  const [form, setForm] = useState(BLANK_COMPONENT);
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+  const set = <K extends keyof typeof BLANK_COMPONENT>(key: K, value: (typeof BLANK_COMPONENT)[K]) => setForm((f) => ({ ...f, [key]: value }));
+
+  function startEdit(comp: Record<string, unknown>) {
+    setEditingCode(String(comp.code));
+    setForm({
+      code: String(comp.code), name: (comp.name as string) ?? "",
+      class: (comp.class as string) ?? "PRICE", calc_type: (comp.calc_type as string) ?? "FIXED_AMOUNT",
+      calc_basis: (comp.calc_basis as string) ?? "NET_SO_FAR", sign: (comp.sign as string) ?? "BOTH",
+      manual_override: (comp.manual_override as string) ?? "FORBIDDEN",
+      resolution_strategy: (comp.resolution_strategy as string) ?? "MOST_SPECIFIC",
+      is_statistical: Boolean(comp.is_statistical),
+    });
+  }
+
+  async function save() {
+    if (!form.code.trim()) return;
+    if (await mutate("component", "upsert", form)) { setForm(BLANK_COMPONENT); setEditingCode(null); }
+  }
+
   return (
     <div style={{ ...cardStyle, padding: 14 }}>
+      <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+        A component is one line of the price waterfall — the list price, a discount, freight, tax. <b>Class</b> is what it is; <b>calc type</b> is how it's computed; <b>basis</b> is what it's computed against.
+      </div>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
         <thead><tr><th style={th}>Code</th><th style={th}>Class</th><th style={th}>Calc</th><th style={th}>Basis</th><th style={th}>Sign</th><th style={th}>Stat</th><th style={th}>Override</th><th style={th}></th></tr></thead>
         <tbody>
           {snapshot.components.map((comp) => (
             <tr key={String(comp.code)}>
               <td style={{ ...td, ...mono }}>{String(comp.code)}</td>
-              <td style={td}>{String(comp.class)}</td>
-              <td style={td}>{String(comp.calc_type)}</td>
-              <td style={td}>{String(comp.calc_basis)}</td>
-              <td style={td}>{String(comp.sign)}</td>
+              <td style={td}>{enumLabel(String(comp.class))}</td>
+              <td style={td}>{enumLabel(String(comp.calc_type))}</td>
+              <td style={td}>{enumLabel(String(comp.calc_basis))}</td>
+              <td style={td}>{enumLabel(String(comp.sign))}</td>
               <td style={td}>{comp.is_statistical ? "✓" : ""}</td>
-              <td style={td}>{String(comp.manual_override)}</td>
-              <td style={td}>{editable && <button style={btn} onClick={() => mutate("component", "delete", { code: comp.code })}>Delete</button>}</td>
+              <td style={td}>{enumLabel(String(comp.manual_override))}</td>
+              <td style={td}>
+                {editable && (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button style={btn} onClick={() => startEdit(comp)}>Edit</button>
+                    <button style={btn} onClick={() => mutate("component", "delete", { code: comp.code })}>Delete</button>
+                  </div>
+                )}
+              </td>
             </tr>
           ))}
           {snapshot.components.length === 0 && <tr><td style={td} colSpan={8}>No components in this version.</td></tr>}
         </tbody>
       </table>
-      {editable && <JsonEditor label="Add / update component (JSON)" json={json} setJson={setJson}
-        onSave={(data) => mutate("component", "upsert", data)} />}
+      {editable && (
+        <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 12 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: c.ink, marginBottom: 8 }}>
+            {editingCode ? `Editing ${editingCode}` : "Add a component"}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 10 }}>
+            <div>
+              <label style={fieldLabel}>Code</label>
+              <input style={{ ...input, ...mono, width: "100%", boxSizing: "border-box" }} placeholder="CUST_DISC" value={form.code}
+                disabled={editingCode !== null} onChange={(e) => set("code", e.target.value.toUpperCase())} />
+            </div>
+            <div>
+              <label style={fieldLabel}>Name</label>
+              <input style={{ ...input, width: "100%", boxSizing: "border-box" }} placeholder="Customer discount" value={form.name} onChange={(e) => set("name", e.target.value)} />
+            </div>
+            <div>
+              <label style={fieldLabel}>Class</label>
+              <EnumSelect value={form.class} onChange={(v) => set("class", v)} options={COMPONENT_ENUMS.class} />
+            </div>
+            <div>
+              <label style={fieldLabel}>Calc type</label>
+              <EnumSelect value={form.calc_type} onChange={(v) => set("calc_type", v)} options={COMPONENT_ENUMS.calc_type} />
+            </div>
+            <div>
+              <label style={fieldLabel}>Calc basis</label>
+              <EnumSelect value={form.calc_basis} onChange={(v) => set("calc_basis", v)} options={COMPONENT_ENUMS.calc_basis} />
+            </div>
+            <div>
+              <label style={fieldLabel}>Sign</label>
+              <EnumSelect value={form.sign} onChange={(v) => set("sign", v)} options={COMPONENT_ENUMS.sign} />
+            </div>
+            <div>
+              <label style={fieldLabel}>Manual override</label>
+              <EnumSelect value={form.manual_override} onChange={(v) => set("manual_override", v)} options={COMPONENT_ENUMS.manual_override} />
+            </div>
+            <div>
+              <label style={fieldLabel}>Resolution strategy</label>
+              <EnumSelect value={form.resolution_strategy} onChange={(v) => set("resolution_strategy", v)} options={COMPONENT_ENUMS.resolution_strategy} />
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 6 }}>
+              <label style={{ fontSize: 12, color: c.muted, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <input type="checkbox" checked={form.is_statistical} onChange={(e) => set("is_statistical", e.target.checked)} />
+                Statistical (never added to price)
+              </label>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={primaryBtn} disabled={!form.code.trim()} onClick={save}>{editingCode ? "Save changes" : "Add component"}</button>
+            {editingCode && <button style={btn} onClick={() => { setForm(BLANK_COMPONENT); setEditingCode(null); }}>Cancel</button>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+type StepRow = { step: number; kind: "component" | "subtotal"; ref: string; formula: string; required: boolean };
+type SnapshotStep = { step: number; component?: string; subtotal?: string; requirement?: string; formula?: string };
+
+function stepsFromRows(rows: StepRow[]) {
+  return rows.map((r) => ({
+    step: r.step,
+    ...(r.kind === "component" ? { component: r.ref } : { subtotal: r.ref }),
+    ...(r.formula.trim() ? { formula: r.formula.trim() } : {}),
+    ...(r.required ? { required: true } : {}),
+  }));
+}
+
+function rowsFromSteps(steps: SnapshotStep[]): StepRow[] {
+  return steps.map((s) => ({
+    step: s.step, kind: s.subtotal ? "subtotal" : "component", ref: s.subtotal ?? s.component ?? "",
+    formula: s.formula ?? "", required: Boolean((s as { required?: boolean }).required),
+  }));
+}
+
+const BLANK_PROCEDURE = { code: "", entryMode: "LIST_DOWN" };
 
 function ProceduresTab({ snapshot, editable, mutate }: { snapshot: Snapshot; editable: boolean; mutate: MutateFn }) {
-  const [json, setJson] = useState('{\n  "code": "STANDARD",\n  "entry_mode": "LIST_DOWN",\n  "steps": [\n    {"step": 10, "component": "LIST_PRICE", "required": true},\n    {"step": 50, "subtotal": "NET_1"}\n  ]\n}');
+  const [form, setForm] = useState(BLANK_PROCEDURE);
+  const [rows, setRows] = useState<StepRow[]>([{ step: 10, kind: "component", ref: "", formula: "", required: false }]);
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+
+  function startEdit(p: Record<string, unknown>) {
+    setEditingCode(String(p.code));
+    setForm({ code: String(p.code), entryMode: (p.entry_mode as string) ?? "LIST_DOWN" });
+    const steps = (p.steps ?? []) as SnapshotStep[];
+    setRows(steps.length ? rowsFromSteps(steps) : [{ step: 10, kind: "component", ref: "", formula: "", required: false }]);
+  }
+  function reset() {
+    setForm(BLANK_PROCEDURE); setEditingCode(null);
+    setRows([{ step: 10, kind: "component", ref: "", formula: "", required: false }]);
+  }
+
+  async function save() {
+    if (!form.code.trim() || rows.some((r) => !r.ref.trim())) return;
+    const data = { code: form.code.trim().toUpperCase(), entry_mode: form.entryMode, steps: stepsFromRows(rows) };
+    if (await mutate("procedure", "upsert", data)) reset();
+  }
+
   return (
     <div style={{ ...cardStyle, padding: 14 }}>
-      {snapshot.procedures.map((p) => (
-        <div key={String(p.code)} style={{ marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <span style={{ ...mono, fontWeight: 700, color: c.ink }}>{String(p.code)}</span>
-            <span style={{ fontSize: 11, color: c.muted }}>{String(p.entry_mode)}</span>
-            {editable && <button style={btn} onClick={() => mutate("procedure", "delete", { code: p.code })}>Delete</button>}
+      <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+        A procedure is the waterfall itself — an ordered list of steps, each either pricing one component or marking a running subtotal (referenced later by a component whose basis is &ldquo;a named subtotal&rdquo;).
+      </div>
+      {snapshot.procedures.map((p) => {
+        const steps = (p.steps ?? []) as SnapshotStep[];
+        return (
+          <div key={String(p.code)} style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ ...mono, fontWeight: 700, color: c.ink }}>{String(p.code)}</span>
+              <span style={{ fontSize: 11, color: c.muted }}>{enumLabel(String(p.entry_mode))}</span>
+              {editable && (
+                <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                  <button style={btn} onClick={() => startEdit(p)}>Edit</button>
+                  <button style={btn} onClick={() => mutate("procedure", "delete", { code: p.code })}>Delete</button>
+                </div>
+              )}
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead><tr><th style={th}>Step</th><th style={th}>Type</th><th style={th}>Ref</th><th style={th}>Formula</th><th style={th}>Required</th></tr></thead>
+              <tbody>
+                {steps.map((s, i) => (
+                  <tr key={i}>
+                    <td style={td}>{s.step}</td>
+                    <td style={td}>{s.subtotal ? "Subtotal" : "Component"}</td>
+                    <td style={{ ...td, ...mono }}>{s.subtotal ?? s.component}</td>
+                    <td style={{ ...td, ...mono, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.formula ?? "—"}</td>
+                    <td style={td}>{(s as { required?: boolean }).required ? "✓" : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <pre style={{ ...mono, background: c.panel2, borderRadius: 7, padding: 10, overflow: "auto", maxHeight: 220, margin: 0, color: c.ink }}>
-            {JSON.stringify(p.steps, null, 2)}
-          </pre>
-        </div>
-      ))}
+        );
+      })}
       {snapshot.procedures.length === 0 && <div style={{ fontSize: 12, color: c.hint, marginBottom: 10 }}>No procedures in this version.</div>}
-      {editable && <JsonEditor label="Add / update procedure (JSON)" json={json} setJson={setJson}
-        onSave={(data) => mutate("procedure", "upsert", data)} />}
+
+      {editable && (
+        <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 12 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: c.ink, marginBottom: 8 }}>
+            {editingCode ? `Editing ${editingCode}` : "Add a procedure"}
+          </div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+            <div>
+              <label style={fieldLabel}>Code</label>
+              <input style={{ ...input, ...mono }} placeholder="STANDARD" value={form.code} disabled={editingCode !== null}
+                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} />
+            </div>
+            <div>
+              <label style={fieldLabel}>Entry mode</label>
+              <EnumSelect value={form.entryMode} onChange={(v) => setForm((f) => ({ ...f, entryMode: v }))} options={["LIST_DOWN", "COST_UP"]} />
+            </div>
+          </div>
+
+          <label style={fieldLabel}>Steps (in order)</label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+            {rows.map((r, i) => (
+              <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", padding: "6px 8px", borderRadius: 7, background: c.panel2 }}>
+                <input type="number" style={{ ...input, width: 60 }} value={r.step}
+                  onChange={(e) => setRows(rows.map((rr, j) => (j === i ? { ...rr, step: Number(e.target.value) } : rr)))} />
+                <select style={{ ...input, width: 130 }} value={r.kind}
+                  onChange={(e) => setRows(rows.map((rr, j) => (j === i ? { ...rr, kind: e.target.value as "component" | "subtotal", ref: "" } : rr)))}>
+                  <option value="component">Component</option>
+                  <option value="subtotal">Subtotal marker</option>
+                </select>
+                {r.kind === "component" ? (
+                  <select style={{ ...input, minWidth: 160 }} value={r.ref} onChange={(e) => setRows(rows.map((rr, j) => (j === i ? { ...rr, ref: e.target.value } : rr)))}>
+                    <option value="">Choose a component…</option>
+                    {snapshot.components.map((cmp) => <option key={String(cmp.code)} value={String(cmp.code)}>{String(cmp.code)}</option>)}
+                  </select>
+                ) : (
+                  <input style={{ ...input, ...mono, width: 140 }} placeholder="NET_1" value={r.ref}
+                    onChange={(e) => setRows(rows.map((rr, j) => (j === i ? { ...rr, ref: e.target.value.toUpperCase() } : rr)))} />
+                )}
+                <input style={{ ...input, ...mono, width: 180 }} placeholder="formula (optional)" value={r.formula}
+                  onChange={(e) => setRows(rows.map((rr, j) => (j === i ? { ...rr, formula: e.target.value } : rr)))} />
+                <label style={{ fontSize: 11.5, color: c.muted, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                  <input type="checkbox" checked={r.required} onChange={(e) => setRows(rows.map((rr, j) => (j === i ? { ...rr, required: e.target.checked } : rr)))} />
+                  Required
+                </label>
+                {rows.length > 1 && <button style={btn} onClick={() => setRows(rows.filter((_, j) => j !== i))}>Remove</button>}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <button style={{ ...btn, alignSelf: "flex-start" }}
+              onClick={() => setRows([...rows, { step: (rows[rows.length - 1]?.step ?? 0) + 10, kind: "component", ref: "", formula: "", required: false }])}>
+              + Add step
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={primaryBtn} disabled={!form.code.trim() || rows.some((r) => !r.ref.trim())} onClick={save}>
+              {editingCode ? "Save changes" : "Add procedure"}
+            </button>
+            {editingCode && <button style={btn} onClick={reset}>Cancel</button>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
+type MatchRow = { attribute: string; value: string };
+type ValueMode = "flat" | "tiers" | "formula";
+type ScaleEntry = { from: number; value: number };
+
+function describeMatch(match: Record<string, unknown>): string {
+  const entries = Object.entries(match);
+  if (entries.length === 0) return "Everyone (catch-all)";
+  return entries.map(([k, v]) => `${k}: ${v}`).join(", ");
+}
+
+function describeValue(r: Record<string, unknown>): string {
+  if (r.formula) return `Formula: ${r.formula}`;
+  if (r.scale && typeof r.scale === "object") {
+    const entries = (r.scale as { entries?: unknown[] }).entries;
+    return `${Array.isArray(entries) ? entries.length : 0} volume band(s)`;
+  }
+  return r.value === null || r.value === undefined ? "—" : String(r.value);
+}
+
+const BLANK_RULE = { componentCode: "", matches: [] as MatchRow[], mode: "flat" as ValueMode, value: "0", formula: "", validFrom: "", validTo: "" };
+
 function RulesTab({ snapshot, editable, mutate }: { snapshot: Snapshot; editable: boolean; mutate: MutateFn }) {
-  const [json, setJson] = useState('{\n  "component_code": "CUST_DISC",\n  "match_attributes": {"customer.tier": "A"},\n  "value": -3\n}');
+  const [form, setForm] = useState(BLANK_RULE);
+  const [tiers, setTiers] = useState<ScaleEntry[]>([{ from: 0, value: 0 }]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const dimensionAttrs = useMemo(() => snapshot.dimensions.map((d) => String(d.attribute)), [snapshot.dimensions]);
+  const set = <K extends keyof typeof BLANK_RULE>(key: K, value: (typeof BLANK_RULE)[K]) => setForm((f) => ({ ...f, [key]: value }));
+
+  function startEdit(r: Record<string, unknown>) {
+    setEditingId(String(r.id));
+    const match = (r.match_attributes ?? {}) as Record<string, unknown>;
+    const scale = r.scale as { entries?: ScaleEntry[] } | null;
+    setForm({
+      componentCode: String(r.component_code),
+      matches: Object.entries(match).map(([attribute, value]) => ({ attribute, value: String(value) })),
+      mode: r.formula ? "formula" : scale ? "tiers" : "flat",
+      value: r.value === null || r.value === undefined ? "0" : String(r.value),
+      formula: (r.formula as string) ?? "",
+      validFrom: (r.valid_from as string) ?? "", validTo: (r.valid_to as string) ?? "",
+    });
+    setTiers(scale?.entries?.length ? scale.entries : [{ from: 0, value: 0 }]);
+  }
+
+  function reset() { setForm(BLANK_RULE); setTiers([{ from: 0, value: 0 }]); setEditingId(null); }
+
+  async function save() {
+    if (!form.componentCode.trim()) return;
+    const match_attributes: Record<string, string> = {};
+    for (const m of form.matches) if (m.attribute) match_attributes[m.attribute] = m.value;
+    const data: Record<string, unknown> = {
+      id: editingId ?? undefined,
+      component_code: form.componentCode.trim().toUpperCase(),
+      match_attributes,
+      value: form.mode === "flat" ? Number(form.value) || 0 : null,
+      scale: form.mode === "tiers" ? { entries: tiers } : null,
+      formula: form.mode === "formula" ? form.formula.trim() : null,
+      valid_from: form.validFrom || null, valid_to: form.validTo || null,
+    };
+    if (await mutate("rule", "upsert", data)) reset();
+  }
+
+  const usedAttrs = new Set(form.matches.map((m) => m.attribute));
+
   return (
     <div style={{ ...cardStyle, padding: 14 }}>
+      <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+        A rule sets one component&rsquo;s value for a specific case — add match conditions for a segment, region or deal size; leave it with no conditions for &ldquo;everyone else&rdquo;. The most specific match wins.
+      </div>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
-        <thead><tr><th style={th}>Component</th><th style={th}>Match</th><th style={th}>Value</th><th style={th}>Scale/Formula</th><th style={th}>Valid</th><th style={th}></th></tr></thead>
+        <thead><tr><th style={th}>Component</th><th style={th}>Match</th><th style={th}>Value</th><th style={th}>Valid</th><th style={th}></th></tr></thead>
         <tbody>
           {snapshot.rules.map((r) => (
             <tr key={String(r.id)}>
               <td style={{ ...td, ...mono }}>{String(r.component_code)}</td>
-              <td style={{ ...td, ...mono }}>{JSON.stringify(r.match_attributes)}</td>
-              <td style={td}>{r.value === null ? "—" : String(r.value)}</td>
-              <td style={{ ...td, ...mono, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {r.formula ? String(r.formula) : r.scale ? "scale" : "—"}
-              </td>
+              <td style={td}>{describeMatch((r.match_attributes ?? {}) as Record<string, unknown>)}</td>
+              <td style={td}>{describeValue(r)}</td>
               <td style={td}>{(r.valid_from as string) ?? "…"} → {(r.valid_to as string) ?? "…"}</td>
-              <td style={td}>{editable && <button style={btn} onClick={() => mutate("rule", "delete", { id: r.id })}>Delete</button>}</td>
+              <td style={td}>
+                {editable && (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button style={btn} onClick={() => startEdit(r)}>Edit</button>
+                    <button style={btn} onClick={() => mutate("rule", "delete", { id: r.id })}>Delete</button>
+                  </div>
+                )}
+              </td>
             </tr>
           ))}
-          {snapshot.rules.length === 0 && <tr><td style={td} colSpan={6}>No rules in this version.</td></tr>}
+          {snapshot.rules.length === 0 && <tr><td style={td} colSpan={5}>No rules in this version.</td></tr>}
         </tbody>
       </table>
-      {editable && <JsonEditor label="Add rule (JSON — include an id to update an existing rule)" json={json} setJson={setJson}
-        onSave={(data) => mutate("rule", "upsert", data)} />}
+      {editable && (
+        <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 12 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: c.ink, marginBottom: 8 }}>
+            {editingId ? "Editing rule" : "Add a rule"}
+          </div>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 10 }}>
+            <div>
+              <label style={fieldLabel}>Component</label>
+              <select style={{ ...input, minWidth: 180 }} value={form.componentCode} onChange={(e) => set("componentCode", e.target.value)}>
+                <option value="">Choose…</option>
+                {snapshot.components.map((cmp) => <option key={String(cmp.code)} value={String(cmp.code)}>{String(cmp.code)} — {String(cmp.name)}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <label style={fieldLabel}>Match conditions</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {form.matches.map((m, i) => (
+                <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <select style={{ ...input, minWidth: 160 }} value={m.attribute}
+                    onChange={(e) => set("matches", form.matches.map((mm, j) => (j === i ? { ...mm, attribute: e.target.value } : mm)))}>
+                    <option value="">Choose an attribute…</option>
+                    {dimensionAttrs.filter((a) => a === m.attribute || !usedAttrs.has(a)).map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                  <input style={{ ...input, width: 140 }} placeholder="value" value={m.value}
+                    onChange={(e) => set("matches", form.matches.map((mm, j) => (j === i ? { ...mm, value: e.target.value } : mm)))} />
+                  <button style={btn} onClick={() => set("matches", form.matches.filter((_, j) => j !== i))}>Remove</button>
+                </div>
+              ))}
+              {dimensionAttrs.length === 0 && form.matches.length === 0 && (
+                <div style={{ fontSize: 11.5, color: c.hint }}>No dimensions registered yet — add one on the Dimensions tab to match on it, or leave this rule with no conditions (catch-all).</div>
+              )}
+              {dimensionAttrs.length > form.matches.length && (
+                <button style={{ ...btn, alignSelf: "flex-start" }} onClick={() => set("matches", [...form.matches, { attribute: "", value: "" }])}>+ Add condition</button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <label style={fieldLabel}>Value</label>
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              {(["flat", "tiers", "formula"] as ValueMode[]).map((m) => (
+                <button key={m} onClick={() => set("mode", m)} style={{
+                  ...btn, background: form.mode === m ? "var(--bluebg)" : "var(--panel)", color: form.mode === m ? "var(--blueink)" : c.muted,
+                  fontWeight: form.mode === m ? 700 : 500,
+                }}>
+                  {m === "flat" ? "Flat number" : m === "tiers" ? "Volume tiers" : "Formula"}
+                </button>
+              ))}
+            </div>
+            {form.mode === "flat" && (
+              <input type="number" style={{ ...input, width: 140 }} value={form.value} onChange={(e) => set("value", e.target.value)} />
+            )}
+            {form.mode === "tiers" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {tiers.map((t, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 11.5, color: c.muted }}>From</span>
+                    <input type="number" style={{ ...input, width: 90 }} value={t.from} onChange={(e) => setTiers(tiers.map((tt, j) => (j === i ? { ...tt, from: Number(e.target.value) } : tt)))} />
+                    <span style={{ fontSize: 11.5, color: c.muted }}>→</span>
+                    <input type="number" style={{ ...input, width: 90 }} value={t.value} onChange={(e) => setTiers(tiers.map((tt, j) => (j === i ? { ...tt, value: Number(e.target.value) } : tt)))} />
+                    {tiers.length > 1 && <button style={btn} onClick={() => setTiers(tiers.filter((_, j) => j !== i))}>×</button>}
+                  </div>
+                ))}
+                <button style={{ ...btn, alignSelf: "flex-start" }} onClick={() => setTiers([...tiers, { from: 0, value: 0 }])}>+ Add band</button>
+              </div>
+            )}
+            {form.mode === "formula" && (
+              <input style={{ ...input, ...mono, width: "100%", boxSizing: "border-box" }} placeholder="e.g. cost_ref('COPPER_WORKS') * 1.15"
+                value={form.formula} onChange={(e) => set("formula", e.target.value)} />
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+            <div>
+              <label style={fieldLabel}>Valid from</label>
+              <input type="date" style={input} value={form.validFrom} onChange={(e) => set("validFrom", e.target.value)} />
+            </div>
+            <div>
+              <label style={fieldLabel}>Valid to</label>
+              <input type="date" style={input} value={form.validTo} onChange={(e) => set("validTo", e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={primaryBtn} disabled={!form.componentCode.trim()} onClick={save}>{editingId ? "Save changes" : "Add rule"}</button>
+            {editingId && <button style={btn} onClick={reset}>Cancel</button>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
+const BLANK_COST_INPUT = { modelCode: "", path: "", kind: "MATERIAL", value: "", uom: "", currency: "", validFrom: "", validTo: "" };
+
 function CostModelsTab({ snapshot, editable, mutate }: { snapshot: Snapshot; editable: boolean; mutate: MutateFn }) {
   const [modelCode, setModelCode] = useState("");
-  const [json, setJson] = useState('{\n  "cost_model_code": "COPPER_WORKS",\n  "path": "material.copper_per_kg",\n  "kind": "MATERIAL",\n  "value": 850,\n  "uom": "kg",\n  "valid_from": "2026-08-01"\n}');
+  const [inputForm, setInputForm] = useState(BLANK_COST_INPUT);
+  const [editingInputId, setEditingInputId] = useState<string | null>(null);
+  const setIn = <K extends keyof typeof BLANK_COST_INPUT>(key: K, value: (typeof BLANK_COST_INPUT)[K]) => setInputForm((f) => ({ ...f, [key]: value }));
+
+  function startEditInput(i: Record<string, unknown>) {
+    setEditingInputId(String(i.id));
+    setInputForm({
+      modelCode: String(i.cost_model_code), path: String(i.path), kind: String(i.kind),
+      value: String(i.value), uom: (i.uom as string) ?? "", currency: (i.currency as string) ?? "",
+      validFrom: (i.valid_from as string) ?? "", validTo: (i.valid_to as string) ?? "",
+    });
+  }
+  function resetInput() { setInputForm(BLANK_COST_INPUT); setEditingInputId(null); }
+
+  async function saveInput() {
+    if (!inputForm.modelCode.trim() || !inputForm.path.trim()) return;
+    const data = {
+      id: editingInputId ?? undefined,
+      cost_model_code: inputForm.modelCode.trim().toUpperCase(), path: inputForm.path.trim(), kind: inputForm.kind,
+      value: Number(inputForm.value) || 0, uom: inputForm.uom || null, currency: inputForm.currency || null,
+      valid_from: inputForm.validFrom || null, valid_to: inputForm.validTo || null,
+    };
+    if (await mutate("cost_input", "upsert", data, false)) resetInput();
+  }
+
   const inputsByModel = useMemo(() => {
     const map = new Map<string, Record<string, unknown>[]>();
     for (const i of snapshot.cost_inputs) {
@@ -368,7 +772,14 @@ function CostModelsTab({ snapshot, editable, mutate }: { snapshot: Snapshot; edi
                   <td style={td}>{String(i.value)}</td>
                   <td style={td}>{(i.uom as string) ?? "—"}</td>
                   <td style={td}>{(i.valid_from as string) ?? "…"} → {(i.valid_to as string) ?? "…"}</td>
-                  <td style={td}><button style={btn} onClick={() => mutate("cost_input", "delete", { id: i.id }, false)}>Delete</button></td>
+                  <td style={td}>
+                    {editable && (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button style={btn} onClick={() => startEditInput(i)}>Edit</button>
+                        <button style={btn} onClick={() => mutate("cost_input", "delete", { id: i.id }, false)}>Delete</button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -376,31 +787,62 @@ function CostModelsTab({ snapshot, editable, mutate }: { snapshot: Snapshot; edi
         </div>
       ))}
       {editable && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <input style={{ ...input, ...mono, width: 200 }} placeholder="MODEL_CODE" value={modelCode} onChange={(e) => setModelCode(e.target.value)} />
-          <button style={btn} onClick={() => mutate("cost_model", "upsert", { code: modelCode })}>Add cost model</button>
-        </div>
-      )}
-      <JsonEditor label="Add / update cost input (JSON — include an id to update)" json={json} setJson={setJson}
-        onSave={(data) => mutate("cost_input", "upsert", data, false)} />
-    </div>
-  );
-}
+        <>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            <input style={{ ...input, ...mono, width: 200 }} placeholder="MODEL_CODE" value={modelCode} onChange={(e) => setModelCode(e.target.value)} />
+            <button style={btn} onClick={() => mutate("cost_model", "upsert", { code: modelCode })}>Add cost model</button>
+          </div>
 
-function JsonEditor({ label, json, setJson, onSave }: { label: string; json: string; setJson: (s: string) => void; onSave: (data: Record<string, unknown>) => Promise<boolean> }) {
-  const [parseError, setParseError] = useState<string | null>(null);
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: c.muted, marginBottom: 4 }}>{label}</div>
-      <textarea value={json} onChange={(e) => setJson(e.target.value)} rows={8}
-        style={{ ...input, ...mono, width: "100%", resize: "vertical", boxSizing: "border-box" }} />
-      {parseError && <div style={{ fontSize: 11.5, color: "var(--err-ink)", marginTop: 4 }}>{parseError}</div>}
-      <button style={{ ...primaryBtn, marginTop: 6 }} onClick={async () => {
-        const data = parseJsonOr<Record<string, unknown> | null>(json, null);
-        if (!data) { setParseError("Not valid JSON."); return; }
-        setParseError(null);
-        await onSave(data);
-      }}>Save</button>
+          <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 12 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: c.ink, marginBottom: 8 }}>
+              {editingInputId ? "Editing cost input" : "Add a cost input"}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={fieldLabel}>Cost model</label>
+                <select style={{ ...input, width: "100%", boxSizing: "border-box" }} value={inputForm.modelCode} onChange={(e) => setIn("modelCode", e.target.value)}>
+                  <option value="">Choose…</option>
+                  {snapshot.cost_models.map((m) => <option key={String(m.code)} value={String(m.code)}>{String(m.code)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={fieldLabel}>Path</label>
+                <input style={{ ...input, ...mono, width: "100%", boxSizing: "border-box" }} placeholder="material.copper_per_kg" value={inputForm.path} onChange={(e) => setIn("path", e.target.value)} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Kind</label>
+                <EnumSelect value={inputForm.kind} onChange={(v) => setIn("kind", v)} options={COST_INPUT_KINDS} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Value</label>
+                <input type="number" style={{ ...input, width: "100%", boxSizing: "border-box" }} value={inputForm.value} onChange={(e) => setIn("value", e.target.value)} />
+              </div>
+              <div>
+                <label style={fieldLabel}>UOM</label>
+                <input style={{ ...input, width: "100%", boxSizing: "border-box" }} placeholder="kg" value={inputForm.uom} onChange={(e) => setIn("uom", e.target.value)} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Currency</label>
+                <input style={{ ...input, width: "100%", boxSizing: "border-box" }} placeholder="INR" value={inputForm.currency} onChange={(e) => setIn("currency", e.target.value)} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Valid from</label>
+                <input type="date" style={{ ...input, width: "100%", boxSizing: "border-box" }} value={inputForm.validFrom} onChange={(e) => setIn("validFrom", e.target.value)} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Valid to</label>
+                <input type="date" style={{ ...input, width: "100%", boxSizing: "border-box" }} value={inputForm.validTo} onChange={(e) => setIn("validTo", e.target.value)} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={primaryBtn} disabled={!inputForm.modelCode.trim() || !inputForm.path.trim()} onClick={saveInput}>
+                {editingInputId ? "Save changes" : "Add cost input"}
+              </button>
+              {editingInputId && <button style={btn} onClick={resetInput}>Cancel</button>}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
