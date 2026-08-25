@@ -22,13 +22,13 @@ import { useTenant, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/ten
  */
 
 type Item =
-  | { kind: "nav"; label: string; sub: string; href: string }
+  | { kind: "nav"; label: string; sub: string; href: string; event?: string; eventDetail?: Record<string, unknown> }
   | { kind: "create"; label: string; sub: string; href: string; event?: string; mode?: string }
-  | { kind: "record"; label: string; sub: string; href: string; matched: string }
+  | { kind: "record"; label: string; sub: string; href: string; matched: string; event?: undefined; eventDetail?: undefined }
   // A record CATEGORY header (client request 2026-08-22): results group by
   // object type instead of one long mixed list; the arrow expands that
   // category, newest-first. Enter/click toggles -- it never closes the palette.
-  | { kind: "group"; label: string; sub: string; href: string; type: string; expanded: boolean };
+  | { kind: "group"; label: string; sub: string; href: string; type: string; expanded: boolean; event?: undefined; eventDetail?: undefined };
 
 const CREATE_ACTIONS: { label: string; href: string; featureKey: string }[] = [
   { label: "New Account",   href: "/accounts/new",    featureKey: "accounts" },
@@ -81,8 +81,15 @@ function looksLikePastedContent(text: string): boolean {
 // extracts just the account name X so it can be looked up directly, rather
 // than fuzzy-matching the whole sentence against every account name (which
 // is what made the misfire this looks so similar to). Matching account
-// opens straight to Market Signals -- the real call-prep content.
-const CALL_PREP_RE = /\bprep(?:are)?\s+(?:me\s+)?for\s+(?:my\s+|our\s+|the\s+)?(?:next\s+|upcoming\s+)?call\s+(?:with|about|regarding)\s+(.+?)[.?!]*$/i;
+// opens Account 360 -- the actual call-prep content (health rating,
+// next-best-action, cards) -- not a plain account page (2026-08-27 fix:
+// this used to just router.push() the account's own href, which looked
+// like nothing had happened once you got there).
+//
+// Determiner/connector list widened same date -- "prep me for A call"
+// and "call ABOUT X" were real, reported misses against the exact
+// advertised phrasing's own natural variants.
+const CALL_PREP_RE = /\bprep(?:are)?\s+(?:me\s+)?for\s+(?:my\s+|our\s+|your\s+|a\s+|an\s+|this\s+|that\s+|the\s+)?(?:next\s+|upcoming\s+)?call\s+(?:with|about|regarding|on|for)\s+(.+?)[.?!]*$/i;
 
 export default function NovaPalette() {
   const router = useRouter();
@@ -99,6 +106,11 @@ export default function NovaPalette() {
   useEffect(() => { setExpandedTypes(new Set()); }, [query]);
   const [active, setActive] = useState(0);
   const [callPrepAccount, setCallPrepAccount] = useState<SearchResult | null>(null);
+  // The extracted name, once a search for it has resolved with NO match --
+  // distinct from callPrepAccount(null) which is also the "haven't searched
+  // yet" state. Without this, a genuine "no account named X" read as the
+  // whole palette silently doing nothing, same as it would for a typo.
+  const [callPrepNotFound, setCallPrepNotFound] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const callPrepDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -201,15 +213,18 @@ export default function NovaPalette() {
   useEffect(() => {
     if (callPrepDebounceRef.current) clearTimeout(callPrepDebounceRef.current);
     const name = query.match(CALL_PREP_RE)?.[1]?.trim();
-    if (!name || features?.accounts !== true) { setCallPrepAccount(null); return; }
+    if (!name || features?.accounts !== true) { setCallPrepAccount(null); setCallPrepNotFound(null); return; }
+    setCallPrepNotFound(null);
     callPrepDebounceRef.current = setTimeout(() => {
       fetch(`/api/search?q=${encodeURIComponent(name)}`)
         .then((r) => r.json())
         .then((json) => {
           const results: SearchResult[] = Array.isArray(json.results) ? json.results : [];
-          setCallPrepAccount(results.find((r) => r.type === "account") ?? null);
+          const found = results.find((r) => r.type === "account") ?? null;
+          setCallPrepAccount(found);
+          setCallPrepNotFound(found ? null : name);
         })
-        .catch(() => setCallPrepAccount(null));
+        .catch(() => { setCallPrepAccount(null); setCallPrepNotFound(name); });
     }, DEBOUNCE_MS);
     return () => { if (callPrepDebounceRef.current) clearTimeout(callPrepDebounceRef.current); };
   }, [query, features?.accounts]);
@@ -252,9 +267,13 @@ export default function NovaPalette() {
       : [];
     // "prep me for my call with X" resolved to a real account -- surface
     // it above everything else, since it's the one thing the user actually
-    // asked for.
+    // asked for. Opens Account 360 (health rating, next-best-action, cards)
+    // via the same event Account360Button uses -- not a plain account nav.
     const callPrepOffer: Item[] = callPrepAccount
-      ? [{ kind: "nav", label: `Prep for call: ${callPrepAccount.title}`, sub: "Nova · Market signals", href: callPrepAccount.href }]
+      ? [{
+          kind: "nav", label: `Prep for call: ${callPrepAccount.title}`, sub: "Nova · Account 360",
+          href: callPrepAccount.href, event: "nova:open-account-360", eventDetail: { id: callPrepAccount.id },
+        }]
       : [];
     return [...callPrepOffer, ...draftOffer, ...statics.slice(0, 10), ...recs.slice(0, 40)];
   }, [query, universe, records, pastedContent, features?.accounts, expandedTypes, callPrepAccount]);
@@ -274,12 +293,15 @@ export default function NovaPalette() {
       return;
     }
     setOpen(false);
-    if (item.kind === "create" && item.event) {
-      // Pasted content travels with the event so the draft modal starts
-      // working immediately instead of asking for the same paste twice.
-      window.dispatchEvent(new CustomEvent(item.event, {
-        detail: { mode: item.mode, ...(pastedContent ? { text: query } : {}) },
-      }));
+    if (item.event) {
+      // "create" carries the draft-mode + pasted-text shape (so the draft
+      // modal starts working immediately instead of asking for the same
+      // paste twice); any other event-carrying item (e.g. the call-prep
+      // offer opening Account 360) supplies its own eventDetail directly.
+      const detail = item.kind === "create"
+        ? { mode: item.mode, ...(pastedContent ? { text: query } : {}) }
+        : item.eventDetail;
+      window.dispatchEvent(new CustomEvent(item.event, { detail }));
       return;
     }
     router.push(item.href);
@@ -342,7 +364,11 @@ export default function NovaPalette() {
         <div style={{ maxHeight: "52vh", overflowY: "auto", padding: 6 }}>
           {items.length === 0 && (
             <div style={{ padding: "22px 14px", fontSize: 12.5, color: "var(--sb-panel-text-dim)", textAlign: "center" }}>
-              {searching ? "Searching…" : query.trim().length >= 2 ? "Nothing matches — try a name, ref, or screen." : "Type to search screens, actions and records."}
+              {searching
+                ? "Searching…"
+                : callPrepNotFound
+                ? `No account matches "${callPrepNotFound}" — check the spelling or try the full name.`
+                : query.trim().length >= 2 ? "Nothing matches — try a name, ref, or screen." : "Type to search screens, actions and records."}
             </div>
           )}
           {items.map((item, idx) => {

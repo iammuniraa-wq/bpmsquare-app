@@ -11,12 +11,20 @@ import type { NormalizedReport } from "@/lib/reportView";
 // gated behind hover) -- a table-only report renders as a table with no
 // further affordance needed since it already is the fallback.
 //
-// Single accent hue throughout: a v1 report is one measure across category
-// labels (identity lives in the axis text, not per-bar color), so no
-// legend is needed -- "a single series needs no legend box."
-
+// Bar/breakdown charts use a 5-hue categorical order (CVD-safe in both
+// light and dark -- verified with the dataviz skill's validate_palette.js),
+// cycling per category, matching the classic Analytics dashboard's own
+// widgets (DashboardLayout.tsx's COLORS) instead of a flat single hue --
+// these were reading as monotone/inconsistent next to Analytics. A bar
+// chart's categories already carry a direct axis label each, so color here
+// is reinforcing, not the only way to tell bars apart -- no separate
+// legend needed, same reasoning DashboardLayout's MiniHBar rows use. A
+// line chart stays single-hue: one continuous trend is one series, not
+// categories.
+const CATEGORICAL = [pillar.blue.base, pillar.amber.base, pillar.teal.base, pillar.purple.base, pillar.green.base];
 const ACCENT = pillar.blue.base;
 const OTHER = c.hint;
+const isCollapsedBucket = (key: string) => key === "Other" || key === "Earlier";
 
 // Indian-market compact numbers: 50K, 4.5L, 2.3Cr -- these are ₹ values far
 // more often than not, and 250M reads foreign to the audience reading them.
@@ -153,8 +161,8 @@ function HorizontalBarChart({ series }: { series: { key: string; value: number }
           const y = PAD_T + ROW_H * i;
           const cy = y + ROW_H / 2;
           const barW = Math.max((s.value / max) * plotW, 1.5);
-          const isOther = s.key === "Other";
-          const fill = isOther ? OTHER : ACCENT;
+          const isOther = isCollapsedBucket(s.key);
+          const fill = isOther ? OTHER : CATEGORICAL[i % CATEGORICAL.length];
           const label = s.key.length > 24 ? s.key.slice(0, 23) + "…" : s.key;
           return (
             <g key={i} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover((h) => (h === i ? null : h))} style={{ cursor: "pointer" }}>
@@ -218,8 +226,8 @@ function BarChart({ series }: { series: { key: string; value: number }[] }) {
           const x = PAD_L + bandW * i + (bandW - barW) / 2;
           const barH = (s.value / max) * plotH;
           const y = PAD_T + plotH - barH;
-          const isOther = s.key === "Other";
-          const fill = isOther ? OTHER : ACCENT;
+          const isOther = isCollapsedBucket(s.key);
+          const fill = isOther ? OTHER : CATEGORICAL[i % CATEGORICAL.length];
           return (
             <g key={`${gridId}-${i}`} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover((h) => (h === i ? null : h))} style={{ cursor: "pointer" }}>
               <rect x={x} y={PAD_T} width={barW} height={plotH} fill="transparent" />
