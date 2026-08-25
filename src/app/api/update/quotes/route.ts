@@ -10,7 +10,7 @@ import type { RowOutcome } from "@/lib/import/types";
 // the quote form's dedicated flow), relationships and line items are all
 // deliberately not bulk-editable.
 const ALLOWED = [
-  "type", "valid_until", "ref_no", "pr_no", "po_number", "po_amount",
+  "type", "quote_date", "valid_until", "ref_no", "pr_no", "po_number", "po_amount",
   "notes", "terms", "scope_of_work", "custom_data",
 ];
 

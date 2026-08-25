@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
       total,
       name: group.name,
       contact_id: contactId,
+      quote_date: group.header.quote_date || null,
       valid_until: group.header.valid_until ?? null,
       scope_of_work: sanitizeRichText(group.header.scope_of_work),
       notes: group.header.notes ?? null,

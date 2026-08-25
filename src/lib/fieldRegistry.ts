@@ -326,6 +326,12 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "total",           defaultLabel: "Total",           widget: "number", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "revision",        defaultLabel: "Revision",        widget: "number", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "created_at",      defaultLabel: "Created",         widget: "date",   defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
+      // The business/document date (settable in QuoteForm, defaults to
+      // today) -- distinct from created_at above, which is the immutable DB
+      // insert timestamp. This is what the list's own "Date" column actually
+      // shows (quote_date ?? created_at), so it needs to be filterable
+      // separately or "Created" silently filters the wrong date entirely.
+      { key: "quote_date",  defaultLabel: "Quote date",   widget: "date",   defaultSection: "Identity" },
       { key: "valid_until", defaultLabel: "Valid until",  widget: "date",   defaultSection: "Identity" },
       { key: "ref_no",      defaultLabel: "Customer ref", widget: "text",   defaultSection: "Identity" },
       { key: "pr_no",       defaultLabel: "PR number",    widget: "text",   defaultSection: "Identity" },
