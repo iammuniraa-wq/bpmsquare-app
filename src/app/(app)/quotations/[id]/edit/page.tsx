@@ -29,12 +29,14 @@ export default async function EditQuotationPage({
   if (currentDef?.is_closed) redirect(ROUTES.quotation(id));
 
   const editQuote: EditQuoteData = { quote: quote as EditQuoteData["quote"], lines };
+  const pricingEngineQuotesEnabled = Boolean(tenant?.features?.pricing_engine && tenant?.features?.pricing_engine_quotes);
 
   return (
     <QuoteForm
       {...formData}
       offerType={quote.type as QuoteOfferType}
       editQuote={editQuote}
+      pricingEngineQuotesEnabled={pricingEngineQuotesEnabled}
     />
   );
 }

@@ -14,9 +14,9 @@ export default async function NewQuotationPage({
   searchParams: Promise<{ type?: string }>;
 }) {
   const { type } = await searchParams;
+  const tenant = await getTenant();
 
   if (!type) {
-    const tenant = await getTenant();
     const vis = tenant?.config?.quote_type_visibility ?? {};
     // A type is visible if the visibility map either has no entry for it (default on) or it's true.
     // This governs whether the card is shown at all — separate from qt.available, which governs
@@ -37,10 +37,17 @@ export default async function NewQuotationPage({
     ? (type as QuoteOfferType)
     : "quotation";
 
+  // Both flags required: pricing_engine gates the workcenter existing at all,
+  // pricing_engine_quotes is the separate, narrower opt-in for touching real
+  // quote lines (spec: "never a forced migration" -- a tenant can have the
+  // Pricing workcenter without ever exposing it on a quote).
+  const pricingEngineQuotesEnabled = Boolean(tenant?.features?.pricing_engine && tenant?.features?.pricing_engine_quotes);
+
   return (
     <QuoteForm
       {...data}
       offerType={offerType}
+      pricingEngineQuotesEnabled={pricingEngineQuotesEnabled}
     />
   );
 }

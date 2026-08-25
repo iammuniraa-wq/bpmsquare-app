@@ -449,6 +449,12 @@ export type TenantFeatures = {
   // PricingEngine (docs/pricing-engine-architecture.md): the dynamic pricing
   // product. Demo tenant only until sold; Small Scale Pricing is unaffected.
   pricing_engine: boolean;
+  // Separate, narrower opt-in that lets a quote line actually pull a live
+  // price from PricingEngine's PUBLISHED "default" Price Book (spec: "never
+  // a forced migration") -- a tenant can have the Pricing workcenter without
+  // this ever touching a real quote. Both flags are required at every call
+  // site; default OFF, missing key reads false.
+  pricing_engine_quotes: boolean;
   // The Next Experience program (owner doctrine 2026-08-19, bpmsquarecore
   // §10): the 3-layer theme, engagement layer, and every future "2050"
   // interaction change live behind THIS platform-admin-only flag. Missing

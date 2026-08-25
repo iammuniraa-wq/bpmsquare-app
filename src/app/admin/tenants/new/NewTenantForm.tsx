@@ -42,7 +42,7 @@ const DEFAULT_FEATURES: TenantFeatures = {
   purchasing: false, marketing: false, products: false,
   change_history: false, outbound_email: false, business_roles: false,
   standard_quotes: false, gmail_reply_threading: false, quote_lines_dw: false,
-  wfm: false, pricing_engine: false, next_experience: false, enterprise_theme: false,
+  wfm: false, pricing_engine: false, pricing_engine_quotes: false, next_experience: false, enterprise_theme: false,
   coverage_model: false, ai_reports: false,
   // Core modules default ON: a brand-new tenant with these off would open to
   // a workspace containing nothing but a Dashboard. Untick what the client

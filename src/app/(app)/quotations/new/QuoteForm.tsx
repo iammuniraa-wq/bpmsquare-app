@@ -179,9 +179,13 @@ type Props = {
   /** When set, the form pre-fills from an existing quote and saves via PATCH-style
    *  edit instead of creating a new one — the same page, just in edit mode. */
   editQuote?: EditQuoteData;
+  /** Both pricing_engine + pricing_engine_quotes tenant features, resolved
+   *  server-side (see quotations/new/page.tsx) -- shows "Price with engine"
+   *  on product-linked lines. Off by default for every existing tenant. */
+  pricingEngineQuotesEnabled?: boolean;
 };
 
-export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], products = [], textFragments, offerType, tenantEntities, isAdmin, editQuote }: Props) {
+export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], products = [], textFragments, offerType, tenantEntities, isAdmin, editQuote, pricingEngineQuotesEnabled }: Props) {
   const router = useRouter();
   const eq = editQuote?.quote;
   const isTechnical = offerType === "technical";
@@ -404,6 +408,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     onRemove: () => void; onCatalog: () => void;
     checkbox?: { checked: boolean; onToggle: () => void };
     small?: boolean;
+    productId?: string | null;
   }) {
     const qtyN   = parseFloat(opts.qty) || 0;
     const rateN  = parseFloat(opts.rate) || 0;
@@ -473,6 +478,27 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             <div style={{ width: 100 }}>
               <span style={miniLbl}>Rate (₹)</span>
               <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={opts.rate} onChange={(e) => opts.onField("rate", e.target.value)} />
+            </div>
+          )}
+          {!isTechnical && pricingEngineQuotesEnabled && opts.productId && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span style={miniLbl}>&nbsp;</span>
+              <button
+                type="button"
+                disabled={pricingBusyIds.has(opts.id)}
+                onClick={() => priceWithEngine(opts.id, opts.productId!, opts.qty)}
+                title="Suggest a rate from the live Pricing Engine — you can still edit it before saving"
+                style={{
+                  fontSize: 11, fontWeight: 600, color: c.accent, background: c.accentbg,
+                  border: "none", borderRadius: 6, padding: "8px 10px", cursor: pricingBusyIds.has(opts.id) ? "default" : "pointer",
+                  opacity: pricingBusyIds.has(opts.id) ? 0.6 : 1, whiteSpace: "nowrap",
+                }}
+              >
+                {pricingBusyIds.has(opts.id) ? "Pricing…" : "⚡ Price with engine"}
+              </button>
+              {pricingErrors[opts.id] && (
+                <div style={{ fontSize: 10.5, color: "var(--err-ink)", maxWidth: 160 }}>{pricingErrors[opts.id]}</div>
+              )}
             </div>
           )}
           {!isTechnical && (
@@ -688,6 +714,32 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       if (r.kind === "group") return { ...r, items: r.items.map((i) => i.id === lineId ? { ...i, [field]: val } : i) };
       return r;
     }));
+
+  // PricingEngine integration (bpmsquarecore §10 doctrine: propose, don't
+  // silently decide) -- suggests a rate into the line, the rep still has to
+  // review/save it like any other manual edit. Never fires unless BOTH
+  // tenant flags are on (see quotations/new/page.tsx).
+  const [pricingBusyIds, setPricingBusyIds] = useState<Set<string>>(new Set());
+  const [pricingErrors, setPricingErrors]   = useState<Record<string, string>>({});
+
+  async function priceWithEngine(lineId: string, productId: string, qty: string) {
+    const quantity = parseFloat(qty) || 1;
+    setPricingBusyIds((p) => new Set(p).add(lineId));
+    setPricingErrors((p) => { const { [lineId]: _drop, ...rest } = p; return rest; });
+    try {
+      const res = await fetch("/api/quotes/price-line", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: productId, account_id: accountId || undefined, quantity }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setPricingErrors((p) => ({ ...p, [lineId]: json.error ?? "Pricing failed" })); return; }
+      updateLine(lineId, "rate", String(Math.round((json.unit_rate as number) * 100) / 100));
+    } catch {
+      setPricingErrors((p) => ({ ...p, [lineId]: "Network error — try again." }));
+    } finally {
+      setPricingBusyIds((p) => { const n = new Set(p); n.delete(lineId); return n; });
+    }
+  }
 
   const addLineToGroup = (gid: string) => setRows((p) => {
     const gIdx = p.findIndex((r) => r.id === gid);
@@ -1166,6 +1218,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         onRemove: () => removeRow(row.id),
                         onCatalog: () => openCatalog(row.id),
                         checkbox: { checked: sel, onToggle: () => toggleSelect(row.id) },
+                        productId: row.product_id,
                       })}
                     </div>
                   );
@@ -1229,6 +1282,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                               onRemove: () => removeLineFromGroup(row.id, item.id),
                               onCatalog: () => openCatalog(item.id),
                               small: true,
+                              productId: item.product_id,
                             })}
                           </div>
                         );
