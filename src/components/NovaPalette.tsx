@@ -89,7 +89,12 @@ function looksLikePastedContent(text: string): boolean {
 // Determiner/connector list widened same date -- "prep me for A call"
 // and "call ABOUT X" were real, reported misses against the exact
 // advertised phrasing's own natural variants.
-const CALL_PREP_RE = /\bprep(?:are)?\s+(?:me\s+)?for\s+(?:my\s+|our\s+|your\s+|a\s+|an\s+|this\s+|that\s+|the\s+)?(?:next\s+|upcoming\s+)?call\s+(?:with|about|regarding|on|for)\s+(.+?)[.?!]*$/i;
+//
+// "meeting" as an alternate to "call" added 2026-08-27 (real, reported
+// miss -- "prepare for meeting with X" flatly didn't match "call\s+" at
+// all). Captures which noun was used so the label can say the right thing
+// back, instead of always claiming "call" for a meeting request.
+const CALL_PREP_RE = /\bprep(?:are)?\s+(?:me\s+)?for\s+(?:my\s+|our\s+|your\s+|a\s+|an\s+|this\s+|that\s+|the\s+)?(?:next\s+|upcoming\s+)?(call|meeting)\s+(?:with|about|regarding|on|for)\s+(.+?)[.?!]*$/i;
 
 export default function NovaPalette() {
   const router = useRouter();
@@ -106,6 +111,9 @@ export default function NovaPalette() {
   useEffect(() => { setExpandedTypes(new Set()); }, [query]);
   const [active, setActive] = useState(0);
   const [callPrepAccount, setCallPrepAccount] = useState<SearchResult | null>(null);
+  // Which noun the user actually typed -- "call" or "meeting" -- so the
+  // offer's label says the right thing back instead of always "call".
+  const [callPrepKind, setCallPrepKind] = useState<"call" | "meeting">("call");
   // The extracted name, once a search for it has resolved with NO match --
   // distinct from callPrepAccount(null) which is also the "haven't searched
   // yet" state. Without this, a genuine "no account named X" read as the
@@ -212,8 +220,11 @@ export default function NovaPalette() {
   // fuzzy-matching the whole sentence (see CALL_PREP_RE above) ──
   useEffect(() => {
     if (callPrepDebounceRef.current) clearTimeout(callPrepDebounceRef.current);
-    const name = query.match(CALL_PREP_RE)?.[1]?.trim();
+    const match = query.match(CALL_PREP_RE);
+    const kind = match?.[1]?.toLowerCase() === "meeting" ? "meeting" : "call";
+    const name = match?.[2]?.trim();
     if (!name || features?.accounts !== true) { setCallPrepAccount(null); setCallPrepNotFound(null); return; }
+    setCallPrepKind(kind);
     setCallPrepNotFound(null);
     callPrepDebounceRef.current = setTimeout(() => {
       fetch(`/api/search?q=${encodeURIComponent(name)}`)
@@ -271,12 +282,12 @@ export default function NovaPalette() {
     // via the same event Account360Button uses -- not a plain account nav.
     const callPrepOffer: Item[] = callPrepAccount
       ? [{
-          kind: "nav", label: `Prep for call: ${callPrepAccount.title}`, sub: "Nova · Account 360",
+          kind: "nav", label: `Prep for ${callPrepKind}: ${callPrepAccount.title}`, sub: "Nova · Account 360",
           href: callPrepAccount.href, event: "nova:open-account-360", eventDetail: { id: callPrepAccount.id },
         }]
       : [];
     return [...callPrepOffer, ...draftOffer, ...statics.slice(0, 10), ...recs.slice(0, 40)];
-  }, [query, universe, records, pastedContent, features?.accounts, expandedTypes, callPrepAccount]);
+  }, [query, universe, records, pastedContent, features?.accounts, expandedTypes, callPrepAccount, callPrepKind]);
 
   // New query -> highlight back to the top; a mere expand/collapse only
   // clamps, so the cursor stays where the user was.

@@ -317,8 +317,17 @@ export default function GeneralSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appearance: { ...tenant?.config?.appearance, ui_theme: v } }),
       });
+      // A theme switch changes which major component tree Shell mounts
+      // (Nova's sidebar/topbar/Account360Drawer/etc vs classic/modern's) --
+      // router.refresh() only re-fetches server data and reconciles, it
+      // does NOT force client components to remount, so any of THEIR
+      // internal state (an open modal, a memoized layout choice) can
+      // survive across the switch and end up paired with the new theme's
+      // DOM (user-reported: switching nextgen -> Nova -> nextgen left the
+      // page in a stuck, part-old-part-new visual state). A full reload
+      // guarantees nothing stale survives a change this structural.
       flashSaved();
-      router.refresh();
+      window.location.reload();
     });
   };
 
