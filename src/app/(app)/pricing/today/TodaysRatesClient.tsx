@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
-import { matchMethodTemplate, type MethodTemplate } from "@/lib/pricing/wizard";
+import { matchMethodTemplate, humanizeArea, type MethodTemplate } from "@/lib/pricing/wizard";
 import RateSnapshotView, { type SnapshotRule } from "../RateSnapshotView";
 
 type VersionRow = { version: number; status: "DRAFT" | "PUBLISHED" | "SUPERSEDED"; published_at: string | null };
@@ -26,18 +27,22 @@ function formatDate(iso: string | null): string {
 }
 
 export default function TodaysRatesClient() {
+  const searchParams = useSearchParams();
+  const area = searchParams.get("area") || "default";
+  const setupHref = area === "default" ? ROUTES.pricingSetup : `${ROUTES.pricingSetup}?area=${encodeURIComponent(area)}`;
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
+    setState({ kind: "loading" });
     (async () => {
       try {
-        const listRes = await fetch("/api/settings/pricing-engine/versions?area=default");
+        const listRes = await fetch(`/api/settings/pricing-engine/versions?area=${encodeURIComponent(area)}`);
         const list = await listRes.json();
         const versions: VersionRow[] = list.versions ?? [];
         const published = versions.find((v) => v.status === "PUBLISHED");
         if (!published) { setState({ kind: "empty" }); return; }
 
-        const snapRes = await fetch(`/api/settings/pricing-engine/versions/${published.version}?area=default`);
+        const snapRes = await fetch(`/api/settings/pricing-engine/versions/${published.version}?area=${encodeURIComponent(area)}`);
         const snap: Snapshot = await snapRes.json();
         const template = matchMethodTemplate(snap.procedures);
         if (!template) { setState({ kind: "unrecognized" }); return; }
@@ -46,7 +51,7 @@ export default function TodaysRatesClient() {
         setState({ kind: "empty" });
       }
     })();
-  }, []);
+  }, [area]);
 
   if (state.kind === "loading") {
     return <div style={{ padding: 24, color: c.muted, fontSize: 13 }}>Loading…</div>;
@@ -56,9 +61,11 @@ export default function TodaysRatesClient() {
     return (
       <div style={{ padding: 24, borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel, textAlign: "center" }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No pricing is live yet</div>
-        <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 14 }}>Set up your pricing to see it here.</div>
+        <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 14 }}>
+          Set up {area === "default" ? "your pricing" : `the "${humanizeArea(area)}" Price Book`} to see it here.
+        </div>
         <Link
-          href={ROUTES.pricingSetup}
+          href={setupHref}
           style={{ display: "inline-block", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 6, background: c.accent, color: "#fff", textDecoration: "none" }}
         >
           Set up pricing
@@ -91,7 +98,7 @@ export default function TodaysRatesClient() {
       <RateSnapshotView template={template} rules={rules} />
 
       <div style={{ marginTop: 16 }}>
-        <Link href={ROUTES.pricingSetup} style={{ fontSize: 12.5, color: c.accent, textDecoration: "none" }}>
+        <Link href={setupHref} style={{ fontSize: 12.5, color: c.accent, textDecoration: "none" }}>
           Make changes →
         </Link>
       </div>

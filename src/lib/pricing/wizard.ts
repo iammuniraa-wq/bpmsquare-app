@@ -363,6 +363,22 @@ export function matchMethodTemplate(procedures: { code: string; entry_mode: stri
   return PRICING_METHODS.find((t) => t.procedure.procedure_id === proc.code && t.entryMode === proc.entry_mode) ?? null;
 }
 
+// ── Price Book (pricing_area) naming ────────────────────────────────────────
+// A pricing_area is just a text key -- there's no separate display-name
+// column, so a tenant-typed label ("Service parts") IS slugified into the
+// key ("service_parts") and the key is humanized back for display. Shared so
+// the picker, the "+ New price book" prompt and every page's URL param all
+// agree on the same shape.
+
+export function slugifyAreaLabel(label: string): string {
+  return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
+}
+
+export function humanizeArea(area: string): string {
+  if (area === "default") return "Default";
+  return area.replace(/[_-]+/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
 // ── Draft-seeding mutations ─────────────────────────────────────────────────
 // Ordered list of POST /api/settings/pricing-engine/config bodies that build
 // a template out on a version. Dimensions are version-independent (no

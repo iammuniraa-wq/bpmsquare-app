@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 
@@ -62,6 +63,8 @@ function parseJsonOr<T>(text: string, fallback: T): T | null {
 }
 
 export default function PricingEngineClient() {
+  const searchParams = useSearchParams();
+  const area = searchParams.get("area") || "default";
   const [tab, setTab] = useState<Tab>("Versions");
   const [versions, setVersions] = useState<VersionRow[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
@@ -75,20 +78,20 @@ export default function PricingEngineClient() {
   const isDraft = selectedRow?.status === "DRAFT";
 
   const loadVersions = useCallback(async () => {
-    const res = await fetch("/api/settings/pricing-engine/versions");
+    const res = await fetch(`/api/settings/pricing-engine/versions?area=${encodeURIComponent(area)}`);
     const json = await res.json();
     if (!res.ok) { setError(json.error ?? "Failed to load versions"); return; }
     const list: VersionRow[] = json.versions ?? [];
     setVersions(list);
-    setSelected((cur) => cur ?? list.find((v) => v.status === "DRAFT")?.version ?? list[0]?.version ?? null);
-  }, []);
+    setSelected(list.find((v) => v.status === "DRAFT")?.version ?? list[0]?.version ?? null);
+  }, [area]);
 
   const loadSnapshot = useCallback(async (version: number) => {
-    const res = await fetch(`/api/settings/pricing-engine/versions/${version}`);
+    const res = await fetch(`/api/settings/pricing-engine/versions/${version}?area=${encodeURIComponent(area)}`);
     const json = await res.json();
     if (!res.ok) { setError(json.error ?? "Failed to load config"); return; }
     setSnapshot(json);
-  }, []);
+  }, [area]);
 
   useEffect(() => { loadVersions(); }, [loadVersions]);
   useEffect(() => { if (selected !== null) loadSnapshot(selected); }, [selected, loadSnapshot]);
@@ -98,7 +101,7 @@ export default function PricingEngineClient() {
     try {
       const res = await fetch("/api/settings/pricing-engine/config", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entity, op, data, ...(versioned ? { version: selected } : {}) }),
+        body: JSON.stringify({ entity, op, data, area, ...(versioned ? { version: selected } : {}) }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Save failed"); return false; }
@@ -112,7 +115,7 @@ export default function PricingEngineClient() {
     try {
       const res = await fetch("/api/settings/pricing-engine/versions", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cloneFrom !== undefined ? { clone_from: cloneFrom } : {}),
+        body: JSON.stringify({ area, ...(cloneFrom !== undefined ? { clone_from: cloneFrom } : {}) }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Failed to create draft"); return; }
@@ -127,7 +130,7 @@ export default function PricingEngineClient() {
     try {
       const res = await fetch(`/api/settings/pricing-engine/versions/${version}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "publish" }),
+        body: JSON.stringify({ action: "publish", area }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -186,7 +189,7 @@ export default function PricingEngineClient() {
       {tab === "Procedures" && snapshot && <ProceduresTab snapshot={snapshot} editable={isDraft} mutate={mutate} />}
       {tab === "Rules" && snapshot && <RulesTab snapshot={snapshot} editable={isDraft} mutate={mutate} />}
       {tab === "Cost Models" && snapshot && <CostModelsTab snapshot={snapshot} editable={isDraft} mutate={mutate} />}
-      {tab === "Test & Trace" && <TestTab versions={versions} defaultVersion={selected} />}
+      {tab === "Test & Trace" && <TestTab versions={versions} defaultVersion={selected} area={area} />}
     </div>
   );
 }
@@ -409,7 +412,7 @@ const SAMPLE_DOC = `{
   ]
 }`;
 
-function TestTab({ versions, defaultVersion }: { versions: VersionRow[]; defaultVersion: number | null }) {
+function TestTab({ versions, defaultVersion, area }: { versions: VersionRow[]; defaultVersion: number | null; area: string }) {
   const [doc, setDoc] = useState(SAMPLE_DOC);
   const [version, setVersion] = useState<string>(defaultVersion !== null ? String(defaultVersion) : "");
   const [procedure, setProcedure] = useState("");
@@ -429,6 +432,7 @@ function TestTab({ versions, defaultVersion }: { versions: VersionRow[]; default
         body: JSON.stringify({
           document: parsed,
           options: {
+            pricing_area: area,
             ...(version ? { config_version: Number(version) } : {}),
             ...(procedure ? { procedure } : {}),
             ...(date ? { pricing_date: date } : {}),

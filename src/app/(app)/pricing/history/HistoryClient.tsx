@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { c, pillar } from "@/lib/theme";
 import { matchMethodTemplate, type MethodTemplate } from "@/lib/pricing/wizard";
 import RateSnapshotView, { type SnapshotRule } from "../RateSnapshotView";
@@ -14,14 +15,18 @@ function formatDate(iso: string | null): string {
 }
 
 export default function HistoryClient() {
+  const searchParams = useSearchParams();
+  const area = searchParams.get("area") || "default";
   const [versions, setVersions] = useState<VersionRow[] | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<{ template: MethodTemplate | null; rules: SnapshotRule[] } | "loading" | null>(null);
   const [asOfDate, setAsOfDate] = useState("");
 
   useEffect(() => {
+    setVersions(null);
+    setSelected(null);
     (async () => {
-      const res = await fetch("/api/settings/pricing-engine/versions?area=default");
+      const res = await fetch(`/api/settings/pricing-engine/versions?area=${encodeURIComponent(area)}`);
       const data = await res.json();
       const live: VersionRow[] = (data.versions ?? []).filter((v: VersionRow) => v.status !== "DRAFT");
       live.sort((a, b) => b.version - a.version);
@@ -29,17 +34,17 @@ export default function HistoryClient() {
       const currentlyLive = live.find((v) => v.status === "PUBLISHED");
       setSelected((currentlyLive ?? live[0])?.version ?? null);
     })();
-  }, []);
+  }, [area]);
 
   useEffect(() => {
     if (selected === null) return;
     setSnapshot("loading");
     (async () => {
-      const res = await fetch(`/api/settings/pricing-engine/versions/${selected}?area=default`);
+      const res = await fetch(`/api/settings/pricing-engine/versions/${selected}?area=${encodeURIComponent(area)}`);
       const snap: Snapshot = await res.json();
       setSnapshot({ template: matchMethodTemplate(snap.procedures), rules: snap.rules });
     })();
-  }, [selected]);
+  }, [selected, area]);
 
   const asOfVersion = useMemo(() => {
     if (!asOfDate || !versions) return null;

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, type Dispatch, type SetStateAction } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { c, pillar } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import {
@@ -62,11 +63,11 @@ function defaultRows(template: MethodTemplate): RowsByComponent {
  * Every "numbers" entry point (fresh draft, resumed draft, cloned draft)
  * syncs both so the DB can never drift from what this build assumes.
  */
-async function syncTemplateDefinitions(t: MethodTemplate, version: number, existingCostInputs: SnapshotCostInput[]) {
-  for (const mutation of templateMutations(t, version, "default")) {
+async function syncTemplateDefinitions(t: MethodTemplate, version: number, existingCostInputs: SnapshotCostInput[], area: string) {
+  for (const mutation of templateMutations(t, version, area)) {
     await postJson("/api/settings/pricing-engine/config", mutation);
   }
-  for (const mutation of missingCostInputMutations(t, existingCostInputs, "default")) {
+  for (const mutation of missingCostInputMutations(t, existingCostInputs, area)) {
     await postJson("/api/settings/pricing-engine/config", mutation);
   }
 }
@@ -156,6 +157,8 @@ const numInput: React.CSSProperties = { width: 90, padding: "6px 8px", fontSize:
 
 export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
   const { epoch } = usePricingRefresh();
+  const searchParams = useSearchParams();
+  const area = searchParams.get("area") || "default";
   const [phase, setPhase] = useState<Phase>("loading");
   const [template, setTemplate] = useState<MethodTemplate | null>(null);
   const [version, setVersion] = useState<number | null>(null);
@@ -174,17 +177,17 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
     setPhase("loading");
     setError(null);
     try {
-      const list = await postJson("/api/settings/pricing-engine/versions?area=default", null, "GET");
+      const list = await postJson(`/api/settings/pricing-engine/versions?area=${encodeURIComponent(area)}`, null, "GET");
       const versions: VersionRow[] = list.versions ?? [];
       const draft = versions.find((v) => v.status === "DRAFT");
       const published = versions.find((v) => v.status === "PUBLISHED");
       setPublishedVersion(published?.version ?? null);
 
       if (draft) {
-        const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${draft.version}?area=default`, null, "GET");
+        const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${draft.version}?area=${encodeURIComponent(area)}`, null, "GET");
         const t = matchMethodTemplate(snap.procedures);
         if (!t) { setPhase("unsupported"); return; }
-        await syncTemplateDefinitions(t, draft.version, snap.cost_inputs);
+        await syncTemplateDefinitions(t, draft.version, snap.cost_inputs, area);
         const initialRows = rowsFromSnapshot(t, snap);
         setTemplate(t);
         setVersion(draft.version);
@@ -195,7 +198,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
       }
 
       if (published) {
-        const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${published.version}?area=default`, null, "GET");
+        const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${published.version}?area=${encodeURIComponent(area)}`, null, "GET");
         const t = matchMethodTemplate(snap.procedures);
         if (!t) { setPhase("unsupported"); return; }
         setTemplate(t);
@@ -208,7 +211,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
       setError((e as Error).message);
       setPhase("strategy");
     }
-  }, []);
+  }, [area]);
 
   useEffect(() => { load(); }, [load, epoch]);
 
@@ -217,10 +220,10 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const created = await postJson("/api/settings/pricing-engine/versions", { area: "default" });
+      const created = await postJson("/api/settings/pricing-engine/versions", { area });
       const v = created.version.version as number;
-      const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${v}?area=default`, null, "GET");
-      await syncTemplateDefinitions(t, v, snap.cost_inputs);
+      const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${v}?area=${encodeURIComponent(area)}`, null, "GET");
+      await syncTemplateDefinitions(t, v, snap.cost_inputs, area);
       setTemplate(t);
       setVersion(v);
       setRows(defaultRows(t));
@@ -238,12 +241,12 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const created = await postJson("/api/settings/pricing-engine/versions", { area: "default", clone_from: publishedVersion });
+      const created = await postJson("/api/settings/pricing-engine/versions", { area, clone_from: publishedVersion });
       const v = created.version.version as number;
-      const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${v}?area=default`, null, "GET");
+      const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${v}?area=${encodeURIComponent(area)}`, null, "GET");
       const t = matchMethodTemplate(snap.procedures) ?? template;
       if (!t) { setPhase("unsupported"); return; }
-      await syncTemplateDefinitions(t, v, snap.cost_inputs);
+      await syncTemplateDefinitions(t, v, snap.cost_inputs, area);
       const initialRows = rowsFromSnapshot(t, snap);
       setTemplate(t);
       setVersion(v);
@@ -274,7 +277,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
         for (const original of originalList) {
           if (original.id && !currentIds.has(original.id)) {
             await postJson("/api/settings/pricing-engine/config", {
-              entity: "rule", op: "delete", version, area: "default", data: { id: original.id },
+              entity: "rule", op: "delete", version, area, data: { id: original.id },
             });
           }
         }
@@ -286,7 +289,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
         const savedList: RateRow[] = [];
         for (const row of currentList) {
           const res = await postJson("/api/settings/pricing-engine/config", {
-            entity: "rule", op: "upsert", version, area: "default",
+            entity: "rule", op: "upsert", version, area,
             data: {
               id: row.id,
               component_code: ec.component_code,
@@ -317,7 +320,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
     return (
       <div style={{ padding: 20, borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel, fontSize: 13, color: c.muted }}>
         This pricing configuration was customized beyond what this wizard understands. Continue in{" "}
-        <Link href={ROUTES.pricingAdvanced} style={{ color: c.accent }}>Advanced</Link>, or use the &ldquo;Discard&rdquo; banner
+        <Link href={area === "default" ? ROUTES.pricingAdvanced : `${ROUTES.pricingAdvanced}?area=${encodeURIComponent(area)}`} style={{ color: c.accent }}>Advanced</Link>, or use the &ldquo;Discard&rdquo; banner
         above to clear the current draft and start the wizard fresh.
       </div>
     );
@@ -390,7 +393,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
   }
 
   if (phase === "sample" && template && version !== null) {
-    return <SampleBill template={template} version={version} canEdit={canEdit} onBack={() => setPhase("numbers")} />;
+    return <SampleBill template={template} version={version} area={area} canEdit={canEdit} onBack={() => setPhase("numbers")} />;
   }
 
   return null;
@@ -521,7 +524,7 @@ function TierEditor({ ec, tiers, rowIndex, canEdit, setRows }: {
 
 type SampleLine = { components: Record<string, number>; subtotals: Record<string, number>; net: number; trace: { component?: string; status: string }[] };
 
-function SampleBill({ template, version, canEdit, onBack }: { template: MethodTemplate; version: number; canEdit: boolean; onBack: () => void }) {
+function SampleBill({ template, version, area, canEdit, onBack }: { template: MethodTemplate; version: number; area: string; canEdit: boolean; onBack: () => void }) {
   const [qty, setQty] = useState(1);
   const [line, setLine] = useState<SampleLine | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -533,7 +536,7 @@ function SampleBill({ template, version, canEdit, onBack }: { template: MethodTe
     try {
       const data = await postJson("/api/settings/pricing-engine/test-price", {
         document: { attributes: {}, lines: [sampleDocumentLine(template, q)] },
-        options: { config_version: version, pricing_area: "default", procedure: template.procedure.procedure_id },
+        options: { config_version: version, pricing_area: area, procedure: template.procedure.procedure_id },
       });
       setLine(data.result.lines[0]);
     } catch (e) {
@@ -541,7 +544,7 @@ function SampleBill({ template, version, canEdit, onBack }: { template: MethodTe
     } finally {
       setBusy(false);
     }
-  }, [template, version]);
+  }, [template, version, area]);
 
   useEffect(() => { run(qty); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
