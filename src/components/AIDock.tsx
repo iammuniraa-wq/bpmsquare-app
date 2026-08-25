@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
+import ChartRenderer from "@/components/charts/ChartRenderer";
+import { normalizeReport, type ReportPayload } from "@/lib/reportView";
 
-type Msg = { from: "bot" | "me"; text: string };
+type Msg = { from: "bot" | "me"; text: string; report?: ReportPayload };
 
 // Per-user, per-browser preference -- separate from the tenant-level
 // ai_assistant feature flag (Shell only mounts this component when that's
@@ -30,6 +32,11 @@ const CREATE_MODES: { mode: string; label: string; featureKey: "accounts" | "con
  * enforced server-side (src/lib/ai/assistant.ts), not just stated here.
  * The empty state lists exactly what it can do, scoped to the caller's
  * Business Roles, so nobody has to guess what to type.
+ *
+ * A breakdown/trend/ranking question can come back with an inline chart
+ * (ChartRenderer, same component and same compile engine as the Talk to
+ * data page -- src/lib/ai/reportCompile.ts) alongside the text reply, not
+ * just prose. One assistant, rendered two ways, not two assistants.
  *
  * On Nova tenants, the empty state also offers "create from a paste" —
  * reusing NovaDraft (nova:open-draft), never a second implementation.
@@ -107,7 +114,9 @@ export default function AIDock() {
       const json = await res.json().catch(() => ({}));
       setMessages((prev) => [
         ...prev,
-        { from: "bot", text: res.ok ? json.answer : (json.error ?? "Something went wrong.") },
+        res.ok
+          ? { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined }
+          : { from: "bot", text: json.error ?? "Something went wrong." },
       ]);
     } catch {
       setMessages((prev) => [...prev, { from: "bot", text: "Could not reach the server." }]);
@@ -167,7 +176,10 @@ export default function AIDock() {
       {enabled && open && (
         <div style={{
           position: "fixed", right: 22, bottom: 124, zIndex: 300,
-          width: 320, maxHeight: 440, display: "flex", flexDirection: "column",
+          // Wide enough for an inline chart to stay legible (a bar chart's
+          // labels shrink illegibly below this), capped so it never spills
+          // off a narrow viewport.
+          width: 400, maxWidth: "calc(100vw - 44px)", maxHeight: 560, display: "flex", flexDirection: "column",
           background: "var(--card-bg, #fff)", border: "1px solid var(--line)",
           borderRadius: "var(--card-radius, 10px)", boxShadow: "0 24px 60px rgba(10,15,25,.28)",
           overflow: "hidden",
@@ -227,22 +239,28 @@ export default function AIDock() {
               </div>
             )}
             {messages.map((m, i) => (
-              <div
-                key={i}
-                style={{
-                  alignSelf: m.from === "me" ? "flex-end" : "flex-start",
-                  maxWidth: "88%",
-                  background: m.from === "me" ? "var(--tenant-accent, #1e3a6e)" : "var(--panel2)",
-                  color: m.from === "me" ? "#fff" : c.ink,
-                  borderRadius: "var(--card-radius, 10px)",
-                  padding: "9px 12px",
-                  lineHeight: 1.45,
-                  // Answers are multi-line for list intents (recent quotes,
-                  // recent cases) -- without this they collapse to one line.
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {m.text}
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: m.from === "me" ? "flex-end" : "stretch" }}>
+                <div
+                  style={{
+                    alignSelf: m.from === "me" ? "flex-end" : "flex-start",
+                    maxWidth: "88%",
+                    background: m.from === "me" ? "var(--tenant-accent, #1e3a6e)" : "var(--panel2)",
+                    color: m.from === "me" ? "#fff" : c.ink,
+                    borderRadius: "var(--card-radius, 10px)",
+                    padding: "9px 12px",
+                    lineHeight: 1.45,
+                    // Answers are multi-line for list intents (recent quotes,
+                    // recent cases) -- without this they collapse to one line.
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {m.text}
+                </div>
+                {m.report && (
+                  <div style={{ padding: 12, borderRadius: "var(--card-radius, 10px)", border: `1px solid ${c.line}`, background: "var(--card-bg, #fff)" }}>
+                    <ChartRenderer report={normalizeReport(m.report)} />
+                  </div>
+                )}
               </div>
             ))}
             {busy && <div style={{ alignSelf: "flex-start", color: c.hint }}>Looking that up…</div>}

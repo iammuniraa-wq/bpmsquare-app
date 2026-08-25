@@ -7,6 +7,7 @@ import { canViewWorkcenter } from "@/lib/permissions";
 import { LIST_SOURCES } from "@/lib/api/listSources";
 import { parseListQuery, applyListQuery } from "@/lib/api/query";
 import { compiledQueryToSearchParams, type CompiledQueryInput } from "@/lib/ai/nlCompile";
+import { compileAndRun, type ReportResult } from "@/lib/ai/reportCompile";
 
 /**
  * Conversational data assistant (the bottom-right dock).
@@ -28,6 +29,18 @@ import { compiledQueryToSearchParams, type CompiledQueryInput } from "@/lib/ai/n
  * Numbers in the reply are composed by the model FROM tool results over
  * live data; the interpretation duty ("say exactly what you measured")
  * is part of its instructions, same doctrine as Report Builder.
+ *
+ * ── One engine, not two ─────────────────────────────────────────────────────
+ * The `chart` tool below calls compileAndRun() (src/lib/ai/reportCompile.ts)
+ * -- the EXACT SAME compile primitive Talk to data (POST /api/reports/ask)
+ * uses, not a second copy of similar logic. Before this, a breakdown asked
+ * here got a text answer and the same breakdown asked on Talk to data got a
+ * chart, from two independently-tuned prompts -- the actual gap a user
+ * reported (docs/ai-vision.md). Now the dock can return a report inline
+ * too: same query compiler, same PII policy, same "engine decides the
+ * chart type" rule, just a different shell around it (a chat bubble here,
+ * a full page there). AssistantReply.report is that one report, if the
+ * model's final answer used the chart tool.
  */
 
 export class AssistantError extends Error {}
@@ -147,6 +160,31 @@ function queryDataTool(objects: string[]): Anthropic.Tool {
   };
 }
 
+// The SAME engine Talk to data uses (compileAndRun in reportCompile.ts) --
+// use this instead of query_data whenever the answer is naturally a
+// breakdown, a trend, or a ranking a person would want to SEE. Unlike
+// query_data (this loop picks filters/aggregates itself), chart hands the
+// whole sub-question to the compile engine, which decides shape, grouping,
+// and chart type the same way Talk to data would.
+function chartTool(objects: string[]): Anthropic.Tool {
+  return {
+    name: "chart",
+    description:
+      "Answer with a CHART, rendered inline next to your reply -- for a category breakdown, a trend over time, a top-N ranking, or a broad 'insights about X' style question. Uses the same engine as the Talk to data page. Don't re-describe every number from the chart in your text reply -- one short takeaway line is enough, the chart shows the rest.",
+    input_schema: {
+      type: "object",
+      properties: {
+        object: { type: "string", enum: objects },
+        question: {
+          type: "string",
+          description: "A complete, standalone question this chart answers -- phrase it fully (it's compiled independently, without this conversation's other context).",
+        },
+      },
+      required: ["object", "question"],
+    },
+  };
+}
+
 function quickLookupTool(lookups: QuickLookup[]): Anthropic.Tool {
   return {
     name: "quick_lookup",
@@ -202,15 +240,46 @@ async function runQueryData(
   });
 }
 
+async function runChart(
+  input: { object?: string; question?: string },
+  ctx: { tenantId: string; perms: PermissionSet },
+  anthropic: Anthropic,
+  today: string,
+  onReport: (report: ReportResult) => void
+): Promise<string> {
+  const key = input.object ?? "";
+  const src = LIST_SOURCES[key];
+  if (!src || !canViewWorkcenter(ctx.perms, src.relatedWorkcenter)) {
+    return `Error: unknown or inaccessible object "${key}".`;
+  }
+  const question = input.question?.trim();
+  if (!question) return "Error: question is required.";
+
+  const rows = await src.load(ctx.tenantId);
+  const outcome = await compileAndRun(anthropic, question, key, src, rows, today);
+  if (!outcome.ok) return `Error: ${outcome.reason}`;
+
+  onReport(outcome.report);
+  // Fed back to the model too, so its takeaway line can reference the real
+  // numbers -- the chart itself is what the user sees, this is just enough
+  // for one accurate sentence, not a second full description of it.
+  const { chart_type, title, interpretation, total, aggregates, groups } = outcome.report;
+  return JSON.stringify({
+    chart_rendered: true, chart_type, title, interpretation, total_matching: total,
+    aggregates: aggregates ?? undefined,
+    groups: Array.isArray(groups) ? groups.slice(0, 8) : groups ?? undefined,
+  });
+}
+
 function systemPrompt(
   sources: [string, (typeof LIST_SOURCES)[string]][],
-  lookups: QuickLookup[]
+  lookups: QuickLookup[],
+  today: string
 ): string {
-  const today = new Date().toISOString().slice(0, 10);
   return (
     "You are the BPMSquare Assistant -- the in-app helper for a business running its sales, service and operations on BPMSquare. " +
     "You answer questions about the user's own business data by querying it live, and you answer questions about what you can do.\n\n" +
-    "OBJECTS you can query with query_data, and their exact fields (NEVER guess a field not listed):\n" +
+    "OBJECTS you can query with query_data or chart, and their exact fields (NEVER guess a field not listed):\n" +
     sources
       .map(([key, src]) =>
         `- ${key} (${src.label}): ${src.description}\n  fields: ` +
@@ -223,17 +292,18 @@ function systemPrompt(
     `\n\nToday is ${today}.\n\n` +
     "RULES:\n" +
     "1. NEVER state a number, list or fact about the user's data without querying for it first in this conversation. If a tool errors, fix the query and retry.\n" +
-    "2. Group-level thresholds ('accounts with quote value over 50k') use group_by + aggregate + having -- the condition is on the group's total, not single rows. Trends use group_by on a date field (bucketed monthly unless you set group_period). Quotations carry their own cash link (invoiced_total, paid_total, balance_due) -- quote-to-cash questions are single queries there.\n" +
-    "3. Understand casual Indian business shorthand: 50k=50000, 1L/1 lakh=100000, 1cr=10000000. Format money as ₹ with Indian digit grouping, compact where natural (₹4.5L, ₹2.3Cr).\n" +
-    "4. Keep answers SHORT and direct -- one sentence for a number, a compact bullet list for a breakdown (top items only, note how many more). This renders in a small chat panel.\n" +
-    "5. Say what you measured when it's not obvious (e.g. 'counting draft + sent quotes as open').\n" +
-    "6. You cannot create, change or delete anything from this chat, and you have no tool that can -- if asked to, say so and point to the right place: the Create buttons above this chat or ⌘K can draft a record from pasted text on Nova, and every record has its own New page.\n" +
-    "7. Questions about you: you're the BPMSquare Assistant; this chat reads live tenant data through the same permission system as the app; you can answer follow-ups in context.\n" +
-    "8. Only discuss this workspace's data and BPMSquare itself -- politely decline anything else."
+    "2. TWO ways to answer a data question -- pick the one that fits: query_data for a specific number or short list you'll describe in a sentence ('how many', 'total value', 'list the top 3'); chart for anything that's naturally a breakdown, a trend, a ranking, or a broad 'insights about X' / 'how's X doing' question -- chart hands the whole sub-question to the same compile engine Talk to data uses and renders inline, so don't also re-derive the numbers yourself with query_data first.\n" +
+    "3. Group-level thresholds ('accounts with quote value over 50k') use group_by + aggregate + having -- the condition is on the group's total, not single rows (query_data only; chart's engine handles this on its own from the question text). Trends use group_by on a date field (bucketed monthly unless you set group_period). Quotations carry their own cash link (invoiced_total, paid_total, balance_due) -- quote-to-cash questions are single queries there.\n" +
+    "4. Understand casual Indian business shorthand: 50k=50000, 1L/1 lakh=100000, 1cr=10000000. Format money as ₹ with Indian digit grouping, compact where natural (₹4.5L, ₹2.3Cr).\n" +
+    "5. Keep answers SHORT and direct -- one sentence for a number, a compact bullet list for a query_data breakdown (top items only, note how many more), one short takeaway line when a chart already rendered the breakdown. This renders in a small chat panel.\n" +
+    "6. Say what you measured when it's not obvious (e.g. 'counting draft + sent quotes as open').\n" +
+    "7. You cannot create, change or delete anything from this chat, and you have no tool that can -- if asked to, say so and point to the right place: the Create buttons above this chat or ⌘K can draft a record from pasted text on Nova, and every record has its own New page.\n" +
+    "8. Questions about you: you're the BPMSquare Assistant; this chat reads live tenant data through the same permission system as the app (and its chart tool is the same engine as the Talk to data page); you can answer follow-ups in context.\n" +
+    "9. Only discuss this workspace's data and BPMSquare itself -- politely decline anything else."
   );
 }
 
-export type AssistantReply = { answer: string };
+export type AssistantReply = { answer: string; report?: ReportResult };
 
 export async function askAssistant(
   history: ChatTurn[],
@@ -249,11 +319,19 @@ export async function askAssistant(
   }
 
   const tools: Anthropic.Tool[] = [];
-  if (sources.length) tools.push(queryDataTool(sources.map(([k]) => k)));
+  if (sources.length) {
+    tools.push(queryDataTool(sources.map(([k]) => k)));
+    tools.push(chartTool(sources.map(([k]) => k)));
+  }
   if (lookups.length) tools.push(quickLookupTool(lookups));
 
   const anthropic = new Anthropic();
   const messages: Anthropic.MessageParam[] = history.map((t) => ({ role: t.role, content: t.text }));
+  const today = new Date().toISOString().slice(0, 10);
+  // The most recent successful chart -- attached to the final reply. Only
+  // one at a time (a chat bubble isn't the insights-stream page); a later
+  // chart call in the same turn replaces an earlier one.
+  let lastReport: ReportResult | undefined;
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     let response: Anthropic.Message;
@@ -262,7 +340,7 @@ export async function askAssistant(
         model: "claude-opus-5",
         max_tokens: 1000,
         tools,
-        system: systemPrompt(sources, lookups),
+        system: systemPrompt(sources, lookups, today),
         messages,
       });
     } catch (e) {
@@ -278,7 +356,7 @@ export async function askAssistant(
       const text = response.content
         .filter((b): b is Anthropic.TextBlock => b.type === "text")
         .map((b) => b.text).join("").trim();
-      return { answer: text || "I couldn't work out an answer to that. Try rephrasing?" };
+      return { answer: text || "I couldn't work out an answer to that. Try rephrasing?", report: lastReport };
     }
 
     messages.push({ role: "assistant", content: response.content });
@@ -288,6 +366,8 @@ export async function askAssistant(
       try {
         if (tu.name === "query_data") {
           out = await runQueryData(tu.input as QueryDataInput, ctx);
+        } else if (tu.name === "chart") {
+          out = await runChart(tu.input as { object?: string; question?: string }, ctx, anthropic, today, (r) => { lastReport = r; });
         } else if (tu.name === "quick_lookup") {
           const id = (tu.input as { lookup?: string }).lookup;
           const lookup = lookups.find((l) => l.id === id);

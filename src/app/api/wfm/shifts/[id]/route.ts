@@ -46,3 +46,49 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(data);
 }
+
+// DELETE /api/wfm/shifts/[id] — tenant admin only. Both employees.shift_id
+// and wfm_roster_assignments.shift_id are `on delete set null` (0062/0072),
+// so an unguarded delete wouldn't fail -- it would silently orphan every
+// employee still standing on this shift (no shift = no lateness/absence
+// computed for them at all, going forward) and silently turn every roster
+// day that named it into an explicit DAY OFF (shift_id null means day-off
+// there, not "unset"). Both are wrong data, not just messy data, so this
+// blocks the delete and names exactly what to reassign first -- the same
+// reference-count-before-delete discipline as inventory's delete route.
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let ctx;
+  try {
+    ctx = await requireWfmSupervisor();
+  } catch (e: unknown) {
+    const err = e as { status: number; message: string };
+    return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (ctx.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { tenantId } = ctx;
+  const { id } = await params;
+
+  const admin = createAdminSupabase();
+  const [{ count: employeeCount }, { count: rosterCount }] = await Promise.all([
+    admin.from("employees").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("shift_id", id),
+    admin.from("wfm_roster_assignments").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("shift_id", id),
+  ]);
+  const refs: string[] = [];
+  if (employeeCount) refs.push(`${employeeCount} employee${employeeCount === 1 ? "" : "s"}`);
+  if (rosterCount) refs.push(`${rosterCount} roster day${rosterCount === 1 ? "" : "s"}`);
+  if (refs.length > 0) {
+    return NextResponse.json(
+      { error: `Still in use by ${refs.join(" and ")}. Reassign them to another shift first, or deactivate this one instead of deleting it.` },
+      { status: 400 }
+    );
+  }
+
+  const { error, count } = await admin
+    .from("wfm_shifts")
+    .delete({ count: "exact" })
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!count) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json({ ok: true });
+}

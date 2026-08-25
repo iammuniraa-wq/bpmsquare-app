@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import { useFeel } from "@/components/FeelProvider";
 import type { WfmShift } from "@/lib/wfm/types";
 
 const lbl: React.CSSProperties = {
@@ -32,6 +33,9 @@ const btnPrimary: React.CSSProperties = {
 const btnGhost: React.CSSProperties = {
   ...btn, background: "none",
 };
+const btnDanger: React.CSSProperties = {
+  ...btn, background: "none", borderColor: "transparent", color: "#ef4444", padding: "8px 6px",
+};
 
 const hhmm = (t: string) => t.slice(0, 5);
 
@@ -41,6 +45,7 @@ const BLANK_FORM = {
 };
 
 export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
+  const { confirm } = useFeel();
   const [shifts, setShifts] = useState<WfmShift[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -97,6 +102,18 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
     setEditingId(null);
     setShiftForm(BLANK_FORM);
     setError("");
+  }
+
+  async function deleteShift(s: WfmShift) {
+    const ok = await confirm({
+      title: `Delete "${s.name}"?`,
+      body: "This can't be undone. If any employees or roster days still use this shift, deletion is blocked instead of silently reassigning them — you'll need to move those first.",
+      confirmLabel: "Delete shift",
+      tone: "danger",
+    });
+    if (!ok) return;
+    const deleted = await post(`/api/wfm/shifts/${s.id}`, {}, "DELETE");
+    if (deleted && editingId === s.id) cancelEdit();
   }
 
   async function saveShift() {
@@ -213,6 +230,7 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
                       >
                         {s.active ? "Deactivate" : "Activate"}
                       </button>
+                      <button style={btnDanger} disabled={busy} onClick={() => deleteShift(s)}>Delete</button>
                     </div>
                   </td>
                 )}

@@ -3,7 +3,10 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { resolvePermissions } from "@/lib/permissions";
 import { askAssistant, capabilityList, AssistantError, type ChatTurn } from "@/lib/ai/assistant";
 
-export const maxDuration = 60;
+// The chart tool makes a nested model call inside a turn (compileAndRun),
+// so a turn that uses it costs two sequential calls, not one -- same
+// reasoning as reports/ask's bump to 75.
+export const maxDuration = 75;
 
 // GET /api/ai/ask -- what the assistant can help with, for its empty state.
 // Scoped to this caller's Business Roles, so it never advertises a lookup
