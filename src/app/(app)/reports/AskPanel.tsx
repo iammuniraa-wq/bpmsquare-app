@@ -115,6 +115,25 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
     ask(combined);
   }
 
+  // Back to a blank slate. Distinct from just typing a new question into
+  // the same box: while a report/insights stream is showing, that box's
+  // placeholder invites REFINING it and the request carries the current
+  // report as context -- fine for "only this year", wrong for someone who
+  // wants to start over on something unrelated. This clears everything,
+  // including that context, rather than relying on the model to notice the
+  // new question "stands alone."
+  function newQuestion() {
+    setQuestion("");
+    setPayload(null);
+    setInsightsReports([]);
+    setInsightsTitle("");
+    setInsightsSummary(null);
+    setClarifyingQuestion(null);
+    setDeclineReason(null);
+    setError(null);
+    setPhase("idle");
+  }
+
   async function openSaved(id: string) {
     setPhase("asking");
     setError(null);
@@ -141,9 +160,19 @@ export default function AskPanel({ canSave, fullPage = false }: { canSave: boole
 
   return (
     <div style={{ ...cardStyle, padding: fullPage ? 24 : 20, marginBottom: 24 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4, gap: 10 }}>
         <div style={{ fontSize: fullPage ? 17 : 15, fontWeight: 700, color: c.ink }}>Talk to data</div>
-        <div style={{ fontSize: 11.5, color: c.muted }}>Ask a question in plain English</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+          {phase !== "idle" && phase !== "asking" && (
+            <button
+              onClick={newQuestion}
+              style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              + New question
+            </button>
+          )}
+          <div style={{ fontSize: 11.5, color: c.muted }}>Ask a question in plain English</div>
+        </div>
       </div>
       {fullPage && (
         <div style={{ fontSize: 12.5, color: c.muted, marginTop: 2, maxWidth: 620, lineHeight: 1.5 }}>
