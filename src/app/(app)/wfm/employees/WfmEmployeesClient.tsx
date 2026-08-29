@@ -226,11 +226,18 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   async function toggleStatus(row: Row) {
     setBusy(true);
     try {
+      const nextStatus = row.status === "active" ? "inactive" : "active";
       await fetch(`/api/wfm/employees/${row.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: row.status === "active" ? "inactive" : "active" }),
+        body: JSON.stringify({ status: nextStatus }),
       });
+      // The row was never deleted -- it just fell outside whatever status
+      // filter was active, which read as the account vanishing right after
+      // the admin's own click (Jira KAN-20). Switch to "All statuses" so the
+      // row the admin just acted on stays visible and reversible, instead of
+      // silently disappearing with no indication of where it went.
+      if (statusFilter && statusFilter !== nextStatus) setStatusFilter("");
       await load();
     } finally {
       setBusy(false);
