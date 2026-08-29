@@ -66,6 +66,13 @@ export default function QuotePrint(props: Props) {
              that grey shows through on any page shorter than a full sheet. */
           body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background: #fff !important; }
           .no-print { display: none !important; }
+          /* PrintSans (DejaVu Sans Regular) has notably thin strokes -- Chromium's
+             grayscale anti-aliasing renders it visibly lighter than the body text
+             color value alone would suggest (VIK-13: "content is very light" even
+             though body's #1c2733 is already near-black). Forcing antialiased
+             (not the default subpixel/grayscale AA) renders fuller, darker strokes
+             without changing font size or weight, so it can't reflow any layout. */
+          body { -webkit-font-smoothing: antialiased; }
         }
         body { margin: 0; background: #e8ecf0; font-family: "PrintSans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; color: #1c2733; }
         .doc { background: #fff; max-width: 800px; margin: 0 auto; }

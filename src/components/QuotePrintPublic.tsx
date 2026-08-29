@@ -19,6 +19,10 @@ export default function QuotePrintPublic(props: QuotePrintDocumentProps) {
              them to save ink), so without overriding it back to white here
              that grey shows through on any page shorter than a full sheet. */
           body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background: #fff !important; }
+          /* Same fix as QuotePrint.tsx (VIK-13): DejaVu Sans Regular's thin strokes
+             render visibly lighter than the body color value under Chromium's
+             default anti-aliasing. */
+          body { -webkit-font-smoothing: antialiased; }
         }
         body { margin: 0; background: #e8ecf0; font-family: "PrintSans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; color: #1c2733; }
         .doc { background: #fff; max-width: 800px; margin: 0 auto; }

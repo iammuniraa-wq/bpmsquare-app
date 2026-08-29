@@ -538,8 +538,15 @@ export default function QuotePrintDocument({
       )}
 
 
-      {/* Signature block — company only, right-aligned. Customer acceptance removed. */}
-      <div style={{ margin: "6px 28px 20px", display: "flex", justifyContent: "flex-end", breakInside: "avoid", breakBefore: "avoid" }}>
+      {/* Signature block — company only, right-aligned. Customer acceptance removed.
+          breakBefore was "avoid" here, which forces this block to stay glued to
+          whatever content precedes it even when it no longer fits the remaining
+          page height -- Chromium's print pagination then rendered it straddling
+          the page boundary, clipped against the reserved 20mm footer margin
+          (VIK-12). breakInside:avoid alone still keeps the block itself intact;
+          without breakBefore, a block that doesn't fit is pushed cleanly to the
+          next page instead. */}
+      <div style={{ margin: "6px 28px 20px", display: "flex", justifyContent: "flex-end", breakInside: "avoid" }}>
         <div style={{ width: "50%", border: `1px solid ${brand.line}`, borderRadius: 6, padding: "12px 14px" }}>
           <div style={{ fontSize: 11, color: "#8a96a5", marginBottom: 6 }}>For {co.name}</div>
           {ext.quoteSignatureSlot ?? <div style={{ height: 48, marginBottom: 6 }} />}
@@ -560,7 +567,12 @@ export default function QuotePrintDocument({
         {co.address && (
           <div style={{ padding: "1.5px 28px", borderBottom: `1px solid ${brand.line}`, display: "flex", alignItems: "center", gap: 6, fontSize: 9.5, color: "#5f6b7a" }}>
             <MapPin size={9} color="#5f6b7a" style={{ flexShrink: 0 }} />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{co.address}</span>
+            {/* minWidth:0 lets this flex item actually shrink/wrap instead of the row
+                overflowing -- was overflow:hidden + ellipsis, which silently truncated
+                a long address (e.g. "...Karnataka" clipped to "Karnat...") whenever the
+                GSTIN pinned to the right (below) left too little room on one line. The
+                footer's own minHeight already grows to fit a second line. */}
+            <span style={{ minWidth: 0, wordBreak: "break-word" }}>{co.address}</span>
             {co.gstin && <span style={{ marginLeft: "auto", flexShrink: 0, color: "#b45309", fontWeight: 600 }}>GSTIN: {co.gstin}</span>}
           </div>
         )}
