@@ -173,24 +173,61 @@ function dayLabel(d: DayRecord): string {
 /** Why a fix could not be obtained. 1/2/3 mirror GeolocationPositionError. */
 export type GeoFailure = "denied" | "unavailable" | "timeout" | "unsupported";
 
+// A GPS chip commonly reports an early, network-triangulated fix (accuracy in
+// the hundreds or thousands of metres) before satellite lock improves it a
+// few seconds later -- this is what produced BIM's identical-coordinates
+// report (check-in and check-out both landed on the same coarse network fix).
+// Once a reading is at or under this, it's not worth waiting any longer for.
+const GOOD_ACCURACY_M = 50;
+
 /**
  * The failure REASON is returned, not just null. Denied, "the device could
  * not get a fix" and "it took too long" need completely different advice --
  * sending someone indoors with poor GPS into their permission settings
  * wastes their time and leaves them still unable to punch.
+ *
+ * Polls via watchPosition instead of a single getCurrentPosition call, and
+ * keeps the BEST (lowest accuracy_m) reading seen within the budget --
+ * getCurrentPosition returns whatever fix is available first, which is often
+ * the coarse network-based one; watching lets a genuine GPS lock that
+ * arrives a couple of seconds later replace it. maximumAge:0 forces every
+ * reading to be fresh -- the previous 30s cache tolerance meant a call could
+ * be answered instantly from an already-stale (and possibly already-coarse)
+ * fix with no attempt at a better one at all.
  */
 function getGeoResult(timeoutMs: number): Promise<{ geo: Geo; failure: GeoFailure | null }> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve({ geo: null, failure: "unsupported" });
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ geo: { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy_m: pos.coords.accuracy }, failure: null }),
-      (err) => resolve({
-        geo: null,
-        failure: err.code === err.PERMISSION_DENIED ? "denied"
-          : err.code === err.TIMEOUT ? "timeout"
-          : "unavailable",
-      }),
-      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 30_000 }
+    let best: Geo = null;
+    let watchId: number | null = null;
+    let settled = false;
+    const finish = (result: { geo: Geo; failure: GeoFailure | null }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({ geo: best, failure: best ? null : "timeout" }), timeoutMs);
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const reading: Geo = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy_m: pos.coords.accuracy };
+        if (!best || reading.accuracy_m < best.accuracy_m) best = reading;
+        if (best.accuracy_m <= GOOD_ACCURACY_M) finish({ geo: best, failure: null });
+      },
+      (err) => {
+        // A later error (e.g. permission revoked mid-watch) shouldn't discard
+        // a good reading already captured -- only fail outright if nothing
+        // ever arrived.
+        if (best) { finish({ geo: best, failure: null }); return; }
+        finish({
+          geo: null,
+          failure: err.code === err.PERMISSION_DENIED ? "denied"
+            : err.code === err.TIMEOUT ? "timeout"
+            : "unavailable",
+        });
+      },
+      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 0 }
     );
   });
 }

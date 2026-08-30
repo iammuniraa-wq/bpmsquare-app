@@ -52,6 +52,7 @@ type Row = {
   on_leave: boolean;
   outside_geofence: boolean;
   face_mismatch?: boolean;
+  low_accuracy?: boolean;
   punches: number;
 };
 
@@ -399,7 +400,12 @@ export default function LiveBoardClient({ initialBoard = null, initialLanding = 
                   <td style={td}>
                     {r.outside_geofence && <Pill label="Outside geofence" tone="amber" />}
                     {r.face_mismatch && <span style={{ marginLeft: r.outside_geofence ? 4 : 0 }}><Pill label="Face mismatch" tone="red" /></span>}
-                    {!r.outside_geofence && !r.face_mismatch && "—"}
+                    {r.low_accuracy && (
+                      <span style={{ marginLeft: r.outside_geofence || r.face_mismatch ? 4 : 0 }} title="Location was captured with low accuracy (likely no GPS lock) -- treat the pin as approximate">
+                        <Pill label="Location unreliable" tone="amber" />
+                      </span>
+                    )}
+                    {!r.outside_geofence && !r.face_mismatch && !r.low_accuracy && "—"}
                   </td>
                 </tr>
                 {auditFor === r.employee_id && (

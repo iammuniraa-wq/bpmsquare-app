@@ -29,6 +29,18 @@ export function locationRequiredFor(kind: PresenceKind): boolean {
 }
 
 /**
+ * Above this radius (metres), a coordinate is a network/cell-tower
+ * triangulation, not a real GPS fix, and can't be trusted for geofencing or
+ * for telling two real locations apart (the BIM report where check-in and
+ * check-out landed on the same coordinate despite being at different real
+ * places -- both were ~2000m-accuracy fixes). The punch is still accepted
+ * (a coarse fix is still better than none, and the employee did nothing
+ * wrong), but it's flagged so a supervisor sees "location unreliable"
+ * instead of trusting a pin that may be a kilometre or more off.
+ */
+export const LOW_ACCURACY_THRESHOLD_M = 200;
+
+/**
  * Does this punch kind need a selfie under the tenant's setting?
  *
  *  off   — never. For a tenant that doesn't want punch photographs at all

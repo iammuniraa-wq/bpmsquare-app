@@ -16,7 +16,7 @@ type PunchEvent = {
   within_geofence: boolean | null;
   geo_address: string | null;
   selfie_url: string | null;
-  flags?: { face_verified?: boolean; face_mismatch?: boolean; face_unreadable?: boolean } | null;
+  flags?: { face_verified?: boolean; face_mismatch?: boolean; face_unreadable?: boolean; low_accuracy?: boolean } | null;
 };
 
 const KIND_LABEL: Record<PunchEvent["kind"], string> = {
@@ -102,6 +102,7 @@ export default function PunchAudit({
               {e.flags?.face_verified && <Pill label="Face ✓" tone="green" />}
               {e.flags?.face_mismatch && <Pill label="Face mismatch" tone="red" />}
               {e.flags?.face_unreadable && <Pill label="Face unreadable" tone="amber" />}
+              {e.flags?.low_accuracy && <Pill label="Location unreliable" tone="amber" />}
               {canFlag && onFlag && (
                 <button
                   type="button"

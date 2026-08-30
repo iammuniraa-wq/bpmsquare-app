@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { locationRequiredFor, selfieRequiredFor } from "@/lib/wfm/punchRules";
+import { locationRequiredFor, selfieRequiredFor, LOW_ACCURACY_THRESHOLD_M } from "@/lib/wfm/punchRules";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/lib/wfm/server";
 import { getSupervisorEmails, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
@@ -198,6 +198,12 @@ export async function POST(request: NextRequest) {
   // Breaks are location-mandated now (see above), so a break that lands
   // without coordinates in a soft mode is flagged like any shift punch.
   if (lat == null && !isOtKind(kind)) flags.no_location = true;
+  // A coordinate this coarse is a network/cell-tower fix, not real GPS --
+  // matching it against a geofence or comparing it to another punch isn't
+  // meaningful. Flagged rather than rejected: the employee did nothing
+  // wrong, and refusing the punch over a device/OS setting they may not
+  // control would be worse than recording an unreliable pin.
+  if (accuracy != null && accuracy > LOW_ACCURACY_THRESHOLD_M) flags.low_accuracy = true;
 
   const { data: event, error } = await admin
     .from("wfm_presence_events")
