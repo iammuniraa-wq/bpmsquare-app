@@ -12,8 +12,8 @@ import { parseQuoteQuery, tokensToFilter, filterToParams, matchesFilter, type Qu
 import type { QuoteSummary } from "@/lib/data";
 import type { QuoteStatusDef } from "@/lib/constants";
 
-type View = "list" | "lanes" | "board";
-const VIEWS: View[] = ["list", "lanes", "board"];
+type View = "field" | "list" | "lanes" | "board";
+const VIEWS: View[] = ["field", "list", "lanes", "board"];
 
 /**
  * Nova gate for the Flow Board and Quote Lanes, both of which plot QUOTES
@@ -24,11 +24,14 @@ const VIEWS: View[] = ["list", "lanes", "board"];
  * exactly as it is today. Lanes (added 2026-08-31, first slice of the
  * Quotations redesign -- see QuoteLanes.tsx) sits alongside Flow board
  * rather than replacing it; retiring Flow board is a later call once
- * Lanes is validated on a real tenant, not a day-one deletion. Field
- * (second slice -- see QuoteField.tsx) is NOT a fifth switcher option: it
- * renders as a band above Lanes, per the "Quote List 2050" concept
- * study's own recommendation ("C slots above B without displacing
- * anything") -- so it's only ever seen together with Lanes, never alone.
+ * Lanes is validated on a real tenant, not a day-one deletion.
+ *
+ * Field (second slice -- see QuoteField.tsx) originally rendered as a
+ * band above Lanes rather than its own tab; owner feedback 2026-08-31
+ * ("expecting [the mockup], got [a cramped combined view]") reversed
+ * that -- Field is now a genuine fourth tab, matching the concept
+ * mockup, and is the DEFAULT view for a Nova tenant (a tenant without
+ * the flag is unaffected either way, since it never sees the switcher).
  *
  * List itself (third slice -- see QuoteListNova.tsx) is a genuine swap,
  * not an overlay like Field: a Nova tenant's "List" tab renders
@@ -62,10 +65,10 @@ export default function FlowBoardSlot({
   // (the list's own `af` advanced-filter conditions, etc.) are preserved
   // untouched; this only ever writes its own `view` key.
   const requested = searchParams.get("view");
-  const view: View = VIEWS.includes(requested as View) ? (requested as View) : "list";
+  const view: View = VIEWS.includes(requested as View) ? (requested as View) : "field";
   const setView = (v: View) => {
     const next = new URLSearchParams(searchParams.toString());
-    if (v === "list") next.delete("view"); else next.set("view", v);
+    if (v === "field") next.delete("view"); else next.set("view", v);
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
@@ -115,7 +118,7 @@ export default function FlowBoardSlot({
           display: "flex", gap: 2, padding: 2, borderRadius: 9,
           border: "1px solid var(--line, #e5e7eb)", background: "var(--panel2, transparent)",
         }}>
-          {([["List", "list"], ["Lanes", "lanes"], ["Flow board", "board"]] as const).map(([label, v]) => (
+          {([["Field", "field"], ["Lanes", "lanes"], ["List", "list"], ["Flow board", "board"]] as const).map(([label, v]) => (
             <button
               key={label}
               onClick={() => setView(v)}
@@ -133,8 +136,9 @@ export default function FlowBoardSlot({
         </div>
       </div>
       {view === "board" ? <FlowBoard />
-        : view === "lanes" ? (<><QuoteField filterQuery={filterQuery} /><QuoteLanes filterQuery={filterQuery} /></>)
-        : <QuoteListNova rows={filteredRows} quoteStatuses={quoteStatuses} />}
+        : view === "lanes" ? <QuoteLanes filterQuery={filterQuery} />
+        : view === "list" ? <QuoteListNova rows={filteredRows} quoteStatuses={quoteStatuses} />
+        : <QuoteField filterQuery={filterQuery} />}
     </>
   );
 }

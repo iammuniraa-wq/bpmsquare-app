@@ -7,8 +7,9 @@ import { filterFromParams, matchesFilter } from "@/lib/quoteQuery";
  * Nova — Quote Field. Second slice of the Quotations redesign (owner
  * discussion 2026-08-31), a plot of every open-or-recently-decided quote:
  * days idle across, value up, line count as size, three real colours for
- * status. Shipped as a compact band above Lanes rather than its own
- * screen, per the "Quote List 2050" concept study's own recommendation.
+ * status. Its own full-screen tab and the default view (see
+ * FlowBoardSlot.tsx) -- an earlier pass shipped it as a compact band
+ * above Lanes, which read as cluttered against the concept mockup.
  *
  * One deliberate deviation from the original written spec, worth being
  * explicit about: the spec's axis was "days since CREATED". This uses
