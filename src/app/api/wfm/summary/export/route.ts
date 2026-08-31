@@ -4,7 +4,10 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getMonthlySummary, type EmployeeMonthSummary } from "@/lib/wfm/monthlySummary";
-import { MONTHLY_SUMMARY_COLUMNS, DAILY_DETAIL_COLUMNS } from "@/lib/wfm/summaryExportTemplate";
+import {
+  MONTHLY_SUMMARY_COLUMNS, DAILY_DETAIL_COLUMNS,
+  PAYROLL_SUMMARY_COLUMNS, PAYROLL_SUMMARY_TOTAL_FROM, PAYROLL_DAY_COLUMNS,
+} from "@/lib/wfm/summaryExportTemplate";
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF152233" } };
@@ -74,6 +77,145 @@ function writeDailyDetail(
   if (wrote === 0) sheet.addRow(["No attendance recorded for the selected month."]);
 }
 
+/**
+ * Payroll Summary — one flat list of every employee with a grand TOTAL row,
+ * in the layout the client's accountant already works from. Deliberately not
+ * split by employment type (unlike writeSection): a payroll clerk wants one
+ * list and one bottom line.
+ */
+function writePayrollSummary(
+  sheet: ExcelJS.Worksheet,
+  month: string,
+  tenantName: string,
+  rows: EmployeeMonthSummary[]
+) {
+  sheet.columns = PAYROLL_SUMMARY_COLUMNS.map((c) => ({ width: c.width }));
+
+  const titleRow = sheet.addRow([`Monthly Payroll Summary — ${monthLabel(month)}`]);
+  titleRow.font = { bold: true, size: 14 };
+  sheet.mergeCells(titleRow.number, 1, titleRow.number, PAYROLL_SUMMARY_COLUMNS.length);
+
+  const subRow = sheet.addRow([`${tenantName}  |  Generated from BPMSquare WFM attendance`]);
+  subRow.font = { italic: true, size: 10, color: { argb: "FF666666" } };
+  sheet.mergeCells(subRow.number, 1, subRow.number, PAYROLL_SUMMARY_COLUMNS.length);
+
+  sheet.addRow([]);
+
+  const headerRow = sheet.addRow(PAYROLL_SUMMARY_COLUMNS.map((c) => c.header));
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = HEADER_FILL;
+  });
+
+  if (rows.length === 0) {
+    sheet.addRow(["No employees for the selected month."]);
+    return;
+  }
+
+  const firstDataRow = headerRow.number + 1;
+  for (const r of rows) sheet.addRow(PAYROLL_SUMMARY_COLUMNS.map((c) => c.accessor(r)));
+  const lastDataRow = firstDataRow + rows.length - 1;
+
+  // Live SUM formulas rather than a number computed here: the clerk almost
+  // always filters or deletes rows, and a hardcoded total would then be
+  // silently wrong while still looking authoritative.
+  const total: (string | { formula: string })[] = ["TOTAL", "", ""];
+  for (let col = PAYROLL_SUMMARY_TOTAL_FROM; col <= PAYROLL_SUMMARY_COLUMNS.length; col++) {
+    const letter = sheet.getColumn(col).letter;
+    total.push({ formula: `SUM(${letter}${firstDataRow}:${letter}${lastDataRow})` });
+  }
+  const totalRow = sheet.addRow(total);
+  totalRow.eachCell((cell) => {
+    cell.font = { bold: true };
+    cell.border = { top: { style: "thin" } };
+  });
+
+  sheet.autoFilter = { from: { row: headerRow.number, column: 1 }, to: { row: lastDataRow, column: PAYROLL_SUMMARY_COLUMNS.length } };
+  sheet.views = [{ state: "frozen", ySplit: headerRow.number }];
+}
+
+/**
+ * Payroll Report — the same daily figures as the Daily Detail sheet, but
+ * grouped into a block per employee with its own subtotal. That block is
+ * what gets read out to an employee querying their payslip, which a flat
+ * table makes needlessly hard.
+ */
+function writePayrollReport(
+  sheet: ExcelJS.Worksheet,
+  month: string,
+  tenantName: string,
+  rows: EmployeeMonthSummary[],
+  deductBreaks: boolean,
+  timezone: string
+) {
+  sheet.columns = PAYROLL_DAY_COLUMNS.map((c) => ({ width: c.width }));
+  const width = PAYROLL_DAY_COLUMNS.length;
+
+  const titleRow = sheet.addRow([`Employee-wise Attendance & Payroll Detail — ${monthLabel(month)}`]);
+  titleRow.font = { bold: true, size: 14 };
+  sheet.mergeCells(titleRow.number, 1, titleRow.number, width);
+
+  const noteRow = sheet.addRow([
+    (deductBreaks
+      ? "Total Worked = Check Out − Check In − break time (tenant setting: breaks are deducted)."
+      : "Total Worked = Check Out − Check In (tenant setting: breaks are NOT deducted).") +
+      `  |  ${tenantName}`,
+  ]);
+  noteRow.font = { italic: true, size: 10, color: { argb: "FF666666" } };
+  sheet.mergeCells(noteRow.number, 1, noteRow.number, width);
+
+  if (rows.length === 0) {
+    sheet.addRow([]);
+    sheet.addRow(["No attendance recorded for the selected month."]);
+    return;
+  }
+
+  for (const employee of rows) {
+    sheet.addRow([]);
+
+    const who = [employee.employee_code, employee.full_name, employee.site_name]
+      .filter(Boolean).join("   |   ");
+    const empRow = sheet.addRow([who]);
+    empRow.font = { bold: true, size: 11.5 };
+    empRow.eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEAF1F8" } }; });
+    sheet.mergeCells(empRow.number, 1, empRow.number, width);
+
+    const headerRow = sheet.addRow(PAYROLL_DAY_COLUMNS.map((c) => c.header));
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = HEADER_FILL;
+    });
+
+    // Same filter as the Daily Detail sheet: a month of untouched future and
+    // week-off rows per employee would bury the days that actually matter.
+    const days = employee.days.filter((d) => d.punches > 0 || d.on_leave || d.holiday || d.absent);
+    if (days.length === 0) {
+      sheet.addRow(["No attendance recorded this month."]);
+      continue;
+    }
+    const firstDataRow = headerRow.number + 1;
+    for (const day of days) {
+      sheet.addRow(PAYROLL_DAY_COLUMNS.map((c) => c.accessor({ employee, day, deductBreaks, timezone })));
+    }
+    const lastDataRow = firstDataRow + days.length - 1;
+
+    // Break / Gross / Total Worked are columns 4, 5, 6 of PAYROLL_DAY_COLUMNS.
+    const subtotal: (string | { formula: string })[] = ["Employee Total", "", ""];
+    for (const col of [4, 5, 6]) {
+      const letter = sheet.getColumn(col).letter;
+      subtotal.push({ formula: `SUM(${letter}${firstDataRow}:${letter}${lastDataRow})` });
+    }
+    const subtotalRow = sheet.addRow(subtotal);
+    subtotalRow.eachCell((cell) => {
+      cell.font = { bold: true };
+      cell.border = { top: { style: "thin" } };
+    });
+  }
+}
+
+const monthLabel = (month: string) =>
+  new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+
 // GET /api/wfm/summary/export?month=YYYY-MM — the CA-facing Excel export
 // (spec §5.6, "THE deliverable"). Placeholder layout (two sheets:
 // Full-Time / Contractors) until the client's actual CA format sample
@@ -96,10 +238,13 @@ export async function GET(request: NextRequest) {
   // Mirrors GET /api/wfm/summary exactly: the workbook a supervisor downloads
   // must never contain a site they don't supervise.
   const scope = await resolveWfmScope(ctx);
-  const [summaries, config] = await Promise.all([
+  const admin = createAdminSupabase();
+  const [summaries, config, { data: tenantRow }] = await Promise.all([
     getMonthlySummary(tenantId, month, scope.unrestricted ? undefined : (scope.employeeIds ?? [])),
-    getWfmConfig(createAdminSupabase(), tenantId),
+    getWfmConfig(admin, tenantId),
+    admin.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
   ]);
+  const tenantName = (tenantRow?.name as string | undefined) ?? "";
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "BPMSquare";
   workbook.created = new Date(`${month}-01T00:00:00Z`);
@@ -110,6 +255,18 @@ export async function GET(request: NextRequest) {
   // section. A trailing "Other" sheet catches rows whose stored type is no
   // longer in the configured list (a type renamed/removed after use), so
   // nobody can fall off the payroll export entirely.
+  // Payroll-desk sheets first, so the workbook opens on the view the
+  // accountant actually uses. The per-type sheets and Daily Detail below are
+  // unchanged and remain the complete record.
+  const payrollRows = [...summaries].sort((a, b) =>
+    (a.employee_code ?? "").localeCompare(b.employee_code ?? "") || a.full_name.localeCompare(b.full_name)
+  );
+  writePayrollSummary(workbook.addWorksheet("Summary"), month, tenantName, payrollRows);
+  writePayrollReport(
+    workbook.addWorksheet("Payroll Report"),
+    month, tenantName, payrollRows, config.deduct_breaks, config.timezone
+  );
+
   const configuredCodes = new Set(config.employment_types.map((t) => t.code));
   for (const type of config.employment_types) {
     const rows = summaries.filter((s) => s.employment_type === type.code);

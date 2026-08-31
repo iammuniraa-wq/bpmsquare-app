@@ -110,3 +110,67 @@ export const DAILY_DETAIL_COLUMNS: DailyDetailColumn[] = [
   },
   { header: "Status", width: 20, accessor: ({ day }) => dayStatus(day) },
 ];
+
+// ── Payroll-format sheets ─────────────────────────────────────────────────
+// A second presentation of the SAME figures, matching the layout the client's
+// accountant already works from (sample received 2026-08-31). Added
+// alongside the sheets above rather than replacing them: the existing sheets
+// are the complete record, these two are the payroll-desk view.
+//
+// Two things differ from the sheets above, and both are the point:
+//   1. One flat Summary across every employee with a TOTAL row, rather than
+//      a sheet split per employment type. A payroll clerk wants one list and
+//      one bottom line.
+//   2. The daily data is grouped into a block PER EMPLOYEE with its own
+//      subtotal, rather than one flat table -- that block is what gets read
+//      out to an employee querying their own payslip.
+// Hours are decimal everywhere (6.02, not "6h 01m") so the sheet can be
+// arithmetic'd against directly.
+
+export const PAYROLL_SUMMARY_COLUMNS: SummaryColumn[] = [
+  { header: "Employee Code", width: 14, accessor: (r) => r.employee_code ?? "" },
+  { header: "Name", width: 24, accessor: (r) => r.full_name },
+  { header: "Site", width: 20, accessor: (r) => r.site_name ?? "" },
+  { header: "Days Present", width: 12, accessor: (r) => r.totals.days_present },
+  { header: "Absent Days", width: 11, accessor: (r) => r.totals.absent_days },
+  { header: "Paid Leave", width: 11, accessor: (r) => r.totals.paid_leave_days },
+  { header: "Unpaid Leave", width: 12, accessor: (r) => r.totals.unpaid_leave_days },
+  { header: "Half-Day Deductions", width: 16, accessor: (r) => r.totals.half_day_deductions },
+  { header: "Late Marks", width: 11, accessor: (r) => r.totals.late_marks },
+  { header: "Incomplete Days", width: 14, accessor: (r) => r.totals.incomplete_days },
+  { header: "Total Worked Hours", width: 16, accessor: (r) => hours(r.totals.working_minutes) },
+  { header: "OT Hours", width: 10, accessor: (r) => hours(r.totals.ot_minutes) },
+  { header: "OT Amount", width: 12, accessor: (r) => Math.round(r.totals.ot_amount * 100) / 100 },
+];
+
+/** Column indexes (1-based) of the numeric columns a TOTAL row sums. Name,
+ * code and site are not summable, so they are excluded by position rather
+ * than by guessing from the value type at runtime. */
+export const PAYROLL_SUMMARY_TOTAL_FROM = 4;
+
+/** Per-employee daily block. Deliberately short: date, the two clock times,
+ * the three hour figures and a status. Anything more belongs on the Daily
+ * Detail sheet, which is still in the workbook. */
+export const PAYROLL_DAY_COLUMNS: DailyDetailColumn[] = [
+  { header: "Date", width: 12, accessor: ({ day }) => day.date },
+  {
+    header: "Check In",
+    width: 10,
+    // Em dash rather than blank: an empty cell reads as "not filled in yet",
+    // a dash reads as "there was no punch", which is the actual fact.
+    accessor: ({ day, timezone }) => (day.first_in ? hhmm(day.first_in, timezone) : "—"),
+  },
+  {
+    header: "Check Out",
+    width: 10,
+    accessor: ({ day, timezone }) => (day.last_out ? hhmm(day.last_out, timezone) : "—"),
+  },
+  { header: "Break Hours", width: 12, accessor: ({ day }) => hours(day.break_minutes) },
+  { header: "Gross Hours", width: 12, accessor: ({ day }) => hours(day.gross_minutes) },
+  {
+    header: "Total Worked",
+    width: 13,
+    accessor: ({ day, deductBreaks }) => hours(deductBreaks ? day.net_minutes : day.gross_minutes),
+  },
+  { header: "Status", width: 20, accessor: ({ day }) => dayStatus(day) },
+];
