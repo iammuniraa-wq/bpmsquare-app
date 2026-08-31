@@ -30,6 +30,15 @@ import { ROUTES } from "@/lib/constants";
  * still opens the hovered quote directly, same as before -- distinguished
  * by movement distance between mousedown and mouseup, not by a modifier
  * key, since a modifier-free drag is what "draw a rectangle" means.
+ *
+ * Same-day jitter (owner feedback 2026-08-31: real data clumps hard --
+ * many quotes were all last touched on the same bulk-import day, which
+ * without this stacked them into a solid overlapping column with no way
+ * to tell them apart or click one). Points sharing an idle-day value are
+ * deterministically fanned out a fraction of a day either side of their
+ * true x -- a cosmetic nudge only, never affecting the axis, the
+ * exposure-corner math, or drag-select's rectangle test, which all use
+ * the same jittered position consistently.
  */
 
 type Point = {
@@ -110,17 +119,34 @@ export default function QuoteField({ filterQuery }: { filterQuery?: string }) {
     const y = (v: number) => H - PAD_B - Math.sqrt(Math.min(v, maxValue) / domainMax) * (H - PAD_B - PAD_T);
     const atStake = totals.reduce((s, v) => s + v, 0);
     const medianAge = median(data.points.map((p) => p.idleDays));
-    return { maxIdle, maxValue, x, y, atStake, medianAge };
+
+    // Fan out points that share an idle-day value -- see file-level comment.
+    const jitter = new Map<string, number>();
+    const groups = new Map<number, Point[]>();
+    for (const p of data.points) {
+      const arr = groups.get(p.idleDays) ?? [];
+      arr.push(p);
+      groups.set(p.idleDays, arr);
+    }
+    const step = Math.max(0.35, maxIdle * 0.012);
+    for (const arr of groups.values()) {
+      if (arr.length <= 1) continue;
+      const sorted = [...arr].sort((a, b) => a.id.localeCompare(b.id));
+      const n = sorted.length;
+      sorted.forEach((p, i) => jitter.set(p.id, (i - (n - 1) / 2) * step));
+    }
+
+    return { maxIdle, maxValue, x, y, atStake, medianAge, jitter };
   }, [data]);
 
   if (error) return <div style={{ padding: 20, color: "var(--nova-ink-dim)", fontSize: 13 }}>{error}</div>;
   if (!data || !geo) return <div style={{ padding: 20, color: "var(--nova-ink-faint)", fontSize: 13 }}>Loading field…</div>;
 
-  const { x: X, y: Y, maxIdle, maxValue, atStake, medianAge } = geo;
+  const { x: X, y: Y, maxIdle, maxValue, atStake, medianAge, jitter } = geo;
+  const jx = (p: Point) => X(p.idleDays + (jitter.get(p.id) ?? 0));
 
   const statBar = (
-    <div style={{ display: "flex", gap: 40, marginBottom: 22, paddingBottom: 18, borderBottom: "1px solid var(--nova-line-soft)" }}>
-      <Stat label="Matching" value={<>{data.points.length} <span style={{ fontSize: 13, fontWeight: 500, color: "var(--nova-ink-faint)" }}>quotes</span></>} />
+    <div style={{ display: "flex", gap: 28, marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid var(--nova-line-soft)" }}>
       <Stat label="At stake" value={money(atStake)} />
       <Stat label="Median age" value={<>{medianAge} <span style={{ fontSize: 13, fontWeight: 500, color: "var(--nova-ink-faint)" }}>days</span></>} />
       <Stat label="Exposure corner" value={<span style={{ color: data.exposed.length > 0 ? "#E4634A" : "var(--nova-ink)" }}>{data.exposed.length} · {money(data.exposed.reduce((s, p) => s + p.total, 0))}</span>} />
@@ -152,7 +178,7 @@ export default function QuoteField({ filterQuery }: { filterQuery?: string }) {
   const nearest = (pt: { x: number; y: number }): Point | null => {
     let best: Point | null = null, bestD = 14;
     for (const p of data.points) {
-      const dx = X(p.idleDays) - pt.x, dy = Y(p.total) - pt.y;
+      const dx = jx(p) - pt.x, dy = Y(p.total) - pt.y;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d < bestD) { bestD = d; best = p; }
     }
@@ -170,7 +196,7 @@ export default function QuoteField({ filterQuery }: { filterQuery?: string }) {
     if (dragStart) { setDragNow(pt); return; }
     const best = nearest(pt);
     if (!best) { setHover(null); return; }
-    setHover({ p: best, clamped: best.total > maxValue, x: (X(best.idleDays) / W) * (svgRef.current?.getBoundingClientRect().width ?? W), y: (Y(best.total) / H) * (svgRef.current?.getBoundingClientRect().height ?? H) });
+    setHover({ p: best, clamped: best.total > maxValue, x: (jx(best) / W) * (svgRef.current?.getBoundingClientRect().width ?? W), y: (Y(best.total) / H) * (svgRef.current?.getBoundingClientRect().height ?? H) });
   }
 
   function onUp() {
@@ -183,7 +209,7 @@ export default function QuoteField({ filterQuery }: { filterQuery?: string }) {
       const x0 = Math.min(dragStart.x, dragNow.x), x1 = Math.max(dragStart.x, dragNow.x);
       const y0 = Math.min(dragStart.y, dragNow.y), y1 = Math.max(dragStart.y, dragNow.y);
       const ids = data.points
-        .filter((p) => { const px = X(p.idleDays), py = Y(p.total); return px >= x0 && px <= x1 && py >= y0 && py <= y1; })
+        .filter((p) => { const px = jx(p), py = Y(p.total); return px >= x0 && px <= x1 && py >= y0 && py <= y1; })
         .map((p) => p.id);
       setSelected(new Set(ids));
     }
@@ -241,7 +267,7 @@ export default function QuoteField({ filterQuery }: { filterQuery?: string }) {
               return (
                 <circle
                   key={p.id}
-                  cx={X(p.idleDays)} cy={Y(p.total)} r={(2.4 + Math.sqrt(p.lineCount) * 1.3) * (isSelected ? 1.25 : 1)}
+                  cx={jx(p)} cy={Y(p.total)} r={(2.4 + Math.sqrt(p.lineCount) * 1.3) * (isSelected ? 1.25 : 1)}
                   fill={COLOR[p.color]} fillOpacity={dimmed ? 0.14 : p.exposed || isSelected ? 0.95 : 0.5}
                   stroke={isSelected ? "#fff" : clamped ? COLOR[p.color] : p.exposed ? COLOR[p.color] : "none"}
                   strokeWidth={isSelected ? 1.6 : clamped ? 1.3 : p.exposed ? 1.3 : 0}

@@ -14,7 +14,7 @@ import type { QuoteToken } from "@/lib/quoteQuery";
  * belongs to the page."
  */
 export default function QuoteQueryBar({
-  tokens, leftover, matchingCount, totalCount, onCommit, onRemoveToken,
+  tokens, leftover, matchingCount, totalCount, onCommit, onRemoveToken, right,
 }: {
   tokens: QuoteToken[];
   leftover: string;
@@ -22,15 +22,19 @@ export default function QuoteQueryBar({
   totalCount: number;
   onCommit: (text: string) => void;
   onRemoveToken: (index: number) => void;
+  /** Rendered inline with the count strip -- FlowBoardSlot's view switcher
+   *  lives here instead of its own row, so the query bar's count line and
+   *  the switcher share one row of vertical space, not two. */
+  right?: React.ReactNode;
 }) {
   const [draft, setDraft] = useState("");
 
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div style={{ marginBottom: 10 }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
         border: "1px solid var(--nova-line)", borderRadius: 12,
-        background: "var(--nova-glass-bg)", padding: "11px 14px",
+        background: "var(--nova-glass-bg)", padding: "9px 14px",
       }}>
         <input
           value={draft}
@@ -89,15 +93,16 @@ export default function QuoteQueryBar({
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "baseline", gap: 18, marginTop: 12, paddingBottom: 12, borderBottom: "1px solid var(--nova-line-soft)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, marginTop: 10, paddingBottom: 10, borderBottom: "1px solid var(--nova-line-soft)" }}>
         <div>
-          <span style={{ fontFamily: "var(--nova-font-display)", fontSize: 20, fontWeight: 700, color: "var(--nova-ink)", letterSpacing: "-.01em" }}>
+          <span style={{ fontFamily: "var(--nova-font-display)", fontSize: 18, fontWeight: 700, color: "var(--nova-ink)", letterSpacing: "-.01em" }}>
             {matchingCount}
           </span>
           <span style={{ fontFamily: "var(--nova-font-body)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginLeft: 7 }}>
             {tokens.length > 0 ? `of ${totalCount} quotes` : "quotes"}
           </span>
         </div>
+        {right}
       </div>
     </div>
   );

@@ -25,10 +25,20 @@ import { filterFromParams, matchesFilter } from "@/lib/quoteQuery";
  * status: draft (status="draft", still open), sent (any other open
  * status), accepted (outcome="won"). Lost quotes are excluded -- there's
  * no money still at stake in them.
+ *
+ * Exposure corner thresholds are derived from the tenant's own data, not
+ * a fixed ₹1L/14-day assumption -- a fixed bar either floods the corner
+ * (a tenant whose real quotes run into crores, where ₹1L is trivial) or
+ * never fires (one whose quotes are all small). The value bar is the
+ * 75th percentile of what's actually plotted; the day bar is the median
+ * idle time, so "exposed" means genuinely above-typical on both axes,
+ * not "most of the tenant's pipeline."
  */
 
-const EXPOSURE_VALUE = 100_000;
-const EXPOSURE_DAYS = 14;
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  return sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+}
 
 export async function GET(request: NextRequest) {
   // Same QuoteFilter every view resolves from the same URL params -- see
@@ -77,11 +87,18 @@ export async function GET(request: NextRequest) {
   }
 
   const now = Date.now();
-  const points = quotes.filter((q) => {
-    const idleDays = Math.max(0, Math.round((now - new Date(q.updated_at ?? q.created_at).getTime()) / 86_400_000));
-    return matchesFilter({ total: q.total ?? 0, status: q.status, outcome: q.outcome, idleDays }, filter);
-  }).map((q) => {
-    const idleDays = Math.max(0, Math.round((now - new Date(q.updated_at ?? q.created_at).getTime()) / 86_400_000));
+  const idleDaysOf = (q: { updated_at: string; created_at: string }) =>
+    Math.max(0, Math.round((now - new Date(q.updated_at ?? q.created_at).getTime()) / 86_400_000));
+
+  const matching = quotes.filter((q) =>
+    matchesFilter({ total: q.total ?? 0, status: q.status, outcome: q.outcome, idleDays: idleDaysOf(q) }, filter)
+  );
+
+  const EXPOSURE_VALUE = Math.max(50_000, percentile([...matching.map((q) => q.total ?? 0)].sort((a, b) => a - b), 0.75));
+  const EXPOSURE_DAYS = Math.max(7, percentile([...matching.map((q) => idleDaysOf(q))].sort((a, b) => a - b), 0.5));
+
+  const points = matching.map((q) => {
+    const idleDays = idleDaysOf(q);
     const color: "draft" | "sent" | "accepted" =
       q.outcome === "won" ? "accepted" : q.status === "draft" ? "draft" : "sent";
     return {

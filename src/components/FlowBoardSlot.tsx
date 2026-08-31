@@ -103,6 +103,29 @@ export default function FlowBoardSlot({
 
   if (!nova) return <>{list}</>;
 
+  const switcher = (
+    <div style={{
+      display: "flex", gap: 2, padding: 2, borderRadius: 9,
+      border: "1px solid var(--line, #e5e7eb)", background: "var(--panel2, transparent)",
+    }}>
+      {([["Field", "field"], ["Lanes", "lanes"], ["List", "list"], ["Flow board", "board"]] as const).map(([label, v]) => (
+        <button
+          key={label}
+          onClick={() => setView(v)}
+          style={{
+            padding: "6px 13px", borderRadius: 7, cursor: "pointer", font: "inherit",
+            fontSize: 12.5, fontWeight: 650, border: "none",
+            background: view === v ? "var(--panel, #fff)" : "transparent",
+            color: view === v ? "var(--ink, #111827)" : "var(--muted, #6b7280)",
+            boxShadow: view === v ? "0 1px 3px rgba(0,0,0,.10)" : "none",
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <>
       <QuoteQueryBar
@@ -112,29 +135,8 @@ export default function FlowBoardSlot({
         totalCount={rows.length}
         onCommit={commitQuery}
         onRemoveToken={removeToken}
+        right={switcher}
       />
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-        <div style={{
-          display: "flex", gap: 2, padding: 2, borderRadius: 9,
-          border: "1px solid var(--line, #e5e7eb)", background: "var(--panel2, transparent)",
-        }}>
-          {([["Field", "field"], ["Lanes", "lanes"], ["List", "list"], ["Flow board", "board"]] as const).map(([label, v]) => (
-            <button
-              key={label}
-              onClick={() => setView(v)}
-              style={{
-                padding: "6px 13px", borderRadius: 7, cursor: "pointer", font: "inherit",
-                fontSize: 12.5, fontWeight: 650, border: "none",
-                background: view === v ? "var(--panel, #fff)" : "transparent",
-                color: view === v ? "var(--ink, #111827)" : "var(--muted, #6b7280)",
-                boxShadow: view === v ? "0 1px 3px rgba(0,0,0,.10)" : "none",
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
       {view === "board" ? <FlowBoard />
         : view === "lanes" ? <QuoteLanes filterQuery={filterQuery} />
         : view === "list" ? <QuoteListNova rows={filteredRows} quoteStatuses={quoteStatuses} />
