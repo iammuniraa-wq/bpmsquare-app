@@ -29,6 +29,30 @@ const FLOW_COLOR: Record<NovaFlow["id"], string> = {
 
 type Section = "needs" | "flows" | "spaces";
 
+// Base routes that carry individual records -- classic Sidebar gives a
+// record page room by defaulting to its icon-only rail everywhere; Nova's
+// panel had no equivalent at all, so a record page was stuck fighting a
+// fixed 264px rail for width. Narrowing specifically on these (owner request
+// 2026-08-31: "narrow to hide the whole nav when I go in any object") gets
+// the same effect without touching classic's own always-collapsed default.
+const RECORD_ROUTE_PREFIXES = [
+  "/accounts", "/contacts", "/quotations", "/standard-quotes", "/cases",
+  "/work-orders", "/technicians", "/assets", "/invoices", "/suppliers",
+  "/products", "/inventory", "/purchase-orders", "/leads", "/partners",
+];
+
+// True once the path goes a level deeper than the object's own list page --
+// /accounts is the list (full nav stays), /accounts/[id] (or /new, /edit,
+// /print, ...) is "inside" a specific record (nav narrows).
+function isRecordDetailPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return RECORD_ROUTE_PREFIXES.some((base) => {
+    if (!pathname.startsWith(base)) return false;
+    const rest = pathname.slice(base.length);
+    return rest.startsWith("/") && rest.length > 1;
+  });
+}
+
 function openPalette() {
   window.dispatchEvent(new CustomEvent("nova:open-palette"));
 }
@@ -118,6 +142,16 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
   const [flows, setFlows] = useState<NovaFlow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [maximized, setMaximized] = useState<Section | null>(null);
+  // Narrow-on-record-page: auto-hides the full panel down to a slim rail
+  // whenever the URL is inside a specific record. A manual "show nav" click
+  // pins it open for THIS page only -- landing on the next record resets to
+  // narrow again, same "default collapsed, expand is a session convenience"
+  // spirit as classic Sidebar's own rail. The mobile drawer (onNavigate set)
+  // is exempt -- it only exists already-opened, so narrowing it further
+  // would just make it useless, exactly like classic's own exemption.
+  const isRecordPage = !onNavigate && isRecordDetailPath(pathname);
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  useEffect(() => { setPinnedOpen(false); }, [pathname]);
   // Spaces flyout: which category is open, and where its panel anchors
   // vertically (from the clicked button's own screen position).
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -202,6 +236,39 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
     setOpenGroup(g.key);
   }
 
+  if (isRecordPage && !pinnedOpen) {
+    return (
+      <div style={{ width: 44, flexShrink: 0, height: "100%", position: "sticky", top: 0, background: "var(--nova-bg)", borderRight: "1px solid var(--nova-line)", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "16px 0" }}>
+        <style>{`.nova-sb-narrow-btn:hover { background: rgba(255,255,255,0.08) !important; }`}</style>
+        <Link href="/" title={tenant?.name ?? "Home"} style={{ display: "flex" }}>
+          {tenant?.logo_url ? (
+            <img src={tenant.logo_url} alt={tenant.name} style={{ width: 26, height: 26, borderRadius: 6, objectFit: "contain" }} />
+          ) : (
+            <Logo size={26} />
+          )}
+        </Link>
+        <button
+          type="button"
+          onClick={() => setPinnedOpen(true)}
+          title="Show navigation"
+          className="nova-sb-narrow-btn"
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 7, background: "transparent", border: "1px solid var(--nova-line)", color: "var(--nova-ink-faint)", cursor: "pointer" }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+        </button>
+        <button
+          type="button"
+          onClick={openPalette}
+          title="Ask or act (⌘K)"
+          className="nova-sb-narrow-btn"
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 7, background: "transparent", border: "1px solid var(--nova-line)", color: "var(--nova-ink-faint)", cursor: "pointer" }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+        </button>
+      </div>
+    );
+  }
+
   if (spacesMaximized) {
     // The full classic nav experience, exactly as requested -- favourites,
     // drag-reorder, expand/collapse groups -- not a bigger version of the
@@ -234,6 +301,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
         .nova-sb-fly-row { transition: background .12s ease; }
         .nova-sb-fly-row:hover { background: rgba(255,255,255,0.07); }
         .nova-sb-expand:hover { background: rgba(255,255,255,0.08); color: var(--nova-ink) !important; }
+        .nova-sb-narrow-btn:hover { background: rgba(255,255,255,0.08) !important; color: var(--nova-ink) !important; }
         @media (prefers-reduced-motion: reduce) {
           .nova-sb-live-dot { animation: none !important; }
           .nova-sb-space:hover { transform: none !important; }
@@ -242,6 +310,23 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
 
       <NovaHeader loaded={loaded} needCount={items.length} />
       <NovaCommandBar />
+
+      {/* Only reachable by pinning the nav open on a record page (see
+          isRecordPage above) -- lets it go back to narrow without having
+          to navigate away first. */}
+      {isRecordPage && pinnedOpen && (
+        <div style={{ padding: "0 16px 8px" }}>
+          <button
+            type="button"
+            onClick={() => setPinnedOpen(false)}
+            className="nova-sb-narrow-btn"
+            style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "6px 8px", borderRadius: 7, background: "transparent", border: "1px solid var(--nova-line)", color: "var(--nova-ink-faint)", cursor: "pointer", fontSize: 11.5 }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+            Narrow navigation
+          </button>
+        </div>
+      )}
 
       {/* Spaces -- one bigger icon per main area (Sales, Service, Master
           data, Workforce, ...), where the flat 30-glyph grid used to be
