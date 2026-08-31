@@ -146,7 +146,7 @@ export default function QuoteField({ filterQuery }: { filterQuery?: string }) {
   const jx = (p: Point) => X(p.idleDays + (jitter.get(p.id) ?? 0));
 
   const statBar = (
-    <div style={{ display: "flex", gap: 28, marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid var(--nova-line-soft)" }}>
+    <div className="qf-stats" style={{ display: "flex", gap: 28, marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid var(--nova-line-soft)" }}>
       <Stat label="At stake" value={money(atStake)} />
       <Stat label="Median age" value={<>{medianAge} <span style={{ fontSize: 13, fontWeight: 500, color: "var(--nova-ink-faint)" }}>days</span></>} />
       <Stat label="Exposure corner" value={<span style={{ color: data.exposed.length > 0 ? "#E4634A" : "var(--nova-ink)" }}>{data.exposed.length} · {money(data.exposed.reduce((s, p) => s + p.total, 0))}</span>} />
@@ -223,8 +223,22 @@ export default function QuoteField({ filterQuery }: { filterQuery?: string }) {
 
   return (
     <div>
+      {/* Fixed inline widths (240px aside, a 3-stat flex row) assume a
+          desktop-class viewport. On a phone that fixed aside was eating
+          most of the row, crushing the chart into a barely-visible sliver
+          -- see the mobile screenshot that prompted this. Inline styles
+          can't hold a media query, so the mobile override lives in this
+          scoped <style> block instead, same pattern as QuoteListNova's
+          hover rule. */}
+      <style>{`
+        @media (max-width: 760px) {
+          .qf-stats { flex-wrap: wrap !important; row-gap: 14px !important; }
+          .qf-grid { grid-template-columns: 1fr !important; }
+          .qf-aside { margin-top: 16px; }
+        }
+      `}</style>
       {statBar}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 240px", gap: 18, alignItems: "start" }}>
+      <div className="qf-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 240px", gap: 18, alignItems: "start" }}>
         <div style={{ position: "relative", border: "1px solid var(--nova-line)", borderRadius: "var(--nova-radius-card)", background: "var(--nova-glass-bg)", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: 10, right: 14, fontFamily: "var(--nova-font-body)", fontSize: 10.5, color: "var(--nova-ink-faint)", zIndex: 2, pointerEvents: "none" }}>
             Drag to select
@@ -302,7 +316,7 @@ export default function QuoteField({ filterQuery }: { filterQuery?: string }) {
             </div>
           )}
         </div>
-        <aside>
+        <aside className="qf-aside">
           {selected.size > 0 ? (
             <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
