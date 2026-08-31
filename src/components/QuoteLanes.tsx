@@ -15,9 +15,11 @@ import { ROUTES } from "@/lib/constants";
  * is derived from and why "Waiting on you" was narrowed to "Needs send"
  * (no reply-tracking exists in this codebase to detect the former).
  *
- * This is additive, not a replacement -- FlowBoardSlot still offers List
- * and Flow board too. Swapping Lanes in as the default, or retiring Flow
- * board, is a later call once this is validated on a real tenant.
+ * This is additive, not a replacement -- FlowBoardSlot still offers Field,
+ * List and Flow board too (Field is the default view; see FlowBoardSlot.tsx
+ * for why it was split back out of this component into its own tab).
+ * Retiring Flow board is a later call once Lanes is validated on a real
+ * tenant.
  */
 
 type Card = {
