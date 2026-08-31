@@ -34,6 +34,8 @@ export default async function QuotationsPage() {
       />
       <FlowBoardSlot
         list={<QuotationsList initialRows={rows} quoteStatuses={quoteStatuses} caseLinkedQuoteIds={caseLinkedQuoteIds} />}
+        rows={rows}
+        quoteStatuses={quoteStatuses}
       />
     </>
   );
