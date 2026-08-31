@@ -142,16 +142,21 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
   const [flows, setFlows] = useState<NovaFlow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [maximized, setMaximized] = useState<Section | null>(null);
-  // Narrow-on-record-page: auto-hides the full panel down to a slim rail
-  // whenever the URL is inside a specific record. A manual "show nav" click
-  // pins it open for THIS page only -- landing on the next record resets to
-  // narrow again, same "default collapsed, expand is a session convenience"
-  // spirit as classic Sidebar's own rail. The mobile drawer (onNavigate set)
-  // is exempt -- it only exists already-opened, so narrowing it further
-  // would just make it useless, exactly like classic's own exemption.
-  const isRecordPage = !onNavigate && isRecordDetailPath(pathname);
-  const [pinnedOpen, setPinnedOpen] = useState(false);
-  useEffect(() => { setPinnedOpen(false); }, [pathname]);
+  // Narrow rail: auto-hides the full panel down to a slim strip whenever the
+  // URL is inside a specific record (the smart default), but the toggle
+  // itself is ALWAYS present regardless of page -- classic Sidebar's own
+  // collapse button works the same way on every page, not just record ones,
+  // and a control that only appears sometimes is one people can't find (the
+  // original version of this only showed a toggle on record pages, which
+  // is exactly the "I don't see the arrow" gap on a list page like
+  // Marketing > Segments). A manual click overrides the default for THIS
+  // page only; landing on a different page re-derives from the URL again.
+  // The mobile drawer (onNavigate set) is exempt -- it only exists
+  // already-opened, so narrowing it further would just make it useless,
+  // exactly like classic's own exemption.
+  const [manualOverride, setManualOverride] = useState<"narrow" | "wide" | null>(null);
+  useEffect(() => { setManualOverride(null); }, [pathname]);
+  const narrowed = !onNavigate && (manualOverride ? manualOverride === "narrow" : isRecordDetailPath(pathname));
   // Spaces flyout: which category is open, and where its panel anchors
   // vertically (from the clicked button's own screen position).
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -236,7 +241,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
     setOpenGroup(g.key);
   }
 
-  if (isRecordPage && !pinnedOpen) {
+  if (narrowed) {
     return (
       <div style={{ width: 44, flexShrink: 0, height: "100%", position: "sticky", top: 0, background: "var(--nova-bg)", borderRight: "1px solid var(--nova-line)", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "16px 0" }}>
         <style>{`.nova-sb-narrow-btn:hover { background: rgba(255,255,255,0.08) !important; }`}</style>
@@ -249,7 +254,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
         </Link>
         <button
           type="button"
-          onClick={() => setPinnedOpen(true)}
+          onClick={() => setManualOverride("wide")}
           title="Show navigation"
           className="nova-sb-narrow-btn"
           style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 7, background: "transparent", border: "1px solid var(--nova-line)", color: "var(--nova-ink-faint)", cursor: "pointer" }}
@@ -311,22 +316,21 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
       <NovaHeader loaded={loaded} needCount={items.length} />
       <NovaCommandBar />
 
-      {/* Only reachable by pinning the nav open on a record page (see
-          isRecordPage above) -- lets it go back to narrow without having
-          to navigate away first. */}
-      {isRecordPage && pinnedOpen && (
-        <div style={{ padding: "0 16px 8px" }}>
-          <button
-            type="button"
-            onClick={() => setPinnedOpen(false)}
-            className="nova-sb-narrow-btn"
-            style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "6px 8px", borderRadius: 7, background: "transparent", border: "1px solid var(--nova-line)", color: "var(--nova-ink-faint)", cursor: "pointer", fontSize: 11.5 }}
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-            Narrow navigation
-          </button>
-        </div>
-      )}
+      {/* Always present, not conditional on the page -- this is the control
+          people actually look for (classic Sidebar's own collapse button
+          works the same way on every page). */}
+      <div style={{ padding: "0 16px 8px" }}>
+        <button
+          type="button"
+          onClick={() => setManualOverride("narrow")}
+          title="Narrow navigation"
+          className="nova-sb-narrow-btn"
+          style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "6px 8px", borderRadius: 7, background: "transparent", border: "1px solid var(--nova-line)", color: "var(--nova-ink-faint)", cursor: "pointer", fontSize: 11.5 }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          Narrow navigation
+        </button>
+      </div>
 
       {/* Spaces -- one bigger icon per main area (Sales, Service, Master
           data, Workforce, ...), where the flat 30-glyph grid used to be
