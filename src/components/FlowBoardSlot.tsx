@@ -2,18 +2,71 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useIsNextgen3Layer } from "@/lib/tenant-context";
+import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
 import FlowBoard from "@/components/FlowBoard";
 import QuoteLanes from "@/components/QuoteLanes";
 import QuoteField from "@/components/QuoteField";
 import QuoteListNova from "@/components/QuoteListNova";
 import NovaQueryBar from "@/components/NovaQueryBar";
+import ChartRenderer from "@/components/charts/ChartRenderer";
+import { normalizeReport, type ReportPayload } from "@/lib/reportView";
 import { parseQuoteQuery, tokensToFilter, filterToParams, matchesFilter, type QuoteToken } from "@/lib/quoteQuery";
 import type { QuoteSummary } from "@/lib/data";
 import type { QuoteStatusDef } from "@/lib/constants";
 
 type View = "field" | "list" | "lanes" | "board";
 const VIEWS: View[] = ["field", "list", "lanes", "board"];
+
+type AskState =
+  | { status: "loading"; question: string }
+  | { status: "ready"; question: string; payload: ReportPayload }
+  | { status: "declined"; question: string; reason: string }
+  | { status: "error"; question: string; message: string };
+
+/**
+ * "Ask AI" answer card -- see FlowBoardSlot's own doc comment and
+ * api/nova/quote-ask/route.ts for what this actually calls. Rendered
+ * between the query bar and the active view, so it's visible regardless
+ * of which tab (Field/Lanes/List/Flow board) is open -- it answers the
+ * question against the real dataset, not "whatever this view shows."
+ */
+function AskAIAnswer({ state, onClose }: { state: AskState; onClose: () => void }) {
+  return (
+    <div style={{
+      border: "1px solid rgba(240,169,59,.32)", borderRadius: "var(--nova-radius-card, 12px)",
+      background: "rgba(240,169,59,.06)", padding: "14px 16px", marginBottom: 18,
+    }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ fontFamily: "var(--nova-font-body)", fontSize: 11, color: "var(--nova-ink-faint)" }}>
+          ✨ Asked: “{state.question}”
+        </div>
+        <button
+          type="button" onClick={onClose}
+          style={{ border: "none", background: "none", color: "var(--nova-ink-faint)", cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}
+        >
+          ✕
+        </button>
+      </div>
+      {state.status === "loading" && (
+        <div style={{ marginTop: 8, fontSize: 13, color: "var(--nova-ink-dim)" }}>Thinking…</div>
+      )}
+      {state.status === "error" && (
+        <div style={{ marginTop: 8, fontSize: 13, color: "#E4634A" }}>{state.message}</div>
+      )}
+      {state.status === "declined" && (
+        <div style={{ marginTop: 8, fontSize: 13, color: "var(--nova-ink-dim)" }}>{state.reason}</div>
+      )}
+      {state.status === "ready" && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 14, color: "var(--nova-ink)", marginBottom: 10, fontWeight: 500 }}>
+            {state.payload.interpretation}
+          </div>
+          <ChartRenderer report={normalizeReport(state.payload)} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Nova gate for the Flow Board and Quote Lanes, both of which plot QUOTES
@@ -51,6 +104,16 @@ const VIEWS: View[] = ["field", "list", "lanes", "board"];
  * NovaQueryBar itself is object-agnostic (genericized 2026-09-01 when the
  * same treatment was ported to Cases -- see CaseBoardSlot.tsx) -- only
  * this file and lib/quoteQuery.ts know anything about quotes.
+ *
+ * "Ask AI" (owner request 2026-09-01, Quotations-only): a second, opt-in
+ * tier above the deterministic parser -- see NovaQueryBar's `onAskAI`
+ * prop and api/nova/quote-ask/route.ts. The token parser stays the
+ * instant path for a recognised phrase; this hands the full typed
+ * question to the same AI engine "Talk to data" uses (compileAndRun),
+ * scoped to the tenant's real quote data, for whatever the parser's
+ * small vocabulary can't express. Gated on the `ai_reports` feature flag
+ * (same one Talk to data uses) on top of the Nova gate -- a tenant
+ * without it simply doesn't see the button, not a dead 403 trigger.
  */
 export default function FlowBoardSlot({
   list, rows, quoteStatuses,
@@ -60,6 +123,26 @@ export default function FlowBoardSlot({
   quoteStatuses: QuoteStatusDef[];
 }) {
   const nova = useIsNextgen3Layer();
+  const aiReportsEnabled = useTenantFeature("ai_reports");
+  const [ask, setAsk] = useState<AskState | null>(null);
+  const askAI = async (question: string) => {
+    const q = question.trim();
+    if (!q) return;
+    setAsk({ status: "loading", question: q });
+    try {
+      const res = await fetch("/api/nova/quote-ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setAsk({ status: "error", question: q, message: json.error || "Couldn't ask that right now." }); return; }
+      if (json.status === "declined") { setAsk({ status: "declined", question: q, reason: json.reason || "Couldn't work that out." }); return; }
+      setAsk({ status: "ready", question: q, payload: json as ReportPayload });
+    } catch {
+      setAsk({ status: "error", question: q, message: "Couldn't reach the AI right now. Try again shortly." });
+    }
+  };
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -142,7 +225,10 @@ export default function FlowBoardSlot({
         right={switcher}
         noun="quotes"
         placeholder="Ask for what you want — e.g. drafts over ₹75,000 that haven't moved in a fortnight"
+        onAskAI={aiReportsEnabled ? askAI : undefined}
+        aiBusy={ask?.status === "loading"}
       />
+      {ask && <AskAIAnswer state={ask} onClose={() => setAsk(null)} />}
       {view === "board" ? <FlowBoard />
         : view === "lanes" ? <QuoteLanes filterQuery={filterQuery} />
         : view === "list" ? <QuoteListNova rows={filteredRows} quoteStatuses={quoteStatuses} />

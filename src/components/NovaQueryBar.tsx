@@ -16,9 +16,17 @@ import { useState } from "react";
  * Lives above the view switcher in the object's *BoardSlot wrapper, not
  * inside any one view, per the design's core rule: "filtering is not a
  * property of a view; it belongs to the page."
+ *
+ * `onAskAI` (owner request 2026-09-01, Quotations only for now) is a
+ * second, opt-in tier on top of the deterministic parser, not a
+ * replacement for it: the token parser stays the instant path for a
+ * recognised phrase, and this button/shortcut hands the FULL typed text
+ * to a real AI analysis call for whatever the parser's small vocabulary
+ * can't express. Omitted entirely (e.g. Cases today) means this bar
+ * behaves exactly as it always has.
  */
 export default function NovaQueryBar<Token extends { label: string }>({
-  tokens, leftover, matchingCount, totalCount, onCommit, onRemoveToken, right, placeholder, noun,
+  tokens, leftover, matchingCount, totalCount, onCommit, onRemoveToken, right, placeholder, noun, onAskAI, aiBusy,
 }: {
   tokens: Token[];
   leftover: string;
@@ -33,6 +41,13 @@ export default function NovaQueryBar<Token extends { label: string }>({
   placeholder: string;
   /** Plural noun for the count strip, e.g. "quotes" / "cases". */
   noun: string;
+  /** Opt-in only -- omit to keep this bar exactly the deterministic
+   *  filter-token parser (e.g. Cases today). When provided, a sparkle
+   *  button (and Cmd/Ctrl+Enter) sends the CURRENT typed text to a real
+   *  AI analysis call instead of/alongside the token parser -- see
+   *  FlowBoardSlot.tsx, the only caller that currently passes this. */
+  onAskAI?: (text: string) => void;
+  aiBusy?: boolean;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -48,6 +63,7 @@ export default function NovaQueryBar<Token extends { label: string }>({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key !== "Enter" || !draft.trim()) return;
+            if (onAskAI && (e.metaKey || e.ctrlKey)) { onAskAI(draft); return; }
             onCommit(draft);
             setDraft("");
           }}
@@ -57,6 +73,24 @@ export default function NovaQueryBar<Token extends { label: string }>({
             fontSize: 15, color: "var(--nova-ink)", fontFamily: "var(--nova-font-body)",
           }}
         />
+        {onAskAI && (
+          <button
+            type="button"
+            disabled={!draft.trim() || aiBusy}
+            onClick={() => onAskAI(draft)}
+            title="Ask AI to actually analyse this against the real data (⌘/Ctrl + ⏎)"
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              fontFamily: "var(--nova-font-body)", fontSize: 11.5, fontWeight: 600,
+              color: draft.trim() && !aiBusy ? "#F6C87E" : "var(--nova-ink-faint)",
+              background: "rgba(240,169,59,.10)", border: "1px solid rgba(240,169,59,.28)",
+              borderRadius: 7, padding: "5px 10px", cursor: draft.trim() && !aiBusy ? "pointer" : "not-allowed",
+              whiteSpace: "nowrap",
+            }}
+          >
+            ✨ {aiBusy ? "Thinking…" : "Ask AI"}
+          </button>
+        )}
         <span style={{ fontFamily: "var(--nova-font-body)", fontSize: 10.5, color: "var(--nova-ink-faint)", border: "1px solid var(--nova-line)", borderRadius: 5, padding: "2px 7px" }}>
           ⏎
         </span>
