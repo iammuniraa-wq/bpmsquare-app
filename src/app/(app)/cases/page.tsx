@@ -6,6 +6,7 @@ import { c, pillar } from "@/lib/theme";
 import PageHeader from "@/components/PageHeader";
 import { ROUTES } from "@/lib/constants";
 import CasesTable from "@/components/CasesTable";
+import CaseBoardSlot from "@/components/CaseBoardSlot";
 import BreakdownBar from "@/components/BreakdownBar";
 import { requireWorkcenterView } from "@/lib/permissions";
 import ListFilterBar from "@/components/ListFilterBar";
@@ -103,8 +104,8 @@ export default async function CasesPage({
       />
       <AdvancedFilterPanel object="case" />
 
-      {/* ── Table with adapt mode ────────────────────────────────────────── */}
-      <CasesTable rows={rows} q={q} filter={filter} />
+      {/* ── Table with adapt mode (Nova tenants get Field/Lanes/List instead) ── */}
+      <CaseBoardSlot list={<CasesTable rows={rows} q={q} filter={filter} />} rows={rows} />
     </>
   );
 }

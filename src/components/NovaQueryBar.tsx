@@ -1,31 +1,38 @@
 "use client";
 
 import { useState } from "react";
-import type { QuoteToken } from "@/lib/quoteQuery";
 
 /**
- * Nova — the query bar (fourth slice of the Quotations redesign, owner
- * discussion 2026-08-31). See lib/quoteQuery.ts for what it can and can't
- * parse, and why it's a deterministic fast-path rather than an LLM call.
+ * Nova — the query bar. Originally built as QuoteQueryBar for the
+ * Quotations redesign (owner discussion 2026-08-31); genericized when the
+ * same "ask, don't filter" treatment was ported to Cases (2026-09-01) so
+ * the second object reuses this component instead of forking a near-copy.
+ * It only ever renders a token's `.label` and reports counts/placeholder
+ * text via props -- no object-specific knowledge lives here. See
+ * lib/quoteQuery.ts / lib/caseQuery.ts for what each object's parser can
+ * and can't parse, and why each is a deterministic fast-path rather than
+ * an LLM call.
  *
- * Shared across List, Lanes, Field and (eventually) Flow board -- lives
- * above the view switcher in FlowBoardSlot, not inside any one view, per
- * the design's core rule: "filtering is not a property of a view; it
- * belongs to the page."
+ * Lives above the view switcher in the object's *BoardSlot wrapper, not
+ * inside any one view, per the design's core rule: "filtering is not a
+ * property of a view; it belongs to the page."
  */
-export default function QuoteQueryBar({
-  tokens, leftover, matchingCount, totalCount, onCommit, onRemoveToken, right,
+export default function NovaQueryBar<Token extends { label: string }>({
+  tokens, leftover, matchingCount, totalCount, onCommit, onRemoveToken, right, placeholder, noun,
 }: {
-  tokens: QuoteToken[];
+  tokens: Token[];
   leftover: string;
   matchingCount: number;
   totalCount: number;
   onCommit: (text: string) => void;
   onRemoveToken: (index: number) => void;
-  /** Rendered inline with the count strip -- FlowBoardSlot's view switcher
+  /** Rendered inline with the count strip -- the object's view switcher
    *  lives here instead of its own row, so the query bar's count line and
    *  the switcher share one row of vertical space, not two. */
   right?: React.ReactNode;
+  placeholder: string;
+  /** Plural noun for the count strip, e.g. "quotes" / "cases". */
+  noun: string;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -44,7 +51,7 @@ export default function QuoteQueryBar({
             onCommit(draft);
             setDraft("");
           }}
-          placeholder="Ask for what you want — e.g. drafts over ₹75,000 that haven't moved in a fortnight"
+          placeholder={placeholder}
           style={{
             flex: 1, border: "none", outline: "none", background: "transparent",
             fontSize: 15, color: "var(--nova-ink)", fontFamily: "var(--nova-font-body)",
@@ -99,7 +106,7 @@ export default function QuoteQueryBar({
             {matchingCount}
           </span>
           <span style={{ fontFamily: "var(--nova-font-body)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--nova-ink-faint)", marginLeft: 7 }}>
-            {tokens.length > 0 ? `of ${totalCount} quotes` : "quotes"}
+            {tokens.length > 0 ? `of ${totalCount} ${noun}` : noun}
           </span>
         </div>
         {right}
