@@ -7,6 +7,7 @@ import { getMonthlySummary, type EmployeeMonthSummary } from "@/lib/wfm/monthlyS
 import {
   MONTHLY_SUMMARY_COLUMNS, DAILY_DETAIL_COLUMNS,
   PAYROLL_SUMMARY_COLUMNS, PAYROLL_SUMMARY_TOTAL_FROM, PAYROLL_DAY_COLUMNS,
+  PAYROLL_DAY_SUM_COLUMNS,
 } from "@/lib/wfm/summaryExportTemplate";
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
@@ -90,6 +91,7 @@ function writePayrollSummary(
   rows: EmployeeMonthSummary[]
 ) {
   sheet.columns = PAYROLL_SUMMARY_COLUMNS.map((c) => ({ width: c.width }));
+  PAYROLL_SUMMARY_COLUMNS.forEach((c, i) => { if (c.numFmt) sheet.getColumn(i + 1).numFmt = c.numFmt; });
 
   const titleRow = sheet.addRow([`Monthly Payroll Summary — ${monthLabel(month)}`]);
   titleRow.font = { bold: true, size: 14 };
@@ -149,6 +151,7 @@ function writePayrollReport(
   timezone: string
 ) {
   sheet.columns = PAYROLL_DAY_COLUMNS.map((c) => ({ width: c.width }));
+  PAYROLL_DAY_COLUMNS.forEach((c, i) => { if (c.numFmt) sheet.getColumn(i + 1).numFmt = c.numFmt; });
   const width = PAYROLL_DAY_COLUMNS.length;
 
   const titleRow = sheet.addRow([`Employee-wise Attendance & Payroll Detail — ${monthLabel(month)}`]);
@@ -199,9 +202,11 @@ function writePayrollReport(
     }
     const lastDataRow = firstDataRow + days.length - 1;
 
-    // Break / Gross / Total Worked are columns 4, 5, 6 of PAYROLL_DAY_COLUMNS.
-    const subtotal: (string | { formula: string })[] = ["Employee Total", "", ""];
-    for (const col of [4, 5, 6]) {
+    const subtotal: (string | { formula: string })[] = ["Employee Total"];
+    // Pad up to the first summed column so the label and the sums line up
+    // regardless of how many leading text columns there are.
+    while (subtotal.length < PAYROLL_DAY_SUM_COLUMNS[0] - 1) subtotal.push("");
+    for (const col of PAYROLL_DAY_SUM_COLUMNS) {
       const letter = sheet.getColumn(col).letter;
       subtotal.push({ formula: `SUM(${letter}${firstDataRow}:${letter}${lastDataRow})` });
     }

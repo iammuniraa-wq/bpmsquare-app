@@ -11,6 +11,9 @@ export type SummaryColumn = {
   header: string;
   width: number;
   accessor: (row: EmployeeMonthSummary) => string | number;
+  /** Excel number format applied to the whole column. Used for the h:mm
+   * duration columns -- see `durationDays`. */
+  numFmt?: string;
 };
 
 export const MONTHLY_SUMMARY_COLUMNS: SummaryColumn[] = [
@@ -55,6 +58,16 @@ const hhmm = (iso: string, timezone: string) =>
 
 const hours = (minutes: number) => Math.round((minutes / 60) * 100) / 100;
 
+// Excel stores a duration as a fraction of a day. Paired with the DURATION_FMT
+// number format below, 779 minutes renders as "12:59" while remaining a real
+// number -- so the column still SUMs, unlike a "12h 59m" string would.
+const durationDays = (minutes: number) => minutes / 1440;
+
+// Square brackets on the hour let it exceed 24 and keep counting (a month
+// total of 375:25 rather than wrapping to 15:25), which plain "h:mm" would
+// silently get wrong.
+export const DURATION_FMT = "[h]:mm";
+
 function dayStatus(d: EmployeeDayRecord): string {
   if (d.holiday) return `Holiday — ${d.holiday}`;
   if (d.on_leave) return `Leave — ${d.on_leave.name}`;
@@ -70,6 +83,7 @@ export type DailyDetailColumn = {
   header: string;
   width: number;
   accessor: (ctx: DailyDetailContext) => string | number;
+  numFmt?: string;
 };
 
 export const DAILY_DETAIL_COLUMNS: DailyDetailColumn[] = [
@@ -138,7 +152,12 @@ export const PAYROLL_SUMMARY_COLUMNS: SummaryColumn[] = [
   { header: "Half-Day Deductions", width: 16, accessor: (r) => r.totals.half_day_deductions },
   { header: "Late Marks", width: 11, accessor: (r) => r.totals.late_marks },
   { header: "Incomplete Days", width: 14, accessor: (r) => r.totals.incomplete_days },
-  { header: "Total Worked Hours", width: 16, accessor: (r) => hours(r.totals.working_minutes) },
+  // Decimal for arithmetic, h:mm for humans. 12.98 hours reads as "almost 13
+  // and a bit" -- it is 12h 59m. The client asked why a day showed 12.98
+  // (2026-08-31); showing both units answers it permanently without changing
+  // a single figure.
+  { header: "Total Worked (hrs)", width: 16, accessor: (r) => hours(r.totals.working_minutes) },
+  { header: "Total Worked (h:mm)", width: 17, accessor: (r) => durationDays(r.totals.working_minutes), numFmt: DURATION_FMT },
   { header: "OT Hours", width: 10, accessor: (r) => hours(r.totals.ot_minutes) },
   { header: "OT Amount", width: 12, accessor: (r) => Math.round(r.totals.ot_amount * 100) / 100 },
 ];
@@ -165,12 +184,26 @@ export const PAYROLL_DAY_COLUMNS: DailyDetailColumn[] = [
     width: 10,
     accessor: ({ day, timezone }) => (day.last_out ? hhmm(day.last_out, timezone) : "—"),
   },
-  { header: "Break Hours", width: 12, accessor: ({ day }) => hours(day.break_minutes) },
-  { header: "Gross Hours", width: 12, accessor: ({ day }) => hours(day.gross_minutes) },
+  { header: "Break (hrs)", width: 11, accessor: ({ day }) => hours(day.break_minutes) },
+  { header: "Gross (hrs)", width: 11, accessor: ({ day }) => hours(day.gross_minutes) },
   {
-    header: "Total Worked",
-    width: 13,
+    header: "Total Worked (hrs)",
+    width: 16,
     accessor: ({ day, deductBreaks }) => hours(deductBreaks ? day.net_minutes : day.gross_minutes),
+  },
+  {
+    header: "Total Worked (h:mm)",
+    width: 17,
+    accessor: ({ day, deductBreaks }) => durationDays(deductBreaks ? day.net_minutes : day.gross_minutes),
+    numFmt: DURATION_FMT,
   },
   { header: "Status", width: 20, accessor: ({ day }) => dayStatus(day) },
 ];
+
+/** 1-based indexes of the columns a per-employee subtotal sums. Derived from
+ * the headers rather than hardcoded, so inserting a column can never silently
+ * make the subtotals sum the wrong thing. */
+export const PAYROLL_DAY_SUM_COLUMNS = PAYROLL_DAY_COLUMNS
+  .map((c, i) => ({ c, n: i + 1 }))
+  .filter(({ c }) => c.header.includes("(hrs)") || c.header.includes("(h:mm)"))
+  .map(({ n }) => n);
