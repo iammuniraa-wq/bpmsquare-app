@@ -18,6 +18,7 @@ function writeSection(sheet: ExcelJS.Worksheet, title: string, rows: EmployeeMon
   // auto-insert its own header row, which duplicated the explicit one added
   // below (the stray first row in every export until this fix).
   sheet.columns = MONTHLY_SUMMARY_COLUMNS.map((c) => ({ width: c.width }));
+  MONTHLY_SUMMARY_COLUMNS.forEach((c, i) => { if (c.numFmt) sheet.getColumn(i + 1).numFmt = c.numFmt; });
 
   const titleRow = sheet.addRow([title]);
   titleRow.font = { bold: true, size: 13 };
@@ -46,6 +47,7 @@ function writeDailyDetail(
   timezone: string
 ) {
   sheet.columns = DAILY_DETAIL_COLUMNS.map((c) => ({ width: c.width }));
+  DAILY_DETAIL_COLUMNS.forEach((c, i) => { if (c.numFmt) sheet.getColumn(i + 1).numFmt = c.numFmt; });
 
   const titleRow = sheet.addRow([title]);
   titleRow.font = { bold: true, size: 13 };
