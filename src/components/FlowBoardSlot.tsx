@@ -7,7 +7,7 @@ import FlowBoard from "@/components/FlowBoard";
 import QuoteLanes from "@/components/QuoteLanes";
 import QuoteField from "@/components/QuoteField";
 import QuoteListNova from "@/components/QuoteListNova";
-import QuoteQueryBar from "@/components/QuoteQueryBar";
+import NovaQueryBar from "@/components/NovaQueryBar";
 import { parseQuoteQuery, tokensToFilter, filterToParams, matchesFilter, type QuoteToken } from "@/lib/quoteQuery";
 import type { QuoteSummary } from "@/lib/data";
 import type { QuoteStatusDef } from "@/lib/constants";
@@ -40,13 +40,17 @@ const VIEWS: View[] = ["field", "list", "lanes", "board"];
  * every non-Nova tenant still renders unconditionally -- this only ever
  * substitutes it after the nova flag is already confirmed true.
  *
- * The query bar (fourth slice -- see QuoteQueryBar.tsx / lib/quoteQuery.ts)
+ * The query bar (fourth slice -- see NovaQueryBar.tsx / lib/quoteQuery.ts)
  * lives here, above the view switcher, not inside any one view -- "filtering
  * is not a property of a view; it belongs to the page." Tokens are seeded
  * once from `?q=` on mount and are independent state from then on (per
  * quoteQuery.ts's own doc comment); the resolved QuoteFilter is the single
  * shared source of truth, serialised as URL params for Lanes'/Field's own
  * fetches and applied directly to `rows` for List.
+ *
+ * NovaQueryBar itself is object-agnostic (genericized 2026-09-01 when the
+ * same treatment was ported to Cases -- see CaseBoardSlot.tsx) -- only
+ * this file and lib/quoteQuery.ts know anything about quotes.
  */
 export default function FlowBoardSlot({
   list, rows, quoteStatuses,
@@ -128,7 +132,7 @@ export default function FlowBoardSlot({
 
   return (
     <>
-      <QuoteQueryBar
+      <NovaQueryBar
         tokens={tokens}
         leftover={leftover}
         matchingCount={filteredRows.length}
@@ -136,6 +140,8 @@ export default function FlowBoardSlot({
         onCommit={commitQuery}
         onRemoveToken={removeToken}
         right={switcher}
+        noun="quotes"
+        placeholder="Ask for what you want — e.g. drafts over ₹75,000 that haven't moved in a fortnight"
       />
       {view === "board" ? <FlowBoard />
         : view === "lanes" ? <QuoteLanes filterQuery={filterQuery} />
