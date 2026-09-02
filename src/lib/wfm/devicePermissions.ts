@@ -112,3 +112,57 @@ export async function promptInstall(): Promise<boolean> {
   installListeners.forEach((fn) => fn());
   return choice.outcome === "accepted";
 }
+
+/**
+ * Turn a getUserMedia failure into something the person in front of the
+ * screen can act on.
+ *
+ * Every camera call site used to swallow the error and print one generic
+ * "camera blocked" line. That cost us a real support cycle on a Xiaomi/MIUI
+ * tablet (2026-09): face login AND the kiosk both failed, and the screen
+ * could not tell us whether the permission was denied, the camera was held
+ * by another app, or there was no camera at all -- three completely
+ * different fixes. The browser knew; we were throwing it away.
+ *
+ * MIUI is called out by name in the denied case on purpose: it gates the
+ * camera at the OS level ON TOP of Chrome's own permission, and when that
+ * outer gate is shut Chrome frequently never shows its prompt, so "allow it
+ * in the browser" is advice that cannot work.
+ */
+export function cameraSupported(): boolean {
+  return typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+}
+
+export function describeCameraError(e: unknown): string {
+  // Checked first: on an out-of-date browser the call throws before any
+  // permission is ever considered, so a permission-flavoured message would
+  // send someone digging through settings that were never the problem.
+  if (!cameraSupported()) {
+    return "This browser is too old to use the camera. Update Chrome from the Play Store, then reload this page.";
+  }
+  const name = (e as Error)?.name ?? "";
+  switch (name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return "Camera permission was refused. On Xiaomi/MIUI also check Settings → Apps → Chrome → Permissions → Camera, then reload this page.";
+    case "NotReadableError":
+    case "AbortError":
+      // Genuinely common: MIUI keeps a camera app resident, and Android
+      // hands the camera to one app at a time.
+      return "The camera is being used by another app. Close any camera or video app, then reload this page.";
+    case "NotFoundError":
+    case "OverconstrainedError":
+      return "No front camera was found on this device.";
+    case "TypeError":
+      // navigator.mediaDevices is undefined in two situations that look
+      // identical from here: an out-of-date browser, and a non-secure (http)
+      // origin. BOTH are named because guessing wrong wastes a support cycle
+      // -- and on a Xiaomi/MIUI tablet (2026-09) the real answer was the
+      // stale bundled Chrome, on a device that was otherwise brand new.
+      return "This browser can't use the camera. Update Chrome from the Play Store, reload, and make sure the address starts with https.";
+    default:
+      return name
+        ? `The camera could not be started (${name}). Reload the page and allow camera access.`
+        : "The camera could not be started. Reload the page and allow camera access.";
+  }
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
+import { describeCameraError } from "@/lib/wfm/devicePermissions";
 
 /**
  * "Sign in with face" for the login page (opt-in per tenant, client decision
@@ -39,8 +40,8 @@ export default function FaceLoginButton({ next }: { next: string }) {
           videoRef.current.play().catch(() => {});
         }
       }, 50);
-    } catch {
-      setError("Camera permission is required — allow camera access and try again.");
+    } catch (e) {
+      setError(describeCameraError(e));
       setOpen(true);
     }
   }

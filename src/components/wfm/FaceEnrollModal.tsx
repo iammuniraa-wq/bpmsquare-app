@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { describeCameraError } from "@/lib/wfm/devicePermissions";
 
 /**
  * Face enrollment — self-service from the employee's own login (primary
@@ -67,8 +68,8 @@ export default function FaceEnrollModal({
           videoRef.current.play().catch(() => {});
         }
       }, 50);
-    } catch {
-      setError("Camera permission is required — allow camera access and try again.");
+    } catch (e) {
+      setError(describeCameraError(e));
     }
   }
 

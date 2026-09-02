@@ -7,7 +7,7 @@ import DeviceSetupCard from "@/components/wfm/DeviceSetupCard";
 import FaceEnrollModal from "@/components/wfm/FaceEnrollModal";
 import DayColumn from "@/components/wfm/DayColumn";
 import { computeDayHours } from "@/lib/wfm/hours";
-import { geoPermissionState } from "@/lib/wfm/devicePermissions";
+import { geoPermissionState, describeCameraError } from "@/lib/wfm/devicePermissions";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { c, pillar, statusInk } from "@/lib/theme";
@@ -554,8 +554,8 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           videoRef.current.play().catch(() => {});
         }
       }, 50);
-    } catch {
-      setNotice({ tone: "err", text: "Camera permission is required to punch. Please allow camera access and try again." });
+    } catch (e) {
+      setNotice({ tone: "err", text: describeCameraError(e) });
     }
   }
 

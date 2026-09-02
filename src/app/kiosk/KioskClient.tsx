@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 
 const TOKEN_KEY = "bpm_kiosk_token";
+import { describeCameraError } from "@/lib/wfm/devicePermissions";
 const CHOICE_TIMEOUT_S = 12;
 
 const KIND_LABEL: Record<string, string> = {
@@ -69,8 +70,8 @@ export default function KioskClient() {
         videoRef.current.srcObject = stream;
         videoRef.current.play().catch(() => {});
       }
-    } catch {
-      setScreen({ s: "idle", info: "Camera blocked — allow camera access for this site, then reload." });
+    } catch (e) {
+      setScreen({ s: "idle", info: describeCameraError(e) });
     }
   }, []);
 
