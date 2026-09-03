@@ -89,20 +89,36 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // a guessed constant -- .doc-footer is position:fixed (see QuotePrint.tsx),
     // so it doesn't reserve its own space, and page.pdf()'s own `margin`
     // option below overrides the page's @page CSS entirely (Puppeteer
-    // ignores the CSS value once this is set), so a static number here was
-    // the ONLY thing controlling it. A tenant with a taller footer than
-    // whatever that number assumed (long address, several phone numbers, a
-    // tagline, email+website -- Vikas has all four) had its footer's top
-    // edge creep upward into the printable area and paint over whatever
-    // normal content sat just above it -- reported live as the signature
-    // block "getting overlapped and hidden". Measuring the real rendered
-    // height and reserving exactly that (+buffer) fixes it for every tenant,
-    // not just by widening the constant for this one.
-    const footerHeightMm = await page.evaluate(() => {
-      const el = document.querySelector<HTMLElement>(".doc-footer");
-      return el ? el.getBoundingClientRect().height / 96 * 25.4 : 0; // px -> mm at 96dpi
+    // ignores the CSS value once this is set).
+    //
+    // QuotePrint.tsx's own useEffect computes this exact number (footer
+    // height -> mm -> +buffer) and publishes it to
+    // document.documentElement.dataset.footerMarginMm -- read THAT instead
+    // of independently re-measuring the footer here. An earlier version of
+    // this route did its own separate getBoundingClientRect() call, and a
+    // real client report ("Print / Save PDF (browser)" -- which uses the
+    // client's computed value directly as CSS -- came out correct, but
+    // "Download PDF" via this route still showed the signature overlapping
+    // the footer) confirmed the two independent computations, taken at
+    // different points in the page's lifecycle, can drift apart. Waiting
+    // for and reusing the client's own published value guarantees this
+    // route produces byte-for-byte the same margin the browser print path
+    // already proved correct. Falls back to a direct measurement only if
+    // the attribute never appears (JS error, timeout) -- never a silent
+    // regression to the old flat constant.
+    await page.waitForFunction(
+      () => document.documentElement.dataset.footerMarginMm != null,
+      { timeout: 5000 }
+    ).catch(() => {});
+    const publishedMarginMm = await page.evaluate(() => {
+      const v = document.documentElement.dataset.footerMarginMm;
+      return v ? Number(v) : null;
     });
-    const bottomMarginMm = Math.min(60, Math.max(20, Math.ceil(footerHeightMm) + 10));
+    const bottomMarginMm = publishedMarginMm ?? await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>(".doc-footer");
+      const heightMm = el ? el.getBoundingClientRect().height / 96 * 25.4 : 0;
+      return Math.min(60, Math.max(20, Math.ceil(heightMm) + 10));
+    });
 
     const pdf = await page.pdf({
       format: "A4",

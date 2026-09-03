@@ -43,6 +43,18 @@ export default function QuotePrint(props: Props) {
   // widening the reserved margin to match, per tenant, instead of guessing
   // one fixed number for everyone. A ResizeObserver keeps it correct if the
   // footer's height changes after an image finishes loading late.
+  //
+  // This is the ONE place that number gets computed. Client-reported live:
+  // "Print / Save PDF (browser)" (which uses this value directly, since it's
+  // the CSS @page margin the live, already-hydrated page is printing) came
+  // out correct, but "Download PDF" (server Puppeteer, which used to
+  // independently RE-measure the footer and recompute its own copy of this
+  // same number) still showed the overlap -- two separate computations of
+  // the "same" value, taken at two different points in the page's
+  // lifecycle, drifting apart. Fixed by making this the single source of
+  // truth: the computed value is published to a data-attribute the PDF
+  // routes explicitly wait for and read (see quotes/[id]/pdf/route.ts and
+  // pdf-public/[token]/route.ts) instead of re-deriving their own answer.
   useEffect(() => {
     const footer = document.querySelector<HTMLElement>(".doc-footer");
     if (!footer) return;
@@ -55,14 +67,14 @@ export default function QuotePrint(props: Props) {
     const apply = () => {
       const heightMm = footer.getBoundingClientRect().height / 96 * 25.4; // px -> mm at 96dpi
       const marginMm = Math.min(60, Math.max(20, Math.ceil(heightMm) + 10)); // safety buffer
-      // Same reserved-space number drives both: the print @page margin
-      // (window.print()/Ctrl+P -- the Puppeteer routes compute their own
-      // copy, see those files) AND the screen preview's simulated page
-      // height (below), so the on-screen gap always matches what will
-      // actually print, for this tenant's own footer, not a guessed one.
+      // Same reserved-space number drives all three consumers: the print
+      // @page margin (window.print()/Ctrl+P, applied directly below), the
+      // screen preview's simulated page height (also below), and the two
+      // PDF routes (via the data-attribute, not a re-measurement).
       styleEl!.textContent =
         `@media print { @page { margin-bottom: ${marginMm}mm; } }` +
         `@media screen { .doc { min-height: calc(297mm - 12mm - ${marginMm}mm); } }`;
+      document.documentElement.dataset.footerMarginMm = String(marginMm);
     };
     apply();
     const observer = new ResizeObserver(apply);

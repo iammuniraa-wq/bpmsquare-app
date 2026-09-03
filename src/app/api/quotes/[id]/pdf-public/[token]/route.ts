@@ -63,14 +63,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Reserve exactly as much bottom margin as THIS tenant's footer actually
     // needs -- see the matching comment in ../[id]/pdf/route.ts for why a
-    // fixed constant here caused a real bug (a tall footer's position:fixed
-    // top edge overlapping/hiding the signature block on tenants with more
-    // footer content than whatever number this used to assume).
-    const footerHeightMm = await page.evaluate(() => {
-      const el = document.querySelector<HTMLElement>(".doc-footer");
-      return el ? el.getBoundingClientRect().height / 96 * 25.4 : 0;
+    // fixed constant here caused a real bug, and why this reads the value
+    // QuotePrint.tsx's own useEffect already computed and published to
+    // document.documentElement.dataset.footerMarginMm instead of
+    // independently re-measuring the footer (two separate computations at
+    // different points in the page's lifecycle were confirmed to drift
+    // apart in production).
+    await page.waitForFunction(
+      () => document.documentElement.dataset.footerMarginMm != null,
+      { timeout: 5000 }
+    ).catch(() => {});
+    const publishedMarginMm = await page.evaluate(() => {
+      const v = document.documentElement.dataset.footerMarginMm;
+      return v ? Number(v) : null;
     });
-    const bottomMarginMm = Math.min(60, Math.max(20, Math.ceil(footerHeightMm) + 10));
+    const bottomMarginMm = publishedMarginMm ?? await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>(".doc-footer");
+      const heightMm = el ? el.getBoundingClientRect().height / 96 * 25.4 : 0;
+      return Math.min(60, Math.max(20, Math.ceil(heightMm) + 10));
+    });
 
     const pdf = await page.pdf({
       format: "A4",
