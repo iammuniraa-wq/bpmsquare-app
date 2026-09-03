@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, requireWfmSupervisor } from "@/lib/wfm/server";
+import { tenantHasFeature } from "@/lib/tenant";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_BULK_DATES = 62;
@@ -49,7 +50,29 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+
+  // Project attribution (0104) is fetched SEPARATELY rather than joined into
+  // the query above, so a tenant whose database hasn't had 0104 applied yet
+  // still gets a working roster instead of a 42703 on a column that doesn't
+  // exist. The roster is a live screen for existing WFM clients -- it must
+  // not depend on a migration the owner runs by hand.
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
+  if (rows.length > 0 && (await tenantHasFeature(supabase, tenantId, "wfm_projects"))) {
+    const { data: projects } = await supabase
+      .from("wfm_roster_assignments")
+      .select("id, project_id, wfm_projects(name)")
+      .eq("tenant_id", tenantId)
+      .in("id", rows.map((r) => r.id as string));
+    const byId = new Map((projects ?? []).map((p) => [p.id as string, p]));
+    for (const row of rows) {
+      const p = byId.get(row.id as string);
+      const project = p?.wfm_projects as { name?: string } | { name?: string }[] | null | undefined;
+      row.project_id = p?.project_id ?? null;
+      row.project_name = (Array.isArray(project) ? project[0]?.name : project?.name) ?? null;
+    }
+  }
+
+  return NextResponse.json(rows);
 }
 
 // POST /api/wfm/roster — supervisor/admin assigns (or clears) a shift for
@@ -68,9 +91,9 @@ export async function POST(request: NextRequest) {
   const { tenantId, userId } = ctx;
 
   const body = await request.json().catch(() => null);
-  const { employee_ids, dates, shift_id, site_id, is_day_off, note } = (body ?? {}) as {
+  const { employee_ids, dates, shift_id, site_id, project_id, is_day_off, note } = (body ?? {}) as {
     employee_ids?: string[]; dates?: string[]; shift_id?: string | null; site_id?: string | null;
-    is_day_off?: boolean; note?: string;
+    project_id?: string | null; is_day_off?: boolean; note?: string;
   };
 
   if (!Array.isArray(employee_ids) || employee_ids.length === 0) {
@@ -111,6 +134,15 @@ export async function POST(request: NextRequest) {
       .from("wfm_sites").select("id").eq("id", site_id).eq("tenant_id", tenantId).maybeSingle();
     if (!site) return NextResponse.json({ error: "Unknown site" }, { status: 400 });
   }
+  // Tenant-verified like every other foreign id from a request body. Only
+  // accepted when the tenant actually has project costing, so a stray field
+  // can't write attribution into a tenant that doesn't use it.
+  const projectsOn = await tenantHasFeature(ctx.supabase, tenantId, "wfm_projects");
+  if (project_id && projectsOn) {
+    const { data: project } = await admin
+      .from("wfm_projects").select("id").eq("id", project_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!project) return NextResponse.json({ error: "Unknown project" }, { status: 400 });
+  }
 
   const rows = employee_ids.flatMap((employee_id) =>
     dates.map((date) => ({
@@ -119,6 +151,8 @@ export async function POST(request: NextRequest) {
       date,
       shift_id: is_day_off ? null : shift_id,
       site_id: site_id || null,
+      // A day off has no work to attribute, so it never carries a project.
+      ...(projectsOn ? { project_id: is_day_off ? null : project_id || null } : {}),
       is_day_off: is_day_off === true,
       note: note?.trim() || null,
       created_by: userId,

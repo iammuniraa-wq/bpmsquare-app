@@ -9,6 +9,7 @@ import {
   type PresenceKind, type WfmSite,
 } from "@/lib/wfm/types";
 import { computeDayHours, shiftDayKey, punchStateAt } from "@/lib/wfm/hours";
+import { resolveProjectForPunch } from "@/lib/wfm/projectServer";
 
 const KINDS: PresenceKind[] = [
   "check_in", "check_out", "break_start", "break_end",
@@ -205,6 +206,16 @@ export async function POST(request: NextRequest) {
   // control would be worse than recording an unreliable pin.
   if (accuracy != null && accuracy > LOW_ACCURACY_THRESHOLD_M) flags.low_accuracy = true;
 
+  // Project costing (0104): stamped at insert, never recomputed on read, so
+  // editing a roster row tomorrow cannot move yesterday's hours. Resolves to
+  // null (unassigned) rather than failing -- attendance must never depend on
+  // a costing lookup succeeding. See WFM_PROJECT_COSTING.md §4.
+  const projectId = await resolveProjectForPunch(
+    admin, tenantId, employee.id,
+    shiftDayKey(tsDate, config.timezone, shift),
+    within ? site!.id : null
+  );
+
   const { data: event, error } = await admin
     .from("wfm_presence_events")
     .insert({
@@ -215,6 +226,7 @@ export async function POST(request: NextRequest) {
       kind,
       source: "web_selfie",
       site_id: within ? site!.id : null,
+      project_id: projectId,
       geo_lat: lat,
       geo_lng: lng,
       geo_accuracy_m: accuracy,

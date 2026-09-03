@@ -127,7 +127,7 @@ describe("workSessions", () => {
   it("an unclosed final session has a null out", () => {
     const sessions = workSessions([{ kind: "check_in", ts: T(10) }], end);
     expect(sessions).toEqual([
-      { in: T(10), out: null, gross_minutes: 10, break_minutes: 0, net_minutes: 10, breaks: [] },
+      { in: T(10), out: null, gross_minutes: 10, break_minutes: 0, net_minutes: 10, breaks: [], project_id: null },
     ]);
   });
 

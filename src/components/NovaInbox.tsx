@@ -22,6 +22,7 @@ type Item = {
 const ROUTE_FOR: Record<string, (id: string) => string> = {
   quotes: ROUTES.quotation, accounts: ROUTES.account, contacts: ROUTES.contact,
   products: ROUTES.product, suppliers: ROUTES.supplier,
+  wfm_projects: ROUTES.wfmProject,
 };
 
 const fmtWhen = (iso: string) => {

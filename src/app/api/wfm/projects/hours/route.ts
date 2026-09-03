@@ -1,0 +1,104 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
+import { resolveWfmScope } from "@/lib/wfm/scope";
+import { workSessions } from "@/lib/wfm/hours";
+import { rollUpProjectHours, projectHeadcount, UNASSIGNED, type SessionsForEmployee } from "@/lib/wfm/projectHours";
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_DAYS = 366;
+
+// GET /api/wfm/projects/hours?from=&to=[&project_id=] — worked hours rolled
+// up per project for a date window. The point of the whole capability: where
+// did the time go, and how much of it nobody attributed.
+export async function GET(request: NextRequest) {
+  let ctx;
+  try {
+    ctx = await requireWfmSupervisor({ feature: "wfm_projects" });
+  } catch (e: unknown) {
+    const err = e as { status: number; message: string };
+    return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  const { tenantId } = ctx;
+
+  const from = request.nextUrl.searchParams.get("from");
+  const to = request.nextUrl.searchParams.get("to");
+  if (!from || !DATE_RE.test(from) || !to || !DATE_RE.test(to)) {
+    return NextResponse.json({ error: "from and to (YYYY-MM-DD) are required" }, { status: 400 });
+  }
+  if (to < from) return NextResponse.json({ error: "to must be on or after from" }, { status: 400 });
+  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
+  if (days > MAX_DAYS) {
+    return NextResponse.json({ error: `Pick a window of ${MAX_DAYS} days or fewer` }, { status: 400 });
+  }
+
+  const admin = createAdminSupabase();
+  const config = await getWfmConfig(admin, tenantId);
+
+  // A supervisor sees their own subtree only, same boundary as every other
+  // WFM read (/api/wfm/presence, live board). Project totals are not a
+  // loophole around it.
+  const scope = await resolveWfmScope(ctx);
+
+  let eventsQuery = admin
+    .from("wfm_presence_events")
+    .select("employee_id, kind, ts, project_id")
+    .eq("tenant_id", tenantId)
+    .is("superseded_by", null)
+    // Padded a day either side so a night shift's punches around midnight are
+    // included; the session split itself handles the attribution.
+    .gte("ts", `${from}T00:00:00Z`)
+    .lt("ts", new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString())
+    .order("ts", { ascending: true });
+
+  if (!scope.unrestricted) {
+    const ids = scope.employeeIds ?? [];
+    if (ids.length === 0) return NextResponse.json({ rows: [], projects: {} });
+    eventsQuery = eventsQuery.in("employee_id", ids);
+  }
+
+  const { data: events, error } = await eventsQuery;
+  if (error) {
+    // 42P01/42703 = 0104 not applied yet (§3b: degrade, never crash).
+    if (error.code === "42P01" || error.code === "42703") {
+      return NextResponse.json({ rows: [], projects: {}, pending_migration: true });
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const byEmployee = new Map<string, { kind: string; ts: string; project_id: string | null }[]>();
+  for (const e of events ?? []) {
+    const id = e.employee_id as string;
+    byEmployee.set(id, [...(byEmployee.get(id) ?? []), e as never]);
+  }
+
+  const endRef = new Date();
+  const input: SessionsForEmployee[] = [...byEmployee].map(([employee_id, evs]) => ({
+    employee_id,
+    sessions: workSessions(evs as never, endRef),
+  }));
+
+  let rows = rollUpProjectHours(input, config.deduct_breaks);
+  const heads = projectHeadcount(input);
+
+  const projectId = request.nextUrl.searchParams.get("project_id");
+  if (projectId) rows = rows.filter((r) => r.key === projectId);
+
+  // Names resolved in one query, not per row.
+  const ids = rows.map((r) => r.key).filter((k) => k !== UNASSIGNED);
+  const names: Record<string, { name: string; ref: string | null; status: string }> = {};
+  if (ids.length > 0) {
+    const { data: projects } = await admin
+      .from("wfm_projects").select("id, name, ref, status").eq("tenant_id", tenantId).in("id", ids);
+    for (const p of projects ?? []) {
+      names[p.id as string] = { name: p.name as string, ref: p.ref as string | null, status: p.status as string };
+    }
+  }
+
+  return NextResponse.json({
+    from, to,
+    deduct_breaks: config.deduct_breaks,
+    rows: rows.map((r) => ({ ...r, employees: heads.get(r.key) ?? 0 })),
+    projects: names,
+  });
+}

@@ -140,6 +140,9 @@ export const ROUTES = {
   wfmEmployee: (id: string) => `/wfm/employees/${id}`,
   wfmCorrections: "/wfm/corrections",
   wfmRoster: "/wfm/roster",
+  wfmProjects: "/wfm/projects",
+  wfmProject: (id: string) => `/wfm/projects/${id}`,
+  wfmProjectNew: "/wfm/projects/new",
   wfmLeave: "/wfm/leave",
   wfmSummary: "/wfm/summary",
   settingsWorkforce: "/settings/workforce",
@@ -270,6 +273,9 @@ export const NAV: NavGroup[] = [
           { label: "Employees",    href: ROUTES.wfmEmployees,   icon: "⚇", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Corrections", href: ROUTES.wfmCorrections, icon: "✓", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Roster", href: ROUTES.wfmRoster, icon: "▦", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          // Project costing carries its OWN featureKey, so an attendance-only
+          // tenant with `wfm` never sees it (WFM_PROJECT_COSTING.md §8).
+          { label: "Projects", href: ROUTES.wfmProjects, icon: "◱", pillar: "amber", featureKey: "wfm_projects", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Leave & Holidays", href: ROUTES.wfmLeave, icon: "☀", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Time Summary", href: ROUTES.wfmSummary, icon: "▤", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
         ],
@@ -428,6 +434,14 @@ export type TenantFeatures = {
   gmail_reply_threading: boolean;
   quote_lines_dw: boolean;
   wfm: boolean;
+  // Project costing inside WFM (0104, WFM_PROJECT_COSTING.md). A SEPARATE
+  // flag from `wfm` on purpose: attendance-only tenants must not gain a
+  // project dropdown, a projects screen or a project column on the summary
+  // just because they bought WFM. Missing key reads false; level 1
+  // (attribution — hours per project, no money anywhere) is all this flag
+  // turns on. Cost rates, rate cards and client approval are later levels
+  // with their own flags.
+  wfm_projects: boolean;
   // Core-module subscription flags (0067). Every nav item now carries one,
   // so a tenant only sees the modules they actually bought -- previously
   // these twelve were ungated and shown to everyone regardless. A MISSING

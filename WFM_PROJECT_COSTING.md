@@ -1,0 +1,200 @@
+# WFM Project Costing — Architecture
+
+> Design gate for the Project Costing capability in WFM. Written 2026-09-03
+> after a research pass over SAP CATS, UKG/Kronos, ADP, Workday, Zoho
+> Projects, busybusy and ClockShark, plus GCC (UAE/KSA) manpower-supply
+> practice. **Read this before touching the schema** — several of the
+> decisions below are cheap now and a rewrite later.
+
+Status: v1.0 — approved by the owner 2026-09-03, build started same day.
+
+---
+
+## 1. What this is
+
+Attribute worked hours to a **project** so a tenant can answer "how many
+hours went into this job, and what did it cost". The industry name is
+**project costing** (field/construction vernacular: *job costing*;
+payroll-accounting vernacular: *labour distribution*).
+
+The first tenant is BIM Infotech — attendance only, no Service Cloud, no
+billing. The design has to serve them without exposing a single field they
+don't need, while not foreclosing the GCC manpower-supply model where the
+same mechanism is the entire business.
+
+## 2. The finding that shaped the design
+
+The obvious approach — *link a project to a site, derive hours from punches
+inside its geofence* — is not how any system does it, including the two
+that are GPS-native.
+
+busybusy and ClockShark have our exact setup (geofenced sites, punch on
+arrival) and in both the geofence only **verifies presence** — "onsite
+verification", clock-in refused outside the fence. The **job and cost code
+are declared**: picked by the employee or pre-assigned by a supervisor.
+
+> Location proves *where*. It never answers *what for*.
+
+Three concrete reasons site-derivation fails:
+
+1. Two projects can run at one site at once — punches can't be split.
+2. One project can span several sites — its hours scatter.
+3. Sites are permanent; projects start and end. If the project link lives on
+   the site row, editing it **silently re-attributes every historical
+   punch** and last quarter's cost changes. Same principle as
+   bpmsquarecore.md §3: cost data is stamped at the time of the event, never
+   derived at read time from a mutable parent.
+
+## 3. How the reference systems work
+
+| System | Cost object | Attribution |
+|---|---|---|
+| SAP CATS | Project → WBS element (n levels) → network activity | Booked against a WBS element; approval required, then CAT7 posts to Controlling |
+| UKG/Kronos | Up to 7 *labor levels* | Every punch carries labor-level entries; mid-shift switch = *labor level transfer* |
+| ADP | Department → Job → Work order/task (*labor charge fields*) | Codes on the timecard; department transfers mid-shift |
+| busybusy / ClockShark | Project → cost code (phase/activity) | Clock into job + cost code; switchable mid-shift; supervisors pre-assign |
+| Workday | Project *worktags* on time entry | Worktags required/optional per config |
+| Zoho Projects | Project → milestone → task | Manual time logs; `actual cost = logged hours × rate` |
+
+Five mechanics they share, and what we take from each:
+
+1. **The cost object is a hierarchy, never flat.** Everyone has 2–4 levels.
+   → We ship one level (project) but the table carries `parent_id` so a
+   phase/cost-code level costs a column, not a migration of history.
+2. **Attribution is declared, not inferred.** → §4.
+3. **Mid-shift transfer is normal, not an edge case.** → §5.
+4. **Two rates: cost vs bill.** → §7, deferred but not foreclosed.
+5. **Approval gates costing.** SAP won't post unapproved time. → §7.
+
+## 4. Attribution — how a punch gets a project
+
+Our workforce punches at a kiosk; they do not fill timesheets and will not
+reliably pick a project on a tablet. So attribution is **pre-assigned by the
+supervisor**, which is also what busybusy does ("assign employees to cost
+codes, projects and equipment").
+
+`wfm_roster_assignments` is already unique per `(tenant_id, employee_id,
+date)` and already carries `site_id` — it is the natural carrier. Adding
+`project_id` there is one column and one dropdown on a screen that exists.
+
+Resolution order at punch time, first hit wins:
+
+1. **Roster** — the employee's roster row for that shift-day has a project.
+2. **Site default** — the site has exactly *one* active project on that date
+   (via the date-effective link in §6). Unambiguous, so auto-assign it.
+   This is the case BIM is in, and it costs them zero configuration.
+3. **Unassigned** — `null`. A real, reportable state (see §8), never an
+   error and never a blocked punch.
+
+The resolved project is **stamped onto the presence event** at insert time
+and never recomputed. Changing a roster row tomorrow does not move
+yesterday's hours.
+
+## 5. Granularity — per punch, not per day
+
+`project_id` goes on `wfm_presence_events`, not on a day record.
+
+`workSessions()` already splits a day into check-in→check-out stretches
+(a day legitimately has several). If each session inherits the project of
+its own `check_in`, then **mid-shift transfer is already supported** by the
+data model: punch out of project A, punch in to project B. We are not
+building the transfer UI in v1, but nothing in the schema prevents it.
+
+Putting `project_id` on a day-level record would make transfer a rewrite
+rather than a feature. This is the single most important shape decision here.
+
+## 6. Project ↔ site is many-to-many and date-effective
+
+`wfm_project_sites (project_id, site_id, from_date, to_date)`. Not a column
+on either table. `to_date is null` means open-ended.
+
+This is what makes the §4 rule-2 fallback safe: "the site's sole active
+project **on that date**" is a question you can only ask of a date-effective
+link. With a scalar column it silently becomes "the site's project *now*",
+which is the historical-re-attribution bug in a different costume.
+
+## 7. GCC readiness — what we decide now vs defer
+
+The GCC manpower-supply model (agency is the legal employer; workers
+deployed to client sites; billed per man-hour against a contracted rate
+card) makes the timesheet the primary financial document rather than a
+management report. Fully-loaded cost there is salary **plus** visa &
+mobilisation, accommodation, transport, medical insurance, leave pay + air
+ticket provision, and EOSB/gratuity accrual.
+
+**Decided now** (cheap now, expensive later):
+
+- **No scalar `cost_rate_per_hour` column on `employees`.** When rates land
+  they are a record with components and an effective date. A scalar column
+  cannot become a loaded rate without rewriting every historical posting.
+- **Bill rate belongs to the project's rate card, not the employee.** Each
+  client contract has its own rates including separate OT and holiday rates.
+  Employee-level bill rate works until the second contract.
+- **The approval model leaves room for a third party.** GCC invoicing needs
+  a *client*-approved timesheet; ours is supervisor-only. We already have
+  signed no-login link machinery (public quote PDF, campaign-interest) that
+  would serve a client approval link — just don't build approval so a third
+  approver is impossible.
+
+**Deliberately deferred** — real, but separate features, not this one:
+
+- WPS payroll export (UAE pipe-delimited SIF via bank; KSA Mudad XML). The
+  export layer is already template-driven (`summaryExportTemplate.ts`), so
+  it slots in without touching this.
+- OT multipliers with time-of-day banding (UAE 125%, 150% for 22:00–04:00,
+  excluded for shift workers normally scheduled then; KSA hourly + 50%) and
+  the Ramadan reduced-standard-day calendar (UAE 8h→6h; KSA 6h/36h). These
+  are hours-engine changes and must be per-tenant **config**, never
+  `if (country === "AE")` — bpmsquarecore.md §1.
+- Gratuity/EOSB accrual. Feeds loaded cost; not part of attribution.
+
+## 8. Configurability — nobody is forced into any of it
+
+Layered, so a tenant only meets the depth they bought:
+
+| Level | Adds | Flag |
+|---|---|---|
+| 1 | Attribution — hours per project. No money anywhere. | `wfm_projects` |
+| 2 | Cost rates → cost per project | *(later)* |
+| 3 | Rate card → revenue, margin, utilisation | *(later)* |
+| 4 | Client approval → invoice-ready timesheets | *(later)* |
+
+`features.wfm_projects` is off by default, missing key reads false. A tenant
+without it gets **no nav item, no tab, no column, no API** — absent, not
+greyed out. Disabled-and-visible is how a simple product starts feeling
+heavy.
+
+BIM runs at level 1: one dropdown on the roster, one column on the summary,
+one new screen. They never see a rate field.
+
+**Unassigned is a first-class state, not a null hole.** Utilisation
+(billable ÷ available hours) is the headline metric in manpower supply and
+needs a bench concept; making it real from the start costs nothing.
+
+## 9. Schema (migration 0104)
+
+```
+wfm_projects          id, tenant_id, ref (PRJ-####), name, code, parent_id,
+                      account_id?, status, start_date, end_date,
+                      budget_hours, custom_data, created_at, updated_at
+wfm_project_sites     id, tenant_id, project_id, site_id, from_date, to_date
+wfm_roster_assignments  + project_id
+wfm_presence_events     + project_id      ← stamped, never recomputed
+```
+
+**RLS follows the WFM convention, not the standard one**: tenant-scoped
+`select` only, no insert/update/delete policy, every write through the
+service-role client behind an app-level role check. Per
+MULTI_TENANT_GUARDRAILS.md — a table that drives cost or billing is
+something a user has an incentive to forge, so `for all` is the wrong
+default here even though `products` (ordinary master data) uses it. This is
+the `wfm_ot_sessions` lesson (0077 → 0078) applied up front.
+
+`account_id` is nullable and optional — the Sales link that gives
+quoted-vs-actual margin for tenants who have Sales Cloud. BIM leaves it
+empty and never sees it.
+
+## 10. Build scope — §3b surfaces
+
+Per bpmsquarecore.md §3b, "build X" means build X on every surface. Tracked
+in the commit; deliberate skips stated explicitly rather than left silent.

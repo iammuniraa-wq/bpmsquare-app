@@ -406,6 +406,18 @@ deploy for an automatic schema change.
   time. Until this runs, saving/pinning a report degrades cleanly (42P01 →
   save fails with a clear error, asking still works and just can't persist)
   behind the `ai_reports` feature flag, which no tenant has yet.
+- **0104_wfm_projects.sql — PENDING on both DBs** (written 2026-09-03,
+  owner approved the design same day — see `WFM_PROJECT_COSTING.md`): WFM
+  Project Costing level 1 (attribution only, no money). Adds `wfm_projects`
+  + `wfm_project_sites` (both WFM-convention RLS: tenant SELECT only, no
+  write policy — a table driving cost is one users have an incentive to
+  forge), plus `project_id` on `wfm_roster_assignments` and
+  `wfm_presence_events`. Until it runs, everything degrades cleanly: the
+  Projects screen shows a "migration not run" note, the roster loses only
+  its project column, punches stamp nothing, and no existing WFM screen
+  changes. Gated by `features.wfm_projects`, which no tenant has yet — so
+  running the SQL alone changes nothing visible until the flag is set in
+  /admin/tenants.
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;
