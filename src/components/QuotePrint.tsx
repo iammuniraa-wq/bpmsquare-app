@@ -78,6 +78,27 @@ export default function QuotePrint(props: Props) {
         .doc { background: #fff; max-width: 800px; margin: 0 auto; }
         table { border-collapse: collapse; width: 100%; }
         td, th { vertical-align: top; }
+        /* Screen-only WYSIWYG fix (client-reported: "the PDF looks different
+           from the screen"). .doc-footer only becomes a page-bottom-pinned
+           running footer under @media print (above) -- on a short quote, the
+           on-screen view showed the footer flowing right after the content
+           (compact, no gap) while the printed/PDF page showed it pinned to
+           the bottom of the full A4 sheet, leaving a big blank gap the
+           screen never warned anyone about. Rather than touch the print
+           layout (which is print's own carefully-tuned position:fixed
+           running-footer fix for VIK-12 -- do not revert), this makes the
+           SCREEN preview simulate one physical A4 page (297mm minus the
+           12mm+20mm @page top/bottom margins the PDF route also uses) and
+           pushes the footer to the bottom of that page via flex, so any
+           gap is visible on screen before you print, not a surprise after.
+           Deliberately scoped to the single-page case -- a quote long
+           enough to genuinely paginate on print still just flows normally
+           here rather than attempting true multi-page pagination in a
+           scrolling browser view, which this isn't trying to solve. */
+        @media screen {
+          .doc { display: flex; flex-direction: column; min-height: 265mm; box-shadow: 0 1px 4px rgba(21,34,51,.18); }
+          .doc-footer { margin-top: auto; }
+        }
       `}</style>
 
       {/* Screen-only toolbar */}
