@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import QuotePrintDocument, { type QuotePrintDocumentProps } from "./QuotePrintDocument";
 import EmailComposeModal from "./EmailComposeModal";
 import { MessageSquare } from "@/components/Icons";
@@ -32,6 +32,44 @@ export default function QuotePrint(props: Props) {
   const waPhone = sanitizePhoneForWhatsApp(contact?.phone || contact?.phone2 || contact?.phone3 || account?.phone || account?.phone2);
   const waLink = waPhone ? buildWhatsAppLink(waPhone, buildQuoteWhatsAppMessage({ ...emailVars, pdfLink: publicPdfLink })) : null;
 
+  // The static 20mm @page bottom margin below assumes a footer that fits in
+  // 20mm -- true for a short one-line footer, but Vikas' real footer (a long
+  // wrapped address, four phone numbers, a tagline, an email/website row) is
+  // taller than that. Since .doc-footer is position:fixed under print (it
+  // doesn't reserve its own space), a footer taller than the reserved margin
+  // creeps upward and paints OVER whatever normal content sits just above it
+  // on the page -- reported live as "the signature is getting overlapped and
+  // hidden". Fixed by measuring the ACTUAL rendered footer height and
+  // widening the reserved margin to match, per tenant, instead of guessing
+  // one fixed number for everyone. A ResizeObserver keeps it correct if the
+  // footer's height changes after an image finishes loading late.
+  useEffect(() => {
+    const footer = document.querySelector<HTMLElement>(".doc-footer");
+    if (!footer) return;
+    let styleEl = document.getElementById("print-footer-margin") as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = "print-footer-margin";
+      document.head.appendChild(styleEl);
+    }
+    const apply = () => {
+      const heightMm = footer.getBoundingClientRect().height / 96 * 25.4; // px -> mm at 96dpi
+      const marginMm = Math.min(60, Math.max(20, Math.ceil(heightMm) + 4)); // +4mm safety buffer
+      // Same reserved-space number drives both: the print @page margin
+      // (window.print()/Ctrl+P -- the Puppeteer routes compute their own
+      // copy, see those files) AND the screen preview's simulated page
+      // height (below), so the on-screen gap always matches what will
+      // actually print, for this tenant's own footer, not a guessed one.
+      styleEl!.textContent =
+        `@media print { @page { margin-bottom: ${marginMm}mm; } }` +
+        `@media screen { .doc { min-height: calc(297mm - 12mm - ${marginMm}mm); } }`;
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(footer);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
       <style>{`
@@ -45,9 +83,16 @@ export default function QuotePrint(props: Props) {
         @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
         @media print {
           /* Extra bottom margin reserves a band on EVERY page for the running
-             footer below, so flowing content never runs under it. Keep this in
-             sync with margin.bottom in the two PDF routes (quotes/[id]/pdf and
-             pdf-public), which override this @page margin under Puppeteer. */
+             footer below, so flowing content never runs under it. 20mm here is
+             only the FLOOR/fallback for a tenant with a short footer -- the
+             real value is computed per tenant from the footer's actual
+             rendered height (a fixed footer doesn't reserve its own space, so
+             a too-small reserved band lets it overlap whatever content sits
+             just above it) and injected as an override: client-side via the
+             ResizeObserver effect below for window.print()/Ctrl+P, and via
+             page.pdf()'s own "margin" option (which fully overrides this CSS
+             value under Puppeteer, hence the separate computation there) in
+             the two PDF routes (quotes/[id]/pdf and pdf-public). */
           @page { size: A4 portrait; margin: 12mm 15mm 20mm 15mm; }
           /* The company footer becomes a running page footer: fixed to the
              bottom of the printable area, repeated on every page (letterhead
@@ -87,16 +132,18 @@ export default function QuotePrint(props: Props) {
            screen never warned anyone about. Rather than touch the print
            layout (which is print's own carefully-tuned position:fixed
            running-footer fix for VIK-12 -- do not revert), this makes the
-           SCREEN preview simulate one physical A4 page (297mm minus the
-           12mm+20mm @page top/bottom margins the PDF route also uses) and
-           pushes the footer to the bottom of that page via flex, so any
-           gap is visible on screen before you print, not a surprise after.
-           Deliberately scoped to the single-page case -- a quote long
-           enough to genuinely paginate on print still just flows normally
-           here rather than attempting true multi-page pagination in a
+           SCREEN preview simulate one physical A4 page and pushes the
+           footer to the bottom of it via flex, so any gap is visible on
+           screen before you print, not a surprise after. The actual page
+           height (min-height) is injected by the ResizeObserver effect
+           above, computed from THIS tenant's real footer height, same
+           number the print margin uses -- not hardcoded here. Deliberately
+           scoped to the single-page case -- a quote long enough to
+           genuinely paginate on print still just flows normally here
+           rather than attempting true multi-page pagination in a
            scrolling browser view, which this isn't trying to solve. */
         @media screen {
-          .doc { display: flex; flex-direction: column; min-height: 265mm; box-shadow: 0 1px 4px rgba(21,34,51,.18); }
+          .doc { display: flex; flex-direction: column; box-shadow: 0 1px 4px rgba(21,34,51,.18); }
           .doc-footer { margin-top: auto; }
         }
       `}</style>

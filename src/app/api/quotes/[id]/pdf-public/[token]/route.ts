@@ -61,12 +61,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     });
 
+    // Reserve exactly as much bottom margin as THIS tenant's footer actually
+    // needs -- see the matching comment in ../[id]/pdf/route.ts for why a
+    // fixed constant here caused a real bug (a tall footer's position:fixed
+    // top edge overlapping/hiding the signature block on tenants with more
+    // footer content than whatever number this used to assume).
+    const footerHeightMm = await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>(".doc-footer");
+      return el ? el.getBoundingClientRect().height / 96 * 25.4 : 0;
+    });
+    const bottomMarginMm = Math.min(60, Math.max(20, Math.ceil(footerHeightMm) + 4));
+
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
-      // bottom enlarged to reserve the running-footer band (see .doc-footer in
-      // QuotePrint.tsx); keep in sync with the private pdf route + @page margin.
-      margin: { top: "12mm", bottom: "20mm", left: "15mm", right: "15mm" },
+      margin: { top: "12mm", bottom: `${bottomMarginMm}mm`, left: "15mm", right: "15mm" },
       displayHeaderFooter: false,
     });
 
