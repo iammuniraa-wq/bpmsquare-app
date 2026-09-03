@@ -54,7 +54,7 @@ export default function QuotePrint(props: Props) {
     }
     const apply = () => {
       const heightMm = footer.getBoundingClientRect().height / 96 * 25.4; // px -> mm at 96dpi
-      const marginMm = Math.min(60, Math.max(20, Math.ceil(heightMm) + 4)); // +4mm safety buffer
+      const marginMm = Math.min(60, Math.max(20, Math.ceil(heightMm) + 10)); // safety buffer
       // Same reserved-space number drives both: the print @page margin
       // (window.print()/Ctrl+P -- the Puppeteer routes compute their own
       // copy, see those files) AND the screen preview's simulated page
