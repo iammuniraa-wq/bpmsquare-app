@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getQuote } from "@/lib/data";
 import { getTenant } from "@/lib/tenant";
@@ -6,6 +7,20 @@ import type { Asset } from "@/lib/types";
 import QuotePrint from "@/components/QuotePrint";
 import { getExtension } from "@/extensions/registry";
 import { signQuotePublicToken, buildAbsoluteUrl } from "@/lib/quotePublicLink";
+
+// The page <title> is what a browser's print/Save-as-PDF dialog suggests as
+// the filename (relevant now that "Download PDF" drives that dialog
+// directly -- see QuotePrint.tsx). Left at the app's default, every quote
+// saved this way suggested the same generic tenant name; quote.ref (e.g.
+// "QT2026-0229" -- the same value the old server-side Content-Disposition
+// filename used) makes each download distinguishable. ref, not ref_no: the
+// latter is the customer's own free-text reference and can contain "/",
+// which isn't a safe filename character on every OS.
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const data = await getQuote(id);
+  return { title: data?.quote.ref || "Quotation" };
+}
 
 export default async function QuotePrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
