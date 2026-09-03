@@ -85,13 +85,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     });
 
+    // The reserved bottom margin has to fit THIS tenant's actual footer, not
+    // a guessed constant -- .doc-footer is position:fixed (see QuotePrint.tsx),
+    // so it doesn't reserve its own space, and page.pdf()'s own `margin`
+    // option below overrides the page's @page CSS entirely (Puppeteer
+    // ignores the CSS value once this is set), so a static number here was
+    // the ONLY thing controlling it. A tenant with a taller footer than
+    // whatever that number assumed (long address, several phone numbers, a
+    // tagline, email+website -- Vikas has all four) had its footer's top
+    // edge creep upward into the printable area and paint over whatever
+    // normal content sat just above it -- reported live as the signature
+    // block "getting overlapped and hidden". Measuring the real rendered
+    // height and reserving exactly that (+buffer) fixes it for every tenant,
+    // not just by widening the constant for this one.
+    const footerHeightMm = await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>(".doc-footer");
+      return el ? el.getBoundingClientRect().height / 96 * 25.4 : 0; // px -> mm at 96dpi
+    });
+    const bottomMarginMm = Math.min(60, Math.max(20, Math.ceil(footerHeightMm) + 4));
+
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
-      // bottom is enlarged to reserve a band for the running footer (a fixed,
-      // repeated-every-page letterhead footer -- see .doc-footer in
-      // QuotePrint.tsx). Keep in sync with the @page margin there.
-      margin: { top: "12mm", bottom: "20mm", left: "15mm", right: "15mm" },
+      margin: { top: "12mm", bottom: `${bottomMarginMm}mm`, left: "15mm", right: "15mm" },
       displayHeaderFooter: false,
     });
 
