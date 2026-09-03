@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getQuoteByPublicToken, getTenantForPublicQuote } from "@/lib/data";
 import { verifyQuotePublicToken } from "@/lib/quotePublicLink";
@@ -5,6 +6,15 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import type { Asset } from "@/lib/types";
 import QuotePrintPublic from "@/components/QuotePrintPublic";
 import { getExtension } from "@/extensions/registry";
+
+// See the matching comment in ../../print/page.tsx -- the page <title> is
+// what a browser's print/Save-as-PDF dialog suggests as the filename.
+export async function generateMetadata({ params }: { params: Promise<{ id: string; token: string }> }): Promise<Metadata> {
+  const { id, token } = await params;
+  if (!verifyQuotePublicToken(id, token)) return { title: "Quotation" };
+  const data = await getQuoteByPublicToken(id);
+  return { title: data?.quote.ref || "Quotation" };
+}
 
 // No login required -- reached via a signed, expiring link (see lib/quotePublicLink.ts),
 // e.g. shared over WhatsApp. Token is verified against the exact quote id in the URL
