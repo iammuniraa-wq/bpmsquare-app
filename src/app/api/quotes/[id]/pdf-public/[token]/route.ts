@@ -70,7 +70,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const el = document.querySelector<HTMLElement>(".doc-footer");
       return el ? el.getBoundingClientRect().height / 96 * 25.4 : 0;
     });
-    const bottomMarginMm = Math.min(60, Math.max(20, Math.ceil(footerHeightMm) + 4));
+    const bottomMarginMm = Math.min(60, Math.max(20, Math.ceil(footerHeightMm) + 10));
 
     const pdf = await page.pdf({
       format: "A4",
