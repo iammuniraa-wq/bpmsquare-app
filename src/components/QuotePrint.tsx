@@ -162,14 +162,26 @@ export default function QuotePrint(props: Props) {
 
       {/* Screen-only toolbar */}
       <div className="no-print" style={{ background: "#152233", padding: "10px 24px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 10, flexWrap: "wrap" }}>
-        <a
-          href={`/api/quotes/${quote.id}/pdf`}
-          style={{ background: "#378ADD", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-block" }}
-        >
+        {/* Owner-reported (2026-09-03): the server-rendered PDF (a separate
+            headless Chromium navigating fresh to this page) kept producing a
+            signature/footer overlap that the browser's own Print/Save-as-PDF
+            never showed, across three rounds of server-side fixes -- the
+            live, already-hydrated, already-settled page the person is
+            looking at right now is simply not the same render as a fresh
+            headless navigation, no matter how closely the server route tries
+            to wait for fonts/images/hydration. Rather than keep chasing that
+            gap, "Download PDF" now IS "print this exact page" -- window.print()
+            was always the one producing a correct result, so it's the only
+            path for a person actively viewing the quote. This trades one
+            click for a browser print-dialog step (choose "Save as PDF",
+            then Save) in exchange for guaranteed WYSIWYG.
+            The server route (api/quotes/[id]/pdf) still exists and is still
+            used where there's no live browser to lean on -- the emailed PDF
+            attachment (api/quotes/[id]/email) and the public WhatsApp link
+            (pdf-public/[token]) -- so it keeps the single-source-of-truth
+            margin fix even though it's no longer this button's path. */}
+        <button onClick={() => window.print()} style={{ background: "#378ADD", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
           ⬇ Download PDF
-        </a>
-        <button onClick={() => window.print()} style={{ background: "transparent", color: "#aebccd", border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>
-          Print / Save PDF (browser)
         </button>
         <button
           onClick={() => setComposeOpen(true)}
