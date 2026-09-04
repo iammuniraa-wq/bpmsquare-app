@@ -4,6 +4,7 @@ import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { workSessions } from "@/lib/wfm/hours";
 import { rollUpProjectHours, projectHeadcount, UNASSIGNED, type SessionsForEmployee } from "@/lib/wfm/projectHours";
+import { rollUp, depthOf } from "@/lib/wfm/projectTree";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_DAYS = 366;
@@ -82,23 +83,70 @@ export async function GET(request: NextRequest) {
   const heads = projectHeadcount(input);
 
   const projectId = request.nextUrl.searchParams.get("project_id");
-  if (projectId) rows = rows.filter((r) => r.key === projectId);
 
-  // Names resolved in one query, not per row.
-  const ids = rows.map((r) => r.key).filter((k) => k !== UNASSIGNED);
-  const names: Record<string, { name: string; ref: string | null; status: string }> = {};
-  if (ids.length > 0) {
-    const { data: projects } = await admin
-      .from("wfm_projects").select("id, name, ref, status").eq("tenant_id", tenantId).in("id", ids);
-    for (const p of projects ?? []) {
-      names[p.id as string] = { name: p.name as string, ref: p.ref as string | null, status: p.status as string };
-    }
+  // The WHOLE tree is fetched, not just the projects with hours: an hour
+  // booked to a WBS has to appear in its parent's total, and the parent may
+  // have no punches of its own.
+  const { data: allProjects } = await admin
+    .from("wfm_projects")
+    .select("id, name, ref, status, parent_id")
+    .eq("tenant_id", tenantId);
+
+  const tree = (allProjects ?? []).map((p) => ({
+    id: p.id as string,
+    parent_id: (p.parent_id as string | null) ?? null,
+  }));
+  const byId = new Map(tree.map((t) => [t.id, t]));
+
+  const ownMinutes = new Map<string, number>();
+  for (const r of rows) if (r.key !== UNASSIGNED) ownMinutes.set(r.key, r.net_minutes);
+  const rolled = rollUp(tree, ownMinutes);
+
+  const names: Record<string, { name: string; ref: string | null; status: string; parent_id: string | null; depth: number }> = {};
+  for (const p of allProjects ?? []) {
+    const id = p.id as string;
+    names[id] = {
+      name: p.name as string,
+      ref: p.ref as string | null,
+      status: p.status as string,
+      parent_id: (p.parent_id as string | null) ?? null,
+      depth: depthOf(byId, id) ?? 0,
+    };
   }
+
+  // own_minutes is what landed directly on a row; total_minutes includes
+  // everything beneath it. A flat tenant sees the two agree everywhere.
+  const withRollup = rows.map((r) => ({
+    ...r,
+    employees: heads.get(r.key) ?? 0,
+    own_minutes: r.net_minutes,
+    total_minutes: r.key === UNASSIGNED ? r.net_minutes : (rolled.get(r.key)?.total ?? r.net_minutes),
+  }));
+
+  // A parent with no punches of its own still needs a row once its children
+  // have hours -- otherwise a project whose work all sits on its WBS items
+  // would be missing from its own report.
+  const present = new Set(withRollup.map((r) => r.key));
+  for (const [id, v] of rolled) {
+    if (present.has(id) || v.total === 0) continue;
+    withRollup.push({
+      key: id,
+      gross_minutes: 0,
+      break_minutes: 0,
+      net_minutes: 0,
+      sessions: 0,
+      employees: 0,
+      own_minutes: 0,
+      total_minutes: v.total,
+    });
+  }
+  withRollup.sort((a, b) => b.total_minutes - a.total_minutes);
 
   return NextResponse.json({
     from, to,
     deduct_breaks: config.deduct_breaks,
-    rows: rows.map((r) => ({ ...r, employees: heads.get(r.key) ?? 0 })),
+    levels: config.project_levels ?? [],
+    rows: projectId ? withRollup.filter((r) => r.key === projectId) : withRollup,
     projects: names,
   });
 }

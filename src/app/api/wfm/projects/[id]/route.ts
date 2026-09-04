@@ -2,7 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { diffForLog, logChange } from "@/lib/changeLog";
-import { PROJECT_SELECT, parseProjectBody, projectLinks, verifyProjectLinks, replaceProjectLinks, bodyTouchesLinks } from "@/lib/wfm/projects";
+import {
+  PROJECT_SELECT, parseProjectBody, projectLinks, verifyProjectLinks,
+  replaceProjectLinks, bodyTouchesLinks, loadTree, validateParent,
+} from "@/lib/wfm/projects";
+import { getWfmConfig } from "@/lib/wfm/server";
+import { descendantsOf } from "@/lib/wfm/projectTree";
 
 // GET /api/wfm/projects/[id]
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -58,12 +63,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!account) return NextResponse.json({ error: "Unknown account" }, { status: 400 });
   }
   if (parsed.values.parent_id) {
-    if (parsed.values.parent_id === id) {
-      return NextResponse.json({ error: "A project can't be its own parent" }, { status: 400 });
-    }
+    const parentId = parsed.values.parent_id as string;
     const { data: parent } = await admin
-      .from("wfm_projects").select("id").eq("id", parsed.values.parent_id).eq("tenant_id", tenantId).maybeSingle();
+      .from("wfm_projects").select("id").eq("id", parentId).eq("tenant_id", tenantId).maybeSingle();
     if (!parent) return NextResponse.json({ error: "Unknown parent project" }, { status: 400 });
+
+    // Catches self-parenting, loops through a descendant, and a move whose
+    // whole SUBTREE would overflow the configured depth.
+    const config = await getWfmConfig(admin, tenantId);
+    const err = validateParent(await loadTree(admin, tenantId), config.project_levels ?? [], parentId, id);
+    if (err) return NextResponse.json({ error: err }, { status: 400 });
   }
 
   // A date range narrowing below an existing end can't be validated from the
@@ -121,6 +130,18 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const { data: before } = await admin
     .from("wfm_projects").select("id, name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Refuse to delete something that still has sub-items. The FK would set
+  // their parent to null and silently promote them to top-level projects,
+  // which looks like data appearing from nowhere on the Projects screen.
+  const tree = await loadTree(admin, tenantId);
+  const kids = descendantsOf(tree, id);
+  if (kids.length > 0) {
+    return NextResponse.json(
+      { error: `Delete or move its ${kids.length} sub-item(s) first.` },
+      { status: 409 }
+    );
+  }
 
   // Punches keep their stamp via `on delete set null` rather than being
   // deleted with the project -- attendance evidence must survive a costing

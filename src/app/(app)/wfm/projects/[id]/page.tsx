@@ -10,6 +10,7 @@ import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import type { WfmProject } from "@/lib/wfm/types";
 import ProjectForm from "../ProjectForm";
 import ProjectHoursPanel from "./ProjectHoursPanel";
+import SubItems from "./SubItems";
 
 export default async function WfmProjectPage({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkcenterView("wfm");
@@ -40,6 +41,8 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
       />
 
       <ProjectHoursPanel projectId={id} budgetHours={project.budget_hours} />
+
+      <SubItems projectId={id} />
 
       <div style={{ marginTop: 20 }}>
         <ProjectForm project={project} />

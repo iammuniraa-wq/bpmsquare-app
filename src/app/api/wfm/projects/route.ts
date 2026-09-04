@@ -3,7 +3,11 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { logChange } from "@/lib/changeLog";
-import { PROJECT_SELECT, PROJECT_STATUSES, parseProjectBody, verifyProjectLinks, replaceProjectLinks } from "@/lib/wfm/projects";
+import {
+  PROJECT_SELECT, PROJECT_STATUSES, parseProjectBody, verifyProjectLinks,
+  replaceProjectLinks, loadTree, validateParent,
+} from "@/lib/wfm/projects";
+import { getWfmConfig } from "@/lib/wfm/server";
 
 // Projects are the cost object worked hours are attributed to (0104,
 // WFM_PROJECT_COSTING.md). Gated on features.wfm_projects separately from
@@ -70,9 +74,16 @@ export async function POST(request: NextRequest) {
     if (!account) return NextResponse.json({ error: "Unknown account" }, { status: 400 });
   }
   if (parsed.values.parent_id) {
+    const parentId = parsed.values.parent_id as string;
     const { data: parent } = await admin
-      .from("wfm_projects").select("id").eq("id", parsed.values.parent_id).eq("tenant_id", tenantId).maybeSingle();
+      .from("wfm_projects").select("id").eq("id", parentId).eq("tenant_id", tenantId).maybeSingle();
     if (!parent) return NextResponse.json({ error: "Unknown parent project" }, { status: 400 });
+
+    // Depth is a tenant setting, so the API has to enforce it -- the UI hides
+    // the "Add" button at the deepest level, but the screen is not the gate.
+    const config = await getWfmConfig(admin, tenantId);
+    const err = validateParent(await loadTree(admin, tenantId), config.project_levels ?? [], parentId, null);
+    if (err) return NextResponse.json({ error: err }, { status: 400 });
   }
 
   const { data, error } = await insertWithMasterRef<{ id: string; name: string; ref: string | null }>(

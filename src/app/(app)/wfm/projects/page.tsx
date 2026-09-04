@@ -16,6 +16,7 @@ import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { WfmProject, WfmProjectStatus } from "@/lib/wfm/types";
 import ProjectHoursTiles from "./ProjectHoursTiles";
+import { depthOf } from "@/lib/wfm/projectTree";
 
 const STATUS_LABEL: Record<WfmProjectStatus, string> = {
   planned: "Planned", active: "Active", on_hold: "On hold",
@@ -46,6 +47,33 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<WfmProject>> = {
   end_date: (p) => p.end_date,
   budget_hours: (p) => p.budget_hours,
 };
+
+/** Depth-first order: each project immediately followed by its own sub-items.
+ *  Anything whose parent isn't in the list (filtered out, or a broken link) is
+ *  appended at the end rather than dropped -- a project must never vanish from
+ *  its own list because of how the tree was drawn. */
+function orderAsTree(
+  rows: WfmProject[],
+  nodes: Map<string, { id: string; parent_id: string | null }>
+): WfmProject[] {
+  const byParent = new Map<string | null, WfmProject[]>();
+  const present = new Set(rows.map((r) => r.id));
+  for (const r of rows) {
+    const key = r.parent_id && present.has(r.parent_id) ? r.parent_id : null;
+    byParent.set(key, [...(byParent.get(key) ?? []), r]);
+  }
+  const out: WfmProject[] = [];
+  const walk = (parent: string | null) => {
+    for (const r of byParent.get(parent) ?? []) {
+      out.push(r);
+      walk(r.id);
+    }
+  };
+  walk(null);
+  // Safety net: anything the walk missed (a cycle) still gets listed.
+  for (const r of rows) if (!out.includes(r)) out.push(r);
+  return out;
+}
 
 export default async function WfmProjectsPage({
   searchParams,
@@ -85,7 +113,18 @@ export default async function WfmProjectsPage({
       (p.ref ?? "").toLowerCase().includes(term)
     );
   });
-  const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
+  const sorted = sortRows(searched, sort, dir, SORT_EXTRACTORS);
+
+  // Sub-items are shown INDENTED UNDER their parent rather than as peers, so
+  // the list reads as the structure it is. Only when no filter or sort is
+  // narrowing the view -- once someone searches, a bare flat list of matches
+  // is more useful than a tree with most of its branches missing.
+  const nodes = new Map(projects.map((p) => [p.id, { id: p.id, parent_id: p.parent_id }]));
+  const treeView = !q && !statusFilter && !sort;
+  const ordered = treeView ? orderAsTree(sorted, nodes) : sorted;
+  const depths = new Map(ordered.map((p) => [p.id, treeView ? (depthOf(nodes, p.id) ?? 0) : 0]));
+
+  const filtered = ordered;
   const pageRows = paginate(filtered, page);
 
   const activeCount = projects.filter((p) => p.status === "active").length;
@@ -199,9 +238,14 @@ export default async function WfmProjectsPage({
                       <tr key={p.id} style={{ borderBottom: `1px solid ${c.line}` }}>
                         <td style={{ ...td, color: c.hint, fontSize: 12.5 }}>{p.ref ?? "—"}</td>
                         <td style={td}>
-                          <Link href={ROUTES.wfmProject(p.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-                            {p.name}
-                          </Link>
+                          <span style={{ paddingLeft: (depths.get(p.id) ?? 0) * 18 }}>
+                            {(depths.get(p.id) ?? 0) > 0 && (
+                              <span aria-hidden style={{ color: c.hint, marginRight: 6 }}>└</span>
+                            )}
+                            <Link href={ROUTES.wfmProject(p.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
+                              {p.name}
+                            </Link>
+                          </span>
                         </td>
                         <td style={{ ...td, color: c.muted }}>{p.code ?? "—"}</td>
                         <td style={td}><Pill label={STATUS_LABEL[p.status]} tone={STATUS_TONE[p.status]} /></td>

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { createAdminSupabase } from "@/lib/supabase-server";
 import type { WfmProjectStatus } from "./types";
+import { reparentError, depthOf, type TreeNodeLike } from "./projectTree";
 
 type Admin = ReturnType<typeof createAdminSupabase>;
 
@@ -220,4 +221,44 @@ export async function projectLinkCounts(
     counts.set(k, (counts.get(k) ?? 0) + 1);
   }
   return counts;
+}
+
+/** Every project row this tenant has, as bare tree nodes. Small by nature --
+ *  a tenant has tens of projects, not thousands -- and the hierarchy rules
+ *  need the whole shape to detect cycles and measure a subtree. */
+export async function loadTree(admin: Admin, tenantId: string): Promise<TreeNodeLike[]> {
+  const { data, error } = await admin
+    .from("wfm_projects")
+    .select("id, parent_id")
+    .eq("tenant_id", tenantId);
+  if (error) return [];
+  return (data ?? []).map((r) => ({ id: r.id as string, parent_id: (r.parent_id as string | null) ?? null }));
+}
+
+/**
+ * Whether this project may sit under this parent, given the tenant's
+ * configured levels. `childId` is null when creating, since a new project has
+ * no subtree to carry with it.
+ *
+ * Returns an error string for a 400, or null when allowed.
+ */
+export function validateParent(
+  tree: TreeNodeLike[],
+  levels: string[],
+  parentId: string | null,
+  childId: string | null
+): string | null {
+  if (!parentId) return null;
+  if (childId) return reparentError(tree, levels, childId, parentId);
+
+  // Creating: only the parent's own depth matters.
+  const byId = new Map(tree.map((t) => [t.id, t]));
+  const parentDepth = depthOf(byId, parentId);
+  if (parentDepth === null) return "That parent is not reachable";
+  if (parentDepth >= levels.length) {
+    return levels.length === 0
+      ? "Sub-items aren't switched on for this workspace"
+      : `That is already the deepest level (${levels[levels.length - 1]})`;
+  }
+  return null;
 }

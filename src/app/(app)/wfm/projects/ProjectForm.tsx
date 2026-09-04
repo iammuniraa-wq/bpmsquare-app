@@ -175,7 +175,14 @@ function Picker({
  * is a standing fact, not a dated exception, and the roster's own section is
  * for exceptions.
  */
-export default function ProjectForm({ project }: { project?: WfmProject }) {
+export default function ProjectForm({
+  project,
+  parentId = null,
+}: {
+  project?: WfmProject;
+  /** Set when creating a sub-item from a parent's "Add ..." link. */
+  parentId?: string | null;
+}) {
   const router = useRouter();
   const editing = !!project;
 
@@ -282,6 +289,7 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
       start_date: startDate || null,
       end_date: endDate || null,
       budget_hours: budgetHours.trim() === "" ? null : Number(budgetHours),
+      ...(parentId && !editing ? { parent_id: parentId } : {}),
       site_ids: siteIds,
       employee_ids: employeeIds,
       shift_ids: shiftIds,

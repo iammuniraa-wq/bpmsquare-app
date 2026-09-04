@@ -132,6 +132,27 @@ export async function PUT(request: NextRequest) {
     }
   }
 
+  // Levels allowed beneath a project, named by the tenant. Trimmed, blanks
+  // dropped, de-duped case-insensitively -- two levels called "Task" would be
+  // unreadable in a breadcrumb. Capped at 5: past three the tree and the
+  // reports stop being legible, and a hard stop is kinder than letting
+  // someone build ten levels and then discover that.
+  if (Array.isArray(body.project_levels)) {
+    const cleaned: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of body.project_levels as unknown[]) {
+      if (typeof raw !== "string") continue;
+      const name = raw.trim().slice(0, 40);
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      cleaned.push(name);
+      if (cleaned.length >= 5) break;
+    }
+    next.project_levels = cleaned;
+  }
+
   // Long-day push alert. after_hours is clamped rather than rejected: a
   // typo'd 0 or 99 would otherwise either buzz everyone constantly or never
   // fire, both silently.
