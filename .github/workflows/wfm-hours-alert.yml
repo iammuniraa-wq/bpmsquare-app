@@ -1,0 +1,49 @@
+name: WFM punch-out reminder
+
+# Fires the long-day punch-out reminder every 15 minutes.
+#
+# NOT a Vercel cron, deliberately. This project is on the Vercel Hobby plan,
+# which allows two cron jobs per project and runs them once a day -- both
+# fatal here. vercel.json already uses its two (retention, webhooks), and a
+# once-daily alert cannot tell someone they have just passed nine hours.
+# Adding a third cron does not degrade: Vercel REJECTS the deployment, which
+# is what silently froze production on 2026-09-04.
+#
+# GitHub Actions schedules are best-effort and can run late under load. That
+# is fine for this: the endpoint is idempotent (one alert per employee per
+# shift-day, enforced by a unique index), so a late or duplicated run cannot
+# double-notify anyone.
+#
+# Needs one repository secret:
+#   CRON_SECRET  -- the same value as the CRON_SECRET env var in Vercel.
+# Set it at Settings -> Secrets and variables -> Actions.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  # So it can be triggered by hand while testing, without waiting for the
+  # next quarter hour.
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the hours-alert job
+        run: |
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "CRON_SECRET is not set on this repository — nothing to do."
+            exit 1
+          fi
+          status=$(curl -sS -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://bim.bpmsquare.com/api/wfm/cron/hours-alert")
+          echo "HTTP $status"
+          cat /tmp/body
+          echo
+          # A non-2xx is a real failure worth seeing in the Actions log rather
+          # than a green tick over a job that never ran.
+          case "$status" in
+            2*) exit 0 ;;
+            *)  exit 1 ;;
+          esac

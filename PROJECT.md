@@ -436,7 +436,13 @@ deploy for an automatic schema change.
   shift-day; the unique index is what stops a 15-minute cron buzzing the same
   phone repeatedly). Push rather than email because employees sign in by code
   and their account carries a synthetic address at employee.bpmsquare.local,
-  which can never receive mail. Still gated per tenant by
+  which can never receive mail. **The 15-minute trigger is a GitHub Actions
+  workflow (.github/workflows/wfm-hours-alert.yml), NOT a Vercel cron** --
+  this project is on Vercel Hobby, which allows two crons per project and
+  runs them once a day; vercel.json already uses both, and adding a third
+  made Vercel REJECT every deployment, silently freezing production at
+  e82167b on 2026-09-04. Needs a CRON_SECRET repository secret matching the
+  Vercel env var. Still gated per tenant by
   `config.wfm.long_day_alert.enabled`, default OFF -- no tenant has it on
   yet, so running the SQL and setting the keys changes nothing until the
   toggle in Settings -> Workforce is switched on.

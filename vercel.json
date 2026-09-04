@@ -14,10 +14,6 @@
     {
       "path": "/api/webhooks/cron",
       "schedule": "30 20 * * *"
-    },
-    {
-      "path": "/api/wfm/cron/hours-alert",
-      "schedule": "*/15 * * * *"
     }
   ]
 }
