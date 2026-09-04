@@ -52,6 +52,27 @@ type Summary = {
   };
 };
 
+type DayStatus = "leave" | "holiday" | "absent" | "incomplete" | "late" | "present" | "none";
+
+/** One place decides a day's status, so the Status column and the status
+ *  filter can never disagree about what a row is. Order matters: leave and
+ *  holiday outrank absence, and "Present" needs a punch behind it (an
+ *  employee with no shift is never marked absent, so without that check a
+ *  no-punch day read as green Present). */
+function dayStatusOf(d: DayRecord): DayStatus {
+  if (d.on_leave) return "leave";
+  if (d.holiday) return "holiday";
+  if (d.absent) return "absent";
+  if (d.incomplete) return "incomplete";
+  if (d.late) return "late";
+  return d.first_in ? "present" : "none";
+}
+
+const STATUS_LABEL: Record<DayStatus, string> = {
+  leave: "On leave", holiday: "Holiday", absent: "Absent",
+  incomplete: "Incomplete", late: "Late", present: "Present", none: "No punch",
+};
+
 const OPEN_KEY = "bpm_wfm_summary_widget_open";
 const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
 const thisMonth = () => new Date().toISOString().slice(0, 7);
@@ -75,6 +96,14 @@ export default function WfmSummaryWidget() {
   // just isn't for them, so it removes itself.
   const [forbidden, setForbidden] = useState(false);
   const [page, setPage] = useState(1);
+  // Filters. Applied client-side on the payload already loaded -- the month
+  // fetch carries every employee's days, so narrowing costs no round trip.
+  const [query, setQuery] = useState("");
+  const [siteFilter, setSiteFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<DayStatus | "">("");
+  // Name sort. localeCompare rather than <, so "Aliya" and "aliya" sort
+  // together and accented names land where a reader expects them.
+  const [nameSort, setNameSort] = useState<"asc" | "desc">("asc");
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -122,11 +151,43 @@ export default function WfmSummaryWidget() {
     if (m !== month) changeMonth(m);
   }
 
-  const dayRows = (rows ?? [])
-    .map((r) => ({ emp: r, day: r.days.find((d) => d.date === day) }))
-    .filter((x): x is { emp: Summary; day: DayRecord } => !!x.day);
+  const sites = [...new Set((rows ?? []).map((r) => r.site_name).filter(Boolean))] as string[];
 
-  const monthTotals = (rows ?? []).reduce(
+  const matchesEmployee = (r: Summary) => {
+    if (siteFilter && r.site_name !== siteFilter) return false;
+    if (!query.trim()) return true;
+    const q = query.trim().toLowerCase();
+    return r.full_name.toLowerCase().includes(q) || (r.employee_code ?? "").toLowerCase().includes(q);
+  };
+
+  const byName = (a: string, b: string) =>
+    nameSort === "asc" ? a.localeCompare(b) : b.localeCompare(a);
+
+  const dayRows = (rows ?? [])
+    .filter(matchesEmployee)
+    .map((r) => ({ emp: r, day: r.days.find((d) => d.date === day) }))
+    .filter((x): x is { emp: Summary; day: DayRecord } => !!x.day)
+    .filter((x) => !statusFilter || dayStatusOf(x.day) === statusFilter)
+    .sort((a, b) => byName(a.emp.full_name, b.emp.full_name));
+
+  const monthRows = (rows ?? [])
+    .filter(matchesEmployee)
+    .slice()
+    .sort((a, b) => byName(a.full_name, b.full_name));
+
+  // Which statuses actually occur on this day — a filter offering options
+  // that match nothing is just a way to show someone an empty table.
+  const presentStatuses = [...new Set(
+    (rows ?? [])
+      .filter(matchesEmployee)
+      .map((r) => r.days.find((d) => d.date === day))
+      .filter((d): d is DayRecord => !!d)
+      .map(dayStatusOf)
+  )];
+
+  const filtersOn = !!(query.trim() || siteFilter || statusFilter);
+
+  const monthTotals = monthRows.reduce(
     (t, r) => ({
       present: t.present + r.totals.days_present,
       minutes: t.minutes + r.totals.working_minutes,
@@ -139,10 +200,10 @@ export default function WfmSummaryWidget() {
   // shift assigned (whom the summary never marks absent -- lateness/absence
   // are judged against a shift) and zero punches counted as present.
   const dayPresent = dayRows.filter((d) => d.day.first_in && !d.day.on_leave).length;
-  const listTotal = view === "day" ? dayRows.length : (rows ?? []).length;
+  const listTotal = view === "day" ? dayRows.length : monthRows.length;
   const cPage = clampPage(page, listTotal, DEFAULT_PAGE_SIZE);
   const pageDayRows = paginate(dayRows, cPage, DEFAULT_PAGE_SIZE);
-  const pageMonthRows = paginate(rows ?? [], cPage, DEFAULT_PAGE_SIZE);
+  const pageMonthRows = paginate(monthRows, cPage, DEFAULT_PAGE_SIZE);
   const dayMinutes = dayRows.reduce((t, d) => t + d.day.net_minutes, 0);
 
   const th: React.CSSProperties = {
@@ -231,6 +292,76 @@ export default function WfmSummaryWidget() {
             </a>
           </div>
 
+          {/* Filters. Deliberately below the view/date row rather than beside
+              it: on a phone the first row already wraps, and burying the date
+              picker behind a search box would be the wrong trade. */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+              placeholder="Search name or code…"
+              style={{
+                padding: "7px 10px", borderRadius: 8, border: `1px solid ${c.line}`,
+                background: c.panel, color: c.ink, fontSize: 12.5, font: "inherit",
+                minWidth: 0, flex: isMobile ? "1 1 100%" : "0 1 190px",
+              }}
+            />
+
+            {sites.length > 1 && (
+              <select
+                value={siteFilter}
+                onChange={(e) => { setSiteFilter(e.target.value); setPage(1); }}
+                style={{
+                  padding: "7px 10px", borderRadius: 8, border: `1px solid ${c.line}`,
+                  background: c.panel, color: c.ink, fontSize: 12.5, font: "inherit",
+                }}
+              >
+                <option value="">All sites</option>
+                {sites.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            )}
+
+            {/* Status describes a single day, so it only exists in the day
+                view -- a month has many statuses at once. */}
+            {view === "day" && presentStatuses.length > 1 && (
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value as DayStatus | ""); setPage(1); }}
+                style={{
+                  padding: "7px 10px", borderRadius: 8, border: `1px solid ${c.line}`,
+                  background: c.panel, color: c.ink, fontSize: 12.5, font: "inherit",
+                }}
+              >
+                <option value="">All statuses</option>
+                {(Object.keys(STATUS_LABEL) as DayStatus[])
+                  .filter((s) => presentStatuses.includes(s))
+                  .map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+              </select>
+            )}
+
+            {filtersOn && (
+              <button
+                onClick={() => { setQuery(""); setSiteFilter(""); setStatusFilter(""); setPage(1); }}
+                style={{
+                  padding: "7px 11px", borderRadius: 8, cursor: "pointer", font: "inherit",
+                  fontSize: 12.5, fontWeight: 650, color: c.muted,
+                  background: "transparent", border: `1px solid ${c.line}`,
+                }}
+              >
+                Clear
+              </button>
+            )}
+
+            {filtersOn && (
+              <span style={{ fontSize: 11.5, color: c.hint }}>
+                {listTotal} of {view === "day"
+                  ? (rows ?? []).filter((r) => r.days.some((d) => d.date === day)).length
+                  : (rows ?? []).length} shown
+              </span>
+            )}
+          </div>
+
           {loading && <p style={{ fontSize: 12.5, color: c.muted, margin: 0 }}>Loading…</p>}
           {error && <p style={{ fontSize: 12.5, color: "#e5484d", margin: 0 }}>{error}</p>}
 
@@ -267,7 +398,23 @@ export default function WfmSummaryWidget() {
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-                      <th style={th}>Employee</th>
+                      <th style={th}>
+                        <button
+                          onClick={() => { setNameSort((d) => (d === "asc" ? "desc" : "asc")); setPage(1); }}
+                          title={nameSort === "asc" ? "Sorted A–Z — click for Z–A" : "Sorted Z–A — click for A–Z"}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 4, padding: 0,
+                            background: "none", border: "none", cursor: "pointer",
+                            font: "inherit", color: "inherit", letterSpacing: "inherit",
+                            textTransform: "inherit",
+                          }}
+                        >
+                          Employee
+                          <span aria-hidden style={{ fontSize: 9, color: c.muted }}>
+                            {nameSort === "asc" ? "▲" : "▼"}
+                          </span>
+                        </button>
+                      </th>
                       {view === "day" ? (
                         <>
                           <th style={th}>In</th><th style={th}>Out</th><th style={th}>Breaks</th><th style={th}>Hours</th><th style={th}>Status</th>
@@ -281,7 +428,9 @@ export default function WfmSummaryWidget() {
                   </thead>
                   <tbody>
                     {view === "day" && dayRows.length === 0 && (
-                      <tr><td style={{ ...td, color: c.hint }} colSpan={6}>Nothing recorded on this day.</td></tr>
+                      <tr><td style={{ ...td, color: c.hint }} colSpan={6}>
+                        {filtersOn ? "Nobody matches these filters on this day." : "Nothing recorded on this day."}
+                      </td></tr>
                     )}
                     {view === "day" && pageDayRows.map(({ emp, day }) => (
                       <tr key={emp.employee_id} style={{ borderBottom: `1px solid ${c.line}` }}>
@@ -291,23 +440,28 @@ export default function WfmSummaryWidget() {
                         <td style={{ ...td, fontVariantNumeric: "tabular-nums", color: c.muted }}>{day.break_minutes > 0 ? hm(day.break_minutes) : "—"}</td>
                         <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>{day.net_minutes > 0 ? hm(day.net_minutes) : "—"}</td>
                         <td style={td}>
-                          {day.on_leave ? <span style={{ color: c.muted }}>{day.on_leave.name}</span>
-                            : day.holiday ? <span style={{ color: c.muted }}>{day.holiday}</span>
-                            : day.absent ? <span style={{ color: "#e5484d" }}>Absent</span>
-                            : day.incomplete ? <span style={{ color: "#d97706" }}>Incomplete</span>
-                            : day.late ? <span style={{ color: "#d97706" }}>Late</span>
-                            /* "Present" needs a punch behind it. An employee with
-                               no shift is never marked absent (absence is judged
-                               against a shift), so without this a no-punch day
-                               read as green Present. */
-                            : day.first_in ? <span style={{ color: "#12a150" }}>Present</span>
-                            : <span style={{ color: c.hint }}>No punch</span>}
+                          {(() => {
+                            // Rendered from the same helper the filter uses, so
+                            // filtering by "Late" can never return a row whose
+                            // Status column reads something else.
+                            const s = dayStatusOf(day);
+                            const tone = s === "absent" ? "#e5484d"
+                              : s === "late" || s === "incomplete" ? "#d97706"
+                              : s === "present" ? "#12a150"
+                              : s === "none" ? c.hint : c.muted;
+                            const label = s === "leave" ? day.on_leave!.name
+                              : s === "holiday" ? day.holiday!
+                              : STATUS_LABEL[s];
+                            return <span style={{ color: tone }}>{label}</span>;
+                          })()}
                         </td>
                       </tr>
                     ))}
 
-                    {view === "month" && (rows.length === 0
-                      ? <tr><td style={{ ...td, color: c.hint }} colSpan={6}>No employees in this month.</td></tr>
+                    {view === "month" && (monthRows.length === 0
+                      ? <tr><td style={{ ...td, color: c.hint }} colSpan={6}>
+                          {filtersOn ? "Nobody matches these filters." : "No employees in this month."}
+                        </td></tr>
                       : pageMonthRows.map((r) => (
                         <tr key={r.employee_id} style={{ borderBottom: `1px solid ${c.line}` }}>
                           <td style={td}>{r.full_name}{r.site_name ? <span style={{ color: c.hint }}> · {r.site_name}</span> : null}</td>

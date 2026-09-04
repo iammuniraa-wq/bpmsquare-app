@@ -8,7 +8,7 @@ import { resolvePermissions } from "@/lib/permissions";
 import { DEFAULT_WFM_CONFIG, ROUTES, type TenantConfig, type TenantFeatures, type WfmConfig } from "@/lib/constants";
 import type { WfmEmployee, PresenceKind, PunchState } from "./types";
 import { deriveState } from "./types";
-import { computeDayHours, shiftDayKey, type DayHours } from "./hours";
+import { computeDayHours, shiftDayKey, workSessions, type DayHours } from "./hours";
 import { makeShiftResolver, type RosterLike, type ShiftLike } from "./effectiveShift";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -450,7 +450,14 @@ export async function getWfmLiveBoardSnapshot(
     const lastKind = (empEvents[empEvents.length - 1]?.kind as PresenceKind) ?? null;
     const state = stateFromLastKind(lastKind);
     const firstIn = empEvents.find((e) => e.kind === "check_in") ?? null;
-    const lastOut = [...empEvents].reverse().find((e) => e.kind === "check_out") ?? null;
+    // From the sessions, not a reversed scan of the raw events -- see the
+    // same fix in monthlySummary. A check-out closing a session that began on
+    // an earlier day sits in today's bucket, and a raw scan reports it as
+    // today's last out, producing the impossible "in 11:31 / out 09:30" a
+    // supervisor saw on this board (2026-09-04). workSessions ignores a close
+    // with no session open, so only a session that genuinely ended here can
+    // be reported.
+    const lastOut = [...workSessions(empEvents, now)].reverse().find((s) => s.out !== null)?.out ?? null;
 
     const onLeave = leavesByEmp.has(emp.id);
     const holiday = (holidays ?? []).some(
@@ -491,7 +498,7 @@ export async function getWfmLiveBoardSnapshot(
       night_allowance_amount: shift?.night_allowance_amount ?? 0,
       state,
       first_in: firstIn?.ts ?? null,
-      last_out: lastOut?.ts ?? null,
+      last_out: lastOut,
       late,
       absent,
       on_leave: onLeave,

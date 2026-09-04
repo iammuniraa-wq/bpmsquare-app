@@ -256,11 +256,20 @@ export async function getMonthlySummary(
       const sessions = workSessions(evs, endRef);
       const breaks = sessions.flatMap((s) => s.breaks);
       const firstIn = dayEvents.find((e) => e.kind === "check_in") ?? null;
-      // Search the events INCLUDING the overnight tail, so a shift that closes
-      // past midnight reports its real last check-out (e.g. 00:34) rather than
-      // an earlier same-day punch -- matching the Session Times and Total
-      // Worked figures, which already include that closing punch.
-      const lastOut = [...evs].reverse().find((e) => e.kind === "check_out") ?? null;
+      // Taken from the SESSIONS, not from the raw event list.
+      //
+      // A check-out that closes a session opened on an earlier day lands in
+      // this day's bucket (its own timestamp is today), and overnightTail
+      // copies it back to the opening day without removing it from here. A
+      // reversed scan of the raw events then finds that orphan and reports it
+      // as today's last out -- which is how the board came to show a check-in
+      // at 11:31 against a check-out at 09:30 (reported 2026-09-04).
+      //
+      // workSessions already ignores a closing punch with no session open, so
+      // the last CLOSED session's out is the only honest answer: the overnight
+      // tail is still included (a night shift closing 00:34 reports 00:34,
+      // matching Session Times and Total Worked), and an orphan is not.
+      const lastOut = [...sessions].reverse().find((s) => s.out !== null)?.out ?? null;
 
       const onLeave = leaveByEmpDay.get(`${emp.id}|${date}`) ?? null;
       const holiday = (holidays ?? []).find(
@@ -296,7 +305,7 @@ export async function getMonthlySummary(
       return {
         date,
         first_in: firstIn?.ts ?? null,
-        last_out: lastOut?.ts ?? null,
+        last_out: lastOut,
         sessions,
         breaks,
         gross_minutes: hours.gross_minutes,
