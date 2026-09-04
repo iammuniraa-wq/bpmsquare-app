@@ -52,14 +52,27 @@ alter table wfm_project_links enable row level security;
 -- WFM convention (0062): tenant-scoped SELECT only, no write policy. Every
 -- write goes through the service-role client behind an app-level admin
 -- check, because a forged link silently redirects where hours are billed.
+--
+-- Dropped first so the whole file can be re-run safely -- these migrations
+-- are pasted into the SQL editor by hand, and CREATE POLICY has no
+-- IF NOT EXISTS.
+drop policy if exists "wfm_project_links: tenant read" on wfm_project_links;
 create policy "wfm_project_links: tenant read" on wfm_project_links for select
   using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
 
 -- Carry across everything 0104's site-only table already holds, so the
--- projects the owner set up on 04-Sep keep their sites.
-insert into wfm_project_links (tenant_id, project_id, site_id, created_at)
-select ps.tenant_id, ps.project_id, ps.site_id, ps.created_at
-from wfm_project_sites ps
-on conflict do nothing;
+-- projects set up on 04-Sep keep their sites.
+--
+-- Guarded on the old table still existing, so a second run of this file is a
+-- no-op rather than an error on a table that has already been dropped.
+do $$
+begin
+  if to_regclass('public.wfm_project_sites') is not null then
+    insert into wfm_project_links (tenant_id, project_id, site_id, created_at)
+    select ps.tenant_id, ps.project_id, ps.site_id, ps.created_at
+    from wfm_project_sites ps
+    on conflict do nothing;
 
-drop table if exists wfm_project_sites;
+    drop table wfm_project_sites;
+  end if;
+end $$;
