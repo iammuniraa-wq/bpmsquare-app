@@ -144,9 +144,12 @@ export default function RosterClient({ initial = null }: {
   const [fromDate, setFromDate] = useState(todayKey());
   const [toDate, setToDate] = useState(todayKey());
   const [overrideShiftId, setOverrideShiftId] = useState("");
-  // Empty for a tenant without project costing, which is what hides the whole
-  // control -- the endpoint 404s on the feature flag, so this stays [].
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  // Whether the tenant HAS project costing, which is a different question from
+  // whether they have created any projects yet. The endpoint 404s when the
+  // module is off, so an ok response is the signal. Keeping these apart is
+  // what stops "no projects yet" from looking identical to "feature missing".
+  const [projectsOn, setProjectsOn] = useState(false);
   const [overrideProjectId, setOverrideProjectId] = useState("");
   const [overrideDayOff, setOverrideDayOff] = useState(false);
   const [busyB, setBusyB] = useState(false);
@@ -159,20 +162,16 @@ export default function RosterClient({ initial = null }: {
     rangeEnd.setDate(rangeEnd.getDate() + UPCOMING_DAYS);
     const rangeEndKey = rangeEnd.toISOString().slice(0, 10);
 
-    const [empRes, shiftRes, siteRes, ovRes, projRes] = await Promise.all([
+    const [empRes, shiftRes, siteRes, ovRes] = await Promise.all([
       fetch("/api/wfm/employees"),
       fetch("/api/wfm/shifts"),
       fetch("/api/wfm/sites"),
       fetch(`/api/wfm/roster?from=${from}&to=${rangeEndKey}`),
-      // 404s (and stays []) for a tenant without project costing, which is
-      // exactly what keeps the control off their roster.
-      fetch("/api/wfm/projects?status=active"),
     ]);
     if (empRes.ok) setEmployees(await empRes.json()); else setError((await empRes.json()).error ?? "Failed to load employees");
     if (shiftRes.ok) setShifts(await shiftRes.json());
     if (siteRes.ok) setSites(await siteRes.json());
     if (ovRes.ok) setOverrides(await ovRes.json());
-    if (projRes.ok) setProjects(await projRes.json());
     setLoading(false);
   }, []);
 
@@ -180,6 +179,30 @@ export default function RosterClient({ initial = null }: {
     if (serverSeeded.current) { serverSeeded.current = false; return; } // server-rendered bootstrap
     load();
   }, [load]);
+
+  // Projects are fetched on their OWN effect, deliberately outside load().
+  // The page server-prefetches the roster bootstrap, which makes the effect
+  // above skip its first run -- so anything living inside load() never runs
+  // on a normal page load at all. That is exactly how the Project control
+  // came to be invisible on a tenant that had the module switched on
+  // (reported 2026-09-04). Projects aren't part of the prefetched payload,
+  // so they need a fetch that always happens.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/wfm/projects?status=active")
+      .then(async (r) => {
+        // 404 = the tenant doesn't have project costing. Anything else that
+        // isn't ok is a real failure, and is left silent here rather than
+        // pushing an error onto a screen whose main job is the roster.
+        if (!r.ok) return;
+        const json = await r.json();
+        if (cancelled) return;
+        setProjectsOn(true);
+        setProjects(Array.isArray(json) ? json : []);
+      })
+      .catch(() => { /* roster still works without it */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Section A logic ───────────────────────────────────────────────────
   const activeShifts = useMemo(() => shifts.filter((s) => s.active), [shifts]);
@@ -517,20 +540,33 @@ export default function RosterClient({ initial = null }: {
                 {activeShifts.map((s) => <option key={s.id} value={s.id}>{s.name} ({hhmm(s.start_time)}–{hhmm(s.end_time)})</option>)}
               </select>
             </div>
-            {/* Project costing (0104). Only rendered when the tenant has the
-                module -- an attendance-only roster stays exactly as it was. */}
-            {projects.length > 0 && (
+            {/* Project costing (0104). Rendered whenever the tenant HAS the
+                module, even with no projects yet -- an admin looking for this
+                control needs to see why it can't be used, not an empty space
+                indistinguishable from the feature being absent. An
+                attendance-only roster still shows nothing at all. */}
+            {projectsOn && (
               <div style={{ minWidth: 200 }}>
                 <label style={lbl}>Project</label>
                 <select
                   style={{ ...inp, width: "100%" }}
                   value={overrideProjectId}
-                  disabled={overrideDayOff}
+                  disabled={overrideDayOff || projects.length === 0}
                   onChange={(e) => setOverrideProjectId(e.target.value)}
                 >
-                  <option value="">— site default —</option>
+                  {projects.length === 0
+                    ? <option value="">No active projects yet</option>
+                    : <option value="">— site default —</option>}
                   {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
+                {projects.length === 0 && (
+                  <Link
+                    href={ROUTES.wfmProjects}
+                    style={{ display: "inline-block", marginTop: 4, fontSize: 11, color: "var(--tenant-accent, #378ADD)", textDecoration: "none", fontWeight: 600 }}
+                  >
+                    Add a project →
+                  </Link>
+                )}
               </div>
             )}
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: c.ink, paddingBottom: 8, cursor: "pointer" }}>
@@ -590,7 +626,7 @@ export default function RosterClient({ initial = null }: {
           <thead>
             <tr>
               <th style={th}>Date</th><th style={th}>Employee</th><th style={th}>Shift</th>
-              {projects.length > 0 && <th style={th}>Project</th>}
+              {projectsOn && <th style={th}>Project</th>}
               <th style={th}>Note</th><th style={th}></th>
             </tr>
           </thead>
@@ -610,7 +646,7 @@ export default function RosterClient({ initial = null }: {
                       ? <Pill label="Day off" tone="red" />
                       : shift ? `${shift.name} (${hhmm(shift.start_time)}–${hhmm(shift.end_time)})` : "—"}
                   </td>
-                  {projects.length > 0 && (
+                  {projectsOn && (
                     <td style={{ ...td, color: r.project_name ? c.ink : c.hint }}>
                       {r.is_day_off ? "—" : r.project_name ?? "site default"}
                     </td>
