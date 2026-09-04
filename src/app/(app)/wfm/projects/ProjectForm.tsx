@@ -30,11 +30,11 @@ type Option = { id: string; name: string };
 const fmtDay = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 
-/** The four ways a punch finds its job, in the order they are tried. Each is
- *  a real section on the form showing its OWN data -- an abstract list of
+/** The four ways a punch finds its project, in the order they are tried. Each
+ *  is a real section on the form showing its OWN data -- an abstract list of
  *  rules above a set of unrelated pickers explained nothing. */
 const RUNGS = {
-  roster: { n: "1", title: "The roster", tone: pillar.blue, hint: "If a supervisor put someone on a job for that date, that wins." },
+  roster: { n: "1", title: "The roster", tone: pillar.blue, hint: "If a supervisor put someone on a project for that date, that wins." },
   people: { n: "2", title: "People", tone: pillar.teal, hint: "These employees, wherever they punch." },
   shifts: { n: "3", title: "Shifts", tone: pillar.purple, hint: "Everyone working that shift." },
   sites: { n: "4", title: "Sites", tone: pillar.amber, hint: "Anyone punching there — used only if nothing above applies." },
@@ -60,42 +60,107 @@ function RungHead({ rung, count }: { rung: Rung; count?: number }) {
   );
 }
 
+/** Above this many options the list gets a search box and a cap. A tenant
+ *  with 100 employees would otherwise get 100 chips in one wall, with the
+ *  ones they had already chosen lost somewhere inside it. */
+const SEARCH_FROM = 12;
+const SHOW_MAX = 24;
+
 function Picker({
-  rung, options, selected, onToggle, empty,
+  rung, options, selected, onToggle, empty, searchPlaceholder,
 }: {
   rung: Rung;
   options: Option[];
   selected: string[];
   onToggle: (id: string) => void;
   empty: string;
+  searchPlaceholder?: string;
 }) {
+  const [q, setQ] = useState("");
+
+  const chip = (o: Option, on: boolean) => (
+    <button
+      key={o.id}
+      type="button"
+      onClick={() => onToggle(o.id)}
+      style={{
+        fontSize: 12.5, fontWeight: on ? 700 : 500, cursor: "pointer",
+        color: on ? rung.tone.fg : c.muted,
+        background: on ? rung.tone.bg : c.panel2,
+        border: `1px solid ${on ? rung.tone.base + "60" : c.line}`,
+        borderRadius: 6, padding: "5px 11px",
+      }}
+    >
+      {on ? "✓ " : ""}{o.name}
+    </button>
+  );
+
+  const chosenIds = new Set(selected);
+  // Chosen entries are rendered first and are NEVER filtered out by the
+  // search -- you must always be able to see and undo what you picked, even
+  // while searching for something else.
+  const chosen = options.filter((o) => chosenIds.has(o.id));
+  const needle = q.trim().toLowerCase();
+  const rest = options.filter((o) => !chosenIds.has(o.id) && (!needle || o.name.toLowerCase().includes(needle)));
+  const visible = rest.slice(0, SHOW_MAX);
+  const hidden = rest.length - visible.length;
+  const searchable = options.length > SEARCH_FROM;
+
   return (
     <div style={{ padding: "14px 0", borderTop: `1px solid ${c.line}` }}>
       <RungHead rung={rung} count={selected.length} />
+
       {options.length === 0 ? (
         <div style={{ fontSize: 12.5, color: c.hint, marginTop: 9 }}>{empty}</div>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 10 }}>
-          {options.map((o) => {
-            const on = selected.includes(o.id);
-            return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => onToggle(o.id)}
+        <>
+          {searchable && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+              <input
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={searchPlaceholder ?? "Search…"}
                 style={{
-                  fontSize: 12.5, fontWeight: on ? 700 : 500, cursor: "pointer",
-                  color: on ? rung.tone.fg : c.muted,
-                  background: on ? rung.tone.bg : c.panel2,
-                  border: `1px solid ${on ? rung.tone.base + "60" : c.line}`,
-                  borderRadius: 6, padding: "5px 11px",
+                  flex: "0 1 260px", padding: "7px 10px", borderRadius: 7, fontSize: 12.5,
+                  border: `1px solid ${c.line}`, background: c.panel2, color: c.ink,
                 }}
-              >
-                {on ? "✓ " : ""}{o.name}
-              </button>
-            );
-          })}
-        </div>
+              />
+              <span style={{ fontSize: 11.5, color: c.hint }}>
+                {needle ? `${rest.length} of ${options.length - chosen.length} match` : `${options.length} available`}
+              </span>
+            </div>
+          )}
+
+          {chosen.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 10 }}>
+              {chosen.map((o) => chip(o, true))}
+            </div>
+          )}
+
+          {visible.length > 0 && (
+            <div style={{
+              display: "flex", flexWrap: "wrap", gap: 7,
+              marginTop: chosen.length > 0 ? 8 : 10,
+              paddingTop: chosen.length > 0 ? 8 : 0,
+              borderTop: chosen.length > 0 ? `1px dashed ${c.line}` : undefined,
+            }}>
+              {visible.map((o) => chip(o, false))}
+            </div>
+          )}
+
+          {hidden > 0 && (
+            <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8 }}>
+              +{hidden} more — type a name to narrow the list.
+            </div>
+          )}
+
+          {needle && rest.length === 0 && (
+            <div style={{ fontSize: 12.5, color: c.hint, marginTop: 10 }}>
+              Nothing matches “{q.trim()}”.
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -104,11 +169,11 @@ function Picker({
 /**
  * Create/edit a project.
  *
- * Deliberately in two halves: what the job IS (name, dates, budget), and
+ * Deliberately in two halves: what the project IS (name, dates, budget), and
  * where its hours COME FROM (any mix of sites, people and shifts). Linking
- * lives here, on the project, rather than on the roster -- being on a job is
- * a standing fact, not a dated exception, and the roster's own section is for
- * exceptions.
+ * lives here, on the project, rather than on the roster -- being on a project
+ * is a standing fact, not a dated exception, and the roster's own section is
+ * for exceptions.
  */
 export default function ProjectForm({ project }: { project?: WfmProject }) {
   const router = useRouter();
@@ -134,7 +199,7 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  // Who a supervisor has actually rostered onto this job. Read-only here --
+  // Who a supervisor has actually rostered onto this project. Read-only --
   // the roster is where it is set; this shows what rung 1 currently holds, so
   // the section is a rule WITH its data rather than a rule on its own.
   const [rostered, setRostered] = useState<{ id: string; date: string; who: string }[] | null>(null);
@@ -207,7 +272,7 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!name.trim()) { setError("Give the job a name."); return; }
+    if (!name.trim()) { setError("Give the project a name."); return; }
     setSaving(true);
 
     const body = {
@@ -230,7 +295,7 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
     setSaving(false);
     if (!res) { setError("Network error — nothing was saved."); return; }
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) { setError(json.error ?? "Could not save the job."); return; }
+    if (!res.ok) { setError(json.error ?? "Could not save the project."); return; }
 
     router.push(editing ? ROUTES.wfmProject(project!.id) : ROUTES.wfmProjects);
     router.refresh();
@@ -240,7 +305,7 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
     <form onSubmit={save} style={{ maxWidth: 760 }}>
       <div style={{ ...cardStyle, padding: 20 }}>
         <div style={{ marginBottom: 16 }}>
-          <label style={label}>Job name</label>
+          <label style={label}>Project name</label>
           <input
             style={field}
             value={name}
@@ -274,7 +339,7 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
               background: "none", border: "none", cursor: "pointer", padding: 0,
             }}
           >
-            + Add dates, budget or a job number
+            + Add dates, budget or a contract number
           </button>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginTop: 16 }}>
@@ -291,12 +356,12 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
               <input type="number" min="0" step="0.5" style={field} value={budgetHours} onChange={(e) => setBudgetHours(e.target.value)} placeholder="optional" />
             </div>
             <div>
-              <label style={label}>Your job number</label>
+              <label style={label}>Contract / PO number</label>
               <input style={field} value={code} onChange={(e) => setCode(e.target.value)} placeholder="optional" />
             </div>
             <div style={{ gridColumn: "1 / -1", fontSize: 11.5, color: c.hint }}>
-              Only punches inside the dates count toward this job. The budget is what the
-              percentage on the job page is measured against.
+              Only punches inside the dates count toward this project. The budget is what the
+              percentage on the project page is measured against.
             </div>
           </div>
         )}
@@ -305,8 +370,8 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
       <div style={{ ...cardStyle, padding: 20, marginTop: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: c.ink }}>Where its hours come from</div>
         <div style={{ fontSize: 12.5, color: c.muted, marginTop: 4, lineHeight: 1.55 }}>
-          Link this job to whatever fits — any mix, or none at all. Nobody has to pick a job
-          when they punch; it&apos;s worked out from these.
+          Link this project to whatever fits — any mix, or none at all. Nobody has to pick a
+          project when they punch; it&apos;s worked out from these.
         </div>
 
         <div style={{ marginTop: 12 }}>
@@ -316,7 +381,7 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
               <div style={{ fontSize: 12.5, color: c.hint, marginTop: 9 }}>Loading…</div>
             ) : rostered.length === 0 ? (
               <div style={{ fontSize: 12.5, color: c.hint, marginTop: 9 }}>
-                Nobody is rostered onto this job in the next 90 days.{" "}
+                Nobody is rostered onto this project in the next 90 days.{" "}
                 <Link href={ROUTES.wfmRoster} style={{ color: c.accent, textDecoration: "none", fontWeight: 600 }}>
                   Assign on the roster →
                 </Link>
@@ -350,15 +415,18 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
           </div>
 
           <Picker rung={RUNGS.people} options={employees} selected={employeeIds}
-            onToggle={toggle(setEmployeeIds)} empty="No employees yet." />
+            onToggle={toggle(setEmployeeIds)} empty="No employees yet."
+            searchPlaceholder="Search name or code…" />
           <Picker rung={RUNGS.shifts} options={shifts} selected={shiftIds}
-            onToggle={toggle(setShiftIds)} empty="No shifts configured yet." />
+            onToggle={toggle(setShiftIds)} empty="No shifts configured yet."
+            searchPlaceholder="Search shifts…" />
           <Picker rung={RUNGS.sites} options={sites} selected={siteIds}
-            onToggle={toggle(setSiteIds)} empty="No sites configured yet." />
+            onToggle={toggle(setSiteIds)} empty="No sites configured yet."
+            searchPlaceholder="Search sites…" />
         </div>
 
         <div style={{ fontSize: 11.5, color: c.hint, marginTop: 14, lineHeight: 1.5 }}>
-          First match wins, top to bottom. If a step finds two jobs at once, the hours are
+          First match wins, top to bottom. If a step finds two projects at once, the hours are
           left <strong style={{ color: statusInk.warn }}>unassigned</strong> rather than
           guessed — you&apos;ll see them on the Projects screen and can settle it on the roster.
         </div>
@@ -368,7 +436,7 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
             marginTop: 14, padding: "10px 12px", borderRadius: 8,
             background: c.panel2, fontSize: 12.5, color: c.muted, lineHeight: 1.5,
           }}>
-            Nothing linked yet, which is fine — this job just won&apos;t pick up hours on its own.
+            Nothing linked yet, which is fine — this project just won&apos;t pick up hours on its own.
             You can still put people on it day by day from the roster.
           </div>
         )}
@@ -386,7 +454,7 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
             cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1,
           }}
         >
-          {saving ? "Saving…" : editing ? "Save changes" : "Create job"}
+          {saving ? "Saving…" : editing ? "Save changes" : "Create project"}
         </button>
         <button
           type="button"
