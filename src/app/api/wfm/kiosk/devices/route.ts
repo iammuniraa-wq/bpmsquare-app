@@ -84,6 +84,48 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PATCH {id} — issue a NEW code for an existing kiosk, keeping its name,
+// site and history. The old code stops working the instant this returns.
+//
+// This is the answer to the two situations that actually happen:
+//   - the tablet was wiped / factory reset, so it lost its stored code, and
+//     the original plaintext is unrecoverable by design;
+//   - the code leaked (typed into the wrong device, forwarded in a chat).
+//
+// Without it, both forced a brand-new device row and left the old one
+// hanging around, so the Kiosks list slowly filled with dead entries and
+// nobody could tell which row was the tablet on the wall.
+export async function PATCH(request: NextRequest) {
+  try {
+    const ctx = await requireWfmAdmin();
+    const admin = createAdminSupabase();
+    const body = await request.json().catch(() => null);
+    const id = typeof body?.id === "string" ? body.id : "";
+    if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+
+    const token = generateKioskToken();
+    // Tenant-scoped, so a device id from another tenant simply matches
+    // nothing rather than having its credential rotated.
+    const { data, error } = await admin
+      .from("wfm_kiosk_devices")
+      .update({ token_hash: hashKioskToken(token), active: true })
+      .eq("id", id)
+      .eq("tenant_id", ctx.tenantId)
+      .select("id, name")
+      .maybeSingle();
+    if (error) {
+      console.error("kiosk device rotate failed:", error.message);
+      return NextResponse.json({ error: "Could not issue a new code" }, { status: 500 });
+    }
+    if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    return NextResponse.json({ id: data.id, name: data.name, token });
+  } catch (e: unknown) {
+    const err = e as { status?: number; message: string };
+    return NextResponse.json({ error: err.message }, { status: err.status ?? 500 });
+  }
+}
+
 // DELETE ?id= — deactivate (kept as an audit row; the token stops working
 // immediately because authenticateKiosk filters on active).
 export async function DELETE(request: NextRequest) {

@@ -80,6 +80,40 @@ export default function KiosksClient() {
   }
 
   const { confirm: feelConfirm } = useFeel();
+
+  // Issue a fresh code for a kiosk that already exists, keeping its name,
+  // site and history. Needed whenever a tablet loses its stored code (a
+  // factory reset or cleared browser data) or the old code has been seen by
+  // someone it shouldn't have. Previously both meant registering a brand-new
+  // device and abandoning the old row.
+  async function reissue(d: Device) {
+    const ok = await feelConfirm({
+      title: `Issue a new code for "${d.name}"?`,
+      body: "The current code stops working immediately, so the tablet on the wall will ask to be registered again. Recorded punches are not affected.",
+      confirmLabel: "Issue new code",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setBusy(true);
+    setError("");
+    setNewToken(null);
+    try {
+      const res = await fetch("/api/wfm/kiosk/devices", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: d.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "Could not issue a new code"); return; }
+      setNewToken(json.token);
+      await load();
+    } catch {
+      setError("Network error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deactivate(d: Device) {
     if (!(await feelConfirm({ title: `Deactivate "${d.name}"?`, body: "The tablet stops working immediately.", confirmLabel: "Deactivate", tone: "danger" }))) return;
     setBusy(true);
@@ -139,7 +173,10 @@ export default function KiosksClient() {
                 <td style={{ padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12, color: c.muted }}>{fmt(d.last_seen_at)}</td>
                 <td style={{ padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12, color: c.muted }}>{fmt(d.created_at)}</td>
                 <td style={{ padding: "9px 12px", borderBottom: `1px solid ${c.line}` }}>
-                  {d.active && <button style={btn} disabled={busy} onClick={() => void deactivate(d)}>Deactivate</button>}
+                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                    <button style={btn} disabled={busy} onClick={() => void reissue(d)}>New code</button>
+                    {d.active && <button style={btn} disabled={busy} onClick={() => void deactivate(d)}>Deactivate</button>}
+                  </div>
                 </td>
               </tr>
             ))}

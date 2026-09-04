@@ -46,6 +46,8 @@ export default function KioskClient() {
   const [token, setToken] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>({ s: "setup" });
   const [header, setHeader] = useState<{ tenant: string | null; site: string | null }>({ tenant: null, site: null });
+  const [askUnregister, setAskUnregister] = useState(false);
+  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clock, setClock] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -121,6 +123,23 @@ export default function KioskClient() {
     canvas.height = Math.round(video.videoHeight * scale);
     canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
     return new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.85));
+  }
+
+  // Unregister — the ONLY way to move a tablet to a different kiosk code
+  // without clearing browser data, which is not an instruction to give a
+  // client at a door (and is exactly what the Manuvana mix-up cost us,
+  // 2026-09-04). Deliberately behind a long-press on the site name plus a
+  // confirm: findable when someone is told where it is, essentially
+  // unhittable by a passer-by tapping the wall.
+  function unregister() {
+    try { localStorage.removeItem(TOKEN_KEY); } catch { /* private mode */ }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (timerRef.current) clearInterval(timerRef.current);
+    setToken("");
+    setHeader({ tenant: null, site: null });
+    setAskUnregister(false);
+    setScreen({ s: "setup", error: "" });
   }
 
   function resetToIdle(info = "") {
@@ -224,7 +243,16 @@ export default function KioskClient() {
   return (
     <div style={S.page}>
       <div style={S.header}>
-        <div style={{ fontWeight: 700 }}>
+        <div
+          style={{ fontWeight: 700, userSelect: "none", cursor: "default" }}
+          onPointerDown={() => {
+            if (screen.s === "setup") return;
+            holdRef.current = setTimeout(() => setAskUnregister(true), 3000);
+          }}
+          onPointerUp={() => { if (holdRef.current) clearTimeout(holdRef.current); }}
+          onPointerLeave={() => { if (holdRef.current) clearTimeout(holdRef.current); }}
+          title="Press and hold for 3 seconds to unregister this device"
+        >
           {header.tenant ?? "BPMSquare"}
           {header.site && <span style={{ color: "#8b98a9", fontWeight: 500 }}> · {header.site}</span>}
         </div>
@@ -291,6 +319,41 @@ export default function KioskClient() {
               Not you? Wait {screen.secondsLeft}s or ask your supervisor.
             </div>
           </>
+        )}
+
+        {askUnregister && (
+          <div style={{
+            position: "fixed", inset: 0, background: "rgba(6,10,15,.86)", zIndex: 50,
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}>
+            <div style={{
+              background: "#121820", border: "1px solid #2a3646", borderRadius: 16,
+              padding: 24, maxWidth: 420, textAlign: "center", display: "flex",
+              flexDirection: "column", gap: 14,
+            }}>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>Unregister this device?</div>
+              <div style={{ color: "#8b98a9", fontSize: 14, lineHeight: 1.5 }}>
+                It will stop being{header.site ? ` the ${header.site} kiosk` : " a kiosk"} and ask for a
+                code again. Nobody can punch here until a new code is entered. Recorded punches are
+                not affected.
+              </div>
+              <button
+                onClick={unregister}
+                style={{ ...S.bigBtn, background: "#b91c1c", fontSize: 17, padding: "14px 20px" }}
+              >
+                Unregister
+              </button>
+              <button
+                onClick={() => setAskUnregister(false)}
+                style={{
+                  background: "none", border: "1px solid #2a3646", color: "#eef2f7",
+                  borderRadius: 12, padding: "12px 18px", fontSize: 15, cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
 
         {screen.s === "confirm" && (
