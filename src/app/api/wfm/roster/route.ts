@@ -48,6 +48,12 @@ export async function GET(request: NextRequest) {
     if (employeeId) query = query.eq("employee_id", employeeId);
   }
 
+  // Scope to one project -- the job page uses this to show who is rostered
+  // onto it. Applied to the main query rather than the enrichment below,
+  // since it has to filter rather than decorate.
+  const projectFilter = request.nextUrl.searchParams.get("project_id");
+  if (projectFilter) query = query.eq("project_id", projectFilter);
+
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

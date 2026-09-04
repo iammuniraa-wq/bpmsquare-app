@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { c, statusInk } from "@/lib/theme";
+import Link from "next/link";
+import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import type { WfmProject, WfmProjectStatus } from "@/lib/wfm/types";
@@ -26,41 +27,55 @@ const field: React.CSSProperties = {
 
 type Option = { id: string; name: string };
 
-/** The four ways a punch can find its project, in the order they are tried.
- *  Shown on the screen rather than buried in a doc — this is the whole mental
- *  model, and an admin choosing what to link needs it in front of them. */
-const LADDER = [
-  { n: "1", title: "The roster", body: "If a supervisor put someone on a job for that date, that wins." },
-  { n: "2", title: "People", body: "Then: is this person linked to a job? Follows them anywhere." },
-  { n: "3", title: "Shifts", body: "Then: is their shift linked to a job?" },
-  { n: "4", title: "Sites", body: "Then: does their site have exactly one live job?" },
-];
+const fmtDay = (d: string) =>
+  new Date(`${d}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+
+/** The four ways a punch finds its job, in the order they are tried. Each is
+ *  a real section on the form showing its OWN data -- an abstract list of
+ *  rules above a set of unrelated pickers explained nothing. */
+const RUNGS = {
+  roster: { n: "1", title: "The roster", tone: pillar.blue, hint: "If a supervisor put someone on a job for that date, that wins." },
+  people: { n: "2", title: "People", tone: pillar.teal, hint: "These employees, wherever they punch." },
+  shifts: { n: "3", title: "Shifts", tone: pillar.purple, hint: "Everyone working that shift." },
+  sites: { n: "4", title: "Sites", tone: pillar.amber, hint: "Anyone punching there — used only if nothing above applies." },
+} as const;
+
+type Rung = (typeof RUNGS)[keyof typeof RUNGS];
+
+function RungHead({ rung, count }: { rung: Rung; count?: number }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+      <span style={{
+        width: 20, height: 20, borderRadius: 99, background: rung.tone.bg, color: rung.tone.fg,
+        fontSize: 11, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center",
+      }}>{rung.n}</span>
+      <span style={{ fontSize: 14, fontWeight: 700, color: rung.tone.fg }}>{rung.title}</span>
+      <span style={{ fontSize: 12, color: c.hint }}>{rung.hint}</span>
+      {count ? (
+        <span style={{ marginLeft: "auto", fontSize: 11.5, fontWeight: 600, color: rung.tone.fg }}>
+          {count} linked
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 function Picker({
-  title, hint, options, selected, onToggle, empty,
+  rung, options, selected, onToggle, empty,
 }: {
-  title: string;
-  hint: string;
+  rung: Rung;
   options: Option[];
   selected: string[];
   onToggle: (id: string) => void;
   empty: string;
 }) {
   return (
-    <div style={{ padding: "12px 0", borderTop: `1px solid ${c.line}` }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{title}</span>
-        <span style={{ fontSize: 12, color: c.hint }}>{hint}</span>
-        {selected.length > 0 && (
-          <span style={{ marginLeft: "auto", fontSize: 11.5, color: c.accent, fontWeight: 600 }}>
-            {selected.length} selected
-          </span>
-        )}
-      </div>
+    <div style={{ padding: "14px 0", borderTop: `1px solid ${c.line}` }}>
+      <RungHead rung={rung} count={selected.length} />
       {options.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: c.hint, marginTop: 8 }}>{empty}</div>
+        <div style={{ fontSize: 12.5, color: c.hint, marginTop: 9 }}>{empty}</div>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 9 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 10 }}>
           {options.map((o) => {
             const on = selected.includes(o.id);
             return (
@@ -70,9 +85,9 @@ function Picker({
                 onClick={() => onToggle(o.id)}
                 style={{
                   fontSize: 12.5, fontWeight: on ? 700 : 500, cursor: "pointer",
-                  color: on ? c.accent : c.muted,
-                  background: on ? c.accentbg : c.panel2,
-                  border: `1px solid ${on ? c.accent + "60" : c.line}`,
+                  color: on ? rung.tone.fg : c.muted,
+                  background: on ? rung.tone.bg : c.panel2,
+                  border: `1px solid ${on ? rung.tone.base + "60" : c.line}`,
                   borderRadius: 6, padding: "5px 11px",
                 }}
               >
@@ -119,6 +134,10 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Who a supervisor has actually rostered onto this job. Read-only here --
+  // the roster is where it is set; this shows what rung 1 currently holds, so
+  // the section is a rule WITH its data rather than a rule on its own.
+  const [rostered, setRostered] = useState<{ id: string; date: string; who: string }[] | null>(null);
 
   useEffect(() => {
     const j = async (url: string) => {
@@ -152,6 +171,33 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
       );
     })();
   }, []);
+
+  useEffect(() => {
+    if (!project?.id) { setRostered([]); return; }
+    const from = new Date().toISOString().slice(0, 10);
+    const to = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+    fetch(`/api/wfm/roster?from=${from}&to=${to}&project_id=${project.id}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: unknown) => {
+        const list = Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
+        setRostered(
+          list.map((r) => {
+            const raw = r.employees as
+              | { first_name?: string; last_name?: string }
+              | { first_name?: string; last_name?: string }[]
+              | null
+              | undefined;
+            const e = Array.isArray(raw) ? raw[0] : raw;
+            return {
+              id: r.id as string,
+              date: r.date as string,
+              who: [e?.first_name, e?.last_name].filter(Boolean).join(" ") || "Someone",
+            };
+          })
+        );
+      })
+      .catch(() => setRostered([]));
+  }, [project?.id]);
 
   const toggle = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (id: string) =>
     setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -263,56 +309,58 @@ export default function ProjectForm({ project }: { project?: WfmProject }) {
           when they punch; it&apos;s worked out from these.
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "14px 0 2px" }}>
-          {LADDER.map((r) => (
-            <div
-              key={r.n}
-              style={{
-                flex: "1 1 150px", background: c.panel2, borderRadius: 8, padding: "9px 11px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{
-                  width: 17, height: 17, borderRadius: 99, background: c.line, color: c.ink,
-                  fontSize: 10.5, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center",
-                }}>{r.n}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{r.title}</span>
+        <div style={{ marginTop: 12 }}>
+          <div style={{ padding: "14px 0", borderTop: `1px solid ${c.line}` }}>
+            <RungHead rung={RUNGS.roster} count={rostered?.length ?? 0} />
+            {rostered === null ? (
+              <div style={{ fontSize: 12.5, color: c.hint, marginTop: 9 }}>Loading…</div>
+            ) : rostered.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: c.hint, marginTop: 9 }}>
+                Nobody is rostered onto this job in the next 90 days.{" "}
+                <Link href={ROUTES.wfmRoster} style={{ color: c.accent, textDecoration: "none", fontWeight: 600 }}>
+                  Assign on the roster →
+                </Link>
               </div>
-              <div style={{ fontSize: 11.5, color: c.hint, marginTop: 5, lineHeight: 1.45 }}>{r.body}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8, lineHeight: 1.5 }}>
-          First match wins. If a step finds two jobs at once, the hours are left
-          <strong style={{ color: statusInk.warn }}> unassigned</strong> rather than guessed —
-          you&apos;ll see them on the Projects screen and can settle it on the roster.
+            ) : (
+              <>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 10 }}>
+                  {rostered.slice(0, 24).map((r) => (
+                    <span key={r.id} style={{
+                      fontSize: 12.5, color: RUNGS.roster.tone.fg, background: RUNGS.roster.tone.bg,
+                      border: `1px solid ${RUNGS.roster.tone.base}60`, borderRadius: 6, padding: "5px 11px",
+                    }}>
+                      {r.who} · {fmtDay(r.date)}
+                    </span>
+                  ))}
+                  {rostered.length > 24 && (
+                    <span style={{ fontSize: 12.5, color: c.hint, alignSelf: "center" }}>
+                      +{rostered.length - 24} more
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8 }}>
+                  Set on the{" "}
+                  <Link href={ROUTES.wfmRoster} style={{ color: c.accent, textDecoration: "none", fontWeight: 600 }}>
+                    roster
+                  </Link>
+                  , not here — it is a dated exception, and it beats everything below.
+                </div>
+              </>
+            )}
+          </div>
+
+          <Picker rung={RUNGS.people} options={employees} selected={employeeIds}
+            onToggle={toggle(setEmployeeIds)} empty="No employees yet." />
+          <Picker rung={RUNGS.shifts} options={shifts} selected={shiftIds}
+            onToggle={toggle(setShiftIds)} empty="No shifts configured yet." />
+          <Picker rung={RUNGS.sites} options={sites} selected={siteIds}
+            onToggle={toggle(setSiteIds)} empty="No sites configured yet." />
         </div>
 
-        <div style={{ marginTop: 16 }}>
-          <Picker
-            title="People"
-            hint="These employees, wherever they punch"
-            options={employees}
-            selected={employeeIds}
-            onToggle={toggle(setEmployeeIds)}
-            empty="No employees yet."
-          />
-          <Picker
-            title="Shifts"
-            hint="Everyone working that shift"
-            options={shifts}
-            selected={shiftIds}
-            onToggle={toggle(setShiftIds)}
-            empty="No shifts configured yet."
-          />
-          <Picker
-            title="Sites"
-            hint="Anyone punching there — used only if nothing above applies"
-            options={sites}
-            selected={siteIds}
-            onToggle={toggle(setSiteIds)}
-            empty="No sites configured yet."
-          />
+        <div style={{ fontSize: 11.5, color: c.hint, marginTop: 14, lineHeight: 1.5 }}>
+          First match wins, top to bottom. If a step finds two jobs at once, the hours are
+          left <strong style={{ color: statusInk.warn }}>unassigned</strong> rather than
+          guessed — you&apos;ll see them on the Projects screen and can settle it on the roster.
         </div>
 
         {linkCount === 0 && (
