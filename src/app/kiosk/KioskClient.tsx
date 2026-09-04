@@ -47,7 +47,6 @@ export default function KioskClient() {
   const [screen, setScreen] = useState<Screen>({ s: "setup" });
   const [header, setHeader] = useState<{ tenant: string | null; site: string | null }>({ tenant: null, site: null });
   const [askUnregister, setAskUnregister] = useState(false);
-  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clock, setClock] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -128,9 +127,12 @@ export default function KioskClient() {
   // Unregister — the ONLY way to move a tablet to a different kiosk code
   // without clearing browser data, which is not an instruction to give a
   // client at a door (and is exactly what the Manuvana mix-up cost us,
-  // 2026-09-04). Deliberately behind a long-press on the site name plus a
-  // confirm: findable when someone is told where it is, essentially
-  // unhittable by a passer-by tapping the wall.
+  // 2026-09-04). Reached from a visible gear rather than a hidden gesture:
+  // this is operated by whoever is standing at the tablet, often over the
+  // phone, and "press and hold the unlabelled text" is not something a
+  // layman can be talked through. Accidentally opening the panel costs
+  // nothing -- it shows which kiosk this is and needs a second, red,
+  // explicitly-labelled tap to actually unregister.
   function unregister() {
     try { localStorage.removeItem(TOKEN_KEY); } catch { /* private mode */ }
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -243,20 +245,33 @@ export default function KioskClient() {
   return (
     <div style={S.page}>
       <div style={S.header}>
-        <div
-          style={{ fontWeight: 700, userSelect: "none", cursor: "default" }}
-          onPointerDown={() => {
-            if (screen.s === "setup") return;
-            holdRef.current = setTimeout(() => setAskUnregister(true), 3000);
-          }}
-          onPointerUp={() => { if (holdRef.current) clearTimeout(holdRef.current); }}
-          onPointerLeave={() => { if (holdRef.current) clearTimeout(holdRef.current); }}
-          title="Press and hold for 3 seconds to unregister this device"
-        >
+        <div style={{ fontWeight: 700 }}>
           {header.tenant ?? "BPMSquare"}
           {header.site && <span style={{ color: "#8b98a9", fontWeight: 500 }}> · {header.site}</span>}
         </div>
-        <div style={{ color: "#8b98a9", fontVariantNumeric: "tabular-nums" }}>{clock}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <span style={{ color: "#8b98a9", fontVariantNumeric: "tabular-nums" }}>{clock}</span>
+          {screen.s !== "setup" && (
+            <button
+              onClick={() => setAskUnregister(true)}
+              aria-label="Kiosk settings"
+              title="Kiosk settings"
+              style={{
+                width: 34, height: 34, borderRadius: 10, cursor: "pointer",
+                border: "1px solid #2a3646", background: "#121820",
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+              }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="3.2" stroke="#8b98a9" strokeWidth="1.7" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.5.66.86 1.2.95H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
+                  stroke="#8b98a9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* The camera stays mounted (and running once granted) across every
@@ -331,17 +346,23 @@ export default function KioskClient() {
               padding: 24, maxWidth: 420, textAlign: "center", display: "flex",
               flexDirection: "column", gap: 14,
             }}>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>Unregister this device?</div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>Kiosk settings</div>
               <div style={{ color: "#8b98a9", fontSize: 14, lineHeight: 1.5 }}>
-                It will stop being{header.site ? ` the ${header.site} kiosk` : " a kiosk"} and ask for a
-                code again. Nobody can punch here until a new code is entered. Recorded punches are
+                This tablet is registered as
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#eef2f7" }}>
+                {header.site ?? "an unknown site"}
+              </div>
+              <div style={{ color: "#8b98a9", fontSize: 14, lineHeight: 1.5 }}>
+                If that is the wrong office, unregister it and enter the correct kiosk code.
+                Nobody can punch here until a new code is entered. Punches already recorded are
                 not affected.
               </div>
               <button
                 onClick={unregister}
                 style={{ ...S.bigBtn, background: "#b91c1c", fontSize: 17, padding: "14px 20px" }}
               >
-                Unregister
+                Unregister this tablet
               </button>
               <button
                 onClick={() => setAskUnregister(false)}
@@ -350,7 +371,7 @@ export default function KioskClient() {
                   borderRadius: 12, padding: "12px 18px", fontSize: 15, cursor: "pointer",
                 }}
               >
-                Cancel
+                Close
               </button>
             </div>
           </div>
