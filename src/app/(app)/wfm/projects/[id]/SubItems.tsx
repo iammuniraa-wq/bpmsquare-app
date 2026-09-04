@@ -60,7 +60,8 @@ export default function SubItems({ projectId }: { projectId: string }) {
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: c.ink }}>{childLevel}</span>
         <span style={{ fontSize: 12.5, color: c.muted }}>
-          Break this project into parts and put people on each one. Hours roll up here.
+          Break this project into as many parts as you need and put people on each one.
+          Hours roll up here.
         </span>
         <Link
           href={`${ROUTES.wfmProjectNew}?parent=${projectId}`}

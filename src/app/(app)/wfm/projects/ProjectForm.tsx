@@ -305,7 +305,16 @@ export default function ProjectForm({
     const json = await res.json().catch(() => ({}));
     if (!res.ok) { setError(json.error ?? "Could not save the project."); return; }
 
-    router.push(editing ? ROUTES.wfmProject(project!.id) : ROUTES.wfmProjects);
+    // After adding a sub-item, go back to its PARENT, not the top-level list.
+    // A project usually gets several WBS items in one sitting, and bouncing to
+    // the list meant navigating back in before each one.
+    router.push(
+      editing
+        ? ROUTES.wfmProject(project!.id)
+        : parentId
+          ? ROUTES.wfmProject(parentId)
+          : ROUTES.wfmProjects
+    );
     router.refresh();
   }
 
@@ -466,7 +475,7 @@ export default function ProjectForm({
         </button>
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => (parentId && !editing ? router.push(ROUTES.wfmProject(parentId)) : router.back())}
           style={{
             padding: "9px 18px", borderRadius: 7, fontSize: 13, fontWeight: 600,
             background: "none", color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer",
