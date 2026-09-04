@@ -455,6 +455,62 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
         )}
       </Section>
 
+      <Section
+        title="Punch-out reminder"
+        dek="Notifies the employee on their own phone once they have worked a long day. They must open My Workforce on their phone once and allow notifications."
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 16, padding: "12px 4px",
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: c.ink, fontWeight: 500 }}>Remind employees to punch out</div>
+              <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>
+                Sent to the employee only — not to a supervisor.
+              </div>
+            </div>
+            <Toggle
+              checked={cfg.long_day_alert?.enabled === true}
+              onChange={(v) =>
+                setCfg({
+                  ...cfg,
+                  long_day_alert: { enabled: v, after_hours: cfg.long_day_alert?.after_hours ?? 9 },
+                })
+              }
+            />
+          </div>
+
+          {cfg.long_day_alert?.enabled && (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 16, padding: "12px 4px", borderTop: `1px solid ${c.line}`,
+            }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, color: c.ink, fontWeight: 500 }}>After this many hours worked</div>
+                <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>
+                  Worked time, net of breaks — the same figure the timesheet shows.
+                </div>
+              </div>
+              <input
+                type="number"
+                min={1}
+                max={24}
+                step={0.5}
+                value={cfg.long_day_alert?.after_hours ?? 9}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    long_day_alert: { enabled: true, after_hours: Number(e.target.value) || 9 },
+                  })
+                }
+                style={{ ...inp, width: 110 }}
+              />
+            </div>
+          )}
+        </div>
+      </Section>
+
       <Section title="Email notifications" dek="Requires email sending to be configured for this workspace — see Settings → General.">
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {NOTIFICATION_ITEMS.map(({ key, label, hint }, i) => (

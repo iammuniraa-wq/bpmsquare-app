@@ -132,6 +132,21 @@ export async function PUT(request: NextRequest) {
     }
   }
 
+  // Long-day push alert. after_hours is clamped rather than rejected: a
+  // typo'd 0 or 99 would otherwise either buzz everyone constantly or never
+  // fire, both silently.
+  if (body.long_day_alert && typeof body.long_day_alert === "object") {
+    const incoming = body.long_day_alert as { enabled?: unknown; after_hours?: unknown };
+    const current = DEFAULT_WFM_CONFIG.long_day_alert;
+    next.long_day_alert = {
+      enabled: typeof incoming.enabled === "boolean" ? incoming.enabled : current.enabled,
+      after_hours:
+        typeof incoming.after_hours === "number" && Number.isFinite(incoming.after_hours)
+          ? Math.min(24, Math.max(1, Math.round(incoming.after_hours * 2) / 2))
+          : current.after_hours,
+    };
+  }
+
   const { data: current, error: readErr } = await admin.from("tenants").select("config").eq("id", tenantId).single();
   if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
 

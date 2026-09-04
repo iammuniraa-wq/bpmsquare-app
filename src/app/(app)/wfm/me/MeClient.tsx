@@ -14,6 +14,7 @@ import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Donut from "@/components/Donut";
+import PushOptIn from "@/components/wfm/PushOptIn";
 import MonthTimeline from "@/components/wfm/MonthTimeline";
 import LeaveRangePicker, { type LeaveDayContext } from "@/components/wfm/LeaveRangePicker";
 import PunchAudit from "@/components/wfm/PunchAudit";
@@ -1512,6 +1513,11 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           </ProfileTile>
         </div>
       )}
+
+      {/* Offers notifications for THIS phone. Self-removing: nothing renders
+          unless push is supported, configured on the server, and not already
+          enabled here. */}
+      {tab === "home" && <PushOptIn />}
 
       {tab === "home" && bcUnread > 0 && (
         <section

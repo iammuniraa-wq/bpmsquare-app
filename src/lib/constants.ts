@@ -567,6 +567,16 @@ export type WfmConfig = {
     leave_pending: boolean;      // employee files a leave request -> supervisor
     recheck_flagged: boolean;    // supervisor flags a punch/day -> employee
   };
+  /** Push an employee's own phone once they pass a worked-hours threshold, so
+   *  they know to punch out (client request, BIM 2026-09-04). Off by default:
+   *  it needs VAPID keys on the server AND the employee to have allowed
+   *  notifications, so switching it on blindly would promise something that
+   *  silently does nothing. `after_hours` is WORKED time, net of breaks --
+   *  the same figure the timesheet shows, so the two can never disagree. */
+  long_day_alert: {
+    enabled: boolean;
+    after_hours: number;
+  };
   // Employment types this tenant actually uses. Was a hardcoded
   // full_time|contractor enum until a tenant needed "Intern" -- now a
   // tenant-editable list. `code` is what employees.employment_type stores and
@@ -647,6 +657,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
     leave_pending: true,
     recheck_flagged: true,
   },
+  long_day_alert: { enabled: false, after_hours: 9 },
   employment_types: DEFAULT_EMPLOYMENT_TYPES,
   punch_types: { ot: false, mobile_work: false, business_trip: false },
   ot_rate_per_hour: 0,

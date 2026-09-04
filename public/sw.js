@@ -14,7 +14,7 @@
 // Bump VERSION to force every client onto a fresh cache (old caches are
 // deleted on activate).
 
-const VERSION = "bpm-pwa-v1";
+const VERSION = "bpm-pwa-v2";
 const PRECACHE = ["/offline.html", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -87,4 +87,45 @@ self.addEventListener("fetch", (event) => {
 
   // Everything else: try network, fall back to cache if we have it.
   event.respondWith(fetch(req).catch(() => caches.match(req)));
+});
+
+// ── Push notifications ────────────────────────────────────────────────────
+// Payload is JSON sent by lib/wfm/push.ts. A push with no readable payload
+// still shows something rather than nothing -- Chrome will otherwise display
+// its own "This site has been updated in the background" notice, which is
+// worse than a generic line of ours.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
+
+  const title = data.title || "BPMSquare";
+  const options = {
+    body: data.body || "",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    // Same tag replaces an earlier unread alert instead of stacking, so a
+    // phone that was off does not wake up to a column of identical messages.
+    tag: data.tag || "bpmsquare",
+    renotify: true,
+    data: { url: data.url || "/" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Tapping the notification focuses an already-open tab if there is one,
+// rather than piling up new ones.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ("focus" in client) {
+          client.navigate(target).catch(() => {});
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(target);
+    })
+  );
 });
