@@ -23,9 +23,12 @@ type OverrideRow = {
   employee_id: string;
   date: string;
   is_day_off: boolean;
-  /** Only present when the tenant has project costing (0104). */
+  /** Only present when the tenant has project costing (0104). The API route
+   *  flattens the name into project_name; the server prefetch returns the
+   *  raw embed instead, so both shapes have to be readable here. */
   project_id?: string | null;
   project_name?: string | null;
+  wfm_projects?: { name: string } | { name: string }[] | null;
   note: string | null;
   wfm_shifts: { name: string; start_time: string; end_time: string } | { name: string; start_time: string; end_time: string }[] | null;
   employees: { first_name: string; last_name: string; employee_code: string | null } | { first_name: string; last_name: string; employee_code: string | null }[] | null;
@@ -54,6 +57,12 @@ const btnTiny: React.CSSProperties = { ...btn, padding: "3px 8px", fontSize: 10.
 const hhmm = (t: string) => t.slice(0, 5);
 const fmtDate = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" });
 const todayKey = () => new Date().toISOString().slice(0, 10);
+
+/** The API route and the server prefetch return the project differently --
+ *  read whichever is present so the column is populated either way. */
+function projectNameOf(r: OverrideRow): string | null {
+  return r.project_name ?? one(r.wfm_projects)?.name ?? null;
+}
 
 function empName(e: { first_name: string; last_name: string } | null): string {
   return e ? [e.first_name, e.last_name].filter(Boolean).join(" ") : "—";
@@ -361,7 +370,13 @@ export default function RosterClient({ initial = null }: {
     setErrorB("");
     setOkB("");
     if (selectedB.size === 0) { setErrorB("Select at least one employee"); return; }
-    if (!overrideDayOff && !overrideShiftId) { setErrorB("Choose a shift, or mark as day off"); return; }
+    // A project on its own is a valid override -- putting someone on a job
+    // for a week without changing their shift. The standing shift still
+    // applies (see makeShiftResolver).
+    if (!overrideDayOff && !overrideShiftId && !overrideProjectId) {
+      setErrorB(projectsOn ? "Choose a shift, a project, or mark as day off" : "Choose a shift, or mark as day off");
+      return;
+    }
     if (toDate < fromDate) { setErrorB("End date can't be before start date"); return; }
     const dates = dateRange(fromDate, toDate);
     if (dates.length > 62) { setErrorB("That date range is too long (max 62 days) — split it up"); return; }
@@ -373,7 +388,7 @@ export default function RosterClient({ initial = null }: {
         body: JSON.stringify({
           employee_ids: [...selectedB],
           dates,
-          shift_id: overrideDayOff ? null : overrideShiftId,
+          shift_id: overrideDayOff ? null : overrideShiftId || null,
           project_id: overrideDayOff ? null : overrideProjectId || null,
           is_day_off: overrideDayOff,
         }),
@@ -648,7 +663,7 @@ export default function RosterClient({ initial = null }: {
                   </td>
                   {projectsOn && (
                     <td style={{ ...td, color: r.project_name ? c.ink : c.hint }}>
-                      {r.is_day_off ? "—" : r.project_name ?? "site default"}
+                      {r.is_day_off ? "—" : projectNameOf(r) ?? "site default"}
                     </td>
                   )}
                   <td style={{ ...td, color: c.muted }}>{r.note ?? "—"}</td>

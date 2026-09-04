@@ -111,8 +111,15 @@ export async function POST(request: NextRequest) {
   if (employee_ids.length * dates.length > MAX_ROWS) {
     return NextResponse.json({ error: `That's too many employee × date combinations at once (max ${MAX_ROWS}) -- split into smaller batches` }, { status: 400 });
   }
-  if (!is_day_off && !shift_id) {
-    return NextResponse.json({ error: "shift_id is required unless is_day_off is set" }, { status: 400 });
+  // A project-only override is legitimate: assigning someone to a job for a
+  // week without touching their shift. makeShiftResolver treats a roster row
+  // with no shift and is_day_off=false as "silent about the shift" and falls
+  // back to the standing one, so this cannot turn into an accidental day off.
+  if (!is_day_off && !shift_id && !project_id) {
+    return NextResponse.json(
+      { error: "Choose a shift, a project, or mark the day off" },
+      { status: 400 }
+    );
   }
 
   const admin = createAdminSupabase();
@@ -149,7 +156,7 @@ export async function POST(request: NextRequest) {
       tenant_id: tenantId,
       employee_id,
       date,
-      shift_id: is_day_off ? null : shift_id,
+      shift_id: is_day_off ? null : shift_id || null,
       site_id: site_id || null,
       // A day off has no work to attribute, so it never carries a project.
       ...(projectsOn ? { project_id: is_day_off ? null : project_id || null } : {}),

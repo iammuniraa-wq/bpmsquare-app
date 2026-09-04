@@ -145,17 +145,30 @@ export async function wfmRosterPayload(
   to: string,
   employeeId?: string | null
 ) {
-  let query = supabase
-    .from("wfm_roster_assignments")
-    .select(
-      "id, employee_id, date, shift_id, site_id, is_day_off, note, " +
-      "wfm_shifts(name, start_time, end_time, is_night_shift), wfm_sites(name), " +
-      "employees(first_name, last_name, employee_code)"
-    )
-    .eq("tenant_id", tenantId)
-    .gte("date", from)
-    .lte("date", to)
-    .order("date");
-  if (employeeId) query = query.eq("employee_id", employeeId);
-  return orThrow(await query);
+  const BASE =
+    "id, employee_id, date, shift_id, site_id, is_day_off, note, " +
+    "wfm_shifts(name, start_time, end_time, is_night_shift), wfm_sites(name), " +
+    "employees(first_name, last_name, employee_code)";
+
+  const run = (select: string) => {
+    let q = supabase
+      .from("wfm_roster_assignments")
+      .select(select)
+      .eq("tenant_id", tenantId)
+      .gte("date", from)
+      .lte("date", to)
+      .order("date");
+    if (employeeId) q = q.eq("employee_id", employeeId);
+    return q;
+  };
+
+  // Project costing (0104) is attempted first and falls back on ANY error.
+  // This payload is what the Roster page server-renders, so it must not be
+  // able to fail on a database where 0104 hasn't run -- and equally must not
+  // silently omit the project, which is how the Roster came to show a blank
+  // Project column after a reload while the same data was present via the
+  // API. One select or the other; never a half-populated row.
+  const withProject = await run(`${BASE}, project_id, wfm_projects(name)`);
+  if (!withProject.error) return withProject.data ?? [];
+  return orThrow(await run(BASE));
 }
