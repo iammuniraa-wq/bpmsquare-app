@@ -102,7 +102,11 @@ export async function proxy(request: NextRequest) {
     // CRON_SECRET bearer token, checked inside the route itself (same
     // reasoning as /api/v1 above: a credential in the request, not a
     // cookie, so the session gate would make it uncallable).
-    pathname === "/api/wfm/cron/retention"
+    // Prefix rather than an exact path: every /api/wfm/cron/* route is a
+    // scheduled job authenticated by CRON_SECRET inside the route itself, and
+    // listing them one by one is how the hours-alert job came to be silently
+    // 307'd to /login on its very first run (2026-09-04).
+    pathname.startsWith("/api/wfm/cron/")
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
