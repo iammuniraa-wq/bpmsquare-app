@@ -428,19 +428,18 @@ deploy for an automatic schema change.
   every punch is stamped at punch time, so a link can never re-attribute
   history. The file is idempotent (policy dropped first, copy guarded on the
   old table still existing), so re-running it is a no-op.
-- **0106_wfm_push_and_hours_alert.sql — PENDING on both DBs** (written
-  2026-09-04, BIM client request same day): web push to an employee's own
-  phone, plus the long-day punch-out reminder that uses it. Creates
+- 0106_wfm_push_and_hours_alert.sql — **applied to both DBs, and the VAPID
+  keys are set in Vercel** (owner confirmed 2026-09-04): web push to an
+  employee's own phone, plus the long-day punch-out reminder that uses it.
   `wfm_push_subscriptions` (no RLS policies at all -- device credentials,
-  same as wfm_kiosk_devices) and `wfm_hours_alerts` (one row per employee
-  per shift-day, the unique index is what stops a 15-minute cron buzzing the
-  same phone repeatedly). Push rather than email because employees sign in
-  by code and their account carries a synthetic address at
-  employee.bpmsquare.local, which can never receive mail. Gated by
-  `config.wfm.long_day_alert.enabled`, default OFF. **Also needs the
-  VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY env vars in Vercel** -- without them
-  the cron no-ops and the opt-in card hides itself, so it degrades quietly
-  rather than half-working.
+  same as wfm_kiosk_devices) and `wfm_hours_alerts` (one row per employee per
+  shift-day; the unique index is what stops a 15-minute cron buzzing the same
+  phone repeatedly). Push rather than email because employees sign in by code
+  and their account carries a synthetic address at employee.bpmsquare.local,
+  which can never receive mail. Still gated per tenant by
+  `config.wfm.long_day_alert.enabled`, default OFF -- no tenant has it on
+  yet, so running the SQL and setting the keys changes nothing until the
+  toggle in Settings -> Workforce is switched on.
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;
