@@ -417,6 +417,18 @@ deploy for an automatic schema change.
   default off, missing key false — so schema + code being live changes
   nothing for any tenant until the flag is ticked per tenant in
   /admin/tenants. **No tenant has it on yet.**
+- **0105_wfm_project_links.sql — PENDING on both DBs** (written 2026-09-04,
+  owner decision same day): generalises how a job collects hours. 0104 could
+  only link a project to SITES; a project is now a standalone record linked to
+  any combination of sites, PEOPLE and SHIFTS. Creates `wfm_project_links`
+  (three nullable FKs with a one-of check, so deleting a site/employee/shift
+  cleans up its links automatically), COPIES every existing row across from
+  `wfm_project_sites`, then DROPS that table. Dates deliberately left off the
+  link -- the project's own start/end bound which punches count, and every
+  punch is stamped at punch time, so a link can never re-attribute history.
+  Safe to run: the copy preserves the site links already created on 04-Sep.
+  Until it runs, the Projects screens degrade to empty links rather than
+  crashing.
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;

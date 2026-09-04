@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { diffForLog, logChange } from "@/lib/changeLog";
-import { PROJECT_SELECT, parseProjectBody, projectSiteMap, verifyProjectSites } from "@/lib/wfm/projects";
+import { PROJECT_SELECT, parseProjectBody, projectLinks, verifyProjectLinks, replaceProjectLinks, bodyTouchesLinks } from "@/lib/wfm/projects";
 
 // GET /api/wfm/projects/[id]
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -25,8 +25,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const sites = await projectSiteMap(createAdminSupabase(), tenantId, [id]);
-  return NextResponse.json({ ...data, site_ids: sites.get(id) ?? [] });
+  const links = await projectLinks(createAdminSupabase(), tenantId, id);
+  return NextResponse.json({ ...data, ...links });
 }
 
 // PATCH /api/wfm/projects/[id] — edit (tenant admin only).
@@ -84,17 +84,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Site links are replaced wholesale only when the key is present, so a
-  // plain status change never silently unlinks every site.
-  if (body && Object.prototype.hasOwnProperty.call(body, "site_ids")) {
-    const sites = await verifyProjectSites(admin, tenantId, body.site_ids, mergedStart);
-    if ("error" in sites) return NextResponse.json({ error: sites.error }, { status: 400 });
-    await admin.from("wfm_project_sites").delete().eq("tenant_id", tenantId).eq("project_id", id);
-    if (sites.rows.length > 0) {
-      await admin.from("wfm_project_sites").insert(
-        sites.rows.map((r) => ({ ...r, tenant_id: tenantId, project_id: id }))
-      );
-    }
+  // Links are replaced wholesale ONLY when the body mentions them, so a plain
+  // status or name change never silently unlinks everything.
+  if (bodyTouchesLinks(body)) {
+    const links = await verifyProjectLinks(admin, tenantId, body);
+    if ("error" in links) return NextResponse.json({ error: links.error }, { status: 400 });
+    await replaceProjectLinks(admin, tenantId, id, links.rows);
   }
 
   const changes = diffForLog("wfm_projects", before as Record<string, unknown>, parsed.values);

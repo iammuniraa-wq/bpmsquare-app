@@ -3,7 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { logChange } from "@/lib/changeLog";
-import { PROJECT_SELECT, PROJECT_STATUSES, parseProjectBody, verifyProjectSites } from "@/lib/wfm/projects";
+import { PROJECT_SELECT, PROJECT_STATUSES, parseProjectBody, verifyProjectLinks, replaceProjectLinks } from "@/lib/wfm/projects";
 
 // Projects are the cost object worked hours are attributed to (0104,
 // WFM_PROJECT_COSTING.md). Gated on features.wfm_projects separately from
@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
 
   // Every foreign id below arrives in the request body, so each is
   // tenant-verified before use per MULTI_TENANT_GUARDRAILS.md.
-  const sites = await verifyProjectSites(admin, tenantId, body?.site_ids, parsed.values.start_date as string | null);
-  if ("error" in sites) return NextResponse.json({ error: sites.error }, { status: 400 });
+  const links = await verifyProjectLinks(admin, tenantId, body);
+  if ("error" in links) return NextResponse.json({ error: links.error }, { status: 400 });
 
   if (parsed.values.account_id) {
     const { data: account } = await admin
@@ -87,11 +87,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error?.message ?? "Could not create project" }, { status: 500 });
   }
 
-  if (sites.rows.length > 0) {
-    await admin.from("wfm_project_sites").insert(
-      sites.rows.map((r) => ({ ...r, tenant_id: tenantId, project_id: data.id }))
-    );
-  }
+  await replaceProjectLinks(admin, tenantId, data.id, links.rows);
 
   await logChange(admin, {
     tenantId, objectType: "wfm_projects", objectId: data.id,

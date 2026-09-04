@@ -45,21 +45,23 @@ export type WfmProject = {
   end_date: string | null;
   budget_hours: number | null;
   custom_data?: Record<string, unknown> | null;
-  /** Joined for display only, never a stored column. */
+  /** What the job is linked to (0105) — joined for display, never stored on
+   *  the project row itself. Any combination, any of them empty. */
   site_ids?: string[];
+  employee_ids?: string[];
+  shift_ids?: string[];
   account_name?: string | null;
 };
 
-/** Date-effective project↔site link. Deliberately a table rather than a
- * column on either side: the attribution fallback asks "this site's sole
- * active project ON THAT DATE", and a scalar column can only answer "NOW",
- * which silently re-attributes history. */
-export type WfmProjectSite = {
+/** One link between a job and a site, a person or a shift (0105). Exactly
+ *  one target is set. Deliberately a table rather than columns on the
+ *  project: a job can be linked to any number of each, in any combination. */
+export type WfmProjectLink = {
   id: string;
   project_id: string;
-  site_id: string;
-  from_date: string;
-  to_date: string | null;
+  site_id: string | null;
+  employee_id: string | null;
+  shift_id: string | null;
 };
 
 export type WfmShift = {

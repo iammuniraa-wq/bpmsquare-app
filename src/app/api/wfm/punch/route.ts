@@ -213,7 +213,8 @@ export async function POST(request: NextRequest) {
   const projectId = await resolveProjectForPunch(
     admin, tenantId, employee.id,
     shiftDayKey(tsDate, config.timezone, shift),
-    within ? site!.id : null
+    within ? site!.id : null,
+    employee.shift_id ?? null
   );
 
   const { data: event, error } = await admin

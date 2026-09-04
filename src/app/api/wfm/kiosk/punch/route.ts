@@ -130,7 +130,8 @@ export async function POST(request: NextRequest) {
   const projectId = await resolveProjectForPunch(
     admin, device.tenant_id, employee.id,
     shiftDayKey(now, config.timezone, shift),
-    device.site_id
+    device.site_id,
+    employee.shift_id ?? null
   );
 
   const { error } = await admin.from("wfm_presence_events").insert({

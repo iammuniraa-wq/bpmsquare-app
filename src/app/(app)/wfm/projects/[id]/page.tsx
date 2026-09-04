@@ -3,7 +3,7 @@ import { requireFeature } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisorPage } from "@/lib/wfm/server";
-import { projectSiteMap } from "@/lib/wfm/projects";
+import { projectLinks } from "@/lib/wfm/projects";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
@@ -28,8 +28,8 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
     .maybeSingle();
   if (!data) notFound();
 
-  const sites = await projectSiteMap(createAdminSupabase(), tenantId, [id]);
-  const project = { ...data, site_ids: sites.get(id) ?? [] } as unknown as WfmProject;
+  const links = await projectLinks(createAdminSupabase(), tenantId, id);
+  const project = { ...data, ...links } as unknown as WfmProject;
 
   return (
     <>

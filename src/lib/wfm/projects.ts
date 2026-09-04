@@ -104,52 +104,120 @@ export async function parseProjectBody(
   return { values };
 }
 
+/** What a project is linked to. Any combination, any of them empty. */
+export type ProjectLinks = { site_ids: string[]; employee_ids: string[]; shift_ids: string[] };
+
+const EMPTY_LINKS: ProjectLinks = { site_ids: [], employee_ids: [], shift_ids: [] };
+
 /**
- * Tenant-verify the site ids a project is being linked to and shape the
- * date-effective rows. `from_date` defaults to the project's start date, or
- * today when it has none -- a link has to start somewhere, and backdating it
- * to the epoch would make the site-default fallback claim historical punches
- * that were never this project's.
+ * Tenant-verify the ids a project is being linked to, and shape the rows.
+ *
+ * Sites, people and shifts are all optional and independent -- a project
+ * linked to nothing is legitimate, it simply collects no hours automatically.
+ * Every id arrives in a request body, so each is checked against its own
+ * table WITH the tenant filter before use (MULTI_TENANT_GUARDRAILS.md).
  */
-export async function verifyProjectSites(
+export async function verifyProjectLinks(
   admin: Admin,
   tenantId: string,
-  siteIds: unknown,
-  startDate: string | null
-): Promise<{ rows: { site_id: string; from_date: string; to_date: null }[] } | { error: string }> {
-  if (siteIds == null) return { rows: [] };
-  if (!Array.isArray(siteIds) || siteIds.some((s) => typeof s !== "string")) {
-    return { error: "site_ids must be an array of site ids" };
-  }
-  const ids = [...new Set(siteIds as string[])];
-  if (ids.length === 0) return { rows: [] };
+  body: unknown
+): Promise<{ rows: Record<string, string>[] } | { error: string }> {
+  const b = (body ?? {}) as Record<string, unknown>;
 
-  const { data: found } = await admin
-    .from("wfm_sites").select("id").eq("tenant_id", tenantId).in("id", ids);
-  if ((found ?? []).length !== ids.length) {
-    return { error: "One or more sites weren't found in this tenant" };
-  }
+  const read = (key: string): string[] | { error: string } => {
+    const v = b[key];
+    if (v == null) return [];
+    if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
+      return { error: `${key} must be an array of ids` };
+    }
+    return [...new Set(v as string[])];
+  };
 
-  const from = startDate ?? new Date().toISOString().slice(0, 10);
-  return { rows: ids.map((site_id) => ({ site_id, from_date: from, to_date: null })) };
+  const specs: { key: string; table: string; column: string; label: string }[] = [
+    { key: "site_ids", table: "wfm_sites", column: "site_id", label: "sites" },
+    { key: "employee_ids", table: "employees", column: "employee_id", label: "employees" },
+    { key: "shift_ids", table: "wfm_shifts", column: "shift_id", label: "shifts" },
+  ];
+
+  const rows: Record<string, string>[] = [];
+  for (const spec of specs) {
+    const ids = read(spec.key);
+    if (!Array.isArray(ids)) return ids;
+    if (ids.length === 0) continue;
+
+    const { data: found } = await admin
+      .from(spec.table).select("id").eq("tenant_id", tenantId).in("id", ids);
+    if ((found ?? []).length !== ids.length) {
+      return { error: `One or more ${spec.label} weren't found in this tenant` };
+    }
+    for (const id of ids) rows.push({ [spec.column]: id });
+  }
+  return { rows };
 }
 
-/** The site ids currently linked to each of these projects, for list display. */
-export async function projectSiteMap(
+/** True when the body mentions links at all -- a PATCH that says nothing
+ *  about them must leave existing links alone rather than clearing them. */
+export function bodyTouchesLinks(body: unknown): boolean {
+  const b = (body ?? {}) as Record<string, unknown>;
+  return ["site_ids", "employee_ids", "shift_ids"].some((k) =>
+    Object.prototype.hasOwnProperty.call(b, k)
+  );
+}
+
+/** Replace a project's links wholesale. Called only when the body mentions them. */
+export async function replaceProjectLinks(
+  admin: Admin,
+  tenantId: string,
+  projectId: string,
+  rows: Record<string, string>[]
+): Promise<void> {
+  await admin.from("wfm_project_links").delete().eq("tenant_id", tenantId).eq("project_id", projectId);
+  if (rows.length > 0) {
+    await admin.from("wfm_project_links").insert(
+      rows.map((r) => ({ ...r, tenant_id: tenantId, project_id: projectId }))
+    );
+  }
+}
+
+/** Everything one project is linked to, split by kind, for the detail screen. */
+export async function projectLinks(
+  admin: Admin,
+  tenantId: string,
+  projectId: string
+): Promise<ProjectLinks> {
+  const { data, error } = await admin
+    .from("wfm_project_links")
+    .select("site_id, employee_id, shift_id")
+    .eq("tenant_id", tenantId)
+    .eq("project_id", projectId);
+  if (error) return { ...EMPTY_LINKS };
+
+  const out: ProjectLinks = { site_ids: [], employee_ids: [], shift_ids: [] };
+  for (const r of data ?? []) {
+    if (r.site_id) out.site_ids.push(r.site_id as string);
+    else if (r.employee_id) out.employee_ids.push(r.employee_id as string);
+    else if (r.shift_id) out.shift_ids.push(r.shift_id as string);
+  }
+  return out;
+}
+
+/** How many things each project is linked to -- the list screen shows this so
+ *  a project that will never collect anything is obvious at a glance. */
+export async function projectLinkCounts(
   admin: Admin,
   tenantId: string,
   projectIds: string[]
-): Promise<Map<string, string[]>> {
-  const map = new Map<string, string[]>();
-  if (projectIds.length === 0) return map;
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (projectIds.length === 0) return counts;
   const { data } = await admin
-    .from("wfm_project_sites")
-    .select("project_id, site_id")
+    .from("wfm_project_links")
+    .select("project_id")
     .eq("tenant_id", tenantId)
     .in("project_id", projectIds);
-  for (const row of data ?? []) {
-    const key = row.project_id as string;
-    map.set(key, [...(map.get(key) ?? []), row.site_id as string]);
+  for (const r of data ?? []) {
+    const k = r.project_id as string;
+    counts.set(k, (counts.get(k) ?? 0) + 1);
   }
-  return map;
+  return counts;
 }
