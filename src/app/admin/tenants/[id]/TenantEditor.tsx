@@ -30,6 +30,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "data_workbench", label: "Data Workbench",     group: "Core modules" },
   { key: "administration", label: "Administration hub", group: "Core modules" },
   { key: "wfm",            label: "Workforce (Attendance & Leave)", group: "Core modules" },
+  { key: "wfm_projects",   label: "Workforce — Project Costing", group: "Core modules" },
   { key: "leads",        label: "Leads",                  group: "Sales & Service add-ons" },
   { key: "pipeline",     label: "Pipeline",               group: "Sales & Service add-ons" },
   { key: "amc",          label: "AMC Contracts",          group: "Sales & Service add-ons" },

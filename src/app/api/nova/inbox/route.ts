@@ -17,7 +17,7 @@ const LABEL: Record<string, string> = {
   standard_quotes: "Quote", cases: "Case", work_orders: "Work Order",
   invoices: "Invoice", assets: "Asset", suppliers: "Supplier",
   inventory: "Inventory item", purchase_orders: "Purchase Order", employees: "Employee",
-  products: "Product",
+  products: "Product", wfm_projects: "Project",
 };
 const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }> = {
   accounts:        { table: "accounts",         nameCol: "name", refCol: "ref" },
@@ -32,6 +32,7 @@ const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }>
   inventory:       { table: "inventory_items",  nameCol: "name", refCol: "ref" },
   purchase_orders: { table: "purchase_orders",  nameCol: "ref" },
   employees:       { table: "employees",        nameCol: "first_name", refCol: "employee_code" },
+  wfm_projects:    { table: "wfm_projects",     nameCol: "name", refCol: "ref" },
   products: { table: "products", nameCol: "name", refCol: "ref" },
 };
 

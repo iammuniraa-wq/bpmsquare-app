@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireTenantUser, createAdminSupabase, getTenantMembership } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { resolvePermissions } from "@/lib/permissions";
-import { DEFAULT_WFM_CONFIG, ROUTES, type TenantConfig, type WfmConfig } from "@/lib/constants";
+import { DEFAULT_WFM_CONFIG, ROUTES, type TenantConfig, type TenantFeatures, type WfmConfig } from "@/lib/constants";
 import type { WfmEmployee, PresenceKind, PunchState } from "./types";
 import { deriveState } from "./types";
 import { computeDayHours, shiftDayKey, type DayHours } from "./hours";
@@ -95,10 +95,22 @@ export async function requireWfmEmployee(): Promise<WfmContext & { employee: Wfm
   return ctx as WfmContext & { employee: WfmEmployee };
 }
 
-/** requireWfm + supervisor or admin (live board, corrections queue, management). */
-export async function requireWfmSupervisor(): Promise<WfmContext> {
+/**
+ * requireWfm + supervisor or admin (live board, corrections queue, management).
+ *
+ * `feature` additionally requires a sub-module flag beyond `wfm` itself --
+ * project costing is the first (0104). It 404s rather than 403s, matching
+ * requireWfm's own missing-feature behaviour: a tenant that didn't buy a
+ * module shouldn't learn the endpoint exists.
+ */
+export async function requireWfmSupervisor(
+  opts?: { feature?: keyof TenantFeatures }
+): Promise<WfmContext> {
   const ctx = await requireWfm();
   if (!ctx.isSupervisor) throw { status: 403, message: "Forbidden" };
+  if (opts?.feature && !(await tenantHasFeature(ctx.supabase, ctx.tenantId, opts.feature))) {
+    throw { status: 404, message: "Not found" };
+  }
   return ctx;
 }
 

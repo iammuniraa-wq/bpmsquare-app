@@ -17,7 +17,10 @@ export type DayHours = {
   open: boolean;
 };
 
-type Ev = Pick<PresenceEvent, "kind" | "ts">;
+/** project_id is optional so every existing caller keeps compiling: it only
+ *  matters to project costing (0104), and a caller that doesn't select the
+ *  column simply gets sessions with a null project. */
+type Ev = Pick<PresenceEvent, "kind" | "ts"> & { project_id?: string | null };
 
 export type BreakSegment = {
   start: string;      // ISO ts of break_start
@@ -36,6 +39,11 @@ export type WorkSession = {
   break_minutes: number;
   net_minutes: number;
   breaks: BreakSegment[];
+  /** The cost object this stretch is attributed to, taken from the session's
+   * OWN check_in (0104). Per-session rather than per-day is what makes a
+   * mid-shift project transfer representable: punch out of A, in to B, and
+   * the day already splits correctly. Null = unassigned. */
+  project_id: string | null;
 };
 
 const mins = (ms: number) => Math.round(ms / 60000);
@@ -51,6 +59,7 @@ const mins = (ms: number) => Math.round(ms / 60000);
 export function workSessions(events: Ev[], endRef: Date): WorkSession[] {
   const sessions: WorkSession[] = [];
   let openAt: number | null = null;
+  let openProject: string | null = null;
   let breaks: BreakSegment[] = [];
   let openBreak: number | null = null;
 
@@ -70,8 +79,10 @@ export function workSessions(events: Ev[], endRef: Date): WorkSession[] {
       break_minutes: brk,
       net_minutes: gross - brk,
       breaks,
+      project_id: openProject,
     });
     openAt = null;
+    openProject = null;
     breaks = [];
   };
 
@@ -81,7 +92,10 @@ export function workSessions(events: Ev[], endRef: Date): WorkSession[] {
     // regular working session (see otSessions below).
     if (e.kind === "ot_in" || e.kind === "ot_out") continue;
     if (isSessionStart(e.kind)) {
-      if (openAt === null) openAt = t;
+      if (openAt === null) {
+        openAt = t;
+        openProject = e.project_id ?? null;
+      }
     } else if (openAt === null) {
       continue; // break/check-out with no session open — nothing to attribute
     } else if (isSessionEnd(e.kind)) {

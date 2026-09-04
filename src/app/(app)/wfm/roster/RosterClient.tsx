@@ -23,6 +23,9 @@ type OverrideRow = {
   employee_id: string;
   date: string;
   is_day_off: boolean;
+  /** Only present when the tenant has project costing (0104). */
+  project_id?: string | null;
+  project_name?: string | null;
   note: string | null;
   wfm_shifts: { name: string; start_time: string; end_time: string } | { name: string; start_time: string; end_time: string }[] | null;
   employees: { first_name: string; last_name: string; employee_code: string | null } | { first_name: string; last_name: string; employee_code: string | null }[] | null;
@@ -141,6 +144,10 @@ export default function RosterClient({ initial = null }: {
   const [fromDate, setFromDate] = useState(todayKey());
   const [toDate, setToDate] = useState(todayKey());
   const [overrideShiftId, setOverrideShiftId] = useState("");
+  // Empty for a tenant without project costing, which is what hides the whole
+  // control -- the endpoint 404s on the feature flag, so this stays [].
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [overrideProjectId, setOverrideProjectId] = useState("");
   const [overrideDayOff, setOverrideDayOff] = useState(false);
   const [busyB, setBusyB] = useState(false);
   const [errorB, setErrorB] = useState("");
@@ -152,16 +159,20 @@ export default function RosterClient({ initial = null }: {
     rangeEnd.setDate(rangeEnd.getDate() + UPCOMING_DAYS);
     const rangeEndKey = rangeEnd.toISOString().slice(0, 10);
 
-    const [empRes, shiftRes, siteRes, ovRes] = await Promise.all([
+    const [empRes, shiftRes, siteRes, ovRes, projRes] = await Promise.all([
       fetch("/api/wfm/employees"),
       fetch("/api/wfm/shifts"),
       fetch("/api/wfm/sites"),
       fetch(`/api/wfm/roster?from=${from}&to=${rangeEndKey}`),
+      // 404s (and stays []) for a tenant without project costing, which is
+      // exactly what keeps the control off their roster.
+      fetch("/api/wfm/projects?status=active"),
     ]);
     if (empRes.ok) setEmployees(await empRes.json()); else setError((await empRes.json()).error ?? "Failed to load employees");
     if (shiftRes.ok) setShifts(await shiftRes.json());
     if (siteRes.ok) setSites(await siteRes.json());
     if (ovRes.ok) setOverrides(await ovRes.json());
+    if (projRes.ok) setProjects(await projRes.json());
     setLoading(false);
   }, []);
 
@@ -340,6 +351,7 @@ export default function RosterClient({ initial = null }: {
           employee_ids: [...selectedB],
           dates,
           shift_id: overrideDayOff ? null : overrideShiftId,
+          project_id: overrideDayOff ? null : overrideProjectId || null,
           is_day_off: overrideDayOff,
         }),
       });
@@ -505,6 +517,22 @@ export default function RosterClient({ initial = null }: {
                 {activeShifts.map((s) => <option key={s.id} value={s.id}>{s.name} ({hhmm(s.start_time)}–{hhmm(s.end_time)})</option>)}
               </select>
             </div>
+            {/* Project costing (0104). Only rendered when the tenant has the
+                module -- an attendance-only roster stays exactly as it was. */}
+            {projects.length > 0 && (
+              <div style={{ minWidth: 200 }}>
+                <label style={lbl}>Project</label>
+                <select
+                  style={{ ...inp, width: "100%" }}
+                  value={overrideProjectId}
+                  disabled={overrideDayOff}
+                  onChange={(e) => setOverrideProjectId(e.target.value)}
+                >
+                  <option value="">— site default —</option>
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            )}
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: c.ink, paddingBottom: 8, cursor: "pointer" }}>
               <input type="checkbox" checked={overrideDayOff} onChange={(e) => setOverrideDayOff(e.target.checked)} />
               Mark as day off instead
@@ -561,7 +589,9 @@ export default function RosterClient({ initial = null }: {
         <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th style={th}>Date</th><th style={th}>Employee</th><th style={th}>Shift</th><th style={th}>Note</th><th style={th}></th>
+              <th style={th}>Date</th><th style={th}>Employee</th><th style={th}>Shift</th>
+              {projects.length > 0 && <th style={th}>Project</th>}
+              <th style={th}>Note</th><th style={th}></th>
             </tr>
           </thead>
           <tbody>
@@ -580,6 +610,11 @@ export default function RosterClient({ initial = null }: {
                       ? <Pill label="Day off" tone="red" />
                       : shift ? `${shift.name} (${hhmm(shift.start_time)}–${hhmm(shift.end_time)})` : "—"}
                   </td>
+                  {projects.length > 0 && (
+                    <td style={{ ...td, color: r.project_name ? c.ink : c.hint }}>
+                      {r.is_day_off ? "—" : r.project_name ?? "site default"}
+                    </td>
+                  )}
                   <td style={{ ...td, color: c.muted }}>{r.note ?? "—"}</td>
                   <td style={td}><button style={btnTiny} disabled={busyB} onClick={() => removeOverride(r.id)}>Remove</button></td>
                 </tr>

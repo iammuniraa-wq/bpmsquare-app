@@ -23,6 +23,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "gmail_reply_threading",  label: "Gmail reply-threading" },
   { key: "quote_lines_dw",         label: "Quote Lines (Data Workbench)" },
   { key: "wfm",                    label: "Workforce (Attendance & Leave)" },
+  { key: "wfm_projects",           label: "Workforce — Project Costing" },
   { key: "accounts",       label: "Accounts" },
   { key: "contacts",       label: "Contacts" },
   { key: "quotations",     label: "Quotations" },
@@ -42,7 +43,7 @@ const DEFAULT_FEATURES: TenantFeatures = {
   purchasing: false, marketing: false, products: false,
   change_history: false, outbound_email: false, business_roles: false,
   standard_quotes: false, gmail_reply_threading: false, quote_lines_dw: false,
-  wfm: false, pricing_engine: false, pricing_engine_quotes: false, next_experience: false, enterprise_theme: false,
+  wfm: false, wfm_projects: false, pricing_engine: false, pricing_engine_quotes: false, next_experience: false, enterprise_theme: false,
   coverage_model: false, ai_reports: false,
   // Core modules default ON: a brand-new tenant with these off would open to
   // a workspace containing nothing but a Dashboard. Untick what the client

@@ -21,6 +21,47 @@ export type WfmSite = {
   supervisor?: { first_name: string; last_name: string; employee_code: string | null } | null;
 };
 
+export type WfmProjectStatus = "planned" | "active" | "on_hold" | "completed" | "cancelled";
+
+/** A cost object worked hours are attributed to (0104). See
+ * WFM_PROJECT_COSTING.md — the industry name is project costing; field
+ * vernacular is job costing, payroll-accounting vernacular labour
+ * distribution. */
+export type WfmProject = {
+  id: string;
+  ref: string | null;
+  name: string;
+  /** The client's own job/contract number, if they quote one. */
+  code: string | null;
+  /** One level ships. Present so a phase / cost-code level is a column's
+   * worth of work later — every reference system (SAP WBS, Kronos labor
+   * levels, ClockShark cost codes) is a hierarchy, not a flat list. */
+  parent_id: string | null;
+  /** Optional Sales link (quoted-vs-actual margin). Null and invisible for a
+   * WFM-only tenant. */
+  account_id: string | null;
+  status: WfmProjectStatus;
+  start_date: string | null;
+  end_date: string | null;
+  budget_hours: number | null;
+  custom_data?: Record<string, unknown> | null;
+  /** Joined for display only, never a stored column. */
+  site_ids?: string[];
+  account_name?: string | null;
+};
+
+/** Date-effective project↔site link. Deliberately a table rather than a
+ * column on either side: the attribution fallback asks "this site's sole
+ * active project ON THAT DATE", and a scalar column can only answer "NOW",
+ * which silently re-attributes history. */
+export type WfmProjectSite = {
+  id: string;
+  project_id: string;
+  site_id: string;
+  from_date: string;
+  to_date: string | null;
+};
+
 export type WfmShift = {
   id: string;
   name: string;
@@ -144,6 +185,10 @@ export type PresenceEvent = {
   kind: PresenceKind;
   source: PresenceSource;
   site_id: string | null;
+  /** The cost object this punch's work is attributed to (0104), resolved by
+   * resolveProjectForPunch() and STAMPED at insert — never recomputed on
+   * read. Editing a roster row tomorrow must not move yesterday's hours. */
+  project_id: string | null;
   geo_lat: number | null;
   geo_lng: number | null;
   geo_accuracy_m: number | null;

@@ -3,7 +3,8 @@ import { randomUUID } from "crypto";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { authenticateKiosk, verifyMatchTicket } from "@/lib/wfm/kiosk";
 import { getWfmConfig } from "@/lib/wfm/server";
-import { punchStateAt } from "@/lib/wfm/hours";
+import { punchStateAt, shiftDayKey } from "@/lib/wfm/hours";
+import { resolveProjectForPunch } from "@/lib/wfm/projectServer";
 import { applyPunch, PUNCH_KIND_LABEL, type PresenceKind } from "@/lib/wfm/types";
 
 const KIOSK_KINDS: PresenceKind[] = ["check_in", "check_out", "break_start", "break_end"];
@@ -123,6 +124,15 @@ export async function POST(request: NextRequest) {
     else selfiePath = path;
   }
 
+  // Same attribution as the web punch (WFM_PROJECT_COSTING.md §4) -- the
+  // kiosk is the primary punch surface for a site-based workforce, so
+  // leaving it unstamped would leave most hours unattributed.
+  const projectId = await resolveProjectForPunch(
+    admin, device.tenant_id, employee.id,
+    shiftDayKey(now, config.timezone, shift),
+    device.site_id
+  );
+
   const { error } = await admin.from("wfm_presence_events").insert({
     id: eventId,
     tenant_id: device.tenant_id,
@@ -131,6 +141,7 @@ export async function POST(request: NextRequest) {
     kind,
     source: "kiosk_face",
     site_id: device.site_id,
+    project_id: projectId,
     within_geofence: true,
     selfie_path: selfiePath,
     flags: { kiosk_device_id: device.id },
