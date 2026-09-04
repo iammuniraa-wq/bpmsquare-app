@@ -178,13 +178,20 @@ function Picker({
 export default function ProjectForm({
   project,
   parentId = null,
+  suggestedLabel = "",
 }: {
   project?: WfmProject;
-  /** Set when creating a sub-item from a parent's "Add ..." link. */
+  /** Set when creating a part from a parent's "Add ..." link. */
   parentId?: string | null;
+  /** What the parent's existing parts are already called, so siblings stay
+   *  consistent without anyone retyping the word. */
+  suggestedLabel?: string;
 }) {
   const router = useRouter();
   const editing = !!project;
+  // A part of something is named where it is created (0107) -- there is no
+  // workspace-wide ladder every project has to fit.
+  const isPart = editing ? !!project?.parent_id : !!parentId;
 
   const [name, setName] = useState(project?.name ?? "");
   const [code, setCode] = useState(project?.code ?? "");
@@ -192,6 +199,7 @@ export default function ProjectForm({
   const [startDate, setStartDate] = useState(project?.start_date ?? "");
   const [endDate, setEndDate] = useState(project?.end_date ?? "");
   const [budgetHours, setBudgetHours] = useState(project?.budget_hours != null ? String(project.budget_hours) : "");
+  const [levelLabel, setLevelLabel] = useState(project?.level_label ?? suggestedLabel);
 
   const [siteIds, setSiteIds] = useState<string[]>(project?.site_ids ?? []);
   const [employeeIds, setEmployeeIds] = useState<string[]>(project?.employee_ids ?? []);
@@ -290,6 +298,7 @@ export default function ProjectForm({
       end_date: endDate || null,
       budget_hours: budgetHours.trim() === "" ? null : Number(budgetHours),
       ...(parentId && !editing ? { parent_id: parentId } : {}),
+      ...(isPart ? { level_label: levelLabel.trim() || null } : {}),
       site_ids: siteIds,
       employee_ids: employeeIds,
       shift_ids: shiftIds,
@@ -321,13 +330,29 @@ export default function ProjectForm({
   return (
     <form onSubmit={save} style={{ maxWidth: 760 }}>
       <div style={{ ...cardStyle, padding: 20 }}>
+        {isPart && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={label}>What do you call this kind of part?</label>
+            <input
+              style={{ ...field, maxWidth: 240 }}
+              value={levelLabel}
+              onChange={(e) => setLevelLabel(e.target.value)}
+              placeholder="WBS, Phase, Package…"
+            />
+            <div style={{ fontSize: 11.5, color: c.hint, marginTop: 5, lineHeight: 1.5 }}>
+              Your own word for the parts of <em>this</em> project — the next project can be
+              broken up completely differently. The other parts of this one use the same word.
+            </div>
+          </div>
+        )}
+
         <div style={{ marginBottom: 16 }}>
-          <label style={label}>Project name</label>
+          <label style={label}>{isPart ? `${levelLabel.trim() || "Part"} name` : "Project name"}</label>
           <input
             style={field}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Tower A — lift overhaul"
+            placeholder={isPart ? "e.g. Structural works" : "e.g. Tower A — lift overhaul"}
             autoFocus
           />
           <div style={{ fontSize: 11.5, color: c.hint, marginTop: 5 }}>
@@ -471,7 +496,13 @@ export default function ProjectForm({
             cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1,
           }}
         >
-          {saving ? "Saving…" : editing ? "Save changes" : "Create project"}
+          {saving
+            ? "Saving…"
+            : editing
+              ? "Save changes"
+              : isPart
+                ? `Create ${levelLabel.trim() || "part"}`
+                : "Create project"}
         </button>
         <button
           type="button"

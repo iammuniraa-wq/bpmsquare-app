@@ -1,16 +1,25 @@
 // Project hierarchy: a project may have children, and a child is just another
-// project row with a parent. BIM calls the level below a project a WBS; other
-// tenants call it a phase, a task, a cost code -- so the LEVELS ARE NAMED BY
-// THE TENANT (config.wfm.project_levels) rather than by us.
+// project row with a parent.
 //
-// The configured list is a MAXIMUM, not a requirement. One project can stop at
-// the top while another uses every level; nothing forces a shape on a project
-// that doesn't need one.
+// The structure is named PER PROJECT, not per workspace (owner decision
+// 2026-09-05). One project is broken into a WBS, the next into phases, the
+// next not at all -- so the word lives on the row (wfm_projects.level_label,
+// 0107) and is chosen when the part is created. There is no configured
+// ladder every project must fit.
+//
+// Depth is capped by a constant rather than a setting: past a few levels the
+// tree and the reports stop being readable, and that is not a judgement a
+// tenant benefits from tuning.
 //
 // Pure and dependency-free so the rules are unit-testable -- same convention
 // as hours.ts, geofence.ts and projectAttribution.ts.
 
 export type TreeNodeLike = { id: string; parent_id: string | null };
+
+/** How deep the tree may go, counting the project itself as level 0. Five is
+ *  already more nesting than a readable report can carry; the limit exists to
+ *  stop an accident, not to express a policy. */
+export const MAX_DEPTH = 5;
 
 /**
  * How deep a project sits. A root project is 0, its child 1, and so on.
@@ -33,17 +42,20 @@ export function depthOf(nodes: Map<string, TreeNodeLike>, id: string): number | 
   return depth;
 }
 
-/** The label for the level BELOW a project at `depth`, or null when that
- *  depth is already the deepest the tenant allows. This is what decides
- *  whether an "Add ..." button exists at all. */
-export function childLevelName(levels: string[], parentDepth: number): string | null {
-  return parentDepth < levels.length ? levels[parentDepth] : null;
+/** Whether anything may be added beneath a project at this depth. */
+export function canNest(parentDepth: number): boolean {
+  return parentDepth + 1 < MAX_DEPTH;
 }
 
-/** What this node itself is called: "Project" at the root, otherwise the
- *  tenant's own word for that level. */
-export function levelNameOf(levels: string[], depth: number): string {
-  return depth === 0 ? "Project" : (levels[depth - 1] ?? "Level " + depth);
+/** What to call the parts of a project: whatever its existing parts are
+ *  already called, so siblings stay consistent without anyone re-typing it.
+ *  Falls back to a neutral word for the first one. */
+export function childLabelFrom(siblingLabels: (string | null)[]): string {
+  for (const l of siblingLabels) {
+    const t = (l ?? "").trim();
+    if (t) return t;
+  }
+  return "Sub-item";
 }
 
 /** Every descendant id of `rootId`, excluding the root. */
@@ -107,7 +119,6 @@ export function rollUp(
  */
 export function reparentError(
   nodes: TreeNodeLike[],
-  levels: string[],
   childId: string,
   newParentId: string | null
 ): string | null {
@@ -124,11 +135,7 @@ export function reparentError(
 
   const parentDepth = depthOf(byId, newParentId);
   if (parentDepth === null) return "That parent is not reachable";
-  if (!childLevelName(levels, parentDepth)) {
-    return levels.length === 0
-      ? "Sub-items aren't switched on for this workspace"
-      : `That is already the deepest level (${levels[levels.length - 1]})`;
-  }
+  if (!canNest(parentDepth)) return "That is already the deepest level";
 
   // The moved node brings its own subtree with it; the deepest leaf must still
   // fit. Checking only the node itself would let a 3-deep branch be dragged
@@ -141,8 +148,8 @@ export function reparentError(
     if (d === null || c === null) continue;
     deepestBelow = Math.max(deepestBelow, d - c);
   }
-  if (parentDepth + 1 + deepestBelow > levels.length) {
-    return "Its sub-items would go deeper than this workspace allows";
+  if (parentDepth + 1 + deepestBelow >= MAX_DEPTH) {
+    return "Its sub-items would go deeper than allowed";
   }
   return null;
 }

@@ -33,10 +33,13 @@ export type WfmProject = {
   name: string;
   /** The client's own job/contract number, if they quote one. */
   code: string | null;
-  /** One level ships. Present so a phase / cost-code level is a column's
-   * worth of work later — every reference system (SAP WBS, Kronos labor
-   * levels, ClockShark cost codes) is a hierarchy, not a flat list. */
+  /** The project this is a part of. Every reference system (SAP WBS, Kronos
+   * labor levels, ClockShark cost codes) is a hierarchy, not a flat list. */
   parent_id: string | null;
+  /** What this part is CALLED inside its parent — "WBS", "Phase", "Package"
+   * (0107). Null on a top-level project. Named per project, never per
+   * workspace: one project is broken into a WBS, the next into phases. */
+  level_label?: string | null;
   /** Optional Sales link (quoted-vs-actual margin). Null and invisible for a
    * WFM-only tenant. */
   account_id: string | null;

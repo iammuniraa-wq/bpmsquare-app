@@ -577,16 +577,6 @@ export type WfmConfig = {
     enabled: boolean;
     after_hours: number;
   };
-  /** The levels ALLOWED beneath a project, in order, named as this tenant
-   *  names them -- BIM says ["WBS"], a contractor might say ["Phase","Task"],
-   *  and an empty list means projects have no hierarchy at all.
-   *
-   *  It is a MAXIMUM, never a requirement: one project can stop at the top
-   *  while another uses every level, so a mixed portfolio needs no special
-   *  handling. The list length is the depth cap and each entry is the label
-   *  shown on the "Add ..." button and in reports, so one setting answers
-   *  both "how deep" and "what do you call it". */
-  project_levels: string[];
   // Employment types this tenant actually uses. Was a hardcoded
   // full_time|contractor enum until a tenant needed "Intern" -- now a
   // tenant-editable list. `code` is what employees.employment_type stores and
@@ -668,9 +658,6 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
     recheck_flagged: true,
   },
   long_day_alert: { enabled: false, after_hours: 9 },
-  // Empty by default: a tenant that never asked for a hierarchy keeps a flat
-  // list of projects and never sees an "Add ..." button.
-  project_levels: [],
   employment_types: DEFAULT_EMPLOYMENT_TYPES,
   punch_types: { ot: false, mobile_work: false, business_trip: false },
   ot_rate_per_hour: 0,

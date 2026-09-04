@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  depthOf, childLevelName, levelNameOf, descendantsOf, rollUp, reparentError,
-  type TreeNodeLike,
+  depthOf, canNest, childLabelFrom, descendantsOf, rollUp, reparentError,
+  MAX_DEPTH, type TreeNodeLike,
 } from "./projectTree";
 
 const n = (id: string, parent_id: string | null = null): TreeNodeLike => ({ id, parent_id });
@@ -29,21 +29,26 @@ describe("depthOf", () => {
   });
 });
 
-describe("level naming comes from the tenant, not from us", () => {
-  it("offers the next level's name while one remains", () => {
-    expect(childLevelName(["WBS"], 0)).toBe("WBS");
-    expect(childLevelName(["Phase", "Task"], 1)).toBe("Task");
+describe("naming comes from the project itself, not a setting", () => {
+  it("reuses whatever the existing parts are called, so siblings match", () => {
+    expect(childLabelFrom(["WBS", "WBS"])).toBe("WBS");
+    expect(childLabelFrom([null, "Phase"])).toBe("Phase");
   });
 
-  it("offers nothing at the deepest level — this is what hides the Add button", () => {
-    expect(childLevelName(["WBS"], 1)).toBeNull();
-    expect(childLevelName([], 0)).toBeNull();
+  it("falls back to a neutral word for the very first part", () => {
+    expect(childLabelFrom([])).toBe("Sub-item");
+    expect(childLabelFrom([null, "  "])).toBe("Sub-item");
+  });
+});
+
+describe("canNest", () => {
+  it("allows nesting until the cap", () => {
+    expect(canNest(0)).toBe(true);
+    expect(canNest(MAX_DEPTH - 2)).toBe(true);
   });
 
-  it("names a node by its own depth", () => {
-    expect(levelNameOf(["WBS"], 0)).toBe("Project");
-    expect(levelNameOf(["WBS"], 1)).toBe("WBS");
-    expect(levelNameOf(["Phase", "Task"], 2)).toBe("Task");
+  it("stops at the cap — this is what hides the Add link", () => {
+    expect(canNest(MAX_DEPTH - 1)).toBe(false);
   });
 });
 
@@ -88,33 +93,36 @@ describe("rollUp", () => {
 
 describe("reparentError", () => {
   it("allows a legal move", () => {
-    expect(reparentError(tree, ["WBS", "Task"], "w2", "w1")).toBeNull();
+    expect(reparentError(tree, "w2", "w1")).toBeNull();
   });
 
   it("refuses making something its own parent", () => {
-    expect(reparentError(tree, ["WBS"], "p", "p")).toMatch(/its own parent/);
+    expect(reparentError(tree, "p", "p")).toMatch(/its own parent/);
   });
 
   it("refuses a loop through a descendant", () => {
-    expect(reparentError(tree, ["WBS", "Task"], "p", "t1")).toMatch(/inside one of its own/);
+    expect(reparentError(tree, "p", "t1")).toMatch(/inside one of its own/);
   });
 
-  it("refuses going deeper than the tenant allows", () => {
-    // Only one level configured, so a WBS cannot itself take a child.
-    expect(reparentError(tree, ["WBS"], "w2", "w1")).toMatch(/deepest level/);
-  });
-
-  it("explains it clearly when hierarchy is switched off entirely", () => {
-    expect(reparentError(tree, [], "w1", "p")).toMatch(/aren't switched on/);
+  it("refuses going deeper than the cap", () => {
+    // A chain already at the deepest level cannot take another child.
+    const deep: TreeNodeLike[] = [n("a")];
+    for (let i = 1; i < MAX_DEPTH; i++) deep.push(n(`a${i}`, i === 1 ? "a" : `a${i - 1}`));
+    const leaf = `a${MAX_DEPTH - 1}`;
+    expect(reparentError([...deep, n("x")], "x", leaf)).toMatch(/deepest level/);
   });
 
   // Moving a branch takes its children along; checking only the node itself
   // would let a deep subtree land somewhere with no room for it.
   it("refuses a move whose SUBTREE would overflow, even though the node fits", () => {
-    expect(reparentError(tree, ["Phase", "Task"], "w1", "w2")).toMatch(/sub-items would go deeper/);
+    const deep: TreeNodeLike[] = [n("a")];
+    for (let i = 1; i < MAX_DEPTH - 1; i++) deep.push(n(`a${i}`, i === 1 ? "a" : `a${i - 1}`));
+    // "branch" is 2 deep on its own; parking it near the bottom overflows.
+    const withBranch = [...deep, n("branch"), n("bc", "branch"), n("bcc", "bc")];
+    expect(reparentError(withBranch, "branch", `a${MAX_DEPTH - 2}`)).toMatch(/deeper than allowed/);
   });
 
   it("allows clearing the parent", () => {
-    expect(reparentError(tree, ["WBS"], "w1", null)).toBeNull();
+    expect(reparentError(tree, "w1", null)).toBeNull();
   });
 });

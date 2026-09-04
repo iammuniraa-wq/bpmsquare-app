@@ -2,7 +2,7 @@ import "server-only";
 
 import type { createAdminSupabase } from "@/lib/supabase-server";
 import type { WfmProjectStatus } from "./types";
-import { reparentError, depthOf, type TreeNodeLike } from "./projectTree";
+import { reparentError, depthOf, canNest, type TreeNodeLike } from "./projectTree";
 
 type Admin = ReturnType<typeof createAdminSupabase>;
 
@@ -11,7 +11,45 @@ export const PROJECT_STATUSES: readonly WfmProjectStatus[] = [
 ];
 
 export const PROJECT_SELECT =
+  "id, ref, name, code, parent_id, level_label, account_id, status, start_date, end_date, budget_hours, custom_data";
+
+/** The same list without `level_label`, for the window before 0107 is run. */
+export const PROJECT_SELECT_NO_LABEL =
   "id, ref, name, code, parent_id, account_id, status, start_date, end_date, budget_hours, custom_data";
+
+export const projectSelect = (withLabel: boolean) =>
+  withLabel ? PROJECT_SELECT : PROJECT_SELECT_NO_LABEL;
+
+/** Strip `level_label` from an insert/update payload when the column isn't
+ *  there yet. Everything else about the write still lands. */
+export function dropLabel(values: Record<string, unknown>, withLabel: boolean): Record<string, unknown> {
+  if (withLabel) return values;
+  const rest = { ...values };
+  delete rest.level_label;
+  return rest;
+}
+
+/**
+ * Run a query that mentions `level_label`, retrying once without it.
+ *
+ * 0107 is applied by hand like every migration here (§3b), so between the
+ * deploy and the owner running the SQL the column does not exist and
+ * PostgREST answers 42703 for it. Rather than each screen guessing, every
+ * read and write that touches the column goes through this: the second
+ * attempt simply omits it, so a part reads as "Part" until the SQL is run
+ * instead of the project list emptying and every project page 404ing.
+ */
+export type PgError = { code?: string; message?: string } | null;
+
+export async function tolerateMissingLabel<T>(
+  attempt: (withLabel: boolean) => PromiseLike<{ data: unknown; error: PgError }>
+): Promise<{ data: T | null; error: PgError }> {
+  const first = await attempt(true);
+  // The two selects differ only by one column, so the row type is the caller's
+  // to state -- PostgREST's own generic can't follow a select built at runtime.
+  const chosen = first.error?.code === "42703" ? await attempt(false) : first;
+  return { data: (chosen.data ?? null) as T | null, error: chosen.error };
+}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -43,7 +81,7 @@ export async function parseProjectBody(
     values.name = name;
   }
 
-  for (const key of ["code"] as const) {
+  for (const key of ["code", "level_label"] as const) {
     if (has(key)) {
       const v = b[key];
       values[key] = typeof v === "string" && v.trim() ? v.trim() : null;
@@ -236,29 +274,25 @@ export async function loadTree(admin: Admin, tenantId: string): Promise<TreeNode
 }
 
 /**
- * Whether this project may sit under this parent, given the tenant's
- * configured levels. `childId` is null when creating, since a new project has
- * no subtree to carry with it.
+ * Whether this project may sit under this parent, within the depth cap.
+ * `childId` is null when creating, since a new project has no subtree to
+ * carry with it.
  *
  * Returns an error string for a 400, or null when allowed.
  */
 export function validateParent(
   tree: TreeNodeLike[],
-  levels: string[],
   parentId: string | null,
   childId: string | null
 ): string | null {
   if (!parentId) return null;
-  if (childId) return reparentError(tree, levels, childId, parentId);
+  if (childId) return reparentError(tree, childId, parentId);
 
-  // Creating: only the parent's own depth matters.
+  // Creating: only the parent's own depth matters, since a new item brings no
+  // subtree with it.
   const byId = new Map(tree.map((t) => [t.id, t]));
   const parentDepth = depthOf(byId, parentId);
   if (parentDepth === null) return "That parent is not reachable";
-  if (parentDepth >= levels.length) {
-    return levels.length === 0
-      ? "Sub-items aren't switched on for this workspace"
-      : `That is already the deepest level (${levels[levels.length - 1]})`;
-  }
+  if (!canNest(parentDepth)) return "That is already the deepest level";
   return null;
 }

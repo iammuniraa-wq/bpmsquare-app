@@ -17,6 +17,7 @@ import { ROUTES } from "@/lib/constants";
 import type { WfmProject, WfmProjectStatus } from "@/lib/wfm/types";
 import ProjectHoursTiles from "./ProjectHoursTiles";
 import { depthOf } from "@/lib/wfm/projectTree";
+import { tolerateMissingLabel } from "@/lib/wfm/projects";
 
 const STATUS_LABEL: Record<WfmProjectStatus, string> = {
   planned: "Planned", active: "Active", on_hold: "On hold",
@@ -95,11 +96,15 @@ export default async function WfmProjectsPage({
 
   // 0104 is applied by hand (§3b) -- until it runs this renders as an empty
   // list with a clear note, never a crash.
-  const { data: rows, error } = await supabase
-    .from("wfm_projects")
-    .select("id, ref, name, code, parent_id, account_id, status, start_date, end_date, budget_hours")
-    .eq("tenant_id", tenantId)
-    .order("name");
+  const { data: rows, error } = await tolerateMissingLabel((withLabel) =>
+    supabase
+      .from("wfm_projects")
+      .select(
+        `id, ref, name, code, parent_id, ${withLabel ? "level_label, " : ""}account_id, status, start_date, end_date, budget_hours`
+      )
+      .eq("tenant_id", tenantId)
+      .order("name")
+  );
   const pendingMigration = error?.code === "42P01";
   const projects: WfmProject[] = (rows ?? []) as unknown as WfmProject[];
 
@@ -245,6 +250,17 @@ export default async function WfmProjectsPage({
                             <Link href={ROUTES.wfmProject(p.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
                               {p.name}
                             </Link>
+                            {/* Each project names its own parts, so the word
+                                belongs on the row, not in a column header. */}
+                            {p.parent_id && p.level_label?.trim() && (
+                              <span style={{
+                                marginLeft: 8, fontSize: 10.5, fontWeight: 600, color: c.hint,
+                                background: c.panel2, border: `1px solid ${c.line}`,
+                                borderRadius: 5, padding: "2px 6px", whiteSpace: "nowrap",
+                              }}>
+                                {p.level_label.trim()}
+                              </span>
+                            )}
                           </span>
                         </td>
                         <td style={{ ...td, color: c.muted }}>{p.code ?? "—"}</td>

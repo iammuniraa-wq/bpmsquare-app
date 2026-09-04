@@ -3,10 +3,10 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import {
-  PROJECT_SELECT, parseProjectBody, projectLinks, verifyProjectLinks,
-  replaceProjectLinks, bodyTouchesLinks, loadTree, validateParent,
+  parseProjectBody, projectLinks, verifyProjectLinks, replaceProjectLinks,
+  bodyTouchesLinks, loadTree, validateParent,
+  projectSelect, dropLabel, tolerateMissingLabel,
 } from "@/lib/wfm/projects";
-import { getWfmConfig } from "@/lib/wfm/server";
 import { descendantsOf } from "@/lib/wfm/projectTree";
 
 // GET /api/wfm/projects/[id]
@@ -21,13 +21,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { supabase, tenantId } = ctx;
   const { id } = await params;
 
-  const { data, error } = await supabase
-    .from("wfm_projects")
-    .select(PROJECT_SELECT)
-    .eq("id", id)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data, error } = await tolerateMissingLabel((withLabel) =>
+    supabase
+      .from("wfm_projects")
+      .select(projectSelect(withLabel))
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle()
+  );
+  if (error) return NextResponse.json({ error: (error as { message?: string }).message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const links = await projectLinks(createAdminSupabase(), tenantId, id);
@@ -53,8 +55,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const admin = createAdminSupabase();
 
-  const { data: before } = await admin
-    .from("wfm_projects").select(PROJECT_SELECT).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: before } = await tolerateMissingLabel<Record<string, unknown>>((withLabel) =>
+    admin
+      .from("wfm_projects").select(projectSelect(withLabel))
+      .eq("id", id).eq("tenant_id", tenantId).maybeSingle()
+  );
   if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (parsed.values.account_id) {
@@ -69,9 +74,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!parent) return NextResponse.json({ error: "Unknown parent project" }, { status: 400 });
 
     // Catches self-parenting, loops through a descendant, and a move whose
-    // whole SUBTREE would overflow the configured depth.
-    const config = await getWfmConfig(admin, tenantId);
-    const err = validateParent(await loadTree(admin, tenantId), config.project_levels ?? [], parentId, id);
+    // whole SUBTREE would overflow the depth cap.
+    const err = validateParent(await loadTree(admin, tenantId), parentId, id);
     if (err) return NextResponse.json({ error: err }, { status: 400 });
   }
 
@@ -83,14 +87,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: "end_date can't be before start_date" }, { status: 400 });
   }
 
-  const { data, error } = await admin
-    .from("wfm_projects")
-    .update({ ...parsed.values, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("tenant_id", tenantId)
-    .select(PROJECT_SELECT)
-    .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data, error } = await tolerateMissingLabel<{ name: string }>((withLabel) =>
+    admin
+      .from("wfm_projects")
+      .update({ ...dropLabel(parsed.values, withLabel), updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .select(projectSelect(withLabel))
+      .maybeSingle()
+  );
+  if (error) return NextResponse.json({ error: (error as { message?: string }).message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Links are replaced wholesale ONLY when the body mentions them, so a plain

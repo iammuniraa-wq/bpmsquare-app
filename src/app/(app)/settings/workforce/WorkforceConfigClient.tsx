@@ -456,59 +456,6 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
       </Section>
 
       <Section
-        title="Project levels"
-        dek="What sits beneath a project, in order, using your own words. Leave it empty for a flat list of projects."
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {(cfg.project_levels ?? []).map((lvl, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 11.5, color: c.hint, width: 62 }}>Level {i + 1}</span>
-              <input
-                style={{ ...inp, width: 220 }}
-                value={lvl}
-                placeholder="e.g. WBS"
-                onChange={(e) => {
-                  const next = [...(cfg.project_levels ?? [])];
-                  next[i] = e.target.value;
-                  setCfg({ ...cfg, project_levels: next });
-                }}
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  setCfg({ ...cfg, project_levels: (cfg.project_levels ?? []).filter((_, j) => j !== i) })
-                }
-                style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: c.hint, fontSize: 16, padding: "0 4px",
-                }}
-                aria-label={`Remove level ${i + 1}`}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          {(cfg.project_levels ?? []).length < 5 && (
-            <button
-              type="button"
-              onClick={() => setCfg({ ...cfg, project_levels: [...(cfg.project_levels ?? []), ""] })}
-              style={{
-                alignSelf: "flex-start", background: "none", border: "none", padding: 0,
-                cursor: "pointer", fontSize: 12.5, fontWeight: 600, color: c.accent,
-              }}
-            >
-              + Add a level
-            </button>
-          )}
-          <div style={help}>
-            This is a maximum, not a requirement — one project can stop at the top while
-            another uses every level. Shortening the list later never deletes anything:
-            existing deeper items keep working, you just can&apos;t add more beneath them.
-          </div>
-        </div>
-      </Section>
-
-      <Section
         title="Punch-out reminder"
         dek="Notifies the employee on their own phone once they have worked a long day. They must open My Workforce on their phone once and allow notifications."
       >

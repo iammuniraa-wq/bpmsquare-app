@@ -4,10 +4,9 @@ import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { logChange } from "@/lib/changeLog";
 import {
-  PROJECT_SELECT, PROJECT_STATUSES, parseProjectBody, verifyProjectLinks,
-  replaceProjectLinks, loadTree, validateParent,
+  PROJECT_STATUSES, parseProjectBody, verifyProjectLinks, replaceProjectLinks,
+  loadTree, validateParent, projectSelect, dropLabel, tolerateMissingLabel,
 } from "@/lib/wfm/projects";
-import { getWfmConfig } from "@/lib/wfm/server";
 
 // Projects are the cost object worked hours are attributed to (0104,
 // WFM_PROJECT_COSTING.md). Gated on features.wfm_projects separately from
@@ -25,16 +24,17 @@ export async function GET(request: NextRequest) {
   const { supabase, tenantId } = ctx;
 
   const status = request.nextUrl.searchParams.get("status");
-  let query = supabase
-    .from("wfm_projects")
-    .select(PROJECT_SELECT)
-    .eq("tenant_id", tenantId)
-    .order("name");
-  if (status && (PROJECT_STATUSES as readonly string[]).includes(status)) {
-    query = query.eq("status", status);
-  }
-
-  const { data, error } = await query;
+  const { data, error } = await tolerateMissingLabel(async (withLabel) => {
+    let query = supabase
+      .from("wfm_projects")
+      .select(projectSelect(withLabel))
+      .eq("tenant_id", tenantId)
+      .order("name");
+    if (status && (PROJECT_STATUSES as readonly string[]).includes(status)) {
+      query = query.eq("status", status);
+    }
+    return query;
+  });
   // 42P01 = 0104 not applied yet. §3b: a pending migration renders as an
   // empty list, never a crash.
   if (error) {
@@ -79,17 +79,18 @@ export async function POST(request: NextRequest) {
       .from("wfm_projects").select("id").eq("id", parentId).eq("tenant_id", tenantId).maybeSingle();
     if (!parent) return NextResponse.json({ error: "Unknown parent project" }, { status: 400 });
 
-    // Depth is a tenant setting, so the API has to enforce it -- the UI hides
-    // the "Add" button at the deepest level, but the screen is not the gate.
-    const config = await getWfmConfig(admin, tenantId);
-    const err = validateParent(await loadTree(admin, tenantId), config.project_levels ?? [], parentId, null);
+    // The UI hides the "Add" link at the deepest level, but the screen is
+    // never the gate.
+    const err = validateParent(await loadTree(admin, tenantId), parentId, null);
     if (err) return NextResponse.json({ error: err }, { status: 400 });
   }
 
-  const { data, error } = await insertWithMasterRef<{ id: string; name: string; ref: string | null }>(
-    admin, "wfm_projects", tenantId,
-    { ...parsed.values, tenant_id: tenantId },
-    PROJECT_SELECT
+  const { data, error } = await tolerateMissingLabel<{ id: string; name: string; ref: string | null }>((withLabel) =>
+    insertWithMasterRef<{ id: string; name: string; ref: string | null }>(
+      admin, "wfm_projects", tenantId,
+      { ...dropLabel(parsed.values, withLabel), tenant_id: tenantId },
+      projectSelect(withLabel)
+    )
   );
   if (error || !data) {
     if (error?.code === "42P01") {
