@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeDayHours, overnightTail, shiftDayKey } from "./hours";
+import { computeDayHours, overnightTail, shiftDayKey, workSessions } from "./hours";
 import type { PresenceKind } from "./types";
 
 const TZ = "Asia/Kolkata";
@@ -20,14 +20,23 @@ function dayTotal(all: { kind: PresenceKind; ts: string }[], date: string, shift
   return computeDayHours(evs, endRef);
 }
 
-/** The "Check Out" column's source: getMonthlySummary derives last_out from
- * the events INCLUDING the overnight tail, so it reports the real closing
- * punch even when it lands past midnight. */
+/** The "Check Out" column's source. Mirrors getMonthlySummary: the overnight
+ * tail is included so a shift closing past midnight reports its real closing
+ * punch, but the answer comes from the SESSIONS, so a closing punch belonging
+ * to a session that started on an earlier day is not claimed by this one. */
 function lastOutOf(all: { kind: PresenceKind; ts: string }[], date: string, shift: typeof dayShift) {
   const dayEvents = all.filter((e) => shiftDayKey(new Date(e.ts), TZ, shift) === date);
   const tail = overnightTail(dayEvents, all);
   const evs = tail.length > 0 ? [...dayEvents, ...tail] : dayEvents;
-  return [...evs].reverse().find((e) => e.kind === "check_out")?.ts ?? null;
+  const endRef = evs.length > 0 ? new Date(evs[evs.length - 1].ts) : new Date(`${date}T00:00:00Z`);
+  return [...workSessions(evs, endRef)].reverse().find((s) => s.out !== null)?.out ?? null;
+}
+
+/** The "Check In" column's source, unchanged: the day's first check_in. */
+function firstInOf(all: { kind: PresenceKind; ts: string }[], date: string, shift: typeof dayShift) {
+  return all
+    .filter((e) => shiftDayKey(new Date(e.ts), TZ, shift) === date)
+    .find((e) => e.kind === "check_in")?.ts ?? null;
 }
 
 describe("work past midnight on a shift that isn't flagged crosses_midnight", () => {
@@ -104,5 +113,65 @@ describe("overnightTail stays narrow", () => {
     expect(d.gross_minutes).toBe(240);
     expect(d.break_minutes).toBe(30);
     expect(d.net_minutes).toBe(210);
+  });
+});
+
+// Reported 2026-09-04: the live board showed "In 11:31 am / Out 09:30 am" --
+// a check-out four hours BEFORE the check-in, on a row still marked In.
+//
+// The cause was never a bad punch. A session opened the previous day and
+// closed the next morning; the closing punch's own timestamp puts it in the
+// NEW day's bucket, and both the live board and the monthly summary reported
+// the latest check_out in that bucket as the day's "last out". So the orphan
+// close from yesterday's session was presented as today's.
+describe("a check-out that closes the PREVIOUS day's session", () => {
+  // General shift, 09:00, not flagged crosses_midnight -- so a punch keeps
+  // its own calendar day.
+  const generalShift = { start_time: "09:00:00", crosses_midnight: false };
+
+  // In 10:00 IST on the 2nd; forgotten. Out 09:30 IST on the 3rd (25.5h
+  // later, so beyond overnightTail's 18h reach). Back in 11:31 the same
+  // morning for a real day's work.
+  const all = [
+    ev("check_in", "2026-09-02T04:30:00.000Z"),  // 10:00 on the 2nd
+    ev("check_out", "2026-09-03T04:00:00.000Z"), // 09:30 on the 3rd
+    ev("check_in", "2026-09-03T06:01:00.000Z"),  // 11:31 on the 3rd
+  ];
+
+  it("does not report yesterday's closing punch as today's last out", () => {
+    expect(lastOutOf(all, "2026-09-03", generalShift)).toBeNull();
+  });
+
+  it("still reports today's real first check-in", () => {
+    expect(firstInOf(all, "2026-09-03", generalShift)).toBe("2026-09-03T06:01:00.000Z");
+  });
+
+  it("never reports an out that precedes the in", () => {
+    const first = firstInOf(all, "2026-09-03", generalShift);
+    const last = lastOutOf(all, "2026-09-03", generalShift);
+    if (first && last) expect(new Date(last).getTime()).toBeGreaterThan(new Date(first).getTime());
+  });
+
+  it("does not pay the orphan close as hours on the new day", () => {
+    // The open session from 11:31 runs to endRef; what matters is that the
+    // 09:30 close contributes nothing, so the day is not credited backwards.
+    expect(dayTotal(all, "2026-09-03", generalShift).gross_minutes).toBe(0);
+  });
+
+  it("reports a genuine same-day close normally", () => {
+    const clean = [
+      ev("check_in", "2026-09-03T03:30:00.000Z"),  // 09:00
+      ev("check_out", "2026-09-03T12:30:00.000Z"), // 18:00
+    ];
+    expect(lastOutOf(clean, "2026-09-03", generalShift)).toBe("2026-09-03T12:30:00.000Z");
+  });
+
+  it("reports the earlier close when a later session is still open", () => {
+    const twoSessions = [
+      ev("check_in", "2026-09-03T03:30:00.000Z"),  // 09:00
+      ev("check_out", "2026-09-03T06:30:00.000Z"), // 12:00
+      ev("check_in", "2026-09-03T07:30:00.000Z"),  // 13:00, still open
+    ];
+    expect(lastOutOf(twoSessions, "2026-09-03", generalShift)).toBe("2026-09-03T06:30:00.000Z");
   });
 });
