@@ -446,7 +446,8 @@ deploy for an automatic schema change.
   `config.wfm.long_day_alert.enabled`, default OFF -- no tenant has it on
   yet, so running the SQL and setting the keys changes nothing until the
   toggle in Settings -> Workforce is switched on.
-- 0107_wfm_project_level_label.sql — **PENDING on both DBs**. One nullable
+- 0107_wfm_project_level_label.sql — **applied to both DBs** (owner confirmed
+  2026-09-05). One nullable
   `level_label text` column on `wfm_projects`. A project is broken into parts
   and the parts are NAMED WHERE THEY ARE CREATED — "WBS" on one project,
   "Phase" on the next — rather than by a tenant-wide list of level names
