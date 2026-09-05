@@ -390,10 +390,13 @@ export default function GeneralSettingsPage() {
   // a platform-admin flag. Each writes one boolean into config.appearance and
   // reloads, for the same reason saveTheme does: they change which components
   // Shell mounts, and router.refresh() doesn't remount client components.
+  // On by default -- these ship WITH nextgen (see nextgenChromeOn); only an
+  // explicit false, set right here, turns one off. Mirrors the hooks exactly,
+  // or the switch would show off while the chrome is on.
   const [chrome, setChrome] = useState(() => ({
-    top_bar_identity: tenant?.config?.appearance?.top_bar_identity === true,
-    command_palette: tenant?.config?.appearance?.command_palette === true,
-    navy_sidebar: tenant?.config?.appearance?.navy_sidebar === true,
+    top_bar_identity: tenant?.config?.appearance?.top_bar_identity !== false,
+    command_palette: tenant?.config?.appearance?.command_palette !== false,
+    navy_sidebar: tenant?.config?.appearance?.navy_sidebar !== false,
   }));
   const saveChrome = (key: keyof typeof chrome, v: boolean) => {
     const next = { ...chrome, [key]: v };
@@ -658,13 +661,14 @@ export default function GeneralSettingsPage() {
             </div>
           </div>
         )}
-        {/* Only meaningful on the nextgen family -- classic and modern build
-            their chrome differently, and the hooks ignore these there. */}
-        {(theme === "nextgen" || theme === "nextgen2" || theme === "enterprise") && (
+        {/* Plain nextgen only -- Nova has its own answers for all three, and
+            classic/modern build their chrome differently. */}
+        {theme === "nextgen" && (
           <div style={{ marginBottom: 4, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Layout</div>
             <div style={{ fontSize: 11, color: c.hint, marginBottom: 4 }}>
-              Each of these switches on one piece of chrome. Changing one reloads the page.
+              These come with Next-gen and are on already — turn one off if you don&apos;t want it.
+              Changing one reloads the page.
             </div>
             {([
               { key: "top_bar_identity" as const, label: "Sign-in name in the top right", hint: "Moves your name and sign-out out of the sidebar footer into the top bar, and frees up the bottom of the rail." },

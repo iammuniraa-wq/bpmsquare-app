@@ -115,17 +115,28 @@ export function useIsEnterpriseSidebar(): boolean {
  * this stamps its own attribute and the CSS applies only outside dark mode.
  */
 export function useNavySidebar(): boolean {
-  const { tenant } = useContext(TenantContext);
-  const ap = tenant?.config?.appearance;
-  return isNextgenFamily(ap?.ui_theme) && ap?.navy_sidebar === true;
+  return nextgenChromeOn(useContext(TenantContext).tenant, "navy_sidebar");
 }
 
-/** The nextgen family, for the tenant-owned chrome switches below. "nextgen2"
- *  and "enterprise" both resolve to nextgen in useUiTheme(), so all three
- *  count -- these switches are meaningless on classic/modern, whose chrome is
- *  built differently. */
-function isNextgenFamily(t: string | undefined): boolean {
-  return t === "nextgen" || t === "nextgen2" || t === "enterprise";
+/**
+ * The three pieces of chrome nextgen now ships WITH: the navy light-mode
+ * rail, the signed-in name in the top right, and Ctrl+K.
+ *
+ * They are part of the theme, not a setup step -- the owner asked for nextgen
+ * to have them, and defaulting them off meant a deploy where nothing visibly
+ * changed. The stored booleans survive as off-switches only: `undefined`
+ * (nobody has touched it) reads as ON, and only an explicit `false` from the
+ * Appearance toggles turns one back off.
+ *
+ * Plain "nextgen" only. "nextgen2" is Nova, which has its own answers for all
+ * three, and "enterprise" already carries the navy rail through its own path.
+ */
+function nextgenChromeOn(
+  tenant: { config?: { appearance?: Record<string, unknown> } } | null | undefined,
+  key: "navy_sidebar" | "top_bar_identity" | "command_palette"
+): boolean {
+  const ap = tenant?.config?.appearance;
+  return ap?.ui_theme === "nextgen" && ap?.[key] !== false;
 }
 
 /**
@@ -140,9 +151,8 @@ function isNextgenFamily(t: string | undefined): boolean {
  */
 export function useTopBarIdentity(): boolean {
   const { tenant } = useContext(TenantContext);
-  const ap = tenant?.config?.appearance;
-  if (ap?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true) return true;
-  return isNextgenFamily(ap?.ui_theme) && ap?.top_bar_identity === true;
+  if (tenant?.config?.appearance?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true) return true;
+  return nextgenChromeOn(tenant, "top_bar_identity");
 }
 
 /** Whether Ctrl/Cmd+K opens the command palette. Same split as
@@ -152,9 +162,8 @@ export function useTopBarIdentity(): boolean {
  *  whenever this is on, so the two never fight over ⌘K. */
 export function useCommandPalette(): boolean {
   const { tenant } = useContext(TenantContext);
-  const ap = tenant?.config?.appearance;
-  if (ap?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true) return true;
-  return isNextgenFamily(ap?.ui_theme) && ap?.command_palette === true;
+  if (tenant?.config?.appearance?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true) return true;
+  return nextgenChromeOn(tenant, "command_palette");
 }
 
 /** True for the "nextgen2" 3-layer variant specifically -- identity lives in
