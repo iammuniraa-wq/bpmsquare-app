@@ -12,8 +12,15 @@ import base from "@/extensions/_base";
 
 // Static import map — required for Next.js bundler (no dynamic variable imports).
 const REGISTRY: Record<string, () => Promise<{ default: TenantExtension }>> = {
-  vikas: () => import("@/extensions/vikas"),
   "vikas-pioneers": () => import("@/extensions/vikas"),
+  // The demo workspace was the original dev tenant and carried the slug
+  // "vikas" until 2026-09-06, when it was renamed "demo" -- the shared slug
+  // had made it look like the client's own workspace. It keeps showing the
+  // Vikas customisations it always has; drop this line if the demo should
+  // become plain product instead. "vikas" stays mapped so nothing breaks
+  // between the deploy and the rename.
+  demo: () => import("@/extensions/vikas"),
+  vikas: () => import("@/extensions/vikas"),
 };
 
 let cache: Record<string, TenantExtension> = {};
