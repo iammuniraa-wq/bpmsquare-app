@@ -45,8 +45,13 @@ export async function POST(req: Request) {
   if (!question) return jsonError(422, "Missing question", { message: "Provide a natural-language `question`." });
 
   // Read scope on the named object -- same gate as GET on that object.
-  const auth = await authorizeApi(req, object);
+  // project_hours rides on the "projects" scope (it is the projects' hours),
+  // with the person redacted unless the key also holds "employees" -- the
+  // same rule /api/v1/project-hours applies.
+  const auth = await authorizeApi(req, object === "project_hours" ? "projects" : object);
   if ("error" in auth) return auth.error;
+  const peopleAllowed = object !== "project_hours" || auth.scopes.objects.includes("employees");
+  const fields = peopleAllowed ? src.fields : src.fields.filter((f) => !f.path.startsWith("employee."));
 
   if (!process.env.ANTHROPIC_API_KEY) return jsonError(503, "Not configured", { message: "Natural-language queries need ANTHROPIC_API_KEY set on the server." });
 
@@ -56,11 +61,11 @@ export async function POST(req: Request) {
     response = await new Anthropic().messages.create({
       model: "claude-opus-5",
       max_tokens: 700,
-      tools: [askTool(src.fields)],
+      tools: [askTool(fields)],
       tool_choice: { type: "tool", name: "query" },
       system:
         `You translate a question about ${src.label} into a structured query over ONLY these fields:\n` +
-        src.fields.map((f) => `- ${f.path} (${f.type}${f.searchable ? ", text-searchable" : ""})`).join("\n") +
+        fields.map((f) => `- ${f.path} (${f.type}${f.searchable ? ", text-searchable" : ""})`).join("\n") +
         `\nToday is ${today}. Never invent field names outside the list. For "top N" use sort desc + limit. ` +
         `For "how many" set count_only. For totals use aggregates. If the question needs a field that isn't listed, set answerable=false.`,
       messages: [{ role: "user", content: question }],
@@ -83,14 +88,15 @@ export async function POST(req: Request) {
   }
 
   const sp = compiledQueryToSearchParams(input);
-  const parsed = parseListQuery(sp, src.fields);
+  const parsed = parseListQuery(sp, fields);
   if (!parsed.ok) {
     // The model produced something the engine rejects -- surface it rather than
     // silently running a different query.
     return jsonValidationError(parsed.errors.map((e) => ({ field: e.param, message: e.message })));
   }
 
-  const rows = await src.load(auth.tenantId);
+  let rows = await src.load(auth.tenantId);
+  if (!peopleAllowed) rows = rows.map((r) => { const { employee: _e, ...rest } = r; void _e; return rest; });
   const result = applyListQuery(rows, parsed.query);
 
   return jsonOk({

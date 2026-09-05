@@ -411,7 +411,12 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   wfm_site_headcount:       { label: "Headcount by site",         feature: "wfm", workcenter: "wfm" },
   wfm_workforce_composition:{ label: "Workforce composition",     feature: "wfm", workcenter: "wfm" },
   wfm_leave_taken_by_type:  { label: "Leave taken by type (YTD)", feature: "wfm", workcenter: "wfm" },
+  wfm_project_hours:        { label: "Hours by project (this month)", feature: "wfm_projects", workcenter: "wfm" },
+  wfm_project_budget:       { label: "Project budget burn",           feature: "wfm_projects", workcenter: "wfm" },
+  wfm_project_billing:      { label: "Project billing (this month)",  feature: "wfm_projects", workcenter: "wfm" },
 };
+
+const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
 
 export default function ReportsClient({
   rows: initialRows,
@@ -866,6 +871,63 @@ export default function ReportsClient({
               { label: "Dismissed", value: m.get("dismissed") ?? 0, color: c.hint },
             ]} />;
           })()}
+        </ChartCard>}
+      </div>
+      )}
+
+      {/* ── Row 3e: Project costing -- hours by project · budget burn · billing ── */}
+      {(isVisible("wfm_project_hours") || isVisible("wfm_project_budget") || isVisible("wfm_project_billing")) && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
+        {isVisible("wfm_project_hours") && <ChartCard title="Hours by project (this month)" href={ROUTES.wfmProjects}>
+          {a.wfmProjectHours.length === 0 ? (
+            <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No hours booked this month yet.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ fontSize: 11, color: c.hint }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>
+                  {hm(a.wfmProjectHours.reduce((s, x) => s + x.minutes, 0))}
+                </span>{" "}worked · {hm(a.wfmProjectHours.find((x) => x.id === null)?.minutes ?? 0)} unassigned
+              </div>
+              <HBarChartNav
+                rows={a.wfmProjectHours.slice(0, 8).map((x) => ({ label: x.name, value: Math.round(x.minutes / 6) / 10, href: x.id ? ROUTES.wfmProject(x.id) : ROUTES.wfmRoster }))}
+                colorFn={(i) => (a.wfmProjectHours[i]?.id ? pillar.blue.base : pillar.amber.base)}
+              />
+            </div>
+          )}
+        </ChartCard>}
+        {isVisible("wfm_project_budget") && <ChartCard title="Project budget burn" href={ROUTES.wfmProjects}>
+          {a.wfmProjectBudget.length === 0 ? (
+            <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No project with a budget and hours yet.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {a.wfmProjectBudget.slice(0, 6).map((p) => (
+                <div key={p.id}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                    <Link href={ROUTES.wfmProject(p.id)} style={{ fontSize: 12, fontWeight: 600, color: c.ink, textDecoration: "none" }}>{p.name}</Link>
+                    <span style={{ fontSize: 11, color: p.pct > 100 ? pillar.red.fg : c.hint, fontVariantNumeric: "tabular-nums" }}>{hm(p.workedMinutes)} · {p.pct}% of {p.budgetHours}h</span>
+                  </div>
+                  <SegmentStrip height={8} segments={[
+                    { label: "Used", value: Math.min(p.pct, 100), color: p.pct > 100 ? pillar.red.base : p.pct > 80 ? pillar.amber.base : pillar.green.base },
+                    { label: "Left", value: Math.max(0, 100 - p.pct), color: c.line },
+                  ]} />
+                </div>
+              ))}
+            </div>
+          )}
+        </ChartCard>}
+        {isVisible("wfm_project_billing") && <ChartCard title="Project billing (this month)" href={ROUTES.wfmProjects}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Link href={ROUTES.invoices} style={{ textDecoration: "none" }}>
+              <div style={{ fontSize: 10, color: c.hint }}>Invoiced from hours</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: pillar.green.fg }}>{inr(a.wfmProjectBilling.invoicedAmount)}</div>
+              <div style={{ fontSize: 10, color: c.hint }}>{a.wfmProjectBilling.invoicedCount} invoice{a.wfmProjectBilling.invoicedCount === 1 ? "" : "s"}</div>
+            </Link>
+            <Link href={ROUTES.wfmProjects} style={{ textDecoration: "none" }}>
+              <div style={{ fontSize: 10, color: c.hint }}>Waiting to be billed</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: a.wfmProjectBilling.unbilledMinutes > 0 ? pillar.amber.fg : c.ink }}>{hm(a.wfmProjectBilling.unbilledMinutes)}</div>
+              <div style={{ fontSize: 10, color: c.hint }}>on {a.wfmProjectBilling.unbilledProjects} project{a.wfmProjectBilling.unbilledProjects === 1 ? "" : "s"}</div>
+            </Link>
+          </div>
         </ChartCard>}
       </div>
       )}

@@ -3,6 +3,7 @@ import { listQuotesForTenant, listAccountsForTenant, listCasesForTenant } from "
 import { createAdminSupabase } from "@/lib/supabase-server";
 import type { QueryableField } from "./query";
 import type { WorkcenterKey } from "@/lib/workcenters";
+import { PROJECT_HOURS_FIELDS, loadProjectHoursRows } from "@/lib/wfm/projectHoursRows";
 
 // One place that defines, per list object, both its queryable-field
 // whitelist and how to load its tenant-scoped, PII-decrypted rows. The v1
@@ -365,6 +366,13 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         },
       }));
     },
+  },
+  project_hours: {
+    label: "Project hours (workforce, project costing)",
+    description: "Worked hours attributed to projects, ONE ROW PER WORK SESSION over the last 12 months: date, project (and its top-level project, level, account), the person, minutes/hours, the bill rate that applies and the billable amount, whether it has been invoiced, and whether it was assigned to a project at all (project.name is \"Unassigned\" when not). Use for: hours by project/account/person/month, billable value, unbilled or unassigned hours, who worked on what.",
+    relatedWorkcenter: "wfm",
+    fields: PROJECT_HOURS_FIELDS,
+    load: loadProjectHoursRows,
   },
   employees: {
     label: "Employees",

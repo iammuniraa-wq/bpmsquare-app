@@ -137,6 +137,11 @@ export type AnalyticsData = {
   wfmHeadcountBySite: Array<{ site: string; count: number }>;
   wfmWorkforceComposition: { totalActive: number; supervisors: number; fullTime: number; contractors: number };
   wfmLeaveTakenByType: Array<{ type: string; days: number }>;
+  // Project costing (features.wfm_projects). Hours are the same roll-up the
+  // Projects screen and the v1 API report -- one implementation.
+  wfmProjectHours: Array<{ id: string | null; name: string; ref: string | null; minutes: number }>;
+  wfmProjectBudget: Array<{ id: string; name: string; ref: string | null; workedMinutes: number; budgetHours: number; pct: number }>;
+  wfmProjectBilling: { invoicedAmount: number; invoicedCount: number; unbilledMinutes: number; unbilledProjects: number };
 };
 
 // ── Display label maps ────────────────────────────────────────────────────────

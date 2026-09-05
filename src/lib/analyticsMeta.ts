@@ -51,6 +51,9 @@ export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?
   wfm_site_headcount:       { label: "Headcount by site",          feature: "wfm" },
   wfm_workforce_composition:{ label: "Workforce composition",      feature: "wfm" },
   wfm_leave_taken_by_type:  { label: "Leave taken by type (YTD)",  feature: "wfm" },
+  wfm_project_hours:        { label: "Hours by project (this month)", feature: "wfm_projects" },
+  wfm_project_budget:       { label: "Project budget burn",           feature: "wfm_projects" },
+  wfm_project_billing:      { label: "Project billing (this month)",  feature: "wfm_projects" },
 };
 
 export function isAnalyticsId(id: string): id is AnalyticsMetricId {

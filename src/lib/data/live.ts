@@ -5,6 +5,8 @@ import { decryptAccount, decryptContact, decrypt } from "@/lib/encryption";
 import { getAccountNews, type AccountNewsItem } from "@/lib/data/news";
 import { getTenant } from "@/lib/tenant";
 import { getWfmLiveBoardSnapshot, requireWfm } from "@/lib/wfm/server";
+import { projectHoursReport } from "@/lib/wfm/projectHoursServer";
+import { UNASSIGNED } from "@/lib/wfm/projectHours";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import type { CompanyInfo } from "@/lib/tenant";
 import { DEFAULT_QUOTE_STATUSES, ROUTES } from "@/lib/constants";
@@ -1492,6 +1494,9 @@ export type AnalyticsData = {
   wfmHeadcountBySite: Array<{ site: string; count: number }>;
   wfmWorkforceComposition: { totalActive: number; supervisors: number; fullTime: number; contractors: number };
   wfmLeaveTakenByType: Array<{ type: string; days: number }>;
+  wfmProjectHours: Array<{ id: string | null; name: string; ref: string | null; minutes: number }>;
+  wfmProjectBudget: Array<{ id: string; name: string; ref: string | null; workedMinutes: number; budgetHours: number; pct: number }>;
+  wfmProjectBilling: { invoicedAmount: number; invoicedCount: number; unbilledMinutes: number; unbilledProjects: number };
 };
 
 const CASE_STATUS_LABEL_MAP: Record<string, string> = {
@@ -1525,6 +1530,9 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       wfmHeadcountBySite: [],
       wfmWorkforceComposition: { totalActive: 0, supervisors: 0, fullTime: 0, contractors: 0 },
       wfmLeaveTakenByType: [],
+      wfmProjectHours: [],
+      wfmProjectBudget: [],
+      wfmProjectBilling: { invoicedAmount: 0, invoicedCount: 0, unbilledMinutes: 0, unbilledProjects: 0 },
     };
   }
   const supabase = createAdminSupabase();
@@ -1752,6 +1760,9 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   let wfmHeadcountBySite: AnalyticsData["wfmHeadcountBySite"] = [];
   let wfmWorkforceComposition: AnalyticsData["wfmWorkforceComposition"] = { totalActive: 0, supervisors: 0, fullTime: 0, contractors: 0 };
   let wfmLeaveTakenByType: AnalyticsData["wfmLeaveTakenByType"] = [];
+  let wfmProjectHours: AnalyticsData["wfmProjectHours"] = [];
+  let wfmProjectBudget: AnalyticsData["wfmProjectBudget"] = [];
+  let wfmProjectBilling: AnalyticsData["wfmProjectBilling"] = { invoicedAmount: 0, invoicedCount: 0, unbilledMinutes: 0, unbilledProjects: 0 };
 
   if (tenant?.features?.wfm) {
     const yearStart = `${new Date().getUTCFullYear()}-01-01`;
@@ -1850,6 +1861,75 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       daysByType.set(label, (daysByType.get(label) ?? 0) + days);
     }
     wfmLeaveTakenByType = [...daysByType.entries()].map(([type, days]) => ({ type, days })).sort((a, b) => b.days - a.days);
+
+    // Project costing: the same report the Projects screen and the v1 API
+    // read, scoped to this viewer's people like everything above. A missing
+    // table (migration pending) reads as empty, never as a crash.
+    if (tenant.features.wfm_projects) {
+      const admin = createAdminSupabase();
+      const today = new Date().toISOString().slice(0, 10);
+      const monthStart = `${today.slice(0, 7)}-01`;
+      const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+      const [month, year, { data: budgeted }, { data: billedRows }] = await Promise.all([
+        projectHoursReport(admin, tenantId, monthStart, today, { employeeIds: scopedIds }).catch(() => null),
+        projectHoursReport(admin, tenantId, yearAgo, today, { employeeIds: scopedIds }).catch(() => null),
+        admin.from("wfm_projects").select("id, name, ref, budget_hours, account_id, parent_id").eq("tenant_id", tenantId),
+        admin.from("wfm_project_invoices").select("project_id, period_from, period_to, amount, created_at, invoices!inner(status)").eq("tenant_id", tenantId),
+      ]);
+
+      if (month) {
+        wfmProjectHours = month.rows
+          .filter((r) => r.key === UNASSIGNED || month.projects[r.key]?.depth === 0)
+          .map((r) => ({
+            id: r.key === UNASSIGNED ? null : r.key,
+            name: r.key === UNASSIGNED ? "Unassigned" : month.projects[r.key].name,
+            ref: r.key === UNASSIGNED ? null : month.projects[r.key].ref,
+            minutes: r.total_minutes,
+          }))
+          .filter((r) => r.minutes > 0)
+          .sort((a, b) => b.minutes - a.minutes);
+      }
+
+      // Budget burn is whole-of-project, so it reads the last 12 months (the
+      // longest window the report serves) against each budgeted project.
+      if (year) {
+        wfmProjectBudget = (budgeted ?? [])
+          .filter((p) => typeof p.budget_hours === "number" && p.budget_hours > 0)
+          .map((p) => {
+            const worked = year.rows.find((r) => r.key === p.id)?.total_minutes ?? 0;
+            const budgetHours = Number(p.budget_hours);
+            return { id: p.id as string, name: p.name as string, ref: (p.ref as string | null) ?? null, workedMinutes: worked, budgetHours, pct: Math.round((worked / 60 / budgetHours) * 100) };
+          })
+          .filter((p) => p.workedMinutes > 0)
+          .sort((a, b) => b.pct - a.pct);
+      }
+
+      const live = (billedRows ?? []).filter((b) => {
+        const inv = (Array.isArray(b.invoices) ? b.invoices[0] : b.invoices) as { status: string } | null;
+        return inv?.status !== "cancelled";
+      });
+      const thisMonth = live.filter((b) => String(b.created_at) >= monthStart);
+      const coveredThisMonth = new Set(
+        live.filter((b) => (b.period_from as string) <= today && (b.period_to as string) >= monthStart).map((b) => b.project_id as string)
+      );
+      // Unbilled = account-linked top-level projects with hours this month
+      // that no invoice period touches yet. The exact amount needs the rate
+      // ladder per person, which is the billing preview's job -- here it is
+      // the hours that are waiting.
+      let unbilledMinutes = 0, unbilledProjects = 0;
+      if (month) {
+        for (const p of budgeted ?? []) {
+          if (!p.account_id || p.parent_id) continue;
+          const mins = month.rows.find((r) => r.key === p.id)?.total_minutes ?? 0;
+          if (mins > 0 && !coveredThisMonth.has(p.id as string)) { unbilledMinutes += mins; unbilledProjects += 1; }
+        }
+      }
+      wfmProjectBilling = {
+        invoicedAmount: thisMonth.reduce((s, b) => s + (Number(b.amount) || 0), 0),
+        invoicedCount: thisMonth.length,
+        unbilledMinutes, unbilledProjects,
+      };
+    }
   }
 
   return {
@@ -1861,6 +1941,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     wfmAttendanceBySite, wfmNightShiftCost,
     wfmCorrectionsByStatus, wfmLeaveRequestsByStatus, wfmRecheckByStatus,
     wfmHeadcountBySite, wfmWorkforceComposition, wfmLeaveTakenByType,
+    wfmProjectHours, wfmProjectBudget, wfmProjectBilling,
   };
 }
 

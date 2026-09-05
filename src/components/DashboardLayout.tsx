@@ -112,6 +112,9 @@ const BUNDLES: { id: string; label: string; feature?: keyof TenantFeatures; bloc
     { id: "wfm_attendance_today" }, { id: "wfm_corrections_queue" }, { id: "wfm_leave_requests_queue" },
     { id: "wfm_site_headcount" }, { id: "wfm_workforce_composition", size: "half" }, { id: "wfm_night_shift_cost", size: "compact" },
   ] },
+  { id: "wfm_projects",  label: "Project costing", feature: "wfm_projects", blocks: [
+    { id: "wfm_project_hours" }, { id: "wfm_project_budget" }, { id: "wfm_project_billing", size: "compact" },
+  ] },
 ];
 
 /** Central feature gate for a dashboard block: native blocks show when ANY
@@ -663,7 +666,10 @@ const WIDGET_TONE: Partial<Record<string, PillarKey>> = {
   wfm_night_shift_cost: "amber", wfm_site_headcount: "teal",
   wfm_attendance_today: "blue", wfm_workforce_composition: "purple",
   wfm_leave_taken_by_type: "green",
+  wfm_project_hours: "blue", wfm_project_budget: "amber", wfm_project_billing: "green",
 };
+
+const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
 export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full"): React.ReactNode {
   const COLORS = [pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.purple.base, pillar.green.base];
   const tone = WIDGET_TONE[id];
@@ -782,6 +788,43 @@ export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "com
           { label: "Resolved",  value: m.get("resolved") ?? 0,  color: pillar.green.base },
           { label: "Dismissed", value: m.get("dismissed") ?? 0, color: c.hint },
         ]} />
+      </AnalyticsCard>;
+    }
+    case "wfm_project_hours": {
+      const rows = a.wfmProjectHours.slice(0, 6);
+      const total = a.wfmProjectHours.reduce((s, x) => s + x.minutes, 0);
+      return <AnalyticsCard title="Hours by project" href={ROUTES.wfmProjects}>{rows.length === 0
+        ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No hours booked this month yet.</div>
+        : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 11, color: c.hint }}><span style={{ ...serifNum, fontSize: 13, fontWeight: 700, color: c.ink }}>{hm(total)}</span> this month</div>
+            <MiniHBar
+              rows={rows.map((x) => ({ label: x.name, value: x.minutes, valueLabel: hm(x.minutes), href: x.id ? ROUTES.wfmProject(x.id) : ROUTES.wfmRoster }))}
+              colorFn={(i) => (rows[i].id ? ledger.accent : pillar.amber.base)}
+            />
+          </div>}</AnalyticsCard>;
+    }
+    case "wfm_project_budget": {
+      const rows = a.wfmProjectBudget.slice(0, 6);
+      const over = a.wfmProjectBudget.filter((x) => x.pct > 100).length;
+      return <AnalyticsCard title="Budget burn" href={ROUTES.wfmProjects}>{rows.length === 0
+        ? <div style={{ fontSize: 12, color: c.hint, textAlign: "center", padding: "12px 0" }}>No project with a budget and hours yet.</div>
+        : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 11, color: over ? pillar.red.fg : c.hint }}>
+              <span style={{ ...serifNum, fontSize: 13, fontWeight: 700, color: over ? pillar.red.fg : c.ink }}>{over}</span> over budget
+            </div>
+            <MiniHBar
+              rows={rows.map((x) => ({ label: x.name, value: Math.min(x.pct, 100), valueLabel: `${x.pct}% of ${x.budgetHours}h`, href: ROUTES.wfmProject(x.id) }))}
+              colorFn={(i) => (rows[i].pct > 100 ? pillar.red.base : rows[i].pct > 80 ? pillar.amber.base : pillar.green.base)}
+            />
+          </div>}</AnalyticsCard>;
+    }
+    case "wfm_project_billing": {
+      const b = a.wfmProjectBilling;
+      return <AnalyticsCard title="Project billing" href={ROUTES.wfmProjects}>
+        <div style={{ display: "flex" }}>
+          <StatTile tone={tone} value={inr(b.invoicedAmount)} label={`${b.invoicedCount} invoice${b.invoicedCount === 1 ? "" : "s"} raised this month`} icon={<FileText size={14} color={iconColor} />} href={ROUTES.invoices} />
+          <StatTile tone={b.unbilledMinutes > 0 ? "amber" : tone} value={hm(b.unbilledMinutes)} label={`unbilled on ${b.unbilledProjects} project${b.unbilledProjects === 1 ? "" : "s"}`} icon={<Clock size={14} color={iconColor} />} href={ROUTES.wfmProjects} />
+        </div>
       </AnalyticsCard>;
     }
     case "wfm_site_headcount": {

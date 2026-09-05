@@ -330,3 +330,33 @@ Rules the code enforces, so nobody has to remember them:
 - **Overtime is not billed** yet: `wfm_ot_sessions` carries no project, so
   OT minutes cannot be attributed. Deliberately left out rather than
   invented; revisit when OT gets a project stamp.
+
+## 13. Analytics and AI (built 2026-09-06)
+
+**Dashboard and Analytics page** — three widgets under a "Project costing"
+group, gated on `wfm_projects`, scoped to the viewer's WFM subtree like
+every other WFM widget, and fed by the same `projectHoursReport()` the
+Projects screen uses:
+
+| Widget | Shows |
+|---|---|
+| Hours by project (this month) | top-level projects plus Unassigned, rolled up |
+| Project budget burn | budgeted projects, last 12 months worked vs budget, red past 100% |
+| Project billing (this month) | amount and count invoiced from hours this month; hours waiting on account-linked projects no invoice period touches |
+
+**Talk to data / dock assistant / `/api/v1/ask`** — a new queryable object
+`project_hours` (`src/lib/wfm/projectHoursRows.ts`): one row per work
+session over the last 12 months with date, project (ref, name, level,
+status), top-level project, account, person, employment type, minutes,
+hours, breaks, the bill rate that applies via the rate ladder, billable
+amount, `invoiced` and `assigned`. Unassigned sessions are rows too
+(project.name = "Unassigned"), so "unassigned hours by month" is a plain
+question. Cost is deliberately not a column. Because every parent is
+denormalized onto the row, the single-object engine answers "hours by
+project this month", "billable amount by account last quarter", "who
+worked on Conveyor Retrofit" without a join.
+
+**v1 API** — `GET /api/v1/project-hours` (scope `projects`; employee
+columns only for a key also scoped to `employees`), with the enriched
+query layer (`group_by=project.name&aggregates=sum:hours`). MCP 1.6.0 adds
+`query_project_hours`.

@@ -164,6 +164,10 @@ export const STANDARD_ROLES: StandardRoleTemplate[] = [
       { id: "wfm_site_headcount" },
       { id: "wfm_workforce_composition", size: "half" },
       { id: "wfm_night_shift_cost", size: "compact" },
+      // Project costing widgets follow their own feature flag at render
+      // time, so a role layout can list them safely for a tenant without it.
+      { id: "wfm_project_hours" },
+      { id: "wfm_project_billing", size: "compact" },
     ],
   },
 ];

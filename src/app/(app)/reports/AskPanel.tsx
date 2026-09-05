@@ -26,6 +26,9 @@ const EXAMPLES_FULL = [
   "Open cases by status",
   "Total outstanding invoice value",
   "Assets by make",
+  "Hours by project this month",
+  "Billable amount by account last month",
+  "Unassigned hours by month",
   "Give me insights about quotes",
   "How is my business doing?",
 ];

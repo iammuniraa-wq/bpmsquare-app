@@ -47,6 +47,7 @@ export async function GET(req: Request) {
       "GET /api/v1/projects/:id":         "Project detail — parent, level, sub-projects, linked sites/employees/shifts",
       "GET /api/v1/projects/:id/hours":   "Worked hours for a project and everything beneath it, for a period (?from=&to=) — the feed to invoice from",
       "GET /api/v1/projects/:id/invoices": "Invoices raised from this project's hours — period, hours and amount billed",
+      "GET /api/v1/project-hours":         "Worked hours by project, one row per work session (last 12 months) with bill rate, billable amount and invoiced flag · filters: ?project_id=, ?account_id=, plus the enriched query layer (group_by=project.name&aggregates=sum:hours) · employee columns need the employees scope",
       "POST /api/v1/projects/:id/invoices": "Raise a draft invoice for a period { from, to, granularity?, top_up?, dry_run? } — dry_run previews the lines without writing",
       "GET /api/v1/purchase-orders":      "List purchase orders",
       "GET /api/v1/purchase-orders/:id":  "Purchase order detail with line items",
