@@ -3,7 +3,7 @@ import "server-only";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { getWfmConfig } from "@/lib/wfm/server";
-import { loadProjectSessions } from "@/lib/wfm/projectHoursServer";
+import { loadProjectSessions, sessionDay } from "@/lib/wfm/projectHoursServer";
 import { resolveBillRate, periodsOverlap, round2 } from "@/lib/wfm/billing";
 import type { QueryableField } from "@/lib/api/query";
 
@@ -121,7 +121,7 @@ export async function loadProjectHoursRows(tenantId: string): Promise<Record<str
     for (const s of emp.sessions) {
       const minutes = config.deduct_breaks ? s.net_minutes : s.gross_minutes;
       if (minutes <= 0) continue;
-      const date = s.in.slice(0, 10);
+      const date = sessionDay(s.in, config.timezone);
       const p = s.project_id ? byId.get(s.project_id) : undefined;
       const { ids, rates } = p ? chain(p.id) : { ids: [], rates: [] };
       const top = ids.length ? byId.get(ids[ids.length - 1]) : undefined;

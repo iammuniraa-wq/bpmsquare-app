@@ -318,6 +318,11 @@ Rules the code enforces, so nobody has to remember them:
   offers "Bill the difference": one line for the delta minutes and the
   delta amount, never a re-bill.
 - **Unassigned hours** in the window are shown as a warning, never billed.
+- **A session belongs to the local day it started** (tenant timezone). The
+  hours loader pads its event window a day either side only so a night
+  shift's punches around midnight are all present for the split; sessions
+  are then trimmed to [from, to]. Until 2026-09-06 the day after `to` was
+  counted in, which put 1 September on an August invoice.
 - **Standalone projects are not billable** (`invoices.account_id NOT NULL`).
   The card says to link an account first.
 - **Email**: recipients are the account's contacts (decrypted server-side)

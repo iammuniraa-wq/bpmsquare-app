@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { createAdminSupabase } from "@/lib/supabase-server";
-import { getWfmConfig } from "@/lib/wfm/server";
+import { getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
 import { workSessions } from "@/lib/wfm/hours";
 import { rollUpProjectHours, projectHeadcount, UNASSIGNED, type SessionsForEmployee } from "@/lib/wfm/projectHours";
 import { rollUp, depthOf, descendantsOf } from "@/lib/wfm/projectTree";
@@ -55,14 +55,19 @@ export async function loadProjectSessions(
   to: string,
   employeeIds: string[] | null
 ): Promise<{ sessions: SessionsForEmployee[] } | { pending_migration: true }> {
+  const config = await getWfmConfig(admin, tenantId);
+
   let eventsQuery = admin
     .from("wfm_presence_events")
     .select("employee_id, kind, ts, project_id")
     .eq("tenant_id", tenantId)
     .is("superseded_by", null)
-    // Padded a day either side so a night shift's punches around midnight are
-    // included; the session split itself handles the attribution.
-    .gte("ts", `${from}T00:00:00Z`)
+    // Padded a day either side so a night shift's punches around midnight
+    // are all present for the session split. The padding is for the SPLIT
+    // only: a session belongs to the period by the local day it started
+    // (below), so the day after `to` is never counted in -- it was, until
+    // 2026-09-06, which put 1 September's hours on an August invoice.
+    .gte("ts", new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString())
     .lt("ts", new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString())
     .order("ts", { ascending: true });
   if (employeeIds) eventsQuery = eventsQuery.in("employee_id", employeeIds);
@@ -79,12 +84,23 @@ export async function loadProjectSessions(
     byEmployee.set(id, [...(byEmployee.get(id) ?? []), e as never]);
   }
   const endRef = new Date();
+  const inPeriod = (s: { in: string }) => {
+    const day = dateKeyInTz(new Date(s.in), config.timezone);
+    return day >= from && day <= to;
+  };
   return {
     sessions: [...byEmployee].map(([employee_id, evs]) => ({
       employee_id,
-      sessions: workSessions(evs as never, endRef),
+      sessions: workSessions(evs as never, endRef).filter(inPeriod),
     })),
   };
+}
+
+/** The local day a session belongs to -- the day it started, in the
+ *  tenant's timezone. The same rule loadProjectSessions() applies, so a
+ *  row's `date` and the period it was billed in can never disagree. */
+export function sessionDay(sessionIn: string, timezone: string): string {
+  return dateKeyInTz(new Date(sessionIn), timezone);
 }
 
 /**
