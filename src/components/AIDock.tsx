@@ -45,7 +45,11 @@ const CREATE_MODES: { mode: string; label: string; featureKey: "accounts" | "con
  * where Nova is off (ai_assistant is a separate flag), and dispatching the
  * event there would silently no-op.
  */
-export default function AIDock() {
+export default function AIDock({ liftForTabBar = false }: {
+  /** Set on mobile where MobileTabBar (Nova only) is fixed to the same bottom
+   *  edge -- without it the launcher sits on top of the tabs. */
+  liftForTabBar?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [capabilities, setCapabilities] = useState<string[] | null>(null);
@@ -134,7 +138,9 @@ export default function AIDock() {
   // it. The switch used to hold the bottom slot with the launcher stacked over
   // it, which put a 22px control hard against the window edge where a short
   // viewport clipped it (owner-reported 2026-09-06).
-  const FLOOR = "env(safe-area-inset-bottom, 0px)";
+  const FLOOR = liftForTabBar
+    ? "calc(58px + env(safe-area-inset-bottom, 0px))"
+    : "env(safe-area-inset-bottom, 0px)";
   const at = (px: number) => `calc(${px}px + ${FLOOR})`;
 
   return (

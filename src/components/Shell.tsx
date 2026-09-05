@@ -324,7 +324,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // localStorage flag shared across every nextgen-family theme; a tenant
   // who switches FROM nextgen dark mode TO enterprise would otherwise carry
   // that true value straight into data-mode="dark" on first render.
-  const mode = uiTheme === "nextgen" && !isEnterprise && dark ? "dark" : undefined;
+  // `nova ||` because Nova defines its own near-black ground and glass but NOT
+  // the content tokens (--line, --card-bg, --panel2) -- it inherits whichever
+  // set data-mode selects. `dark` is a per-browser flag SHARED with nextgen,
+  // so anyone who had chosen nextgen light and then switched to Nova landed on
+  // Nova's black ground wearing light-mode borders and card fills, with no way
+  // back: the dark toggle is hidden on Nova. Nova is dark by definition, so it
+  // no longer asks the flag.
+  const mode = uiTheme === "nextgen" && !isEnterprise && (nova || dark) ? "dark" : undefined;
 
   if (mobile) {
     return (
@@ -352,7 +359,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {commandPalette && <NovaPalette />}
           {nova && <NovaDraft />}
           {nova && <Account360Drawer />}
-          {aiAllowed && <AIDock />}
+          {aiAllowed && <AIDock liftForTabBar={nova} />}
         </div>
       </TabsProvider>
       </FeelProvider>
