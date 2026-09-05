@@ -472,7 +472,7 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
-- 0108_wfm_project_billing.sql — **PENDING on both DBs** (written
+- 0108_wfm_project_billing.sql — **applied to both DBs** (owner confirmed
   2026-09-06). `wfm_projects.bill_rate` (the project rung of the rate
   ladder) and `wfm_project_invoices` (which period of which project each
   invoice covers — the double-billing guard; select-only RLS per the WFM
