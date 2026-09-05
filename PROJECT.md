@@ -472,7 +472,16 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
-- **0109_wfm_leave_type_limits.sql — PENDING on both DBs** (written
+- **0112_wfm_leave_quota_period.sql — PENDING on both DBs** (written
+  2026-09-06, BIM follow-up: "it's days a month, not days a year"):
+  `wfm_leave_types.quota_period` (year | month). The quota number stays
+  in `wfm_leave_quotas.annual_quota` (historical name); a per-month quota
+  is also the month's cap and balances read "left this month" (balance
+  now takes the month in view). Numbered 0112 because 0110/0111 belong to
+  the parked pricing work. Degrades while pending: every type reads as
+  per-year; saving a period returns 503 naming the migration.
+- **0109_wfm_leave_type_limits.sql — applied to both DBs** (owner
+  confirmed 2026-09-06). (written
   2026-09-06, BIM request): `wfm_leave_types.monthly_limit` (at most N
   days of the type per calendar month, enforced on employee requests AND
   admin entry, counting approved records + pending requests) and
