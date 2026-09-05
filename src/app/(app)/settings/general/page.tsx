@@ -39,9 +39,9 @@ const PILLAR_DOT: Record<string, string> = {
 const INTEGRATIONS = [
   {
     icon: <Mail size={16} />, name: "Email — Resend",
-    desc: "Send quotations directly from the system as PDF attachments, from your own sender identity",
+    desc: "Send quotations and invoices directly from the system as PDF attachments, from your own sender identity",
     status: "active" as const,
-    note: "Free tier: 3,000 emails/month · inspection reports and invoices not wired up yet",
+    note: "Free tier: 3,000 emails/month · where mail is delivered is governed by Email output above · inspection reports not wired up yet",
   },
   {
     icon: <MessageSquare size={16} />, name: "WhatsApp (embedded)",
