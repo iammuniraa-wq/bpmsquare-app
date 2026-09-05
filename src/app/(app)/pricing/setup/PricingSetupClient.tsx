@@ -13,9 +13,10 @@ import RateSnapshotView, { type SnapshotRule } from "../RateSnapshotView";
 import { usePricingRefresh } from "../PricingRefreshContext";
 
 type VersionRow = { version: number; status: "DRAFT" | "PUBLISHED" | "SUPERSEDED" };
-type SnapshotProcedure = { code: string; entry_mode: string };
-type SnapshotCostInput = { cost_model_code: string; path: string };
-type Snapshot = { procedures: SnapshotProcedure[]; rules: SnapshotRule[]; cost_inputs: SnapshotCostInput[] };
+type SnapshotProcedure = { code: string; entry_mode: string; steps?: { step: number; component?: string; guardrail?: { policy?: string } | null }[] };
+type SnapshotCostInput = { id?: string; cost_model_code: string; path: string; kind?: string; value?: number; product_id?: string | null; valid_from?: string | null; source_code?: string | null };
+type SnapshotCostModel = { code: string; name: string; sources?: { code: string; label?: string | null; tier: number; quality: string; max_age_days?: number | null }[] | null };
+type Snapshot = { procedures: SnapshotProcedure[]; rules: SnapshotRule[]; cost_inputs: SnapshotCostInput[]; cost_models?: SnapshotCostModel[] };
 
 type RowsByComponent = Record<string, RateRow[]>;
 type RowsSetter = Dispatch<SetStateAction<RowsByComponent>>;
@@ -63,11 +64,26 @@ function defaultRows(template: MethodTemplate): RowsByComponent {
  * Every "numbers" entry point (fresh draft, resumed draft, cloned draft)
  * syncs both so the DB can never drift from what this build assumes.
  */
-async function syncTemplateDefinitions(t: MethodTemplate, version: number, existingCostInputs: SnapshotCostInput[], area: string) {
+async function syncTemplateDefinitions(t: MethodTemplate, version: number, snapshot: Snapshot, area: string) {
+  // The tenant's own choices on a resumed draft must survive the re-sync:
+  // the floor policy lives on the procedure step, the source ladder on the
+  // cost model. Both are carried over from what is already saved.
+  const existingProc = snapshot.procedures.find((p) => p.code === t.procedure.procedure_id);
+  const existingPolicy = existingProc?.steps?.find((s) => s.guardrail)?.guardrail?.policy;
+  const existingSources = snapshot.cost_models?.find((m) => t.costModel && m.code === t.costModel.code)?.sources;
   for (const mutation of templateMutations(t, version, area)) {
+    if (mutation.entity === "procedure" && existingPolicy && Array.isArray(mutation.data.steps)) {
+      mutation.data = {
+        ...mutation.data,
+        steps: (mutation.data.steps as { guardrail?: { policy: string } }[]).map((s) => (s.guardrail ? { ...s, guardrail: { ...s.guardrail, policy: existingPolicy } } : s)),
+      };
+    }
+    if (mutation.entity === "cost_model" && existingSources && existingSources.length > 0) {
+      mutation.data = { ...mutation.data, sources: existingSources };
+    }
     await postJson("/api/settings/pricing-engine/config", mutation);
   }
-  for (const mutation of missingCostInputMutations(t, existingCostInputs, area)) {
+  for (const mutation of missingCostInputMutations(t, snapshot.cost_inputs.filter((i) => !i.product_id), area)) {
     await postJson("/api/settings/pricing-engine/config", mutation);
   }
 }
@@ -172,6 +188,15 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
   const [originalRows, setOriginalRows] = useState<RowsByComponent>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The draft's snapshot, for the cost-based sections (rates, ladder, floor
+  // policy) that edit things outside the rate tables.
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+
+  const refreshSnapshot = useCallback(async (v: number) => {
+    const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${v}?area=${encodeURIComponent(area)}`, null, "GET");
+    setSnapshot(snap);
+    return snap;
+  }, [area]);
 
   const load = useCallback(async () => {
     setPhase("loading");
@@ -187,8 +212,9 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
         const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${draft.version}?area=${encodeURIComponent(area)}`, null, "GET");
         const t = matchMethodTemplate(snap.procedures);
         if (!t) { setPhase("unsupported"); return; }
-        await syncTemplateDefinitions(t, draft.version, snap.cost_inputs, area);
-        const initialRows = rowsFromSnapshot(t, snap);
+        await syncTemplateDefinitions(t, draft.version, snap, area);
+        const synced = await refreshSnapshot(draft.version);
+        const initialRows = rowsFromSnapshot(t, synced);
         setTemplate(t);
         setVersion(draft.version);
         setRows(initialRows);
@@ -223,7 +249,8 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
       const created = await postJson("/api/settings/pricing-engine/versions", { area });
       const v = created.version.version as number;
       const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${v}?area=${encodeURIComponent(area)}`, null, "GET");
-      await syncTemplateDefinitions(t, v, snap.cost_inputs, area);
+      await syncTemplateDefinitions(t, v, snap, area);
+      await refreshSnapshot(v);
       setTemplate(t);
       setVersion(v);
       setRows(defaultRows(t));
@@ -246,8 +273,9 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
       const snap: Snapshot = await postJson(`/api/settings/pricing-engine/versions/${v}?area=${encodeURIComponent(area)}`, null, "GET");
       const t = matchMethodTemplate(snap.procedures) ?? template;
       if (!t) { setPhase("unsupported"); return; }
-      await syncTemplateDefinitions(t, v, snap.cost_inputs, area);
-      const initialRows = rowsFromSnapshot(t, snap);
+      await syncTemplateDefinitions(t, v, snap, area);
+      const synced = await refreshSnapshot(v);
+      const initialRows = rowsFromSnapshot(t, synced);
       setTemplate(t);
       setVersion(v);
       setRows(initialRows);
@@ -380,6 +408,9 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
           Set your numbers — add a rule for any segment, region or deal size that needs a different rate. You can change these any time before going live.
         </div>
         {error && <ErrorBox message={error} />}
+        {template.costModel && version !== null && snapshot && (
+          <CostSetup template={template} version={version} area={area} snapshot={snapshot} canEdit={canEdit} onChanged={() => refreshSnapshot(version)} />
+        )}
         {template.editableComponents.map((ec) => (
           <RateTable key={ec.component_code} template={template} ec={ec} rows={rows[ec.component_code] ?? []} canEdit={canEdit} setRows={setRows} />
         ))}
@@ -397,6 +428,144 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
   }
 
   return null;
+}
+
+// ── Cost-based: rates, source ladder, floor policy ───────────────────────
+// Everything a cost-based book needs that is not a rate table: the cost
+// model's own rates (copper per kg, labour per hour), the order costs are
+// looked up in (the ladder), and what a margin-floor breach does.
+
+const QUALITY_LABEL: Record<string, string> = { actual: "actual", confirmed: "confirmed", estimate: "estimate", list: "list price" };
+
+function CostSetup({ template, version, area, snapshot, canEdit, onChanged }: {
+  template: MethodTemplate; version: number; area: string; snapshot: Snapshot; canEdit: boolean; onChanged: () => Promise<unknown>;
+}) {
+  const model = template.costModel!;
+  const inputs = snapshot.cost_inputs.filter((i) => i.cost_model_code === model.code && !i.product_id);
+  const savedModel = snapshot.cost_models?.find((m) => m.code === model.code);
+  const ladder = (savedModel?.sources && savedModel.sources.length > 0 ? savedModel.sources : model.sources ?? []).map((s) => ({ ...s }));
+  const proc = snapshot.procedures.find((p) => p.code === template.procedure.procedure_id);
+  const policy = proc?.steps?.find((s) => s.guardrail)?.guardrail?.policy ?? template.marginGuardrail?.policy ?? "warn";
+
+  const [rateDraft, setRateDraft] = useState<Record<string, string>>({});
+  const [ageDraft, setAgeDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function saveRate(input: SnapshotCostInput) {
+    const raw = rateDraft[input.path];
+    if (raw === undefined) return;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0) { setError(`${input.path}: enter a number.`); return; }
+    setBusy(true); setError(null);
+    try {
+      await postJson("/api/settings/pricing-engine/config", {
+        entity: "cost_input", op: "upsert", area,
+        data: { id: input.id, cost_model_code: model.code, path: input.path, kind: input.kind ?? model.inputs.find((d) => d.path === input.path)?.kind ?? "MATERIAL", value, valid_from: input.valid_from ?? null, source_code: input.source_code ?? null },
+      });
+      setRateDraft((d) => { const { [input.path]: _drop, ...rest } = d; return rest; });
+      await onChanged();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+
+  async function saveLadder(next: typeof ladder) {
+    setBusy(true); setError(null);
+    try {
+      await postJson("/api/settings/pricing-engine/config", {
+        entity: "cost_model", op: "upsert", version, area, data: { code: model.code, name: model.name, sources: next },
+      });
+      setAgeDraft({});
+      await onChanged();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+
+  async function savePolicy(next: string) {
+    if (!proc?.steps) return;
+    setBusy(true); setError(null);
+    try {
+      const steps = proc.steps.map((s) => (s.guardrail ? { ...s, guardrail: { ...s.guardrail, policy: next } } : s));
+      await postJson("/api/settings/pricing-engine/config", {
+        entity: "procedure", op: "upsert", version, area,
+        data: { code: template.procedure.procedure_id, name: template.label, entry_mode: template.procedure.entry_mode, steps },
+      });
+      await onChanged();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+
+  const kindLabel: Record<string, string> = { MATERIAL: "material", LABOUR: "labour", SALVAGE_CREDIT: "salvage credit", PURCHASE: "bought-in", EQUIPMENT: "equipment", OVERHEAD: "overhead", INDEX: "index" };
+
+  return (
+    <>
+      {error && <ErrorBox message={error} />}
+      <div style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel, marginBottom: 10 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>Your cost rates</div>
+        <div style={{ fontSize: 11.5, color: c.muted, marginBottom: 8 }}>
+          What one unit of each input costs you today. A product&rsquo;s cost sheet says how many units it consumes; bought-in parts use the product&rsquo;s own cost price instead.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {inputs.map((i) => (
+            <div key={i.id ?? i.path} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "monospace", fontSize: 12, minWidth: 220 }}>{i.path}</span>
+              <span style={{ fontSize: 11, color: c.hint, minWidth: 90 }}>{kindLabel[i.kind ?? ""] ?? i.kind}</span>
+              <input
+                type="number" disabled={!canEdit} style={numInput}
+                value={rateDraft[i.path] ?? String(i.value ?? "")}
+                onChange={(e) => setRateDraft((d) => ({ ...d, [i.path]: e.target.value }))}
+              />
+              {canEdit && rateDraft[i.path] !== undefined && rateDraft[i.path] !== String(i.value ?? "") && (
+                <button style={linkBtn} disabled={busy} onClick={() => saveRate(i)}>Save</button>
+              )}
+              {i.valid_from && <span style={{ fontSize: 11, color: c.hint }}>from {i.valid_from}</span>}
+            </div>
+          ))}
+          {inputs.length === 0 && <div style={{ fontSize: 12, color: c.hint }}>No rates yet — they are seeded the first time this page opens.</div>}
+        </div>
+      </div>
+
+      <div style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel, marginBottom: 10 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>Where a cost comes from</div>
+        <div style={{ fontSize: 11.5, color: c.muted, marginBottom: 8 }}>
+          Tried in this order. A figure older than its limit is skipped, never used. When nothing answers, the quote line asks the supplier (an RFQ).
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {ladder.sort((a, b) => a.tier - b.tier).map((s, idx) => (
+            <div key={s.code} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12.5 }}>
+              <span style={{ width: 22, height: 22, borderRadius: 11, background: pillar.blue.bg, color: pillar.blue.fg, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
+              <span style={{ minWidth: 220 }}>{s.label ?? s.code}</span>
+              <span style={{ fontSize: 11, color: c.hint, minWidth: 80 }}>{QUALITY_LABEL[s.quality] ?? s.quality}</span>
+              <span style={{ fontSize: 11.5, color: c.muted }}>fresh for</span>
+              <input
+                type="number" min="1" disabled={!canEdit} style={{ ...numInput, width: 70 }} placeholder="always"
+                value={ageDraft[s.code] ?? (s.max_age_days == null ? "" : String(s.max_age_days))}
+                onChange={(e) => setAgeDraft((d) => ({ ...d, [s.code]: e.target.value }))}
+              />
+              <span style={{ fontSize: 11.5, color: c.muted }}>days</span>
+            </div>
+          ))}
+        </div>
+        {canEdit && Object.keys(ageDraft).length > 0 && (
+          <button
+            style={{ ...linkBtn, marginTop: 8 }} disabled={busy}
+            onClick={() => saveLadder(ladder.map((s) => ({ ...s, max_age_days: ageDraft[s.code] === undefined ? s.max_age_days ?? null : ageDraft[s.code] === "" ? null : Number(ageDraft[s.code]) })))}
+          >
+            Save freshness limits
+          </button>
+        )}
+      </div>
+
+      {template.marginGuardrail && (
+        <div style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${c.line}`, background: c.panel, marginBottom: 10 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>When a quote falls below the minimum margin</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+            <select disabled={!canEdit || busy} value={policy} onChange={(e) => savePolicy(e.target.value)} style={{ ...numInput, width: 320 }}>
+              <option value="warn">Warn the rep, let the quote go out</option>
+              <option value="block">Block sending until it is re-priced or approved</option>
+            </select>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 // ── Rate table editor ────────────────────────────────────────────────────
@@ -522,7 +691,7 @@ function TierEditor({ ec, tiers, rowIndex, canEdit, setRows }: {
 
 // ── Sample bill ──────────────────────────────────────────────────────────
 
-type SampleLine = { components: Record<string, number>; subtotals: Record<string, number>; net: number; trace: { component?: string; status: string }[] };
+type SampleLine = { components: Record<string, number>; subtotals: Record<string, number>; net: number; trace: { component?: string; status: string }[]; flags?: { code: string; policy: string; floor_pct: number; actual_pct: number }[] };
 
 function SampleBill({ template, version, area, canEdit, onBack }: { template: MethodTemplate; version: number; area: string; canEdit: boolean; onBack: () => void }) {
   const [qty, setQty] = useState(1);
@@ -551,14 +720,19 @@ function SampleBill({ template, version, area, canEdit, onBack }: { template: Me
   const statusOf = (code: string) => line?.trace.find((t) => t.component === code)?.status;
   const statisticalCodes = useMemo(() => new Set(template.components.filter((cmp) => cmp.is_statistical).map((cmp) => cmp.code)), [template]);
 
+  // The engine's own verdict (a guardrail flag on the line) is the truth;
+  // the arithmetic below is only the fallback for a version whose procedure
+  // predates guardrails in the core. Margin is on cost, as the engine does it.
   const margin = useMemo(() => {
     const g = template.marginGuardrail;
     if (!g || !line) return null;
+    const flag = line.flags?.find((f) => f.code === "MARGIN_FLOOR");
+    if (flag) return { actualPct: flag.actual_pct, floor: flag.floor_pct, belowFloor: true };
     const revenue = line.subtotals[g.revenueSubtotal];
     const cost = line.subtotals[g.costSubtotal];
     const floor = line.components[g.componentCode];
-    if (revenue === undefined || cost === undefined || !revenue) return null;
-    const actualPct = ((revenue - cost) / revenue) * 100;
+    if (revenue === undefined || cost === undefined || !cost) return null;
+    const actualPct = ((revenue - cost) / cost) * 100;
     return { actualPct, floor: floor ?? null, belowFloor: floor !== undefined && actualPct < floor };
   }, [template, line]);
 

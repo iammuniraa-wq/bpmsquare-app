@@ -473,7 +473,11 @@ deploy for an automatic schema change.
   additive: with the migration pending, every part still works and simply
   reads as "Part".
 - **0113_pricing_cost_based.sql — PENDING on both DBs** (was 0110; written
-  2026-09-06, cost-based technique step 1, spec §17; run AFTER 0111):
+  2026-09-06, cost-based technique steps 1-3, spec §17; run AFTER 0111,
+  then `scripts/seed-pricing-cost-based-demo.sql` on the demo for the
+  walk). Also adds `quote_lines.pricing_document_id`/`pricing_flags`, the
+  `rfq` email-template category and `pricing_rfqs`.
+  Original step-1 description:
   `products.cost_sheet` + `cost_price_as_of`, `pricing_cost_models.sources`
   (the cost source ladder), provenance + `product_id` on
   `pricing_cost_inputs` with the widened natural key, and `pricing_rfqs`

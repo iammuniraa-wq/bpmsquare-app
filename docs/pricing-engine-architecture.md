@@ -678,13 +678,30 @@ Three steps, each validated on the demo:
      `src/lib/pricing/costBased.golden.test.ts` (made part with salvage,
      bought-in part through the ladder, stale ERP cost falling to the RFQ
      reply, nothing in force → NEEDS_RFQ).
-2. **The quote line:** routing a product line to the cost-based book, cost
-   items from the product's sheet × quantity with its candidates, Fetch
-   price, the "why" chip, Send RFQ from the line (`pricing_rfqs`, email via
-   `resolveOutbound`), RFQ reply entered as a confirmed product-scoped cost
-   input, fetch again. Floor policy `block` stops sending.
-3. **Setup and demo:** cost sheet on the product form, source ladder and
-   freight/handling rows in the wizard, floor policy, demo seed, walk.
+2. **The quote line — built 2026-09-06, awaiting demo validation.**
+   `src/lib/pricing/routing.ts` (Price Book routing from
+   `config.pricing.routing`, first match wins) and `quoteLine.ts`
+   (`priceDocumentLine()`: one function for quote, standard quote and work
+   order); the quote form's Price with engine now returns the rate with a
+   "why?" chip (`<PriceTrace compact>`), a floor flag, or the NEEDS_RFQ
+   prompt with Send RFQ (supplier picker, message) inline; RFQ routes
+   (`api/pricing/rfqs`, create + send through `resolveOutbound`, reply →
+   confirmed product-scoped cost input, cancel, resend) and the Pricing →
+   RFQs tab; quote lines keep `pricing_document_id` and server-derived
+   `pricing_flags` (never trusted from the client); the quote email route
+   refuses to send while any line carries a `block` flag. Migration 0113
+   (renumbered from 0110 when BIM's 0109/0112 landed first).
+3. **Setup and demo — built 2026-09-06, awaiting demo validation.** Cost
+   sheet card on the product page (`ProductCostSheetCard`, with cost price
+   as-of and a staleness hint), `cost_price_as_of` on the product registry,
+   the wizard's cost-based numbers step gains "Your cost rates", "Where a
+   cost comes from" (the ladder with freshness limits) and the floor
+   policy (warn / block); the sample bill reads the engine's own flag.
+   `scripts/seed-pricing-cost-based-demo.sql` shapes three demo products
+   (made part with salvage, fresh bought-in, stale bought-in → RFQ) and a
+   supplier to ask. The walk: seed → Pricing setup → Cost-based → numbers
+   → Go live → quote with PRD-0007/0008/0009 → why, flag, RFQ → reply →
+   price again.
 
 Batches 2–8 below stand, but each is now delivered per technique: price
 list, value-based and variant follow the same three steps on these rails.
