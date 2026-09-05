@@ -6,6 +6,7 @@ import { logChange } from "@/lib/changeLog";
 import {
   PROJECT_STATUSES, parseProjectBody, verifyProjectLinks, replaceProjectLinks,
   loadTree, validateParent, projectSelect, dropLabel, tolerateMissingLabel,
+  insertChildProject,
 } from "@/lib/wfm/projects";
 
 // Projects are the cost object worked hours are attributed to (0104,
@@ -73,11 +74,13 @@ export async function POST(request: NextRequest) {
       .from("accounts").select("id").eq("id", parsed.values.account_id).eq("tenant_id", tenantId).maybeSingle();
     if (!account) return NextResponse.json({ error: "Unknown account" }, { status: 400 });
   }
+  let parentRef: string | null = null;
   if (parsed.values.parent_id) {
     const parentId = parsed.values.parent_id as string;
     const { data: parent } = await admin
-      .from("wfm_projects").select("id").eq("id", parentId).eq("tenant_id", tenantId).maybeSingle();
+      .from("wfm_projects").select("id, ref").eq("id", parentId).eq("tenant_id", tenantId).maybeSingle();
     if (!parent) return NextResponse.json({ error: "Unknown parent project" }, { status: 400 });
+    parentRef = (parent.ref as string | null) ?? null;
 
     // The UI hides the "Add" link at the deepest level, but the screen is
     // never the gate.
@@ -85,13 +88,18 @@ export async function POST(request: NextRequest) {
     if (err) return NextResponse.json({ error: err }, { status: 400 });
   }
 
-  const { data, error } = await tolerateMissingLabel<{ id: string; name: string; ref: string | null }>((withLabel) =>
-    insertWithMasterRef<{ id: string; name: string; ref: string | null }>(
-      admin, "wfm_projects", tenantId,
-      { ...dropLabel(parsed.values, withLabel), tenant_id: tenantId },
-      projectSelect(withLabel)
-    )
-  );
+  // A part is numbered inside its parent (PRJ-0003.1); only a top-level
+  // project draws from the workspace PRJ sequence.
+  const { data, error } = await tolerateMissingLabel<{ id: string; name: string; ref: string | null }>((withLabel) => {
+    const record = { ...dropLabel(parsed.values, withLabel), tenant_id: tenantId };
+    return parentRef
+      ? insertChildProject<{ id: string; name: string; ref: string | null }>(
+          admin, tenantId, parentRef, record, projectSelect(withLabel)
+        )
+      : insertWithMasterRef<{ id: string; name: string; ref: string | null }>(
+          admin, "wfm_projects", tenantId, record, projectSelect(withLabel)
+        );
+  });
   if (error || !data) {
     if (error?.code === "42P01") {
       return NextResponse.json({ error: "Project costing isn't set up on this database yet." }, { status: 503 });

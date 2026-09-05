@@ -58,6 +58,32 @@ export function childLabelFrom(siblingLabels: (string | null)[]): string {
   return "Sub-item";
 }
 
+/**
+ * The next ref for a part of `parentRef`: PRJ-0003.1, then .2, and
+ * PRJ-0003.1.2 a level down.
+ *
+ * Numbered inside the parent rather than from the workspace-wide PRJ
+ * sequence, so breaking one project into three no longer pushes the next
+ * real project's number along by three. Takes the highest existing suffix
+ * rather than a count, so deleting .2 of three parts still yields .4 and a
+ * retired number is never reissued to a different part.
+ *
+ * `siblingRefs` may contain anything the caller's LIKE picked up, including
+ * deeper descendants (PRJ-0003.1.2) and unrelated rows -- only direct
+ * children of this exact parent count.
+ */
+export function nextChildRef(parentRef: string, siblingRefs: (string | null)[]): string {
+  // The parent ref is data, not a pattern.
+  const quoted = parentRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const direct = new RegExp(`^${quoted}\\.(\\d+)$`);
+  let highest = 0;
+  for (const ref of siblingRefs) {
+    const m = direct.exec(ref ?? "");
+    if (m) highest = Math.max(highest, Number(m[1]));
+  }
+  return `${parentRef}.${highest + 1}`;
+}
+
 /** Every descendant id of `rootId`, excluding the root. */
 export function descendantsOf(nodes: TreeNodeLike[], rootId: string): string[] {
   const childrenOf = new Map<string, string[]>();

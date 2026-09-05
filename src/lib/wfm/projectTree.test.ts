@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   depthOf, canNest, childLabelFrom, descendantsOf, rollUp, reparentError,
-  MAX_DEPTH, type TreeNodeLike,
+  nextChildRef, MAX_DEPTH, type TreeNodeLike,
 } from "./projectTree";
 
 const n = (id: string, parent_id: string | null = null): TreeNodeLike => ({ id, parent_id });
@@ -38,6 +38,35 @@ describe("naming comes from the project itself, not a setting", () => {
   it("falls back to a neutral word for the very first part", () => {
     expect(childLabelFrom([])).toBe("Sub-item");
     expect(childLabelFrom([null, "  "])).toBe("Sub-item");
+  });
+});
+
+describe("nextChildRef", () => {
+  it("numbers parts inside the parent, not from the PRJ sequence", () => {
+    expect(nextChildRef("PRJ-0003", [])).toBe("PRJ-0003.1");
+    expect(nextChildRef("PRJ-0003", ["PRJ-0003.1"])).toBe("PRJ-0003.2");
+  });
+
+  it("nests a level down", () => {
+    expect(nextChildRef("PRJ-0003.1", ["PRJ-0003.1.1"])).toBe("PRJ-0003.1.2");
+  });
+
+  // The dot in a parent ref is a regex metacharacter -- unescaped,
+  // "PRJ-0003.1" would also match "PRJ-0003X1" and misread the siblings.
+  it("treats the parent ref as text, not a pattern", () => {
+    expect(nextChildRef("PRJ-0003.1", ["PRJ-0003X1.7"])).toBe("PRJ-0003.1.1");
+  });
+
+  // A LIKE 'PRJ-0003.%' sweep also returns grandchildren; only direct
+  // children may set the next number.
+  it("ignores deeper descendants and unrelated refs", () => {
+    expect(nextChildRef("PRJ-0003", ["PRJ-0003.1", "PRJ-0003.1.9", "PRJ-0004.5", null])).toBe("PRJ-0003.2");
+  });
+
+  // Highest wins, not the count -- otherwise deleting .2 of three parts
+  // reissues .3 to a different part and two rows share a ref.
+  it("takes the highest suffix so a deleted number is never reused", () => {
+    expect(nextChildRef("PRJ-0003", ["PRJ-0003.1", "PRJ-0003.3"])).toBe("PRJ-0003.4");
   });
 });
 

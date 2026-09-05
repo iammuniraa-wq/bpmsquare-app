@@ -2,7 +2,8 @@ import "server-only";
 
 import type { createAdminSupabase } from "@/lib/supabase-server";
 import type { WfmProjectStatus } from "./types";
-import { reparentError, depthOf, canNest, type TreeNodeLike } from "./projectTree";
+import { reparentError, depthOf, canNest, nextChildRef, type TreeNodeLike } from "./projectTree";
+import { isMasterRefCollision } from "@/lib/masterRef";
 
 type Admin = ReturnType<typeof createAdminSupabase>;
 
@@ -141,6 +142,48 @@ export async function parseProjectBody(
     return { error: "Nothing to update" };
   }
   return { values };
+}
+
+/**
+ * Insert a part of a project, numbered INSIDE its parent: PRJ-0003.1, .2,
+ * and PRJ-0003.1.2 a level down.
+ *
+ * A part used to take the next workspace-wide PRJ number, so breaking one
+ * project into three pushed the next real project from PRJ-0004 to PRJ-0007
+ * and the list read as seven unrelated jobs (owner-reported 2026-09-06). A
+ * suffixed ref also says what the thing IS at a glance -- "the first part of
+ * PRJ-0003" -- which a flat number never did.
+ *
+ * The top-level sequence is untouched by this: nextMasterRefSeq matches
+ * ^PRJ-(\d+)$, and "PRJ-0003.1" does not match, so a part can never consume
+ * or skew a project number.
+ */
+export async function insertChildProject<T>(
+  admin: Admin,
+  tenantId: string,
+  parentRef: string,
+  record: Record<string, unknown>,
+  select: string
+): Promise<{ data: T | null; error: { code?: string; message: string } | null }> {
+  for (let attempt = 0; ; attempt++) {
+    const { data: siblings } = await admin
+      .from("wfm_projects")
+      .select("ref")
+      .eq("tenant_id", tenantId)
+      .like("ref", `${parentRef}.%`);
+
+    const ref = nextChildRef(parentRef, (siblings ?? []).map((s) => (s as { ref: string | null }).ref));
+
+    const { data, error } = await admin
+      .from("wfm_projects")
+      .insert({ ...record, ref })
+      .select(select)
+      .single();
+    if (!error) return { data: data as T, error: null };
+    // Two people adding a part at once race between the scan and the insert;
+    // the unique index turns that into a clean 23505 worth one more try.
+    if (!isMasterRefCollision(error) || attempt >= 4) return { data: null, error };
+  }
 }
 
 /** What a project is linked to. Any combination, any of them empty. */
