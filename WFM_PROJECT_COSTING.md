@@ -198,3 +198,78 @@ empty and never sees it.
 
 Per bpmsquarecore.md §3b, "build X" means build X on every surface. Tracked
 in the commit; deliberate skips stated explicitly rather than left silent.
+
+## 11. Billing — account link, costing, invoice from hours (plan, 2026-09-06)
+
+Owner decisions, recorded so the build has no judgement calls left in it.
+
+### What exists already
+- `wfm_projects.account_id` (0104) is nullable and has never been set by a
+  screen. Standalone-or-linked is already the data model; the screens are
+  what is missing.
+- `invoices.account_id` is **NOT NULL**. An invoice cannot exist without an
+  account, and the invoicing screens assume one. That is left exactly as it
+  is: billing is for account-linked projects only. A standalone project is
+  fine to run and report on; to bill it you link an account first, and the
+  Bill hours button says so.
+- The AMC work-order invoice route already pre-fills a labour line from WFM
+  hours x the labour rate in `pricing_items`. That is the precedent, not the
+  implementation: rates here get their own config (below).
+- Quotes go out by email via Resend as a PDF. Invoices do not -- there is no
+  invoice email route. Wiring one is a prerequisite step, useful on its own.
+- `GET /api/v1/projects/:id/hours?from&to` (projectHoursServer) is the feed:
+  hours per project rolled up over a period, the same arithmetic the screens
+  show. An invoice raised from it can never disagree with the screen.
+
+### Decisions
+1. **Rate basis -- three rungs, most specific wins**, mirroring attribution
+   so there is one mental model: project override > employment type >
+   workspace default. Per-employee rates are deliberately NOT offered until
+   a client asks. Bill rate (what the customer pays) and cost rate (margin)
+   are separate fields; cost rate never reaches the API, same rule as
+   `products.cost_price`.
+2. **Actual minutes, no rounding** -- consistent with how OT is paid.
+3. **Line granularity is chosen at billing time**: one line per Level-1
+   sub-project, or one line for the whole project. Not a setting; a choice
+   on the preview.
+4. **Recipients**: the linked account's contact(s), plus addresses typed in
+   by hand. Both, on the send step.
+5. **Standalone projects are not billable** (follows from `invoices.
+   account_id NOT NULL`). Manual recipients do not change that; they are
+   about who receives an invoice, not whether one can be raised.
+
+### Model
+- `wfm.costing` in tenant config: `default_bill_rate`,
+  `bill_rate_by_employment_type` (code -> rate), `ot_bill_multiplier`
+  (billing side only; the pay-side `ot_rate_per_hour` is untouched), tax
+  from the tenant's existing tax config.
+- `wfm_projects.bill_rate numeric null` -- the override rung. One migration.
+- `wfm_project_invoices` (tenant_id, project_id, invoice_id, period_from,
+  period_to, minutes, amount, created_at; RLS select-only per the WFM
+  convention). The double-billing guard: the preview refuses an overlapping
+  period for the same project. Attribution is stamped at punch time, so a
+  roster change after billing moves nothing -- billing is stable by
+  construction. The one case that adds hours to a billed period is a
+  correction approved afterwards; the next preview surfaces it as a top-up
+  ("3h added since invoiced") rather than folding it in silently.
+- Unassigned hours are never billable (they are on no project). The preview
+  shows them as a warning to settle on the roster first.
+
+### Screens
+- Project form: optional **Account** picker (searchable). Account shown on
+  the project page and list.
+- Account page: **Projects** section -- its projects, hours this month,
+  unbilled hours, **+ New project** pre-linked via `?account=`.
+- Account 360: a Projects card, built the way the drawer already builds
+  cards (data, not a component).
+- Project page: **Bill hours** -> preview (period, hours per sub-project,
+  rate rung applied, amount, tax, unassigned warning, granularity choice)
+  -> create invoice (draft) -> send (recipients).
+
+### Sequence
+1. Account link (form, page, list, account section + create, 360 card). No migration.
+2. Costing config (settings section + project override). Migration.
+3. Invoice from hours (preview, create, link table, guard). Migration.
+4. Send invoices by email (Resend + PDF), independent of 1-3.
+5. Month-end auto-draft -- GitHub Actions, since the Vercel Hobby plan's
+   two crons are both taken.
