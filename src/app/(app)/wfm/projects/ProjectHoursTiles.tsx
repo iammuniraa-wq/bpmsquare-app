@@ -81,7 +81,9 @@ export default function ProjectHoursTiles({ from, to }: { from: string; to: stri
     <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center", margin: "4px 0 14px" }}>
       <Donut
         title="Hours this month"
-        centerLabel={fmtHM(total)}
+        centerLabel="this month"
+        formatValue={fmtHM}
+        size={150}
         slices={top.map((r, i) => ({
           label: label(r.key),
           value: r.minutes,

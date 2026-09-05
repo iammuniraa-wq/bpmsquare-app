@@ -54,6 +54,7 @@ export default function Donut({
   thickness = 16,
   selected,
   onSelect,
+  formatValue = String,
 }: {
   slices: DonutSlice[];
   title?: string;
@@ -63,6 +64,10 @@ export default function Donut({
   thickness?: number;
   selected?: string | null;
   onSelect?: (label: string | null) => void;
+  /** How a value reads wherever it is printed (centre, legend, tooltip).
+   *  Counts need nothing; minutes want h:mm. Shares are always computed
+   *  from the raw value. */
+  formatValue?: (value: number) => string;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
 
@@ -152,7 +157,7 @@ export default function Donut({
               onMouseLeave={() => setHovered(null)}
               onClick={clickable ? () => toggle(a.label) : undefined}
             >
-              <title>{`${a.label}: ${a.value}`}</title>
+              <title>{`${a.label}: ${formatValue(a.value)}`}</title>
             </path>
           ))}
         </svg>
@@ -162,7 +167,7 @@ export default function Donut({
           alignItems: "center", justifyContent: "center", pointerEvents: "none", padding: "0 18px",
         }}>
           <div style={{ fontSize: focus ? 20 : 22, fontWeight: 800, color: focus ? focus.color : c.ink, lineHeight: 1 }}>
-            {focus ? focus.value : total}
+            {formatValue(focus ? focus.value : total)}
           </div>
           <div style={{
             fontSize: 10, color: c.hint, marginTop: 3, textAlign: "center",
@@ -199,7 +204,7 @@ export default function Donut({
                 transition: "transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)",
               }} />
               <span style={{ color: c.muted, whiteSpace: "nowrap" }}>{s.label}</span>
-              <span style={{ color: c.ink, fontWeight: 700 }}>{s.value}</span>
+              <span style={{ color: c.ink, fontWeight: 700 }}>{formatValue(s.value)}</span>
               <span style={{ color: c.hint, fontSize: 11 }}>{Math.round((s.value / total) * 100)}%</span>
             </div>
           );
