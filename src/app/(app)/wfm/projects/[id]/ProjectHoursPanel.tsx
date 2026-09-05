@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 
-type Row = { key: string; net_minutes: number; gross_minutes: number; break_minutes: number; sessions: number; employees: number };
+type Row = {
+  key: string; net_minutes: number; gross_minutes: number; break_minutes: number; sessions: number; employees: number;
+  own_minutes: number; total_minutes: number; employees_total: number;
+};
 
 const RANGES = [
   { key: "month", label: "This month" },
@@ -50,13 +53,19 @@ export default function ProjectHoursPanel({
         const j = await r.json();
         if (!r.ok) { setError(j.error ?? "Could not load hours"); return; }
         setError("");
-        setRow(j.rows?.[0] ?? null);
+        // The report lists the whole subtree; this panel is about THIS row,
+        // rolled up -- a project whose work all sits on its sub-projects is
+        // not "0h", it is the sum of them.
+        const rows: Row[] = j.rows ?? [];
+        setRow(rows.find((r) => r.key === projectId) ?? null);
       })
       .catch(() => setError("Network error"))
       .finally(() => setLoading(false));
   }, [projectId, range]);
 
-  const worked = row?.net_minutes ?? 0;
+  const worked = row?.total_minutes ?? row?.net_minutes ?? 0;
+  const people = row?.employees_total ?? row?.employees ?? 0;
+  const rolledUp = !!row && row.total_minutes > row.own_minutes;
   // Budget is hours; worked is minutes. Only shown when a budget was set --
   // an unset budget must not render as "0% of 0".
   const pct = budgetHours && budgetHours > 0 ? Math.round((worked / 60 / budgetHours) * 100) : null;
@@ -98,16 +107,18 @@ export default function ProjectHoursPanel({
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
           <div style={tile}>
             <div style={tileValue}>{fmtHM(worked)}</div>
-            <div style={tileLabel}>worked</div>
+            <div style={tileLabel}>worked{rolledUp ? " · incl. sub-projects" : ""}</div>
           </div>
           <div style={tile}>
-            <div style={tileValue}>{row.employees}</div>
-            <div style={tileLabel}>{row.employees === 1 ? "person" : "people"}</div>
+            <div style={tileValue}>{people}</div>
+            <div style={tileLabel}>{people === 1 ? "person" : "people"}</div>
           </div>
-          <div style={tile}>
-            <div style={tileValue}>{row.sessions}</div>
-            <div style={tileLabel}>work sessions</div>
-          </div>
+          {row.sessions > 0 && (
+            <div style={tile}>
+              <div style={tileValue}>{row.sessions}</div>
+              <div style={tileLabel}>work sessions{rolledUp ? " on it directly" : ""}</div>
+            </div>
+          )}
           {row.break_minutes > 0 && (
             <div style={tile}>
               <div style={{ ...tileValue, color: c.muted }}>{fmtHM(row.break_minutes)}</div>
