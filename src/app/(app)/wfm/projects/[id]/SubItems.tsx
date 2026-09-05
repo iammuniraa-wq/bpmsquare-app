@@ -6,6 +6,8 @@ import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { canNest, childLabelFrom } from "@/lib/wfm/projectTree";
+import { useUserRole } from "@/lib/tenant-context";
+import { useFeel } from "@/components/FeelProvider";
 
 type Row = { key: string; total_minutes: number; own_minutes: number; employees: number };
 type Meta = {
@@ -47,6 +49,10 @@ export default function SubItems({ projectId }: { projectId: string }) {
   const [draftLabel, setDraftLabel] = useState(DEFAULT_LEVEL);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Creating and deleting are admin-only on the API; a supervisor can see
+  // this tree but gets no controls that would only 403.
+  const isAdmin = useUserRole() === "admin";
+  const { confirm } = useFeel();
 
   const load = useCallback(async () => {
     const to = new Date().toISOString().slice(0, 10);
@@ -105,6 +111,27 @@ export default function SubItems({ projectId }: { projectId: string }) {
     await load();
   }
 
+  async function remove(id: string, name: string) {
+    const kids = childrenOf(id).length;
+    const ok = await confirm({
+      title: `Delete “${name}”?`,
+      body: kids > 0
+        ? `It has ${kids} part${kids === 1 ? "" : "s"} inside it — delete or move those first.`
+        : "Hours already booked to it become unassigned. The punches themselves are kept, so nobody's attendance changes.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setError("");
+    const res = await fetch(`/api/wfm/projects/${id}`, { method: "DELETE" }).catch(() => null);
+    if (!res) { setError("Network error — nothing was deleted."); return; }
+    const json = await res.json().catch(() => ({}));
+    // The API refuses to delete something with parts underneath (their parent
+    // would be nulled and they would silently reappear as top-level projects).
+    if (!res.ok) { setError(json.error ?? "Could not delete that."); return; }
+    await load();
+  }
+
   if (!loaded) return null;
 
   const myDepth = projects[projectId]?.depth ?? 0;
@@ -113,6 +140,9 @@ export default function SubItems({ projectId }: { projectId: string }) {
   const tone = pillar.teal;
   const topLabel = labelFor(projectId);
   const named = hasKids(projectId);
+  // Nothing to show and nothing to do: a supervisor on a project with no
+  // parts gets an empty card inviting them to press a button they don't have.
+  if (!named && !isAdmin) return null;
 
   const plusBtn = (id: string, label: string) => (
     <button
@@ -239,7 +269,24 @@ export default function SubItems({ projectId }: { projectId: string }) {
                 <span style={{ flexShrink: 0, fontSize: 13, fontVariantNumeric: "tabular-nums", color: c.ink, minWidth: 66, textAlign: "right" }}>
                   {hm(minutesOf(ch.id))}
                 </span>
-                {canNest(ch.depth) ? plusBtn(ch.id, `Add a level under ${ch.name}`) : <span style={{ width: 26 }} />}
+                {isAdmin && canNest(ch.depth)
+                  ? plusBtn(ch.id, `Add a level under ${ch.name}`)
+                  : <span style={{ width: 26 }} />}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => remove(ch.id, ch.name)}
+                    title={`Delete ${ch.name}`}
+                    aria-label={`Delete ${ch.name}`}
+                    style={{
+                      flexShrink: 0, width: 26, height: 26, borderRadius: 7, cursor: "pointer",
+                      border: `1px solid ${c.line}`, background: "transparent", color: c.hint,
+                      fontSize: 13, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
 
               {(isOpen || adding === ch.id) && (
@@ -266,7 +313,7 @@ export default function SubItems({ projectId }: { projectId: string }) {
             ? "Put people on each one — hours roll up into this project."
             : "Optional. Break this into parts if you track hours below project level."}
         </span>
-        {plusBtn(projectId, named ? `Add a ${topLabel}` : "Break this project into parts")}
+        {isAdmin && plusBtn(projectId, named ? `Add a ${topLabel}` : "Break this project into parts")}
       </div>
 
       {error && <div style={{ fontSize: 12.5, color: "var(--err-ink)", marginTop: 10 }}>{error}</div>}

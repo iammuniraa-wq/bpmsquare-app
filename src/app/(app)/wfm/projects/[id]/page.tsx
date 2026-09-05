@@ -11,6 +11,7 @@ import type { WfmProject } from "@/lib/wfm/types";
 import ProjectForm from "../ProjectForm";
 import ProjectHoursPanel from "./ProjectHoursPanel";
 import SubItems from "./SubItems";
+import DeleteProject from "./DeleteProject";
 
 export default async function WfmProjectPage({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkcenterView("wfm");
@@ -61,6 +62,9 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
 
       <div style={{ marginTop: 20 }}>
         <ProjectForm project={project} />
+        <div style={{ maxWidth: 760 }}>
+          <DeleteProject projectId={id} name={project.name} parentId={project.parent_id} />
+        </div>
       </div>
 
       <NovaTimelineSlot objectType="wfm_projects" objectId={id} />
