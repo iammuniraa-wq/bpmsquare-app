@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  depthOf, canNest, childLabelFrom, descendantsOf, rollUp, reparentError,
-  nextChildRef, MAX_DEPTH, type TreeNodeLike,
+  depthOf, canNest, descendantsOf, rollUp, reparentError,
+  nextChildRef, MAX_DEPTH, MAX_LEVEL, type TreeNodeLike,
 } from "./projectTree";
 
 const n = (id: string, parent_id: string | null = null): TreeNodeLike => ({ id, parent_id });
@@ -26,18 +26,6 @@ describe("depthOf", () => {
   it("returns null on a cycle rather than looping forever", () => {
     const cyclic = new Map([["a", n("a", "b")], ["b", n("b", "a")]]);
     expect(depthOf(cyclic, "a")).toBeNull();
-  });
-});
-
-describe("naming comes from the project itself, not a setting", () => {
-  it("reuses whatever the existing parts are called, so siblings match", () => {
-    expect(childLabelFrom(["WBS", "WBS"])).toBe("WBS");
-    expect(childLabelFrom([null, "Phase"])).toBe("Phase");
-  });
-
-  it("falls back to a neutral word for the very first part", () => {
-    expect(childLabelFrom([])).toBe("Sub-item");
-    expect(childLabelFrom([null, "  "])).toBe("Sub-item");
   });
 });
 
@@ -71,6 +59,12 @@ describe("nextChildRef", () => {
 });
 
 describe("canNest", () => {
+  // Level 0 is the main project, so the cap allows Levels 1..MAX_LEVEL.
+  it("allows every sub-project level the spec defines", () => {
+    expect(MAX_LEVEL).toBe(3);
+    expect(canNest(MAX_LEVEL - 1)).toBe(true);
+  });
+
   it("allows nesting until the cap", () => {
     expect(canNest(0)).toBe(true);
     expect(canNest(MAX_DEPTH - 2)).toBe(true);

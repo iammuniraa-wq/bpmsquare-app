@@ -1,25 +1,27 @@
 // Project hierarchy: a project may have children, and a child is just another
 // project row with a parent.
 //
-// The structure is named PER PROJECT, not per workspace (owner decision
-// 2026-09-05). One project is broken into a WBS, the next into phases, the
-// next not at all -- so the word lives on the row (wfm_projects.level_label,
-// 0107) and is chosen when the part is created. There is no configured
-// ladder every project must fit.
+// Structure is expressed as LEVELS (owner decision 2026-09-06): the main
+// project is Level 0, a sub-project directly under it is Level 1, and so on
+// to Level 3. An earlier design let each project name its own levels ("WBS",
+// "Phase") -- it read as two peer text boxes on the form and produced
+// sub-projects whose label and name had been swapped, so the free-text word
+// is gone and a level is just its number.
 //
-// Depth is capped by a constant rather than a setting: past a few levels the
-// tree and the reports stop being readable, and that is not a judgement a
-// tenant benefits from tuning.
+// The cap is a constant rather than a setting: past three levels the tree
+// and the reports stop being readable, and that is not a judgement a tenant
+// benefits from tuning.
 //
 // Pure and dependency-free so the rules are unit-testable -- same convention
 // as hours.ts, geofence.ts and projectAttribution.ts.
 
 export type TreeNodeLike = { id: string; parent_id: string | null };
 
-/** How deep the tree may go, counting the project itself as level 0. Five is
- *  already more nesting than a readable report can carry; the limit exists to
- *  stop an accident, not to express a policy. */
-export const MAX_DEPTH = 5;
+/** The deepest sub-project level, with the main project at Level 0. */
+export const MAX_LEVEL = 3;
+
+/** Levels 0..MAX_LEVEL, i.e. how many tiers a tree may hold. */
+export const MAX_DEPTH = MAX_LEVEL + 1;
 
 /**
  * How deep a project sits. A root project is 0, its child 1, and so on.
@@ -45,17 +47,6 @@ export function depthOf(nodes: Map<string, TreeNodeLike>, id: string): number | 
 /** Whether anything may be added beneath a project at this depth. */
 export function canNest(parentDepth: number): boolean {
   return parentDepth + 1 < MAX_DEPTH;
-}
-
-/** What to call the parts of a project: whatever its existing parts are
- *  already called, so siblings stay consistent without anyone re-typing it.
- *  Falls back to a neutral word for the first one. */
-export function childLabelFrom(siblingLabels: (string | null)[]): string {
-  for (const l of siblingLabels) {
-    const t = (l ?? "").trim();
-    if (t) return t;
-  }
-  return "Sub-item";
 }
 
 /**

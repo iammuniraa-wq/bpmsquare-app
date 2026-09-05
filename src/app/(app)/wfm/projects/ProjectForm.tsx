@@ -7,6 +7,7 @@ import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import type { WfmProject, WfmProjectStatus } from "@/lib/wfm/types";
+import { depthOf, descendantsOf, canNest, MAX_LEVEL } from "@/lib/wfm/projectTree";
 
 const STATUSES: { value: WfmProjectStatus; label: string; hint: string }[] = [
   { value: "active", label: "Active", hint: "Collecting hours now" },
@@ -178,20 +179,19 @@ function Picker({
 export default function ProjectForm({
   project,
   parentId = null,
-  suggestedLabel = "",
 }: {
   project?: WfmProject;
-  /** Set when creating a part from a parent's "Add ..." link. */
+  /** Set when creating a sub-project from a project's "Create sub-project"
+   *  button — it preselects the row in the "Sits under" picker. */
   parentId?: string | null;
-  /** What the parent's existing parts are already called, so siblings stay
-   *  consistent without anyone retyping the word. */
-  suggestedLabel?: string;
 }) {
   const router = useRouter();
   const editing = !!project;
-  // A part of something is named where it is created (0107) -- there is no
-  // workspace-wide ladder every project has to fit.
-  const isPart = editing ? !!project?.parent_id : !!parentId;
+  // A sub-project is the same form as a project, plus where it sits. Which
+  // parent you pick IS the level (owner decision 2026-09-06): a Level field
+  // you set separately could contradict the parent, so the level is shown as
+  // a consequence rather than asked for.
+  const isSub = editing ? !!project?.parent_id : !!parentId;
 
   const [name, setName] = useState(project?.name ?? "");
   const [code, setCode] = useState(project?.code ?? "");
@@ -199,7 +199,9 @@ export default function ProjectForm({
   const [startDate, setStartDate] = useState(project?.start_date ?? "");
   const [endDate, setEndDate] = useState(project?.end_date ?? "");
   const [budgetHours, setBudgetHours] = useState(project?.budget_hours != null ? String(project.budget_hours) : "");
-  const [levelLabel, setLevelLabel] = useState(project?.level_label ?? suggestedLabel);
+  // Where this sits. Null means it IS a project (Level 0).
+  const [parentSel, setParentSel] = useState<string>(parentId ?? project?.parent_id ?? "");
+  const [tree, setTree] = useState<{ id: string; name: string; ref: string | null; parent_id: string | null }[]>([]);
 
   const [siteIds, setSiteIds] = useState<string[]>(project?.site_ids ?? []);
   const [employeeIds, setEmployeeIds] = useState<string[]>(project?.employee_ids ?? []);
@@ -227,11 +229,14 @@ export default function ProjectForm({
       return Array.isArray(d) ? d : (d?.sites ?? d?.employees ?? d?.shifts ?? []);
     };
     (async () => {
-      const [s, e, sh] = await Promise.all([
+      const [s, e, sh, pr] = await Promise.all([
         j("/api/wfm/sites"),
         j("/api/wfm/employees"),
         j("/api/wfm/shifts"),
+        j("/api/wfm/projects"),
       ]);
+      setTree(pr.map((x: { id: string; name: string; ref: string | null; parent_id: string | null }) =>
+        ({ id: x.id, name: x.name, ref: x.ref, parent_id: x.parent_id })));
       setSites(s.map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
       setEmployees(
         e
@@ -284,10 +289,39 @@ export default function ProjectForm({
 
   const linkCount = siteIds.length + employeeIds.length + shiftIds.length;
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
+  // ── Where this sits, and therefore what level it is ───────────────────────
+  const nodes = new Map(tree.map((t) => [t.id, { id: t.id, parent_id: t.parent_id }]));
+  const depthFor = (id: string) => depthOf(nodes, id) ?? 0;
+
+  /** Everything that could hold this one: any project or sub-project with room
+   *  beneath it. When editing, its own subtree is excluded — moving something
+   *  inside itself is the loop the API rejects anyway, so it is never offered. */
+  const banned = new Set(editing && project ? [project.id, ...descendantsOf(tree, project.id)] : []);
+  const parentOptions = tree
+    .filter((t) => !banned.has(t.id) && canNest(depthFor(t.id)))
+    .map((t) => ({ ...t, depth: depthFor(t.id) }))
+    .sort((a, b) => (a.ref ?? "").localeCompare(b.ref ?? "", undefined, { numeric: true }));
+
+  const level = parentSel ? depthFor(parentSel) + 1 : 0;
+
+  // Its own level must leave room for a child.
+  const myDepth = editing && project ? depthFor(project.id) : level;
+  const canAddSub = canNest(myDepth) && (editing || !isSub);
+
+  async function addSubProject() {
+    if (editing && project) {
+      router.push(`${ROUTES.wfmProjectNew}?parent=${project.id}`);
+      return;
+    }
+    const saved = await persist();
+    if (saved?.id) router.push(`${ROUTES.wfmProjectNew}?parent=${saved.id}`);
+  }
+
+  /** Create or update, returning the saved row. Separate from save() because
+   *  "Save & add sub-project" needs the new id before it can navigate. */
+  async function persist(): Promise<{ id: string } | null> {
     setError("");
-    if (!name.trim()) { setError("Give the project a name."); return; }
+    if (!name.trim()) { setError("Give the project a name."); return null; }
     setSaving(true);
 
     const body = {
@@ -297,8 +331,7 @@ export default function ProjectForm({
       start_date: startDate || null,
       end_date: endDate || null,
       budget_hours: budgetHours.trim() === "" ? null : Number(budgetHours),
-      ...(parentId && !editing ? { parent_id: parentId } : {}),
-      ...(isPart ? { level_label: levelLabel.trim() || null } : {}),
+      ...(isSub ? { parent_id: parentSel || null } : {}),
       site_ids: siteIds,
       employee_ids: employeeIds,
       shift_ids: shiftIds,
@@ -310,18 +343,23 @@ export default function ProjectForm({
     ).catch(() => null);
 
     setSaving(false);
-    if (!res) { setError("Network error — nothing was saved."); return; }
+    if (!res) { setError("Network error — nothing was saved."); return null; }
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) { setError(json.error ?? "Could not save the project."); return; }
+    if (!res.ok) { setError(json.error ?? "Could not save the project."); return null; }
+    return json as { id: string };
+  }
 
-    // After adding a sub-item, go back to its PARENT, not the top-level list.
-    // A project usually gets several WBS items in one sitting, and bouncing to
-    // the list meant navigating back in before each one.
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    const saved = await persist();
+    if (!saved) return;
+    // After adding a sub-project, go back to the one it sits under, not the
+    // top-level list -- a project usually gets several in one sitting.
     router.push(
       editing
         ? ROUTES.wfmProject(project!.id)
-        : parentId
-          ? ROUTES.wfmProject(parentId)
+        : parentSel
+          ? ROUTES.wfmProject(parentSel)
           : ROUTES.wfmProjects
     );
     router.refresh();
@@ -330,31 +368,64 @@ export default function ProjectForm({
   return (
     <form onSubmit={save} style={{ maxWidth: 760 }}>
       <div style={{ ...cardStyle, padding: 20 }}>
-        {isPart && (
+        {isSub && (
           <div style={{ marginBottom: 16 }}>
-            <label style={label}>What do you call this kind of part?</label>
-            <input
-              style={{ ...field, maxWidth: 240 }}
-              value={levelLabel}
-              onChange={(e) => setLevelLabel(e.target.value)}
-              placeholder="WBS, Phase, Package…"
-            />
+            <label style={label}>Sits under</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <select
+                style={{ ...field, maxWidth: 420 }}
+                value={parentSel}
+                onChange={(e) => setParentSel(e.target.value)}
+              >
+                {parentOptions.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {"— ".repeat(o.depth)}{o.name}{o.ref ? ` (${o.ref})` : ""}
+                  </option>
+                ))}
+              </select>
+              <span style={{
+                flexShrink: 0, fontSize: 12, fontWeight: 700, color: c.accent,
+                background: c.accentbg, border: `1px solid ${c.accent}40`,
+                borderRadius: 6, padding: "6px 10px", whiteSpace: "nowrap",
+              }}>
+                Level {level}
+              </span>
+            </div>
             <div style={{ fontSize: 11.5, color: c.hint, marginTop: 5, lineHeight: 1.5 }}>
-              Your own word for the parts of <em>this</em> project — the next project can be
-              broken up completely differently. The other parts of this one use the same word.
+              The project is Level 0. Whatever you pick here decides the level — pick the
+              project for Level 1, or a Level 1 sub-project to go a step deeper. Maximum
+              is Level {MAX_LEVEL}, so anything already that deep isn&apos;t listed.
             </div>
           </div>
         )}
 
         <div style={{ marginBottom: 16 }}>
-          <label style={label}>{isPart ? `${levelLabel.trim() || "Part"} name` : "Project name"}</label>
-          <input
-            style={field}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={isPart ? "e.g. Structural works" : "e.g. Tower A — lift overhaul"}
-            autoFocus
-          />
+          <label style={label}>{isSub ? "Sub-project name" : "Project name"}</label>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <input
+              style={{ ...field, flex: "1 1 260px", width: "auto" }}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={isSub ? "e.g. Structural works" : "e.g. Tower A — lift overhaul"}
+              autoFocus
+            />
+            {/* A sub-project needs a saved parent to point at, so on an unsaved
+                project this saves first and then opens the sub-project form. */}
+            {canAddSub && (
+              <button
+                type="button"
+                onClick={addSubProject}
+                disabled={saving}
+                style={{
+                  flexShrink: 0, padding: "9px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 600,
+                  border: `1px solid ${c.accent}`, background: c.accentbg, color: c.accent,
+                  cursor: saving ? "default" : "pointer",
+                }}
+              >
+                {editing ? "+ Create sub-project" : "Save & add sub-project"}
+              </button>
+            )}
+          </div>
           <div style={{ fontSize: 11.5, color: c.hint, marginTop: 5 }}>
             The only thing needed to create it. Its ID is assigned for you.
           </div>
@@ -500,8 +571,8 @@ export default function ProjectForm({
             ? "Saving…"
             : editing
               ? "Save changes"
-              : isPart
-                ? `Create ${levelLabel.trim() || "part"}`
+              : isSub
+                ? `Create Level ${level} sub-project`
                 : "Create project"}
         </button>
         <button

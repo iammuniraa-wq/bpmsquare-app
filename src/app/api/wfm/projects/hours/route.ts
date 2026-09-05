@@ -5,7 +5,6 @@ import { resolveWfmScope } from "@/lib/wfm/scope";
 import { workSessions } from "@/lib/wfm/hours";
 import { rollUpProjectHours, projectHeadcount, UNASSIGNED, type SessionsForEmployee } from "@/lib/wfm/projectHours";
 import { rollUp, depthOf } from "@/lib/wfm/projectTree";
-import { tolerateMissingLabel } from "@/lib/wfm/projects";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_DAYS = 366;
@@ -88,12 +87,10 @@ export async function GET(request: NextRequest) {
   // The WHOLE tree is fetched, not just the projects with hours: an hour
   // booked to a WBS has to appear in its parent's total, and the parent may
   // have no punches of its own.
-  const { data: allProjects } = await tolerateMissingLabel<Record<string, unknown>[]>((withLabel) =>
-    admin
-      .from("wfm_projects")
-      .select(`id, name, ref, status, parent_id${withLabel ? ", level_label" : ""}`)
-      .eq("tenant_id", tenantId)
-  );
+  const { data: allProjects } = await admin
+    .from("wfm_projects")
+    .select("id, name, ref, status, parent_id")
+    .eq("tenant_id", tenantId);
 
   const tree = (allProjects ?? []).map((p) => ({
     id: p.id as string,
@@ -105,7 +102,7 @@ export async function GET(request: NextRequest) {
   for (const r of rows) if (r.key !== UNASSIGNED) ownMinutes.set(r.key, r.net_minutes);
   const rolled = rollUp(tree, ownMinutes);
 
-  const names: Record<string, { name: string; ref: string | null; status: string; parent_id: string | null; depth: number; level_label: string | null }> = {};
+  const names: Record<string, { name: string; ref: string | null; status: string; parent_id: string | null; depth: number }> = {};
   for (const p of allProjects ?? []) {
     const id = p.id as string;
     names[id] = {
@@ -114,7 +111,6 @@ export async function GET(request: NextRequest) {
       status: p.status as string,
       parent_id: (p.parent_id as string | null) ?? null,
       depth: depthOf(byId, id) ?? 0,
-      level_label: (p.level_label as string | null) ?? null,
     };
   }
 

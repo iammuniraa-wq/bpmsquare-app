@@ -4,9 +4,8 @@ import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { logChange } from "@/lib/changeLog";
 import {
-  PROJECT_STATUSES, parseProjectBody, verifyProjectLinks, replaceProjectLinks,
-  loadTree, validateParent, projectSelect, dropLabel, tolerateMissingLabel,
-  insertChildProject,
+  PROJECT_SELECT, PROJECT_STATUSES, parseProjectBody, verifyProjectLinks,
+  replaceProjectLinks, loadTree, validateParent, insertChildProject,
 } from "@/lib/wfm/projects";
 
 // Projects are the cost object worked hours are attributed to (0104,
@@ -25,17 +24,15 @@ export async function GET(request: NextRequest) {
   const { supabase, tenantId } = ctx;
 
   const status = request.nextUrl.searchParams.get("status");
-  const { data, error } = await tolerateMissingLabel(async (withLabel) => {
-    let query = supabase
-      .from("wfm_projects")
-      .select(projectSelect(withLabel))
-      .eq("tenant_id", tenantId)
-      .order("name");
-    if (status && (PROJECT_STATUSES as readonly string[]).includes(status)) {
-      query = query.eq("status", status);
-    }
-    return query;
-  });
+  let query = supabase
+    .from("wfm_projects")
+    .select(PROJECT_SELECT)
+    .eq("tenant_id", tenantId)
+    .order("name");
+  if (status && (PROJECT_STATUSES as readonly string[]).includes(status)) {
+    query = query.eq("status", status);
+  }
+  const { data, error } = await query;
   // 42P01 = 0104 not applied yet. §3b: a pending migration renders as an
   // empty list, never a crash.
   if (error) {
@@ -90,16 +87,14 @@ export async function POST(request: NextRequest) {
 
   // A part is numbered inside its parent (PRJ-0003.1); only a top-level
   // project draws from the workspace PRJ sequence.
-  const { data, error } = await tolerateMissingLabel<{ id: string; name: string; ref: string | null }>((withLabel) => {
-    const record = { ...dropLabel(parsed.values, withLabel), tenant_id: tenantId };
-    return parentRef
-      ? insertChildProject<{ id: string; name: string; ref: string | null }>(
-          admin, tenantId, parentRef, record, projectSelect(withLabel)
-        )
-      : insertWithMasterRef<{ id: string; name: string; ref: string | null }>(
-          admin, "wfm_projects", tenantId, record, projectSelect(withLabel)
-        );
-  });
+  const record = { ...parsed.values, tenant_id: tenantId };
+  const { data, error } = parentRef
+    ? await insertChildProject<{ id: string; name: string; ref: string | null }>(
+        admin, tenantId, parentRef, record, PROJECT_SELECT
+      )
+    : await insertWithMasterRef<{ id: string; name: string; ref: string | null }>(
+        admin, "wfm_projects", tenantId, record, PROJECT_SELECT
+      );
   if (error || !data) {
     if (error?.code === "42P01") {
       return NextResponse.json({ error: "Project costing isn't set up on this database yet." }, { status: 503 });

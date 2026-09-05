@@ -3,7 +3,7 @@ import { requireFeature } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisorPage } from "@/lib/wfm/server";
-import { projectLinks, projectSelect, tolerateMissingLabel } from "@/lib/wfm/projects";
+import { projectLinks, PROJECT_SELECT } from "@/lib/wfm/projects";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
@@ -11,6 +11,7 @@ import type { WfmProject } from "@/lib/wfm/types";
 import ProjectForm from "../ProjectForm";
 import ProjectHoursPanel from "./ProjectHoursPanel";
 import SubItems from "./SubItems";
+import { depthOf } from "@/lib/wfm/projectTree";
 import DeleteProject from "./DeleteProject";
 
 export default async function WfmProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,30 +23,28 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
   const { supabase, tenantId } = await requireTenantUser();
   const { id } = await params;
 
-  const { data } = await tolerateMissingLabel((withLabel) =>
-    supabase
-      .from("wfm_projects")
-      .select(projectSelect(withLabel))
-      .eq("id", id)
-      .eq("tenant_id", tenantId)
-      .maybeSingle()
-  );
+  const { data } = await supabase
+    .from("wfm_projects")
+    .select(PROJECT_SELECT)
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (!data) notFound();
 
   const links = await projectLinks(createAdminSupabase(), tenantId, id);
   const project = { ...data, ...links } as unknown as WfmProject;
 
-  // A part opens on its own page, so say what it is a part OF -- otherwise
-  // "Structural works" gives no clue which project it belongs to.
+  // A sub-project opens on its own page, so say where it sits -- otherwise
+  // "Structural works" gives no clue which project it belongs to. The level
+  // is its depth, counted by walking parents.
   let parentLine: string | null = null;
   if (project.parent_id) {
-    const { data: parent } = await supabase
-      .from("wfm_projects")
-      .select("name")
-      .eq("id", project.parent_id)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (parent) parentLine = `${project.level_label?.trim() || "Part"} of ${parent.name}`;
+    const { data: all } = await supabase
+      .from("wfm_projects").select("id, parent_id, name").eq("tenant_id", tenantId);
+    const nodes = new Map((all ?? []).map((p) => [p.id as string, { id: p.id as string, parent_id: (p.parent_id as string | null) ?? null }]));
+    const parent = (all ?? []).find((p) => p.id === project.parent_id);
+    const level = depthOf(nodes, id);
+    if (parent) parentLine = `Level ${level ?? 1} · under ${parent.name}`;
   }
 
   return (
