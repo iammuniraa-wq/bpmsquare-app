@@ -11,10 +11,13 @@ const UNASSIGNED = "__unassigned__";
 // Amber is reserved for the unassigned slice, so it isn't in the rotation.
 const PALETTE = [pillar.blue.base, pillar.teal.base, pillar.purple.base, pillar.green.base, pillar.red.base];
 
-type Row = { key: string; net_minutes: number; sessions: number; employees: number };
+type Row = {
+  key: string; net_minutes: number; sessions: number; employees: number;
+  own_minutes: number; total_minutes: number; employees_total: number;
+};
 type Payload = {
   rows: Row[];
-  projects: Record<string, { name: string; ref: string | null; status: string }>;
+  projects: Record<string, { name: string; ref: string | null; status: string; depth: number }>;
   pending_migration?: boolean;
 };
 
@@ -58,9 +61,18 @@ export default function ProjectHoursTiles({ from, to }: { from: string; to: stri
     );
   }
 
-  const total = data.rows.reduce((s, r) => s + r.net_minutes, 0);
-  const unassigned = data.rows.find((r) => r.key === UNASSIGNED)?.net_minutes ?? 0;
-  const top = data.rows.slice(0, 6);
+  // By PROJECT, rolled up -- the same 68h the list and the account page show
+  // for it, not the 0h of a parent whose work all sits on its sub-projects.
+  // Sub-project detail belongs on the project page. Unassigned rides along
+  // as its own slice. Top-level rows plus unassigned partition the total, so
+  // the donut cannot double-count.
+  const byProject = data.rows
+    .filter((r) => r.key === UNASSIGNED || (data.projects[r.key]?.depth ?? 0) === 0)
+    .map((r) => ({ ...r, minutes: r.total_minutes, people: r.employees_total }))
+    .sort((a, b) => b.minutes - a.minutes);
+  const total = byProject.reduce((s, r) => s + r.minutes, 0);
+  const unassigned = byProject.find((r) => r.key === UNASSIGNED)?.minutes ?? 0;
+  const top = byProject.slice(0, 6);
 
   const label = (key: string) =>
     key === UNASSIGNED ? "Unassigned" : data.projects[key]?.name ?? "Unknown project";
@@ -72,7 +84,7 @@ export default function ProjectHoursTiles({ from, to }: { from: string; to: stri
         centerLabel={fmtHM(total)}
         slices={top.map((r, i) => ({
           label: label(r.key),
-          value: r.net_minutes,
+          value: r.minutes,
           // Unassigned is amber wherever it lands -- it reads as something to
           // deal with, not as just another project in the rotation.
           color: r.key === UNASSIGNED ? pillar.amber.base : PALETTE[i % PALETTE.length],
@@ -91,9 +103,9 @@ export default function ProjectHoursTiles({ from, to }: { from: string; to: stri
                 </Link>
               )}
             </span>
-            <span style={{ color: c.muted, fontVariantNumeric: "tabular-nums" }}>{fmtHM(r.net_minutes)}</span>
+            <span style={{ color: c.muted, fontVariantNumeric: "tabular-nums" }}>{fmtHM(r.minutes)}</span>
             <span style={{ color: c.hint, fontSize: 11.5, minWidth: 58, textAlign: "right" }}>
-              {r.employees} {r.employees === 1 ? "person" : "people"}
+              {r.people} {r.people === 1 ? "person" : "people"}
             </span>
           </div>
         ))}

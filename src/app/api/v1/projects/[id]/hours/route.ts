@@ -47,6 +47,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       own_minutes: r.own_minutes,
       total_minutes: r.total_minutes,
       employees: r.employees,
+      employees_total: r.employees_total,
       sessions: r.sessions,
       _links: { self: `/api/v1/projects/${r.key}` },
     }));

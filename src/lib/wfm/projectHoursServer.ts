@@ -19,6 +19,9 @@ export type ProjectHoursRow = {
   own_minutes: number;
   /** Own plus everything beneath it in the tree. */
   total_minutes: number;
+  /** Distinct people across this row AND everything beneath it -- the
+   *  headcount that goes with total_minutes. `employees` is own-only. */
+  employees_total: number;
 };
 
 export type ProjectMeta = {
@@ -124,9 +127,35 @@ export async function projectHoursReport(
     };
   }
 
+  // Headcount rolled up the same way as minutes: the set of people on a row
+  // or anything beneath it. A count can't be summed up a tree (one person on
+  // two sub-projects is still one person), so this carries the sets.
+  const peopleOwn = new Map<string, Set<string>>();
+  for (const emp of input) {
+    for (const s of emp.sessions) {
+      const key = s.project_id ?? UNASSIGNED;
+      if (!peopleOwn.has(key)) peopleOwn.set(key, new Set());
+      peopleOwn.get(key)!.add(emp.employee_id);
+    }
+  }
+  const peopleTotal = new Map<string, Set<string>>();
+  for (const [key, set] of peopleOwn) {
+    let cur: string | null | undefined = key === UNASSIGNED ? null : key;
+    const seen = new Set<string>();
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      if (!peopleTotal.has(cur)) peopleTotal.set(cur, new Set());
+      for (const e of set) peopleTotal.get(cur)!.add(e);
+      cur = byId.get(cur)?.parent_id ?? null;
+    }
+  }
+  const headTotal = (key: string) =>
+    key === UNASSIGNED ? (heads.get(key) ?? 0) : (peopleTotal.get(key)?.size ?? 0);
+
   const withRollup: ProjectHoursRow[] = rows.map((r) => ({
     ...r,
     employees: heads.get(r.key) ?? 0,
+    employees_total: headTotal(r.key),
     own_minutes: r.net_minutes,
     total_minutes: r.key === UNASSIGNED ? r.net_minutes : (rolled.get(r.key)?.total ?? r.net_minutes),
   }));
@@ -139,7 +168,7 @@ export async function projectHoursReport(
     if (present.has(id) || v.total === 0) continue;
     withRollup.push({
       key: id, gross_minutes: 0, break_minutes: 0, net_minutes: 0, sessions: 0,
-      employees: 0, own_minutes: 0, total_minutes: v.total,
+      employees: 0, employees_total: headTotal(id), own_minutes: 0, total_minutes: v.total,
     });
   }
   withRollup.sort((a, b) => b.total_minutes - a.total_minutes);
