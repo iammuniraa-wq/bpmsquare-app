@@ -702,6 +702,16 @@ Three steps, each validated on the demo:
    supplier to ask. The walk: seed → Pricing setup → Cost-based → numbers
    → Go live → quote with PRD-0007/0008/0009 → why, flag, RFQ → reply →
    price again.
+   **Standard Quotes carry the hook too (2026-09-06, owner: the demo runs
+   on Standard Quotes; Quotations are the design partner's own object).**
+   A Standard Quote line can name a product (0114:
+   `standard_quote_lines.product_id`), gets the same Price with engine /
+   why / flag / Send RFQ flow (`document_type: standard_quote`, so a
+   tenant can route it to its own book), keeps `pricing_document_id` +
+   server-derived `pricing_flags`, and its email route refuses to send
+   while a line carries a `block` flag. `pricing_rfqs.standard_quote_id`
+   is the back-reference. Validation record:
+   `docs/BPMSquare_Pricing_CostBased_Walkthrough.docx`.
 
 Batches 2–8 below stand, but each is now delivered per technique: price
 list, value-based and variant follow the same three steps on these rails.

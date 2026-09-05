@@ -7,6 +7,7 @@ import { logEmail } from "@/lib/emailLog";
 import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
 import { Resend } from "resend";
 import { getGmailConnectorCredentials, findOriginalMessage, sendViaGmail, stripReplyPrefixes, buildReplySubject } from "@/lib/connectors/gmailReply";
+import { blockingLines, flaggedLinesOf } from "@/lib/pricing/quoteLineFlags";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,6 +33,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: quoteRow } = await supabase.from("standard_quotes").select("id, sent_at").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!quoteRow) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+
+  // Pricing guardrails (0114, same gate as api/quotes/[id]/email): a line
+  // the engine flagged under a "block" policy holds the quote until it is
+  // re-priced or approved (approvals arrive in batch 3).
+  const blocked = blockingLines(await flaggedLinesOf(supabase, "standard_quote_lines", "standard_quote_id", tenantId, id));
+  if (blocked.length > 0) {
+    return NextResponse.json({
+      error: `This quote can't be sent: ${blocked.map((b) => `line ${b.label} is below the ${b.flag.floor_pct}% margin floor (${b.flag.actual_pct}%)`).join("; ")}. Re-price it, or wait for pricing approval.`,
+      pricing_blocked: blocked,
+    }, { status: 409 });
+  }
 
   const [data, tenant] = await Promise.all([getStandardQuoteLive(id), getTenant()]);
   if (!data || !tenant) return NextResponse.json({ error: "Quote not found" }, { status: 404 });

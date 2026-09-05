@@ -100,7 +100,15 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
               <tbody>
                 {lines.map((l) => (
                   <tr key={l.id} style={{ borderTop: `1px solid ${c.line}` }}>
-                    <td style={{ padding: "8px 14px", fontSize: 13 }}>{l.description}</td>
+                    <td style={{ padding: "8px 14px", fontSize: 13 }}>
+                      {l.description}
+                      {(l.pricing_flags ?? []).map((f, i) => (
+                        <div key={i} style={{ fontSize: 11, fontWeight: 600, marginTop: 2, color: f.policy === "block" ? "var(--err-ink)" : "var(--amberink)" }}>
+                          {f.code === "MARGIN_FLOOR" ? `Margin ${f.actual_pct}% is below the ${f.floor_pct}% floor` : f.code}
+                          {f.policy === "block" ? " — can't be sent until re-priced or approved" : ""}
+                        </div>
+                      ))}
+                    </td>
                     <td style={{ padding: "8px 12px", textAlign: "center", fontSize: 12.5, color: c.muted }}>{l.uom ?? ""}</td>
                     <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 12.5 }}>{l.qty}</td>
                     <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 12.5, color: c.muted }}>{inr(l.rate)}</td>

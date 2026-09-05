@@ -472,7 +472,17 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
-- **0113_pricing_cost_based.sql — PENDING on both DBs** (was 0110; written
+- **0114_standard_quotes_pricing.sql — PENDING on both DBs** (written
+  2026-09-06 after the owner's call that the engine demo runs on Standard
+  Quotes, not Quotations — Quotations are Vikas-specific): run AFTER 0113.
+  `standard_quote_lines.product_id` / `pricing_document_id` /
+  `pricing_flags` (the same three quote_lines got in 0113) and
+  `pricing_rfqs.standard_quote_id`. Degrades while pending: the form still
+  prices and raises RFQs, but a saved Standard Quote drops the product
+  link and the document id (insert retried without the columns), so the
+  send gate cannot fire and the detail page shows no flag.
+- **0113_pricing_cost_based.sql — applied to both DBs** (owner confirmed
+  2026-09-06; seed run on production). (was 0110; written
   2026-09-06, cost-based technique steps 1-3, spec §17; run AFTER 0111,
   then `scripts/seed-pricing-cost-based-demo.sql` on the demo for the
   walk). Also adds `quote_lines.pricing_document_id`/`pricing_flags`, the
@@ -485,7 +495,8 @@ deploy for an automatic schema change.
   legacy "most recent rate wins" behaviour, cost-model saves drop the
   ladder with a warning, cost-input saves drop provenance with a warning,
   and RFQs (step 2) are unavailable.
-- **0112_wfm_leave_quota_period.sql — PENDING on both DBs** (written
+- **0112_wfm_leave_quota_period.sql — applied to both DBs** (owner
+  confirmed 2026-09-06). (written
   2026-09-06, BIM follow-up: "it's days a month, not days a year"):
   `wfm_leave_types.quota_period` (year | month). The quota number stays
   in `wfm_leave_quotas.annual_quota` (historical name); a per-month quota
@@ -507,7 +518,8 @@ deploy for an automatic schema change.
   runs it after confirming the counts). Leave types also gained
   deactivate / reactivate / delete-when-unused and inline edit on the
   Settings → Workforce → Leave Types tab, with the Add form at the top.
-- **0111_pricing_documents.sql — PENDING on both DBs** (was 0109; renumbered
+- **0111_pricing_documents.sql — applied to both DBs** (owner confirmed
+  2026-09-06). (was 0109; renumbered
   2026-09-06 because the BIM leave-type limits took 0109; the parked
   pricing/cost-based branch still says 0109 in its messages and is fixed
   when pricing resumes) (written

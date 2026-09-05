@@ -32,21 +32,30 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null) as {
-    product_id?: string; account_id?: string; quantity?: number; quote_id?: string;
+    product_id?: string; account_id?: string; quantity?: number; quote_id?: string; standard_quote_id?: string;
   } | null;
   const quantity = Number(body?.quantity);
   if (!body?.product_id || !Number.isFinite(quantity) || quantity <= 0) {
     return NextResponse.json({ error: "product_id and a positive quantity are required" }, { status: 422 });
   }
 
-  // The quote is only a provenance reference on the stored context, but a
-  // client-supplied id is still verified against the tenant before it is
+  // The document is only a provenance reference on the stored context, but
+  // a client-supplied id is still verified against the tenant before it is
   // recorded (MULTI_TENANT_GUARDRAILS: no unverified foreign ids). The
   // account id is verified inside priceDocumentLine's tenant-scoped read.
-  let quoteId: string | null = null;
-  if (typeof body.quote_id === "string" && body.quote_id) {
+  // A Standard Quote line (0114) is the same call with its own document
+  // type, so a tenant can route it to a different book.
+  let sourceId: string | null = null;
+  let documentType: "quote" | "standard_quote" = "quote";
+  if (typeof body.standard_quote_id === "string" && body.standard_quote_id) {
+    documentType = "standard_quote";
+    const { data: q } = await supabase.from("standard_quotes").select("id").eq("id", body.standard_quote_id).eq("tenant_id", tenantId).maybeSingle();
+    sourceId = q?.id ? (q.id as string) : null;
+  } else if (body.standard_quote_id === "") {
+    documentType = "standard_quote";
+  } else if (typeof body.quote_id === "string" && body.quote_id) {
     const { data: q } = await supabase.from("quotes").select("id").eq("id", body.quote_id).eq("tenant_id", tenantId).maybeSingle();
-    quoteId = q?.id ? (q.id as string) : null;
+    sourceId = q?.id ? (q.id as string) : null;
   }
 
   const tenant = await getTenant();
@@ -56,8 +65,8 @@ export async function POST(request: NextRequest) {
       productId: body.product_id,
       accountId: body.account_id ?? null,
       quantity,
-      documentType: "quote",
-      sourceId: quoteId,
+      documentType,
+      sourceId,
       actorId: userId,
       pricingConfig: tenant?.config?.pricing ?? null,
     });

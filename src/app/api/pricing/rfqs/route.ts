@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
 
   const body = (await request.json().catch(() => null)) as {
     product_id?: string; supplier_id?: string | null; quantity?: number; uom?: string | null; quote_id?: string | null;
+    standard_quote_id?: string | null;
     cost_model_code?: string; path?: string; message?: string | null; send?: boolean;
   } | null;
   if (!body?.product_id) return NextResponse.json({ error: "product_id is required" }, { status: 422 });
@@ -79,18 +80,31 @@ export async function POST(request: NextRequest) {
     const { data: q } = await admin.from("quotes").select("id").eq("id", body.quote_id).eq("tenant_id", tenantId).maybeSingle();
     quoteId = q ? (q.id as string) : null;
   }
+  let standardQuoteId: string | null = null;
+  if (body.standard_quote_id) {
+    const { data: q } = await admin.from("standard_quotes").select("id").eq("id", body.standard_quote_id).eq("tenant_id", tenantId).maybeSingle();
+    standardQuoteId = q ? (q.id as string) : null;
+  }
   const quantity = Number(body.quantity);
   const modelCode = (body.cost_model_code || "STANDARD_COST").toUpperCase();
   const path = body.path?.trim() || PURCHASE_PATH;
   if (/__|constructor|prototype/.test(path)) return NextResponse.json({ error: "Illegal path" }, { status: 422 });
 
-  const { data: rfq, error } = await insertWithMasterRef<{ id: string; ref: string }>(admin, "pricing_rfqs", tenantId, {
+  const record: Record<string, unknown> = {
     tenant_id: tenantId, product_id: product.id, supplier_id: supplier?.id ?? null,
     cost_model_code: modelCode, path,
     quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : null, uom: body.uom ?? product.uom ?? null,
     status: "draft", requested_by: userId, quote_id: quoteId,
     message: typeof body.message === "string" ? body.message.slice(0, 4000) : null,
-  }, "id, ref");
+  };
+  // standard_quote_id arrives with 0114; while that is pending the RFQ is
+  // still raised, just without the back-reference.
+  let { data: rfq, error } = standardQuoteId
+    ? await insertWithMasterRef<{ id: string; ref: string }>(admin, "pricing_rfqs", tenantId, { ...record, standard_quote_id: standardQuoteId }, "id, ref")
+    : await insertWithMasterRef<{ id: string; ref: string }>(admin, "pricing_rfqs", tenantId, record, "id, ref");
+  if (error?.code === "42703" && standardQuoteId) {
+    ({ data: rfq, error } = await insertWithMasterRef<{ id: string; ref: string }>(admin, "pricing_rfqs", tenantId, record, "id, ref"));
+  }
   if (error || !rfq) {
     const pending = error?.code === "42P01";
     return NextResponse.json({ error: pending ? "RFQs need migration 0113 applied to this database." : (error?.message ?? "Could not create the RFQ") }, { status: pending ? 503 : 500 });

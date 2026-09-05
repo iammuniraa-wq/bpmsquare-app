@@ -7,8 +7,26 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
+import PriceTrace, { type PriceTraceStep } from "@/components/pricing/PriceTrace";
 
-type Line = { id: string; description: string; uom: string; qty: string; rate: string; discount_pct: string };
+type Line = {
+  id: string; description: string; uom: string; qty: string; rate: string; discount_pct: string;
+  /** The catalog product behind the line (0114) -- what "Price with engine" prices. */
+  product_id: string;
+  /** The stored pricing document behind the rate, when the engine set it. */
+  pricing_document_id: string;
+};
+
+export type StandardQuoteProduct = { id: string; ref: string | null; name: string; uom: string | null; list_price: number | null };
+
+// What the engine said about one line -- mirrors quotations/new/QuoteForm.tsx
+// so the two forms never drift (the rate, a why chip, a floor flag, or the
+// NEEDS_RFQ prompt with an inline Send RFQ).
+type LinePricing =
+  | { kind: "priced"; document_id: string | null; area: string; flags: { code: string; policy: string; floor_pct?: number; actual_pct?: number }[]; trace: PriceTraceStep[]; open: boolean }
+  | { kind: "needs_rfq"; product: { id: string; name: string }; missing: { path: string; considered: { source: string; status: string; reason?: string }[] }[]; message: string; cost_model: string | null }
+  | { kind: "rfq_sent"; ref: string; supplier: string; redirected: boolean }
+  | { kind: "rfq_draft"; ref: string; reason: string };
 
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -23,7 +41,7 @@ const fw: React.CSSProperties = { marginBottom: 16 };
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 function newLine(): Line {
-  return { id: Math.random().toString(36).slice(2), description: "", uom: "Nos", qty: "1", rate: "0", discount_pct: "0" };
+  return { id: Math.random().toString(36).slice(2), description: "", uom: "Nos", qty: "1", rate: "0", discount_pct: "0", product_id: "", pricing_document_id: "" };
 }
 
 function lineAmount(l: Line): number {
@@ -47,16 +65,21 @@ type EditQuote = {
   tax_pct: number;
   shipping_amount: number;
   intro_text: string | null;
-  lines: { sl_no: string | null; description: string; uom: string | null; qty: number; rate: number; discount_pct: number }[];
+  lines: { sl_no: string | null; description: string; uom: string | null; qty: number; rate: number; discount_pct: number; product_id?: string | null; pricing_document_id?: string | null }[];
 };
 
 export default function StandardQuoteForm({
-  accounts, contacts, templates, editQuote,
+  accounts, contacts, templates, editQuote, products = [], pricingEngineQuotesEnabled = false,
 }: {
   accounts: { id: string; name: string }[];
   contacts: { id: string; name: string; account_id: string }[];
   templates: { id: string; name: string; is_default: boolean }[];
   editQuote?: EditQuote;
+  /** Active catalog products (only when the products module is on). */
+  products?: StandardQuoteProduct[];
+  /** Both pricing_engine + pricing_engine_quotes tenant features -- resolved
+   *  server-side by the page, never inferred here. */
+  pricingEngineQuotesEnabled?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -81,9 +104,172 @@ export default function StandardQuoteForm({
           id: Math.random().toString(36).slice(2),
           description: l.description, uom: l.uom ?? "Nos",
           qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct),
+          product_id: l.product_id ?? "", pricing_document_id: l.pricing_document_id ?? "",
         }))
       : [newLine()]
   );
+
+  // BPMSquare Pricing on the line (bpmsquarecore §10 doctrine: propose,
+  // never silently decide) -- the engine suggests a rate, the rep still
+  // reviews and saves it like any manual edit. Same flow as QuoteForm.
+  const [pricingBusyIds, setPricingBusyIds] = useState<Set<string>>(new Set());
+  const [pricingErrors, setPricingErrors] = useState<Record<string, string>>({});
+  const [linePricing, setLinePricing] = useState<Record<string, LinePricing>>({});
+  const [rfqOpenId, setRfqOpenId] = useState<string | null>(null);
+  const [rfqSuppliers, setRfqSuppliers] = useState<{ id: string; name: string; email: string | null }[] | null>(null);
+  const [rfqSupplierId, setRfqSupplierId] = useState("");
+  const [rfqMessage, setRfqMessage] = useState("");
+  const [rfqBusy, setRfqBusy] = useState(false);
+
+  function chooseProduct(lineId: string, productId: string) {
+    const p = products.find((x) => x.id === productId);
+    setLines((ls) => ls.map((l) => {
+      if (l.id !== lineId) return l;
+      if (!p) return { ...l, product_id: "", pricing_document_id: "" };
+      return {
+        ...l, product_id: p.id, pricing_document_id: "",
+        description: l.description.trim() ? l.description : p.name,
+        uom: p.uom && (UOM_OPTIONS as readonly string[]).includes(p.uom) ? p.uom : l.uom,
+        rate: parseFloat(l.rate) > 0 ? l.rate : String(p.list_price ?? 0),
+      };
+    }));
+    setLinePricing((prev) => { const { [lineId]: _drop, ...rest } = prev; return rest; });
+  }
+
+  async function priceWithEngine(lineId: string, productId: string, qty: string) {
+    const quantity = parseFloat(qty) || 1;
+    setPricingBusyIds((p) => new Set(p).add(lineId));
+    setPricingErrors((p) => { const { [lineId]: _drop, ...rest } = p; return rest; });
+    try {
+      const res = await fetch("/api/quotes/price-line", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: productId, account_id: accountId || undefined, quantity, standard_quote_id: editQuote?.id ?? "" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.status === 409 && json.needs_rfq) {
+        setLinePricing((p) => ({ ...p, [lineId]: { kind: "needs_rfq", product: json.product, missing: json.missing ?? [], message: json.message, cost_model: json.cost_model ?? null } }));
+        return;
+      }
+      if (!res.ok) { setPricingErrors((p) => ({ ...p, [lineId]: json.error ?? "Pricing failed" })); return; }
+      updateLine(lineId, { rate: String(Math.round((json.unit_rate as number) * 100) / 100), pricing_document_id: json.document_id ?? "" });
+      setLinePricing((p) => ({ ...p, [lineId]: { kind: "priced", document_id: json.document_id ?? null, area: json.area, flags: json.flags ?? [], trace: json.trace ?? [], open: false } }));
+    } catch {
+      setPricingErrors((p) => ({ ...p, [lineId]: "Network error — try again." }));
+    } finally {
+      setPricingBusyIds((p) => { const n = new Set(p); n.delete(lineId); return n; });
+    }
+  }
+
+  async function openRfq(lineId: string) {
+    setRfqOpenId(lineId); setRfqSupplierId(""); setRfqMessage("");
+    if (rfqSuppliers === null) {
+      try {
+        const res = await fetch("/api/suppliers");
+        const list = await res.json();
+        setRfqSuppliers(Array.isArray(list) ? list.map((s: { id: string; name: string; email: string | null }) => ({ id: s.id, name: s.name, email: s.email })) : []);
+      } catch { setRfqSuppliers([]); }
+    }
+  }
+
+  async function sendRfq(lineId: string, productId: string, qty: string) {
+    const info = linePricing[lineId];
+    if (!info || info.kind !== "needs_rfq") return;
+    if (!rfqSupplierId) { setPricingErrors((p) => ({ ...p, [lineId]: "Choose a supplier first." })); return; }
+    setPricingErrors((p) => { const { [lineId]: _drop, ...rest } = p; return rest; });
+    setRfqBusy(true);
+    try {
+      const res = await fetch("/api/pricing/rfqs", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product_id: productId, supplier_id: rfqSupplierId, quantity: parseFloat(qty) || 1,
+          standard_quote_id: editQuote?.id ?? null, cost_model_code: info.cost_model ?? undefined,
+          path: info.missing[0]?.path, message: rfqMessage || null, send: true,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setPricingErrors((p) => ({ ...p, [lineId]: json.error ?? "Could not create the RFQ" })); return; }
+      const supplierName = rfqSuppliers?.find((s) => s.id === rfqSupplierId)?.name ?? "supplier";
+      setLinePricing((p) => ({
+        ...p,
+        [lineId]: json.sent?.ok
+          ? { kind: "rfq_sent", ref: json.ref, supplier: supplierName, redirected: Boolean(json.sent.redirected) }
+          : { kind: "rfq_draft", ref: json.ref, reason: json.sent?.reason ?? "not sent" },
+      }));
+      setRfqOpenId(null);
+    } catch {
+      setPricingErrors((p) => ({ ...p, [lineId]: "Network error — try again." }));
+    } finally { setRfqBusy(false); }
+  }
+
+  function pricingStatus(lineId: string, productId: string, qty: string) {
+    const info = linePricing[lineId];
+    if (!info) return null;
+    const box: React.CSSProperties = { fontSize: 11.5, lineHeight: 1.45, marginTop: 6 };
+    if (info.kind === "priced") {
+      const blocked = info.flags.some((f) => f.policy === "block");
+      const warned = info.flags.length > 0 && !blocked;
+      return (
+        <div style={box}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ color: c.hint }}>Priced by engine{info.area !== "default" ? ` · ${info.area}` : ""}</span>
+            <button type="button" onClick={() => setLinePricing((p) => ({ ...p, [lineId]: { ...info, open: !info.open } }))}
+              style={{ fontSize: 11.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+              {info.open ? "hide why" : "why?"}
+            </button>
+          </div>
+          {info.flags.map((f, i) => (
+            <div key={i} style={{ color: blocked ? "var(--err-ink)" : "var(--amberink)", fontWeight: 600 }}>
+              {f.code === "MARGIN_FLOOR" ? `Margin ${f.actual_pct}% is below the ${f.floor_pct}% floor` : f.code}
+              {blocked ? " — this quote can't be sent until approved" : warned ? " — check before sending" : ""}
+            </div>
+          ))}
+          {info.open && (
+            <div style={{ marginTop: 6, padding: 8, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel, overflowX: "auto" }}>
+              <PriceTrace steps={info.trace} compact />
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (info.kind === "needs_rfq") {
+      const isOpen = rfqOpenId === lineId;
+      return (
+        <div style={box}>
+          <div style={{ color: "var(--amberink)", fontWeight: 600 }}>{info.message}</div>
+          {info.missing[0]?.considered?.length > 0 && (
+            <div style={{ color: c.hint }}>
+              Tried: {info.missing[0].considered.map((k) => `${k.source} (${k.reason ?? k.status})`).join("; ")}
+            </div>
+          )}
+          {!isOpen ? (
+            <button type="button" onClick={() => openRfq(lineId)}
+              style={{ marginTop: 4, fontSize: 11.5, fontWeight: 600, color: "#fff", background: c.accent, border: "none", borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>
+              Send RFQ to supplier
+            </button>
+          ) : (
+            <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6, maxWidth: 420 }}>
+              <select style={{ ...inp, fontSize: 12 }} value={rfqSupplierId} onChange={(e) => setRfqSupplierId(e.target.value)}>
+                <option value="">{rfqSuppliers === null ? "Loading suppliers…" : "Choose a supplier"}</option>
+                {(rfqSuppliers ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}{s.email ? "" : " (no email)"}</option>)}
+              </select>
+              <textarea style={{ ...inp, minHeight: 44, fontSize: 12 }} placeholder="Anything to add to the request (optional)" value={rfqMessage} onChange={(e) => setRfqMessage(e.target.value)} />
+              <div style={{ display: "flex", gap: 6 }}>
+                <button type="button" disabled={rfqBusy} onClick={() => sendRfq(lineId, productId, qty)}
+                  style={{ fontSize: 11.5, fontWeight: 600, color: "#fff", background: c.accent, border: "none", borderRadius: 6, padding: "6px 10px", cursor: rfqBusy ? "default" : "pointer", opacity: rfqBusy ? 0.6 : 1 }}>
+                  {rfqBusy ? "Sending…" : "Send"}
+                </button>
+                <button type="button" onClick={() => setRfqOpenId(null)} style={{ fontSize: 11.5, color: c.muted, background: "none", border: `1px solid ${c.line}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (info.kind === "rfq_sent") {
+      return <div style={{ ...box, color: "var(--tealink)" }}>{info.ref} sent to {info.supplier}{info.redirected ? " (redirected to the internal inbox)" : ""}. Price again once the reply is entered under Pricing → RFQs.</div>;
+    }
+    return <div style={{ ...box, color: "var(--amberink)" }}>{info.ref} saved but not sent: {info.reason}. Send it from Pricing → RFQs.</div>;
+  }
 
   const [aiJobDesc, setAiJobDesc] = useState("");
   const [aiDrafting, setAiDrafting] = useState(false);
@@ -116,7 +302,7 @@ export default function StandardQuoteForm({
         if (!res.ok) { setError(json.error ?? "AI drafting failed"); return; }
         const drafted: Line[] = (json.lines as { description: string; uom: string; qty: string }[]).map((l) => ({
           id: Math.random().toString(36).slice(2),
-          description: l.description, uom: l.uom || "Nos", qty: l.qty || "1", rate: "0", discount_pct: "0",
+          description: l.description, uom: l.uom || "Nos", qty: l.qty || "1", rate: "0", discount_pct: "0", product_id: "", pricing_document_id: "",
         }));
         if (drafted.length === 0) { setError("AI didn't return any line items — try a more specific description"); return; }
         setLines((ls) => (ls.length === 1 && !ls[0].description.trim() ? drafted : [...ls, ...drafted]));
@@ -155,7 +341,10 @@ export default function StandardQuoteForm({
     const cleanLines = lines.filter((l) => l.description.trim());
     if (cleanLines.length === 0) { setError("Add at least one line item"); return; }
     setError("");
-    const linePayload = cleanLines.map((l) => ({ description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct }));
+    const linePayload = cleanLines.map((l) => ({
+      description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct,
+      product_id: l.product_id || null, pricing_document_id: l.pricing_document_id || null,
+    }));
     startTransition(async () => {
       const commercial = {
         header_discount_pct: headerDiscountPct, tax_pct: taxPct, shipping_amount: shippingAmount,
@@ -300,6 +489,34 @@ export default function StandardQuoteForm({
                         </button>
                       )}
                     </div>
+                    {products.length > 0 && (
+                      <div style={fw}>
+                        <label style={lbl}>Product</label>
+                        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                          <select style={inp} value={line.product_id} onChange={(e) => chooseProduct(line.id, e.target.value)}>
+                            <option value="">— Free text (no product) —</option>
+                            {products.map((p) => <option key={p.id} value={p.id}>{p.ref ? `${p.ref} · ` : ""}{p.name}</option>)}
+                          </select>
+                          {pricingEngineQuotesEnabled && line.product_id && (
+                            <button
+                              type="button"
+                              disabled={pricingBusyIds.has(line.id)}
+                              onClick={() => priceWithEngine(line.id, line.product_id, line.qty)}
+                              title="Suggest a rate from the live Pricing Engine — you can still edit it before saving"
+                              style={{
+                                flexShrink: 0, fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg,
+                                border: "none", borderRadius: 8, padding: "9px 12px", cursor: pricingBusyIds.has(line.id) ? "default" : "pointer",
+                                opacity: pricingBusyIds.has(line.id) ? 0.6 : 1, whiteSpace: "nowrap",
+                              }}
+                            >
+                              {pricingBusyIds.has(line.id) ? "Pricing…" : "⚡ Price with engine"}
+                            </button>
+                          )}
+                        </div>
+                        {pricingErrors[line.id] && <div style={{ fontSize: 11.5, color: "var(--err-ink)", marginTop: 4 }}>{pricingErrors[line.id]}</div>}
+                        {pricingStatus(line.id, line.product_id, line.qty)}
+                      </div>
+                    )}
                     <div style={fw}>
                       <label style={lbl}>Description *</label>
                       <input style={inp} value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} placeholder="What's being quoted" />

@@ -7,8 +7,7 @@ import { logEmail } from "@/lib/emailLog";
 import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
 import { Resend } from "resend";
 import { getGmailConnectorCredentials, findOriginalMessage, sendViaGmail, stripReplyPrefixes, buildReplySubject } from "@/lib/connectors/gmailReply";
-import { blockingLines } from "@/lib/pricing/quoteLineFlags";
-import type { LineFlag } from "@/lib/pricing-core";
+import { blockingLines, flaggedLinesOf } from "@/lib/pricing/quoteLineFlags";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -49,10 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Pricing guardrails (cost-based step 2, owner decision: block). A line
   // the engine flagged under a "block" policy holds the whole quote until
   // it is approved -- batch 3 adds the approval; until then it waits.
-  const { data: flaggedLines } = await supabase
-    .from("quote_lines").select("sl_no, description, pricing_flags")
-    .eq("quote_id", id).eq("tenant_id", tenantId).not("pricing_flags", "is", null);
-  const blocked = blockingLines((flaggedLines ?? []) as { sl_no?: string | null; description?: string; pricing_flags?: LineFlag[] | null }[]);
+  const blocked = blockingLines(await flaggedLinesOf(supabase, "quote_lines", "quote_id", tenantId, id));
   if (blocked.length > 0) {
     return NextResponse.json({
       error: `This quote can't be sent: ${blocked.map((b) => `line ${b.label} is below the ${b.flag.floor_pct}% margin floor (${b.flag.actual_pct}%)`).join("; ")}. Re-price it, or wait for pricing approval.`,
