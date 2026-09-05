@@ -8,6 +8,7 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import ObjectSections from "@/components/fields/ObjectSections";
 import { ROUTES } from "@/lib/constants";
+import { groupSpans, type Span } from "@/lib/wfm/rosterSpans";
 import type {
   WfmShift, WfmSite, CorrectionIssue, WfmCorrectionRequest, WfmLeaveRequest, WfmRecheckRequest,
 } from "@/lib/wfm/types";
@@ -46,10 +47,22 @@ type Profile = {
   leave_balance: LeaveBalanceRow[];
 };
 
+/** One roster row, exactly as /api/wfm/roster and wfmRosterPayload return it.
+ *  The previous type here (shift_name, source) described a shape nothing
+ *  produced, so every row rendered "No shift assigned". */
 type UpcomingRow = {
-  date: string; is_day_off: boolean; shift_name: string | null;
-  start_time: string | null; end_time: string | null; is_night_shift: boolean; source: "roster" | "standing";
+  id: string; employee_id: string; date: string; is_day_off: boolean;
+  shift_id?: string | null; note?: string | null;
+  project_id?: string | null; project_name?: string | null;
+  wfm_projects?: { name: string } | { name: string }[] | null;
+  wfm_shifts?: { name: string; start_time: string; end_time: string } | { name: string; start_time: string; end_time: string }[] | null;
 };
+function oneOf<T>(v: T | T[] | null | undefined): T | null {
+  return Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
+}
+const projectOf = (u: UpcomingRow) => u.project_name ?? oneOf(u.wfm_projects)?.name ?? null;
+const fmtSpanDates = (sp: Span<UpcomingRow>) =>
+  sp.from === sp.to ? fmtDateShort(sp.from) : `${fmtDateShort(sp.from)} – ${fmtDateShort(sp.to)}`;
 
 type LeaveRecordRow = {
   id: string; date_from: string; date_to: string; half_day: boolean; remarks: string | null;
@@ -118,6 +131,8 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
   const [sites, setSites] = useState<WfmSite[]>(initialLists?.sites ?? []);
   const [supervisors, setSupervisors] = useState<EmployeeOpt[]>(initialLists?.supervisors ?? []);
   const [upcoming, setUpcoming] = useState<UpcomingRow[]>(initialLists?.upcoming ?? []);
+  // Folded into spans -- a week on a project is one line, not seven.
+  const spans = useMemo(() => groupSpans(upcoming), [upcoming]);
   const [corrections, setCorrections] = useState<(WfmCorrectionRequest)[]>(initialLists?.corrections ?? []);
   const [leaveRequests, setLeaveRequests] = useState<WfmLeaveRequest[]>(initialLists?.leaveRequests ?? []);
   const [leaveRecords, setLeaveRecords] = useState<LeaveRecordRow[]>(initialLists?.leaveRecords ?? []);
@@ -534,19 +549,24 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
             )}
           </section>
           <section style={cardStyle}>
-            <div style={capStyle}>Next few days</div>
-            {upcoming.length === 0 ? (
-              <div style={{ fontSize: 12, color: c.hint }}>No shift assigned.</div>
+            <div style={capStyle}>Coming up</div>
+            {spans.length === 0 ? (
+              <div style={{ fontSize: 12, color: c.hint }}>Nothing beyond the standing shift in the next 14 days.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {upcoming.slice(0, 4).map((u) => (
-                  <div key={u.date} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
-                    <span style={{ color: c.ink }}>{fmtDateShort(u.date)}</span>
-                    <span style={{ color: u.is_day_off ? statusInk.bad : c.muted }}>
-                      {u.is_day_off ? "Day off" : u.shift_name ? `${u.shift_name} ${u.start_time?.slice(0, 5)}–${u.end_time?.slice(0, 5)}` : "— none —"}
-                    </span>
-                  </div>
-                ))}
+                {spans.slice(0, 4).map((sp) => {
+                  const u = sp.rows[0];
+                  const sh = oneOf(u.wfm_shifts);
+                  const proj = projectOf(u);
+                  return (
+                    <div key={u.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5 }}>
+                      <span style={{ color: c.ink, whiteSpace: "nowrap" }}>{fmtSpanDates(sp)}</span>
+                      <span style={{ color: u.is_day_off ? statusInk.bad : c.muted, textAlign: "right" }}>
+                        {u.is_day_off ? "Day off" : [sh ? `${sh.name} ${sh.start_time.slice(0, 5)}–${sh.end_time.slice(0, 5)}` : null, proj].filter(Boolean).join(" · ") || "—"}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
             <button style={{ ...btn, marginTop: 12 }} onClick={() => setTab("roster")}>View full roster</button>
@@ -703,39 +723,53 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
         <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Upcoming shifts</div>
-              <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Next {upcoming.length} days</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Roster</div>
+              <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>
+                Shift changes, days off and project assignments for the next 14 days. Every other day follows the standing shift.
+              </div>
             </div>
             <button style={btn} onClick={() => router.push(ROUTES.wfmRoster)}>Manage roster →</button>
           </div>
           <div style={{ maxHeight: 420, overflowY: "auto" }}>
-            {upcoming.map((u) => {
-              const isToday = u.date === todayKey();
+            {spans.map((sp) => {
+              const u = sp.rows[0];
+              const sh = oneOf(u.wfm_shifts);
+              const proj = projectOf(u);
+              const coversToday = sp.from <= todayKey() && todayKey() <= sp.to;
               return (
-                <div key={u.date} style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                <div key={u.id} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap",
                   padding: "9px 12px", borderBottom: `1px solid ${c.line}`,
-                  borderLeft: `3px solid ${u.is_day_off ? statusInk.bad : isToday ? "var(--tenant-accent, #378ADD)" : "transparent"}`,
-                  background: isToday ? "var(--panel2)" : "transparent",
+                  borderLeft: `3px solid ${u.is_day_off ? statusInk.bad : coversToday ? "var(--tenant-accent, #378ADD)" : "transparent"}`,
+                  background: coversToday ? "var(--panel2)" : "transparent",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{fmtDateShort(u.date)}</span>
-                    {isToday && <Pill label="Today" tone="green" />}
-                    {u.source === "roster" && <span style={{ fontSize: 10.5, color: c.hint }}>(override)</span>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{fmtSpanDates(sp)}</span>
+                    {sp.rows.length > 1 && <span style={{ fontSize: 10.5, color: c.hint }}>{sp.rows.length} days</span>}
+                    {coversToday && <Pill label="Today" tone="green" />}
                   </div>
-                  <div style={{ fontSize: 12.5, textAlign: "right" }}>
-                    {u.is_day_off ? <Pill label="Day off" tone="red" />
-                      : u.shift_name ? (
-                        <>
-                          <span style={{ color: c.ink, fontWeight: 600 }}>{u.shift_name}</span>
-                          <span style={{ color: c.muted, marginLeft: 6 }}>{u.start_time?.slice(0, 5)}–{u.end_time?.slice(0, 5)}</span>
-                        </>
-                      ) : <span style={{ color: c.hint }}>No shift assigned</span>}
+                  <div style={{ fontSize: 12.5, textAlign: "right", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {u.is_day_off ? <Pill label="Day off" tone="red" /> : sh ? (
+                      <span>
+                        <span style={{ color: c.ink, fontWeight: 600 }}>{sh.name}</span>
+                        <span style={{ color: c.muted, marginLeft: 6 }}>{sh.start_time.slice(0, 5)}–{sh.end_time.slice(0, 5)}</span>
+                      </span>
+                    ) : null}
+                    {proj && (
+                      <span style={{ fontSize: 11.5, fontWeight: 600, color: c.ink, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 8px" }}>
+                        {proj}
+                      </span>
+                    )}
+                    {!u.is_day_off && !sh && !proj && <span style={{ color: c.hint }}>—</span>}
                   </div>
                 </div>
               );
             })}
-            {upcoming.length === 0 && <div style={{ padding: 14, fontSize: 12, color: c.hint }}>No shift assigned.</div>}
+            {spans.length === 0 && (
+              <div style={{ padding: 14, fontSize: 12, color: c.hint }}>
+                Nothing beyond the standing shift in the next 14 days.
+              </div>
+            )}
           </div>
         </section>
       )}

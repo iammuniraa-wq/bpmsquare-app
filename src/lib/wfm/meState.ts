@@ -10,6 +10,8 @@ import { type PresenceKind } from "@/lib/wfm/types";
 // uses, shift-day rollover included, so the button offered and the punch
 // accepted always agree.
 import { computeDayHours, shiftDayKey, punchStateAt } from "@/lib/wfm/hours";
+import { attributePunch } from "@/lib/wfm/projectServer";
+import { tenantHasFeature } from "@/lib/tenant";
 
 /**
  * The /wfm/me punch screen's bootstrap payload: who am I, current punch
@@ -145,7 +147,27 @@ export async function buildWfmMeState(ctx: WfmContext) {
     }
   }
 
+  // Project costing (0104): where today's hours will go, resolved the same
+  // way the punch route stamps them (roster first, then the project's own
+  // links). Shown on the punch screen so an employee can see it before they
+  // punch -- until now the only people who could see attribution were
+  // supervisors, after the fact. Null when the module is off or nothing
+  // applies; never blocks the screen.
+  let todayProject: { id: string; name: string; source: string } | null = null;
+  if (await tenantHasFeature(admin, tenantId, "wfm_projects")) {
+    const attributed = await attributePunch(
+      admin, tenantId, employee.id, todayKey, employee.site_id ?? null, employee.shift_id ?? null
+    );
+    if (attributed.project_id) {
+      const { data: proj } = await admin
+        .from("wfm_projects").select("id, name")
+        .eq("id", attributed.project_id).eq("tenant_id", tenantId).maybeSingle();
+      if (proj) todayProject = { id: proj.id as string, name: proj.name as string, source: attributed.source };
+    }
+  }
+
   return {
+    today_project: todayProject,
     employee: {
       id: employee.id,
       full_name: [employee.first_name, employee.last_name].filter(Boolean).join(" "),

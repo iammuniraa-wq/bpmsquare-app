@@ -81,6 +81,40 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(rows);
 }
 
+// DELETE /api/wfm/roster — remove many roster rows at once. The screen shows a
+// week on a project as ONE span and offers one Remove for it; that Remove
+// has to clear every underlying date row in one call, not fire seven
+// requests that can half-succeed. Rows are matched by id AND tenant, so an
+// id from another workspace matches nothing and fails cleanly.
+export async function DELETE(request: NextRequest) {
+  let ctx;
+  try {
+    ctx = await requireWfmSupervisor();
+  } catch (e: unknown) {
+    const err = e as { status: number; message: string };
+    return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  const { tenantId } = ctx;
+
+  const body = await request.json().catch(() => null);
+  const ids = (body as { ids?: unknown } | null)?.ids;
+  if (!Array.isArray(ids) || ids.length === 0 || !ids.every((x) => typeof x === "string")) {
+    return NextResponse.json({ error: "ids must be a non-empty array" }, { status: 400 });
+  }
+  if (ids.length > MAX_ROWS) {
+    return NextResponse.json({ error: `Remove at most ${MAX_ROWS} rows at once` }, { status: 400 });
+  }
+
+  const admin = createAdminSupabase();
+  const { error, count } = await admin
+    .from("wfm_roster_assignments")
+    .delete({ count: "exact" })
+    .in("id", ids)
+    .eq("tenant_id", tenantId);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true, removed: count ?? 0 });
+}
+
 // POST /api/wfm/roster — supervisor/admin assigns (or clears) a shift for
 // MANY employees across one or more dates in one call -- a bulk exception
 // on top of everyone's standing shift (see PATCH /api/wfm/employees/bulk-shift

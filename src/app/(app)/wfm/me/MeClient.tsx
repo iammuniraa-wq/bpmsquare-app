@@ -50,6 +50,8 @@ type MeState = {
   break_minutes: number;
   home_site: { id: string; name: string } | null;
   shift: { name: string; start_time: string; end_time: string } | null;
+  /** Where today's hours go (project costing). Null = module off or nothing applies. */
+  today_project?: { id: string; name: string; source: string } | null;
   timezone: string;
   /** Optional punch-type groups this tenant has switched on. */
   punch_types?: { ot: boolean; mobile_work: boolean; business_trip: boolean };
@@ -1601,6 +1603,9 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                 {me.employee.employee_code}
                 {me.shift && <> · {me.shift.name} ({me.shift.start_time.slice(0, 5)}–{me.shift.end_time.slice(0, 5)})</>}
                 {me.home_site && <> · {me.home_site.name}</>}
+                {me.today_project && (
+                  <> · Project: <strong style={{ color: c.ink }}>{me.today_project.name}</strong></>
+                )}
               </div>
             </section>
           )}

@@ -8,6 +8,7 @@ import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { WfmShift, WfmSite } from "@/lib/wfm/types";
 import { depthOf } from "@/lib/wfm/projectTree";
+import { groupSpans, type Span } from "@/lib/wfm/rosterSpans";
 
 type EmployeeRow = {
   id: string;
@@ -24,6 +25,7 @@ type OverrideRow = {
   employee_id: string;
   date: string;
   is_day_off: boolean;
+  shift_id?: string | null;
   /** Only present when the tenant has project costing (0104). The API route
    *  flattens the name into project_name; the server prefetch returns the
    *  raw embed instead, so both shapes have to be readable here. */
@@ -134,19 +136,24 @@ const MatrixRow = memo(function MatrixRow({
  * same -- before the split, the one form held both, and putting someone on
  * a project meant walking through a section named for shift changes.
  */
-function EmployeePicker({ employees, sites, selected, onChange }: {
+function EmployeePicker({ employees, sites, shifts, selected, onChange }: {
   employees: EmployeeRow[];
   sites: WfmSite[];
+  shifts: WfmShift[];
   selected: Set<string>;
   onChange: (next: Set<string>) => void;
 }) {
   const [q, setQ] = useState("");
   const [site, setSite] = useState("");
+  const [shift, setShift] = useState("");
   const needle = q.trim().toLowerCase();
+  // Site AND shift, because "everyone on the second shift at Hosapete" is
+  // exactly the group a supervisor moves in one go.
   const visible = employees.filter((e) =>
     e.status === "active" &&
     (!needle || empName(e).toLowerCase().includes(needle) || (e.employee_code ?? "").toLowerCase().includes(needle)) &&
-    (!site || (site === UNASSIGNED ? e.site_id === null : e.site_id === site))
+    (!site || (site === UNASSIGNED ? e.site_id === null : e.site_id === site)) &&
+    (!shift || (shift === UNASSIGNED ? e.shift_id === null : e.shift_id === shift))
   );
   const toggle = (id: string) => {
     const next = new Set(selected);
@@ -168,7 +175,12 @@ function EmployeePicker({ employees, sites, selected, onChange }: {
           {sites.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
           <option value={UNASSIGNED}>Unassigned site</option>
         </select>
-        <button style={btnTiny} onClick={selectAll}>Select all{needle || site ? " filtered" : ""}</button>
+        <select style={{ ...inp, width: 180 }} value={shift} onChange={(e) => setShift(e.target.value)}>
+          <option value="">All shifts</option>
+          {shifts.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          <option value={UNASSIGNED}>No standing shift</option>
+        </select>
+        <button style={btnTiny} onClick={selectAll}>Select all{needle || site || shift ? " filtered" : ""}</button>
         <button style={btnTiny} onClick={() => onChange(new Set())}>Clear selection</button>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflowY: "auto", padding: 8, border: `1px solid ${c.line}`, borderRadius: 8, marginBottom: 12 }}>
@@ -486,20 +498,30 @@ export default function RosterClient({ initial = null }: {
     }
   }
 
-  async function removeOverride(id: string) {
+  // One span, one call: a week on a project is seven rows underneath, and a
+  // Remove that fired seven requests could half-succeed.
+  async function removeSpan(span: Span<OverrideRow>) {
     setBusyB(true);
+    setBusyC(true);
     try {
-      await fetch(`/api/wfm/roster/${id}`, { method: "DELETE" });
+      await fetch("/api/wfm/roster", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: span.rows.map((r) => r.id) }),
+      });
       await load();
     } finally {
+      setBusyC(false);
       setBusyB(false);
     }
   }
 
   // One roster row can carry a shift AND a project; it then shows in both
   // lists, because it is honestly both things.
-  const shiftRows = overrides.filter((r) => r.is_day_off || one(r.wfm_shifts));
-  const projectRows = overrides.filter((r) => !r.is_day_off && projectNameOf(r));
+  const shiftSpans = groupSpans(overrides.filter((r) => r.is_day_off || one(r.wfm_shifts)));
+  const projectSpans = groupSpans(overrides.filter((r) => !r.is_day_off && projectNameOf(r)));
+  const fmtSpan = (sp: Span<OverrideRow>) =>
+    sp.from === sp.to ? fmtDate(sp.from) : `${fmtDate(sp.from)} – ${fmtDate(sp.to)}`;
 
   if (loading) return <div style={{ ...cardStyle, color: c.hint, fontSize: 13 }}>Loading roster…</div>;
 
@@ -647,7 +669,7 @@ export default function RosterClient({ initial = null }: {
             </label>
           </div>
 
-          <EmployeePicker employees={employees} sites={activeSites} selected={selectedB} onChange={setSelectedB} />
+          <EmployeePicker employees={employees} sites={activeSites} shifts={activeShifts} selected={selectedB} onChange={setSelectedB} />
 
           {errorB && <div style={{ fontSize: 12, color: statusInk.bad, marginBottom: 8 }}>{errorB}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -664,17 +686,21 @@ export default function RosterClient({ initial = null }: {
         <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th style={th}>Date</th><th style={th}>Employee</th><th style={th}>Shift</th>
+              <th style={th}>Dates</th><th style={th}>Employee</th><th style={th}>Shift</th>
               <th style={th}>Note</th><th style={th}></th>
             </tr>
           </thead>
           <tbody>
-            {shiftRows.map((r) => {
+            {shiftSpans.map((sp) => {
+              const r = sp.rows[0];
               const shift = one(r.wfm_shifts);
               const emp = one(r.employees);
               return (
                 <tr key={r.id}>
-                  <td style={td}>{fmtDate(r.date)}</td>
+                  <td style={{ ...td, whiteSpace: "nowrap" }}>
+                    {fmtSpan(sp)}
+                    {sp.rows.length > 1 && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>{sp.rows.length} days</span>}
+                  </td>
                   <td style={{ ...td, fontWeight: 600 }}>
                     <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>{empName(emp)}</Link>
                     {emp?.employee_code && <span style={{ color: c.hint, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>{emp.employee_code}</span>}
@@ -685,11 +711,11 @@ export default function RosterClient({ initial = null }: {
                       : shift ? `${shift.name} (${hhmm(shift.start_time)}–${hhmm(shift.end_time)})` : "—"}
                   </td>
                   <td style={{ ...td, color: c.muted }}>{r.note ?? "—"}</td>
-                  <td style={td}><button style={btnTiny} disabled={busyB} onClick={() => removeOverride(r.id)}>Remove</button></td>
+                  <td style={td}><button style={btnTiny} disabled={busyB} onClick={() => removeSpan(sp)}>Remove</button></td>
                 </tr>
               );
             })}
-            {shiftRows.length === 0 && (
+            {shiftSpans.length === 0 && (
               <tr><td style={{ ...td, color: c.hint }} colSpan={5}>Nothing in this window — everyone follows their standing shift.</td></tr>
             )}
           </tbody>
@@ -741,7 +767,7 @@ export default function RosterClient({ initial = null }: {
               </div>
             </div>
 
-            <EmployeePicker employees={employees} sites={activeSites} selected={selectedC} onChange={setSelectedC} />
+            <EmployeePicker employees={employees} sites={activeSites} shifts={activeShifts} selected={selectedC} onChange={setSelectedC} />
 
             {errorC && <div style={{ fontSize: 12, color: statusInk.bad, marginBottom: 8 }}>{errorC}</div>}
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -758,25 +784,29 @@ export default function RosterClient({ initial = null }: {
           <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={th}>Date</th><th style={th}>Employee</th><th style={th}>Project</th><th style={th}></th>
+                <th style={th}>Dates</th><th style={th}>Employee</th><th style={th}>Project</th><th style={th}></th>
               </tr>
             </thead>
             <tbody>
-              {projectRows.map((r) => {
+              {projectSpans.map((sp) => {
+                const r = sp.rows[0];
                 const emp = one(r.employees);
                 return (
                   <tr key={r.id}>
-                    <td style={td}>{fmtDate(r.date)}</td>
+                    <td style={{ ...td, whiteSpace: "nowrap" }}>
+                      {fmtSpan(sp)}
+                      {sp.rows.length > 1 && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>{sp.rows.length} days</span>}
+                    </td>
                     <td style={{ ...td, fontWeight: 600 }}>
                       <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>{empName(emp)}</Link>
                       {emp?.employee_code && <span style={{ color: c.hint, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>{emp.employee_code}</span>}
                     </td>
                     <td style={td}>{projectNameOf(r)}</td>
-                    <td style={td}><button style={btnTiny} disabled={busyC} onClick={() => removeOverride(r.id)}>Remove</button></td>
+                    <td style={td}><button style={btnTiny} disabled={busyC} onClick={() => removeSpan(sp)}>Remove</button></td>
                   </tr>
                 );
               })}
-              {projectRows.length === 0 && (
+              {projectSpans.length === 0 && (
                 <tr><td style={{ ...td, color: c.hint }} colSpan={4}>Nobody is on a project by roster in this window — hours follow each project&apos;s own people, shift and site links.</td></tr>
               )}
             </tbody>
