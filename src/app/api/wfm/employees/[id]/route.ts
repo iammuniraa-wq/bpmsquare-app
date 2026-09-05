@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-server";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { buildEmployeeHubProfile } from "@/lib/wfm/employeeHub";
-import { PRIMARY_HOST } from "@/lib/constants";
+import { tenantOrigin } from "@/lib/constants";
 import { revokeFaceEnrollment } from "@/lib/wfm/faceEnrollment";
 
 // GET /api/wfm/employees/[id] — one employee's full hub profile: identity,
@@ -179,10 +179,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Employee already has a login" }, { status: 409 });
     }
 
+    // The tenant's OWN domain, never the shared host: the same link built
+    // from PRIMARY_HOST would carry a client's employee into the demo.
+    const { data: tenantRow } = await admin.from("tenants").select("custom_domain").eq("id", tenantId).maybeSingle();
     const result = await findOrCreateUserForInvite(admin, email, {
       password,
       inviteData: { full_name: [employee.first_name, employee.last_name].filter(Boolean).join(" ") },
-      redirectTo: `https://${PRIMARY_HOST}/wfm/me`,
+      redirectTo: `${tenantOrigin(tenantRow?.custom_domain as string | null)}/wfm/me`,
     });
     if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
 

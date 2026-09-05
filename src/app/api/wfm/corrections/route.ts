@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, requireWfmEmployee, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
-import { getSupervisorEmails, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
+import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 import type { CorrectionIssue, PresenceKind } from "@/lib/wfm/types";
 
@@ -173,7 +173,8 @@ export async function POST(request: NextRequest) {
       tenantId,
       toEmails: emails,
       subject: `Correction request from ${empName} — ${target_date}`,
-      text: `${empName} has requested a correction to their attendance on ${target_date}.\n\nReason: ${reason_text.trim()}\n\nReview it here: ${wfmUrl(ROUTES.wfmCorrections)}`,
+      text: `${empName} has requested a correction to their attendance on ${target_date}.\n\nReason: ${reason_text.trim()}`,
+      link: { path: ROUTES.wfmCorrections, label: "Review it here" },
       relatedObjectType: "wfm_correction_requests",
       relatedObjectId: data.id,
       relatedObjectLabel: `${empName} — ${target_date}`,

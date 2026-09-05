@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { locationRequiredFor, selfieRequiredFor, LOW_ACCURACY_THRESHOLD_M } from "@/lib/wfm/punchRules";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/lib/wfm/server";
-import { getSupervisorEmails, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
+import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 import {
   applyPunch, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
@@ -344,7 +344,8 @@ export async function POST(request: NextRequest) {
           tenantId,
           toEmails: emails,
           subject: `Late arrival — ${empName}`,
-          text: `${empName} checked in late on ${todayKey} (shift ${expected.name}, starts ${expected.start_time.slice(0, 5)}).\n\nView the live board: ${wfmUrl(ROUTES.wfmLiveBoard)}`,
+          text: `${empName} checked in late on ${todayKey} (shift ${expected.name}, starts ${expected.start_time.slice(0, 5)}).`,
+          link: { path: ROUTES.wfmLiveBoard, label: "View the live board" },
           relatedObjectType: "wfm_presence_events",
           relatedObjectId: event.id,
           relatedObjectLabel: `${empName} — ${todayKey}`,

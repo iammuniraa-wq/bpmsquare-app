@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, requireWfmEmployee, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
-import { getSupervisorEmails, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
+import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 import type { LeaveRequestStatus } from "@/lib/wfm/types";
 
@@ -121,7 +121,8 @@ export async function POST(request: NextRequest) {
       tenantId,
       toEmails: emails,
       subject: `Leave request from ${empName} — ${date_from} to ${date_to}`,
-      text: `${empName} has requested leave from ${date_from} to ${date_to}.\n\nReason: ${reason_text.trim()}\n\nReview it here: ${wfmUrl(ROUTES.wfmLeave)}`,
+      text: `${empName} has requested leave from ${date_from} to ${date_to}.\n\nReason: ${reason_text.trim()}`,
+      link: { path: ROUTES.wfmLeave, label: "Review it here" },
       relatedObjectType: "wfm_leave_requests",
       relatedObjectId: data.id,
       relatedObjectLabel: `${empName} — ${date_from} to ${date_to}`,

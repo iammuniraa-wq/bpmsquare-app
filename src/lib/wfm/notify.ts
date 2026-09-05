@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { logEmail } from "@/lib/emailLog";
 import { loadEmailOutput, resolveOutbound } from "@/lib/emailOutput";
-import { PRIMARY_HOST } from "@/lib/constants";
+import { tenantOrigin } from "@/lib/constants";
 
 /**
  * Best-effort WFM email notifications (late arrival, correction/leave
@@ -74,6 +74,11 @@ type SendParams = {
   toEmails: string[];
   subject: string;
   text: string;
+  /** Where the reader should go, as an app-relative path (ROUTES.*). The
+   *  absolute link is built HERE from the tenant's own domain -- callers
+   *  never build one, because a link built from PRIMARY_HOST sent a BIM
+   *  supervisor to the demo workspace (P1, 2026-09-06). */
+  link?: { path: string; label: string };
   relatedObjectType: string;
   relatedObjectId: string;
   relatedObjectLabel: string;
@@ -88,16 +93,20 @@ export async function sendWfmNotification(params: SendParams): Promise<void> {
 
   try {
     const admin = createAdminSupabase();
-    const { data: tenant } = await admin.from("tenants").select("name, slug").eq("id", params.tenantId).maybeSingle();
+    const { data: tenant } = await admin.from("tenants").select("name, slug, custom_domain").eq("id", params.tenantId).maybeSingle();
     const companyName = tenant?.name || "BPMSquare";
     const sendingDomain = process.env.RESEND_SENDING_DOMAIN || "bpmsquare.com";
     const fromLocalPart = (tenant?.slug || "wfm").toLowerCase().replace(/[^a-z0-9._-]/g, "");
     const fromAddress = `${companyName} <${fromLocalPart}@${sendingDomain}>`;
 
+    const text = params.link
+      ? `${params.text}\n\n${params.link.label}: ${tenantOrigin(tenant?.custom_domain as string | null)}${params.link.path}`
+      : params.text;
+
     // The email output channel decides where these really go (a demo
     // workspace never reaches anyone outside it) -- see src/lib/emailOutput.ts.
     const routed = resolveOutbound(await loadEmailOutput(admin, params.tenantId), {
-      to: recipients, subject: params.subject, text: params.text,
+      to: recipients, subject: params.subject, text,
     });
     if (!routed.ok) {
       await logEmail(params.sessionSupabase, {
@@ -138,8 +147,4 @@ export async function sendWfmNotification(params: SendParams): Promise<void> {
   } catch (e) {
     console.error("[wfm notify] failed:", e);
   }
-}
-
-export function wfmUrl(path: string): string {
-  return `https://${PRIMARY_HOST}${path}`;
 }

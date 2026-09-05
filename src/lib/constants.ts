@@ -12,6 +12,19 @@ export function isPrimaryOrDevHost(host: string): boolean {
   return host === PRIMARY_HOST || host === "localhost" || host === "127.0.0.1";
 }
 
+/**
+ * The origin a TENANT is reached at -- the only correct base for any link
+ * that leaves the system (an email, a push, an invite). A client tenant
+ * lives on its custom_domain; PRIMARY_HOST is the demo sandbox and nothing
+ * else. Building a link from PRIMARY_HOST directly sent a BIM supervisor's
+ * correction-request email to the demo workspace (P1, 2026-09-06); a unit
+ * test now fails the build if any file does that again.
+ */
+export function tenantOrigin(customDomain: string | null | undefined): string {
+  const host = (customDomain ?? "").trim() || PRIMARY_HOST;
+  return `https://${host}`;
+}
+
 // Trusted identity headers set ONLY by middleware.ts, after it has already
 // verified the session (supabase.auth.getUser(), a real network check) and
 // resolved host -> tenant + role. Server-side code (supabase-server.ts) reads

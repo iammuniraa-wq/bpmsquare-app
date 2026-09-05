@@ -68,6 +68,20 @@ touching tenant-B's row, the change isn't done yet.
       code, which is exactly the failure mode this rule prevents. If you
       touch either of those tables, write the missing migration first.
 
+## For any link that leaves the system (email, push, invite, webhook payload)
+
+- Build it from the tenant's own domain with `tenantOrigin(tenant.custom_domain)`
+  (`src/lib/constants.ts`), or from the current request's host
+  (`buildAbsoluteUrl()` in `src/lib/quotePublicLink.ts`) when you are inside
+  a request for that tenant. **Never from `PRIMARY_HOST`**: that host is the
+  demo sandbox and nothing else. On 2026-09-06 a BIM supervisor's
+  correction-request email linked to app.bpmsquare.com (P1) because
+  `wfmUrl()` did exactly that. `src/lib/tenantLinks.test.ts` now fails the
+  build if any source file interpolates `PRIMARY_HOST` into a URL.
+- The email itself must go through `resolveOutbound()`
+  (`src/lib/emailOutput.ts`) so a demo workspace can never reach a real
+  customer -- see that file's header for the two output modes.
+
 ## For any caching you add
 
 - `cache()` (React, request-scoped) and `unstable_cache` (Next.js, can

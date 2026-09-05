@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
-import { getEmployeeLoginEmail, sendWfmNotification, wfmUrl } from "@/lib/wfm/notify";
+import { getEmployeeLoginEmail, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 
 const TYPES = ["time", "selfie", "both"] as const;
@@ -117,7 +117,8 @@ export async function POST(request: NextRequest) {
         tenantId,
         toEmails: [email],
         subject: `Your attendance was flagged for review — ${target_date}`,
-        text: `Your supervisor has flagged your ${type === "both" ? "time and selfie" : type} for ${target_date} and asked you to review it.\n\n"${message.trim()}"\n\nRespond here: ${wfmUrl(ROUTES.wfmMe)}`,
+        text: `Your supervisor has flagged your ${type === "both" ? "time and selfie" : type} for ${target_date} and asked you to review it.\n\n"${message.trim()}"`,
+        link: { path: ROUTES.wfmMe, label: "Respond here" },
         relatedObjectType: "wfm_recheck_requests",
         relatedObjectId: data.id,
         relatedObjectLabel: `${empName} — ${target_date}`,
