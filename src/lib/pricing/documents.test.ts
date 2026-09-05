@@ -10,6 +10,7 @@ const result: PriceResult = {
     {
       line_no: 10, net: 1234.567, subtotals: { NET_1: 1100 }, components: { LIST_PRICE: 1000, TAX: 234.567 },
       trace: [{ step: 10, component: "LIST_PRICE", status: "APPLIED", result: 1000 }],
+      flags: [],
     },
   ],
 };
@@ -30,7 +31,7 @@ describe("buildPricingDocumentRow", () => {
     expect(row.pricing_date).toBe("2026-09-06");
     expect(row.net_total).toBe(1234.57);
     expect(row.line_count).toBe(1);
-    expect(row.result.lines[0]).toEqual({ line_no: 10, net: 1234.567, subtotals: { NET_1: 1100 }, components: { LIST_PRICE: 1000, TAX: 234.567 } });
+    expect(row.result.lines[0]).toEqual({ line_no: 10, net: 1234.567, subtotals: { NET_1: 1100 }, components: { LIST_PRICE: 1000, TAX: 234.567 }, flags: [] });
     expect(row.trace[0].steps[0].component).toBe("LIST_PRICE");
     // The trace is not duplicated inside result: one copy, one place.
     expect((row.result.lines[0] as Record<string, unknown>).trace).toBeUndefined();

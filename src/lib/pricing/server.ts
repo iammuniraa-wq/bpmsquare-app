@@ -4,8 +4,10 @@ import {
   priceDocument, PricingError,
   type PriceInput, type PriceResult, type PriceComponent, type PricingProcedure,
   type PriceRule, type DimensionRegistry, type CostModel, type CostInput, type ProcedureStep,
+  type CostSourceDef, type CostCandidate,
 } from "@/lib/pricing-core";
 import { buildPricingDocumentRow, type PricingCallMeta, type PricingDocumentRow, type PricingDocumentSource } from "./documents";
+import { productCostCandidate, PURCHASE_PATH } from "./costSheet";
 
 // Persistence adapter for the pricing engine (spec §11.1): the ONLY place
 // that maps ontology tables into the pure core's types. The core never sees
@@ -74,8 +76,10 @@ export async function loadPricingConfig(
       admin.from("pricing_components").select("*").eq("tenant_id", tenantId).eq("config_version", version),
       admin.from("pricing_rules").select("*").eq("tenant_id", tenantId).eq("config_version", version),
       admin.from("pricing_dimensions").select("attribute, weight").eq("tenant_id", tenantId),
-      admin.from("pricing_cost_models").select("code, name").eq("tenant_id", tenantId).eq("config_version", version),
-      admin.from("pricing_cost_inputs").select("*").eq("tenant_id", tenantId),
+      admin.from("pricing_cost_models").select("code, name, sources").eq("tenant_id", tenantId).eq("config_version", version),
+      // Tenant-wide rates only. Product-specific figures (an RFQ reply, an
+      // imported price-list cost) are line candidates -- see productCostCandidates.
+      admin.from("pricing_cost_inputs").select("*").eq("tenant_id", tenantId).is("product_id", null),
     ]);
 
   const registry: DimensionRegistry = {};
@@ -84,15 +88,7 @@ export async function loadPricingConfig(
   const inputsByModel = new Map<string, CostInput[]>();
   for (const i of inputs ?? []) {
     const list = inputsByModel.get(i.cost_model_code as string) ?? [];
-    list.push({
-      path: i.path as string,
-      kind: i.kind as CostInput["kind"],
-      value: Number(i.value),
-      uom: (i.uom as string) ?? null,
-      currency: (i.currency as string) ?? null,
-      valid_from: (i.valid_from as string) ?? null,
-      valid_to: (i.valid_to as string) ?? null,
-    });
+    list.push(mapCostInput(i));
     inputsByModel.set(i.cost_model_code as string, list);
   }
 
@@ -134,15 +130,63 @@ export async function loadPricingConfig(
       code: m.code as string,
       name: m.name as string,
       inputs: inputsByModel.get(m.code as string) ?? [],
+      sources: Array.isArray(m.sources) ? (m.sources as CostSourceDef[]) : null,
     })),
     registry,
   };
 }
 
+function mapCostInput(i: Record<string, unknown>): CostInput {
+  return {
+    path: i.path as string,
+    kind: i.kind as CostInput["kind"],
+    value: Number(i.value),
+    uom: (i.uom as string) ?? null,
+    currency: (i.currency as string) ?? null,
+    valid_from: (i.valid_from as string) ?? null,
+    valid_to: (i.valid_to as string) ?? null,
+    source: (i.source_code as string) ?? null,
+    quality: (i.quality as CostInput["quality"]) ?? null,
+    as_of: (i.as_of as string) ?? null,
+  };
+}
+
+/**
+ * A product's own cost figures, keyed by path, for the ladder: its ERP cost
+ * price (source PRODUCT_COST, quality actual, dated by cost_price_as_of) and
+ * every product-scoped cost input on file (RFQ replies, imported price-list
+ * costs). Tenant-scoped on both reads.
+ */
+export async function productCostCandidates(tenantId: string, productId: string): Promise<{
+  product: { id: string; name: string; cost_sheet: unknown; cost_price: number | null; cost_price_as_of: string | null; updated_at: string | null; category: string | null; sub_category: string | null } | null;
+  candidates: Record<string, CostCandidate[]>;
+}> {
+  const admin = createAdminSupabase();
+  const [{ data: product }, { data: inputs }] = await Promise.all([
+    admin.from("products").select("id, name, cost_sheet, cost_price, cost_price_as_of, updated_at, category, sub_category")
+      .eq("id", productId).eq("tenant_id", tenantId).maybeSingle(),
+    admin.from("pricing_cost_inputs").select("*").eq("tenant_id", tenantId).eq("product_id", productId),
+  ]);
+  if (!product) return { product: null, candidates: {} };
+  const candidates: Record<string, CostCandidate[]> = {};
+  const own = productCostCandidate(product as { cost_price?: number | null; cost_price_as_of?: string | null; updated_at?: string | null });
+  if (own) (candidates[PURCHASE_PATH] ??= []).push(own);
+  for (const i of inputs ?? []) {
+    const c = mapCostInput(i as Record<string, unknown>);
+    (candidates[c.path] ??= []).push({ ...c, path: c.path });
+  }
+  return { product: product as never, candidates };
+}
+
+/** The cost step could not find a figure: the NEEDS_RFQ moment. */
+export function isNeedsCost(e: unknown): e is PricingError {
+  return e instanceof PricingError && (e.code === "NO_RATE_IN_FORCE" || e.code === "COST_MISSING");
+}
+
 export type PriceCallResult = {
   result: PriceResult; config_version: number; procedure: string; calc_ms: number;
   /** The stored pricing_documents row, when the store succeeded (null while
-   *  migration 0109 is pending or the insert failed -- pricing itself never
+   *  migration 0111 is pending or the insert failed -- pricing itself never
    *  fails because the record could not be kept). */
   document_id: string | null;
 };
@@ -237,7 +281,7 @@ export async function runPrice(
 export type StoredPricingDocument = PricingDocumentRow & { id: string; created_at: string };
 
 /** One stored document, tenant-scoped. null when it does not exist (or the
- *  table does not yet -- migration 0109 pending reads as "no documents"). */
+ *  table does not yet -- migration 0111 pending reads as "no documents"). */
 export async function loadPricingDocument(tenantId: string, documentId: string): Promise<StoredPricingDocument | null> {
   const { data } = await createAdminSupabase()
     .from("pricing_documents").select("*")

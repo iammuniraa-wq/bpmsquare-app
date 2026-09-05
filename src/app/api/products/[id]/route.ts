@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { parseCostSheet } from "@/lib/pricing/costSheet";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -36,10 +37,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data", "available_segment_ids"];
+  const allowed = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data", "available_segment_ids", "cost_sheet", "cost_price_as_of"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
   patch.updated_at = new Date().toISOString();
+
+  // Cost sheet (0113): only well-formed rows survive; an empty sheet is
+  // stored as null ("one bought-in part at cost_price").
+  if ("cost_sheet" in patch) {
+    const rows = patch.cost_sheet === null ? [] : parseCostSheet(patch.cost_sheet);
+    if (patch.cost_sheet !== null && !Array.isArray(patch.cost_sheet)) return NextResponse.json({ error: "cost_sheet must be an array" }, { status: 400 });
+    patch.cost_sheet = rows.length > 0 ? rows : null;
+  }
+  if ("cost_price_as_of" in patch) {
+    const v = patch.cost_price_as_of;
+    if (v !== null && v !== "" && !(typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v))) {
+      return NextResponse.json({ error: "cost_price_as_of must be yyyy-mm-dd" }, { status: 400 });
+    }
+    patch.cost_price_as_of = v === "" ? null : v;
+  }
 
   // available_segment_ids (Coverage) are foreign ids from the request body --
   // verify each belongs to this tenant before writing (MULTI_TENANT_GUARDRAILS.md).

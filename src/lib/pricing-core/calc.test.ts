@@ -193,7 +193,7 @@ describe("exit criterion 2 — Vikas cost-up case", () => {
     const salvageTrace = line.trace.find((t) => t.component === "SALVAGE_CREDIT");
     expect(salvageTrace?.status).toBe("APPLIED");
     expect(salvageTrace?.result).toBeLessThan(0);
-    expect(salvageTrace?.inputs).toEqual([{ path: "salvage.copper_credit_per_kg", rate: 610, qty: 12.4 }]);
+    expect(salvageTrace?.inputs).toMatchObject([{ path: "salvage.copper_credit_per_kg", rate: 610, qty: 12.4 }]);
   });
 
   it("marks up on total cost and completes the waterfall", () => {

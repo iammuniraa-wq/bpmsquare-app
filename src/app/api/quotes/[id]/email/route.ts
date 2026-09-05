@@ -7,6 +7,8 @@ import { logEmail } from "@/lib/emailLog";
 import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
 import { Resend } from "resend";
 import { getGmailConnectorCredentials, findOriginalMessage, sendViaGmail, stripReplyPrefixes, buildReplySubject } from "@/lib/connectors/gmailReply";
+import { blockingLines } from "@/lib/pricing/quoteLineFlags";
+import type { LineFlag } from "@/lib/pricing-core";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -43,6 +45,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!data || !tenant) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
 
   const { quote, account, contact } = data;
+
+  // Pricing guardrails (cost-based step 2, owner decision: block). A line
+  // the engine flagged under a "block" policy holds the whole quote until
+  // it is approved -- batch 3 adds the approval; until then it waits.
+  const { data: flaggedLines } = await supabase
+    .from("quote_lines").select("sl_no, description, pricing_flags")
+    .eq("quote_id", id).eq("tenant_id", tenantId).not("pricing_flags", "is", null);
+  const blocked = blockingLines((flaggedLines ?? []) as { sl_no?: string | null; description?: string; pricing_flags?: LineFlag[] | null }[]);
+  if (blocked.length > 0) {
+    return NextResponse.json({
+      error: `This quote can't be sent: ${blocked.map((b) => `line ${b.label} is below the ${b.flag.floor_pct}% margin floor (${b.flag.actual_pct}%)`).join("; ")}. Re-price it, or wait for pricing approval.`,
+      pricing_blocked: blocked,
+    }, { status: 409 });
+  }
 
   if (!process.env.RESEND_API_KEY) {
     return NextResponse.json({ error: "Email sending isn't configured yet (missing RESEND_API_KEY)." }, { status: 500 });

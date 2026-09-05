@@ -5,6 +5,7 @@ import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/c
 import { parseDateOverride } from "@/lib/dateProfile";
 import { getTenant } from "@/lib/tenant";
 import { accountMatchesAnySegment } from "@/lib/coverage/resolve";
+import { derivePricingFlags, withPricingColumns, insertQuoteLinesTolerant } from "@/lib/pricing/quoteLineFlags";
 import type { Account } from "@/lib/types";
 
 // Full edit of a DRAFT quote: header fields + line items (replaced wholesale).
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             deduction,
             inventory_item_id: l.inventory_item_id ?? null,
             product_id:        l.product_id        ?? null,
+            pricing_document_id: typeof l.pricing_document_id === "string" && l.pricing_document_id ? l.pricing_document_id : null,
           };
         })
     : [];
@@ -216,7 +218,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
   if (cleanLines.length > 0) {
-    const { error: iErr } = await admin.from("quote_lines").insert(cleanLines);
+    // Pricing document ids are foreign ids from the body: verified against
+    // the tenant, flags derived server-side (never trusted from the client).
+    const derived = await derivePricingFlags(admin, tenantId, cleanLines);
+    const rowsToInsert = derived.ok ? withPricingColumns(cleanLines, derived.flagsByDocument) : cleanLines;
+    const { error: iErr } = await insertQuoteLinesTolerant(admin, rowsToInsert);
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
   }
 

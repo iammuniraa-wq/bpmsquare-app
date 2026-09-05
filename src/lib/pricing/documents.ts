@@ -3,7 +3,7 @@
 // No framework imports so it is unit-testable and importable from client
 // code (the cockpit renders rows shaped like PricingDocumentRow).
 
-import type { PriceInput, PriceResult, TraceStep } from "@/lib/pricing-core";
+import type { LineFlag, PriceInput, PriceResult, TraceStep } from "@/lib/pricing-core";
 
 export const PRICING_DOCUMENT_SOURCES = ["api", "quote", "standard_quote", "work_order", "test", "simulation"] as const;
 export type PricingDocumentSource = (typeof PRICING_DOCUMENT_SOURCES)[number];
@@ -31,7 +31,7 @@ export type PricingDocumentRow = {
   result: {
     currency: string | null;
     totals: PriceResult["totals"];
-    lines: { line_no: number; net: number; subtotals: Record<string, number>; components: Record<string, number> }[];
+    lines: { line_no: number; net: number; subtotals: Record<string, number>; components: Record<string, number>; flags: LineFlag[] }[];
   };
   trace: { line_no: number; steps: TraceStep[] }[];
   currency: string | null;
@@ -70,7 +70,7 @@ export function buildPricingDocumentRow(args: {
     result: {
       currency: result.currency,
       totals: result.totals,
-      lines: result.lines.map((l) => ({ line_no: l.line_no, net: l.net, subtotals: l.subtotals, components: l.components })),
+      lines: result.lines.map((l) => ({ line_no: l.line_no, net: l.net, subtotals: l.subtotals, components: l.components, flags: l.flags ?? [] })),
     },
     trace: result.lines.map((l) => ({ line_no: l.line_no, steps: l.trace })),
     currency: result.currency,
