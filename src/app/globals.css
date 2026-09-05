@@ -344,7 +344,14 @@
    would darken the top bar and open-record tab strip too. Values are the
    same proven dark-navy family nextgen's own dark mode already uses just
    above, not invented fresh. */
-[data-theme="nextgen"][data-enterprise="true"] .bpm-sidebar-rail {
+/* The same rail as an opt-in switch (config.appearance.navy_sidebar), for a
+   nextgen workspace that wants the navy chrome without adopting the whole
+   Enterprise direction. Scoped :not([data-mode="dark"]) because this one is a
+   LIGHT-mode choice -- the owner's ask was "dark mode is fine, navy the left
+   nav in bright mode", and in dark mode nextgen's own dark rail already
+   applies. Sharing the selector list keeps one set of values for both. */
+[data-theme="nextgen"][data-enterprise="true"] .bpm-sidebar-rail,
+[data-theme="nextgen"][data-navy-rail="true"]:not([data-mode="dark"]) .bpm-sidebar-rail {
   --sidebar-grad: linear-gradient(180deg, #152233 0%, #0e1a28 100%);
   /* Brightened 2026-09-06 (owner). The dim tiers were carried over from a
      light rail and never re-measured against navy: --sb-text-faint at #4a6070

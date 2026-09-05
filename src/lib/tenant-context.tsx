@@ -99,12 +99,24 @@ export function useUiTheme(): "classic" | "modern" | "nextgen" {
  * saved choice) now falls back to plain nextgen rather than rendering. */
 export function useIsEnterpriseSidebar(): boolean {
   const { tenant } = useContext(TenantContext);
+  return tenant?.config?.appearance?.ui_theme === "enterprise"
+    && tenant?.features?.enterprise_theme === true;
+}
+
+/**
+ * The navy rail as a plain switch, for a nextgen workspace that wants the
+ * dark left rail without adopting the whole Enterprise theme.
+ *
+ * Deliberately NOT folded into useIsEnterpriseSidebar(): that hook also
+ * forces light mode (the Enterprise direction is light-only by design, see
+ * Shell's `mode`), so reusing it would have made turning this on silently
+ * disable dark mode and hide its toggle. The owner's request was the
+ * opposite -- "dark mode is fine, navy the left nav in bright mode" -- so
+ * this stamps its own attribute and the CSS applies only outside dark mode.
+ */
+export function useNavySidebar(): boolean {
+  const { tenant } = useContext(TenantContext);
   const ap = tenant?.config?.appearance;
-  if (ap?.ui_theme === "enterprise" && tenant?.features?.enterprise_theme === true) return true;
-  // Owner decision 2026-09-06: the navy rail is also a plain switch a nextgen
-  // workspace can flip for itself, without adopting the whole Enterprise
-  // theme or needing the platform-admin flag. Purely a colour change -- it
-  // carries none of the experimental behaviour the flag exists to fence off.
   return isNextgenFamily(ap?.ui_theme) && ap?.navy_sidebar === true;
 }
 

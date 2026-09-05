@@ -11,7 +11,7 @@ import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
-import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useIsEnterpriseSidebar, useTopBarIdentity, useCommandPalette } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useIsEnterpriseSidebar, useNavySidebar, useTopBarIdentity, useCommandPalette } from "@/lib/tenant-context";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
@@ -289,6 +289,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const topBarIdentity = useTopBarIdentity();
   const commandPalette = useCommandPalette();
   const isEnterprise = useIsEnterpriseSidebar();
+  // The navy rail as an opt-in, kept apart from the Enterprise theme above:
+  // that one is light-only, this one must leave dark mode alone.
+  const navyRail = useNavySidebar();
   const aiAllowed = useTenantFeature("ai_assistant") && uiTheme !== "classic";
   const [dark, setDark] = useState(false);
 
@@ -327,7 +330,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return (
       <FeelProvider>
       <TabsProvider trackTabs={false}>
-        <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
+        <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
           <MobileTopBar />
           <main style={{
             flex: 1, minWidth: 0, overflowX: "auto",
@@ -359,7 +362,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <FeelProvider>
     <TabsProvider>
-      <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
+      <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
         {nova ? <NovaSidebar /> : <Sidebar />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
