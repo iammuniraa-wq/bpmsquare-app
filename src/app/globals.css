@@ -689,10 +689,14 @@ a { color: inherit; text-decoration: none; }
    of sitting at the end of it -- on a screen of collapsed sections the button
    would otherwise be a scroll away from whatever was just changed. */
 .set-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px 20px; }
-.set-savebar { position: sticky; bottom: 0; z-index: 5; }
+/* Any form long enough that its submit would otherwise sit two screens below
+   the field you are filling in -- settings, and the project form. */
+.set-savebar, .sticky-actions { position: sticky; bottom: 0; z-index: 5; }
 
 @media (max-width: 780px) {
   .set-grid { grid-template-columns: 1fr !important; gap: 14px !important; }
+  .sticky-actions { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+  .set-page, .sticky-actions-page { padding-bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
   /* Clear the fixed bottom tab bar, or Save lands underneath it. The page
      needs the matching clearance too: a sticky element stops lifting once it
      reaches its own place in the flow, so without room below it the bar would

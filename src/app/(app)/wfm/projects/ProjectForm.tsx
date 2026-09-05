@@ -366,7 +366,7 @@ export default function ProjectForm({
   }
 
   return (
-    <form onSubmit={save} style={{ maxWidth: 760 }}>
+    <form onSubmit={save} className="sticky-actions-page" style={{ maxWidth: 760 }}>
       <div style={{ ...cardStyle, padding: 20 }}>
         {isSub && (
           <div style={{ marginBottom: 16 }}>
@@ -557,7 +557,18 @@ export default function ProjectForm({
 
       {error && <div style={{ marginTop: 14, fontSize: 12.5, color: statusInk.bad }}>{error}</div>}
 
-      <div style={{ marginTop: 18, display: "flex", gap: 10 }}>
+      {/* Follows the page. This form runs to two screens once the linking
+          section is open, and a submit parked under all of it means scrolling
+          past everything to commit the field you just filled in. */}
+      <div
+        className="sticky-actions"
+        style={{
+          marginTop: 18, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap",
+          padding: "12px 14px",
+          background: "var(--card-bg)", border: "1px solid var(--line)",
+          borderRadius: "var(--card-radius)", boxShadow: "var(--card-shadow)",
+        }}
+      >
         <button
           type="submit"
           disabled={saving}
@@ -585,6 +596,11 @@ export default function ProjectForm({
         >
           Cancel
         </button>
+        {isSub && !editing && (
+          <span style={{ fontSize: 11.5, color: c.hint }}>
+            Goes under <strong style={{ color: c.muted }}>{parentOptions.find((o) => o.id === parentSel)?.name ?? "—"}</strong>
+          </span>
+        )}
       </div>
     </form>
   );

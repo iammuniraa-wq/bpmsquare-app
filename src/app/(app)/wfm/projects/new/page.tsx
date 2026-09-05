@@ -31,7 +31,12 @@ export default async function NewWfmProjectPage({
             : "A project is what worked hours get attributed to. Its ID is assigned automatically."
         }
       />
-      <ProjectForm parentId={parent ?? null} />
+      {/* Keyed by the parent, so "Save & add sub-project" gets a FRESH form.
+          It navigates from /new to /new?parent=… -- the same route, so React
+          reuses the component and useState initialisers never re-run; without
+          this the child form opened holding the project's own dates, budget
+          and an empty "Sits under" that rendered as Level 0. */}
+      <ProjectForm key={parent ?? "top"} parentId={parent ?? null} />
     </>
   );
 }
