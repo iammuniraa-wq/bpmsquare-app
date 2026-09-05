@@ -4,6 +4,7 @@ import { getTenant } from "@/lib/tenant";
 import { decryptAccount, decryptContact } from "@/lib/encryption";
 import { renderTemplate, DEFAULT_EMAIL_TEMPLATES } from "@/lib/emailTemplates";
 import { logEmail } from "@/lib/emailLog";
+import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
 import { Resend } from "resend";
 import type { Account, Contact } from "@/lib/types";
 
@@ -156,16 +157,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     text = text || renderTemplate(fallback.body, vars);
   }
 
+  // The email output channel decides where this really goes (a demo
+  // workspace never reaches a customer) -- see src/lib/emailOutput.ts.
+  const routed = resolveOutbound(emailOutputFor(tenant), { to, subject, text });
+  if (!routed.ok) return NextResponse.json({ error: routed.error }, { status: 400 });
+  const mail = routed.email;
+
   const resend = new Resend(process.env.RESEND_API_KEY);
   const result = await resend.emails.send({
-    from: fromAddress, to, replyTo, subject, text,
+    from: fromAddress, to: mail.to, replyTo, subject: mail.subject, text: mail.text,
     attachments: [{ filename: `${invoice.ref}.pdf`, content: pdfBuffer }],
   });
   const sendError = result.error ?? null;
 
   const user = await getAuthUser();
-  await Promise.all(to.map((addr) => logEmail(supabase, {
-    tenantId, kind: "invoice", toEmail: addr, subject,
+  await Promise.all(mail.to.map((addr) => logEmail(supabase, {
+    tenantId, kind: "invoice", toEmail: addr, subject: mail.subject,
     status: sendError ? "failed" : "sent", error: sendError?.message,
     relatedObjectType: "invoices", relatedObjectId: invoice.id as string, relatedObjectLabel: invoice.ref as string,
     actorId: user?.id, actorEmail: user?.email,
@@ -184,9 +191,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (account) {
     await supabase.from("activities").insert({
       tenant_id: tenantId, account_id: account.id, pillar: "sales",
-      text: `Invoice ${invoice.ref} emailed to ${to.join(", ")}`,
+      text: mail.redirected
+        ? `Invoice ${invoice.ref} emailed to ${mail.to.join(", ")} (redirected; addressed to ${mail.intended.join(", ")})`
+        : `Invoice ${invoice.ref} emailed to ${mail.to.join(", ")}`,
     });
   }
 
-  return NextResponse.json({ ok: true, sentTo: to });
+  return NextResponse.json({ ok: true, sentTo: mail.to, redirected: mail.redirected, intended: mail.intended });
 }

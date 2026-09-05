@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { logEmail } from "@/lib/emailLog";
+import { loadEmailOutput, resolveOutbound } from "@/lib/emailOutput";
 import { PRIMARY_HOST } from "@/lib/constants";
 
 /**
@@ -93,12 +94,28 @@ export async function sendWfmNotification(params: SendParams): Promise<void> {
     const fromLocalPart = (tenant?.slug || "wfm").toLowerCase().replace(/[^a-z0-9._-]/g, "");
     const fromAddress = `${companyName} <${fromLocalPart}@${sendingDomain}>`;
 
+    // The email output channel decides where these really go (a demo
+    // workspace never reaches anyone outside it) -- see src/lib/emailOutput.ts.
+    const routed = resolveOutbound(await loadEmailOutput(admin, params.tenantId), {
+      to: recipients, subject: params.subject, text: params.text,
+    });
+    if (!routed.ok) {
+      await logEmail(params.sessionSupabase, {
+        tenantId: params.tenantId, kind: "wfm", toEmail: recipients.join(", "), subject: params.subject,
+        status: "failed", error: routed.error,
+        relatedObjectType: params.relatedObjectType, relatedObjectId: params.relatedObjectId,
+        relatedObjectLabel: params.relatedObjectLabel, actorId: params.actorId ?? null, actorEmail: params.actorEmail ?? null,
+      });
+      return;
+    }
+    const mail = routed.email;
+
     const resend = new Resend(process.env.RESEND_API_KEY);
-    for (const toEmail of recipients) {
+    for (const toEmail of mail.to) {
       let status: "sent" | "failed" = "sent";
       let errorMsg: string | null = null;
       try {
-        const result = await resend.emails.send({ from: fromAddress, to: toEmail, subject: params.subject, text: params.text });
+        const result = await resend.emails.send({ from: fromAddress, to: toEmail, subject: mail.subject, text: mail.text });
         if (result.error) { status = "failed"; errorMsg = result.error.message; }
       } catch (e) {
         status = "failed";
@@ -108,7 +125,7 @@ export async function sendWfmNotification(params: SendParams): Promise<void> {
         tenantId: params.tenantId,
         kind: "wfm",
         toEmail,
-        subject: params.subject,
+        subject: mail.subject,
         status,
         error: errorMsg,
         relatedObjectType: params.relatedObjectType,

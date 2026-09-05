@@ -890,6 +890,21 @@ export type TenantConfig = {
   // tenant's own external source cards. Absent = every built-in card, default
   // order, no external sources.
   account_360?: Account360Config;
+  // Email output channel (owner requirement 2026-09-06, modelled on SAP C4C's
+  // Email and Fax Settings). "partners" sends to the address on the account,
+  // contact or employee record; "redirect" sends EVERY outbound email from
+  // any transaction to the one address here instead, subject-tagged with the
+  // intended recipient. A demo workspace (tenants.is_demo) is always in
+  // redirect mode regardless of this value -- see src/lib/emailOutput.ts --
+  // so no test document can ever reach a real customer. Absent = partners.
+  email_output?: EmailOutputConfig;
+};
+
+export type EmailOutputMode = "partners" | "redirect";
+export type EmailOutputConfig = {
+  mode: EmailOutputMode;
+  /** The single internal inbox everything lands in under "redirect". */
+  redirect_to: string;
 };
 
 // Account 360 — an external source the tenant plugged in (an ERP, a

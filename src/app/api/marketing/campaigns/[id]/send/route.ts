@@ -9,6 +9,7 @@ import { signCampaignInterestToken } from "@/lib/campaignInterestLink";
 import { buildAbsoluteUrl } from "@/lib/quotePublicLink";
 import { ROUTES } from "@/lib/constants";
 import { logEmail } from "@/lib/emailLog";
+import { loadEmailOutput, resolveOutbound } from "@/lib/emailOutput";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   const resend = new Resend(process.env.RESEND_API_KEY);
+  const output = await loadEmailOutput(supabase, tenantId);
   const user = await getAuthUser();
   let sent = 0, failed = 0, skipped = 0;
 
@@ -108,14 +110,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       : "";
     const textFooter = [interestUrl ? `\nInterested? Tell us more: ${interestUrl}` : "", unsubUrl ? `\n\n---\nUnsubscribe: ${unsubUrl}` : ""].join("");
 
-    const { error: sendError } = await resend.emails.send({
-      from: fromAddress,
-      to: candidate.email,
-      replyTo,
-      subject,
+    // The email output channel decides where this really goes (a demo
+    // workspace never reaches a customer) -- see src/lib/emailOutput.ts.
+    const routed = resolveOutbound(output, {
+      to: [candidate.email], subject,
       html: bodyHtml + interestBlock + footer,
       text: richTextToPlainText(bodyHtml) + textFooter,
     });
+    const sendError = routed.ok
+      ? (await resend.emails.send({
+          from: fromAddress,
+          to: routed.email.to,
+          replyTo,
+          subject: routed.email.subject,
+          html: routed.email.html,
+          text: routed.email.text,
+        })).error
+      : { message: routed.error };
 
     if (sendError) {
       await Promise.all([

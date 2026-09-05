@@ -4,6 +4,7 @@ import { getQuote } from "@/lib/data";
 import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { renderTemplate, DEFAULT_EMAIL_TEMPLATES } from "@/lib/emailTemplates";
 import { logEmail } from "@/lib/emailLog";
+import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
 import { Resend } from "resend";
 import { getGmailConnectorCredentials, findOriginalMessage, sendViaGmail, stripReplyPrefixes, buildReplySubject } from "@/lib/connectors/gmailReply";
 
@@ -103,17 +104,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     text = text || renderTemplate(fallback.body, vars);
   }
 
+  // The email output channel decides where this really goes (a demo
+  // workspace never reaches a customer) -- see src/lib/emailOutput.ts.
+  const routed = resolveOutbound(emailOutputFor(tenant), { to: [recipient], subject, text });
+  if (!routed.ok) return NextResponse.json({ error: routed.error }, { status: 400 });
+  const mail = routed.email;
+  subject = mail.subject;
+  text = mail.text;
+
   // If this tenant has a connected Gmail account, try to thread this send
   // into the customer's original email as a real reply -- same App Password
   // the connector already uses to send its test email, just also used here
   // to read (IMAP) before sending (SMTP). Best-effort only: any failure at
   // any step (not connected, no match found, IMAP/SMTP error) silently falls
   // back to the existing Resend send below, which is always the safety net.
+  // Never attempted for a redirected message: threading into the customer's
+  // own conversation is the one thing a redirect exists to prevent.
   let sendError: { message: string } | null = null;
   let sentViaGmail = false;
   let finalSubject = subject;
 
-  const gmailCreds = (await tenantHasFeature(supabase, tenantId, "gmail_reply_threading"))
+  const gmailCreds = !mail.redirected && (await tenantHasFeature(supabase, tenantId, "gmail_reply_threading"))
     ? await getGmailConnectorCredentials(supabase, tenantId)
     : null;
   if (gmailCreds) {
@@ -147,7 +158,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const resend = new Resend(process.env.RESEND_API_KEY);
     const result = await resend.emails.send({
       from: fromAddress,
-      to: recipient,
+      to: mail.to,
       replyTo,
       subject,
       text,
@@ -158,7 +169,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const user = await getAuthUser();
   await logEmail(supabase, {
-    tenantId, kind: "quote", toEmail: recipient, subject: sentViaGmail ? finalSubject : subject,
+    tenantId, kind: "quote", toEmail: mail.to.join(", "), subject: sentViaGmail ? finalSubject : subject,
     status: sendError ? "failed" : "sent",
     error: sendError?.message,
     relatedObjectType: "quotes", relatedObjectId: quote.id, relatedObjectLabel: quote.ref,
@@ -186,9 +197,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       tenant_id: tenantId,
       account_id: account.id,
       pillar: "sales",
-      text: `Quote ${quote.ref} emailed to ${recipient}`,
+      text: mail.redirected
+        ? `Quote ${quote.ref} emailed to ${mail.to.join(", ")} (redirected; addressed to ${recipient})`
+        : `Quote ${quote.ref} emailed to ${recipient}`,
     });
   }
 
-  return NextResponse.json({ ok: true, sentTo: recipient });
+  return NextResponse.json({ ok: true, sentTo: mail.to.join(", "), redirected: mail.redirected, intended: recipient });
 }

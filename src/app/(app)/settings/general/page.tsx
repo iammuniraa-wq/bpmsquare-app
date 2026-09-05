@@ -9,6 +9,7 @@ import { NAV, ROUTES, QUOTE_TYPES } from "@/lib/constants";
 import type { QuoteTypeId, TenantConfig } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import SettingsSection from "@/components/settings/SettingsSection";
+import EmailOutputSection from "./EmailOutputSection";
 import { useTenant, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
 import Pager from "@/components/Pager";
@@ -714,6 +715,9 @@ export default function GeneralSettingsPage() {
           </button>
         </div>
       </Section>
+
+      {/* ── Email output — where outbound mail really goes (admin only) ── */}
+      {role === "admin" && <EmailOutputSection accent={accent} />}
 
       {/* ── 4. Integrations ── */}
       <Section
