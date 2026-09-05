@@ -472,6 +472,12 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
+- **0115_pricing_cost_input_purchase_kind.sql — PENDING on both DBs**
+  (found on the 2026-09-06 demo walk: "Save as confirmed cost" on an RFQ
+  reply failed with `pricing_cost_inputs_kind_check` because 0083's check
+  never learned the PURCHASE kind 0113 introduced). Widens the check; run
+  AFTER 0113. Until applied the reply route answers 503 naming this
+  migration, and the Advanced cockpit cannot save a PURCHASE cost input.
 - **0114_standard_quotes_pricing.sql — PENDING on both DBs** (written
   2026-09-06 after the owner's call that the engine demo runs on Standard
   Quotes, not Quotations — Quotations are Vikas-specific): run AFTER 0113.

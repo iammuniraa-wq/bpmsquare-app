@@ -104,7 +104,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { data: ci, error: ciErr } = await admin.from("pricing_cost_inputs")
       .upsert(input, { onConflict: "tenant_id,cost_model_code,path,source_key,product_key,valid_from_key" })
       .select("id").single();
-    if (ciErr) return NextResponse.json({ error: `Could not record the cost: ${ciErr.message}` }, { status: 500 });
+    if (ciErr) {
+      // 23514 on the kind check: 0115 (PURCHASE kind) not applied yet.
+      if (ciErr.code === "23514" && /kind/.test(ciErr.message)) {
+        return NextResponse.json({ error: "Recording an RFQ reply needs migration 0115 applied to this database (the PURCHASE cost kind)." }, { status: 503 });
+      }
+      return NextResponse.json({ error: `Could not record the cost: ${ciErr.message}` }, { status: 500 });
+    }
 
     const { error } = await admin.from("pricing_rfqs").update({
       status: "replied", reply_value: value, reply_currency: currency, reply_valid_from: validFrom, reply_valid_to: validTo,
