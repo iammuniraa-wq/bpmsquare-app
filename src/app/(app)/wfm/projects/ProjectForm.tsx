@@ -8,6 +8,7 @@ import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import type { WfmProject, WfmProjectStatus } from "@/lib/wfm/types";
 import { depthOf, descendantsOf, canNest, MAX_LEVEL } from "@/lib/wfm/projectTree";
+import SettingsSection from "@/components/settings/SettingsSection";
 
 const STATUSES: { value: WfmProjectStatus; label: string; hint: string }[] = [
   { value: "active", label: "Active", hint: "Collecting hours now" },
@@ -289,6 +290,16 @@ export default function ProjectForm({
 
   const linkCount = siteIds.length + employeeIds.length + shiftIds.length;
 
+  /** What the collapsed linking section says it holds, so the common case --
+   *  checking rather than changing -- needs no click. */
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const linkSummary =
+    [
+      employeeIds.length ? plural(employeeIds.length, "person", "people") : null,
+      shiftIds.length ? plural(shiftIds.length, "shift", "shifts") : null,
+      siteIds.length ? plural(siteIds.length, "site", "sites") : null,
+    ].filter(Boolean).join(" · ") || "Nothing linked — hours come from the roster only";
+
   // ── Where this sits, and therefore what level it is ───────────────────────
   const nodes = new Map(tree.map((t) => [t.id, { id: t.id, parent_id: t.parent_id }]));
   const depthFor = (id: string) => depthOf(nodes, id) ?? 0;
@@ -480,9 +491,12 @@ export default function ProjectForm({
         )}
       </div>
 
-      <div style={{ ...cardStyle, padding: 20, marginTop: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: c.ink }}>Where its hours come from</div>
-        <div style={{ fontSize: 12.5, color: c.muted, marginTop: 4, lineHeight: 1.55 }}>
+      {/* Collapsed by default: four pickers of chips is most of this form's
+          height, and creating a project rarely needs any of them -- the header
+          says what is linked, so it only opens when that is what you came for. */}
+      <div style={{ marginTop: 16 }}>
+      <SettingsSection id="wfm-project-links" title="Where its hours come from" summary={linkSummary}>
+        <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 4, lineHeight: 1.55 }}>
           Link this project to whatever fits — any mix, or none at all. Nobody has to pick a
           project when they punch; it&apos;s worked out from these.
         </div>
@@ -553,6 +567,7 @@ export default function ProjectForm({
             You can still put people on it day by day from the roster.
           </div>
         )}
+      </SettingsSection>
       </div>
 
       {error && <div style={{ marginTop: 14, fontSize: 12.5, color: statusInk.bad }}>{error}</div>}
