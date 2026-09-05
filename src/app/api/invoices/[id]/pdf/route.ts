@@ -89,7 +89,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   } catch (e: unknown) {
     console.error("[invoices/pdf] render failed", e);
-    return NextResponse.json({ error: "PDF generation failed" }, { status: 500 });
+    // Same as the quote route: the message names the failing step (browser
+    // launch, navigation, print), which a blanket "failed" hides.
+    const detail = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: `PDF generation failed: ${detail}` }, { status: 500 });
   } finally {
     await browser?.close();
   }
