@@ -35,7 +35,7 @@ export default async function WfmRosterPage() {
       <TabTitle title="Workforce — Roster" />
       <PageHeader
         title="Roster"
-        subtitle="Assign standing shifts to whole groups of employees at once, and apply temporary overrides — a different shift or a day off — to selected employees for specific dates."
+        subtitle="Everyone's standing site and shift; shift changes and days off for specific dates; and who is on which project, by date."
       />
       <RosterClient initial={initial} />
     </>

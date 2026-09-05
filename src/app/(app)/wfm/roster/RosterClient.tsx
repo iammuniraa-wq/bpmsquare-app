@@ -7,6 +7,7 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { ROUTES } from "@/lib/constants";
 import type { WfmShift, WfmSite } from "@/lib/wfm/types";
+import { depthOf } from "@/lib/wfm/projectTree";
 
 type EmployeeRow = {
   id: string;
@@ -127,6 +128,71 @@ const MatrixRow = memo(function MatrixRow({
   );
 });
 
+/**
+ * Pick employees for a dated assignment: search, filter by site, tick.
+ * Shared by the shift-change and project sections so the two behave the
+ * same -- before the split, the one form held both, and putting someone on
+ * a project meant walking through a section named for shift changes.
+ */
+function EmployeePicker({ employees, sites, selected, onChange }: {
+  employees: EmployeeRow[];
+  sites: WfmSite[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [site, setSite] = useState("");
+  const needle = q.trim().toLowerCase();
+  const visible = employees.filter((e) =>
+    e.status === "active" &&
+    (!needle || empName(e).toLowerCase().includes(needle) || (e.employee_code ?? "").toLowerCase().includes(needle)) &&
+    (!site || (site === UNASSIGNED ? e.site_id === null : e.site_id === site))
+  );
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    onChange(next);
+  };
+  const selectAll = () => {
+    const next = new Set(selected);
+    for (const e of visible) next.add(e.id);
+    onChange(next);
+  };
+  return (
+    <>
+      <label style={lbl}>Employees ({selected.size} selected)</label>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <input style={{ ...inp, width: 220 }} placeholder="Search employee name or code…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select style={{ ...inp, width: 180 }} value={site} onChange={(e) => setSite(e.target.value)}>
+          <option value="">All sites</option>
+          {sites.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          <option value={UNASSIGNED}>Unassigned site</option>
+        </select>
+        <button style={btnTiny} onClick={selectAll}>Select all{needle || site ? " filtered" : ""}</button>
+        <button style={btnTiny} onClick={() => onChange(new Set())}>Clear selection</button>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflowY: "auto", padding: 8, border: `1px solid ${c.line}`, borderRadius: 8, marginBottom: 12 }}>
+        {visible.map((e) => (
+          <label
+            key={e.id}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, fontSize: 12, padding: "4px 8px",
+              borderRadius: 6, cursor: "pointer",
+              background: selected.has(e.id) ? "var(--tenant-accent, #378ADD)" : c.panel,
+              color: selected.has(e.id) ? "#fff" : c.ink,
+              border: `1px solid ${selected.has(e.id) ? "transparent" : c.line}`,
+            }}
+          >
+            <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggle(e.id)} style={{ cursor: "pointer" }} />
+            {empName(e)}{e.employee_code ? ` (${e.employee_code})` : ""}
+          </label>
+        ))}
+        {visible.length === 0 && <span style={{ fontSize: 12, color: c.hint }}>No employees match.</span>}
+      </div>
+    </>
+  );
+}
+
 export default function RosterClient({ initial = null }: {
   initial?: { employees: EmployeeRow[]; shifts: WfmShift[]; sites: WfmSite[]; overrides: OverrideRow[] } | null;
 }) {
@@ -146,24 +212,33 @@ export default function RosterClient({ initial = null }: {
   const [savingA, setSavingA] = useState(false);
   const [okA, setOkA] = useState("");
 
-  // ── Section B: temporary overrides ───────────────────────────────────
-  const [searchB, setSearchB] = useState("");
-  const [siteFilterB, setSiteFilterB] = useState("");
+  // ── Section B: shift changes and days off ────────────────────────────
   const [selectedB, setSelectedB] = useState<Set<string>>(new Set());
   const [fromDate, setFromDate] = useState(todayKey());
   const [toDate, setToDate] = useState(todayKey());
   const [overrideShiftId, setOverrideShiftId] = useState("");
-  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projects, setProjects] = useState<{ id: string; name: string; ref: string | null; parent_id: string | null }[]>([]);
   // Whether the tenant HAS project costing, which is a different question from
   // whether they have created any projects yet. The endpoint 404s when the
   // module is off, so an ok response is the signal. Keeping these apart is
   // what stops "no projects yet" from looking identical to "feature missing".
   const [projectsOn, setProjectsOn] = useState(false);
-  const [overrideProjectId, setOverrideProjectId] = useState("");
   const [overrideDayOff, setOverrideDayOff] = useState(false);
   const [busyB, setBusyB] = useState(false);
   const [errorB, setErrorB] = useState("");
   const [okB, setOkB] = useState("");
+
+  // ── Section C: project assignments (owner 2026-09-06) ────────────────
+  // Its own section, not a field inside the shift form: assigning a project
+  // shares the shift form's mechanics (dates, people) but nothing of its
+  // meaning, and the one control that mattered was labelled "site default".
+  const [selectedC, setSelectedC] = useState<Set<string>>(new Set());
+  const [fromC, setFromC] = useState(todayKey());
+  const [toC, setToC] = useState(todayKey());
+  const [projectC, setProjectC] = useState("");
+  const [busyC, setBusyC] = useState(false);
+  const [errorC, setErrorC] = useState("");
+  const [okC, setOkC] = useState("");
 
   const load = useCallback(async () => {
     const from = todayKey();
@@ -337,46 +412,24 @@ export default function RosterClient({ initial = null }: {
     }
   }
 
-  // ── Section B logic ───────────────────────────────────────────────────
-  const qB = searchB.trim().toLowerCase();
-  const visibleEmployeesB = useMemo(
-    () => employees.filter((e) =>
-      e.status === "active" &&
-      (!qB || empName(e).toLowerCase().includes(qB) || (e.employee_code ?? "").toLowerCase().includes(qB)) &&
-      (!siteFilterB || (siteFilterB === UNASSIGNED ? e.site_id === null : e.site_id === siteFilterB))
-    ),
-    [employees, qB, siteFilterB]
+  // ── Project options, indented by level so a sub-project reads as one ──
+  const projectNodes = useMemo(
+    () => new Map(projects.map((p) => [p.id, { id: p.id, parent_id: p.parent_id }])),
+    [projects]
   );
-
-  function toggleB(id: string) {
-    setSelectedB((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
-  function selectAllVisibleB() {
-    setSelectedB((prev) => {
-      const next = new Set(prev);
-      for (const e of visibleEmployeesB) next.add(e.id);
-      return next;
-    });
-  }
-  function clearSelectionB() {
-    setSelectedB(new Set());
-  }
+  const projectOptions = useMemo(
+    () => [...projects]
+      .sort((a, b) => (a.ref ?? "").localeCompare(b.ref ?? "", undefined, { numeric: true }))
+      .map((p) => ({ ...p, depth: depthOf(projectNodes, p.id) ?? 0 })),
+    [projects, projectNodes]
+  );
+  const projectName = projects.find((p) => p.id === projectC)?.name ?? "";
 
   async function applyOverride() {
     setErrorB("");
     setOkB("");
     if (selectedB.size === 0) { setErrorB("Select at least one employee"); return; }
-    // A project on its own is a valid override -- putting someone on a job
-    // for a week without changing their shift. The standing shift still
-    // applies (see makeShiftResolver).
-    if (!overrideDayOff && !overrideShiftId && !overrideProjectId) {
-      setErrorB(projectsOn ? "Choose a shift, a project, or mark as day off" : "Choose a shift, or mark as day off");
-      return;
-    }
+    if (!overrideDayOff && !overrideShiftId) { setErrorB("Choose a shift, or mark as day off"); return; }
     if (toDate < fromDate) { setErrorB("End date can't be before start date"); return; }
     const dates = dateRange(fromDate, toDate);
     if (dates.length > 62) { setErrorB("That date range is too long (max 62 days) — split it up"); return; }
@@ -389,7 +442,6 @@ export default function RosterClient({ initial = null }: {
           employee_ids: [...selectedB],
           dates,
           shift_id: overrideDayOff ? null : overrideShiftId || null,
-          project_id: overrideDayOff ? null : overrideProjectId || null,
           is_day_off: overrideDayOff,
         }),
       });
@@ -405,6 +457,35 @@ export default function RosterClient({ initial = null }: {
     }
   }
 
+  // A project on its own is a valid roster row -- the standing shift still
+  // applies (see makeShiftResolver); only where the hours go changes.
+  async function applyProject() {
+    setErrorC("");
+    setOkC("");
+    if (!projectC) { setErrorC("Choose a project"); return; }
+    if (selectedC.size === 0) { setErrorC("Select at least one employee"); return; }
+    if (toC < fromC) { setErrorC("End date can't be before start date"); return; }
+    const dates = dateRange(fromC, toC);
+    if (dates.length > 62) { setErrorC("That date range is too long (max 62 days) — split it up"); return; }
+    setBusyC(true);
+    try {
+      const res = await fetch("/api/wfm/roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employee_ids: [...selectedC], dates, project_id: projectC, is_day_off: false }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setErrorC(json.error ?? "Failed to assign"); return; }
+      setOkC(`${selectedC.size} employee(s) on ${projectName} for ${dates.length} day(s).`);
+      setSelectedC(new Set());
+      await load();
+    } catch {
+      setErrorC("Network error");
+    } finally {
+      setBusyC(false);
+    }
+  }
+
   async function removeOverride(id: string) {
     setBusyB(true);
     try {
@@ -414,6 +495,11 @@ export default function RosterClient({ initial = null }: {
       setBusyB(false);
     }
   }
+
+  // One roster row can carry a shift AND a project; it then shows in both
+  // lists, because it is honestly both things.
+  const shiftRows = overrides.filter((r) => r.is_day_off || one(r.wfm_shifts));
+  const projectRows = overrides.filter((r) => !r.is_day_off && projectNameOf(r));
 
   if (loading) return <div style={{ ...cardStyle, color: c.hint, fontSize: 13 }}>Loading roster…</div>;
 
@@ -522,14 +608,14 @@ export default function RosterClient({ initial = null }: {
         </div>
       </section>
 
-      {/* ── Section B: temporary overrides ────────────────────────────── */}
-      <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
+      {/* ── Section B: shift changes and days off ─────────────────────── */}
+      <section style={{ ...cardStyle, padding: 0, marginBottom: 22, overflowX: "auto" }}>
         <div style={{ padding: "12px 14px", borderBottom: `1px solid ${c.line}` }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Temporary overrides</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Shift changes &amp; days off</div>
           <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>
-            A different shift (or a day off) for selected employees on specific dates only — doesn&apos;t change
-            anyone&apos;s standing site/shift above. For a holiday that applies to everyone, use Settings → Workforce →
-            Holidays instead — this is for individual/group exceptions.
+            A different shift, or a day off, for selected employees on specific dates only — the standing
+            site and shift above stay as they are. For a holiday that applies to everyone, use Settings →
+            Workforce → Holidays instead.
           </div>
         </div>
 
@@ -555,75 +641,13 @@ export default function RosterClient({ initial = null }: {
                 {activeShifts.map((s) => <option key={s.id} value={s.id}>{s.name} ({hhmm(s.start_time)}–{hhmm(s.end_time)})</option>)}
               </select>
             </div>
-            {/* Project costing (0104). Rendered whenever the tenant HAS the
-                module, even with no projects yet -- an admin looking for this
-                control needs to see why it can't be used, not an empty space
-                indistinguishable from the feature being absent. An
-                attendance-only roster still shows nothing at all. */}
-            {projectsOn && (
-              <div style={{ minWidth: 200 }}>
-                <label style={lbl}>Project</label>
-                <select
-                  style={{ ...inp, width: "100%" }}
-                  value={overrideProjectId}
-                  disabled={overrideDayOff || projects.length === 0}
-                  onChange={(e) => setOverrideProjectId(e.target.value)}
-                >
-                  {projects.length === 0
-                    ? <option value="">No active projects yet</option>
-                    : <option value="">— site default —</option>}
-                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                {projects.length === 0 && (
-                  <Link
-                    href={ROUTES.wfmProjects}
-                    style={{ display: "inline-block", marginTop: 4, fontSize: 11, color: "var(--tenant-accent, #378ADD)", textDecoration: "none", fontWeight: 600 }}
-                  >
-                    Add a project →
-                  </Link>
-                )}
-              </div>
-            )}
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: c.ink, paddingBottom: 8, cursor: "pointer" }}>
               <input type="checkbox" checked={overrideDayOff} onChange={(e) => setOverrideDayOff(e.target.checked)} />
               Mark as day off instead
             </label>
           </div>
 
-          <label style={lbl}>Employees ({selectedB.size} selected)</label>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <input
-              style={{ ...inp, width: 220 }}
-              placeholder="Search employee name or code…"
-              value={searchB}
-              onChange={(e) => setSearchB(e.target.value)}
-            />
-            <select style={{ ...inp, width: 180 }} value={siteFilterB} onChange={(e) => setSiteFilterB(e.target.value)}>
-              <option value="">All sites</option>
-              {activeSites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              <option value={UNASSIGNED}>Unassigned site</option>
-            </select>
-            <button style={btnTiny} onClick={selectAllVisibleB}>Select all{qB || siteFilterB ? " filtered" : ""}</button>
-            <button style={btnTiny} onClick={clearSelectionB}>Clear selection</button>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflowY: "auto", padding: 8, border: `1px solid ${c.line}`, borderRadius: 8, marginBottom: 12 }}>
-            {visibleEmployeesB.map((e) => (
-              <label
-                key={e.id}
-                style={{
-                  display: "flex", alignItems: "center", gap: 5, fontSize: 12, padding: "4px 8px",
-                  borderRadius: 6, cursor: "pointer",
-                  background: selectedB.has(e.id) ? "var(--tenant-accent, #378ADD)" : c.panel,
-                  color: selectedB.has(e.id) ? "#fff" : c.ink,
-                  border: `1px solid ${selectedB.has(e.id) ? "transparent" : c.line}`,
-                }}
-              >
-                <input type="checkbox" checked={selectedB.has(e.id)} onChange={() => toggleB(e.id)} style={{ cursor: "pointer" }} />
-                {empName(e)}{e.employee_code ? ` (${e.employee_code})` : ""}
-              </label>
-            ))}
-            {visibleEmployeesB.length === 0 && <span style={{ fontSize: 12, color: c.hint }}>No employees match.</span>}
-          </div>
+          <EmployeePicker employees={employees} sites={activeSites} selected={selectedB} onChange={setSelectedB} />
 
           {errorB && <div style={{ fontSize: 12, color: statusInk.bad, marginBottom: 8 }}>{errorB}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -635,18 +659,17 @@ export default function RosterClient({ initial = null }: {
         </div>
 
         <div style={{ padding: "10px 14px", fontSize: 12.5, fontWeight: 600, color: c.ink }}>
-          Upcoming overrides — next {UPCOMING_DAYS} days
+          Upcoming — next {UPCOMING_DAYS} days
         </div>
         <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               <th style={th}>Date</th><th style={th}>Employee</th><th style={th}>Shift</th>
-              {projectsOn && <th style={th}>Project</th>}
               <th style={th}>Note</th><th style={th}></th>
             </tr>
           </thead>
           <tbody>
-            {overrides.map((r) => {
+            {shiftRows.map((r) => {
               const shift = one(r.wfm_shifts);
               const emp = one(r.employees);
               return (
@@ -661,22 +684,105 @@ export default function RosterClient({ initial = null }: {
                       ? <Pill label="Day off" tone="red" />
                       : shift ? `${shift.name} (${hhmm(shift.start_time)}–${hhmm(shift.end_time)})` : "—"}
                   </td>
-                  {projectsOn && (
-                    <td style={{ ...td, color: r.project_name ? c.ink : c.hint }}>
-                      {r.is_day_off ? "—" : projectNameOf(r) ?? "site default"}
-                    </td>
-                  )}
                   <td style={{ ...td, color: c.muted }}>{r.note ?? "—"}</td>
                   <td style={td}><button style={btnTiny} disabled={busyB} onClick={() => removeOverride(r.id)}>Remove</button></td>
                 </tr>
               );
             })}
-            {overrides.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={5}>No overrides in this window — everyone follows their standing shift.</td></tr>
+            {shiftRows.length === 0 && (
+              <tr><td style={{ ...td, color: c.hint }} colSpan={5}>Nothing in this window — everyone follows their standing shift.</td></tr>
             )}
           </tbody>
         </table>
       </section>
+
+      {/* ── Section C: project assignments ────────────────────────────── */}
+      {projectsOn && (
+        <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
+          <div style={{ padding: "12px 14px", borderBottom: `1px solid ${c.line}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Project assignments</div>
+            <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>
+              Put selected employees on a project for specific dates. Their shift doesn&apos;t change — only
+              where the hours go. On those days this beats the project&apos;s own people, shift and site
+              links, so it is the way to settle who is on what.
+            </div>
+          </div>
+
+          <div style={{ padding: 14, borderBottom: `1px solid ${c.line}` }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+              <div style={{ minWidth: 260 }}>
+                <label style={lbl}>Project</label>
+                <select
+                  style={{ ...inp, width: "100%" }}
+                  value={projectC}
+                  disabled={projects.length === 0}
+                  onChange={(e) => setProjectC(e.target.value)}
+                >
+                  <option value="">{projects.length === 0 ? "No active projects yet" : "— choose a project —"}</option>
+                  {projectOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {"\u00a0\u00a0\u00a0".repeat(p.depth)}{p.depth > 0 ? "↳ " : ""}{p.name}{p.depth > 0 ? ` · Level ${p.depth}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {projects.length === 0 && (
+                  <Link href={ROUTES.wfmProjects} style={{ display: "inline-block", marginTop: 4, fontSize: 11, color: "var(--tenant-accent, #378ADD)", textDecoration: "none", fontWeight: 600 }}>
+                    Add a project →
+                  </Link>
+                )}
+              </div>
+              <div>
+                <label style={lbl}>From</label>
+                <input style={inp} type="date" value={fromC} onChange={(e) => setFromC(e.target.value)} />
+              </div>
+              <div>
+                <label style={lbl}>To</label>
+                <input style={inp} type="date" value={toC} min={fromC} onChange={(e) => setToC(e.target.value)} />
+              </div>
+            </div>
+
+            <EmployeePicker employees={employees} sites={activeSites} selected={selectedC} onChange={setSelectedC} />
+
+            {errorC && <div style={{ fontSize: 12, color: statusInk.bad, marginBottom: 8 }}>{errorC}</div>}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button style={btnPrimary} disabled={busyC || projects.length === 0} onClick={applyProject}>
+                {busyC ? "Assigning…" : `Assign ${selectedC.size || "…"} to ${projectName || "project"}`}
+              </button>
+              {okC && <span style={{ fontSize: 12, color: statusInk.good }}>{okC}</span>}
+            </div>
+          </div>
+
+          <div style={{ padding: "10px 14px", fontSize: 12.5, fontWeight: 600, color: c.ink }}>
+            On a project — next {UPCOMING_DAYS} days
+          </div>
+          <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Date</th><th style={th}>Employee</th><th style={th}>Project</th><th style={th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {projectRows.map((r) => {
+                const emp = one(r.employees);
+                return (
+                  <tr key={r.id}>
+                    <td style={td}>{fmtDate(r.date)}</td>
+                    <td style={{ ...td, fontWeight: 600 }}>
+                      <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>{empName(emp)}</Link>
+                      {emp?.employee_code && <span style={{ color: c.hint, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>{emp.employee_code}</span>}
+                    </td>
+                    <td style={td}>{projectNameOf(r)}</td>
+                    <td style={td}><button style={btnTiny} disabled={busyC} onClick={() => removeOverride(r.id)}>Remove</button></td>
+                  </tr>
+                );
+              })}
+              {projectRows.length === 0 && (
+                <tr><td style={{ ...td, color: c.hint }} colSpan={4}>Nobody is on a project by roster in this window — hours follow each project&apos;s own people, shift and site links.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      )}
     </>
   );
 }
