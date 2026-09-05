@@ -66,6 +66,11 @@ export default async function WfmProjectsPage({
   const pendingMigration = error?.code === "42P01";
   const projects: WfmProject[] = (rows ?? []) as unknown as WfmProject[];
 
+  // Account names for the column -- one tenant-scoped read, not a join the
+  // 42P01 fallback would have to survive.
+  const { data: accountRows } = await supabase.from("accounts").select("id, name").eq("tenant_id", tenantId);
+  const accountNames: Record<string, string> = Object.fromEntries((accountRows ?? []).map((a) => [a.id as string, a.name as string]));
+
   const searched = projects.filter((p) => {
     if (statusFilter && statusFilter !== "all" && p.status !== statusFilter) return false;
     if (!q) return true;
@@ -178,6 +183,7 @@ export default async function WfmProjectsPage({
                           <>
                             <SortableTh label="ID" sortKey="ref" searchId="ref" {...common} style={{ ...th, width: 88 }} className="mob-hide" />
                             <SortableTh label="Project" sortKey="name" searchId="name" {...common} style={th} />
+                            <th style={th} className="mob-hide">Account</th>
                             <SortableTh label="Job no." sortKey="code" searchId="code" {...common} style={th} className="mob-hide" />
                             <SortableTh label="Status" sortKey="status" searchId="status" {...common} style={th} />
                             <SortableTh label="Start" sortKey="start_date" searchId="start_date" {...common} style={th} className="mob-hide" />
@@ -190,7 +196,7 @@ export default async function WfmProjectsPage({
                       })()}
                     </tr>
                   </thead>
-                  <ProjectTreeRows rows={pageRows} all={projects} tree={treeView} from={monthStart} to={today} />
+                  <ProjectTreeRows rows={pageRows} all={projects} tree={treeView} from={monthStart} to={today} accountNames={accountNames} />
                 </table>
               </div>
             )}

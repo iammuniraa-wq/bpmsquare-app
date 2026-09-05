@@ -1,4 +1,6 @@
 import "server-only";
+import { projectHoursReport } from "@/lib/wfm/projectHoursServer";
+import { getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { LOSS_REASON_LABEL, type Account360Config, type LossReason, type TenantFeatures } from "@/lib/constants";
 import type { Account, Contact, Invoice, Quote, ServiceCase } from "@/lib/types";
@@ -55,6 +57,7 @@ export async function buildAccount360(
 
   const { data: tenantFeatureRow } = await admin.from("tenants").select("features").eq("id", tenantId).maybeSingle();
   const coverageOn = (tenantFeatureRow?.features as TenantFeatures | undefined)?.coverage_model === true;
+  const wfmProjectsOn = (tenantFeatureRow?.features as TenantFeatures | undefined)?.wfm_projects === true;
 
   const [
     { data: contactRows },
@@ -286,6 +289,44 @@ export async function buildAccount360(
       empty: rows.length === 0 ? "No segment matches this account yet" : undefined,
     };
     activeBuiltinIds = [...BUILTIN_CARD_IDS, "sales_coverage"];
+  }
+
+  // ── Projects (project costing) ──────────────────────────────────────────
+  // Same shape as sales_coverage: only computed and registered when the
+  // tenant has the module, so nobody else pays for the queries or sees an
+  // empty card. Hours are this month, from the same report the Projects
+  // screen and the v1 API use.
+  if (wfmProjectsOn) {
+    const { data: projs } = await admin
+      .from("wfm_projects").select("id, ref, name, status")
+      .eq("tenant_id", tenantId).eq("account_id", accountId).order("ref");
+    const list = projs ?? [];
+    let report: Awaited<ReturnType<typeof projectHoursReport>> | null = null;
+    if (list.length > 0) {
+      const wfm = await getWfmConfig(admin, tenantId);
+      const today = dateKeyInTz(new Date(), wfm.timezone);
+      report = await projectHoursReport(admin, tenantId, `${today.slice(0, 7)}-01`, today).catch(() => null);
+    }
+    const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
+    const rows: Account360Row[] = list.slice(0, 8).map((p) => {
+      const min = report?.rows.find((r) => r.key === p.id)?.total_minutes ?? 0;
+      return {
+        title: p.name as string,
+        meta: [p.ref, (p.status as string).replace("_", " ")].filter(Boolean).join(" · "),
+        value: min > 0 ? hm(min) : undefined,
+        href: `/wfm/projects/${p.id}`,
+      };
+    });
+    const total = list.reduce((s, p) => s + (report?.rows.find((r) => r.key === p.id)?.total_minutes ?? 0), 0);
+    builtins.projects = {
+      id: "projects",
+      title: "Projects",
+      subtitle: list.length === 0 ? "None yet" : `${list.length} · ${hm(total)} this month`,
+      kind: "internal",
+      rows,
+      empty: list.length === 0 ? "No project is linked to this account — link one from the project's form" : undefined,
+    };
+    activeBuiltinIds = [...activeBuiltinIds, "projects"];
   }
 
   // ── Rating ──────────────────────────────────────────────────────────────

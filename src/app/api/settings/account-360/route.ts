@@ -13,7 +13,7 @@ import type { Account360Config, Account360SourceDef } from "@/lib/constants";
  * reasoning that added the role check to GET /api/settings/integration-push).
  */
 
-const CARD_IDS = ["pipeline", "revenue", "service", "people", "installed_base", "coverage", "sales_coverage"];
+const CARD_IDS = ["pipeline", "revenue", "service", "people", "installed_base", "coverage", "sales_coverage", "projects"];
 
 function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });

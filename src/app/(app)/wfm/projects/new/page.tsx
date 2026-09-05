@@ -8,7 +8,7 @@ import ProjectForm from "../ProjectForm";
 export default async function NewWfmProjectPage({
   searchParams,
 }: {
-  searchParams: Promise<{ parent?: string }>;
+  searchParams: Promise<{ parent?: string; account?: string }>;
 }) {
   await requireWorkcenterView("wfm");
   await requireFeature("wfm");
@@ -18,7 +18,7 @@ export default async function NewWfmProjectPage({
   // Arriving from a project's "Create sub-project" button. The id is passed
   // straight to the form and tenant-verified by the API on save, never
   // trusted here -- it only preselects a row in the "Sits under" picker.
-  const { parent } = await searchParams;
+  const { parent, account } = await searchParams;
 
   return (
     <>
@@ -36,7 +36,7 @@ export default async function NewWfmProjectPage({
           reuses the component and useState initialisers never re-run; without
           this the child form opened holding the project's own dates, budget
           and an empty "Sits under" that rendered as Level 0. */}
-      <ProjectForm key={parent ?? "top"} parentId={parent ?? null} />
+      <ProjectForm key={parent ?? "top"} parentId={parent ?? null} accountId={account ?? null} />
     </>
   );
 }

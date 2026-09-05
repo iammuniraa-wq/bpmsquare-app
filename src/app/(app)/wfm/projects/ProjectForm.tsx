@@ -180,11 +180,14 @@ function Picker({
 export default function ProjectForm({
   project,
   parentId = null,
+  accountId = null,
 }: {
   project?: WfmProject;
   /** Set when creating a sub-project from a project's "Create sub-project"
    *  button — it preselects the row in the "Sits under" picker. */
   parentId?: string | null;
+  /** Set when arriving from an account's "New project" — preselects it. */
+  accountId?: string | null;
 }) {
   const router = useRouter();
   const editing = !!project;
@@ -203,6 +206,11 @@ export default function ProjectForm({
   // Where this sits. Null means it IS a project (Level 0).
   const [parentSel, setParentSel] = useState<string>(parentId ?? project?.parent_id ?? "");
   const [tree, setTree] = useState<{ id: string; name: string; ref: string | null; parent_id: string | null }[]>([]);
+  // The customer this project is for. Optional -- a project can stand alone
+  // -- but billing needs one (WFM_PROJECT_COSTING.md §11).
+  const [accountSel, setAccountSel] = useState<string>(project?.account_id ?? accountId ?? "");
+  const [accounts, setAccounts] = useState<Option[]>([]);
+  const [accountQ, setAccountQ] = useState("");
 
   const [siteIds, setSiteIds] = useState<string[]>(project?.site_ids ?? []);
   const [employeeIds, setEmployeeIds] = useState<string[]>(project?.employee_ids ?? []);
@@ -230,12 +238,14 @@ export default function ProjectForm({
       return Array.isArray(d) ? d : (d?.sites ?? d?.employees ?? d?.shifts ?? []);
     };
     (async () => {
-      const [s, e, sh, pr] = await Promise.all([
+      const [s, e, sh, pr, ac] = await Promise.all([
         j("/api/wfm/sites"),
         j("/api/wfm/employees"),
         j("/api/wfm/shifts"),
         j("/api/wfm/projects"),
+        j("/api/accounts"),
       ]);
+      setAccounts(ac.map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
       setTree(pr.map((x: { id: string; name: string; ref: string | null; parent_id: string | null }) =>
         ({ id: x.id, name: x.name, ref: x.ref, parent_id: x.parent_id })));
       setSites(s.map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
@@ -342,6 +352,7 @@ export default function ProjectForm({
       start_date: startDate || null,
       end_date: endDate || null,
       budget_hours: budgetHours.trim() === "" ? null : Number(budgetHours),
+      account_id: accountSel || null,
       ...(isSub ? { parent_id: parentSel || null } : {}),
       site_ids: siteIds,
       employee_ids: employeeIds,
@@ -451,6 +462,34 @@ export default function ProjectForm({
             <div style={{ fontSize: 11.5, color: c.hint, marginTop: 5 }}>
               {STATUSES.find((s) => s.value === status)?.hint}
             </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <label style={label}>For account (optional)</label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {accounts.length > SEARCH_FROM && (
+              <input
+                type="search"
+                value={accountQ}
+                onChange={(e) => setAccountQ(e.target.value)}
+                placeholder="Find an account…"
+                style={{ ...field, flex: "0 1 220px", width: "auto" }}
+              />
+            )}
+            <select
+              style={{ ...field, flex: "1 1 240px", width: "auto" }}
+              value={accountSel}
+              onChange={(e) => setAccountSel(e.target.value)}
+            >
+              <option value="">— none, stands alone —</option>
+              {accounts
+                .filter((a) => a.id === accountSel || !accountQ.trim() || a.name.toLowerCase().includes(accountQ.trim().toLowerCase()))
+                .map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+          <div style={{ fontSize: 11.5, color: c.hint, marginTop: 5 }}>
+            The customer this work is for. Needed to bill its hours; otherwise optional.
           </div>
         </div>
 

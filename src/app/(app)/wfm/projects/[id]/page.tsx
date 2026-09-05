@@ -48,12 +48,19 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
     if (parent) parentLine = `Level ${level ?? 1} · under ${parent.name}`;
   }
 
+  let accountLine: string | null = null;
+  if (project.account_id) {
+    const { data: acct } = await supabase
+      .from("accounts").select("name").eq("id", project.account_id).eq("tenant_id", tenantId).maybeSingle();
+    if (acct) accountLine = `for ${acct.name}`;
+  }
+
   return (
     <>
       <TabTitle title={`Workforce — ${project.name}`} />
       <PageHeader
         title={project.name}
-        subtitle={[parentLine, project.ref, project.code].filter(Boolean).join(" · ") || undefined}
+        subtitle={[parentLine, accountLine, project.ref, project.code].filter(Boolean).join(" · ") || undefined}
       />
 
       <ProjectHoursPanel projectId={id} budgetHours={project.budget_hours} />

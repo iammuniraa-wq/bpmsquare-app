@@ -41,7 +41,7 @@ const fmtDate = (s: string | null) =>
  * view the same component renders them flat, with no tree affordances.
  */
 export default function ProjectTreeRows({
-  rows, all, tree, from, to,
+  rows, all, tree, from, to, accountNames = {},
 }: {
   rows: WfmProject[];
   all: WfmProject[];
@@ -49,6 +49,8 @@ export default function ProjectTreeRows({
   /** The window the Hours column covers -- the current month, from the page. */
   from: string;
   to: string;
+  /** id -> name, for the Account column. */
+  accountNames?: Record<string, string>;
 }) {
   const router = useRouter();
   const isAdmin = useUserRole() === "admin";
@@ -122,7 +124,7 @@ export default function ProjectTreeRows({
     const parent = byId.get(parentId);
     return (
       <tr key={`add-${parentId}`} style={{ background: c.accentbg, borderBottom: `1px solid ${c.line}` }}>
-        <td colSpan={9} style={{ ...td, paddingLeft: 14 + (depth + 1) * 18 }}>
+        <td colSpan={10} style={{ ...td, paddingLeft: 14 + (depth + 1) * 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <input
               autoFocus
@@ -204,6 +206,13 @@ export default function ProjectTreeRows({
                 </span>
               )}
             </div>
+          </td>
+          <td className="mob-hide" style={{ ...td, color: c.muted, whiteSpace: "nowrap" }}>
+            {p.account_id && accountNames[p.account_id] ? (
+              <Link href={ROUTES.account(p.account_id)} style={{ color: c.muted, textDecoration: "none" }}>
+                {accountNames[p.account_id]}
+              </Link>
+            ) : "—"}
           </td>
           {/* The four detail columns give way on a phone, so ID, name,
               status and the + stay reachable without a sideways scroll. */}

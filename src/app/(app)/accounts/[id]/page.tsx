@@ -19,6 +19,9 @@ import QuickCreateDeck from "@/components/QuickCreateDeck";
 import { MapPin, Phone, Mail, Gear, Activity as ActivityIcon, Package, FileText } from "@/components/Icons";
 import AccountHeader from "./AccountHeader";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
+import { projectHoursReport } from "@/lib/wfm/projectHoursServer";
+import { getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
+import { createAdminSupabase } from "@/lib/supabase-server";
 import NovaAccountStorySlot from "@/components/NovaAccountStorySlot";
 import NovaAccountCanvasSlot from "@/components/NovaAccountCanvasSlot";
 import NovaAccountContextBeacon from "@/components/NovaAccountContextBeacon";
@@ -65,7 +68,7 @@ const fmtINR = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "cases" | "contacts" | "assets" | "quotations" | "invoices" | "activity";
+type Tab = "overview" | "cases" | "contacts" | "assets" | "quotations" | "projects" | "invoices" | "activity";
 // featureKey mirrors Sidebar.tsx's NAV gating — a tab only shows if the
 // tenant has that module enabled (tenant.features), same source of truth
 // used everywhere else in the app.
@@ -75,6 +78,7 @@ const TABS: { id: Tab; label: string; featureKey?: keyof TenantFeatures }[] = [
   { id: "contacts",   label: "Contacts"   },
   { id: "assets",     label: "Assets"     },
   { id: "quotations", label: "Quotations" },
+  { id: "projects",   label: "Projects",  featureKey: "wfm_projects" },
   { id: "invoices",   label: "Invoices",  featureKey: "invoices" },
   { id: "activity",   label: "Activity"   },
 ];
@@ -159,6 +163,27 @@ export default async function AccountHubPage({
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
   const visibleTabs = TABS.filter((t) => !t.featureKey || features?.[t.featureKey] === true);
+
+  // Workforce projects for this account, with this month's hours -- the
+  // hours come from the same report the Projects screen and the v1 API use.
+  let projectRows: { id: string; ref: string | null; name: string; status: string; level: number; minutes: number }[] = [];
+  if (features?.wfm_projects === true && tenant) {
+    const admin = createAdminSupabase();
+    const { data: projs } = await admin
+      .from("wfm_projects").select("id, ref, name, status, parent_id")
+      .eq("tenant_id", tenant.id).eq("account_id", id).order("ref");
+    if (projs && projs.length > 0) {
+      const wfm = await getWfmConfig(admin, tenant.id);
+      const today = dateKeyInTz(new Date(), wfm.timezone);
+      const report = await projectHoursReport(admin, tenant.id, `${today.slice(0, 7)}-01`, today).catch(() => null);
+      const minutesOf = (pid: string) => report?.rows.find((r) => r.key === pid)?.total_minutes ?? 0;
+      projectRows = projs.map((pr) => ({
+        id: pr.id as string, ref: (pr.ref as string | null) ?? null, name: pr.name as string, status: pr.status as string,
+        level: report?.projects[pr.id as string]?.depth ?? 0, minutes: minutesOf(pr.id as string),
+      }));
+    }
+  }
+  const projectMinutes = projectRows.reduce((s, r) => s + (r.level === 0 ? r.minutes : 0), 0);
   const activeTab: Tab = (visibleTabs.find((t) => t.id === rawTab)?.id) ?? "overview";
 
   const quotationTotal = hub.quotes.reduce((s, q) => s + q.total, 0);
@@ -325,6 +350,7 @@ export default async function AccountHubPage({
             { href: `${ROUTES.assetNew}?account_id=${id}`,     label: "New asset",      icon: <Gear size={13} color={pillar.green.base} />,     bg: pillar.green.bg },
             { href: ROUTES.quotationNew,                       label: "New quotation",  icon: <Package size={13} color={pillar.amber.base} />,  bg: pillar.amber.bg },
             ...(features?.invoices ? [{ href: ROUTES.invoiceNew, label: "New invoice", icon: <FileText size={13} color={pillar.purple.base} />, bg: pillar.purple.bg }] : []),
+            ...(features?.wfm_projects ? [{ href: `${ROUTES.wfmProjectNew}?account=${id}`, label: "New project", icon: <Gear size={13} color={pillar.teal.base} />, bg: pillar.teal.bg }] : []),
           ]} />
         </div>
       )}
@@ -517,6 +543,56 @@ export default async function AccountHubPage({
       {/* ════════════════════════════════════════════════════════════════════ */}
       {/* INVOICES TAB                                                        */}
       {/* ════════════════════════════════════════════════════════════════════ */}
+
+      {activeTab === "projects" && (
+        <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <SectionHead
+              label="Projects"
+              count={projectRows.filter((r) => r.level === 0).length}
+              action={<AddLink href={`${ROUTES.wfmProjectNew}?account=${id}`} label="New project" />}
+            />
+            {projectMinutes > 0 && (
+              <div style={{ fontSize: 13, color: c.muted }}>
+                This month: <strong style={{ color: c.ink }}>{Math.floor(projectMinutes / 60)}h {String(Math.round(projectMinutes % 60)).padStart(2, "0")}m</strong>
+              </div>
+            )}
+          </div>
+          {projectRows.length === 0 ? (
+            <EmptyRow label="No projects for this account yet." href={`${ROUTES.wfmProjectNew}?account=${id}`} linkLabel="Create the first project" />
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: c.panel2 }}>
+                  <th style={th2}>ID</th>
+                  <th style={th2}>Project</th>
+                  <th style={th2}>Status</th>
+                  <th style={{ ...th2, textAlign: "right" }}>Hours this month</th>
+                  <th style={th2}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {projectRows.map((pr, i) => (
+                  <tr key={pr.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
+                    <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{pr.ref ?? "—"}</span></td>
+                    <td style={td2}>
+                      <span style={{ paddingLeft: pr.level * 14, fontWeight: 600, color: c.ink }}>
+                        {pr.level > 0 && <span aria-hidden style={{ color: c.hint, marginRight: 6 }}>└</span>}
+                        {pr.name}
+                      </span>
+                    </td>
+                    <td style={{ ...td2, color: c.muted, textTransform: "capitalize" }}>{pr.status.replace("_", " ")}</td>
+                    <td style={{ ...td2, textAlign: "right", fontVariantNumeric: "tabular-nums", color: pr.minutes > 0 ? c.ink : c.hint }}>
+                      {pr.minutes > 0 ? `${Math.floor(pr.minutes / 60)}h ${String(Math.round(pr.minutes % 60)).padStart(2, "0")}m` : "—"}
+                    </td>
+                    <td style={td2}><OpenLink href={ROUTES.wfmProject(pr.id)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
 
       {activeTab === "invoices" && (
         <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
