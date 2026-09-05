@@ -9,16 +9,17 @@ export { parseFormula } from "./dsl/parser";
 export { evaluate, resolveScaleTiered } from "./dsl/evaluator";
 export type { EvalContext, EvalHooks, ScaleEntry } from "./dsl/evaluator";
 export {
-  PricingError, flattenContext, computeSpecificity, resolveRules, resolveCostInput,
+  PricingError, flattenContext, computeSpecificity, resolveRules, resolveCostInput, resolveCost,
 } from "./resolution";
-export type { ResolvedRule } from "./resolution";
+export type { ResolvedRule, ResolvedCost, CostConsidered } from "./resolution";
 export { priceDocument, resolveScaleGraduated } from "./calc";
-export type { PriceInput, PriceResult, PricedLine, TraceStep, TraceStatus, DocumentLine, CostItem } from "./calc";
+export type { PriceInput, PriceResult, PricedLine, TraceStep, TraceStatus, TraceCostInput, DocumentLine, CostItem, LineFlag } from "./calc";
+export { COST_QUALITY_RANK } from "./types";
 export type {
   ComponentClass, CalcType, CalcBasis, Sign, ManualOverride, ResolutionStrategy,
   RoundingRule, PriceComponent, ProcedureStep, EntryMode, PricingProcedure,
   AttrValue, ScaleTable, PriceRule, DimensionRegistry,
-  CostInputKind, CostInput, CostModel,
+  CostInputKind, CostInput, CostModel, CostQuality, CostSourceDef, CostCandidate, StepGuardrail,
 } from "./types";
 
 import { parseFormula } from "./dsl/parser";

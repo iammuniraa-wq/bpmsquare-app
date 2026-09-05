@@ -279,6 +279,10 @@ export type QuoteLine = {
   inventory_item_id?: string | null;
   /** Product the line was inserted from (0098) -- link only; the line keeps its copied text/rate. */
   product_id?: string | null;
+  /** The stored pricing document that produced the rate (0113), when the
+   *  engine priced this line; its guardrail flags, derived server-side. */
+  pricing_document_id?: string | null;
+  pricing_flags?: { code: string; policy: "warn" | "block" | "approve"; floor_pct?: number; actual_pct?: number }[] | null;
 };
 
 export type WorkOrderStatus =
@@ -612,7 +616,7 @@ export type TextFragment = {
 // {{variable}} placeholders resolved at send time (see lib/emailTemplates.ts).
 // category exists so invoice/report templates can be added later without a
 // schema change, even though only "quote" is wired to actually send today.
-export type EmailTemplateCategory = "quote" | "invoice" | "report";
+export type EmailTemplateCategory = "quote" | "invoice" | "report" | "rfq";
 
 export type EmailTemplate = {
   id: string;
@@ -686,6 +690,12 @@ export type Product = {
   description: string | null;
   list_price: number | null;
   cost_price: number | null;
+  /** When cost_price was last confirmed (0113) -- the pricing engine's
+   *  source ladder treats an old figure as stale, never as current. */
+  cost_price_as_of?: string | null;
+  /** What one unit consumes, for cost-based pricing (0113): [{ path, qty,
+   *  kind? }]. Absent = one bought-in part priced at cost_price. */
+  cost_sheet?: { path: string; qty: number; kind?: string }[] | null;
   tax_percent: number | null;
   status: ProductStatus;
   custom_data: Record<string, unknown> | null;

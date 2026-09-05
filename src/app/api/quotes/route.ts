@@ -6,6 +6,7 @@ import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { getTenant } from "@/lib/tenant";
 import { accountMatchesAnySegment } from "@/lib/coverage/resolve";
+import { derivePricingFlags, withPricingColumns, insertQuoteLinesTolerant } from "@/lib/pricing/quoteLineFlags";
 import type { Account } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -145,6 +146,7 @@ export async function POST(request: NextRequest) {
           deduction:         l.category === "material" ? Math.max(0, parseFloat(l.deduction) || 0) : 0,
           inventory_item_id: l.inventory_item_id  ?? null,
           product_id:        l.product_id         ?? null,
+          pricing_document_id: typeof l.pricing_document_id === "string" && l.pricing_document_id ? l.pricing_document_id : null,
         };
       });
     // Line-level inventory/product references are foreign ids from the body
@@ -182,7 +184,11 @@ export async function POST(request: NextRequest) {
       }
     }
     if (lineRows.length > 0) {
-      const { error: lErr } = await supabase.from("quote_lines").insert(lineRows);
+      // The engine's document behind a line is a foreign id like any other:
+      // verified against the tenant, and its guardrail flags derived here.
+      const derived = await derivePricingFlags(supabase, tenantId, lineRows);
+      const rowsToInsert = derived.ok ? withPricingColumns(lineRows, derived.flagsByDocument) : lineRows;
+      const { error: lErr } = await insertQuoteLinesTolerant(supabase, rowsToInsert);
       if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 });
     }
   }

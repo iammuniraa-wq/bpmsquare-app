@@ -956,7 +956,7 @@ function TestTab({ versions, defaultVersion, area }: { versions: VersionRow[]; d
             ))}
             <span style={{ color: c.hint }}>
               v{out.config_version} · {out.procedure} · {out.calc_ms} ms · {out.result.pricing_date}
-              {out.document_id ? <> · stored as <span style={mono}>{out.document_id.slice(0, 8)}</span></> : " · not stored (migration 0109 pending?)"}
+              {out.document_id ? <> · stored as <span style={mono}>{out.document_id.slice(0, 8)}</span></> : " · not stored (migration 0111 pending?)"}
               {out.replay_of ? <> · replay of <span style={mono}>{out.replay_of.slice(0, 8)}</span></> : null}
             </span>
           </div>
@@ -993,7 +993,7 @@ function TestTab({ versions, defaultVersion, area }: { versions: VersionRow[]; d
                 </td>
               </tr>
             ))}
-            {recent.length === 0 && <tr><td style={td} colSpan={7}>Nothing priced yet in this Price Book — or migration 0109 is still pending.</td></tr>}
+            {recent.length === 0 && <tr><td style={td} colSpan={7}>Nothing priced yet in this Price Book — or migration 0111 is still pending.</td></tr>}
           </tbody>
         </table>
       </div>

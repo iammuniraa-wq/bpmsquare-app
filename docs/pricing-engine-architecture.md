@@ -618,8 +618,8 @@ The foundation. Nothing downstream works without it.
 appear in `pricing_documents`; replay one and get the same numbers;
 retention job runs on the demo.
 
-**Status 2026-09-06: built, awaiting migration 0109 on both DBs and demo
-validation.** Delivered: migration 0109 (table, metering columns, cost-input
+**Status 2026-09-06: built, awaiting migration 0111 on both DBs and demo
+validation.** Delivered: migration 0111 (table, metering columns, cost-input
 natural key, publish RPC); `src/lib/pricing/documents.ts` (row builder +
 retention, tested) and the store/replay/list helpers in
 `src/lib/pricing/server.ts`; `options.replay_of` and `meta.document_id` on
@@ -635,6 +635,59 @@ webhook event -- publish already writes a `pricing_config` change_log row,
 which the dispatcher delivers to any webhook subscribed to that object
 type; naming it `pricing.version.published` is batch 7's documentation
 job.
+
+### Batch 1½ — One technique at a time, cost-based first (owner, 2026-09-06)
+
+After the review the owner chose to complete **one pricing technique end to
+end before the next**, starting with cost-based, so the whole process can
+be judged on the demo. The manufacturer's flow ("SAP moving-average cost,
+else CCP calculation, else BI confirmed RFQ cost — confirmed beats
+calculated — else BI price list, else ask the supplier; then freight and
+handling to landed cost, then the rep's margin") is the reference case.
+Three steps, each validated on the demo:
+
+1. **Engine and data — built 2026-09-06.** New primitives, all general:
+   - **Cost source ladder** on a cost model (`pricing_cost_models.sources`,
+     core `CostSourceDef`): ordered tiers, a quality per source (actual >
+     confirmed > estimate > list), freshness (`max_age_days` against
+     `as_of`), and a DSL requirement per source ("only for suppliers the
+     calculator is set up for"). `resolveCost()` returns the winner AND
+     every candidate's fate (won / lost / stale / requirement / expired),
+     which the trace carries.
+   - **Cost candidates on the line** (`CostItem.candidates`): a product's
+     own figures (ERP cost from `products.cost_price` dated by
+     `cost_price_as_of`; product-scoped cost inputs such as an RFQ reply or
+     an imported price-list cost) resolve through the same ladder as the
+     model's tenant-wide rates. `CostInputKind` gains `PURCHASE`.
+   - **Cost sheets** on products (`products.cost_sheet`, `costSheet.ts`):
+     per-unit quantities that scale with the line; a product with no sheet
+     is one bought-in part.
+   - **Never a silent zero:** a cost quantity with no figure in force is
+     `NO_RATE_IN_FORCE` with the paths and what was tried; a required cost
+     step with no items is `COST_MISSING`. `isNeedsCost()` in the adapter
+     is the NEEDS_RFQ moment for step 2.
+   - **Guardrails in the core:** a procedure step can carry
+     `guardrail: { kind: MARGIN_FLOOR, cost_subtotal, revenue_subtotal,
+     policy }`; the line's `flags[]` reports a breach with the policy.
+     Publish validation checks the subtotals exist before the step.
+   - **Template:** cost-based is now bought-in + material + labour −
+     salvage = TOTAL_COST, + freight + handling = LANDED_COST, margin on
+     landed cost, floor, discount, tax; default ladder PRODUCT_COST (30d)
+     > RFQ (180d) > PRICE_LIST (365d) > MANUAL.
+   - Migration 0113; golden scenarios in
+     `src/lib/pricing/costBased.golden.test.ts` (made part with salvage,
+     bought-in part through the ladder, stale ERP cost falling to the RFQ
+     reply, nothing in force → NEEDS_RFQ).
+2. **The quote line:** routing a product line to the cost-based book, cost
+   items from the product's sheet × quantity with its candidates, Fetch
+   price, the "why" chip, Send RFQ from the line (`pricing_rfqs`, email via
+   `resolveOutbound`), RFQ reply entered as a confirmed product-scoped cost
+   input, fetch again. Floor policy `block` stops sending.
+3. **Setup and demo:** cost sheet on the product form, source ladder and
+   freight/handling rows in the wizard, floor policy, demo seed, walk.
+
+Batches 2–8 below stand, but each is now delivered per technique: price
+list, value-based and variant follow the same three steps on these rails.
 
 ### Batch 2 — Execution: the quote line, done properly (L)
 

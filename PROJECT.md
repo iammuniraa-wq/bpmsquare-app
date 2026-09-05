@@ -472,6 +472,15 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
+- **0113_pricing_cost_based.sql — PENDING on both DBs** (was 0110; written
+  2026-09-06, cost-based technique step 1, spec §17; run AFTER 0111):
+  `products.cost_sheet` + `cost_price_as_of`, `pricing_cost_models.sources`
+  (the cost source ladder), provenance + `product_id` on
+  `pricing_cost_inputs` with the widened natural key, and `pricing_rfqs`
+  (select-only RLS). Degrades while pending: the engine prices with the
+  legacy "most recent rate wins" behaviour, cost-model saves drop the
+  ladder with a warning, cost-input saves drop provenance with a warning,
+  and RFQs (step 2) are unavailable.
 - **0112_wfm_leave_quota_period.sql — PENDING on both DBs** (written
   2026-09-06, BIM follow-up: "it's days a month, not days a year"):
   `wfm_leave_types.quota_period` (year | month). The quota number stays

@@ -10,15 +10,30 @@
 import { DslError } from "./dsl/ast";
 import { parseFormula } from "./dsl/parser";
 import { evaluate, resolveScaleTiered, type EvalContext } from "./dsl/evaluator";
-import { flattenContext, resolveRules, resolveCostInput, PricingError, type ResolvedRule } from "./resolution";
+import { flattenContext, resolveRules, resolveCostInput, resolveCost, PricingError, type ResolvedRule, type CostConsidered } from "./resolution";
 import type {
-  AttrValue, CostInputKind, CostModel, DimensionRegistry, PriceComponent, PriceRule,
-  PricingProcedure, ProcedureStep, RoundingRule,
+  AttrValue, CostCandidate, CostInputKind, CostModel, CostQuality, DimensionRegistry, PriceComponent, PriceRule,
+  PricingProcedure, ProcedureStep, RoundingRule, StepGuardrail,
 } from "./types";
 
 // ── Input / output shapes ───────────────────────────────────────────────────
 
-export type CostItem = { path: string; qty: number };
+/** One cost quantity on a line. `kind` is needed only when the path is not
+ *  defined on the cost model (a product-specific path such as
+ *  purchase.unit_cost); `candidates` are this line's own figures for the
+ *  path (ERP cost, RFQ reply), resolved through the model's ladder together
+ *  with the model's tenant-wide rates. */
+export type CostItem = { path: string; qty: number; kind?: CostInputKind; candidates?: CostCandidate[] };
+
+export type LineFlag = {
+  code: "MARGIN_FLOOR";
+  policy: StepGuardrail["policy"];
+  component: string;
+  floor_pct: number;
+  actual_pct: number;
+  cost: number;
+  revenue: number;
+};
 
 export type DocumentLine = {
   line_no: number;
@@ -56,12 +71,19 @@ export type TraceStep = {
   matched_on?: Record<string, AttrValue>;
   specificity?: number;
   candidates_considered?: number;
-  inputs?: { path: string; rate: number; qty: number }[];
+  inputs?: TraceCostInput[];
   basis?: number;
   value?: number;                            // rule value / rate before basis application
   result?: number;                           // signed amount contributed (0 for statistical display)
   statistical?: boolean;
   manual?: boolean;
+  guardrail?: LineFlag;                      // on a guardrail step: the check's outcome
+};
+
+export type TraceCostInput = {
+  path: string; rate: number; qty: number;
+  source?: string; quality?: CostQuality; as_of?: string | null;
+  considered?: CostConsidered[];
 };
 
 export type PricedLine = {
@@ -70,6 +92,7 @@ export type PricedLine = {
   subtotals: Record<string, number>;
   components: Record<string, number>;        // signed amounts incl. statistical
   trace: TraceStep[];
+  flags: LineFlag[];
 };
 
 export type PriceResult = {
@@ -157,6 +180,7 @@ export function priceDocument(input: PriceInput): PriceResult {
     const subtotals: Record<string, number> = {};
     const componentAmounts: Record<string, number> = {};
     const trace: TraceStep[] = [];
+    const flags: LineFlag[] = [];
 
     // DSL context: header + line trees plus computed cost tree resolved lazily.
     const dslCtx: Record<string, unknown> = {
@@ -219,11 +243,36 @@ export function priceDocument(input: PriceInput): PriceResult {
         pendingByGroup.set(step.exclusion_group, list);
         continue; // applied or excluded at flush time
       }
+      if (step.guardrail) applyGuardrail(step, component, computed);
       commit(component, computed, step);
     }
     flushExclusionGroups();
 
-    return { line_no: line.line_no, net, subtotals, components: componentAmounts, trace };
+    return { line_no: line.line_no, net, subtotals, components: componentAmounts, trace, flags };
+
+    // ── guardrails ──────────────────────────────────────────────────────────
+
+    function applyGuardrail(step: ProcedureStep, component: PriceComponent, t: TraceStep): void {
+      const g = step.guardrail!;
+      if (g.kind !== "MARGIN_FLOOR") return;
+      // The component's amount IS the floor percentage (a statistical
+      // FIXED_AMOUNT rule such as 15). Both subtotals must already exist --
+      // a guardrail placed before its revenue subtotal is a config error.
+      for (const ref of [g.cost_subtotal, g.revenue_subtotal]) {
+        if (!(ref in subtotals)) throw new PricingError("UNKNOWN_BASIS", `Guardrail on step ${step.step}: subtotal "${ref}" not accumulated yet`);
+      }
+      const cost = subtotals[g.cost_subtotal];
+      const revenue = subtotals[g.revenue_subtotal];
+      const floorPct = Math.abs(t.result ?? 0);
+      const actualPct = cost === 0 ? (revenue > 0 ? Infinity : 0) : ((revenue - cost) / cost) * 100;
+      const flag: LineFlag = {
+        code: "MARGIN_FLOOR", policy: g.policy, component: component.code,
+        floor_pct: floorPct, actual_pct: Number.isFinite(actualPct) ? Math.round(actualPct * 100) / 100 : actualPct,
+        cost, revenue,
+      };
+      t.guardrail = flag;
+      if (actualPct < floorPct) flags.push(flag);
+    }
 
     // ── step computation ────────────────────────────────────────────────────
 
@@ -330,17 +379,47 @@ export function priceDocument(input: PriceInput): PriceResult {
       const kind = step.rollup_kind;
       if (!kind) throw new PricingError("MISSING_ROLLUP_KIND", `COST_ROLLUP step ${step.step} names no rollup_kind`);
 
-      const inputsUsed: { path: string; rate: number; qty: number }[] = [];
+      const inputsUsed: TraceCostInput[] = [];
+      const missing: { path: string; considered: CostConsidered[] }[] = [];
       let amount = 0;
       for (const item of line.cost_items ?? []) {
         const def = model.inputs.find((i) => i.path === item.path);
-        if (!def || def.kind !== kind) continue;
-        const rate = resolveCostInput(model.inputs, item.path, input.pricing_date);
-        if (rate === null) {
-          throw new PricingError("NO_RATE_IN_FORCE", `Cost input "${item.path}" has no rate valid on ${input.pricing_date}`);
+        const itemKind = item.kind ?? def?.kind;
+        if (itemKind !== kind) continue;
+        // Every figure in play for this path: the model's own rates plus the
+        // line's candidates (this product's ERP cost, its RFQ reply), through
+        // the model's source ladder. Legacy models (no ladder) behave as before.
+        const candidates: CostCandidate[] = [
+          ...model.inputs.filter((i) => i.path === item.path),
+          ...(item.candidates ?? []).filter((c) => !c.path || c.path === item.path),
+        ];
+        const { winner, considered } = resolveCost(candidates, model.sources, item.path, input.pricing_date, requirementHolds);
+        if (!winner) {
+          missing.push({ path: item.path, considered });
+          continue;
         }
-        amount += rate * item.qty;
-        inputsUsed.push({ path: item.path, rate, qty: item.qty });
+        amount += winner.value * item.qty;
+        inputsUsed.push({
+          path: item.path, rate: winner.value, qty: item.qty,
+          source: winner.source, quality: winner.quality, as_of: winner.as_of, considered,
+        });
+      }
+      if (missing.length > 0) {
+        // A cost quantity with no figure behind it is never a silent zero:
+        // this is the NEEDS_RFQ moment (adapter maps it), with every source
+        // that was tried and why it did not answer.
+        throw new PricingError(
+          "NO_RATE_IN_FORCE",
+          `No cost figure in force on ${input.pricing_date} for ${missing.map((m) => `"${m.path}"`).join(", ")}`,
+          { paths: missing.map((m) => m.path), component: component.code, cost_model: modelCode, missing }
+        );
+      }
+      if (step.required && inputsUsed.length === 0) {
+        throw new PricingError(
+          "COST_MISSING",
+          `Required cost step ${step.step} (${component.code}) received no ${kind} cost items on line ${line.line_no}`,
+          { component: component.code, cost_model: modelCode, kind, line_no: line.line_no }
+        );
       }
       const signed = applyRounding(applySign(amount, component.sign), component.rounding_rule);
       return {
@@ -348,6 +427,14 @@ export function priceDocument(input: PriceInput): PriceResult {
         inputs: inputsUsed, result: signed,
         statistical: component.is_statistical || step.statistical,
       };
+    }
+
+    function requirementHolds(expr: string): boolean {
+      try {
+        return Boolean(evaluate(parseFormula(expr), { ctx: dslCtx, hooks }));
+      } catch (e) {
+        throw new PricingError("REQUIREMENT_ERROR", `Cost source requirement failed to evaluate: ${(e as Error).message}`);
+      }
     }
 
     function resolveFor(component: PriceComponent): ResolvedRule[] {

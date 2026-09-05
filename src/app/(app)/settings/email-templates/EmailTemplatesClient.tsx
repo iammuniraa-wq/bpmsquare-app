@@ -10,14 +10,16 @@ const CATEGORY_LABEL: Record<EmailTemplateCategory, string> = {
   quote: "Quotations",
   invoice: "Invoices",
   report: "Inspection reports",
+  rfq: "Supplier RFQs",
 };
 
 // Only "quote" actually sends an email today -- the others are here so a
 // tenant can prepare templates ahead of those features shipping.
 const CATEGORY_WIRED: Record<EmailTemplateCategory, boolean> = {
   quote: true,
-  invoice: false,
+  invoice: true,
   report: false,
+  rfq: true,
 };
 
 const inp: React.CSSProperties = {

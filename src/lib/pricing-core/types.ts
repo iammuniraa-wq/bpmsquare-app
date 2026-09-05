@@ -47,6 +47,7 @@ export type ProcedureStep = {
   cost_model?: string;                     // for COST_ROLLUP steps
   statistical?: boolean;
   formula?: string;                        // step-level formula override
+  guardrail?: StepGuardrail | null;        // see StepGuardrail
 };
 
 export type EntryMode = "LIST_DOWN" | "COST_UP";
@@ -84,7 +85,31 @@ export type PriceRule = {
  */
 export type DimensionRegistry = Record<string, number>;
 
-export type CostInputKind = "MATERIAL" | "LABOUR" | "EQUIPMENT" | "SALVAGE_CREDIT" | "OVERHEAD" | "INDEX";
+export type CostInputKind = "MATERIAL" | "LABOUR" | "EQUIPMENT" | "SALVAGE_CREDIT" | "OVERHEAD" | "INDEX" | "PURCHASE";
+
+/** How much a cost figure can be trusted, best first. An ERP moving-average
+ *  cost is `actual`; a supplier's RFQ reply is `confirmed`; a calculation
+ *  is an `estimate`; a central price list is `list`. Within one ladder tier
+ *  the better quality wins (spec §17, cost-based step 1). */
+export type CostQuality = "actual" | "confirmed" | "estimate" | "list";
+export const COST_QUALITY_RANK: Record<CostQuality, number> = { actual: 4, confirmed: 3, estimate: 2, list: 1 };
+
+/**
+ * One rung of a cost model's source ladder. Candidates are tried tier by
+ * tier (1 first); within a tier the higher quality wins. A source can be
+ * conditional (a DSL requirement over the pricing context, e.g. only for
+ * suppliers a calculator is set up for) and can expire (a candidate whose
+ * as_of is older than max_age_days on the pricing date is stale and skipped,
+ * never used). A candidate whose source is not on the ladder is tried last.
+ */
+export type CostSourceDef = {
+  code: string;                            // e.g. "PRODUCT_COST", "RFQ", "PRICE_LIST", "MANUAL"
+  label?: string | null;
+  tier: number;
+  quality: CostQuality;
+  max_age_days?: number | null;
+  requirement?: string | null;             // "dsl:<expr>" or bare expr
+};
 
 export type CostInput = {
   path: string;                            // e.g. "material.copper_per_kg"
@@ -94,10 +119,34 @@ export type CostInput = {
   currency?: string | null;
   valid_from?: string | null;
   valid_to?: string | null;
+  /** Provenance (ladder resolution). Absent = a hand-maintained tenant rate. */
+  source?: string | null;
+  quality?: CostQuality | null;
+  as_of?: string | null;                   // ISO yyyy-mm-dd the figure was current on
 };
+
+/** A line-level cost figure for one path -- e.g. this product's ERP cost or
+ *  its RFQ reply. Shaped like a CostInput minus the kind (the item carries
+ *  it) so the same ladder resolves model rates and product costs alike. */
+export type CostCandidate = Omit<CostInput, "kind" | "path"> & { path?: string };
 
 export type CostModel = {
   code: string;
   name: string;
   inputs: CostInput[];
+  /** The source ladder. Absent or empty = legacy behaviour: most recent
+   *  valid_from wins regardless of source. */
+  sources?: CostSourceDef[] | null;
+};
+
+/** A line-level check attached to a procedure step (spec §7 guardrails):
+ *  compares the margin between two subtotals against the step component's
+ *  amount (a percentage), and flags the line when it falls below. The
+ *  policy says what a consumer must do with the flag; the core only ever
+ *  reports it. */
+export type StepGuardrail = {
+  kind: "MARGIN_FLOOR";
+  cost_subtotal: string;
+  revenue_subtotal: string;
+  policy: "warn" | "block" | "approve";
 };

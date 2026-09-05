@@ -164,6 +164,7 @@ export const ROUTES = {
   pricingSetup: "/pricing/setup",
   pricingHistory: "/pricing/history",
   pricingAdvanced: "/pricing/advanced",
+  pricingRfqs: "/pricing/rfqs",
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
@@ -921,6 +922,12 @@ export type PricingConfig = {
   /** How long stored pricing contexts (pricing_documents) are kept before
    *  the daily retention job purges them. Default 180, clamped 7..3650. */
   retention_days?: number;
+  /** Which Price Book a line goes to (src/lib/pricing/routing.ts): ordered
+   *  rules on context attributes, first match wins, default book last. */
+  routing?: {
+    rules?: { attribute: string; value: string; area: string }[];
+    default_area?: string;
+  };
 };
 
 export type EmailOutputMode = "partners" | "redirect";

@@ -14,7 +14,10 @@ export const COMPONENT_ENUMS = {
   resolution_strategy: ["MOST_SPECIFIC", "BEST_FOR_CUSTOMER", "ALL_APPLY"],
 } as const;
 
-export const COST_INPUT_KINDS = ["MATERIAL", "LABOUR", "EQUIPMENT", "SALVAGE_CREDIT", "OVERHEAD", "INDEX"];
+export const COST_INPUT_KINDS = ["MATERIAL", "LABOUR", "EQUIPMENT", "SALVAGE_CREDIT", "OVERHEAD", "INDEX", "PURCHASE"];
+
+/** How much a cost figure can be trusted, best first (pricing-core CostQuality). */
+export const COST_QUALITIES = ["actual", "confirmed", "estimate", "list"];
 
 const LABELS: Record<string, string> = {
   PRICE: "Price", COST_BUILDUP: "Cost roll-up", MARKUP: "Markup", DISCOUNT: "Discount",
@@ -37,7 +40,8 @@ const LABELS: Record<string, string> = {
   ALL_APPLY: "Every matching rule applies (stacks)",
 
   MATERIAL: "Material", LABOUR: "Labour", EQUIPMENT: "Equipment",
-  SALVAGE_CREDIT: "Salvage credit", OVERHEAD: "Overhead", INDEX: "Index",
+  SALVAGE_CREDIT: "Salvage credit", OVERHEAD: "Overhead", INDEX: "Index", PURCHASE: "Bought-in part",
+  actual: "Actual (ERP cost)", confirmed: "Confirmed (supplier reply)", estimate: "Estimate (calculated)", list: "List (price list)",
 };
 
 export function enumLabel(value: string): string {
