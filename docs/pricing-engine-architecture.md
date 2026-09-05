@@ -1,10 +1,31 @@
-# PricingEngine — Architecture Specification v1.4
+# PricingEngine — Architecture Specification v1.5
 
 **Codename:** PricingEngine (working title — ships under a product name from day one, see §14.4)
 **Author:** Abdul Nandalpad / ServiceSphere UG
-**Date:** 2026-08-15
-**Status:** Draft for review
-**Supersedes:** v1.2 (2026-08-15)
+**Date:** 2026-09-06
+**Status:** v1.5 = as-built baseline + Phase 2 build plan (owner decision 2026-09-06: finish it as a product, option C)
+**Supersedes:** v1.4 (2026-08-15)
+
+**Changelog v1.4 → v1.5 — baseline the reality, plan Phase 2 against it**
+- Owner decision 2026-09-06, after a review of the three coexisting pricing
+  layers (Small Scale Pricing, Products list price, the engine): **finish the
+  engine as a product** rather than shrink it to one price list or remove it.
+- NEW §16: **as-built baseline** — what is in the repo today, what is
+  exercised, what is demo-only, the defects and gaps found in the review.
+- NEW §17: **Phase 2 build plan** in eight batches, each gated by the
+  bpmsquarecore §10 doctrine (build → demo tenant → owner validates → next),
+  ordered by the owner's frame from the 2026-08-16/17 sessions: Execution →
+  Analysis → Strategy, in-app first, PaaS second.
+- NEW §18: **decisions needed** before batch 2, with the defaults the plan
+  assumes.
+- §11.2 client #3 is promoted from "later, optional" to **the first Phase 2
+  deliverable**: the quote line is where the traces that Analysis needs get
+  generated, and where the in-house design partner will actually meet the
+  engine.
+- Scenario 5 from the brainstorm ("one company running all four methods at
+  once") is closed by construction: Price Books (`pricing_area`) already
+  hold one method each, and batch 2 routes a quote line to a book by
+  product category / document type. No further design needed.
 
 **Changelog v1.3 → v1.4 — in-app consumers are a first-class client**
 - §11.2 gains **Client #3: BPMSquare in-app modules.** Standard Quotes, service
@@ -456,3 +477,327 @@ for a public metered endpoint.
 `tenants.plan` gates simulation retention days, embed-domain count, AI-authoring
 quota, and call allowances. Enforcement server-side at the same guard that resolves
 the key.
+
+---
+
+## 16. As-built baseline (2026-09-06 review)
+
+Read this before touching any pricing code. It is what exists, not what was
+planned. Commits: `6de1865` through `7f3056c` (2026-08-15 to 2026-08-25).
+Nothing pricing-related has changed since.
+
+### 16.1 Three ways to price a line today
+
+| Layer | Storage | Consumers | Who has it |
+|---|---|---|---|
+| **Small Scale Pricing** (`/settings/pricing`) | `pricing_items`: category (labour/material/testing/transport), description, unit, rate. No conditions, no validity. | Quote form catalogue picker; work-order → invoice labour line (`api/work-orders/[id]/invoice` takes the first labour item's rate). | Every tenant with quotations. Vikas uses it. |
+| **Products** (`/products`) | `products.list_price`, `cost_price`, `tax_percent`, category, sub-category. | Quote form catalogue picker (copies the price onto the line, keeps `product_id` as a link). | Every tenant with the products flag. |
+| **PricingEngine** | Ontology tables 0083 (`pricing_config_versions`, `_dimensions`, `_components`, `_procedures`, `_rules`, `_cost_models`, `_cost_inputs`), metering 0084 (`pricing_usage`). | `POST /api/v1/price` (bearer key, `pricing` scope); Pricing workcenter (Today's rates / Setup wizard / History / Advanced cockpit); `POST /api/quotes/price-line` behind `pricing_engine` **and** `pricing_engine_quotes`. | `pricing_engine` on for the demo tenant only (0085). Demo has one DRAFT (cost-based template, zero rules), nothing PUBLISHED. No tenant has ever gone live. |
+
+The three do not know about each other. A rep on the quote form sees
+pricing items and products side by side in one catalogue, plus a "Price
+with engine" button that works only on product lines, only against the
+"default" book, and only after someone has published.
+
+### 16.2 What is built and exercised
+
+- **Core** (`src/lib/pricing-core/`, 1,700 lines): waterfall executor with
+  full trace, rule resolution (most-specific-wins, BEST_FOR_CUSTOMER,
+  ALL_APPLY, AMBIGUOUS_RULE as a hard error), tiered/graduated scales,
+  cost rollup with effective-dated inputs and AMBIGUOUS_COST_INPUT, formula
+  DSL (Pratt parser, closed AST, op/depth limits), manual overrides gated by
+  `manual_override`, rounding. 44 tests, both Phase 1 exit criteria green,
+  boundary test enforces no framework imports. **This part is solid.**
+- **Persistence adapter** (`src/lib/pricing/server.ts`): loads a PUBLISHED
+  or named version per area, runs `priceDocument`, meters into
+  `pricing_usage` best-effort.
+- **Config API** (`api/settings/pricing-engine/{config,versions,areas,test-price}`):
+  one mutation route for six entity kinds; versions list/create/clone;
+  publish with a validation report; discard a draft; test-price any version
+  including drafts. Workcenter view/edit/delete grants enforced.
+- **Workcenter** (`/pricing`, ~2,300 lines): Price Book picker, "unsaved
+  changes / Go live / Discard" invisible versioning, four method templates
+  (cost-based, price list, value-based, variant) with rate tables
+  conditioned on template dimensions, a Sample bill with a display-only
+  margin floor, History with an as-of-date view, and the Advanced cockpit
+  with guided forms and a Test & Trace tab.
+- **External API**: `POST /api/v1/price` with `trace: full|summary|none`,
+  `pricing_date`, `config_version`, `pricing_area`, `procedure`, `currency`.
+  Structured 422s for every config problem.
+
+### 16.3 What the spec promised and is NOT built
+
+Phase 2 in full: pricing-context persistence, simulation replay, version
+diff, approval workflow (PENDING_APPROVAL and IN_SIMULATION exist only as
+CHECK-constraint values), NL rule authoring, onboarding mapper, anomaly
+digest, per-key rate limiting, webhook events for pricing, embed tokens and
+`/embed/*`, plans/entitlements, a product name. Phase 3 entirely.
+
+### 16.4 Defects and gaps found in the review
+
+1. **No stored pricing contexts.** Every `price()` result is thrown away
+   after the response. Simulation, analysis, "show the customer why" on a
+   sent quote, and replay are all impossible until this exists. Blocks
+   everything else in Phase 2.
+2. **Quote-line integration is hard-wired.** `api/quotes/price-line`
+   maps `account.type → customer.tier`, `account.state → region`,
+   `account.industry → industry`, `product.category/sub_category/name`
+   in code. A tenant cannot say "my tier is the custom field `cf_grade`".
+   Only the `default` book; no per-line book routing; the product's own
+   `list_price` never reaches the engine, so a Price-list book has to
+   re-key every price the catalogue already holds.
+3. **Cost inputs have no uniqueness.** `pricing_cost_inputs` has no unique
+   index on (tenant, model, path, valid_from); the config route inserts
+   rather than upserts; the wizard had to grow `missingCostInputMutations`
+   to avoid duplicates that trip AMBIGUOUS_COST_INPUT.
+4. **Publish is not atomic and emits nothing.** Two updates (supersede,
+   then publish); a failure between them leaves no live version. No
+   webhook event, no notification.
+5. **Metering has no key.** `pricing_usage` lacks `api_key_id`, so per-key
+   rate limiting (§15.4) cannot be computed from it.
+6. **Currency is ₹ in the UI.** Formatting is hard-coded in the wizard
+   and cockpit; the engine itself is currency-agnostic.
+7. **History and Today's rates only understand wizard templates.** A
+   version built in Advanced renders as "set up in Advanced".
+8. **Dimensions are tenant-wide, not per book.** Acceptable (they are a
+   vocabulary), but the wizard's `templateMutations` re-upserts weights on
+   every resume, so two books with different weights for the same attribute
+   fight each other silently.
+9. **Test coverage stops at the core.** No route tests; the wizard's
+   sync-on-resume logic (which has already had two zero-price bugs) is
+   untested.
+10. **Standard Quotes, work orders and WFM** (§11.2 client #3) have no
+    engine hook at all; work-order invoicing still reads `pricing_items`.
+
+---
+
+## 17. Phase 2 build plan (v1.5)
+
+**Doctrine:** one batch → demo tenant → owner validates → next
+(bpmsquarecore §10). Every batch ends with `tsc`, `next build`, tests,
+a security pass on anything that writes, and the migration listed as
+pending in PROJECT.md's ledger. Sizes are rough: S ≈ 1–2 days, M ≈ 3–5,
+L ≈ a week or more of build time before validation.
+
+**Order rationale (owner's frame, 2026-08-16/17):** Execution → Analysis
+→ Strategy. Execution (quote lines priced in-app) generates the stored
+contexts Analysis needs; Analysis feeds Strategy (AI advisory). Governance
+sits between Execution and Analysis because overrides on real quotes are
+the first thing that needs approving. PaaS surfaces come last: they are
+packaging, and they package what the first six batches produce.
+
+### Batch 1 — Pricing contexts: store every price, replay any price (M)
+
+The foundation. Nothing downstream works without it.
+
+- Migration `pricing_documents`: tenant, area, config_version, procedure,
+  pricing_date, `source` (`api` | `quote` | `standard_quote` | `work_order`
+  | `test` | `simulation`), `source_id` (quote id etc., nullable),
+  `api_key_id`, request context (header + lines) as JSONB, result
+  (subtotals, components, net per line) as JSONB, trace as JSONB, calc_ms,
+  created_by, created_at. Tenant-scoped SELECT only. GIN on the context.
+- `runPrice()` writes one row per call (best-effort like metering, but
+  logged loudly on failure). `pricing_usage` gains `api_key_id`.
+- Retention: `config.pricing.retention_days` (default 180); a daily
+  GitHub Action (the `wfm-hours-alert.yml` pattern, not Vercel cron)
+  purges rows older than that. Same posture as WFM selfie retention.
+- `POST /api/v1/price` gains `options.replay_of: <document id>`; the
+  cockpit's Test & Trace gains "Load a past document".
+- A reusable `<PriceTrace>` component (the waterfall as a drawer) so
+  batch 2 can mount it on a quote line without re-rendering the cockpit.
+- Unique index on `pricing_cost_inputs (tenant_id, cost_model_code, path,
+  coalesce(valid_from, '1900-01-01'))`; the config route upserts on it.
+  Wizard's duplicate-avoidance stays as belt and braces.
+- Publish becomes one RPC (`pricing_publish_version`) so supersede +
+  publish are atomic; it writes a `change_log` row with object type
+  `pricing_config` (already does) which the existing webhook dispatcher
+  turns into `version.published` for any webhook subscribed to that
+  object type. No new event bus.
+
+**Exit:** price a document via API, quote form and cockpit; all three
+appear in `pricing_documents`; replay one and get the same numbers;
+retention job runs on the demo.
+
+### Batch 2 — Execution: the quote line, done properly (L)
+
+Client #3 becomes real. This is where the design partner meets the engine.
+
+- **Context mapping** (`config.pricing.context_map`): per tenant, which
+  BPMSquare field feeds which dimension. `customer.tier ← accounts.type`,
+  `region ← accounts.state`, `product.category ← products.category`,
+  or any `cf_*` custom field on account, contact or product. Edited in
+  Settings → Dynamic Pricing → "Where the engine reads from". Replaces the
+  hard-wired mapping in `api/quotes/price-line`.
+- **Book routing** (`config.pricing.routing`): ordered rules "product
+  category X → book Y", "document type standard_quote → book Z", default
+  book last. A quote line goes to the first matching book. Closes
+  scenario 5.
+- **Catalogue as list price**: the product's `list_price` (and `uom`,
+  `tax_percent`, `cost_price`) travels into the line context as
+  `line.product.*`. The Price-list template's LIST_PRICE rule set gains a
+  default row "use the catalogue price" (formula
+  `ctx.line.product.list_price`), so a tenant does not re-key the
+  catalogue; conditional rows override it for tiers/regions/volumes.
+  Small Scale Pricing items get the same treatment (batch 8).
+- **Quote form**: "Price with engine" on every line that has a product or
+  a pricing item; the resolved rate lands with a small "why" chip that
+  opens `<PriceTrace>`; manual edits after pricing are recorded as a
+  `manual` override with a reason when the component's policy says
+  `ALLOWED_WITH_REASON`, refused when `FORBIDDEN`. A margin-floor breach
+  shows as an amber flag on the line and on the quote header.
+- **Standard Quotes** get the identical hook (`document_type:
+  standard_quote`); **work-order invoices** price their labour line via
+  the engine when the tenant has a book routed for `work_order`, else fall
+  back to `pricing_items` as today.
+- Every priced line stores `pricing_document_id` on `quote_lines` /
+  `standard_quote_lines` (nullable column, one migration), so a sent quote
+  can always show the customer why.
+- Flags: `pricing_engine_quotes` stays the opt-in for touching real quotes.
+
+**Exit:** on the demo, a quote with three lines from two categories prices
+from two books, one line shows a tier discount with its trace, one manual
+override with a reason, one margin-floor flag; the PDF is unchanged.
+
+### Batch 3 — Governance: approvals (M)
+
+- Migration `pricing_approvals`: tenant, kind (`version_publish` |
+  `line_override` | `margin_floor`), subject (area+version, or
+  pricing_document_id + line), requested_by, approver_ids, status
+  (`pending` | `approved` | `rejected`), decision_by, decision_at, reason.
+  SELECT-only RLS; writes via routes.
+- `config.pricing.approvers`: per book, a list of user ids; empty = no
+  approval required (today's behaviour). Four-eyes is mandatory when a
+  version contains any rule with origin `AI_PROPOSED_APPROVED` (batch 5).
+- "Go live" becomes "Submit for approval" when approvers exist; the
+  version moves DRAFT → PENDING_APPROVAL; an approver's "Approve" runs the
+  publish RPC. Rejection returns it to DRAFT with the reason on the
+  banner.
+- A line override beyond policy, or a margin-floor breach on a quote,
+  raises a `line_override` / `margin_floor` approval; the quote shows
+  "awaiting pricing approval" and cannot be sent until it is approved
+  (the same "cannot send" pattern invoices use for cancelled state).
+- Approvals appear in the Nova inbox and as an email through
+  `resolveOutbound()`; a "Deal desk" tab in the Pricing workcenter lists
+  what is pending.
+- The margin guardrail, deliberately display-only since 2026-08-23, wires
+  into this — §7 said it would be the first thing to.
+
+**Exit:** on the demo, a draft with an approver cannot go live without a
+second user; an over-discounted quote line blocks sending until approved.
+
+### Batch 4 — Simulation and diff (M)
+
+- **Diff**: `GET /api/settings/pricing-engine/versions/{a}/diff/{b}` and
+  a Diff view in History: rules added / removed / changed, components and
+  procedure steps changed, cost inputs whose validity moved. Rendered as
+  the plain-language sentences `describeCondition()` already produces.
+- **Simulation**: replay a DRAFT against the last N stored
+  `pricing_documents` of the same book (N from `config.pricing`,
+  default 500, synchronous cap 200 with a GitHub Action for larger runs).
+  Report: revenue delta, margin delta (where cost is known), affected
+  documents by account, dead rules (never matched), AMBIGUOUS_RULE hits,
+  margin-floor crossings. Stored in `pricing_simulations` and shown on the
+  "unsaved changes" banner as "What would change".
+- Version state IN_SIMULATION is used while a run is in flight.
+
+**Exit:** change a tier discount on the demo draft, see "12 quotes would
+be ₹41,200 cheaper, 2 cross the margin floor" before going live.
+
+### Batch 5 — Strategy: NL rule authoring and onboarding mapper (L)
+
+- **NL rule authoring**: "Tier-A customers get an extra 3% above 50,000
+  until end of December" → one forced tool call (the `nlCompile` pattern:
+  the model emits only a validated rule shape — component, match
+  attributes restricted to the registered dimensions, value or scale or
+  formula, validity) → the rule is back-translated with
+  `describeCondition()` and shown → the user accepts → it lands in the
+  DRAFT with origin `AI_PROPOSED_APPROVED`, which trips four-eyes on
+  publish. Prompt, response, model id and approver are logged
+  (`pricing_ai_log`, the EU-AI-Act pattern from §8).
+- **Onboarding mapper**: upload a price list or cost sheet (CSV/XLSX
+  through the Data Workbench parser) → the model maps columns to
+  dimensions, components and cost-input paths → preview with row-level
+  validation → import as rules / cost inputs into a DRAFT. Nothing
+  publishes automatically.
+- The AI dock gains "price this" and "explain this price" over the same
+  tools, scoped to the pricing workcenter.
+
+**Exit:** on the demo, three sentences become three rules in a draft;
+a 40-row CSV becomes a Price-list book without touching Advanced.
+
+### Batch 6 — Analysis and anomaly digest (M)
+
+- Analytics metrics (the `AnalyticsMetricId` pattern): realised vs list
+  (net after overrides / net at rules), discount leakage by rep and by
+  account, margin distribution, override count, rules never matched in
+  the last 90 days. All from `pricing_documents` joined to quotes and
+  their outcomes; scoped like every other metric.
+- Talk to data: a `pricing_documents` source in `LIST_SOURCES` (one row
+  per priced line with its components) so "average discount by tier last
+  quarter" is a question, not a report.
+- **Anomaly digest**: a daily GitHub Action flags stale cost rates
+  (unchanged > N days), rules expiring within 14 days without a successor,
+  dead rules, discount stacking above a threshold; one email per tenant
+  to the pricing owner through `resolveOutbound()`, and a card in the
+  Pricing workcenter.
+
+**Exit:** the demo dashboard shows leakage by rep; the digest arrives in
+the redirect inbox.
+
+### Batch 7 — PaaS surfaces: metering, rate limits, webhooks, embeds (L)
+
+- Per-key rate limiting from `pricing_usage` (fixed window, limits from
+  `tenants.plan`), 429 with `Retry-After`; a usage panel in the workcenter.
+- `POST /api/v1/pricing/{versions,rules,cost-inputs}` — the config CRUD
+  the API guide promised, same validation as the in-app route, `pricing`
+  scope with write.
+- Webhook events `pricing.version.published`, `pricing.simulation.completed`,
+  `pricing.anomaly.flagged` — all `change_log` rows with object type
+  `pricing_*`, delivered by the existing dispatcher; documented in the
+  API guide.
+- Embed tokens (`POST /api/v1/embed-tokens`, ≤ 15 min JWT bound to
+  tenant + view + resource) and `/embed/trace/:documentId`,
+  `/embed/simulator` with per-tenant `frame-ancestors`; middleware
+  public-path entries `$`-anchored like the quote PDF links.
+- OpenAPI covers all of it; the product name (§18) appears on the API
+  index, the workcenter and the Drive API guide.
+
+**Exit:** an external script prices 200 lines, gets rate-limited on the
+201st call in the window, receives `version.published` on its webhook,
+and renders a trace in an iframe on a test page.
+
+### Batch 8 — Once and for all: one price origin per tenant (S)
+
+- **Small Scale Pricing → Price Book importer**: one click turns
+  `pricing_items` into a "Service rates" book (LIST_PRICE rules keyed on
+  `item.code`, one dimension). The Settings page stays for tenants
+  without the engine; for engine tenants it shows "managed in Pricing"
+  with a link. Vikas is never migrated without the owner's go.
+- Currency: the workcenter and cockpit read the tenant currency (the
+  same `money()` helper the GCC currency item needs) — no ₹ literals.
+- History and Today's rates render any version, wizard-built or not,
+  through the generic snapshot view.
+- Route tests for config, versions, publish RPC, price-line, approvals.
+- Drive docs: a new "BPMSquare — Pricing Guide" and the API guide
+  refreshed, in the same piece of work.
+
+**Exit:** the demo has one price origin per line type, no ₹ literals,
+tests green, guides current.
+
+### What is explicitly NOT in Phase 2
+
+Phase 3 as written (§9 rebates/credits ledger, agreements, index feeds,
+usage metering for SaaS tenants, dedicated-schema tenancy, extraction),
+Arabic/RTL, and a JS SDK for the embeds. Each waits for a paying demand.
+
+---
+
+## 18. Decisions needed before batch 2 (defaults the plan assumes)
+
+| # | Decision | Default assumed | Why it matters |
+|---|---|---|---|
+| 1 | **Build order**: in-app execution first (batches 1–6, then 7) or PaaS first (1, 7, then 2–6)? | In-app first | The owner's own frame; the only design partner is in-house; stored contexts from real quotes are what Analysis and Strategy need. |
+| 2 | **Small Scale Pricing**: migrate engine tenants' items into a book (batch 8) or keep it permanently separate? | Migrate, opt-in per tenant, never Vikas without a go | "Once and for all" means one price origin per line type. Keeping both forever keeps the three-layer confusion. |
+| 3 | **Product name** (§14.5: required from day one). Still "PricingEngine" everywhere. | Batch 7 applies whatever is chosen; until then the workcenter keeps saying "Pricing". | API index, embed views and the Drive guide are what an external customer sees. |
+| 4 | **Approvals on quotes**: block sending until approved (default) or warn only? | Block | Warn-only is the display-only guardrail we already have; blocking is what Governance is for. |
+| 5 | **Retention** for stored pricing contexts. | 180 days, per-tenant setting | Storage cost vs. analysis depth. |
