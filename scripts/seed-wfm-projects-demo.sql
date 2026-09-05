@@ -27,14 +27,14 @@ seq as (
   from wfm_projects p, demo where p.tenant_id = demo.id and p.ref ~ '^PRJ-\d+$'
 ),
 acct as (
-  select id, row_number() over (order by name) as rn
+  select a.id, row_number() over (order by a.name) as rn
   from accounts a, demo where a.tenant_id = demo.id
 )
 insert into wfm_projects (id, tenant_id, ref, name, code, parent_id, account_id, status, start_date, end_date, budget_hours)
 select v.id, demo.id,
        'PRJ-' || lpad((seq.n + v.k)::text, 4, '0'),
        v.name, v.code, null,
-       (select id from acct where rn = v.acct_rn),
+       (select acct.id from acct where acct.rn = v.acct_rn),
        v.status, v.start_date::date, v.end_date::date, v.budget_hours
 from demo, seq,
 (values

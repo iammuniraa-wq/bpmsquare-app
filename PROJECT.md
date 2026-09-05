@@ -12,7 +12,22 @@ Last updated: 2026-08-05
 
 The prototype era is over: this is a **live multi-tenant SaaS in production**
 (Next.js App Router + Supabase, Vercel). `main` = production (demo tenant +
-real client **vikas-pioneers**); `develop` = staging. Database migrations are
+real client **vikas-pioneers**); `develop` = staging.
+
+**Tenants in production (2026-09-06):**
+
+| Tenant | slug | Reached at | Notes |
+|---|---|---|---|
+| BPMSquare Demo | `demo` | `app.bpmsquare.com` (resolved by `is_demo = true`, not by slug) | Shared sandbox. Was slug `vikas` until 2026-09-06 -- renamed because the shared slug made it look like the client's own workspace. It still shows the Vikas customisations via the extension registry (`demo` and `vikas` both map there); delete that line if it should become plain product. Every `scripts/seed-*-demo.sql` targets it via `is_demo`. |
+| Vikas Pioneers | `vikas-pioneers` | `vikas.bpmsquare.com` (custom domain) | Live client. Never the target of a seed. |
+| BIM Infotech Pvt Ltd | `bim` | `bim.bpmsquare.com` (custom domain) | Live client, WFM only. |
+
+Before running anything that says "demo", confirm with
+`select name, slug, custom_domain, is_demo from tenants;` that exactly one
+row is `is_demo` -- the hostname rule above means that row is what the
+whole sandbox serves.
+
+Database migrations are
 tracked files in `supabase/migrations/` (through **0061**, ALL applied to
 production by the owner via the Supabase SQL editor — the owner runs each new
 migration by hand and confirms; never assume one is applied until they say so).
