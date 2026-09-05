@@ -22,7 +22,10 @@ type Preview = {
 };
 
 const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
-const money = (n: number) => "₹" + n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+// Whole rupees print whole; anything with paise prints both digits, never
+// a lone ".8".
+const money = (n: number) =>
+  "₹" + n.toLocaleString("en-IN", Number.isInteger(n) ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 const SOURCE_LABEL: Record<string, string> = {

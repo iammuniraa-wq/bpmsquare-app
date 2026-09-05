@@ -7,8 +7,14 @@ const nextConfig: NextConfig = {
   // so the deployed function is missing it entirely ("/var/task/.../bin
   // does not exist") even though @sparticuz/chromium itself is already on
   // Next's built-in serverExternalPackages list. This forces it in.
+  //
+  // Every route that launches the browser needs its own entry -- the
+  // invoice and standard-quote PDF routes were missed when this was added
+  // for quotes, and failed with exactly that error until 2026-09-06.
   outputFileTracingIncludes: {
     "/api/quotes/**": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+    "/api/standard-quotes/**": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+    "/api/invoices/**": ["./node_modules/@sparticuz/chromium/bin/**/*"],
   },
 };
 
