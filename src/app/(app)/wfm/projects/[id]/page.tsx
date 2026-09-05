@@ -13,6 +13,7 @@ import ProjectHoursPanel from "./ProjectHoursPanel";
 import SubItems from "./SubItems";
 import { depthOf } from "@/lib/wfm/projectTree";
 import DeleteProject from "./DeleteProject";
+import ObjectSections from "@/components/fields/ObjectSections";
 
 export default async function WfmProjectPage({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkcenterView("wfm");
@@ -58,6 +59,18 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
       <ProjectHoursPanel projectId={id} budgetHours={project.budget_hours} />
 
       <SubItems projectId={id} />
+
+      {/* Tenant custom fields (Settings -> Custom fields -> Project). The
+          standard fields are hand-rendered by ProjectForm below, so only the
+          cf_ ones show here. */}
+      <div style={{ marginTop: 16, maxWidth: 760 }}>
+        <ObjectSections
+          objectType="project"
+          record={project as unknown as Record<string, unknown>}
+          patchUrl={`/api/wfm/projects/${id}`}
+          exclude={["ref", "name", "code", "status", "start_date", "end_date", "budget_hours"]}
+        />
+      </div>
 
       <div style={{ marginTop: 20 }}>
         <ProjectForm project={project} />

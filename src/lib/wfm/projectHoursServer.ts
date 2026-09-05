@@ -1,0 +1,154 @@
+import "server-only";
+
+import type { createAdminSupabase } from "@/lib/supabase-server";
+import { getWfmConfig } from "@/lib/wfm/server";
+import { workSessions } from "@/lib/wfm/hours";
+import { rollUpProjectHours, projectHeadcount, UNASSIGNED, type SessionsForEmployee } from "@/lib/wfm/projectHours";
+import { rollUp, depthOf, descendantsOf } from "@/lib/wfm/projectTree";
+
+type Admin = ReturnType<typeof createAdminSupabase>;
+
+export type ProjectHoursRow = {
+  key: string;
+  gross_minutes: number;
+  break_minutes: number;
+  net_minutes: number;
+  sessions: number;
+  employees: number;
+  /** What landed directly on this row. */
+  own_minutes: number;
+  /** Own plus everything beneath it in the tree. */
+  total_minutes: number;
+};
+
+export type ProjectMeta = {
+  name: string;
+  ref: string | null;
+  status: string;
+  parent_id: string | null;
+  account_id: string | null;
+  /** Level 0 is a project; 1..3 are sub-projects. */
+  depth: number;
+};
+
+export type ProjectHoursReport = {
+  from: string;
+  to: string;
+  deduct_breaks: boolean;
+  rows: ProjectHoursRow[];
+  projects: Record<string, ProjectMeta>;
+  pending_migration?: true;
+};
+
+/**
+ * Worked hours rolled up per project for a date window -- the one
+ * implementation behind the Projects screens AND the v1 API, so an invoice
+ * built from the API can never disagree with the number a supervisor sees.
+ *
+ * `employeeIds` narrows to a supervisor's own people (null = everyone, which
+ * is what an API key gets: it is tenant-wide by definition). `projectId`
+ * narrows the result to one project and everything beneath it, which is how
+ * a period is billed for one job.
+ *
+ * Never throws for a pending migration: 42P01/42703 come back as an empty
+ * report flagged pending_migration, per §3b.
+ */
+export async function projectHoursReport(
+  admin: Admin,
+  tenantId: string,
+  from: string,
+  to: string,
+  opts: { employeeIds?: string[] | null; projectId?: string | null } = {}
+): Promise<ProjectHoursReport> {
+  const config = await getWfmConfig(admin, tenantId);
+  const base: ProjectHoursReport = { from, to, deduct_breaks: config.deduct_breaks, rows: [], projects: {} };
+
+  if (opts.employeeIds && opts.employeeIds.length === 0) return base;
+
+  let eventsQuery = admin
+    .from("wfm_presence_events")
+    .select("employee_id, kind, ts, project_id")
+    .eq("tenant_id", tenantId)
+    .is("superseded_by", null)
+    // Padded a day either side so a night shift's punches around midnight are
+    // included; the session split itself handles the attribution.
+    .gte("ts", `${from}T00:00:00Z`)
+    .lt("ts", new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString())
+    .order("ts", { ascending: true });
+  if (opts.employeeIds) eventsQuery = eventsQuery.in("employee_id", opts.employeeIds);
+
+  const { data: events, error } = await eventsQuery;
+  if (error) {
+    if (error.code === "42P01" || error.code === "42703") return { ...base, pending_migration: true };
+    throw new Error(error.message);
+  }
+
+  const byEmployee = new Map<string, { kind: string; ts: string; project_id: string | null }[]>();
+  for (const e of events ?? []) {
+    const id = e.employee_id as string;
+    byEmployee.set(id, [...(byEmployee.get(id) ?? []), e as never]);
+  }
+  const endRef = new Date();
+  const input: SessionsForEmployee[] = [...byEmployee].map(([employee_id, evs]) => ({
+    employee_id,
+    sessions: workSessions(evs as never, endRef),
+  }));
+
+  const rows = rollUpProjectHours(input, config.deduct_breaks);
+  const heads = projectHeadcount(input);
+
+  // The WHOLE tree is fetched, not just the projects with hours: an hour
+  // booked to a sub-project has to appear in its parent's total, and the
+  // parent may have no punches of its own.
+  const { data: allProjects } = await admin
+    .from("wfm_projects")
+    .select("id, name, ref, status, parent_id, account_id")
+    .eq("tenant_id", tenantId);
+  const tree = (allProjects ?? []).map((p) => ({ id: p.id as string, parent_id: (p.parent_id as string | null) ?? null }));
+  const byId = new Map(tree.map((t) => [t.id, t]));
+
+  const ownMinutes = new Map<string, number>();
+  for (const r of rows) if (r.key !== UNASSIGNED) ownMinutes.set(r.key, r.net_minutes);
+  const rolled = rollUp(tree, ownMinutes);
+
+  const projects: Record<string, ProjectMeta> = {};
+  for (const p of allProjects ?? []) {
+    const id = p.id as string;
+    projects[id] = {
+      name: p.name as string,
+      ref: (p.ref as string | null) ?? null,
+      status: p.status as string,
+      parent_id: (p.parent_id as string | null) ?? null,
+      account_id: (p.account_id as string | null) ?? null,
+      depth: depthOf(byId, id) ?? 0,
+    };
+  }
+
+  const withRollup: ProjectHoursRow[] = rows.map((r) => ({
+    ...r,
+    employees: heads.get(r.key) ?? 0,
+    own_minutes: r.net_minutes,
+    total_minutes: r.key === UNASSIGNED ? r.net_minutes : (rolled.get(r.key)?.total ?? r.net_minutes),
+  }));
+
+  // A parent with no punches of its own still needs a row once its children
+  // have hours -- otherwise a project whose work all sits on its sub-projects
+  // would be missing from its own report.
+  const present = new Set(withRollup.map((r) => r.key));
+  for (const [id, v] of rolled) {
+    if (present.has(id) || v.total === 0) continue;
+    withRollup.push({
+      key: id, gross_minutes: 0, break_minutes: 0, net_minutes: 0, sessions: 0,
+      employees: 0, own_minutes: 0, total_minutes: v.total,
+    });
+  }
+  withRollup.sort((a, b) => b.total_minutes - a.total_minutes);
+
+  let out = withRollup;
+  if (opts.projectId) {
+    const keep = new Set([opts.projectId, ...descendantsOf(tree, opts.projectId)]);
+    out = withRollup.filter((r) => keep.has(r.key));
+  }
+
+  return { ...base, rows: out, projects };
+}

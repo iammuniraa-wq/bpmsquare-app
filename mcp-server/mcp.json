@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "BPMSquare MCP server \u2014 field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -125,6 +125,47 @@
             "description": "Inventory item ID"
           }
         }
+      }
+    },
+    {
+      "name": "list_projects",
+      "description": "List workforce projects and sub-projects (project costing): ref, name, contract/PO code, level (0 = project, 1-3 = sub-project), parent_id, account_id, status, dates, budget hours. Filter by status, level, parent_id or account_id.",
+      "method": "GET",
+      "path": "/api/v1/projects",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "description": "planned, active, on_hold, completed or cancelled" },
+          "level": { "type": "string", "description": "0 for top-level projects only, 1-3 for sub-projects at that level" },
+          "parent_id": { "type": "string", "description": "Only the sub-projects directly under this project" },
+          "account_id": { "type": "string", "description": "Only projects for this customer account" }
+        }
+      }
+    },
+    {
+      "name": "get_project",
+      "description": "Fetch one workforce project: parent, level, sub-projects, and the sites, employees and shifts it is linked to.",
+      "method": "GET",
+      "path": "/api/v1/projects/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "id": { "type": "string", "description": "Project id" } },
+        "required": ["id"]
+      }
+    },
+    {
+      "name": "get_project_hours",
+      "description": "Worked hours for a project and everything beneath it over a date range -- the figure to invoice. Totals per project only; no per-employee detail.",
+      "method": "GET",
+      "path": "/api/v1/projects/{id}/hours",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Project id" },
+          "from": { "type": "string", "description": "Start date, YYYY-MM-DD" },
+          "to": { "type": "string", "description": "End date, YYYY-MM-DD (inclusive)" }
+        },
+        "required": ["id", "from", "to"]
       }
     },
     {

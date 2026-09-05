@@ -104,6 +104,20 @@ const PRODUCT_FIELDS: QueryableField[] = [
   { path: "status", type: "string" },
 ];
 
+const PROJECT_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "name", type: "string", searchable: true },
+  { path: "code", type: "string", searchable: true },
+  { path: "level", type: "number" },
+  { path: "parent_id", type: "string" },
+  { path: "account_id", type: "string" },
+  { path: "status", type: "string" },
+  { path: "start_date", type: "string" },
+  { path: "end_date", type: "string" },
+  { path: "budget_hours", type: "number" },
+];
+
 const EMPLOYEE_FIELDS: QueryableField[] = [
   { path: "id", type: "string" },
   { path: "employee_code", type: "string", searchable: true },
@@ -317,6 +331,37 @@ export const LIST_SOURCES: Record<string, ListSource> = {
       return (data ?? []).map((p) => ({
         ...p,
         _links: { self: `/api/v1/products/${p.id}` },
+      }));
+    },
+  },
+  projects: {
+    label: "Projects (workforce, project costing)",
+    description: "What worked hours are attributed to. Sub-projects are rows too: level 0 is a project, 1-3 sit beneath it via parent_id. Hours for a period: /api/v1/projects/:id/hours.",
+    relatedWorkcenter: "wfm",
+    fields: PROJECT_FIELDS,
+    load: async (tenantId) => {
+      const { data } = await createAdminSupabase()
+        .from("wfm_projects")
+        .select("id, ref, name, code, parent_id, account_id, status, start_date, end_date, budget_hours, custom_data, created_at, updated_at")
+        .eq("tenant_id", tenantId)
+        .order("ref");
+      const rows = data ?? [];
+      // Level is depth in the tree, derived here so the API never has to be
+      // told what a stored column would have to be kept in step with.
+      const parentOf = new Map(rows.map((p) => [p.id as string, (p.parent_id as string | null) ?? null]));
+      const level = (id: string) => {
+        let d = 0, cur = parentOf.get(id) ?? null;
+        const seen = new Set<string>([id]);
+        while (cur && !seen.has(cur)) { seen.add(cur); d++; cur = parentOf.get(cur) ?? null; }
+        return d;
+      };
+      return rows.map((p) => ({
+        ...p,
+        level: level(p.id as string),
+        _links: {
+          self: `/api/v1/projects/${p.id}`,
+          hours: `/api/v1/projects/${p.id}/hours?from=YYYY-MM-DD&to=YYYY-MM-DD`,
+        },
       }));
     },
   },

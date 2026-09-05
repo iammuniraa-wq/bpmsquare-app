@@ -15,7 +15,7 @@ import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 // since labels are tenant-configurable) -- this list only defines WHICH
 // objects exist, not their order.
 const OBJECT_ORDER: ImportObjectId[] = [
-  "accounts", "contacts", "assets", "suppliers", "products", "quotes", "quote_lines",
+  "accounts", "contacts", "assets", "suppliers", "products", "wfm_projects", "quotes", "quote_lines",
   "cases", "work_orders", "invoices", "purchase_orders", "inventory",
   "users", "employees",
 ];
@@ -38,6 +38,7 @@ export default async function DataWorkbenchPage() {
     if (id === "quote_lines") return tenant?.features?.quote_lines_dw === true;
     if (id === "employees") return tenant?.features?.business_roles === true;
     if (id === "products") return tenant?.features?.products === true;
+    if (id === "wfm_projects") return tenant?.features?.wfm_projects === true;
     return true;
   });
 

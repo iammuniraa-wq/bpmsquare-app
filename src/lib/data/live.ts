@@ -2099,6 +2099,12 @@ const SEARCH_SPECS: SearchSpec[] = [
     featureKeys: ["products"],
   },
   {
+    type: "project", table: "wfm_projects", columns: "id, ref, name, code, status",
+    textCols: ["name", "ref", "code"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.ref, r.code, r.status].filter(Boolean).join(" · ") || "Project", href: ROUTES.wfmProject(r.id), matched: "name" }),
+    featureKeys: ["wfm_projects"],
+  },
+  {
     // Leads have no detail page (list-only), so every lead result points at
     // the Leads list rather than a record it doesn't have.
     type: "lead", table: "leads", columns: "id, title, status",

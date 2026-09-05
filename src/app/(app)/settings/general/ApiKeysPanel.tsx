@@ -16,6 +16,7 @@ const SCOPABLE_OBJECTS = [
   { key: "purchase-orders", label: "Purchase Orders" },
   { key: "pricing", label: "Pricing (engine)" },
   { key: "products", label: "Products" },
+  { key: "projects", label: "Projects (workforce)" },
   // Staff personal data: a key reaches it ONLY by naming it here, never via
   // the all-objects wildcard (see EXPLICIT_SCOPE_ONLY in api/v1/_auth.ts).
   { key: "employees", label: "Employees (staff data)" },

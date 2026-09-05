@@ -82,7 +82,7 @@ export type EffectiveField = {
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
-  | "employee" | "product";
+  | "employee" | "product" | "project";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -270,6 +270,25 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
 
       { key: "uom",         defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
       { key: "description", defaultLabel: "Description",     widget: "textarea", defaultSection: "Details" },
+    ],
+  },
+
+  // Workforce project (project costing). parent_id and the linked people /
+  // shifts / sites are structure, managed on the project screens and the
+  // roster -- not fields a form or an import edits directly.
+  project: {
+    sections: ["Identity", "Schedule", "Details"],
+    fields: [
+      { key: "ref",    defaultLabel: "Project ID", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
+      { key: "name",   defaultLabel: "Name",       widget: "text", defaultSection: "Identity", locked: true },
+      { key: "code",   defaultLabel: "Contract / PO number", widget: "text", defaultSection: "Identity" },
+      { key: "status", defaultLabel: "Status",     widget: "enum", defaultSection: "Identity", enumOptions: [
+        { value: "planned", label: "Planned" }, { value: "active", label: "Active" }, { value: "on_hold", label: "On hold" },
+        { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" },
+      ] },
+      { key: "start_date",   defaultLabel: "Runs from",    widget: "date",   defaultSection: "Schedule" },
+      { key: "end_date",     defaultLabel: "Until",        widget: "date",   defaultSection: "Schedule" },
+      { key: "budget_hours", defaultLabel: "Budget hours", widget: "number", defaultSection: "Schedule" },
     ],
   },
 
@@ -482,7 +501,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
-  "employee", "product",
+  "employee", "product", "project",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {
