@@ -457,6 +457,13 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
+- scripts/seed-wfm-projects-demo.sql — **run AFTER 0104/0105/0107, demo
+  tenant only, PENDING**. Three projects (two on the demo's first two
+  accounts, one standalone) with sub-projects to Level 2, the three lower
+  attribution links, three weeks of weekday punches stamped with projects
+  (one employee deliberately unassigned), next week's roster assignment,
+  and the wfm + wfm_projects flags. Idempotent: fixed ids and natural-key
+  guards, so it can be re-run.
 - Everything else shipped after 0091 is deliberately schema-free, so don't
   go looking for a migration that doesn't exist: **Account 360** stores its
   card order and external sources in the existing `tenants.config` JSONB;
