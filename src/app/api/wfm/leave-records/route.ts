@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { wfmLeaveRecordsPayload } from "@/lib/wfm/bootstrap";
+import { loadLeaveType, monthlyLimitError } from "@/lib/wfm/leaveServer";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -51,12 +52,18 @@ export async function POST(request: NextRequest) {
   const admin = createAdminSupabase();
 
   // Client-supplied foreign ids must resolve inside this tenant.
-  const [{ data: employee }, { data: leaveType }] = await Promise.all([
+  const [{ data: employee }, leaveType] = await Promise.all([
     admin.from("employees").select("id").eq("id", employee_id).eq("tenant_id", tenantId).maybeSingle(),
-    admin.from("wfm_leave_types").select("id").eq("id", leave_type_id).eq("tenant_id", tenantId).maybeSingle(),
+    loadLeaveType(admin, tenantId, leave_type_id),
   ]);
   if (!employee) return NextResponse.json({ error: "Unknown employee" }, { status: 400 });
   if (!leaveType) return NextResponse.json({ error: "Unknown leave type" }, { status: 400 });
+
+  // The monthly limit (0109) binds admin entry too -- the policy is the
+  // policy; an exception is a deliberate change to the type, not a quiet
+  // record behind the employee's back.
+  const limitError = await monthlyLimitError(admin, tenantId, employee_id, leaveType, { date_from, date_to, half_day: half_day === true });
+  if (limitError) return NextResponse.json({ error: limitError }, { status: 400 });
 
   const { data, error } = await admin
     .from("wfm_leave_records")

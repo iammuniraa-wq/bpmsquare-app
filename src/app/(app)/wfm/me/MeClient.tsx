@@ -91,7 +91,7 @@ type DayRecord = {
   ot_minutes: number; ot_pending_minutes: number;
   ot_segments: { start: string; end: string; minutes: number; status: string }[];
 };
-type LeaveBalance = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number };
+type LeaveBalance = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number; monthly_limit?: number | null; paid_days_per_month?: number | null };
 type Holiday = { id: string; date: string; name: string; applies_to: string };
 type CorrectionRequest = {
   id: string; target_date: string; status: "pending" | "approved" | "rejected";
@@ -1994,7 +1994,11 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                     <label style={lbl}>Leave type</label>
                     <select style={inp} value={leaveDraft.leave_type_id} onChange={(e) => setLeaveDraft({ ...leaveDraft, leave_type_id: e.target.value })}>
                       <option value="">— select —</option>
-                      {leaveBalance.map((lb) => <option key={lb.leave_type_id} value={lb.leave_type_id}>{lb.name} ({lb.balance} left)</option>)}
+                      {leaveBalance.map((lb) => (
+                        <option key={lb.leave_type_id} value={lb.leave_type_id}>
+                          {lb.name} ({lb.balance} left{lb.monthly_limit ? `, max ${lb.monthly_limit}/month` : ""}{lb.paid_days_per_month !== null && lb.paid_days_per_month !== undefined ? `, ${lb.paid_days_per_month} paid/month` : ""})
+                        </option>
+                      ))}
                     </select>
                   </div>
                   {/* Half-day only makes sense for a single-day request. */}

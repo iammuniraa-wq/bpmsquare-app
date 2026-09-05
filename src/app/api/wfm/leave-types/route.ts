@@ -2,10 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { wfmLeaveTypesPayload } from "@/lib/wfm/bootstrap";
+import { parseLeaveTypeLimits } from "@/lib/wfm/leaveTypeInput";
 
 const CATEGORIES = ["paid", "unpaid", "half_day"];
 
-// GET /api/wfm/leave-types — list, with each type's tenant-default annual quota.
+// GET /api/wfm/leave-types — list, with each type's tenant-default annual
+// quota, its limits (0109) and how much history refers to it.
 export async function GET() {
   let ctx;
   try {
@@ -21,7 +23,8 @@ export async function GET() {
   }
 }
 
-// POST /api/wfm/leave-types — create a leave type with its tenant-default quota.
+// POST /api/wfm/leave-types — create a leave type with its tenant-default
+// quota and optional monthly limit / paid days per month.
 export async function POST(request: NextRequest) {
   let ctx;
   try {
@@ -38,13 +41,20 @@ export async function POST(request: NextRequest) {
   if (!name?.trim() || !category || !CATEGORIES.includes(category)) {
     return NextResponse.json({ error: "name and a valid category are required" }, { status: 400 });
   }
+  const limits = parseLeaveTypeLimits(body ?? {});
+  if ("error" in limits) return NextResponse.json({ error: limits.error }, { status: 400 });
 
   const admin = createAdminSupabase();
-  const { data: type, error } = await admin
+  let insert = await admin
     .from("wfm_leave_types")
-    .insert({ tenant_id: tenantId, name: name.trim(), category })
+    .insert({ tenant_id: tenantId, name: name.trim(), category, ...limits.patch })
     .select("id, name, category, active")
     .single();
+  // 0109 pending: create without the limit columns rather than fail.
+  if (insert.error && /monthly_limit|paid_days_per_month/.test(insert.error.message)) {
+    insert = await admin.from("wfm_leave_types").insert({ tenant_id: tenantId, name: name.trim(), category }).select("id, name, category, active").single();
+  }
+  const { data: type, error } = insert;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const quota = typeof annual_quota === "number" && annual_quota >= 0 ? annual_quota : 0;
@@ -53,5 +63,5 @@ export async function POST(request: NextRequest) {
     .insert({ tenant_id: tenantId, leave_type_id: type.id, employee_id: null, annual_quota: quota });
   if (quotaErr) return NextResponse.json({ error: quotaErr.message }, { status: 500 });
 
-  return NextResponse.json({ ...type, annual_quota: quota });
+  return NextResponse.json({ ...type, annual_quota: quota, ...limits.patch });
 }
