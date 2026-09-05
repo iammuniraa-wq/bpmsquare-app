@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
-import { parseFormula } from "@/lib/pricing-core";
-import { COMPONENT_ENUMS, COST_INPUT_KINDS } from "@/lib/pricing/enums";
+import { parseFormula, type CostSourceDef } from "@/lib/pricing-core";
+import { COMPONENT_ENUMS, COST_INPUT_KINDS, COST_QUALITIES } from "@/lib/pricing/enums";
+import { validateSources } from "@/lib/pricing/validate";
 
 // One mutation surface for all PricingEngine config entities (admin,
 // session-auth, service-role writes — the pricing tables are select-only
@@ -206,10 +207,30 @@ export async function POST(req: Request) {
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         return NextResponse.json({ ok: true });
       }
+      // The source ladder (0113): validated here so a broken rung can never
+      // land in a draft -- publish repeats the checks.
+      let sources: CostSourceDef[] | undefined;
+      if (data.sources !== undefined) {
+        const check = validateSources(data.sources);
+        if ("error" in check) return bad(check.error);
+        sources = check.sources;
+      }
       const { error } = await admin.from("pricing_cost_models").upsert({
         tenant_id: tenantId, config_version: version!, code, name: (data.name as string) ?? code,
+        ...(sources !== undefined ? { sources } : {}),
       }, { onConflict: "tenant_id,config_version,code" });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        // 42703 = sources column missing: migration 0113 pending. Keep the
+        // model editable without the ladder rather than failing authoring.
+        if (sources !== undefined && (error.code === "42703" || /sources/.test(error.message))) {
+          const { error: retry } = await admin.from("pricing_cost_models").upsert({
+            tenant_id: tenantId, config_version: version!, code, name: (data.name as string) ?? code,
+          }, { onConflict: "tenant_id,config_version,code" });
+          if (retry) return NextResponse.json({ error: retry.message }, { status: 500 });
+          return NextResponse.json({ ok: true, warning: "Source ladder not saved: migration 0113 is pending." });
+        }
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
       return NextResponse.json({ ok: true });
     }
 
@@ -231,19 +252,55 @@ export async function POST(req: Request) {
       if (!COST_INPUT_KINDS.includes(kind)) return bad(`cost_input.kind must be one of: ${COST_INPUT_KINDS.join(", ")}.`);
       if (!Number.isFinite(value)) return bad("cost_input needs a numeric `value`.");
       if (/__|constructor|prototype/.test(path)) return bad("cost_input path contains an illegal segment.");
+
+      // Provenance (0113). A product-scoped figure must name a product of
+      // THIS tenant -- a client-supplied id is verified before it is stored.
+      const sourceCode = typeof data.source_code === "string" && data.source_code.trim() ? data.source_code.trim().toUpperCase() : null;
+      const quality = data.quality === undefined || data.quality === null ? null : (data.quality as string);
+      if (quality !== null && !COST_QUALITIES.includes(quality)) return bad(`cost_input.quality must be one of: ${COST_QUALITIES.join(", ")}.`);
+      const asOf = typeof data.as_of === "string" && data.as_of ? data.as_of : null;
+      let productId: string | null = null;
+      if (typeof data.product_id === "string" && data.product_id) {
+        const { data: p } = await admin.from("products").select("id").eq("id", data.product_id).eq("tenant_id", tenantId).maybeSingle();
+        if (!p) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+        productId = p.id as string;
+      }
       const row = {
         tenant_id: tenantId, cost_model_code: modelCode, path, kind, value,
         uom: (data.uom as string) ?? null, currency: (data.currency as string) ?? null,
         valid_from: (data.valid_from as string) ?? null, valid_to: (data.valid_to as string) ?? null,
         source: "MANUAL", created_by: userId,
+        source_code: sourceCode, quality, as_of: asOf, product_id: productId,
       };
       if (typeof data.id === "string" && data.id) {
         const { error } = await admin.from("pricing_cost_inputs").update(row).eq("tenant_id", tenantId).eq("id", data.id);
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        if (error) {
+          // 23505 on the natural key: the edit collides with another rate
+          // for the same path and start date -- say which, don't 500.
+          if (error.code === "23505") return bad(`A rate for ${modelCode} ${path} starting ${row.valid_from ?? "(open)"} already exists — edit that one instead.`);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
         return NextResponse.json({ ok: true, id: data.id });
       }
-      const { data: created, error } = await admin.from("pricing_cost_inputs").insert(row).select("id").single();
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      // (tenant, model, path, source, product, valid_from) is the natural key
+      // (0111 + 0113): re-adding the same figure updates it rather than
+      // creating a twin the engine would refuse to resolve.
+      const { data: created, error } = await admin
+        .from("pricing_cost_inputs")
+        .upsert(row, { onConflict: "tenant_id,cost_model_code,path,source_key,product_key,valid_from_key" })
+        .select("id").single();
+      if (error) {
+        // 42703 = a key column does not exist: 0111/0113 pending. Fall back
+        // to a plain insert of the columns that do exist so authoring keeps
+        // working; the duplicate guard simply isn't there yet.
+        if (error.code === "42703" || /_key|source_code|quality|as_of|product_id/.test(error.message)) {
+          const { source_code: _s, quality: _q, as_of: _a, product_id: _p, ...legacy } = row;
+          const { data: inserted, error: insErr } = await admin.from("pricing_cost_inputs").insert(legacy).select("id").single();
+          if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+          return NextResponse.json({ ok: true, id: inserted.id, warning: "Provenance not saved: migration 0113 is pending." }, { status: 201 });
+        }
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
       return NextResponse.json({ ok: true, id: created.id }, { status: 201 });
     }
 

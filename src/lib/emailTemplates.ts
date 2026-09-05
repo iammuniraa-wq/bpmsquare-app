@@ -23,6 +23,14 @@ export const EMAIL_TEMPLATE_VARS: Record<EmailTemplateCategory, { key: string; l
     { key: "case_ref",      label: "Case reference" },
     { key: "equipment",     label: "Equipment description" },
   ],
+  rfq: [
+    { key: "supplier_name", label: "Supplier name" },
+    { key: "company_name",  label: "Your company name" },
+    { key: "rfq_ref",       label: "RFQ reference" },
+    { key: "product_name",  label: "Product (with its reference)" },
+    { key: "quantity",      label: "Quantity asked for" },
+    { key: "uom",           label: "Unit of measure" },
+  ],
 };
 
 // One safe fallback per category so sending never breaks for a tenant who
@@ -43,6 +51,11 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<EmailTemplateCategory, { name: stri
     name: "Standard",
     subject: "Inspection report for {{case_ref}} from {{company_name}}",
     body: "Dear {{customer_name}},\n\nPlease find attached the inspection report for {{equipment}} ({{case_ref}}).\n\nRegards,\n{{company_name}}",
+  },
+  rfq: {
+    name: "Standard",
+    subject: "Request for quotation {{rfq_ref}} — {{product_name}}",
+    body: "Dear {{supplier_name}},\n\nPlease quote your best price and lead time for:\n\n{{product_name}}\nQuantity: {{quantity}} {{uom}}\n\nReference: {{rfq_ref}}\n\nRegards,\n{{company_name}}",
   },
 };
 

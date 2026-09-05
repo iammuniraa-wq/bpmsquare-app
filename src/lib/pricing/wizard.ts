@@ -66,6 +66,10 @@ export type MarginGuardrail = {
   componentCode: string;
   costSubtotal: string;
   revenueSubtotal: string;
+  /** What a consumer does with a breach (spec §7). Since cost-based step 1
+   *  the core itself flags the line; "warn" shows it, "block" stops the
+   *  quote line from being sent, "approve" routes it (batch 3). */
+  policy: "warn" | "block" | "approve";
 };
 
 export type MethodTemplate = {
@@ -85,21 +89,35 @@ export type MethodTemplate = {
 const comp = (over: PriceComponent): PriceComponent => over;
 
 // ── 1. Cost-based — "Cost simulator" (COST_UP) ──────────────────────────────
-// Mirrors the Vikas cost-up shape (pricing-core calc.test.ts exit criterion
-// 2): roll up material + labour into a total cost, mark up, discount, tax.
-// Margin is conditioned on tier/region/document type, and a minimum-margin
-// guardrail flags a breach on the Sample bill.
+// The whole cost-based technique (spec §17, built first, 2026-09-06):
+//   bought-in cost (through the SOURCE LADDER: ERP cost, RFQ reply, price
+//   list, hand-kept rate) + material + labour − salvage = TOTAL COST
+//   + freight + handling = LANDED COST → margin → discount → tax.
+// A product's cost sheet supplies the quantities (costSheet.ts). Margin,
+// freight and handling are conditioned on tier/region/document type. The
+// margin floor is a real guardrail: the core flags the line, the policy
+// says what happens (warn / block / approve).
 
 const COST_BASED_FACTORS = ["customer.tier", "region", "document_type"];
+
+export const COST_BASED_SOURCES = [
+  { code: "PRODUCT_COST", label: "ERP cost price on the product", tier: 1, quality: "actual" as const, max_age_days: 30 },
+  { code: "RFQ", label: "Supplier RFQ reply", tier: 2, quality: "confirmed" as const, max_age_days: 180 },
+  { code: "PRICE_LIST", label: "Imported cost price list", tier: 3, quality: "list" as const, max_age_days: 365 },
+  { code: "MANUAL", label: "Rate kept by hand in the cost model", tier: 4, quality: "estimate" as const },
+];
 
 const COST_BASED: MethodTemplate = {
   key: "cost_based",
   label: "Cost-based",
   tagline: "Start from what it costs you, then mark up — by segment, not one number for everyone.",
   description:
-    "Best when your price has to track real input costs — materials, labour, " +
-    "equipment. Margin can vary by customer tier, region or document type, " +
-    "and you can set a floor below which a quote should never go.",
+    "Best when your price has to track real input costs — a bought-in part, " +
+    "materials, labour, equipment. Costs come from the best source available " +
+    "(ERP cost, supplier reply, price list) and the engine asks for an RFQ " +
+    "when none exists. Freight and handling land the cost; margin can vary " +
+    "by customer tier, region or document type; a floor stops a quote " +
+    "going out too cheap.",
   entryMode: "COST_UP",
   dimensions: [
     { attribute: "customer.tier", weight: 30, label: "Customer tier" },
@@ -107,8 +125,12 @@ const COST_BASED: MethodTemplate = {
     { attribute: "document_type", weight: 15, label: "Document type" },
   ],
   components: [
+    comp({ code: "PURCHASE_COST", name: "Bought-in cost", class: "COST_BUILDUP", calc_type: "COST_ROLLUP", calc_basis: "COST_REF", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: false }),
     comp({ code: "MATERIAL_COST", name: "Material cost", class: "COST_BUILDUP", calc_type: "COST_ROLLUP", calc_basis: "COST_REF", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: false }),
     comp({ code: "LABOUR_COST", name: "Labour cost", class: "COST_BUILDUP", calc_type: "COST_ROLLUP", calc_basis: "COST_REF", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: false }),
+    comp({ code: "SALVAGE_CREDIT", name: "Salvage credit", class: "COST_BUILDUP", calc_type: "COST_ROLLUP", calc_basis: "COST_REF", sign: "NEGATIVE", manual_override: "FORBIDDEN", is_statistical: false }),
+    comp({ code: "FREIGHT", name: "Freight", class: "FREIGHT", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
+    comp({ code: "HANDLING", name: "Handling", class: "SURCHARGE", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
     comp({ code: "MARGIN_MARKUP", name: "Margin", class: "MARKUP", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
     comp({ code: "CUST_DISC", name: "Customer discount", class: "DISCOUNT", calc_type: "PERCENT", calc_basis: "NET_SO_FAR", sign: "NEGATIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
     comp({ code: "MARGIN_FLOOR", name: "Minimum acceptable margin", class: "STATISTICAL", calc_type: "FIXED_AMOUNT", calc_basis: "GROSS", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: true }),
@@ -118,16 +140,21 @@ const COST_BASED: MethodTemplate = {
     procedure_id: "COST_SIMULATOR",
     entry_mode: "COST_UP",
     steps: [
-      { step: 10, component: "MATERIAL_COST", cost_model: "STANDARD_COST", ...( { rollup_kind: "MATERIAL" } as object) },
-      { step: 20, component: "LABOUR_COST", cost_model: "STANDARD_COST", ...( { rollup_kind: "LABOUR" } as object) },
-      { step: 30, subtotal: "TOTAL_COST" },
-      { step: 35, component: "MARGIN_FLOOR", statistical: true },
-      { step: 40, component: "MARGIN_MARKUP", calc_basis_ref: "TOTAL_COST" },
-      { step: 50, subtotal: "NET_1" },
-      { step: 60, component: "CUST_DISC" },
-      { step: 70, subtotal: "NET_2" },
-      { step: 80, component: "TAX", calc_basis_ref: "NET_2" },
-      { step: 90, subtotal: "FINAL" },
+      { step: 10, component: "PURCHASE_COST", cost_model: "STANDARD_COST", ...( { rollup_kind: "PURCHASE" } as object) },
+      { step: 20, component: "MATERIAL_COST", cost_model: "STANDARD_COST", ...( { rollup_kind: "MATERIAL" } as object) },
+      { step: 30, component: "LABOUR_COST", cost_model: "STANDARD_COST", ...( { rollup_kind: "LABOUR" } as object) },
+      { step: 40, component: "SALVAGE_CREDIT", cost_model: "STANDARD_COST", ...( { rollup_kind: "SALVAGE_CREDIT" } as object) },
+      { step: 50, subtotal: "TOTAL_COST" },
+      { step: 60, component: "FREIGHT", calc_basis_ref: "TOTAL_COST" },
+      { step: 70, component: "HANDLING", calc_basis_ref: "TOTAL_COST" },
+      { step: 80, subtotal: "LANDED_COST" },
+      { step: 90, component: "MARGIN_MARKUP", calc_basis_ref: "LANDED_COST" },
+      { step: 100, subtotal: "NET_1" },
+      { step: 105, component: "MARGIN_FLOOR", statistical: true, guardrail: { kind: "MARGIN_FLOOR", cost_subtotal: "LANDED_COST", revenue_subtotal: "NET_1", policy: "warn" } },
+      { step: 110, component: "CUST_DISC" },
+      { step: 120, subtotal: "NET_2" },
+      { step: 130, component: "TAX", calc_basis_ref: "NET_2" },
+      { step: 140, subtotal: "FINAL" },
     ],
   },
   costModel: {
@@ -136,11 +163,26 @@ const COST_BASED: MethodTemplate = {
     inputs: [
       { path: "material.rate_per_unit", kind: "MATERIAL", value: 100 },
       { path: "labour.rate_per_hour", kind: "LABOUR", value: 450 },
+      { path: "salvage.credit_per_unit", kind: "SALVAGE_CREDIT", value: 0 },
     ],
+    sources: COST_BASED_SOURCES,
   },
   editableComponents: [
     {
+      component_code: "FREIGHT", label: "Freight", unit: "percent",
+      help: "On total cost, before margin. Usually by region.",
+      factors: ["region"], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 0 }],
+    },
+    {
+      component_code: "HANDLING", label: "Handling", unit: "percent",
+      help: "On total cost, before margin.",
+      factors: ["region"], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 0 }],
+    },
+    {
       component_code: "MARGIN_MARKUP", label: "Margin", unit: "percent",
+      help: "On landed cost.",
       factors: COST_BASED_FACTORS, tiered: false,
       defaultRows: [{ match_attributes: {}, value: 25 }],
     },
@@ -151,7 +193,7 @@ const COST_BASED: MethodTemplate = {
     },
     {
       component_code: "MARGIN_FLOOR", label: "Minimum acceptable margin", unit: "percent",
-      help: "Warns on the sample bill (and later, any quote) when a price would fall below this — never blocks on its own.",
+      help: "Margin on landed cost below which a line is flagged. What the flag does is the floor policy.",
       factors: [], tiered: false,
       defaultRows: [{ match_attributes: {}, value: 15 }],
     },
@@ -161,7 +203,7 @@ const COST_BASED: MethodTemplate = {
       defaultRows: [{ match_attributes: {}, value: 18 }],
     },
   ],
-  marginGuardrail: { componentCode: "MARGIN_FLOOR", costSubtotal: "TOTAL_COST", revenueSubtotal: "NET_1" },
+  marginGuardrail: { componentCode: "MARGIN_FLOOR", costSubtotal: "LANDED_COST", revenueSubtotal: "NET_1", policy: "warn" },
 };
 
 // ── 2. Price-list — multi-dimensional, most-specific-wins (LIST_DOWN) ──────
@@ -414,7 +456,10 @@ export function templateMutations(template: MethodTemplate, version: number, are
     mutations.push({ entity: "dimension", op: "upsert", area, data: { attribute: dim.attribute, weight: dim.weight, label: dim.label } });
   }
   if (template.costModel) {
-    mutations.push({ entity: "cost_model", op: "upsert", version, area, data: { code: template.costModel.code, name: template.costModel.name } });
+    mutations.push({
+      entity: "cost_model", op: "upsert", version, area,
+      data: { code: template.costModel.code, name: template.costModel.name, sources: template.costModel.sources ?? [] },
+    });
   }
   for (const component of template.components) {
     mutations.push({ entity: "component", op: "upsert", version, area, data: { ...component } });

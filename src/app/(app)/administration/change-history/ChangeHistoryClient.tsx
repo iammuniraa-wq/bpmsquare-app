@@ -26,6 +26,8 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "employees", label: "Employees" },
   { value: "wfm_projects", label: "Workforce: Projects" },
   { value: "wfm_leave_types", label: "Workforce: Leave types" },
+  { value: "pricing_config", label: "Pricing: Versions" },
+  { value: "pricing_rfqs", label: "Pricing: RFQs" },
   { value: "teams", label: "Coverage: Teams" },
   { value: "segments", label: "Coverage: Segments" },
   { value: "coverages", label: "Coverage: Assignments" },

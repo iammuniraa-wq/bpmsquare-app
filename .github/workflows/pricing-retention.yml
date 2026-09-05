@@ -1,0 +1,39 @@
+name: Pricing retention
+
+# Purges stored pricing contexts (pricing_documents) older than each
+# tenant's retention window, once a day. Docs: pricing-engine-architecture
+# §17 batch 1.
+#
+# NOT a Vercel cron, for the same reason as wfm-hours-alert.yml: the Hobby
+# plan's two cron slots are taken and a third rejects the deployment.
+#
+# Idempotent: a late or repeated run deletes nothing twice.
+#
+# Needs the CRON_SECRET repository secret (same value as the Vercel env var).
+
+on:
+  schedule:
+    # 20:15 UTC daily, after the WFM retention cron at 20:00.
+    - cron: "15 20 * * *"
+  workflow_dispatch:
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Purge expired pricing documents
+        run: |
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "CRON_SECRET is not set on this repository — nothing to do."
+            exit 1
+          fi
+          status=$(curl -sS -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://app.bpmsquare.com/api/pricing/cron/retention")
+          echo "HTTP $status"
+          cat /tmp/body
+          echo
+          case "$status" in
+            2*) exit 0 ;;
+            *)  exit 1 ;;
+          esac

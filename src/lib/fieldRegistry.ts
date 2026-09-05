@@ -266,6 +266,9 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
 
       { key: "list_price",  defaultLabel: "List price (₹)", widget: "number", defaultSection: "Pricing" },
       { key: "cost_price",  defaultLabel: "Cost price (₹)", widget: "number", defaultSection: "Pricing" },
+      // When the cost price was last confirmed (0113): BPMSquare Pricing's
+      // source ladder treats a stale figure as unusable, never as current.
+      { key: "cost_price_as_of", defaultLabel: "Cost price as of", widget: "date", defaultSection: "Pricing" },
       { key: "tax_percent", defaultLabel: "Tax %",          widget: "number", defaultSection: "Pricing" },
 
       { key: "uom",         defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },

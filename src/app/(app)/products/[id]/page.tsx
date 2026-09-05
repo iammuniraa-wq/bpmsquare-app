@@ -12,6 +12,7 @@ import ObjectSections from "@/components/fields/ObjectSections";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import DeleteProductButton from "./DeleteProductButton";
 import ProductAvailabilityCard from "./ProductAvailabilityCard";
+import ProductCostSheetCard from "./ProductCostSheetCard";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
@@ -96,6 +97,15 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </section>
 
           {coverageOn && <ProductAvailabilityCard productId={product.id} initial={product.available_segment_ids ?? []} />}
+
+          {tenant?.features?.pricing_engine === true && (
+            <ProductCostSheetCard
+              productId={product.id}
+              initial={(product.cost_sheet as { path: string; qty: number; kind?: string }[] | null | undefined) ?? null}
+              initialAsOf={product.cost_price_as_of ?? null}
+              costPrice={product.cost_price}
+            />
+          )}
 
           <DeleteProductButton product={product} />
         </div>

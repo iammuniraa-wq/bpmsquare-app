@@ -4,6 +4,7 @@ import { resolvePermissions, canViewWorkcenter, canEditWorkcenter, canDeleteWork
 import { logChange } from "@/lib/changeLog";
 import { parseFormula } from "@/lib/pricing-core";
 import type { ProcedureStep } from "@/lib/pricing-core";
+import { validateSources, validateGuardrails } from "@/lib/pricing/validate";
 
 // One config version: GET the full snapshot; POST {action:"publish"} runs the
 // pre-publish validation report and, only when clean, flips DRAFT->PUBLISHED
@@ -66,9 +67,17 @@ function validateForPublish(snapshot: Awaited<ReturnType<typeof loadSnapshot>>):
 
   if (snapshot.procedures.length === 0) errors.push("No procedures defined — at least one is required.");
 
+  for (const model of snapshot.cost_models) {
+    if (Array.isArray(model.sources) && model.sources.length > 0) {
+      const check = validateSources(model.sources);
+      if ("error" in check) errors.push(`Cost model ${model.code}: ${check.error}`);
+    }
+  }
+
   for (const proc of snapshot.procedures) {
     const steps = (proc.steps ?? []) as ProcedureStep[];
     if (steps.length === 0) errors.push(`Procedure ${proc.code}: has no steps.`);
+    errors.push(...validateGuardrails(proc.code as string, steps, componentCodes));
     for (const step of steps) {
       if (!step.component && !step.subtotal) errors.push(`Procedure ${proc.code} step ${step.step}: neither component nor subtotal.`);
       if (step.component && !componentCodes.has(step.component)) {
@@ -149,20 +158,23 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Validation failed — fix these before publishing", report }, { status: 422 });
   }
 
-  // Supersede the current PUBLISHED (if any), then promote the draft. The
-  // partial unique index (one PUBLISHED per area) makes the wrong order fail
-  // loudly rather than allowing two live versions.
-  const { error: supersedeErr } = await admin
-    .from("pricing_config_versions")
-    .update({ status: "SUPERSEDED" })
-    .eq("tenant_id", tenantId).eq("pricing_area", area).eq("status", "PUBLISHED");
-  if (supersedeErr) return NextResponse.json({ error: supersedeErr.message }, { status: 500 });
-
-  const { error: publishErr } = await admin
-    .from("pricing_config_versions")
-    .update({ status: "PUBLISHED", published_at: new Date().toISOString() })
-    .eq("tenant_id", tenantId).eq("pricing_area", area).eq("version", version);
-  if (publishErr) return NextResponse.json({ error: `Publish failed after superseding the previous version — no version is currently PUBLISHED. Retry publish. (${publishErr.message})` }, { status: 500 });
+  // Supersede the current PUBLISHED (if any) and promote the draft in ONE
+  // transaction (migration 0111, pricing_publish_version) so a failure can
+  // never leave the area with no live version. The partial unique index
+  // (one PUBLISHED per area) still guards the invariant underneath.
+  const { error: publishErr } = await admin.rpc("pricing_publish_version", {
+    p_tenant_id: tenantId, p_area: area, p_version: version,
+  });
+  if (publishErr) {
+    // 42883 = function does not exist: migration 0111 is pending. Say so
+    // rather than silently falling back to the non-atomic two-step.
+    const pending = publishErr.code === "42883" || /pricing_publish_version/.test(publishErr.message);
+    return NextResponse.json({
+      error: pending
+        ? "Publishing needs migration 0111 (pricing_publish_version) applied to this database."
+        : `Publish failed: ${publishErr.message}`,
+    }, { status: pending ? 503 : 500 });
+  }
 
   const user = await getAuthUser();
   await logChange(admin, {

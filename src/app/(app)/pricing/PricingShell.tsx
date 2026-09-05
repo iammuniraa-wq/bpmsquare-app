@@ -13,6 +13,7 @@ const TABS = [
   { href: ROUTES.pricingToday, label: "Today's rates" },
   { href: ROUTES.pricingSetup, label: "Pricing setup" },
   { href: ROUTES.pricingHistory, label: "History" },
+  { href: ROUTES.pricingRfqs, label: "RFQs" },
   { href: ROUTES.pricingAdvanced, label: "Advanced" },
 ] as const;
 

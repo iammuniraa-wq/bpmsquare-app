@@ -7,10 +7,10 @@
 //  - ties break by most recent valid_from, then latest created_at;
 //  - a still-standing tie is a hard AMBIGUOUS_RULE error — never silent.
 
-import type { AttrValue, DimensionRegistry, PriceRule, ResolutionStrategy } from "./types";
+import { COST_QUALITY_RANK, type AttrValue, type CostCandidate, type CostQuality, type CostSourceDef, type DimensionRegistry, type PriceRule, type ResolutionStrategy } from "./types";
 
 export class PricingError extends Error {
-  constructor(public readonly code: string, message: string) {
+  constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) {
     super(message);
     this.name = "PricingError";
   }
@@ -164,4 +164,116 @@ export function resolveCostInput(
     throw new PricingError("AMBIGUOUS_COST_INPUT", `Cost input "${path}" has overlapping windows with identical valid_from`);
   }
   return winner.value;
+}
+
+// ── Cost source ladder (spec §17, cost-based step 1) ────────────────────────
+
+export type CostConsidered = {
+  source: string;
+  quality: CostQuality;
+  value: number;
+  as_of?: string | null;
+  status: "won" | "lost" | "stale" | "requirement" | "expired";
+  reason?: string;
+};
+
+export type ResolvedCost = {
+  value: number;
+  source: string;
+  quality: CostQuality;
+  as_of: string | null;
+};
+
+export type CostResolution = { winner: ResolvedCost | null; considered: CostConsidered[] };
+
+const UNLISTED_TIER = Number.MAX_SAFE_INTEGER;
+const DEFAULT_SOURCE = "MANUAL";
+
+function daysBetween(fromIso: string, toIso: string): number {
+  return Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 86_400_000);
+}
+
+/**
+ * Resolve one cost figure for a path from every candidate in play -- the
+ * cost model's own rates plus any line-level candidates (this product's
+ * ERP cost, its RFQ reply) -- through the model's source ladder.
+ *
+ * Order of business, per candidate: validity must cover the pricing date;
+ * the source's requirement (if any) must hold; the figure must not be stale
+ * (as_of within max_age_days of the pricing date). Then the lowest tier
+ * wins; within a tier the higher quality; within the same source the most
+ * recent valid_from. An exact tie is AMBIGUOUS_COST_INPUT -- never a guess.
+ * Every candidate's fate is returned so the trace can show "SAP cost was
+ * 40 days old, fell back to the RFQ reply".
+ *
+ * No ladder = legacy: most recent valid_from across all candidates.
+ */
+export function resolveCost(
+  candidates: CostCandidate[],
+  ladder: CostSourceDef[] | null | undefined,
+  path: string,
+  pricingDate: string,
+  requirementHolds: (expr: string) => boolean = () => true
+): CostResolution {
+  const considered: CostConsidered[] = [];
+  const defs = new Map((ladder ?? []).map((d) => [d.code, d]));
+  const useLadder = defs.size > 0;
+
+  type Live = { c: CostCandidate; source: string; quality: CostQuality; tier: number; def: CostSourceDef | undefined };
+  const live: Live[] = [];
+  for (const c of candidates) {
+    const source = c.source ?? DEFAULT_SOURCE;
+    const def = defs.get(source);
+    const quality: CostQuality = c.quality ?? def?.quality ?? "list";
+    const entry = (status: CostConsidered["status"], reason?: string) =>
+      considered.push({ source, quality, value: c.value, as_of: c.as_of ?? null, status, reason });
+
+    if ((c.valid_from && pricingDate < c.valid_from) || (c.valid_to && pricingDate > c.valid_to)) {
+      entry("expired", `valid ${c.valid_from ?? "…"} → ${c.valid_to ?? "…"}`);
+      continue;
+    }
+    if (useLadder && def?.requirement) {
+      const expr = def.requirement.startsWith("dsl:") ? def.requirement.slice(4) : def.requirement;
+      if (!requirementHolds(expr)) { entry("requirement", `requirement not met: ${expr}`); continue; }
+    }
+    if (useLadder && def?.max_age_days != null && c.as_of) {
+      const age = daysBetween(c.as_of, pricingDate);
+      if (age > def.max_age_days) { entry("stale", `${age} days old, limit ${def.max_age_days}`); continue; }
+    }
+    live.push({ c, source, quality, tier: useLadder ? (def?.tier ?? UNLISTED_TIER) : 0, def });
+  }
+  if (live.length === 0) return { winner: null, considered };
+
+  const sorted = [...live].sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    const q = COST_QUALITY_RANK[b.quality] - COST_QUALITY_RANK[a.quality];
+    if (q !== 0) return q;
+    const af = a.c.valid_from ?? "", bf = b.c.valid_from ?? "";
+    if (af !== bf) return bf < af ? -1 : 1;
+    const aa = a.c.as_of ?? "", ba = b.c.as_of ?? "";
+    if (aa !== ba) return ba < aa ? -1 : 1;
+    return 0;
+  });
+  const [winner, runnerUp] = sorted;
+  if (
+    runnerUp &&
+    runnerUp.tier === winner.tier &&
+    runnerUp.quality === winner.quality &&
+    (runnerUp.c.valid_from ?? "") === (winner.c.valid_from ?? "") &&
+    (runnerUp.c.as_of ?? "") === (winner.c.as_of ?? "")
+  ) {
+    throw new PricingError(
+      "AMBIGUOUS_COST_INPUT",
+      `Cost input "${path}" has two equally ranked figures (${winner.source} ${winner.c.value} and ${runnerUp.source} ${runnerUp.c.value}) — resolve in configuration`,
+      { path, sources: [winner.source, runnerUp.source] }
+    );
+  }
+  for (const l of sorted) {
+    considered.push({
+      source: l.source, quality: l.quality, value: l.c.value, as_of: l.c.as_of ?? null,
+      status: l === winner ? "won" : "lost",
+      reason: l === winner ? undefined : l.tier !== winner.tier ? `tier ${l.tier} after ${winner.source} (tier ${winner.tier})` : `${l.quality} ranks below ${winner.quality}`,
+    });
+  }
+  return { winner: { value: winner.c.value, source: winner.source, quality: winner.quality, as_of: winner.c.as_of ?? null }, considered };
 }

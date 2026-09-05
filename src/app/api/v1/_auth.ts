@@ -109,11 +109,11 @@ export async function authorizeApi(
   req: Request,
   object: string,
   write = false
-): Promise<{ tenantId: string; scopes: ApiScopes } | { error: Response }> {
+): Promise<{ tenantId: string; scopes: ApiScopes; keyId: string | null } | { error: Response }> {
   const auth = await resolveApiAuth(req);
   if (!auth) return { error: ERR_401_TENANT() };
   if (!scopeAllows(auth.scopes, object, write)) return { error: ERR_403_SCOPE(object, write) };
-  return { tenantId: auth.tenantId, scopes: auth.scopes };
+  return { tenantId: auth.tenantId, scopes: auth.scopes, keyId: auth.keyId };
 }
 
 /**
