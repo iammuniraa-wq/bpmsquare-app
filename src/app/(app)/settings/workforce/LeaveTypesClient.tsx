@@ -8,12 +8,13 @@ import { useFeel } from "@/components/FeelProvider";
 
 type LeaveType = {
   id: string; name: string; category: "paid" | "unpaid" | "half_day"; active: boolean; annual_quota: number;
+  quota_period: "year" | "month";
   monthly_limit: number | null; paid_days_per_month: number | null;
   records_count: number; requests_count: number; pending_requests: number;
 };
 
-type Draft = { name: string; category: LeaveType["category"]; annual_quota: string; monthly_limit: string; paid_days_per_month: string };
-const EMPTY: Draft = { name: "", category: "paid", annual_quota: "12", monthly_limit: "", paid_days_per_month: "" };
+type Draft = { name: string; category: LeaveType["category"]; annual_quota: string; quota_period: "year" | "month"; monthly_limit: string; paid_days_per_month: string };
+const EMPTY: Draft = { name: "", category: "paid", annual_quota: "1", quota_period: "month", monthly_limit: "", paid_days_per_month: "" };
 
 const lbl: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box" };
@@ -48,7 +49,10 @@ export default function LeaveTypesClient() {
     return {
       name: d.name.trim(), category: d.category,
       annual_quota: parseFloat(d.annual_quota) || 0,
-      monthly_limit: d.monthly_limit.trim() === "" ? null : parseFloat(d.monthly_limit),
+      quota_period: d.quota_period,
+      // With a per-month quota the quota IS the cap; a separate cap only
+      // makes sense against a yearly quota.
+      monthly_limit: d.quota_period === "month" || d.monthly_limit.trim() === "" ? null : parseFloat(d.monthly_limit),
       paid_days_per_month: d.paid_days_per_month.trim() === "" ? null : parseFloat(d.paid_days_per_month),
     };
   }
@@ -70,7 +74,7 @@ export default function LeaveTypesClient() {
 
   function startEdit(t: LeaveType) {
     setEditId(t.id);
-    setEditForm({ name: t.name, category: t.category, annual_quota: String(t.annual_quota), monthly_limit: t.monthly_limit === null ? "" : String(t.monthly_limit), paid_days_per_month: t.paid_days_per_month === null ? "" : String(t.paid_days_per_month) });
+    setEditForm({ name: t.name, category: t.category, annual_quota: String(t.annual_quota), quota_period: t.quota_period ?? "year", monthly_limit: t.monthly_limit === null ? "" : String(t.monthly_limit), paid_days_per_month: t.paid_days_per_month === null ? "" : String(t.paid_days_per_month) });
   }
 
   async function saveEdit(id: string) {
@@ -106,8 +110,16 @@ export default function LeaveTypesClient() {
             <option value="paid">Paid</option><option value="unpaid">Unpaid</option><option value="half_day">Half-day</option>
           </select>
         </div>
-        <div style={{ flex: "0 1 100px" }}><label style={lbl}>Days a year</label><input style={inp} type="number" min="0" step="0.5" value={d.annual_quota} onChange={(e) => set({ ...d, annual_quota: e.target.value })} /></div>
-        <div style={{ flex: "0 1 110px" }}><label style={lbl} title="At most this many days of the type per calendar month. Empty = no monthly cap.">Max a month</label><input style={inp} type="number" min="0.5" max="31" step="0.5" placeholder="no cap" value={d.monthly_limit} onChange={(e) => set({ ...d, monthly_limit: e.target.value })} /></div>
+        <div style={{ flex: "0 1 90px" }}><label style={lbl}>Days</label><input style={inp} type="number" min="0" step="0.5" value={d.annual_quota} onChange={(e) => set({ ...d, annual_quota: e.target.value })} /></div>
+        <div style={{ flex: "0 1 120px" }}>
+          <label style={lbl}>Per</label>
+          <select style={inp} value={d.quota_period} onChange={(e) => set({ ...d, quota_period: e.target.value as "year" | "month" })}>
+            <option value="month">Month</option><option value="year">Year</option>
+          </select>
+        </div>
+        {d.quota_period === "year" && (
+          <div style={{ flex: "0 1 110px" }}><label style={lbl} title="At most this many days of the type per calendar month. Empty = no monthly cap.">Max a month</label><input style={inp} type="number" min="0.5" max="31" step="0.5" placeholder="no cap" value={d.monthly_limit} onChange={(e) => set({ ...d, monthly_limit: e.target.value })} /></div>
+        )}
         <div style={{ flex: "0 1 120px" }}><label style={lbl} title="The first N days in a month are paid; any beyond count as unpaid on the summary. Empty = every day follows the category.">Paid days a month</label><input style={inp} type="number" min="0" max="31" step="0.5" placeholder="all" value={d.paid_days_per_month} onChange={(e) => set({ ...d, paid_days_per_month: e.target.value })} /></div>
       </>
     );
@@ -121,11 +133,11 @@ export default function LeaveTypesClient() {
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Leave types</div>
             <div style={{ fontSize: 12, color: c.muted, marginTop: 3, maxWidth: 780 }}>
-              What people can request time off as. <strong>Days a year</strong> is each employee&apos;s default quota.
-              <strong> Max a month</strong> caps how many days of a type can be taken in one calendar month (a request
-              or an entry beyond it is refused). <strong>Paid days a month</strong> pays only the first N days of a
-              type each month; the rest count as unpaid on the time summary. A type with history can be
-              deactivated, never deleted.
+              What people can request time off as. The <strong>quota</strong> is each employee&apos;s default,
+              per month or per year; a monthly quota is also the most anyone can take in that month (a request or an
+              entry beyond it is refused). A yearly quota can carry a separate <strong>Max a month</strong> cap.
+              <strong> Paid days a month</strong> pays only the first N days of a type each month; the rest count as
+              unpaid on the time summary. A type with history can be deactivated, never deleted.
             </div>
           </div>
           {!showAdd && <button style={btnPrimary} onClick={() => { setShowAdd(true); setEditId(null); }}>+ Add type</button>}
@@ -144,7 +156,7 @@ export default function LeaveTypesClient() {
         <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th style={th}>Name</th><th style={th}>Category</th><th style={th}>Days a year</th>
+              <th style={th}>Name</th><th style={th}>Category</th><th style={th}>Quota</th>
               <th style={th}>Max a month</th><th style={th}>Paid days a month</th><th style={th}>In use</th><th style={th}>Status</th><th style={th}></th>
             </tr>
           </thead>
@@ -170,8 +182,8 @@ export default function LeaveTypesClient() {
                 <tr key={t.id} style={{ opacity: t.active ? 1 : 0.6 }}>
                   <td style={{ ...td, fontWeight: 600, color: c.ink }}>{t.name}</td>
                   <td style={td}>{CATEGORY_LABEL[t.category] ?? t.category}</td>
-                  <td style={td}>{t.annual_quota}</td>
-                  <td style={td}>{fmtLimit(t.monthly_limit)}</td>
+                  <td style={{ ...td, whiteSpace: "nowrap" }}>{t.annual_quota} / {t.quota_period === "month" ? "month" : "year"}</td>
+                  <td style={td}>{t.quota_period === "month" ? `${t.annual_quota} (quota)` : fmtLimit(t.monthly_limit)}</td>
                   <td style={td}>{fmtLimit(t.paid_days_per_month)}</td>
                   <td style={{ ...td, color: c.muted, whiteSpace: "nowrap" }}>
                     {inUse === 0 ? "—" : `${t.records_count} record${t.records_count === 1 ? "" : "s"}${t.requests_count ? `, ${t.requests_count} request${t.requests_count === 1 ? "" : "s"}` : ""}${t.pending_requests ? ` (${t.pending_requests} pending)` : ""}`}

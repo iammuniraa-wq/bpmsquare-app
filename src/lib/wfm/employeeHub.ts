@@ -49,7 +49,7 @@ export async function buildEmployeeHubProfile(
       : Promise.resolve({ data: null }),
     supabase.from("tenant_users").select("id").eq("tenant_id", tenantId).eq("employee_id", employeeId).maybeSingle(),
     getMonthlySummary(tenantId, yearMonth, [employeeId]),
-    getLeaveBalance(tenantId, employeeId, Number(yearMonth.slice(0, 4))),
+    getLeaveBalance(tenantId, employeeId, yearMonth),
     // Fetched separately and best-effort: custom_data arrives via a manual
     // migration (0086), and code deploys before SQL runs in this product —
     // a missing column must degrade to "no custom fields", never break the

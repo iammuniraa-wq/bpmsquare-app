@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
-import { parseLeaveTypeLimits } from "@/lib/wfm/leaveTypeInput";
+import { parseLeaveTypeLimits, LEAVE_TYPE_NEW_COLUMNS_RE } from "@/lib/wfm/leaveTypeInput";
 import { logChange } from "@/lib/changeLog";
 
 const CATEGORIES = ["paid", "unpaid", "half_day"];
@@ -40,8 +40,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (Object.keys(patch).length > 0) {
     const upd = await admin.from("wfm_leave_types").update(patch).eq("id", id).eq("tenant_id", tenantId);
-    if (upd.error && /monthly_limit|paid_days_per_month/.test(upd.error.message)) {
-      return NextResponse.json({ error: "Monthly limits need migration 0109 applied to this database." }, { status: 503 });
+    if (upd.error && LEAVE_TYPE_NEW_COLUMNS_RE.test(upd.error.message)) {
+      return NextResponse.json({ error: "Quota period and monthly limits need migrations 0109 and 0112 applied to this database." }, { status: 503 });
     }
     if (upd.error) return NextResponse.json({ error: upd.error.message }, { status: 500 });
   }
@@ -63,8 +63,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await logChange(admin, { tenantId, objectType: "wfm_leave_types", objectId: id, objectLabel: (patch.name as string) ?? before.name, action: "update", actorId: ctx.userId, actorEmail: user?.email ?? null, changes });
   }
 
-  let sel = await admin.from("wfm_leave_types").select("id, name, category, active, monthly_limit, paid_days_per_month").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
-  if (sel.error && /monthly_limit|paid_days_per_month/.test(sel.error.message)) {
+  let sel = await admin.from("wfm_leave_types").select("id, name, category, active, monthly_limit, paid_days_per_month, quota_period").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  if (sel.error && LEAVE_TYPE_NEW_COLUMNS_RE.test(sel.error.message)) {
     sel = (await admin.from("wfm_leave_types").select("id, name, category, active").eq("id", id).eq("tenant_id", tenantId).maybeSingle()) as typeof sel;
   }
   if (sel.error) return NextResponse.json({ error: sel.error.message }, { status: 500 });
