@@ -127,6 +127,16 @@ export default function AIDock() {
 
   function sendMessage() { ask(draft); }
 
+  // The dock stacks upward from the bottom-right corner. Two rules keep it on
+  // screen: every offset clears the safe-area inset (a phone's home indicator,
+  // and any browser chrome that eats the bottom edge), and the LAUNCHER owns
+  // the bottom anchor whenever it is showing -- the on/off switch sits above
+  // it. The switch used to hold the bottom slot with the launcher stacked over
+  // it, which put a 22px control hard against the window edge where a short
+  // viewport clipped it (owner-reported 2026-09-06).
+  const FLOOR = "env(safe-area-inset-bottom, 0px)";
+  const at = (px: number) => `calc(${px}px + ${FLOOR})`;
+
   return (
     <>
       <button
@@ -134,7 +144,7 @@ export default function AIDock() {
         aria-label={enabled ? "Turn off AI assistant" : "Turn on AI assistant"}
         title={enabled ? "Turn off AI assistant" : "Turn on AI assistant"}
         style={{
-          position: "fixed", right: 22, bottom: 22, zIndex: 301,
+          position: "fixed", right: 22, bottom: enabled ? at(86) : at(20), zIndex: 301,
           width: 40, height: 22, borderRadius: 11, cursor: "pointer",
           border: "1px solid var(--line)",
           background: enabled ? "var(--tenant-accent, #1e3a6e)" : "var(--panel2)",
@@ -153,7 +163,7 @@ export default function AIDock() {
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? "Close assistant" : "Open assistant"}
           style={{
-            position: "fixed", right: 22, bottom: 60, zIndex: 300,
+            position: "fixed", right: 22, bottom: at(20), zIndex: 300,
             width: 52, height: 52, borderRadius: "50%", border: "none", cursor: "pointer",
             background: "var(--tenant-accent, #1e3a6e)", color: "#fff",
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -175,11 +185,17 @@ export default function AIDock() {
 
       {enabled && open && (
         <div style={{
-          position: "fixed", right: 22, bottom: 124, zIndex: 300,
+          position: "fixed", right: 22, bottom: at(122), zIndex: 300,
           // Wide enough for an inline chart to stay legible (a bar chart's
           // labels shrink illegibly below this), capped so it never spills
           // off a narrow viewport.
-          width: 400, maxWidth: "calc(100vw - 44px)", maxHeight: 560, display: "flex", flexDirection: "column",
+          width: 400, maxWidth: "calc(100vw - 44px)",
+          // Never taller than the room above the launcher, or the panel runs
+          // off the TOP of a laptop viewport and its header scrolls out of
+          // reach (visible in the same 2026-09-06 report). 560 stays the cap
+          // on a tall screen; the viewport wins on a short one.
+          maxHeight: `min(560px, calc(100vh - ${at(150)}))`,
+          display: "flex", flexDirection: "column",
           background: "var(--card-bg, #fff)", border: "1px solid var(--line)",
           borderRadius: "var(--card-radius, 10px)", boxShadow: "0 24px 60px rgba(10,15,25,.28)",
           overflow: "hidden",

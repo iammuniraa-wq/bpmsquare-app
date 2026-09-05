@@ -254,7 +254,13 @@ function DraggableSection({
         const on         = isActive(item.href) || childActive;
         const isDragging = dragIdx.current === idx;
         const showHover  = hovered === idx;
-        const isOpen     = expanded[item.href] !== false; // default expanded
+        // Collapsed unless this person opened it (owner 2026-09-06). Every
+        // group expanded on load made the rail a wall of children you had to
+        // scroll past to reach the next section. A stored true still wins, so
+        // a group someone opens stays open; only the DEFAULT changed.
+        // The exception is the group you are currently inside -- collapsing
+        // that one would hide the page you are on from its own nav.
+        const isOpen     = expanded[item.href] === true || childActive;
 
         const rowContent = (
           <>
@@ -502,7 +508,8 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   useEffect(() => { setExpandedMap(loadExpanded()); }, []);
   const toggleExpand = (href: string) => {
     setExpandedMap((prev) => {
-      const next = { ...prev, [href]: !(prev[href] !== false) };
+      // Mirrors the default above: absent means closed, so the first click opens.
+      const next = { ...prev, [href]: prev[href] !== true };
       saveExpanded(next);
       return next;
     });
