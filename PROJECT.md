@@ -472,6 +472,17 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
+- **0109_pricing_documents.sql — PENDING on both DBs** (written
+  2026-09-06, BPMSquare Pricing Phase 2 batch 1, spec §17): the
+  `pricing_documents` table (every priced context, result and trace;
+  select-only RLS), `pricing_usage.api_key_id`/`document_id`, a natural
+  key on `pricing_cost_inputs` (dedupes existing twins, then a unique
+  index on tenant + model + path + valid_from), and the
+  `pricing_publish_version` RPC that makes publish atomic. Degrades while
+  pending: pricing still works and logs "pricing_documents insert failed";
+  the cockpit's recent-documents list is empty; cost-input authoring falls
+  back to plain insert; **publishing a version returns 503 until the RPC
+  exists** -- so apply before anyone goes live on the demo.
 - 0108_wfm_project_billing.sql — **applied to both DBs** (owner confirmed
   2026-09-06). `wfm_projects.bill_rate` (the project rung of the rate
   ladder) and `wfm_project_invoices` (which period of which project each

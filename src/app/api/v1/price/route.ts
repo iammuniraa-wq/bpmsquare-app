@@ -1,18 +1,22 @@
 import { authorizeApi, jsonOk, jsonError, readJsonBody, optionsResponse, RW_METHODS } from "../_auth";
-import { runPrice, PricingConfigError } from "@/lib/pricing/server";
+import { runPrice, replayPricingDocument, PricingConfigError } from "@/lib/pricing/server";
 import { PricingError, DslError, type DocumentLine, type TraceStep } from "@/lib/pricing-core";
 
-// POST /api/v1/price — the PricingEngine's headless surface (spec §10, §15.1).
+// POST /api/v1/price — BPMSquare Pricing's headless surface (spec §10, §15.1).
 // Prices a document against the tenant's PUBLISHED config (or an explicit
 // version, for replay) and returns the priced lines with the full waterfall
 // trace. Deterministic: same document + config version + pricing_date =>
 // same result. Configuration problems (ambiguous rules, missing required
 // components, formula errors) surface as structured 422s with a code —
 // never a silently wrong price.
+//
+// Every call is stored (spec §7) and its id returned in meta.document_id;
+// options.replay_of re-prices a stored document instead of document.lines.
 
 export const maxDuration = 30;
 
 const MAX_LINES = 200;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Body = {
   document?: { attributes?: Record<string, unknown>; lines?: unknown };
@@ -23,6 +27,7 @@ type Body = {
     pricing_area?: string;
     procedure?: string;
     currency?: string;
+    replay_of?: string;
   };
 };
 
@@ -73,9 +78,6 @@ export async function POST(req: Request) {
   if (!parsed.ok) return parsed.response;
   const body = (parsed.body ?? {}) as Body;
 
-  const linesResult = parseLines(body.document?.lines);
-  if (!linesResult.ok) return jsonError(422, "Invalid document", { message: linesResult.message });
-
   const opts = body.options ?? {};
   const traceMode = opts.trace ?? "full";
   if (!["full", "summary", "none"].includes(traceMode)) {
@@ -84,19 +86,35 @@ export async function POST(req: Request) {
   if (opts.pricing_date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(opts.pricing_date)) {
     return jsonError(422, "Invalid options", { message: "options.pricing_date must be yyyy-mm-dd." });
   }
+  if (opts.replay_of !== undefined && !UUID_RE.test(opts.replay_of)) {
+    return jsonError(422, "Invalid options", { message: "options.replay_of must be a pricing document id." });
+  }
+
+  const meta = { source: "api" as const, apiKeyId: auth.keyId };
 
   try {
-    const { result, config_version, procedure, calc_ms } = await runPrice(
-      auth.tenantId,
-      { attributes: body.document?.attributes ?? {}, lines: linesResult.lines },
-      {
-        pricingDate: opts.pricing_date,
-        configVersion: opts.config_version,
-        pricingArea: opts.pricing_area,
-        procedure: opts.procedure,
-        currency: opts.currency,
-      }
-    );
+    let call;
+    if (opts.replay_of) {
+      call = await replayPricingDocument(auth.tenantId, opts.replay_of, {
+        configVersion: opts.config_version, pricingDate: opts.pricing_date, meta,
+      });
+    } else {
+      const linesResult = parseLines(body.document?.lines);
+      if (!linesResult.ok) return jsonError(422, "Invalid document", { message: linesResult.message });
+      call = await runPrice(
+        auth.tenantId,
+        { attributes: body.document?.attributes ?? {}, lines: linesResult.lines },
+        {
+          pricingDate: opts.pricing_date,
+          configVersion: opts.config_version,
+          pricingArea: opts.pricing_area,
+          procedure: opts.procedure,
+          currency: opts.currency,
+          meta,
+        }
+      );
+    }
+    const { result, config_version, procedure, calc_ms, document_id } = call;
 
     return jsonOk({
       data: {
@@ -111,7 +129,10 @@ export async function POST(req: Request) {
           ...(traceMode !== "none" ? { trace: filterTrace(l.trace, traceMode) } : {}),
         })),
       },
-      meta: { config_version, procedure, calc_ms, trace: traceMode, generated_at: new Date().toISOString() },
+      meta: {
+        config_version, procedure, calc_ms, trace: traceMode, generated_at: new Date().toISOString(),
+        document_id, ...(opts.replay_of ? { replay_of: opts.replay_of } : {}),
+      },
       _links: { self: "/api/v1/price" },
     }, RW_METHODS);
   } catch (e) {

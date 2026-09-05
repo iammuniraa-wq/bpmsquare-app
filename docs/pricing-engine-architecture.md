@@ -618,6 +618,24 @@ The foundation. Nothing downstream works without it.
 appear in `pricing_documents`; replay one and get the same numbers;
 retention job runs on the demo.
 
+**Status 2026-09-06: built, awaiting migration 0109 on both DBs and demo
+validation.** Delivered: migration 0109 (table, metering columns, cost-input
+natural key, publish RPC); `src/lib/pricing/documents.ts` (row builder +
+retention, tested) and the store/replay/list helpers in
+`src/lib/pricing/server.ts`; `options.replay_of` and `meta.document_id` on
+`POST /api/v1/price`; `replay_of` on the cockpit test-price route; GET
+`/api/settings/pricing-engine/documents` and `/[id]`; the cockpit's Test &
+Trace tab lists recent documents with Load and Replay; `<PriceTrace>` in
+`src/components/pricing/`; the quote-line route stores source `quote` with
+the verified quote id; `/api/pricing/cron/retention` +
+`.github/workflows/pricing-retention.yml`; `config.pricing.retention_days`.
+Not in this batch (deliberately): a settings field for retention (batch 2's
+"Where the engine reads from" section is the natural home), and the
+webhook event -- publish already writes a `pricing_config` change_log row,
+which the dispatcher delivers to any webhook subscribed to that object
+type; naming it `pricing.version.published` is batch 7's documentation
+job.
+
 ### Batch 2 — Execution: the quote line, done properly (L)
 
 Client #3 becomes real. This is where the design partner meets the engine.
@@ -792,12 +810,12 @@ Arabic/RTL, and a JS SDK for the embeds. Each waits for a paying demand.
 
 ---
 
-## 18. Decisions needed before batch 2 (defaults the plan assumes)
+## 18. Decisions (owner, 2026-09-06)
 
-| # | Decision | Default assumed | Why it matters |
+| # | Decision | Decided | Consequence |
 |---|---|---|---|
-| 1 | **Build order**: in-app execution first (batches 1–6, then 7) or PaaS first (1, 7, then 2–6)? | In-app first | The owner's own frame; the only design partner is in-house; stored contexts from real quotes are what Analysis and Strategy need. |
-| 2 | **Small Scale Pricing**: migrate engine tenants' items into a book (batch 8) or keep it permanently separate? | Migrate, opt-in per tenant, never Vikas without a go | "Once and for all" means one price origin per line type. Keeping both forever keeps the three-layer confusion. |
-| 3 | **Product name** (§14.5: required from day one). Still "PricingEngine" everywhere. | Batch 7 applies whatever is chosen; until then the workcenter keeps saying "Pricing". | API index, embed views and the Drive guide are what an external customer sees. |
-| 4 | **Approvals on quotes**: block sending until approved (default) or warn only? | Block | Warn-only is the display-only guardrail we already have; blocking is what Governance is for. |
-| 5 | **Retention** for stored pricing contexts. | 180 days, per-tenant setting | Storage cost vs. analysis depth. |
+| 1 | Build order | **In-app first**: batches 1–6, then 7. | Stored contexts come from real quotes before any external surface exists. |
+| 2 | Small Scale Pricing | **Keep both, permanently.** No importer, no "managed in Pricing" redirect. | Batch 8 drops the importer. The static rate list is a product for small tenants; the engine is a product for tenants that price by rules. The quote form keeps one catalogue; an engine tenant's `pricing_items` are simply lines the engine never touches. Work-order labour keeps reading `pricing_items` unless a book is routed for `work_order`. |
+| 3 | Product name | **BPMSquare Pricing.** | Batch 7 applies it to the API index, OpenAPI title, embed views and the Drive guide; the workcenter label stays "Pricing". |
+| 4 | Approvals on quotes | **Block sending** until approved. | Batch 3 as written. |
+| 5 | Retention of stored contexts | 180 days default, per-tenant setting (assumed, not contested). | Batch 1 as written. |

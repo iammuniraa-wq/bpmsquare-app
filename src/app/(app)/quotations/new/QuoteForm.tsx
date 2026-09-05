@@ -729,7 +729,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     try {
       const res = await fetch("/api/quotes/price-line", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product_id: productId, account_id: accountId || undefined, quantity }),
+        body: JSON.stringify({ product_id: productId, account_id: accountId || undefined, quantity, quote_id: editQuote?.quote.id }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setPricingErrors((p) => ({ ...p, [lineId]: json.error ?? "Pricing failed" })); return; }

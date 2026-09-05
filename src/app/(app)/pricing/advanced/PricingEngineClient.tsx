@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { COMPONENT_ENUMS, COST_INPUT_KINDS, enumLabel } from "@/lib/pricing/enums";
+import PriceTrace from "@/components/pricing/PriceTrace";
 
 // PricingEngine cockpit (admin-only; the routes enforce it server-side).
 // Versions are the spine: everything except Dimensions and Cost Inputs is
@@ -32,6 +33,7 @@ type TraceStep = {
 type PriceOut = {
   result: { pricing_date: string; currency: string | null; totals: { net: number; subtotals: Record<string, number> }; lines: { line_no: number; net: number; subtotals: Record<string, number>; components: Record<string, number>; trace: TraceStep[] }[] };
   config_version: number; procedure: string; calc_ms: number;
+  document_id: string | null; replay_of: string | null;
 };
 
 const TABS = ["Versions", "Dimensions", "Components", "Procedures", "Rules", "Cost Models", "Test & Trace"] as const;
@@ -854,6 +856,11 @@ const SAMPLE_DOC = `{
   ]
 }`;
 
+type DocumentSummary = {
+  id: string; config_version: number; procedure: string; pricing_date: string; source: string;
+  replay_of: string | null; currency: string | null; net_total: number; line_count: number; created_at: string;
+};
+
 function TestTab({ versions, defaultVersion, area }: { versions: VersionRow[]; defaultVersion: number | null; area: string }) {
   const [doc, setDoc] = useState(SAMPLE_DOC);
   const [version, setVersion] = useState<string>(defaultVersion !== null ? String(defaultVersion) : "");
@@ -862,36 +869,71 @@ function TestTab({ versions, defaultVersion, area }: { versions: VersionRow[]; d
   const [out, setOut] = useState<PriceOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [recent, setRecent] = useState<DocumentSummary[]>([]);
+  const [loadedFrom, setLoadedFrom] = useState<string | null>(null);
 
-  async function run() {
-    setError(null); setOut(null);
-    const parsed = parseJsonOr<Record<string, unknown> | null>(doc, null);
-    if (!parsed) { setError("Document is not valid JSON."); return; }
-    setBusy(true);
+  // Stored contexts for this Price Book (spec §7): pick one to reload its
+  // exact document, or replay it as-is against any version.
+  const loadRecent = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/settings/pricing-engine/documents?area=${encodeURIComponent(area)}&limit=25`);
+      const json = await res.json();
+      if (res.ok) setRecent(json.documents ?? []);
+    } catch { /* the list is a convenience; pricing works without it */ }
+  }, [area]);
+  useEffect(() => { loadRecent(); }, [loadRecent]);
+
+  async function priceWith(body: Record<string, unknown>) {
+    setError(null); setOut(null); setBusy(true);
     try {
       const res = await fetch("/api/settings/pricing-engine/test-price", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          document: parsed,
-          options: {
-            pricing_area: area,
-            ...(version ? { config_version: Number(version) } : {}),
-            ...(procedure ? { procedure } : {}),
-            ...(date ? { pricing_date: date } : {}),
-          },
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Pricing failed"); return; }
       setOut(json as PriceOut);
+      await loadRecent();
     } finally { setBusy(false); }
   }
+
+  const options = () => ({
+    pricing_area: area,
+    ...(version ? { config_version: Number(version) } : {}),
+    ...(procedure ? { procedure } : {}),
+    ...(date ? { pricing_date: date } : {}),
+  });
+
+  async function run() {
+    const parsed = parseJsonOr<Record<string, unknown> | null>(doc, null);
+    if (!parsed) { setError("Document is not valid JSON."); return; }
+    await priceWith({ document: parsed, options: options() });
+  }
+
+  async function loadDocument(id: string) {
+    setError(null);
+    const res = await fetch(`/api/settings/pricing-engine/documents/${id}`);
+    const json = await res.json();
+    if (!res.ok) { setError(json.error ?? "Could not load that document"); return; }
+    setDoc(JSON.stringify(json.document.context, null, 2));
+    setLoadedFrom(id);
+  }
+
+  async function replay(id: string) {
+    // The stored document against the selected version (or its own when none
+    // is picked) -- "what would this real one cost under my draft".
+    await priceWith({ replay_of: id, options: { ...options(), pricing_area: undefined } });
+  }
+
+  const sourceLabel: Record<string, string> = { api: "API", quote: "Quote", standard_quote: "Std quote", work_order: "Work order", test: "Test", simulation: "Simulation" };
 
   return (
     <div>
       <div style={{ ...cardStyle, padding: 14, marginBottom: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: c.muted, marginBottom: 4 }}>Sample document (JSON)</div>
-        <textarea value={doc} onChange={(e) => setDoc(e.target.value)} rows={10}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: c.muted }}>Sample document (JSON)</div>
+          {loadedFrom && <div style={{ fontSize: 11, color: c.hint }}>loaded from <span style={mono}>{loadedFrom.slice(0, 8)}</span></div>}
+        </div>
+        <textarea value={doc} onChange={(e) => { setDoc(e.target.value); setLoadedFrom(null); }} rows={10}
           style={{ ...input, ...mono, width: "100%", resize: "vertical", boxSizing: "border-box" }} />
         <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
           <select value={version} onChange={(e) => setVersion(e.target.value)} style={input}>
@@ -906,42 +948,55 @@ function TestTab({ versions, defaultVersion, area }: { versions: VersionRow[]; d
       </div>
 
       {out && (
-        <div style={{ ...cardStyle, padding: 14 }}>
+        <div style={{ ...cardStyle, padding: 14, marginBottom: 12 }}>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 10, fontSize: 12.5, color: c.ink }}>
             <span><b>Net:</b> {out.result.totals.net.toLocaleString()}</span>
             {Object.entries(out.result.totals.subtotals).map(([k, v]) => (
               <span key={k}><b>{k}:</b> {v.toLocaleString()}</span>
             ))}
-            <span style={{ color: c.hint }}>v{out.config_version} · {out.procedure} · {out.calc_ms} ms · {out.result.pricing_date}</span>
+            <span style={{ color: c.hint }}>
+              v{out.config_version} · {out.procedure} · {out.calc_ms} ms · {out.result.pricing_date}
+              {out.document_id ? <> · stored as <span style={mono}>{out.document_id.slice(0, 8)}</span></> : " · not stored (migration 0109 pending?)"}
+              {out.replay_of ? <> · replay of <span style={mono}>{out.replay_of.slice(0, 8)}</span></> : null}
+            </span>
           </div>
           {out.result.lines.map((line) => (
             <div key={line.line_no} style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: c.ink, marginBottom: 4 }}>Line {line.line_no} — net {line.net.toLocaleString()}</div>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead><tr><th style={th}>Step</th><th style={th}>Component</th><th style={th}>Status</th><th style={th}>Detail</th><th style={{ ...th, textAlign: "right" }}>Amount</th></tr></thead>
-                <tbody>
-                  {line.trace.map((t, i) => (
-                    <tr key={i} style={t.status === "SUBTOTAL" ? { background: c.panel2 } : undefined}>
-                      <td style={td}>{t.step}</td>
-                      <td style={{ ...td, ...mono }}>{t.component ?? t.subtotal}</td>
-                      <td style={td}><StatusChip status={t.status} />{t.manual ? " ✎" : ""}{t.statistical ? " (stat)" : ""}</td>
-                      <td style={{ ...td, fontSize: 11.5, color: c.muted }}>
-                        {t.reason && <div>{t.reason}</div>}
-                        {t.rule_id && <div>rule <span style={mono}>{t.rule_id.slice(0, 8)}</span>{t.specificity !== undefined ? ` · specificity ${t.specificity}` : ""}{t.matched_on && Object.keys(t.matched_on).length > 0 ? ` · ${JSON.stringify(t.matched_on)}` : ""}</div>}
-                        {t.inputs?.map((inp, j) => <div key={j} style={mono}>{inp.path}: {inp.rate} × {inp.qty}</div>)}
-                        {t.basis !== undefined && <div>basis {t.basis.toLocaleString()}</div>}
-                      </td>
-                      <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums", color: (t.result ?? 0) < 0 ? "var(--err-ink)" : c.ink }}>
-                        {t.result !== undefined ? t.result.toLocaleString() : ""}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <PriceTrace steps={line.trace} />
             </div>
           ))}
         </div>
       )}
+
+      <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700, color: c.ink, borderBottom: `1px solid ${c.line}` }}>
+          Recent priced documents in this Price Book
+          <span style={{ fontWeight: 400, color: c.hint }}> — every price the engine has produced is kept, so any of them can be reloaded or replayed against a draft.</span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr><th style={th}>When</th><th style={th}>From</th><th style={th}>Version</th><th style={th}>Date</th><th style={{ ...th, textAlign: "right" }}>Net</th><th style={th}>Lines</th><th style={th}></th></tr></thead>
+          <tbody>
+            {recent.map((d) => (
+              <tr key={d.id}>
+                <td style={td}>{new Date(d.created_at).toLocaleString()}</td>
+                <td style={td}>{sourceLabel[d.source] ?? d.source}{d.replay_of ? " (replay)" : ""}</td>
+                <td style={td}>v{d.config_version} · <span style={mono}>{d.procedure}</span></td>
+                <td style={td}>{d.pricing_date}</td>
+                <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{Number(d.net_total).toLocaleString()}{d.currency ? ` ${d.currency}` : ""}</td>
+                <td style={td}>{d.line_count}</td>
+                <td style={td}>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button style={btn} disabled={busy} onClick={() => loadDocument(d.id)}>Load</button>
+                    <button style={btn} disabled={busy} onClick={() => replay(d.id)}>Replay{version ? ` on v${version}` : ""}</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {recent.length === 0 && <tr><td style={td} colSpan={7}>Nothing priced yet in this Price Book — or migration 0109 is still pending.</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

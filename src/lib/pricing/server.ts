@@ -5,6 +5,7 @@ import {
   type PriceInput, type PriceResult, type PriceComponent, type PricingProcedure,
   type PriceRule, type DimensionRegistry, type CostModel, type CostInput, type ProcedureStep,
 } from "@/lib/pricing-core";
+import { buildPricingDocumentRow, type PricingCallMeta, type PricingDocumentRow, type PricingDocumentSource } from "./documents";
 
 // Persistence adapter for the pricing engine (spec §11.1): the ONLY place
 // that maps ontology tables into the pure core's types. The core never sees
@@ -138,16 +139,30 @@ export async function loadPricingConfig(
   };
 }
 
-export type PriceCallResult = { result: PriceResult; config_version: number; procedure: string; calc_ms: number };
+export type PriceCallResult = {
+  result: PriceResult; config_version: number; procedure: string; calc_ms: number;
+  /** The stored pricing_documents row, when the store succeeded (null while
+   *  migration 0109 is pending or the insert failed -- pricing itself never
+   *  fails because the record could not be kept). */
+  document_id: string | null;
+};
+
+export type RunPriceOptions = {
+  pricingDate?: string; configVersion?: number; pricingArea?: string; procedure?: string; currency?: string;
+  /** Provenance for the stored context. Defaults to an anonymous API call. */
+  meta?: PricingCallMeta;
+};
 
 /**
  * Load config + execute one pricing call. Procedure selection: the named one,
- * or the version's only procedure when exactly one exists.
+ * or the version's only procedure when exactly one exists. Every call is
+ * stored in pricing_documents (spec §7: full contexts, not reconstructions)
+ * and metered in pricing_usage.
  */
 export async function runPrice(
   tenantId: string,
   document: PriceInput["document"],
-  opts: { pricingDate?: string; configVersion?: number; pricingArea?: string; procedure?: string; currency?: string } = {}
+  opts: RunPriceOptions = {}
 ): Promise<PriceCallResult> {
   const config = await loadPricingConfig(tenantId, { pricingArea: opts.pricingArea, configVersion: opts.configVersion });
 
@@ -178,21 +193,108 @@ export async function runPrice(
   });
   const calc_ms = Date.now() - started;
 
+  const admin = createAdminSupabase();
+  const meta: PricingCallMeta = opts.meta ?? { source: "api" };
+  const area = opts.pricingArea ?? "default";
+
+  // Store the context (spec §7). Best-effort so a storage problem never
+  // turns into a wrong or missing price, but LOUD: a silent gap here would
+  // quietly hollow out simulation and analysis.
+  let document_id: string | null = null;
+  try {
+    const row = buildPricingDocumentRow({
+      tenantId, area, configVersion: config.version, procedure: procedure.code,
+      document, result, calcMs: calc_ms, meta,
+    });
+    const { data, error } = await admin.from("pricing_documents").insert(row).select("id").single();
+    if (error) console.error("pricing_documents insert failed:", error.message);
+    else document_id = data.id as string;
+  } catch (e) {
+    console.error("pricing_documents insert threw:", e);
+  }
+
   // Metering (spec §15.4): one row per call — billing meter and rate-limit
   // basis in one mechanism. Best-effort: never fails the pricing call, and
   // silently no-ops until migration 0084 is applied.
   try {
-    await createAdminSupabase().from("pricing_usage").insert({
+    await admin.from("pricing_usage").insert({
       tenant_id: tenantId,
       calls: 1,
       lines: document.lines.length,
       calc_ms,
       config_version: config.version,
       procedure: procedure.code,
+      api_key_id: meta.apiKeyId ?? null,
+      document_id,
     });
   } catch { /* metering must never break pricing */ }
 
-  return { result, config_version: config.version, procedure: procedure.code, calc_ms };
+  return { result, config_version: config.version, procedure: procedure.code, calc_ms, document_id };
+}
+
+// ── Stored documents ────────────────────────────────────────────────────────
+
+export type StoredPricingDocument = PricingDocumentRow & { id: string; created_at: string };
+
+/** One stored document, tenant-scoped. null when it does not exist (or the
+ *  table does not yet -- migration 0109 pending reads as "no documents"). */
+export async function loadPricingDocument(tenantId: string, documentId: string): Promise<StoredPricingDocument | null> {
+  const { data } = await createAdminSupabase()
+    .from("pricing_documents").select("*")
+    .eq("tenant_id", tenantId).eq("id", documentId)
+    .maybeSingle();
+  return (data as StoredPricingDocument | null) ?? null;
+}
+
+export type PricingDocumentSummary = {
+  id: string; pricing_area: string; config_version: number; procedure: string; pricing_date: string;
+  source: PricingDocumentSource; source_id: string | null; replay_of: string | null;
+  currency: string | null; net_total: number; line_count: number; calc_ms: number | null; created_at: string;
+};
+
+/** Recent documents for the cockpit and (batch 4) simulation. Never the
+ *  full context -- that is one fetch per document on demand. */
+export async function listPricingDocuments(
+  tenantId: string,
+  opts: { area?: string; limit?: number; source?: PricingDocumentSource } = {}
+): Promise<PricingDocumentSummary[]> {
+  let q = createAdminSupabase()
+    .from("pricing_documents")
+    .select("id, pricing_area, config_version, procedure, pricing_date, source, source_id, replay_of, currency, net_total, line_count, calc_ms, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(200, Math.max(1, opts.limit ?? 50)));
+  if (opts.area) q = q.eq("pricing_area", opts.area);
+  if (opts.source) q = q.eq("source", opts.source);
+  const { data, error } = await q;
+  // 42P01 = relation does not exist: the migration is pending. Empty, not a crash.
+  if (error) return [];
+  return (data ?? []) as PricingDocumentSummary[];
+}
+
+/**
+ * Replay a stored document: the same context against the same version and
+ * pricing date (or a different version, for "what would this cost under my
+ * draft" -- the seed of batch 4's simulation). The replay is itself stored,
+ * linked back to the original, so a customer-facing "why" can always point
+ * at the exact run that produced a number.
+ */
+export async function replayPricingDocument(
+  tenantId: string,
+  documentId: string,
+  opts: { configVersion?: number; pricingDate?: string; meta?: Omit<PricingCallMeta, "replayOf"> } = {}
+): Promise<PriceCallResult> {
+  const doc = await loadPricingDocument(tenantId, documentId);
+  if (!doc) throw new PricingConfigError(404, "Pricing document not found.");
+  const meta: PricingCallMeta = { ...(opts.meta ?? { source: "test" }), replayOf: doc.id };
+  return runPrice(tenantId, doc.context, {
+    pricingArea: doc.pricing_area,
+    configVersion: opts.configVersion ?? doc.config_version,
+    procedure: doc.procedure,
+    pricingDate: opts.pricingDate ?? doc.pricing_date,
+    currency: doc.currency ?? undefined,
+    meta,
+  });
 }
 
 export { PricingError };

@@ -239,11 +239,32 @@ export async function POST(req: Request) {
       };
       if (typeof data.id === "string" && data.id) {
         const { error } = await admin.from("pricing_cost_inputs").update(row).eq("tenant_id", tenantId).eq("id", data.id);
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        if (error) {
+          // 23505 on the natural key: the edit collides with another rate
+          // for the same path and start date -- say which, don't 500.
+          if (error.code === "23505") return bad(`A rate for ${modelCode} ${path} starting ${row.valid_from ?? "(open)"} already exists — edit that one instead.`);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
         return NextResponse.json({ ok: true, id: data.id });
       }
-      const { data: created, error } = await admin.from("pricing_cost_inputs").insert(row).select("id").single();
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      // (tenant, model, path, valid_from) is the natural key (migration 0109):
+      // re-adding the same rate updates it rather than creating a twin the
+      // engine would refuse to resolve (AMBIGUOUS_COST_INPUT).
+      const { data: created, error } = await admin
+        .from("pricing_cost_inputs")
+        .upsert(row, { onConflict: "tenant_id,cost_model_code,path,valid_from_key" })
+        .select("id").single();
+      if (error) {
+        // 42703 = valid_from_key does not exist: migration 0109 pending. Fall
+        // back to a plain insert so authoring keeps working; the duplicate
+        // guard simply isn't there yet.
+        if (error.code === "42703" || /valid_from_key/.test(error.message)) {
+          const { data: inserted, error: insErr } = await admin.from("pricing_cost_inputs").insert(row).select("id").single();
+          if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+          return NextResponse.json({ ok: true, id: inserted.id }, { status: 201 });
+        }
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
       return NextResponse.json({ ok: true, id: created.id }, { status: 201 });
     }
 

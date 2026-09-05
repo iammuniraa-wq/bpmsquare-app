@@ -912,6 +912,15 @@ export type TenantConfig = {
   // redirect mode regardless of this value -- see src/lib/emailOutput.ts --
   // so no test document can ever reach a real customer. Absent = partners.
   email_output?: EmailOutputConfig;
+  // BPMSquare Pricing (docs/pricing-engine-architecture.md §17). Absent keys
+  // read as the defaults in src/lib/pricing/documents.ts.
+  pricing?: PricingConfig;
+};
+
+export type PricingConfig = {
+  /** How long stored pricing contexts (pricing_documents) are kept before
+   *  the daily retention job purges them. Default 180, clamped 7..3650. */
+  retention_days?: number;
 };
 
 export type EmailOutputMode = "partners" | "redirect";
