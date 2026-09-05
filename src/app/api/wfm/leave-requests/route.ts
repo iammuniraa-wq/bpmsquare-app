@@ -3,6 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, requireWfmEmployee, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
+import { loadLeaveType, monthlyLimitError } from "@/lib/wfm/leaveServer";
 import { ROUTES } from "@/lib/constants";
 import type { LeaveRequestStatus } from "@/lib/wfm/types";
 
@@ -87,14 +88,14 @@ export async function POST(request: NextRequest) {
 
   // Client-supplied leave_type_id must resolve to a real, active type in
   // this tenant -- same guardrail as leave-records' admin-entry path.
-  const { data: leaveType } = await admin
-    .from("wfm_leave_types")
-    .select("id")
-    .eq("id", leave_type_id)
-    .eq("tenant_id", tenantId)
-    .eq("active", true)
-    .maybeSingle();
+  const leaveType = await loadLeaveType(admin, tenantId, leave_type_id, true);
   if (!leaveType) return NextResponse.json({ error: "Unknown leave type" }, { status: 400 });
+
+  // Monthly limit (0109): approved records plus still-pending requests of
+  // this type count against the month, so two requests cannot both squeeze
+  // through before a supervisor looks.
+  const limitError = await monthlyLimitError(admin, tenantId, employee.id, leaveType, { date_from, date_to, half_day: half_day === true });
+  if (limitError) return NextResponse.json({ error: limitError }, { status: 400 });
 
   const { data, error } = await admin
     .from("wfm_leave_requests")

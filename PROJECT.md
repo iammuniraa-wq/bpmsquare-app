@@ -472,6 +472,19 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
+- **0109_wfm_leave_type_limits.sql — PENDING on both DBs** (written
+  2026-09-06, BIM request): `wfm_leave_types.monthly_limit` (at most N
+  days of the type per calendar month, enforced on employee requests AND
+  admin entry, counting approved records + pending requests) and
+  `paid_days_per_month` (only the first N days of the type in a month are
+  paid; the rest count as unpaid on the monthly summary and export).
+  Degrades while pending: every read falls back to the 0062 columns and
+  the limits simply read as "none"; saving a limit returns 503 with the
+  migration named. Companion: `scripts/bim-leave-test-data-cleanup.sql`
+  (inspect, then delete the generic types and their test history; owner
+  runs it after confirming the counts). Leave types also gained
+  deactivate / reactivate / delete-when-unused and inline edit on the
+  Settings → Workforce → Leave Types tab, with the Add form at the top.
 - 0108_wfm_project_billing.sql — **applied to both DBs** (owner confirmed
   2026-09-06). `wfm_projects.bill_rate` (the project rung of the rate
   ladder) and `wfm_project_invoices` (which period of which project each
