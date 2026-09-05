@@ -4,6 +4,7 @@ import { tenantHasFeature } from "@/lib/tenant";
 import { generateNextStandardQuoteRef } from "@/lib/standardQuoteRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
+import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds } from "@/lib/pricing/quoteLineFlags";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -70,26 +71,29 @@ export async function POST(request: NextRequest) {
     templateId = defaultTmpl?.id ?? null;
   }
 
-  const cleanLines = Array.isArray(lines)
-    ? lines
-        .filter((l) => l?.description?.trim())
-        .slice(0, 200)
-        .map((l, i) => {
-          const qty = Math.max(0, parseFloat(l.qty) || 1);
-          const rate = Math.max(0, parseFloat(l.rate) || 0);
-          const discountPct = Math.max(0, Math.min(100, parseFloat(l.discount_pct) || 0));
-          return {
-            tenant_id: tenantId,
-            sl_no: l.sl_no || String(i + 1),
-            description: String(l.description),
-            uom: l.uom || null,
-            qty,
-            rate,
-            discount_pct: discountPct,
-            amount: qty * rate * (1 - discountPct / 100),
-          };
-        })
-    : [];
+  // product_id / pricing_document_id (0114) are foreign ids from the body:
+  // a product must be this tenant's, the flags are derived from the
+  // verified document, never trusted from the client.
+  const rawLines: { description?: string; sl_no?: string; uom?: string; qty?: string; rate?: string; discount_pct?: string; product_id?: string | null; pricing_document_id?: string | null }[] =
+    Array.isArray(lines) ? lines.filter((l) => l?.description?.trim()).slice(0, 200) : [];
+  const knownProducts = await verifiedProductIds(supabase, tenantId, rawLines);
+  const cleanLines = rawLines.map((l, i) => {
+    const qty = Math.max(0, parseFloat(l.qty ?? "") || 1);
+    const rate = Math.max(0, parseFloat(l.rate ?? "") || 0);
+    const discountPct = Math.max(0, Math.min(100, parseFloat(l.discount_pct ?? "") || 0));
+    return {
+      tenant_id: tenantId,
+      sl_no: l.sl_no || String(i + 1),
+      description: String(l.description),
+      uom: l.uom || null,
+      qty,
+      rate,
+      discount_pct: discountPct,
+      amount: qty * rate * (1 - discountPct / 100),
+      product_id: l.product_id && knownProducts.has(l.product_id) ? l.product_id : null,
+      pricing_document_id: typeof l.pricing_document_id === "string" && l.pricing_document_id ? l.pricing_document_id : null,
+    };
+  });
 
   const subtotal = cleanLines.reduce((s, l) => s + l.amount, 0);
   const totals = computeStandardQuoteTotals(subtotal, headerDiscountPct, taxPct, shippingAmount);
@@ -132,9 +136,9 @@ export async function POST(request: NextRequest) {
   if (!quote) return NextResponse.json({ error: qErr?.message ?? "Failed to create quote" }, { status: 500 });
 
   if (cleanLines.length > 0) {
-    const { error: linesErr } = await supabase
-      .from("standard_quote_lines")
-      .insert(cleanLines.map((l) => ({ ...l, standard_quote_id: quote!.id })));
+    const rows = cleanLines.map((l) => ({ ...l, standard_quote_id: quote!.id }));
+    const derived = await derivePricingFlags(supabase, tenantId, rows);
+    const { error: linesErr } = await insertLinesTolerant(supabase, "standard_quote_lines", derived.ok ? withPricingColumns(rows, derived.flagsByDocument) : rows);
     if (linesErr) return NextResponse.json({ error: linesErr.message }, { status: 500 });
   }
 
