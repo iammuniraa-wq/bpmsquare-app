@@ -39,20 +39,62 @@ export function withPricingColumns<T extends LineWithPricing>(rows: T[], flagsBy
   });
 }
 
-/** Insert quote lines, tolerating a database where 0113 is pending: on a
- *  missing-column error the pricing columns are stripped and the insert
- *  retried, so quoting never breaks because a migration is late. */
-export async function insertQuoteLinesTolerant(
+/** Insert document lines, tolerating a database where the pricing
+ *  migration (0113 for quote_lines, 0114 for standard_quote_lines) is
+ *  pending: on a missing-column error the pricing columns are stripped and
+ *  the insert retried, so quoting never breaks because a migration is late. */
+export async function insertLinesTolerant(
   supabase: SupabaseClient,
+  table: "quote_lines" | "standard_quote_lines",
   rows: Record<string, unknown>[]
 ): Promise<{ error: { message: string } | null; strippedPricing: boolean }> {
-  const { error } = await supabase.from("quote_lines").insert(rows);
+  const { error } = await supabase.from(table).insert(rows);
   if (!error) return { error: null, strippedPricing: false };
-  const missingColumn = (error as { code?: string }).code === "42703" || /pricing_document_id|pricing_flags/.test(error.message);
+  const missingColumn = (error as { code?: string }).code === "42703" || /pricing_document_id|pricing_flags|product_id/.test(error.message);
   if (!missingColumn) return { error, strippedPricing: false };
-  const stripped = rows.map(({ pricing_document_id: _d, pricing_flags: _f, ...rest }) => rest);
-  const { error: retry } = await supabase.from("quote_lines").insert(stripped);
+  // standard_quote_lines.product_id arrives with the same migration as its
+  // pricing columns, so it is stripped with them; quote_lines has always
+  // had product_id and keeps it.
+  const stripped = rows.map(({ pricing_document_id: _d, pricing_flags: _f, ...rest }) => {
+    if (table === "standard_quote_lines") { const { product_id: _p, ...noProduct } = rest; return noProduct; }
+    return rest;
+  });
+  const { error: retry } = await supabase.from(table).insert(stripped);
   return { error: retry, strippedPricing: true };
+}
+
+export function insertQuoteLinesTolerant(supabase: SupabaseClient, rows: Record<string, unknown>[]) {
+  return insertLinesTolerant(supabase, "quote_lines", rows);
+}
+
+/** Product ids on incoming lines are foreign ids from the request body:
+ *  only those that resolve to this tenant's products survive, the rest are
+ *  nulled (MULTI_TENANT_GUARDRAILS.md). */
+export async function verifiedProductIds(
+  supabase: SupabaseClient,
+  tenantId: string,
+  lines: { product_id?: string | null }[]
+): Promise<Set<string>> {
+  const ids = [...new Set(lines.map((l) => l.product_id).filter((x): x is string => typeof x === "string" && x.length > 0))];
+  if (ids.length === 0) return new Set();
+  const { data } = await supabase.from("products").select("id").in("id", ids).eq("tenant_id", tenantId);
+  return new Set((data ?? []).map((r) => r.id as string));
+}
+
+/** The flagged lines of one document, tolerating the pending migration
+ *  (a missing column reads as "no flags", never as a crash). */
+export async function flaggedLinesOf(
+  supabase: SupabaseClient,
+  table: "quote_lines" | "standard_quote_lines",
+  parentColumn: "quote_id" | "standard_quote_id",
+  tenantId: string,
+  documentId: string
+): Promise<{ sl_no?: string | null; description?: string; pricing_flags?: LineFlag[] | null }[]> {
+  const { data, error } = await supabase
+    .from(table).select("sl_no, description, pricing_flags")
+    .eq(parentColumn, documentId).eq("tenant_id", tenantId).not("pricing_flags", "is", null);
+  if (error) return [];
+  return (data ?? []) as { sl_no?: string | null; description?: string; pricing_flags?: LineFlag[] | null }[];
 }
 
 /** The lines that would stop this quote going out: any flag whose policy is

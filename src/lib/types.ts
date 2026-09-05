@@ -418,6 +418,13 @@ export type StandardQuoteLine = {
   rate: number;
   discount_pct: number;
   amount: number;
+  /** The catalog product behind the line (0114) -- what "Price with engine"
+   *  prices. Free-text lines have none. */
+  product_id?: string | null;
+  /** The stored pricing document that produced the rate, and the guardrail
+   *  flags it carried (0114) -- derived server-side, mirrors quote_lines. */
+  pricing_document_id?: string | null;
+  pricing_flags?: { code: string; policy: string; floor_pct?: number; actual_pct?: number }[] | null;
 };
 
 // Standard Quote branded templates -- an ordered list of blocks a tenant can

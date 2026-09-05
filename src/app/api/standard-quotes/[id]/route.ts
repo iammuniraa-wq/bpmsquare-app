@@ -4,6 +4,7 @@ import { tenantHasFeature } from "@/lib/tenant";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
+import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds } from "@/lib/pricing/quoteLineFlags";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -106,13 +107,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ("tax_pct" in body) patch.tax_pct = clampPct(body.tax_pct);
   if ("shipping_amount" in body) patch.shipping_amount = clampAmount(body.shipping_amount);
 
-  type CleanLine = { tenant_id: string; standard_quote_id: string; sl_no: string; description: string; uom: string | null; qty: number; rate: number; discount_pct: number; amount: number };
+  type CleanLine = { tenant_id: string; standard_quote_id: string; sl_no: string; description: string; uom: string | null; qty: number; rate: number; discount_pct: number; amount: number; product_id: string | null; pricing_document_id: string | null };
   let cleanLines: CleanLine[] | null = null;
   if (Array.isArray(body.lines)) {
-    const built: CleanLine[] = body.lines
-      .filter((l: { description?: string }) => l?.description?.trim())
-      .slice(0, 200)
-      .map((l: { sl_no?: string; description: string; uom?: string; qty?: string; rate?: string; discount_pct?: string }, i: number) => {
+    type RawLine = { sl_no?: string; description: string; uom?: string; qty?: string; rate?: string; discount_pct?: string; product_id?: string | null; pricing_document_id?: string | null };
+    const raw: RawLine[] = body.lines.filter((l: { description?: string }) => l?.description?.trim()).slice(0, 200);
+    // Foreign ids from the body (0114): products verified against the
+    // tenant, pricing flags derived from the verified document below.
+    const knownProducts = await verifiedProductIds(supabase, tenantId, raw);
+    const built: CleanLine[] = raw.map((l, i) => {
         const qty = Math.max(0, parseFloat(l.qty ?? "") || 1);
         const rate = Math.max(0, parseFloat(l.rate ?? "") || 0);
         const discountPct = Math.max(0, Math.min(100, parseFloat(l.discount_pct ?? "") || 0));
@@ -124,6 +127,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           uom: l.uom || null,
           qty, rate, discount_pct: discountPct,
           amount: qty * rate * (1 - discountPct / 100),
+          product_id: l.product_id && knownProducts.has(l.product_id) ? l.product_id : null,
+          pricing_document_id: typeof l.pricing_document_id === "string" && l.pricing_document_id ? l.pricing_document_id : null,
         };
       });
     cleanLines = built;
@@ -145,7 +150,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { error: dErr } = await supabase.from("standard_quote_lines").delete().eq("standard_quote_id", id).eq("tenant_id", tenantId);
     if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
     if (cleanLines.length > 0) {
-      const { error: iErr } = await supabase.from("standard_quote_lines").insert(cleanLines);
+      const derived = await derivePricingFlags(supabase, tenantId, cleanLines);
+      const { error: iErr } = await insertLinesTolerant(supabase, "standard_quote_lines", derived.ok ? withPricingColumns(cleanLines, derived.flagsByDocument) : cleanLines);
       if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
     }
   }
