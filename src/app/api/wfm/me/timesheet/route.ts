@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   const [summaries, leaveBalance] = await Promise.all([
     getMonthlySummary(tenantId, month, [employee.id]),
-    getLeaveBalance(tenantId, employee.id, Number(month.slice(0, 4))),
+    getLeaveBalance(tenantId, employee.id, month),
   ]);
 
   if (summaries.length === 0) {

@@ -74,8 +74,8 @@ export async function wfmLeaveTypesPayload(supabase: SupabaseClient, tenantId: s
   // The limit columns arrive with 0109; until it is applied the select
   // falls back to the 0062 shape so the tab keeps working.
   let typesRes = await supabase.from("wfm_leave_types")
-    .select("id, name, category, active, monthly_limit, paid_days_per_month").eq("tenant_id", tenantId).order("name");
-  if (typesRes.error && /monthly_limit|paid_days_per_month/.test(typesRes.error.message)) {
+    .select("id, name, category, active, monthly_limit, paid_days_per_month, quota_period").eq("tenant_id", tenantId).order("name");
+  if (typesRes.error && /monthly_limit|paid_days_per_month|quota_period/.test(typesRes.error.message)) {
     typesRes = (await supabase.from("wfm_leave_types").select("id, name, category, active").eq("tenant_id", tenantId).order("name")) as typeof typesRes;
   }
   const [{ data: quotas }, { data: records }, { data: requests }] = await Promise.all([
@@ -85,7 +85,7 @@ export async function wfmLeaveTypesPayload(supabase: SupabaseClient, tenantId: s
     supabase.from("wfm_leave_records").select("leave_type_id").eq("tenant_id", tenantId),
     supabase.from("wfm_leave_requests").select("leave_type_id, status").eq("tenant_id", tenantId),
   ]);
-  const types = orThrow(typesRes) as { id: string; name: string; category: string; active: boolean; monthly_limit?: number | null; paid_days_per_month?: number | null }[];
+  const types = orThrow(typesRes) as { id: string; name: string; category: string; active: boolean; monthly_limit?: number | null; paid_days_per_month?: number | null; quota_period?: "year" | "month" | null }[];
   const quotaByType = new Map((quotas ?? []).map((q) => [q.leave_type_id, q.annual_quota]));
   const recordsByType = new Map<string, number>();
   for (const r of records ?? []) recordsByType.set(r.leave_type_id as string, (recordsByType.get(r.leave_type_id as string) ?? 0) + 1);
@@ -99,6 +99,7 @@ export async function wfmLeaveTypesPayload(supabase: SupabaseClient, tenantId: s
     ...t,
     monthly_limit: t.monthly_limit === undefined ? null : t.monthly_limit,
     paid_days_per_month: t.paid_days_per_month === undefined ? null : t.paid_days_per_month,
+    quota_period: t.quota_period ?? "year",
     annual_quota: quotaByType.get(t.id) ?? 0,
     records_count: recordsByType.get(t.id) ?? 0,
     requests_count: requestsByType.get(t.id) ?? 0,

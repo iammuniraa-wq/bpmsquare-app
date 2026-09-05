@@ -91,7 +91,7 @@ type DayRecord = {
   ot_minutes: number; ot_pending_minutes: number;
   ot_segments: { start: string; end: string; minutes: number; status: string }[];
 };
-type LeaveBalance = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number; monthly_limit?: number | null; paid_days_per_month?: number | null };
+type LeaveBalance = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number; period?: "year" | "month"; monthly_limit?: number | null; paid_days_per_month?: number | null };
 type Holiday = { id: string; date: string; name: string; applies_to: string };
 type CorrectionRequest = {
   id: string; target_date: string; status: "pending" | "approved" | "rejected";
@@ -1940,7 +1940,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                 {leaveBalance.map((lb) => (
                   <section key={lb.leave_type_id} style={cardStyle}>
                     <div style={capStyle}>{lb.name}</div>
-                    <Stat value={String(lb.balance)} label={`of ${lb.quota} days left · ${lb.used} used`} tone={lb.balance <= 0 ? statusInk.bad : undefined} />
+                    <Stat value={String(lb.balance)} label={`of ${lb.quota} days left${lb.period === "month" ? " this month" : ""} · ${lb.used} used`} tone={lb.balance <= 0 ? statusInk.bad : undefined} />
                     <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>{lb.category}</div>
                   </section>
                 ))}
@@ -1996,7 +1996,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                       <option value="">— select —</option>
                       {leaveBalance.map((lb) => (
                         <option key={lb.leave_type_id} value={lb.leave_type_id}>
-                          {lb.name} ({lb.balance} left{lb.monthly_limit ? `, max ${lb.monthly_limit}/month` : ""}{lb.paid_days_per_month !== null && lb.paid_days_per_month !== undefined ? `, ${lb.paid_days_per_month} paid/month` : ""})
+                          {lb.name} ({lb.balance} left{lb.period === "month" ? " this month" : ""}{lb.monthly_limit && lb.period !== "month" ? `, max ${lb.monthly_limit}/month` : ""}{lb.paid_days_per_month !== null && lb.paid_days_per_month !== undefined ? `, ${lb.paid_days_per_month} paid/month` : ""})
                         </option>
                       ))}
                     </select>

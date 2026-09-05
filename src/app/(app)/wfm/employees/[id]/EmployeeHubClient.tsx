@@ -30,7 +30,7 @@ type MonthSummary = {
   };
   days: DayRecord[];
 };
-type LeaveBalanceRow = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number };
+type LeaveBalanceRow = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number; period?: "year" | "month" };
 
 type Profile = {
   id: string; employee_code: string | null; first_name: string; last_name: string; phone: string | null;
@@ -542,7 +542,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
                 {profile.leave_balance.map((lb) => (
                   <div key={lb.leave_type_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
                     <span style={{ color: c.ink }}>{lb.name}</span>
-                    <span style={{ color: lb.balance <= 0 ? statusInk.bad : c.muted }}>{lb.balance} / {lb.quota} left</span>
+                    <span style={{ color: lb.balance <= 0 ? statusInk.bad : c.muted }}>{lb.balance} / {lb.quota} left{lb.period === "month" ? " this month" : ""}</span>
                   </div>
                 ))}
               </div>

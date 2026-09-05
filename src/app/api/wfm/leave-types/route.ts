@@ -2,12 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { wfmLeaveTypesPayload } from "@/lib/wfm/bootstrap";
-import { parseLeaveTypeLimits } from "@/lib/wfm/leaveTypeInput";
+import { parseLeaveTypeLimits, LEAVE_TYPE_NEW_COLUMNS_RE } from "@/lib/wfm/leaveTypeInput";
 
 const CATEGORIES = ["paid", "unpaid", "half_day"];
 
-// GET /api/wfm/leave-types — list, with each type's tenant-default annual
-// quota, its limits (0109) and how much history refers to it.
+// GET /api/wfm/leave-types — list, with each type's default quota (per
+// year or per month), its limits (0109, 0112) and how much history refers
+// to it.
 export async function GET() {
   let ctx;
   try {
@@ -23,8 +24,9 @@ export async function GET() {
   }
 }
 
-// POST /api/wfm/leave-types — create a leave type with its tenant-default
-// quota and optional monthly limit / paid days per month.
+// POST /api/wfm/leave-types — create a leave type with its default quota
+// (annual_quota is the number; quota_period says per year or per month),
+// optional monthly cap and paid days per month.
 export async function POST(request: NextRequest) {
   let ctx;
   try {
@@ -50,8 +52,8 @@ export async function POST(request: NextRequest) {
     .insert({ tenant_id: tenantId, name: name.trim(), category, ...limits.patch })
     .select("id, name, category, active")
     .single();
-  // 0109 pending: create without the limit columns rather than fail.
-  if (insert.error && /monthly_limit|paid_days_per_month/.test(insert.error.message)) {
+  // 0109/0112 pending: create without the new columns rather than fail.
+  if (insert.error && LEAVE_TYPE_NEW_COLUMNS_RE.test(insert.error.message)) {
     insert = await admin.from("wfm_leave_types").insert({ tenant_id: tenantId, name: name.trim(), category }).select("id, name, category, active").single();
   }
   const { data: type, error } = insert;
