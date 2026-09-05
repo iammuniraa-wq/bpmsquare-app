@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
@@ -41,14 +41,36 @@ const fmtDate = (s: string | null) =>
  * view the same component renders them flat, with no tree affordances.
  */
 export default function ProjectTreeRows({
-  rows, all, tree,
+  rows, all, tree, from, to,
 }: {
   rows: WfmProject[];
   all: WfmProject[];
   tree: boolean;
+  /** The window the Hours column covers -- the current month, from the page. */
+  from: string;
+  to: string;
 }) {
   const router = useRouter();
   const isAdmin = useUserRole() === "admin";
+
+  // Hours per project for the window, already rolled up by the API (a
+  // project's figure includes everything beneath it). Loaded once, after
+  // the rows are on screen -- the list must never wait on the hours.
+  const [minutes, setMinutes] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/wfm/projects/hours?from=${from}&to=${to}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j) return;
+        const m: Record<string, number> = {};
+        for (const r of (j.rows ?? []) as { key: string; total_minutes: number }[]) m[r.key] = r.total_minutes;
+        setMinutes(m);
+      })
+      .catch(() => { if (!cancelled) setMinutes({}); });
+    return () => { cancelled = true; };
+  }, [from, to]);
+  const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
 
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState<string | null>(null);
@@ -100,7 +122,7 @@ export default function ProjectTreeRows({
     const parent = byId.get(parentId);
     return (
       <tr key={`add-${parentId}`} style={{ background: c.accentbg, borderBottom: `1px solid ${c.line}` }}>
-        <td colSpan={8} style={{ ...td, paddingLeft: 14 + (depth + 1) * 18 }}>
+        <td colSpan={9} style={{ ...td, paddingLeft: 14 + (depth + 1) * 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <input
               autoFocus
@@ -190,6 +212,9 @@ export default function ProjectTreeRows({
           <td className="mob-hide" style={{ ...td, color: c.muted, whiteSpace: "nowrap" }}>{fmtDate(p.start_date)}</td>
           <td className="mob-hide" style={{ ...td, color: c.muted, whiteSpace: "nowrap" }}>{fmtDate(p.end_date)}</td>
           <td className="mob-hide" style={{ ...td, color: c.muted }}>{p.budget_hours ?? "—"}</td>
+          <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: (minutes?.[p.id] ?? 0) > 0 ? c.ink : c.hint }}>
+            {minutes === null ? "…" : (minutes[p.id] ?? 0) > 0 ? hm(minutes[p.id]) : "—"}
+          </td>
           <td style={{ ...td, textAlign: "right", width: 40 }}>
             {tree && isAdmin && canNest(depth) && (
               <button

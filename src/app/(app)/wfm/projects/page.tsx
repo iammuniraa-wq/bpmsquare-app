@@ -16,6 +16,7 @@ import { ROUTES } from "@/lib/constants";
 import type { WfmProject, WfmProjectStatus } from "@/lib/wfm/types";
 import ProjectHoursTiles from "./ProjectHoursTiles";
 import ProjectTreeRows from "./ProjectTreeRows";
+import SettingsSection from "@/components/settings/SettingsSection";
 
 const STATUS_LABEL: Record<WfmProjectStatus, string> = {
   planned: "Planned", active: "Active", on_hold: "On hold",
@@ -99,9 +100,6 @@ export default async function WfmProjectsPage({
   const today = dateKeyInTz(new Date(), config.timezone);
   const monthStart = `${today.slice(0, 7)}-01`;
 
-  const filterHref = (s: string) =>
-    `${ROUTES.wfmProjects}?status=${s}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
-
   return (
     <>
       <TabTitle title="Workforce — Projects" />
@@ -134,31 +132,25 @@ export default async function WfmProjectsPage({
         </div>
       ) : (
         <>
-          <ProjectHoursTiles from={monthStart} to={today} />
-
-          <div style={{ display: "flex", gap: 8, margin: "14px 0", flexWrap: "wrap" }}>
-            {([["all", `All (${projects.length})`], ...(Object.keys(STATUS_LABEL) as WfmProjectStatus[])
-              .map((s) => [s, STATUS_LABEL[s]] as const)] as readonly (readonly [string, string])[])
-              .map(([id, label]) => {
-                const on = (statusFilter ?? "all") === id;
-                return (
-                  <Link key={id} href={filterHref(id)} style={{
-                    fontSize: 12.5, fontWeight: on ? 700 : 500,
-                    color: on ? c.accent : c.muted,
-                    background: on ? c.accentbg : c.panel2,
-                    border: `1px solid ${on ? c.accent + "60" : c.line}`,
-                    borderRadius: 6, padding: "5px 12px", textDecoration: "none",
-                  }}>
-                    {label}
-                  </Link>
-                );
-              })}
+          {/* Insights are collapsed by default (owner: "hide insights") -- the
+              hours now sit on each row, so the donut is the deep dive, not
+              the first thing on the screen. Collapsed means the tiles never
+              fetch until someone opens them. */}
+          <div style={{ marginBottom: 12 }}>
+            <SettingsSection id="wfm-projects-insights" title="Insights" summary="Hours this month by project, and what nobody attributed">
+              <ProjectHoursTiles from={monthStart} to={today} />
+            </SettingsSection>
           </div>
 
           <ListFilterBar
             searchValue={q}
             searchPlaceholder="Search by name, job number or ID…"
-            hiddenParams={{ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined }}
+            selects={[{
+              name: "status",
+              value: statusFilter && statusFilter !== "all" ? statusFilter : undefined,
+              placeholder: "All statuses",
+              options: (Object.keys(STATUS_LABEL) as WfmProjectStatus[]).map((v) => ({ value: v, label: STATUS_LABEL[v] })),
+            }]}
             clearHref={ROUTES.wfmProjects}
           />
 
@@ -191,13 +183,14 @@ export default async function WfmProjectsPage({
                             <SortableTh label="Start" sortKey="start_date" searchId="start_date" {...common} style={th} className="mob-hide" />
                             <SortableTh label="End" sortKey="end_date" searchId="end_date" {...common} style={th} className="mob-hide" />
                             <SortableTh label="Budget hrs" sortKey="budget_hours" searchId="budget_hours" {...common} style={th} className="mob-hide" />
+                            <th style={{ ...th, textAlign: "right" }}>Hours</th>
                             <th style={{ ...th, width: 40 }} aria-label="Add sub-project" />
                           </>
                         );
                       })()}
                     </tr>
                   </thead>
-                  <ProjectTreeRows rows={pageRows} all={projects} tree={treeView} />
+                  <ProjectTreeRows rows={pageRows} all={projects} tree={treeView} from={monthStart} to={today} />
                 </table>
               </div>
             )}
