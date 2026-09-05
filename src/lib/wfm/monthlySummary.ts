@@ -5,6 +5,7 @@ import { getWfmConfig, dateKeyInTz } from "./server";
 import { makeShiftResolver, type RosterLike, type ShiftLike } from "./effectiveShift";
 import { computeDayHours, shiftDayKey, workSessions, overnightTail, type BreakSegment, type WorkSession } from "./hours";
 import type { PresenceKind } from "./types";
+import { paidWithinMonthlyAllowance } from "./leaveRules";
 
 // Shared per-employee-per-month aggregation — the one place the "rules
 // engine" (§6) actually runs across a whole month, used by BOTH the
@@ -133,7 +134,7 @@ export async function getMonthlySummary(
     admin.from("wfm_holidays").select("date, name, applies_to").eq("tenant_id", tenantId)
       .gte("date", dates[0]).lte("date", dates[dates.length - 1]),
     admin.from("wfm_leave_records")
-      .select("employee_id, date_from, date_to, half_day, wfm_leave_types(name, category)")
+      .select("employee_id, leave_type_id, date_from, date_to, half_day, wfm_leave_types(name, category)")
       .eq("tenant_id", tenantId)
       .lte("date_from", dates[dates.length - 1])
       .gte("date_to", dates[0]),
@@ -193,6 +194,9 @@ export async function getMonthlySummary(
   }
 
   const leaveByEmpDay = new Map<string, { name: string; category: string; half_day: boolean }>();
+  // Per employee, type and month: the leave days in date order, so the
+  // paid-days-per-month rule (0109) can decide which of them are still paid.
+  const leaveDaysByEmpTypeMonth = new Map<string, { date: string; half_day: boolean }[]>();
   for (const l of leaves ?? []) {
     const type = Array.isArray(l.wfm_leave_types) ? l.wfm_leave_types[0] : l.wfm_leave_types;
     let d = l.date_from;
@@ -202,9 +206,27 @@ export async function getMonthlySummary(
         category: (type?.category as string) ?? "paid",
         half_day: l.half_day,
       });
+      const k = `${l.employee_id}|${l.leave_type_id}|${d.slice(0, 7)}`;
+      (leaveDaysByEmpTypeMonth.get(k) ?? leaveDaysByEmpTypeMonth.set(k, []).get(k)!).push({ date: d, half_day: l.half_day });
       const next = new Date(d + "T00:00:00Z");
       next.setUTCDate(next.getUTCDate() + 1);
       d = next.toISOString().slice(0, 10);
+    }
+  }
+  // Sick paid for one day a month (BIM): beyond a type's paid allowance in a
+  // month, a paid-category day counts as UNPAID in the totals and the
+  // export. The day still shows the type's name, with the reason appended.
+  const allowanceByType = await paidAllowanceByType(admin, tenantId);
+  for (const [k, days] of leaveDaysByEmpTypeMonth) {
+    const [empId, typeId] = k.split("|");
+    const allowance = allowanceByType.get(typeId);
+    if (allowance === null || allowance === undefined) continue;
+    const paid = paidWithinMonthlyAllowance(allowance, days);
+    for (const day of days) {
+      const entry = leaveByEmpDay.get(`${empId}|${day.date}`);
+      if (entry && entry.category === "paid" && paid.get(day.date) === false) {
+        leaveByEmpDay.set(`${empId}|${day.date}`, { ...entry, category: "unpaid", name: `${entry.name} (beyond ${allowance} paid day${allowance === 1 ? "" : "s"} this month)` });
+      }
     }
   }
 
@@ -363,22 +385,40 @@ export async function getMonthlySummary(
   });
 }
 
+/** paid_days_per_month per leave type (0109); empty until the migration is applied. */
+async function paidAllowanceByType(admin: ReturnType<typeof createAdminSupabase>, tenantId: string): Promise<Map<string, number | null>> {
+  const { data, error } = await admin.from("wfm_leave_types").select("id, paid_days_per_month").eq("tenant_id", tenantId);
+  if (error) return new Map();
+  return new Map((data ?? []).map((t) => [t.id as string, (t.paid_days_per_month as number | null) ?? null]));
+}
+
+/** Leave types with their 0109 limits, falling back to the 0062 shape. */
+async function activeLeaveTypesWithLimits(admin: ReturnType<typeof createAdminSupabase>, tenantId: string) {
+  let res = await admin.from("wfm_leave_types").select("id, name, category, monthly_limit, paid_days_per_month").eq("tenant_id", tenantId).eq("active", true);
+  if (res.error && /monthly_limit|paid_days_per_month/.test(res.error.message)) {
+    res = (await admin.from("wfm_leave_types").select("id, name, category").eq("tenant_id", tenantId).eq("active", true)) as typeof res;
+  }
+  return ((res.data ?? []) as { id: string; name: string; category: string; monthly_limit?: number | null; paid_days_per_month?: number | null }[])
+    .map((t) => ({ ...t, monthly_limit: t.monthly_limit ?? null, paid_days_per_month: t.paid_days_per_month ?? null }));
+}
+
 /** Annual leave balance per type: this employee's override quota (or the
- * tenant default) minus days already taken this calendar year. */
+ * tenant default) minus days already taken this calendar year. Carries the
+ * type's monthly limit and paid allowance so the request screen can say so. */
 export async function getLeaveBalance(tenantId: string, employeeId: string, year: number) {
   const admin = createAdminSupabase();
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
 
-  const [{ data: types }, { data: quotas }, { data: leaves }] = await Promise.all([
-    admin.from("wfm_leave_types").select("id, name, category").eq("tenant_id", tenantId).eq("active", true),
+  const [types, { data: quotas }, { data: leaves }] = await Promise.all([
+    activeLeaveTypesWithLimits(admin, tenantId),
     admin.from("wfm_leave_quotas").select("leave_type_id, employee_id, annual_quota").eq("tenant_id", tenantId),
     admin.from("wfm_leave_records").select("leave_type_id, date_from, date_to, half_day")
       .eq("tenant_id", tenantId).eq("employee_id", employeeId)
       .lte("date_from", yearEnd).gte("date_to", yearStart),
   ]);
 
-  return (types ?? []).map((t) => {
+  return types.map((t) => {
     const override = (quotas ?? []).find((q) => q.leave_type_id === t.id && q.employee_id === employeeId);
     const defaultQuota = (quotas ?? []).find((q) => q.leave_type_id === t.id && !q.employee_id);
     const quota = override?.annual_quota ?? defaultQuota?.annual_quota ?? 0;
@@ -391,6 +431,9 @@ export async function getLeaveBalance(tenantId: string, employeeId: string, year
       used += l.half_day ? days * 0.5 : days;
     }
 
-    return { leave_type_id: t.id, name: t.name, category: t.category, quota, used, balance: quota - used };
+    return {
+      leave_type_id: t.id, name: t.name, category: t.category, quota, used, balance: quota - used,
+      monthly_limit: t.monthly_limit, paid_days_per_month: t.paid_days_per_month,
+    };
   });
 }

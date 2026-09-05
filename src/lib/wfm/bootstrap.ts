@@ -71,13 +71,39 @@ export async function wfmSitesPayload(supabase: SupabaseClient, tenantId: string
 }
 
 export async function wfmLeaveTypesPayload(supabase: SupabaseClient, tenantId: string) {
-  const [typesRes, { data: quotas }] = await Promise.all([
-    supabase.from("wfm_leave_types").select("id, name, category, active").eq("tenant_id", tenantId).order("name"),
+  // The limit columns arrive with 0109; until it is applied the select
+  // falls back to the 0062 shape so the tab keeps working.
+  let typesRes = await supabase.from("wfm_leave_types")
+    .select("id, name, category, active, monthly_limit, paid_days_per_month").eq("tenant_id", tenantId).order("name");
+  if (typesRes.error && /monthly_limit|paid_days_per_month/.test(typesRes.error.message)) {
+    typesRes = (await supabase.from("wfm_leave_types").select("id, name, category, active").eq("tenant_id", tenantId).order("name")) as typeof typesRes;
+  }
+  const [{ data: quotas }, { data: records }, { data: requests }] = await Promise.all([
     supabase.from("wfm_leave_quotas").select("leave_type_id, annual_quota").eq("tenant_id", tenantId).is("employee_id", null),
+    // Usage, so the settings screen can say "in use" and refuse a delete
+    // honestly. Counted here rather than per row: one read each.
+    supabase.from("wfm_leave_records").select("leave_type_id").eq("tenant_id", tenantId),
+    supabase.from("wfm_leave_requests").select("leave_type_id, status").eq("tenant_id", tenantId),
   ]);
-  const types = orThrow(typesRes);
+  const types = orThrow(typesRes) as { id: string; name: string; category: string; active: boolean; monthly_limit?: number | null; paid_days_per_month?: number | null }[];
   const quotaByType = new Map((quotas ?? []).map((q) => [q.leave_type_id, q.annual_quota]));
-  return types.map((t) => ({ ...t, annual_quota: quotaByType.get(t.id) ?? 0 }));
+  const recordsByType = new Map<string, number>();
+  for (const r of records ?? []) recordsByType.set(r.leave_type_id as string, (recordsByType.get(r.leave_type_id as string) ?? 0) + 1);
+  const requestsByType = new Map<string, number>();
+  const pendingByType = new Map<string, number>();
+  for (const r of requests ?? []) {
+    requestsByType.set(r.leave_type_id as string, (requestsByType.get(r.leave_type_id as string) ?? 0) + 1);
+    if (r.status === "pending") pendingByType.set(r.leave_type_id as string, (pendingByType.get(r.leave_type_id as string) ?? 0) + 1);
+  }
+  return types.map((t) => ({
+    ...t,
+    monthly_limit: t.monthly_limit === undefined ? null : t.monthly_limit,
+    paid_days_per_month: t.paid_days_per_month === undefined ? null : t.paid_days_per_month,
+    annual_quota: quotaByType.get(t.id) ?? 0,
+    records_count: recordsByType.get(t.id) ?? 0,
+    requests_count: requestsByType.get(t.id) ?? 0,
+    pending_requests: pendingByType.get(t.id) ?? 0,
+  }));
 }
 
 export async function wfmLeaveRecordsPayload(supabase: SupabaseClient, tenantId: string, employeeId?: string | null) {
