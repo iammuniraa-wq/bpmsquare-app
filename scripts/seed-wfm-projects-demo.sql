@@ -148,7 +148,12 @@ where not exists (
     and x.ts = (pu.day + pu.at_utc) at time zone 'UTC' and x.kind = pu.kind
 );
 
--- ── Next week's roster: employee 1 on Mechanical by date (rung 1) ──────────
+-- ── Next week's roster (rung 1) ────────────────────────────────────────────
+-- Employee 1 goes on Mechanical; employee 4 -- the one with no project in
+-- their history above -- goes on Electrical, so the person whose past hours
+-- sit in "Unassigned" is the one whose punch screen now says "Project:".
+-- Each insert is guarded on the employee existing, so a demo with fewer
+-- people simply seeds fewer rows instead of failing on a null employee.
 with demo as (select id from tenants where is_demo = true limit 1),
 emp as (
   select e.id, row_number() over (order by e.employee_code nulls last, e.first_name, e.last_name) as rn
@@ -161,14 +166,21 @@ days as (
   from generate_series(current_date + 1, current_date + 10, interval '1 day') d
   where extract(isodow from d) between 1 and 5
   limit 5
+),
+who as (
+  select e.id as employee_id, v.project_id, v.note
+  from (values
+    (1, '00000000-0000-4000-8000-00000000c012'::uuid, 'seed: on Mechanical this week'),
+    (4, '00000000-0000-4000-8000-00000000c013'::uuid, 'seed: on Electrical this week')
+  ) as v(rn, project_id, note)
+  join emp e on e.rn = v.rn
 )
 insert into wfm_roster_assignments (tenant_id, employee_id, date, project_id, is_day_off, note)
-select demo.id, (select id from emp where rn = 1), days.day,
-       '00000000-0000-4000-8000-00000000c012'::uuid, false, 'seed: on Mechanical this week'
-from demo, days
+select demo.id, who.employee_id, days.day, who.project_id, false, who.note
+from demo, who, days
 where not exists (
   select 1 from wfm_roster_assignments x
-  where x.tenant_id = demo.id and x.employee_id = (select id from emp where rn = 1) and x.date = days.day
+  where x.tenant_id = demo.id and x.employee_id = who.employee_id and x.date = days.day
 );
 
 -- ── Feature flags on for the demo tenant only ──────────────────────────────
