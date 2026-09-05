@@ -629,6 +629,39 @@ export type WfmConfig = {
   // public half, so no biometric data ever reaches the server and photos
   // can't spoof it. Off by default like every new login surface.
   passkey_login: boolean;
+  /** Project billing (WFM_PROJECT_COSTING.md §11): what an hour on a project
+   *  is charged and what it costs. Three rungs, most specific wins --
+   *  wfm_projects.bill_rate > the person's employment type > the workspace
+   *  default -- mirroring attribution so there is one mental model. */
+  costing: WfmCostingConfig;
+};
+
+export type WfmCostingConfig = {
+  /** Charged per hour when neither the project nor the employment type sets
+   *  one. 0 = billing not set up: a preview refuses to raise an invoice at a
+   *  zero rate rather than sending a customer a free invoice. */
+  default_bill_rate: number;
+  /** What an hour costs the business (margin). Internal: shown to admins on
+   *  the preview, never on an invoice and never on the API -- the same rule
+   *  as products.cost_price. */
+  default_cost_rate: number;
+  /** Rung 2, keyed by employment-type CODE (WfmConfig.employment_types). */
+  rates_by_employment_type: Record<string, { bill?: number; cost?: number }>;
+  /** Days from the draft to its due date. */
+  due_days: number;
+  /** Draft an invoice for every account-linked project with unbilled hours
+   *  on the first of each month (GitHub Actions, not a Vercel cron -- see
+   *  .github/workflows/wfm-project-invoices.yml). Off by default: a draft
+   *  nobody asked for is a surprise in the Invoices list. */
+  auto_draft_monthly: boolean;
+};
+
+export const DEFAULT_WFM_COSTING: WfmCostingConfig = {
+  default_bill_rate: 0,
+  default_cost_rate: 0,
+  rates_by_employment_type: {},
+  due_days: 30,
+  auto_draft_monthly: false,
 };
 
 /** Seed list for tenants that have never edited their employment types --
@@ -665,6 +698,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   login_mode: "email",
   face_login: false,
   passkey_login: false,
+  costing: DEFAULT_WFM_COSTING,
 };
 
 // All metric IDs available in the Analytics page.

@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "BPMSquare MCP server \u2014 field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -164,6 +164,35 @@
           "id": { "type": "string", "description": "Project id" },
           "from": { "type": "string", "description": "Start date, YYYY-MM-DD" },
           "to": { "type": "string", "description": "End date, YYYY-MM-DD (inclusive)" }
+        },
+        "required": ["id", "from", "to"]
+      }
+    },
+    {
+      "name": "get_project_invoices",
+      "description": "Invoices already raised from a project's hours: the period each covers, hours and amount billed, and the invoice's status. Use before billing a period to avoid billing it twice.",
+      "method": "GET",
+      "path": "/api/v1/projects/{id}/invoices",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "id": { "type": "string", "description": "Project id" } },
+        "required": ["id"]
+      }
+    },
+    {
+      "name": "create_project_invoice",
+      "description": "Raise a draft invoice for a project's hours over a period, priced by the tenant's rate ladder (project rate, else employment-type rate, else workspace default). Pass dry_run=true to preview the lines without creating anything. Refuses a period already invoiced unless top_up=true bills only the hours added since.",
+      "method": "POST",
+      "path": "/api/v1/projects/{id}/invoices",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Project id" },
+          "from": { "type": "string", "description": "Start date, YYYY-MM-DD" },
+          "to": { "type": "string", "description": "End date, YYYY-MM-DD (inclusive)" },
+          "granularity": { "type": "string", "enum": ["project", "sub_project"], "description": "One line for the project, or one per sub-project" },
+          "dry_run": { "type": "boolean", "description": "Preview only" },
+          "top_up": { "type": "boolean", "description": "Bill only the hours added since the earlier invoice for this same period" }
         },
         "required": ["id", "from", "to"]
       }

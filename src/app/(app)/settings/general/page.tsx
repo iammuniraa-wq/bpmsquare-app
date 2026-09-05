@@ -79,6 +79,8 @@ const API_ENDPOINTS = [
   { method: "GET", path: "/api/v1/projects",            desc: "Workforce projects + sub-projects · filters: ?status=, ?level=, ?parent_id=" },
   { method: "GET", path: "/api/v1/projects/:id",        desc: "Project detail — parent, level, sub-projects, links" },
   { method: "GET", path: "/api/v1/projects/:id/hours",  desc: "Hours for a project and its sub-projects, for a period (?from=&to=)" },
+  { method: "GET", path: "/api/v1/projects/:id/invoices", desc: "Invoices raised from a project's hours" },
+  { method: "POST", path: "/api/v1/projects/:id/invoices", desc: "Raise a draft invoice for a period ({from, to, granularity?, dry_run?})" },
   { method: "GET", path: "/api/v1/inventory",           desc: "List inventory · filter: ?low_stock=true" },
   { method: "GET", path: "/api/v1/inventory/:id",       desc: "Inventory item detail + transaction history" },
   { method: "GET", path: "/api/v1/invoices",            desc: "List invoices · filter: ?status= &account_id=" },

@@ -21,7 +21,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "kiosks", label: "Kiosks" },
 ];
 
-export default function WorkforceSettingsTabs({ initial }: { initial: WfmConfig }) {
+export default function WorkforceSettingsTabs({ initial, projectsOn = false }: { initial: WfmConfig; projectsOn?: boolean }) {
   const [tab, setTab] = useState<Tab>("general");
 
   const tabBtn = (key: Tab): React.CSSProperties => ({
@@ -38,7 +38,7 @@ export default function WorkforceSettingsTabs({ initial }: { initial: WfmConfig 
           <button key={t.key} style={tabBtn(t.key)} onClick={() => setTab(t.key)}>{t.label}</button>
         ))}
       </div>
-      {tab === "general" && <WorkforceConfigClient initial={initial} />}
+      {tab === "general" && <WorkforceConfigClient initial={initial} projectsOn={projectsOn} />}
       {tab === "sites" && <SitesClient canEdit={true} />}
       {tab === "shifts" && <ShiftsClient canEdit={true} />}
       {tab === "leave_types" && <LeaveTypesClient />}

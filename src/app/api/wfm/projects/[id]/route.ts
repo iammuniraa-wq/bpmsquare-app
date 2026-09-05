@@ -3,7 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import {
-  PROJECT_SELECT, parseProjectBody, projectLinks, verifyProjectLinks,
+  PROJECT_SELECT, fetchProject, parseProjectBody, projectLinks, verifyProjectLinks,
   replaceProjectLinks, bodyTouchesLinks, loadTree, validateParent,
 } from "@/lib/wfm/projects";
 import { descendantsOf } from "@/lib/wfm/projectTree";
@@ -20,12 +20,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { supabase, tenantId } = ctx;
   const { id } = await params;
 
-  const { data, error } = await supabase
-    .from("wfm_projects")
-    .select(PROJECT_SELECT)
-    .eq("id", id)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const { data, error } = await fetchProject(supabase, tenantId, id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -52,9 +47,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const admin = createAdminSupabase();
 
-  const { data: before } = await admin
-    .from("wfm_projects").select(PROJECT_SELECT)
-    .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: before } = await fetchProject<Record<string, unknown>>(admin, tenantId, id);
   if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (parsed.values.account_id) {

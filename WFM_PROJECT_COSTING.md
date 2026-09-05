@@ -267,9 +267,66 @@ Owner decisions, recorded so the build has no judgement calls left in it.
   -> create invoice (draft) -> send (recipients).
 
 ### Sequence
-1. Account link (form, page, list, account section + create, 360 card). No migration.
-2. Costing config (settings section + project override). Migration.
-3. Invoice from hours (preview, create, link table, guard). Migration.
-4. Send invoices by email (Resend + PDF), independent of 1-3.
+1. Account link (form, page, list, account section + create, 360 card). No migration. **Built 2026-09-06.**
+2. Costing config (settings section + project override). Migration. **Built 2026-09-06 (0108).**
+3. Invoice from hours (preview, create, link table, guard). Migration. **Built 2026-09-06 (0108).**
+4. Send invoices by email (Resend + PDF), independent of 1-3. **Built 2026-09-06.**
 5. Month-end auto-draft -- GitHub Actions, since the Vercel Hobby plan's
-   two crons are both taken.
+   two crons are both taken. **Built 2026-09-06.**
+
+## 12. Billing — how it works (built 2026-09-06)
+
+Where things live:
+
+| Piece | Where |
+|---|---|
+| Rate ladder + line folding (pure, tested) | `src/lib/wfm/billing.ts`, `billing.test.ts` |
+| Preview / create / billed periods | `src/lib/wfm/billingServer.ts` |
+| App API | `GET/POST /api/wfm/projects/[id]/billing` |
+| v1 API | `GET/POST /api/v1/projects/:id/invoices` (`dry_run` previews; write scope on `projects`) |
+| Project page | `wfm/projects/[id]/ProjectBilling.tsx` — "Bill hours" card |
+| Settings | Settings → Workforce → General → **Project billing** (`config.wfm.costing`) |
+| Project override | `wfm_projects.bill_rate` — on the form under "More" |
+| Invoice email | `GET/POST /api/invoices/[id]/email`, `invoices/[id]/EmailInvoicePanel.tsx` |
+| Month-end drafts | `/api/wfm/cron/project-invoices` ← `.github/workflows/wfm-project-invoices.yml` |
+| Schema | `supabase/migrations/0108_wfm_project_billing.sql` |
+
+Rules the code enforces, so nobody has to remember them:
+
+- **Rate ladder**: the project's own `bill_rate`, else the nearest ancestor's,
+  else `costing.rates_by_employment_type[type].bill`, else
+  `costing.default_bill_rate`. A rate of 0 anywhere means "unset", never
+  "free": a preview with a 0-rate line is blocked, not priced at nothing.
+- **Cost** has no project rung (what a person costs does not change with
+  the job): employment type, else default. Cost and margin show on the app
+  preview to admins only and are stripped from the v1 response.
+- **Minutes are actual.** Line qty is minutes/60 to two decimals; amount is
+  qty × rate to two decimals, so the printed line agrees with itself.
+- **Line granularity** is chosen per invoice: one line for the project, or
+  one per direct sub-project (the project's own hours stay on the project).
+  When people on one line would be billed at different rates and no project
+  override flattens them, the line splits by employment type and says so
+  ("— Contractor"), rather than showing a blended rate.
+- **Tax** is the tenant's existing `config.tax`, shown on the preview and
+  applied on the invoice print exactly as for any other invoice.
+- **Double-billing guard**: `wfm_project_invoices` records the period each
+  invoice covers. A preview refuses any overlap on the project, its
+  sub-projects, or a parent that covered it — unless the invoice was
+  cancelled. Deleting a draft frees its period (cascade).
+- **Top-up**: when the *same* project and period was billed once and more
+  hours have landed since (a correction approved afterwards), the preview
+  offers "Bill the difference": one line for the delta minutes and the
+  delta amount, never a re-bill.
+- **Unassigned hours** in the window are shown as a warning, never billed.
+- **Standalone projects are not billable** (`invoices.account_id NOT NULL`).
+  The card says to link an account first.
+- **Email**: recipients are the account's contacts (decrypted server-side)
+  plus any typed address; the PDF is the same bytes as "Download PDF"; a
+  draft becomes `sent` on the first successful send; every recipient is a
+  row in `email_log` (kind `invoice`).
+- **Month-end**: with `costing.auto_draft_monthly` on, the 1st drafts last
+  month for every active, account-linked, top-level project with hours,
+  one line per sub-project. Drafts only. Idempotent via the guard.
+- **Overtime is not billed** yet: `wfm_ot_sessions` carries no project, so
+  OT minutes cannot be attributed. Deliberately left out rather than
+  invented; revisit when OT gets a project stamp.

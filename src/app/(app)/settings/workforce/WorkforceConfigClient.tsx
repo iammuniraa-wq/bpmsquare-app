@@ -61,7 +61,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   );
 }
 
-export default function WorkforceConfigClient({ initial }: { initial: WfmConfig }) {
+export default function WorkforceConfigClient({ initial, projectsOn = false }: { initial: WfmConfig; projectsOn?: boolean }) {
   const [cfg, setCfg] = useState<WfmConfig>(initial);
   // What is actually stored right now, so the save bar can tell whether there
   // is anything to save rather than always inviting a pointless write.
@@ -83,6 +83,19 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
   }
   function removeEmploymentType(i: number) {
     setCfg((prev) => ({ ...prev, employment_types: prev.employment_types.filter((_, j) => j !== i) }));
+  }
+
+  const costing = cfg.costing ?? { default_bill_rate: 0, default_cost_rate: 0, rates_by_employment_type: {}, due_days: 30, auto_draft_monthly: false };
+  function setCosting(patch: Partial<WfmConfig["costing"]>) {
+    setCfg((prev) => ({ ...prev, costing: { ...costing, ...patch } }));
+  }
+  function setTypeRate(code: string, key: "bill" | "cost", raw: string) {
+    const v = raw.trim() === "" ? undefined : Math.max(0, Number(raw) || 0);
+    const current = { ...(costing.rates_by_employment_type[code] ?? {}) };
+    if (v === undefined || v === 0) delete current[key]; else current[key] = v;
+    const next = { ...costing.rates_by_employment_type };
+    if (Object.keys(current).length === 0) delete next[code]; else next[code] = current;
+    setCosting({ rates_by_employment_type: next });
   }
 
   function toggleWeekOff(day: number) {
@@ -145,6 +158,13 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
       ? `On — after ${cfg.long_day_alert.after_hours ?? 9} hours worked`
       : "Off",
     notifications: `${notifOn} of ${NOTIFICATION_ITEMS.length} on`,
+    billing: costing.default_bill_rate > 0 || Object.values(costing.rates_by_employment_type).some((r) => (r.bill ?? 0) > 0)
+      ? [
+          costing.default_bill_rate > 0 ? `${costing.default_bill_rate}/hr default` : "no default rate",
+          `due in ${costing.due_days} days`,
+          costing.auto_draft_monthly ? "month-end drafts on" : "manual",
+        ].join(" · ")
+      : "Not set up — project hours can't be invoiced yet",
   };
 
   return (
@@ -496,6 +516,74 @@ export default function WorkforceConfigClient({ initial }: { initial: WfmConfig 
           </SettingsRow>
         )}
       </SettingsSection>
+
+      {projectsOn && (
+        <SettingsSection id="wfm-billing" title="Project billing" summary={summaries.billing}>
+          <div style={{ fontSize: 12, color: c.hint, marginBottom: 10, lineHeight: 1.5 }}>
+            What an hour on a project is charged, and what it costs you. The most specific rate wins:
+            a rate set on the project itself, else the person&apos;s employment type, else the default here.
+            Cost rates stay internal — they show margin on the preview and never print on an invoice.
+          </div>
+          <div className="set-grid">
+            <SettingsField label="Default bill rate per hour" help="Charged when neither the project nor the employment type sets a rate. Leave at 0 until you are ready to bill.">
+              <input style={inp} type="number" min={0} step="0.01" value={costing.default_bill_rate}
+                onChange={(e) => setCosting({ default_bill_rate: Math.max(0, Number(e.target.value) || 0) })} />
+            </SettingsField>
+            <SettingsField label="Default cost rate per hour" help="What an hour costs the business, for margin. Internal only.">
+              <input style={inp} type="number" min={0} step="0.01" value={costing.default_cost_rate}
+                onChange={(e) => setCosting({ default_cost_rate: Math.max(0, Number(e.target.value) || 0) })} />
+            </SettingsField>
+            <SettingsField label="Invoice due after (days)" help="Sets the due date on a draft raised from project hours.">
+              <input style={inp} type="number" min={0} max={365} value={costing.due_days}
+                onChange={(e) => setCosting({ due_days: Math.min(365, Math.max(0, parseInt(e.target.value) || 0)) })} />
+            </SettingsField>
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: c.ink, marginBottom: 6 }}>By employment type</div>
+            <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 8 }}>Blank = use the default above.</div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ borderCollapse: "collapse", minWidth: 360 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", fontSize: 11, color: c.hint, fontWeight: 600, padding: "4px 8px 4px 0" }}>Type</th>
+                    <th style={{ textAlign: "left", fontSize: 11, color: c.hint, fontWeight: 600, padding: "4px 8px" }}>Bill / hr</th>
+                    <th style={{ textAlign: "left", fontSize: 11, color: c.hint, fontWeight: 600, padding: "4px 8px" }}>Cost / hr</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cfg.employment_types.filter((t) => t.code).map((t) => {
+                    const r = costing.rates_by_employment_type[t.code] ?? {};
+                    return (
+                      <tr key={t.code}>
+                        <td style={{ fontSize: 12.5, color: c.ink, padding: "4px 8px 4px 0", whiteSpace: "nowrap" }}>{t.label || t.code}</td>
+                        <td style={{ padding: "4px 8px" }}>
+                          <input style={{ ...inp, width: 120 }} type="number" min={0} step="0.01" placeholder={String(costing.default_bill_rate || "")}
+                            value={r.bill ?? ""} onChange={(e) => setTypeRate(t.code, "bill", e.target.value)} />
+                        </td>
+                        <td style={{ padding: "4px 8px" }}>
+                          <input style={{ ...inp, width: 120 }} type="number" min={0} step="0.01" placeholder={String(costing.default_cost_rate || "")}
+                            value={r.cost ?? ""} onChange={(e) => setTypeRate(t.code, "cost", e.target.value)} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${c.line}` }}>
+            <SettingsRow
+              label="Draft invoices automatically at month end"
+              help="On the 1st, every active project linked to an account gets a draft invoice for last month's hours, one line per sub-project. Drafts only — you still review and send each one. A period already invoiced is never billed twice."
+              first
+            >
+              <Toggle checked={costing.auto_draft_monthly} onChange={(v) => setCosting({ auto_draft_monthly: v })} />
+            </SettingsRow>
+          </div>
+        </SettingsSection>
+      )}
 
       <SettingsSection id="wfm-notifications" title="Email notifications" summary={summaries.notifications}>
         <div style={{ fontSize: 12, color: c.hint, marginBottom: 4 }}>

@@ -153,6 +153,7 @@ const getWfmConfigCached = cache(async (tenantId: string): Promise<WfmConfig> =>
     // top-level spread (e.g. punch_types saved when only `ot` existed).
     notifications: { ...DEFAULT_WFM_CONFIG.notifications, ...(stored.notifications ?? {}) },
     punch_types: { ...DEFAULT_WFM_CONFIG.punch_types, ...(stored.punch_types ?? {}) },
+    costing: { ...DEFAULT_WFM_CONFIG.costing, ...(stored.costing ?? {}) },
     // An empty/absent list means "never configured" -- fall back to the seed
     // pair rather than leaving a tenant with no selectable employment type.
     employment_types:

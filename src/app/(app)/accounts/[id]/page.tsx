@@ -166,7 +166,7 @@ export default async function AccountHubPage({
 
   // Workforce projects for this account, with this month's hours -- the
   // hours come from the same report the Projects screen and the v1 API use.
-  let projectRows: { id: string; ref: string | null; name: string; status: string; level: number; minutes: number }[] = [];
+  let projectRows: { id: string; ref: string | null; name: string; status: string; level: number; minutes: number; billed_to: string | null }[] = [];
   if (features?.wfm_projects === true && tenant) {
     const admin = createAdminSupabase();
     const { data: projs } = await admin
@@ -175,11 +175,26 @@ export default async function AccountHubPage({
     if (projs && projs.length > 0) {
       const wfm = await getWfmConfig(admin, tenant.id);
       const today = dateKeyInTz(new Date(), wfm.timezone);
-      const report = await projectHoursReport(admin, tenant.id, `${today.slice(0, 7)}-01`, today).catch(() => null);
+      const [report, { data: billedRows }] = await Promise.all([
+        projectHoursReport(admin, tenant.id, `${today.slice(0, 7)}-01`, today).catch(() => null),
+        // How far each project has been invoiced (0108). A missing table
+        // while the migration is pending just reads as "not yet".
+        admin.from("wfm_project_invoices").select("project_id, period_to, invoices!inner(status)")
+          .eq("tenant_id", tenant.id).in("project_id", projs.map((p) => p.id as string)),
+      ]);
+      const billedTo = new Map<string, string>();
+      for (const b of billedRows ?? []) {
+        const inv = (Array.isArray(b.invoices) ? b.invoices[0] : b.invoices) as { status: string } | null;
+        if (inv?.status === "cancelled") continue;
+        const pid = b.project_id as string;
+        const to = b.period_to as string;
+        if (!billedTo.has(pid) || billedTo.get(pid)! < to) billedTo.set(pid, to);
+      }
       const minutesOf = (pid: string) => report?.rows.find((r) => r.key === pid)?.total_minutes ?? 0;
       projectRows = projs.map((pr) => ({
         id: pr.id as string, ref: (pr.ref as string | null) ?? null, name: pr.name as string, status: pr.status as string,
         level: report?.projects[pr.id as string]?.depth ?? 0, minutes: minutesOf(pr.id as string),
+        billed_to: billedTo.get(pr.id as string) ?? null,
       }));
     }
   }
@@ -568,6 +583,7 @@ export default async function AccountHubPage({
                   <th style={th2}>Project</th>
                   <th style={th2}>Status</th>
                   <th style={{ ...th2, textAlign: "right" }}>Hours this month</th>
+                  <th style={th2}>Invoiced to</th>
                   <th style={th2}></th>
                 </tr>
               </thead>
@@ -584,6 +600,9 @@ export default async function AccountHubPage({
                     <td style={{ ...td2, color: c.muted, textTransform: "capitalize" }}>{pr.status.replace("_", " ")}</td>
                     <td style={{ ...td2, textAlign: "right", fontVariantNumeric: "tabular-nums", color: pr.minutes > 0 ? c.ink : c.hint }}>
                       {pr.minutes > 0 ? `${Math.floor(pr.minutes / 60)}h ${String(Math.round(pr.minutes % 60)).padStart(2, "0")}m` : "—"}
+                    </td>
+                    <td style={{ ...td2, color: pr.billed_to ? c.muted : c.hint, whiteSpace: "nowrap" }}>
+                      {pr.billed_to ? new Date(`${pr.billed_to}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "not yet"}
                     </td>
                     <td style={td2}><OpenLink href={ROUTES.wfmProject(pr.id)} /></td>
                   </tr>

@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getUserRole, tenantHasFeature } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisorPage } from "@/lib/wfm/server";
-import { projectLinks, PROJECT_SELECT } from "@/lib/wfm/projects";
+import { projectLinks, fetchProject } from "@/lib/wfm/projects";
+import ProjectBilling from "./ProjectBilling";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
@@ -24,15 +25,15 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
   const { supabase, tenantId } = await requireTenantUser();
   const { id } = await params;
 
-  const { data } = await supabase
-    .from("wfm_projects")
-    .select(PROJECT_SELECT)
-    .eq("id", id)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const { data } = await fetchProject(supabase, tenantId, id);
   if (!data) notFound();
 
-  const links = await projectLinks(createAdminSupabase(), tenantId, id);
+  const admin = createAdminSupabase();
+  const [links, role, invoicesOn] = await Promise.all([
+    projectLinks(admin, tenantId, id),
+    getUserRole(),
+    tenantHasFeature(admin, tenantId, "invoices"),
+  ]);
   const project = { ...data, ...links } as unknown as WfmProject;
 
   // A sub-project opens on its own page, so say where it sits -- otherwise
@@ -67,6 +68,15 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
 
       <SubItems projectId={id} />
 
+      {invoicesOn && (
+        <ProjectBilling
+          projectId={id}
+          projectName={project.name}
+          accountId={project.account_id}
+          isAdmin={role === "admin"}
+        />
+      )}
+
       {/* Tenant custom fields (Settings -> Custom fields -> Project). The
           standard fields are hand-rendered by ProjectForm below, so only the
           cf_ ones show here. */}
@@ -75,7 +85,7 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
           objectType="project"
           record={project as unknown as Record<string, unknown>}
           patchUrl={`/api/wfm/projects/${id}`}
-          exclude={["ref", "name", "code", "status", "start_date", "end_date", "budget_hours"]}
+          exclude={["ref", "name", "code", "status", "start_date", "end_date", "budget_hours", "bill_rate"]}
         />
       </div>
 

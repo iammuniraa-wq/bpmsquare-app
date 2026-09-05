@@ -7,7 +7,7 @@ import type { RowOutcome } from "@/lib/import/types";
 // Mirrors src/app/api/wfm/projects/[id]/route.ts PATCH. Structure (parent,
 // links) is deliberately NOT updatable from a file: moving a sub-project has
 // depth and loop rules the screen enforces with the whole tree in hand.
-const ALLOWED = ["name", "code", "status", "start_date", "end_date", "budget_hours", "custom_data"];
+const ALLOWED = ["name", "code", "status", "start_date", "end_date", "budget_hours", "bill_rate", "custom_data"];
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;

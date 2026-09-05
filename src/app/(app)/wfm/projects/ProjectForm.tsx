@@ -203,6 +203,7 @@ export default function ProjectForm({
   const [startDate, setStartDate] = useState(project?.start_date ?? "");
   const [endDate, setEndDate] = useState(project?.end_date ?? "");
   const [budgetHours, setBudgetHours] = useState(project?.budget_hours != null ? String(project.budget_hours) : "");
+  const [billRate, setBillRate] = useState(project?.bill_rate != null ? String(project.bill_rate) : "");
   // Where this sits. Null means it IS a project (Level 0).
   const [parentSel, setParentSel] = useState<string>(parentId ?? project?.parent_id ?? "");
   const [tree, setTree] = useState<{ id: string; name: string; ref: string | null; parent_id: string | null }[]>([]);
@@ -221,7 +222,7 @@ export default function ProjectForm({
   const [shifts, setShifts] = useState<Option[]>([]);
 
   const [showMore, setShowMore] = useState(
-    !!(project?.code || project?.start_date || project?.end_date || project?.budget_hours)
+    !!(project?.code || project?.start_date || project?.end_date || project?.budget_hours || project?.bill_rate)
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -352,6 +353,7 @@ export default function ProjectForm({
       start_date: startDate || null,
       end_date: endDate || null,
       budget_hours: budgetHours.trim() === "" ? null : Number(budgetHours),
+      bill_rate: billRate.trim() === "" ? null : Number(billRate),
       account_id: accountSel || null,
       ...(isSub ? { parent_id: parentSel || null } : {}),
       site_ids: siteIds,
@@ -521,6 +523,10 @@ export default function ProjectForm({
             <div>
               <label style={label}>Contract / PO number</label>
               <input style={field} value={code} onChange={(e) => setCode(e.target.value)} placeholder="optional" />
+            </div>
+            <div>
+              <label style={label}>Bill rate per hour</label>
+              <input type="number" min="0" step="0.01" style={field} value={billRate} onChange={(e) => setBillRate(e.target.value)} placeholder="uses workspace rate" />
             </div>
             <div style={{ gridColumn: "1 / -1", fontSize: 11.5, color: c.hint }}>
               Only punches inside the dates count toward this project. The budget is what the

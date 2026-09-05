@@ -472,6 +472,18 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
+- 0108_wfm_project_billing.sql — **PENDING on both DBs** (written
+  2026-09-06). `wfm_projects.bill_rate` (the project rung of the rate
+  ladder) and `wfm_project_invoices` (which period of which project each
+  invoice covers — the double-billing guard; select-only RLS per the WFM
+  convention). Degrades while pending: project pages re-read without
+  `bill_rate`, and the "Bill hours" card reports the migration as the
+  blocker instead of crashing. The month-end auto-draft is a GitHub Actions
+  workflow (`.github/workflows/wfm-project-invoices.yml`, 1st of the month,
+  same CRON_SECRET as the hours alert) and is gated per tenant by
+  `config.wfm.costing.auto_draft_monthly`, default off. Rates live in
+  Settings → Workforce → General → Project billing; nothing bills at a zero
+  rate. Design and rules: WFM_PROJECT_COSTING.md §11–12.
 - scripts/seed-wfm-projects-demo.sql — **run AFTER 0104/0105/0107, demo
   tenant only, PENDING**. Three projects (two on the demo's first two
   accounts, one standalone) with sub-projects to Level 2, the three lower

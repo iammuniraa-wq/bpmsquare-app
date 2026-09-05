@@ -1,0 +1,41 @@
+name: WFM month-end project invoices
+
+# Drafts last month's project invoices on the 1st, for tenants that have
+# switched on Settings -> Workforce -> Project billing -> "Draft invoices
+# automatically". Drafts only; nothing is emailed to a customer by this.
+#
+# NOT a Vercel cron, for the same reason as wfm-hours-alert.yml: the Hobby
+# plan's two cron slots are taken and a third rejects the deployment.
+#
+# Safe to run late or twice: the endpoint refuses to bill a period that an
+# existing (non-cancelled) invoice already covers.
+#
+# Needs the CRON_SECRET repository secret (same value as the Vercel env var).
+
+on:
+  schedule:
+    # 00:30 UTC on the 1st = 06:00 IST, after every tenant's last punch of
+    # the month has landed.
+    - cron: "30 0 1 * *"
+  workflow_dispatch:
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Draft last month's project invoices
+        run: |
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "CRON_SECRET is not set on this repository — nothing to do."
+            exit 1
+          fi
+          status=$(curl -sS -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://app.bpmsquare.com/api/wfm/cron/project-invoices")
+          echo "HTTP $status"
+          cat /tmp/body
+          echo
+          case "$status" in
+            2*) exit 0 ;;
+            *)  exit 1 ;;
+          esac

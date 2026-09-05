@@ -44,6 +44,50 @@ export type ProjectHoursReport = {
 };
 
 /**
+ * Every employee's work sessions for a date window, project-stamped. The
+ * one loader behind the hours report AND billing, so an invoice is built
+ * from exactly the sessions the screen counted.
+ */
+export async function loadProjectSessions(
+  admin: Admin,
+  tenantId: string,
+  from: string,
+  to: string,
+  employeeIds: string[] | null
+): Promise<{ sessions: SessionsForEmployee[] } | { pending_migration: true }> {
+  let eventsQuery = admin
+    .from("wfm_presence_events")
+    .select("employee_id, kind, ts, project_id")
+    .eq("tenant_id", tenantId)
+    .is("superseded_by", null)
+    // Padded a day either side so a night shift's punches around midnight are
+    // included; the session split itself handles the attribution.
+    .gte("ts", `${from}T00:00:00Z`)
+    .lt("ts", new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString())
+    .order("ts", { ascending: true });
+  if (employeeIds) eventsQuery = eventsQuery.in("employee_id", employeeIds);
+
+  const { data: events, error } = await eventsQuery;
+  if (error) {
+    if (error.code === "42P01" || error.code === "42703") return { pending_migration: true };
+    throw new Error(error.message);
+  }
+
+  const byEmployee = new Map<string, { kind: string; ts: string; project_id: string | null }[]>();
+  for (const e of events ?? []) {
+    const id = e.employee_id as string;
+    byEmployee.set(id, [...(byEmployee.get(id) ?? []), e as never]);
+  }
+  const endRef = new Date();
+  return {
+    sessions: [...byEmployee].map(([employee_id, evs]) => ({
+      employee_id,
+      sessions: workSessions(evs as never, endRef),
+    })),
+  };
+}
+
+/**
  * Worked hours rolled up per project for a date window -- the one
  * implementation behind the Projects screens AND the v1 API, so an invoice
  * built from the API can never disagree with the number a supervisor sees.
@@ -68,34 +112,9 @@ export async function projectHoursReport(
 
   if (opts.employeeIds && opts.employeeIds.length === 0) return base;
 
-  let eventsQuery = admin
-    .from("wfm_presence_events")
-    .select("employee_id, kind, ts, project_id")
-    .eq("tenant_id", tenantId)
-    .is("superseded_by", null)
-    // Padded a day either side so a night shift's punches around midnight are
-    // included; the session split itself handles the attribution.
-    .gte("ts", `${from}T00:00:00Z`)
-    .lt("ts", new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString())
-    .order("ts", { ascending: true });
-  if (opts.employeeIds) eventsQuery = eventsQuery.in("employee_id", opts.employeeIds);
-
-  const { data: events, error } = await eventsQuery;
-  if (error) {
-    if (error.code === "42P01" || error.code === "42703") return { ...base, pending_migration: true };
-    throw new Error(error.message);
-  }
-
-  const byEmployee = new Map<string, { kind: string; ts: string; project_id: string | null }[]>();
-  for (const e of events ?? []) {
-    const id = e.employee_id as string;
-    byEmployee.set(id, [...(byEmployee.get(id) ?? []), e as never]);
-  }
-  const endRef = new Date();
-  const input: SessionsForEmployee[] = [...byEmployee].map(([employee_id, evs]) => ({
-    employee_id,
-    sessions: workSessions(evs as never, endRef),
-  }));
+  const loaded = await loadProjectSessions(admin, tenantId, from, to, opts.employeeIds ?? null);
+  if ("pending_migration" in loaded) return { ...base, pending_migration: true };
+  const input = loaded.sessions;
 
   const rows = rollUpProjectHours(input, config.deduct_breaks);
   const heads = projectHeadcount(input);

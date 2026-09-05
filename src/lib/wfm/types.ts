@@ -43,6 +43,9 @@ export type WfmProject = {
   start_date: string | null;
   end_date: string | null;
   budget_hours: number | null;
+  /** Charged per hour on this project and, unless they set their own, its
+   *  sub-projects (0108). Null = the employment-type or workspace rate. */
+  bill_rate: number | null;
   custom_data?: Record<string, unknown> | null;
   /** What the job is linked to (0105) — joined for display, never stored on
    *  the project row itself. Any combination, any of them empty. */

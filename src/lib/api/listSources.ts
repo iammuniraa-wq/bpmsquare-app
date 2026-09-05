@@ -116,6 +116,7 @@ const PROJECT_FIELDS: QueryableField[] = [
   { path: "start_date", type: "string" },
   { path: "end_date", type: "string" },
   { path: "budget_hours", type: "number" },
+  { path: "bill_rate", type: "number" },
 ];
 
 const EMPLOYEE_FIELDS: QueryableField[] = [
@@ -342,7 +343,7 @@ export const LIST_SOURCES: Record<string, ListSource> = {
     load: async (tenantId) => {
       const { data } = await createAdminSupabase()
         .from("wfm_projects")
-        .select("id, ref, name, code, parent_id, account_id, status, start_date, end_date, budget_hours, custom_data, created_at, updated_at")
+        .select("id, ref, name, code, parent_id, account_id, status, start_date, end_date, budget_hours, bill_rate, custom_data, created_at, updated_at")
         .eq("tenant_id", tenantId)
         .order("ref");
       const rows = data ?? [];

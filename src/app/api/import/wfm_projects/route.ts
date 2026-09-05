@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
         start_date: v.start_date || null,
         end_date: v.end_date || null,
         budget_hours: num(v.budget_hours),
+        bill_rate: num(v.bill_rate),
         ...(custom ? { custom_data: custom } : {}),
       },
     });

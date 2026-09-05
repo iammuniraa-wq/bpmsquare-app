@@ -289,6 +289,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "start_date",   defaultLabel: "Runs from",    widget: "date",   defaultSection: "Schedule" },
       { key: "end_date",     defaultLabel: "Until",        widget: "date",   defaultSection: "Schedule" },
       { key: "budget_hours", defaultLabel: "Budget hours", widget: "number", defaultSection: "Schedule" },
+      { key: "bill_rate",    defaultLabel: "Bill rate per hour", widget: "number", defaultSection: "Details" },
     ],
   },
 

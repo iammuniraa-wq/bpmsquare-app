@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { Invoice } from "@/lib/types";
 import { ROUTES } from "@/lib/constants";
+import EmailInvoicePanel from "./EmailInvoicePanel";
 
 // Status transitions + delete. Field editing (due_date/notes/terms) moved to
 // ObjectSections -- this stays a separate component because these are real
@@ -14,6 +15,7 @@ export default function InvoiceActionsPanel({ invoice }: { invoice: Invoice }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [emailOpen, setEmailOpen] = useState(false);
 
   const { confirm } = useFeel();
   async function setStatus(status: "sent" | "cancelled") {
@@ -47,14 +49,26 @@ export default function InvoiceActionsPanel({ invoice }: { invoice: Invoice }) {
         </div>
       )}
 
+      {invoice.status !== "cancelled" && !emailOpen && (
+        <button type="button" disabled={pending} onClick={() => setEmailOpen(true)} style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: invoice.status === "draft" ? c.accent : "none", color: invoice.status === "draft" ? "#fff" : c.accent,
+          borderRadius: 7, padding: "8px 14px", fontSize: 12.5, fontWeight: 600,
+          border: invoice.status === "draft" ? "none" : `1px solid ${c.accent}60`, cursor: "pointer", width: "100%",
+        }}>
+          Email invoice
+        </button>
+      )}
+      {emailOpen && <EmailInvoicePanel invoiceId={invoice.id} invoiceRef={invoice.ref} onClose={() => setEmailOpen(false)} />}
+
       {invoice.status === "draft" && (
         <button type="button" disabled={pending} onClick={() => setStatus("sent")} style={{
           display: "flex", alignItems: "center", justifyContent: "center",
-          background: c.accent, color: "#fff", borderRadius: 7,
-          padding: "8px 14px", fontSize: 12.5, fontWeight: 600,
-          border: "none", cursor: pending ? "wait" : "pointer", width: "100%",
+          background: "none", color: c.accent, borderRadius: 7,
+          padding: "7px 14px", fontSize: 12.5, fontWeight: 600,
+          border: `1px solid ${c.accent}60`, cursor: pending ? "wait" : "pointer", width: "100%",
         }}>
-          Mark as sent
+          Mark as sent (without emailing)
         </button>
       )}
 

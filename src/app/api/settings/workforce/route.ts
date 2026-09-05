@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
-import { DEFAULT_WFM_CONFIG, type TenantConfig, type WfmConfig } from "@/lib/constants";
+import { DEFAULT_WFM_CONFIG, type TenantConfig, type WfmConfig, type WfmCostingConfig } from "@/lib/constants";
 
 // GET /api/settings/workforce — tenant WFM config with defaults filled in.
 export async function GET() {
@@ -145,6 +145,38 @@ export async function PUT(request: NextRequest) {
           ? Math.min(24, Math.max(1, Math.round(incoming.after_hours * 2) / 2))
           : current.after_hours,
     };
+  }
+
+  // Project billing rates. A negative or non-finite number is dropped rather
+  // than clamped: a rate is money, and a silently "fixed" rate would bill a
+  // customer a figure nobody typed.
+  if (body.costing && typeof body.costing === "object") {
+    const incoming = body.costing as Partial<WfmCostingConfig>;
+    const money = (v: unknown): number | undefined =>
+      typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v * 100) / 100 : undefined;
+    const costing: WfmCostingConfig = { ...DEFAULT_WFM_CONFIG.costing };
+    const bill = money(incoming.default_bill_rate);
+    if (bill !== undefined) costing.default_bill_rate = bill;
+    const cost = money(incoming.default_cost_rate);
+    if (cost !== undefined) costing.default_cost_rate = cost;
+    if (typeof incoming.due_days === "number" && Number.isFinite(incoming.due_days)) {
+      costing.due_days = Math.min(365, Math.max(0, Math.round(incoming.due_days)));
+    }
+    if (typeof incoming.auto_draft_monthly === "boolean") costing.auto_draft_monthly = incoming.auto_draft_monthly;
+    if (incoming.rates_by_employment_type && typeof incoming.rates_by_employment_type === "object") {
+      const byType: WfmCostingConfig["rates_by_employment_type"] = {};
+      for (const [code, v] of Object.entries(incoming.rates_by_employment_type)) {
+        if (!CODE_RE.test(code) || !v || typeof v !== "object") continue;
+        const entry: { bill?: number; cost?: number } = {};
+        const b = money((v as { bill?: unknown }).bill);
+        const c = money((v as { cost?: unknown }).cost);
+        if (b !== undefined && b > 0) entry.bill = b;
+        if (c !== undefined && c > 0) entry.cost = c;
+        if (Object.keys(entry).length > 0) byType[code] = entry;
+      }
+      costing.rates_by_employment_type = byType;
+    }
+    next.costing = costing;
   }
 
   const { data: current, error: readErr } = await admin.from("tenants").select("config").eq("id", tenantId).single();

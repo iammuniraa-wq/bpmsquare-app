@@ -1,7 +1,7 @@
 import { authorizeApi, jsonOk } from "../../_auth";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
-import { PROJECT_SELECT, projectLinks } from "@/lib/wfm/projects";
+import { fetchProject, projectLinks } from "@/lib/wfm/projects";
 import { depthOf } from "@/lib/wfm/projectTree";
 
 // GET /api/v1/projects/:id — one project with where it sits (parent, level,
@@ -19,12 +19,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   const { id } = await params;
-  const { data: project, error } = await admin
-    .from("wfm_projects")
-    .select(`${PROJECT_SELECT}, created_at, updated_at`)
-    .eq("id", id)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const { data: project, error } = await fetchProject<Record<string, unknown> & { parent_id: string | null; account_id: string | null }>(
+    admin, tenantId, id, ", created_at, updated_at"
+  );
   if (error) return Response.json({ error: error.message }, { status: 500 });
   if (!project) return Response.json({ error: "Not found" }, { status: 404 });
 
@@ -49,6 +46,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       _links: {
         self: `/api/v1/projects/${id}`,
         hours: `/api/v1/projects/${id}/hours?from=YYYY-MM-DD&to=YYYY-MM-DD`,
+        invoices: `/api/v1/projects/${id}/invoices`,
         ...(project.account_id ? { account: `/api/v1/accounts/${project.account_id}` } : {}),
       },
     },

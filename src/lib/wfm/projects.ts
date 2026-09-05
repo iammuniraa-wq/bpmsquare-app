@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { createAdminSupabase } from "@/lib/supabase-server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WfmProjectStatus } from "./types";
 import { reparentError, depthOf, canNest, nextChildRef, type TreeNodeLike } from "./projectTree";
 import { isMasterRefCollision } from "@/lib/masterRef";
@@ -16,7 +17,27 @@ export const PROJECT_STATUSES: readonly WfmProjectStatus[] = [
 // database unread: the free-text level word it held was dropped on
 // 2026-09-06 in favour of plain Level 1/2/3.
 export const PROJECT_SELECT =
-  "id, ref, name, code, parent_id, account_id, status, start_date, end_date, budget_hours, custom_data";
+  "id, ref, name, code, parent_id, account_id, status, start_date, end_date, budget_hours, bill_rate, custom_data";
+
+/** PROJECT_SELECT before 0108 added bill_rate. */
+const PROJECT_SELECT_PRE_0108 = PROJECT_SELECT.replace(", bill_rate", "");
+
+/**
+ * One project by id, tenant-scoped. Degrades while migration 0108 is
+ * pending (§3b): a missing bill_rate column re-reads without it and reports
+ * null, rather than turning every project page into a 404.
+ */
+export async function fetchProject<T = Record<string, unknown>>(
+  client: SupabaseClient,
+  tenantId: string,
+  id: string,
+  extra = ""
+): Promise<{ data: T | null; error: { code?: string; message: string } | null }> {
+  const first = await client.from("wfm_projects").select(`${PROJECT_SELECT}${extra}`).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  if (!first.error || first.error.code !== "42703") return { data: (first.data as T | null) ?? null, error: first.error };
+  const again = await client.from("wfm_projects").select(`${PROJECT_SELECT_PRE_0108}${extra}`).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  return { data: again.data ? ({ ...(again.data as object), bill_rate: null } as T) : null, error: again.error };
+}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -88,12 +109,16 @@ export async function parseProjectBody(
     return { error: "end_date can't be before start_date" };
   }
 
-  if (has("budget_hours")) {
-    const v = b.budget_hours;
-    if (v !== null && (typeof v !== "number" || !Number.isFinite(v) || v < 0)) {
-      return { error: "budget_hours must be a non-negative number or null" };
+  for (const key of ["budget_hours", "bill_rate"] as const) {
+    if (has(key)) {
+      const v = b[key];
+      if (v !== null && (typeof v !== "number" || !Number.isFinite(v) || v < 0)) {
+        return { error: `${key} must be a non-negative number or null` };
+      }
+      // A rate of 0 means "use the rung below", which is what null already
+      // says -- store it as null so the two never read differently.
+      values[key] = v ? v : null;
     }
-    values.budget_hours = v ?? null;
   }
 
   if (has("custom_data") && b.custom_data && typeof b.custom_data === "object") {
