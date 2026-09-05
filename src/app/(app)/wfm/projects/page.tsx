@@ -7,7 +7,6 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
-import Pill from "@/components/Pill";
 import ListFilterBar from "@/components/ListFilterBar";
 import SortableTh from "@/components/SortableTh";
 import PagerLink from "@/components/PagerLink";
@@ -16,16 +15,11 @@ import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { WfmProject, WfmProjectStatus } from "@/lib/wfm/types";
 import ProjectHoursTiles from "./ProjectHoursTiles";
-import { depthOf } from "@/lib/wfm/projectTree";
+import ProjectTreeRows from "./ProjectTreeRows";
 
 const STATUS_LABEL: Record<WfmProjectStatus, string> = {
   planned: "Planned", active: "Active", on_hold: "On hold",
   completed: "Completed", cancelled: "Cancelled",
-};
-
-const STATUS_TONE: Record<WfmProjectStatus, "green" | "amber" | "red" | "blue" | "purple"> = {
-  planned: "blue", active: "green", on_hold: "amber",
-  completed: "purple", cancelled: "red",
 };
 
 const th: React.CSSProperties = {
@@ -33,11 +27,6 @@ const th: React.CSSProperties = {
   padding: "9px 14px", fontSize: 11, letterSpacing: 0.4,
   textTransform: "uppercase", whiteSpace: "nowrap", background: c.panel2,
 };
-const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, verticalAlign: "middle" };
-
-const fmtDate = (s: string | null) =>
-  s ? new Date(`${s}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-
 const SORT_EXTRACTORS: Record<string, SortExtractor<WfmProject>> = {
   ref: (p) => p.ref,
   name: (p) => p.name,
@@ -47,33 +36,6 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<WfmProject>> = {
   end_date: (p) => p.end_date,
   budget_hours: (p) => p.budget_hours,
 };
-
-/** Depth-first order: each project immediately followed by its own sub-items.
- *  Anything whose parent isn't in the list (filtered out, or a broken link) is
- *  appended at the end rather than dropped -- a project must never vanish from
- *  its own list because of how the tree was drawn. */
-function orderAsTree(
-  rows: WfmProject[],
-  nodes: Map<string, { id: string; parent_id: string | null }>
-): WfmProject[] {
-  const byParent = new Map<string | null, WfmProject[]>();
-  const present = new Set(rows.map((r) => r.id));
-  for (const r of rows) {
-    const key = r.parent_id && present.has(r.parent_id) ? r.parent_id : null;
-    byParent.set(key, [...(byParent.get(key) ?? []), r]);
-  }
-  const out: WfmProject[] = [];
-  const walk = (parent: string | null) => {
-    for (const r of byParent.get(parent) ?? []) {
-      out.push(r);
-      walk(r.id);
-    }
-  };
-  walk(null);
-  // Safety net: anything the walk missed (a cycle) still gets listed.
-  for (const r of rows) if (!out.includes(r)) out.push(r);
-  return out;
-}
 
 export default async function WfmProjectsPage({
   searchParams,
@@ -115,19 +77,17 @@ export default async function WfmProjectsPage({
   });
   const sorted = sortRows(searched, sort, dir, SORT_EXTRACTORS);
 
-  // Sub-items are shown INDENTED UNDER their parent rather than as peers, so
-  // the list reads as the structure it is. Only when no filter or sort is
-  // narrowing the view -- once someone searches, a bare flat list of matches
-  // is more useful than a tree with most of its branches missing.
-  const nodes = new Map(projects.map((p) => [p.id, { id: p.id, parent_id: p.parent_id }]));
+  // The list is a tree: sub-projects live under their parent, expanded and
+  // created in place (ProjectTreeRows). Only when no filter or sort narrows
+  // the view -- once someone searches, a flat list of matches is more useful
+  // than a tree with most of its branches missing. In tree view the page is
+  // a page of PROJECTS; each brings all its sub-projects with it, so a tree
+  // is never cut in half by a page boundary.
+  const present = new Set(projects.map((p) => p.id));
   const treeView = !q && !statusFilter && !sort;
-  const ordered = treeView ? orderAsTree(sorted, nodes) : sorted;
-  const depths = new Map(ordered.map((p) => [p.id, treeView ? (depthOf(nodes, p.id) ?? 0) : 0]));
-  // Indentation is only drawn in tree view, but the Level badge is true of a
-  // row however the list is sorted, so it reads its own depth every time.
-  const levels = new Map(projects.map((p) => [p.id, depthOf(nodes, p.id) ?? 0]));
-
-  const filtered = ordered;
+  const filtered = treeView
+    ? sorted.filter((p) => !p.parent_id || !present.has(p.parent_id))
+    : sorted;
   const pageRows = paginate(filtered, page);
 
   const activeCount = projects.filter((p) => p.status === "active").length;
@@ -224,51 +184,20 @@ export default async function WfmProjectsPage({
                         const common = { currentSort: sort, currentDir: dir, baseHref: ROUTES.wfmProjects, hiddenParams: hp };
                         return (
                           <>
-                            <SortableTh label="ID" sortKey="ref" searchId="ref" {...common} style={{ ...th, width: 88 }} />
+                            <SortableTh label="ID" sortKey="ref" searchId="ref" {...common} style={{ ...th, width: 88 }} className="mob-hide" />
                             <SortableTh label="Project" sortKey="name" searchId="name" {...common} style={th} />
-                            <SortableTh label="Job no." sortKey="code" searchId="code" {...common} style={th} />
+                            <SortableTh label="Job no." sortKey="code" searchId="code" {...common} style={th} className="mob-hide" />
                             <SortableTh label="Status" sortKey="status" searchId="status" {...common} style={th} />
-                            <SortableTh label="Start" sortKey="start_date" searchId="start_date" {...common} style={th} />
-                            <SortableTh label="End" sortKey="end_date" searchId="end_date" {...common} style={th} />
-                            <SortableTh label="Budget hrs" sortKey="budget_hours" searchId="budget_hours" {...common} style={th} />
+                            <SortableTh label="Start" sortKey="start_date" searchId="start_date" {...common} style={th} className="mob-hide" />
+                            <SortableTh label="End" sortKey="end_date" searchId="end_date" {...common} style={th} className="mob-hide" />
+                            <SortableTh label="Budget hrs" sortKey="budget_hours" searchId="budget_hours" {...common} style={th} className="mob-hide" />
+                            <th style={{ ...th, width: 40 }} aria-label="Add sub-project" />
                           </>
                         );
                       })()}
                     </tr>
                   </thead>
-                  <tbody>
-                    {pageRows.map((p: WfmProject) => (
-                      <tr key={p.id} style={{ borderBottom: `1px solid ${c.line}` }}>
-                        <td style={{ ...td, color: c.hint, fontSize: 12.5 }}>{p.ref ?? "—"}</td>
-                        <td style={td}>
-                          <span style={{ paddingLeft: (depths.get(p.id) ?? 0) * 18 }}>
-                            {(depths.get(p.id) ?? 0) > 0 && (
-                              <span aria-hidden style={{ color: c.hint, marginRight: 6 }}>└</span>
-                            )}
-                            <Link href={ROUTES.wfmProject(p.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-                              {p.name}
-                            </Link>
-                            {/* Depth IS the level, so the badge needs no
-                                stored word -- Level 1 sits under the project. */}
-                            {(levels.get(p.id) ?? 0) > 0 && (
-                              <span style={{
-                                marginLeft: 8, fontSize: 10.5, fontWeight: 600, color: c.hint,
-                                background: c.panel2, border: `1px solid ${c.line}`,
-                                borderRadius: 5, padding: "2px 6px", whiteSpace: "nowrap",
-                              }}>
-                                Level {levels.get(p.id)}
-                              </span>
-                            )}
-                          </span>
-                        </td>
-                        <td style={{ ...td, color: c.muted }}>{p.code ?? "—"}</td>
-                        <td style={td}><Pill label={STATUS_LABEL[p.status]} tone={STATUS_TONE[p.status]} /></td>
-                        <td style={{ ...td, color: c.muted }}>{fmtDate(p.start_date)}</td>
-                        <td style={{ ...td, color: c.muted }}>{fmtDate(p.end_date)}</td>
-                        <td style={{ ...td, color: c.muted }}>{p.budget_hours ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  <ProjectTreeRows rows={pageRows} all={projects} tree={treeView} />
                 </table>
               </div>
             )}

@@ -21,6 +21,7 @@ export default function SortableTh({
   baseHref,
   hiddenParams = {},
   style,
+  className,
   searchId,
 }: {
   label: string;
@@ -30,6 +31,8 @@ export default function SortableTh({
   baseHref: string;
   hiddenParams?: Record<string, string | undefined>;
   style?: React.CSSProperties;
+  /** e.g. "mob-hide" for a column that gives way on a phone. */
+  className?: string;
   /** Enables C4C-style per-column search (cf_<searchId> URL param). */
   searchId?: string;
 }) {
@@ -42,7 +45,7 @@ export default function SortableTh({
   params.set("dir", nextDir);
 
   return (
-    <th style={style}>
+    <th style={style} className={className}>
       <Link
         href={`${baseHref}?${params.toString()}`}
         style={{
