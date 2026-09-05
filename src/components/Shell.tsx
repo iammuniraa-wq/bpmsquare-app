@@ -11,7 +11,7 @@ import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
-import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useIsEnterpriseSidebar } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useIsEnterpriseSidebar, useTopBarIdentity, useCommandPalette } from "@/lib/tenant-context";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
@@ -281,7 +281,13 @@ function IdentityMenu() {
 export default function Shell({ children }: { children: React.ReactNode }) {
   const [mobile, setMobile] = useState(false);
   const uiTheme = useUiTheme();
-  const identityInTopBar = useIsNextgen3Layer();
+  // `nova` gates the experiment itself (its own sidebar, inbox, draft,
+  // Account 360 drawer). `topBarIdentity` and `commandPalette` are the two
+  // pieces of that chrome a plain nextgen workspace can switch on for itself
+  // -- true for Nova as well, so the Nova layout is unchanged.
+  const nova = useIsNextgen3Layer();
+  const topBarIdentity = useTopBarIdentity();
+  const commandPalette = useCommandPalette();
   const isEnterprise = useIsEnterpriseSidebar();
   const aiAllowed = useTenantFeature("ai_assistant") && uiTheme !== "classic";
   const [dark, setDark] = useState(false);
@@ -321,7 +327,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return (
       <FeelProvider>
       <TabsProvider trackTabs={false}>
-        <div data-theme={uiTheme} data-mode={mode} data-nova={identityInTopBar || undefined} data-enterprise={isEnterprise || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
+        <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
           <MobileTopBar />
           <main style={{
             flex: 1, minWidth: 0, overflowX: "auto",
@@ -335,14 +341,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           }}>
             {children}
           </main>
-          {uiTheme === "nextgen" && !isEnterprise && !identityInTopBar && (
+          {uiTheme === "nextgen" && !isEnterprise && !nova && (
             <div style={{ position: "fixed", left: 16, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", zIndex: 90 }}>
               <DarkToggle dark={dark} onToggle={toggleDark} />
             </div>
           )}
-          {identityInTopBar && <NovaPalette />}
-          {identityInTopBar && <NovaDraft />}
-          {identityInTopBar && <Account360Drawer />}
+          {commandPalette && <NovaPalette />}
+          {nova && <NovaDraft />}
+          {nova && <Account360Drawer />}
           {aiAllowed && <AIDock />}
         </div>
       </TabsProvider>
@@ -353,8 +359,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <FeelProvider>
     <TabsProvider>
-      <div data-theme={uiTheme} data-mode={mode} data-nova={identityInTopBar || undefined} data-enterprise={isEnterprise || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
-        {identityInTopBar ? <NovaSidebar /> : <Sidebar />}
+      <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
+        {nova ? <NovaSidebar /> : <Sidebar />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10,
@@ -365,14 +371,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 bar on every page (NovaSidebar) -- a second, identical
                 search trigger up here was pure duplication (owner flagged
                 2026-08-23). Classic/nextgen keep their inline search. */}
-            {!identityInTopBar && <GlobalSearchBar />}
-            {uiTheme === "nextgen" && !isEnterprise && !identityInTopBar && <DarkToggle dark={dark} onToggle={toggleDark} />}
-            {identityInTopBar && <NovaInbox />}
-            {identityInTopBar && <IdentityMenu />}
+            {/* The bar stays clickable when the palette is on, but gives up
+                ⌘K to it -- otherwise both answer the same key. */}
+            {!nova && <GlobalSearchBar hotkeyDisabled={commandPalette} />}
+            {uiTheme === "nextgen" && !isEnterprise && !nova && <DarkToggle dark={dark} onToggle={toggleDark} />}
+            {nova && <NovaInbox />}
+            {topBarIdentity && <IdentityMenu />}
           </div>
-          {identityInTopBar && <NovaPalette />}
-          {identityInTopBar && <NovaDraft />}
-          {identityInTopBar && <Account360Drawer />}
+          {commandPalette && <NovaPalette />}
+          {nova && <NovaDraft />}
+          {nova && <Account360Drawer />}
           <TabBar />
           {/* overflowX:auto, not hidden -- "hidden" silently clips any page whose content
               runs wider than the viewport with no way to reach it (short of zooming the

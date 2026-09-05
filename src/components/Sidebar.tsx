@@ -8,7 +8,7 @@ import type { NavItem } from "@/lib/constants";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon, Database, Box, Shield, Tag, Truck, Filter, Coins } from "@/components/Icons";
-import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useIsNextgen3Layer } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useTopBarIdentity } from "@/lib/tenant-context";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -469,7 +469,7 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   const nextgen = useUiTheme() === "nextgen";
   // 3-layer moves identity to the top bar (Shell.tsx) -- showing it here too
   // would just be the same email and sign-out button in two places.
-  const identityInTopBar = useIsNextgen3Layer();
+  const identityInTopBar = useTopBarIdentity();
   const pathname = usePathname();
   const { settings } = useSettings();
   const tenant = useTenant();

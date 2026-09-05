@@ -8,7 +8,7 @@ import type { AccentPreset } from "@/lib/settings";
 import { NAV, ROUTES, QUOTE_TYPES } from "@/lib/constants";
 import type { QuoteTypeId, TenantConfig } from "@/lib/constants";
 import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
+import SettingsSection from "@/components/settings/SettingsSection";
 import { useTenant, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
 import Pager from "@/components/Pager";
@@ -116,17 +116,42 @@ function Toggle({ on, onChange, accent }: { on: boolean; onChange: (v: boolean) 
   );
 }
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+/** General settings, same treatment as Workforce: eight sections is too many to
+ *  hold open at once, so each collapses behind a one-line digest of what it
+ *  currently holds. The prose `description` moves inside the body -- it is
+ *  worth reading once, not on every visit. */
+function Section({
+  id, title, description, summary, children,
+}: {
+  id: string;
+  title: string;
+  description?: string;
+  summary?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section style={{ ...cardStyle, marginBottom: 14 }}>
-      <div style={{ marginBottom: description ? 4 : 14 }}>
-        <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: c.ink }}>{title}</h2>
-        {description && <p style={{ margin: "4px 0 14px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>{description}</p>}
-      </div>
-      {children}
-    </section>
+    <div style={{ marginBottom: 12 }}>
+      <SettingsSection id={`general-${id}`} title={title} summary={summary}>
+        {description && (
+          <p style={{ margin: "0 0 14px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>{description}</p>
+        )}
+        {children}
+      </SettingsSection>
+    </div>
   );
 }
+
+const THEME_LABEL: Record<string, string> = {
+  classic: "Classic", modern: "Modern", nextgen: "Next-gen",
+  nextgen2: "Nova", enterprise: "Enterprise",
+};
+
+/** Hex -> the preset's own name, so a collapsed Appearance header reads
+ *  "accent Blue" rather than "accent #2e6be6". A custom hex has no name and
+ *  falls back to the hex itself. */
+const ACCENT_LABEL: Record<string, string> = Object.fromEntries(
+  Object.values(ACCENT_PRESETS).map((p) => [p.color.toLowerCase(), p.label])
+);
 
 function StatusBadge({ status }: { status: "active" | "ready" | "coming-soon" }) {
   const map = {
@@ -361,6 +386,29 @@ export default function GeneralSettingsPage() {
     });
   };
 
+  // Three pieces of chrome that used to require adopting a whole theme behind
+  // a platform-admin flag. Each writes one boolean into config.appearance and
+  // reloads, for the same reason saveTheme does: they change which components
+  // Shell mounts, and router.refresh() doesn't remount client components.
+  const [chrome, setChrome] = useState(() => ({
+    top_bar_identity: tenant?.config?.appearance?.top_bar_identity === true,
+    command_palette: tenant?.config?.appearance?.command_palette === true,
+    navy_sidebar: tenant?.config?.appearance?.navy_sidebar === true,
+  }));
+  const saveChrome = (key: keyof typeof chrome, v: boolean) => {
+    const next = { ...chrome, [key]: v };
+    setChrome(next);
+    startApSave(async () => {
+      await fetch("/api/settings/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appearance: { ...tenant?.config?.appearance, ...next } }),
+      });
+      flashSaved();
+      window.location.reload();
+    });
+  };
+
   const saveCompactSidebar = (v: boolean) => {
     setCompactSidebar(v);
     startApSave(async () => {
@@ -452,7 +500,16 @@ export default function GeneralSettingsPage() {
       </div>
 
       {/* ── 1. Navigation visibility ── */}
-      <Section title="Navigation visibility" description="Toggle sidebar items on or off for the whole workspace — every user, every device. Hidden items are still reachable by URL.">
+      <Section
+        id="nav"
+        title="Navigation visibility"
+        summary={
+          navHidden.length === 0
+            ? `All ${allNavItems.length} items visible`
+            : `${navHidden.length} hidden of ${allNavItems.length}`
+        }
+        description="Toggle sidebar items on or off for the whole workspace — every user, every device. Hidden items are still reachable by URL."
+      >
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {navGroupsOnPage.map((grp) => (
             <div key={grp.group}>
@@ -482,7 +539,12 @@ export default function GeneralSettingsPage() {
       </Section>
 
       {/* ── 2. Quote types (only for tenants with the Quotations module) ── */}
-      {tenantFeatures?.quotations === true && <Section title="Quote types" description="Show or hide offer types in the New Quotation picker. Hidden types (including Coming Soon ones you don't need) won't appear there at all.">
+      {tenantFeatures?.quotations === true && <Section
+        id="quote-types"
+        title="Quote types"
+        summary={`${QUOTE_TYPES.filter((qt) => isQtVisible(qt.id as QuoteTypeId)).length} of ${QUOTE_TYPES.length} shown in the picker`}
+        description="Show or hide offer types in the New Quotation picker. Hidden types (including Coming Soon ones you don't need) won't appear there at all."
+      >
         <div style={{ display: "flex", flexDirection: "column" }}>
           {QUOTE_TYPES.map((qt, idx) => {
             const visible = isQtVisible(qt.id as QuoteTypeId);
@@ -506,7 +568,12 @@ export default function GeneralSettingsPage() {
       </Section>}
 
       {/* ── 3. Appearance ── */}
-      <Section title="Appearance" description="Applies to your whole workspace — every user, every device.">
+      <Section
+        id="appearance"
+        title="Appearance"
+        summary={`${THEME_LABEL[theme]} · accent ${ACCENT_LABEL[accentColor.toLowerCase()] ?? accentColor}${compactSidebar ? " · compact sidebar" : ""}`}
+        description="Applies to your whole workspace — every user, every device."
+      >
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Theme</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
@@ -591,6 +658,30 @@ export default function GeneralSettingsPage() {
             </div>
           </div>
         )}
+        {/* Only meaningful on the nextgen family -- classic and modern build
+            their chrome differently, and the hooks ignore these there. */}
+        {(theme === "nextgen" || theme === "nextgen2" || theme === "enterprise") && (
+          <div style={{ marginBottom: 4, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Layout</div>
+            <div style={{ fontSize: 11, color: c.hint, marginBottom: 4 }}>
+              Each of these switches on one piece of chrome. Changing one reloads the page.
+            </div>
+            {([
+              { key: "top_bar_identity" as const, label: "Sign-in name in the top right", hint: "Moves your name and sign-out out of the sidebar footer into the top bar, and frees up the bottom of the rail." },
+              { key: "command_palette" as const, label: "Command palette on Ctrl + K", hint: "One key opens a search-and-jump box over the page — records, screens, and \"new …\" actions. Search in the top bar keeps working; it just stops answering Ctrl + K." },
+              { key: "navy_sidebar" as const, label: "Navy sidebar in light mode", hint: "Dark navy left rail against the light workspace, with bright nav text and a clearly marked selected item. Dark mode is unaffected." },
+            ]).map(({ key, label, hint }, i) => (
+              <div key={key} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderTop: i > 0 ? `1px solid ${c.line}` : "none" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{label}</div>
+                  <div style={{ fontSize: 12, color: c.muted, marginTop: 2, lineHeight: 1.5 }}>{hint}</div>
+                </div>
+                <Toggle on={chrome[key]} onChange={(v) => !apSaving && saveChrome(key, v)} accent={accent} />
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>Compact sidebar</div>
@@ -601,7 +692,12 @@ export default function GeneralSettingsPage() {
       </Section>
 
       {/* ── 4. Workspace ── */}
-      <Section title="Workspace" description="Your organisation's name, shown in the sidebar header.">
+      <Section
+        id="workspace"
+        title="Workspace"
+        summary={tenant?.name || "Unnamed workspace"}
+        description="Your organisation's name, shown in the sidebar header."
+      >
         <div style={{ display: "flex", gap: 10 }}>
           <input value={wsName} onChange={(e) => setWsName(e.target.value)} placeholder="Workspace name" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${wsNameDirty ? accent : c.line}`, fontSize: 13, color: c.ink, outline: "none", transition: "border-color 0.15s" }} />
           <button onClick={saveWorkspaceName} disabled={!wsNameDirty || wsSaving} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "none", cursor: wsNameDirty ? "pointer" : "default", background: wsNameDirty ? accent : c.line, color: wsNameDirty ? "#fff" : c.hint, transition: "all 0.15s" }}>
@@ -611,7 +707,12 @@ export default function GeneralSettingsPage() {
       </Section>
 
       {/* ── 4. Integrations ── */}
-      <Section title="Integrations" description="Connect external services. Items marked Coming Soon are on the roadmap.">
+      <Section
+        id="integrations"
+        title="Integrations"
+        summary={`${INTEGRATIONS.filter((i) => i.status === "active").length} live · ${INTEGRATIONS.length} available`}
+        description="Connect external services. Items marked Coming Soon are on the roadmap."
+      >
         {INTEGRATIONS.map((intg, idx) => (
           <div key={intg.name} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 4px", borderTop: idx > 0 ? `1px solid ${c.line}` : "none" }}>
             <div style={{ width: 36, height: 36, borderRadius: 9, background: c.panel2, border: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
@@ -630,7 +731,16 @@ export default function GeneralSettingsPage() {
       </Section>
 
       {/* ── 5. Developer — REST API v1 ── */}
-      <Section title="Developer — REST API v1" description="Live REST API with an enriched query layer (filter / select / sort / aggregate / search), an OpenAPI spec and a change feed. Authenticate with: Authorization: Bearer <API key>">
+      <Section
+        id="developer"
+        title="Developer — REST API v1"
+        summary={
+          role !== "admin"
+            ? `${API_ENDPOINTS.length} endpoints live`
+            : `${apiKey ? "API key generated" : "No API key yet"} · ${API_ENDPOINTS.length} endpoints live`
+        }
+        description="Live REST API with an enriched query layer (filter / select / sort / aggregate / search), an OpenAPI spec and a change feed. Authenticate with: Authorization: Bearer <API key>"
+      >
 
         {/* API key row — admin only: this key grants read access to every
             account/case/quote/invoice/etc. in this tenant via the v1 API. */}
@@ -686,7 +796,18 @@ export default function GeneralSettingsPage() {
       </Section>
 
       {/* ── 5b. Push to external systems (on demand) ── */}
-      <Section title="Push to external systems" description="Send a single record to your ERP or another system right now, on demand -- a rep clicking &quot;Push to ERP&quot; on a record. Different from the Webhooks integration above (automatic, event-driven, still Coming Soon).">
+      <Section
+        id="push"
+        title="Push to external systems"
+        summary={
+          role !== "admin"
+            ? "Admin only"
+            : pushUrl.trim()
+              ? `${pushUrl.trim().replace(/^https?:\/\//, "").split("/")[0]}${pushSecret ? " · signed" : " · unsigned"}`
+              : "Not configured"
+        }
+        description="Send a single record to your ERP or another system right now, on demand -- a rep clicking &quot;Push to ERP&quot; on a record. Different from the Webhooks integration above (automatic, event-driven, still Coming Soon)."
+      >
         {role === "admin" ? (
           <>
             <div style={{ marginBottom: 12 }}>
@@ -728,7 +849,7 @@ export default function GeneralSettingsPage() {
       </Section>
 
       {/* ── 6. Reset ── */}
-      <Section title="Reset">
+      <Section id="reset" title="Reset" summary="Restore navigation & layout defaults">
         <p style={{ margin: "0 0 14px", fontSize: 12.5, color: c.muted, lineHeight: 1.5 }}>
           Restore navigation visibility and compact sidebar to defaults, for the whole workspace. Accent colour and
           workspace name aren't reset since there's no default to go back to. Your data is not affected.

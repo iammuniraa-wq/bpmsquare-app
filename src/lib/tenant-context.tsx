@@ -99,8 +99,50 @@ export function useUiTheme(): "classic" | "modern" | "nextgen" {
  * saved choice) now falls back to plain nextgen rather than rendering. */
 export function useIsEnterpriseSidebar(): boolean {
   const { tenant } = useContext(TenantContext);
-  return tenant?.config?.appearance?.ui_theme === "enterprise"
-    && tenant?.features?.enterprise_theme === true;
+  const ap = tenant?.config?.appearance;
+  if (ap?.ui_theme === "enterprise" && tenant?.features?.enterprise_theme === true) return true;
+  // Owner decision 2026-09-06: the navy rail is also a plain switch a nextgen
+  // workspace can flip for itself, without adopting the whole Enterprise
+  // theme or needing the platform-admin flag. Purely a colour change -- it
+  // carries none of the experimental behaviour the flag exists to fence off.
+  return isNextgenFamily(ap?.ui_theme) && ap?.navy_sidebar === true;
+}
+
+/** The nextgen family, for the tenant-owned chrome switches below. "nextgen2"
+ *  and "enterprise" both resolve to nextgen in useUiTheme(), so all three
+ *  count -- these switches are meaningless on classic/modern, whose chrome is
+ *  built differently. */
+function isNextgenFamily(t: string | undefined): boolean {
+  return t === "nextgen" || t === "nextgen2" || t === "enterprise";
+}
+
+/**
+ * Whether the signed-in identity lives in the top-right bar rather than the
+ * sidebar footer.
+ *
+ * True for Nova (which has always worked this way), and now also for any
+ * nextgen workspace that switched it on itself. The two are kept as separate
+ * conditions on purpose: Nova's version comes bundled with NovaSidebar,
+ * NovaInbox and the rest of the experiment, and Shell still gates all of
+ * that on useIsNextgen3Layer(). This hook governs the identity menu alone.
+ */
+export function useTopBarIdentity(): boolean {
+  const { tenant } = useContext(TenantContext);
+  const ap = tenant?.config?.appearance;
+  if (ap?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true) return true;
+  return isNextgenFamily(ap?.ui_theme) && ap?.top_bar_identity === true;
+}
+
+/** Whether Ctrl/Cmd+K opens the command palette. Same split as
+ *  useTopBarIdentity() above -- the palette is self-contained (it reads NAV
+ *  and /api/search, nothing Nova-only), so a nextgen workspace can have it
+ *  without the experiment around it. GlobalSearchBar gives up the hotkey
+ *  whenever this is on, so the two never fight over ⌘K. */
+export function useCommandPalette(): boolean {
+  const { tenant } = useContext(TenantContext);
+  const ap = tenant?.config?.appearance;
+  if (ap?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true) return true;
+  return isNextgenFamily(ap?.ui_theme) && ap?.command_palette === true;
 }
 
 /** True for the "nextgen2" 3-layer variant specifically -- identity lives in

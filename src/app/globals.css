@@ -142,7 +142,14 @@
      sit ON something, and the shadow is strong enough to say so. */
   --panel2: #eef0f4;               /* the canvas -- html/body + section fills read this */
   --card-radius: 10px;
-  --card-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.05);
+  /* Deepened 2026-09-06 (owner: "too pale"). The ink tiers below had already
+     been darkened twice, so text was never the problem -- the STRUCTURE was.
+     Borders at #e9eaee and a 0.08 shadow put almost nothing between one
+     surface and the next, so a screen of cards, inputs and table headers read
+     as one undifferentiated field however dark its text. Lines and the tints
+     that mark hover/selection are what moved here; the text tiers are
+     untouched. */
+  --card-shadow: 0 1px 3px rgba(16, 24, 40, 0.11), 0 1px 2px rgba(16, 24, 40, 0.07);
 
   /* Four surfaces, not one. A UI built from a single white has nothing to
      read as structure: a table header, an input well and the card they sit
@@ -154,14 +161,14 @@
        (card)   --card-bg, the default plane
        raised   modals, drawers, popovers, which need to clear the page
      hover/selected are the interaction tints that go with them. */
-  --surface-sunken:   #e4e8ef;
-  --surface-subtle:   #f4f6fa;
+  --surface-sunken:   #dfe4ed;
+  --surface-subtle:   #f2f5fa;
   --surface-raised:   #ffffff;
-  --surface-hover:    rgba(16, 24, 40, 0.04);
-  --surface-selected: #e6eefc;
-  --shadow-raised:    0 12px 32px rgba(16, 24, 40, 0.16), 0 2px 8px rgba(16, 24, 40, 0.08);
-  --card-shadow-hover: 0 10px 24px rgba(16, 24, 40, 0.10), 0 2px 6px rgba(16, 24, 40, 0.06);
-  --line: #e9eaee;
+  --surface-hover:    rgba(16, 24, 40, 0.06);
+  --surface-selected: #dbe7fb;
+  --shadow-raised:    0 12px 32px rgba(16, 24, 40, 0.18), 0 2px 8px rgba(16, 24, 40, 0.10);
+  --card-shadow-hover: 0 10px 24px rgba(16, 24, 40, 0.13), 0 2px 6px rgba(16, 24, 40, 0.08);
+  --line: #dcdfe7;
   --sidebar-grad: #ffffff;
   --sb-bar-bg: #ffffff;
   --modern-accent: #2e6be6;
@@ -194,31 +201,31 @@
   --sb-text-faint: #767d88;
   --sb-strong: #17181c;
   --sb-icon-muted: #6b7280;
-  --sb-line: #e9eaee;
-  --sb-hover: rgba(23, 24, 28, 0.045);
-  --sb-hover-strong: rgba(23, 24, 28, 0.07);
+  --sb-line: #dcdfe7;
+  --sb-hover: rgba(23, 24, 28, 0.06);
+  --sb-hover-strong: rgba(23, 24, 28, 0.09);
   /* Soft accent pill with accent ink -- not a filled block */
-  --sb-active-bg: #eef3fe;
+  --sb-active-bg: #e2ecfd;
   --sb-active-ink: #2e6be6;
   --sb-tab-underline: #2e6be6;
   --sb-tab-sub-active: #2e6be6;
 
   --sb-panel-bg: #ffffff;
-  --sb-panel-border: #e9eaee;
+  --sb-panel-border: #dcdfe7;
   --sb-panel-text: #17181c;
   --sb-panel-text-dim: #6b7280;
-  --sb-panel-hover: rgba(23, 24, 28, 0.045);
+  --sb-panel-hover: rgba(23, 24, 28, 0.06);
 
   --sb-search-bg: #ffffff;
-  --sb-search-border: #e9eaee;
+  --sb-search-border: #d3d7e0;
   --sb-search-text: #17181c;
   --sb-search-icon: #5c6470;
 
   --drawer-bg: #ffffff;
-  --drawer-card: #f7f7f8;
-  --drawer-card-alt: #eef3fe;
-  --drawer-line: #e9eaee;
-  --drawer-line-strong: #d5d8de;
+  --drawer-card: #f2f5fa;
+  --drawer-card-alt: #e2ecfd;
+  --drawer-line: #dcdfe7;
+  --drawer-line-strong: #c7ccd6;
   --drawer-text: #17181c;
   --drawer-text-dim: #6b7280;
   --drawer-hint: #8a8f98;
@@ -339,16 +346,25 @@
    above, not invented fresh. */
 [data-theme="nextgen"][data-enterprise="true"] .bpm-sidebar-rail {
   --sidebar-grad: linear-gradient(180deg, #152233 0%, #0e1a28 100%);
-  --sb-text: #cdd8e6;
-  --sb-text-dim: #7a9ab8;
-  --sb-text-dimmer: #8aa0b8;
-  --sb-text-faint: #4a6070;
+  /* Brightened 2026-09-06 (owner). The dim tiers were carried over from a
+     light rail and never re-measured against navy: --sb-text-faint at #4a6070
+     on #152233 is ~2.4:1, which is not readable, and the whole rail read as
+     muted rather than as chrome you navigate by. All four tiers now clear AA
+     on the darkest end of the gradient. */
+  --sb-text: #dde7f2;
+  --sb-text-dim: #a3bcd4;
+  --sb-text-dimmer: #93aec8;
+  --sb-text-faint: #7e97ae;
   --sb-strong: #ffffff;
-  --sb-icon-muted: #9db3c4;
-  --sb-line: rgba(255, 255, 255, 0.08);
-  --sb-hover: rgba(255, 255, 255, 0.06);
-  --sb-active-bg: #1c2740;
-  --sb-active-ink: #5b8cf0;
+  --sb-icon-muted: #b3c7d8;
+  --sb-line: rgba(255, 255, 255, 0.10);
+  --sb-hover: rgba(255, 255, 255, 0.07);
+  /* The selected row was #1c2740 against a #152233 ground -- a 7-point shift
+     no eye resolves, so nothing on the rail showed you where you were (owner:
+     "make the selection visible"). A real accent-tinted block with near-white
+     ink; the active row is already fontWeight 700, so the three cues agree. */
+  --sb-active-bg: rgba(91, 140, 240, 0.26);
+  --sb-active-ink: #ffffff;
 }
 
 /* Real interaction states -- the whole reason this can't just be inline

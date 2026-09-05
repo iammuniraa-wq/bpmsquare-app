@@ -800,6 +800,26 @@ export type TenantConfig = {
      * useIsEnterpriseSidebar() is its structural hook, same pattern. Unlike
      * "nextgen2" it carries no feature-flag gate -- any tenant can pick it. */
     ui_theme?: "classic" | "modern" | "nextgen" | "nextgen2" | "enterprise";
+    /** Three pieces of Nova/Enterprise chrome a plain-nextgen workspace can
+     * switch on for itself (owner decision 2026-09-06). Each was previously
+     * reachable only by adopting a whole theme behind a platform-admin flag
+     * ("nextgen2" for the first two, "enterprise" for the third), which meant
+     * a tenant who wanted the command palette also got the entire Nova
+     * experiment. These are the individual switches, tenant-admin owned, in
+     * Settings -> General -> Appearance, all default false and all ignored
+     * unless ui_theme resolves to nextgen.
+     *
+     * Deliberately NOT a widening of the Nova gate: the experimental Nova
+     * surfaces (engagement layer, Account 360 drawer, Nova sidebar and inbox)
+     * stay on useIsNextgen3Layer() and remain unreachable without the
+     * platform-admin flag. See useTopBarIdentity/useCommandPalette. */
+    /** Sign-in identity moves from the sidebar footer to the top-right. */
+    top_bar_identity?: boolean;
+    /** Ctrl/Cmd+K opens the command palette instead of focusing search. */
+    command_palette?: boolean;
+    /** Dark navy left rail against the light content area -- the
+     * "Enterprise" look, without the enterprise_theme flag. */
+    navy_sidebar?: boolean;
     /** Nova's own accent hue (owner decision 2026-08-24, superseding the
      * earlier "fixed identity, never tenant-derived" call): a hex string that
      * replaces Nova's default pink (#E84393) everywhere Nova derives its

@@ -404,12 +404,16 @@ export default function NovaPalette() {
                     display: "flex", alignItems: "center", gap: 10, width: "100%",
                     padding: "9px 10px", border: "none", borderRadius: 8, cursor: "pointer",
                     textAlign: "left", font: "inherit",
-                    background: isActive ? "color-mix(in srgb, var(--nova-pink) 16%, transparent)" : "transparent",
+                    // --nova-pink only exists under [data-nova]; the palette
+                    // now also opens on plain nextgen, where it falls back to
+                    // that theme's own accent. Without the fallback the whole
+                    // color-mix() is invalid and the row loses its highlight.
+                    background: isActive ? "color-mix(in srgb, var(--nova-pink, var(--sb-active-ink)) 16%, transparent)" : "transparent",
                     color: "var(--sb-panel-text)",
                   }}
                 >
                   <span style={{
-                    color: isActive ? "var(--nova-pink)" : "var(--sb-panel-text-dim)", display: "flex",
+                    color: isActive ? "var(--nova-pink, var(--sb-active-ink))" : "var(--sb-panel-text-dim)", display: "flex",
                     marginLeft: item.kind === "record" ? 14 : 0,
                     transform: isGroup && item.expanded ? "rotate(90deg)" : undefined, transition: "transform .12s",
                   }}>
