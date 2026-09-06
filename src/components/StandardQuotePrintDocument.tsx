@@ -221,9 +221,10 @@ export default function StandardQuotePrintDocument({
                 // "not selected" is about the GROUP, the quantity's about the
                 // row -- never both on one row for the same reason.
                 const groupNotChosen = l.group_type === "alternative" && !!l.group_id && !chosenGroupIds.has(l.group_id);
-                const qtyNotChosen = notChosen && !groupNotChosen;
+                // A printed break is an offered quantity (2026-09-06): shown
+                // in full, its amount being what that quantity would cost.
                 return (
-                <tr key={l.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff", breakInside: "avoid", opacity: notChosen ? 0.5 : 1 }}>
+                <tr key={l.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff", breakInside: "avoid", opacity: groupNotChosen ? 0.5 : 1 }}>
                   <td style={{ padding: "7px 12px 7px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{i + 1}</td>
                   <td style={{ padding: "7px 12px", fontSize: 12.5 }}>
                     {l.group_type === "alternative" && (
@@ -232,13 +233,8 @@ export default function StandardQuotePrintDocument({
                       </span>
                     )}
                     {isBreak && (
-                      <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: notChosen ? "#8a96a5" : accent }}>
-                        Qty {l.qty}{qtyNotChosen ? " — not selected" : ""}
-                      </span>
-                    )}
-                    {!isBreak && (l.group_type !== "alternative" || !groupNotChosen) && notChosen && (
-                      <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "#8a96a5" }}>
-                        Base quantity — not selected
+                      <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: groupNotChosen ? "#8a96a5" : accent }}>
+                        Option — qty {l.qty}
                       </span>
                     )}
                     {l.description}

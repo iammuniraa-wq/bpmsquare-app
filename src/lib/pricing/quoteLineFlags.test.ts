@@ -176,8 +176,8 @@ describe("resolveLineIdsAndSelection", () => {
       { local_id: "optB", amount: 2000, group_id: "g2", group_type: "alternative" },
     ]);
     const byLocal = (k: string) => out.find((_l, i) => ["base", "b50", "optA", "optB"][i] === k)!;
-    expect(byLocal("base").is_selected).toBe(false); // the break was chosen instead
-    expect(byLocal("b50").is_selected).toBe(true);
+    expect(byLocal("base").is_selected).toBe(true); // the base quantity is always what is charged
+    expect(byLocal("b50").is_selected).toBe(true); // a break's flag is "offered on the quote"
     expect(byLocal("optA").is_selected).toBe(true); // first group wins, nothing explicit
     expect(byLocal("optB").is_selected).toBe(false);
   });

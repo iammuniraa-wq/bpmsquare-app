@@ -3,6 +3,8 @@ import { linesForPdf, parsePrintOptions, isDefaultPrintOptions } from "./printOp
 import { parseQtyBreaks } from "./qtyBreaks";
 
 const L = (id: string, extra: Record<string, unknown> = {}) => ({ id, amount: 100, ...extra });
+const ALL = { alternatives: "all" as const, breaks: "all" as const };
+const CHOSEN = { alternatives: "chosen" as const, breaks: "all" as const };
 
 describe("parsePrintOptions", () => {
   it("defaults anything missing or malformed to 'all'", () => {
@@ -18,48 +20,36 @@ describe("linesForPdf", () => {
     L("b", { group_id: "g2", group_type: "alternative", is_selected: false }),
   ];
   it("prints the unchosen option only when alternatives = all", () => {
-    expect(linesForPdf(alt, { alternatives: "all", breaks: "all" }).map((l) => l.id)).toEqual(["a", "b"]);
-    expect(linesForPdf(alt, { alternatives: "chosen", breaks: "all" }).map((l) => l.id)).toEqual(["a"]);
+    expect(linesForPdf(alt, ALL).map((l) => l.id)).toEqual(["a", "b"]);
+    expect(linesForPdf(alt, CHOSEN).map((l) => l.id)).toEqual(["a"]);
   });
 
-  const brk = [
-    L("base", { is_selected: false }),
-    L("b10", { break_of: "base", break_qty: 10, is_selected: true }),
-    L("b50", { break_of: "base", break_qty: 50, is_selected: false }),
-  ];
-  it("prints unchosen quantities (including the base) only when breaks = all", () => {
-    expect(linesForPdf(brk, { alternatives: "all", breaks: "all" }).map((l) => l.id)).toEqual(["base", "b10", "b50"]);
-    expect(linesForPdf(brk, { alternatives: "all", breaks: "chosen" }).map((l) => l.id)).toEqual(["b10"]);
+  it("prints the base line and every OFFERED break, never an unticked one", () => {
+    const brk = [
+      L("base", { is_selected: false }), // legacy flag from the old chosen-break model: the base still prints
+      L("b10", { break_of: "base", break_qty: 10, is_selected: true }),
+      L("b50", { break_of: "base", break_qty: 50, is_selected: false }),
+      L("b100", { break_of: "base", break_qty: 100 }), // absent = offered
+    ];
+    expect(linesForPdf(brk, ALL).map((l) => l.id)).toEqual(["base", "b10", "b100"]);
+    expect(linesForPdf(brk, { alternatives: "all", breaks: "chosen" }).map((l) => l.id)).toEqual(["base", "b10", "b100"]); // `breaks` no longer applies
   });
 
   it("never prints a line the rep hid, even a charged one", () => {
     const lines = [L("x", { show_on_pdf: false }), L("y")];
-    expect(linesForPdf(lines, { alternatives: "all", breaks: "all" }).map((l) => l.id)).toEqual(["y"]);
+    expect(linesForPdf(lines, ALL).map((l) => l.id)).toEqual(["y"]);
   });
 
-  it("a break inside an unchosen option follows the alternatives rule first", () => {
+  it("an offered break inside an unchosen option follows the option", () => {
     const lines = [
       L("a", { group_id: "g1", group_type: "alternative", is_selected: true }),
+      L("a2", { group_id: "g1", group_type: "alternative", break_of: "a", break_qty: 2, is_selected: true }),
+      L("a5", { group_id: "g1", group_type: "alternative", break_of: "a", break_qty: 5, is_selected: true, show_on_pdf: false }),
       L("b", { group_id: "g2", group_type: "alternative", is_selected: false }),
-      L("b10", { group_id: "g2", group_type: "alternative", break_of: "b", break_qty: 10, is_selected: false }),
+      L("b10", { group_id: "g2", group_type: "alternative", break_of: "b", break_qty: 10, is_selected: true }),
     ];
-    expect(linesForPdf(lines, { alternatives: "chosen", breaks: "all" }).map((l) => l.id)).toEqual(["a"]);
-    // The unchosen option prints with only its would-be quantity (the base).
-    expect(linesForPdf(lines, { alternatives: "all", breaks: "chosen" }).map((l) => l.id)).toEqual(["a", "b"]);
-    expect(linesForPdf(lines, { alternatives: "all", breaks: "all" }).map((l) => l.id)).toEqual(["a", "b", "b10"]);
-  });
-
-  it("a break inside the CHOSEN option follows the breaks rule even when alternatives = chosen", () => {
-    const lines = [
-      L("a", { group_id: "g1", group_type: "alternative", is_selected: true }),
-      L("a2", { group_id: "g1", group_type: "alternative", break_of: "a", break_qty: 2, is_selected: false }),
-      L("a5", { group_id: "g1", group_type: "alternative", break_of: "a", break_qty: 5, is_selected: false, show_on_pdf: false }),
-      L("b", { group_id: "g2", group_type: "alternative", is_selected: false }),
-    ];
-    expect(linesForPdf(lines, { alternatives: "chosen", breaks: "all" }).map((l) => l.id)).toEqual(["a", "a2"]);
-    expect(linesForPdf(lines, { alternatives: "chosen", breaks: "chosen" }).map((l) => l.id)).toEqual(["a"]);
-    const withBreakChosen = lines.map((l) => (l.id === "a" ? { ...l, is_selected: false } : l.id === "a2" ? { ...l, is_selected: true } : l));
-    expect(linesForPdf(withBreakChosen, { alternatives: "chosen", breaks: "chosen" }).map((l) => l.id)).toEqual(["a2"]);
+    expect(linesForPdf(lines, CHOSEN).map((l) => l.id)).toEqual(["a", "a2"]);
+    expect(linesForPdf(lines, ALL).map((l) => l.id)).toEqual(["a", "a2", "b", "b10"]);
   });
 });
 

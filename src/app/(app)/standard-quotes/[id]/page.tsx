@@ -11,6 +11,7 @@ import TabTitle from "@/components/TabTitle";
 import { ROUTES } from "@/lib/constants";
 import type { StandardQuoteStatus } from "@/lib/types";
 import StandardQuoteActionsPanel from "./StandardQuoteActionsPanel";
+import StandardQuoteAttachments from "./StandardQuoteAttachments";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import { selectedLines } from "@/lib/sales/lineTotals";
 
@@ -115,9 +116,11 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
                   // "not chosen" is about the GROUP, the quantity's about the
                   // row -- never both on one row for the same reason.
                   const groupNotChosen = l.group_type === "alternative" && !!l.group_id && !chosenGroupIds.has(l.group_id);
-                  const qtyNotChosen = notSelected && !groupNotChosen;
+                  // A break is an offer (2026-09-06): ticked = printed, never
+                  // charged; the base line always is.
+                  const dim = isBreak ? (notSelected || groupNotChosen) : groupNotChosen;
                   return (
-                  <tr key={l.id} style={{ borderTop: `1px solid ${c.line}`, opacity: notSelected ? 0.55 : 1 }}>
+                  <tr key={l.id} style={{ borderTop: `1px solid ${c.line}`, opacity: dim ? 0.55 : 1 }}>
                     <td style={{ padding: "8px 14px", fontSize: 13 }}>
                       {hiddenOnPdf && (
                         <span title="The rep hid this line from the PDF; it still counts if it is selected" style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: c.hint, marginRight: 6, border: `1px solid ${c.line}`, borderRadius: 4, padding: "0 4px" }}>
@@ -131,12 +134,7 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
                       )}
                       {isBreak && (
                         <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: notSelected ? c.hint : c.accent, marginRight: 6 }}>
-                          Qty {l.qty}{qtyNotChosen ? " · not chosen" : ""}
-                        </span>
-                      )}
-                      {!isBreak && (l.group_type !== "alternative" || !groupNotChosen) && notSelected && (
-                        <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: c.hint, marginRight: 6 }}>
-                          Base quantity · not chosen
+                          Qty {l.qty} · {notSelected ? "not offered" : "offered"}
                         </span>
                       )}
                       {l.description}
@@ -157,6 +155,10 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
                 })}
               </tbody>
             </table>
+          </section>
+
+          <section style={cardStyle}>
+            <StandardQuoteAttachments quoteId={quote.id} canCreateLines={quote.status === "draft"} />
           </section>
 
           {(quote.notes || quote.terms) && (
