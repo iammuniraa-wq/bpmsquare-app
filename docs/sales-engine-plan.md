@@ -90,9 +90,14 @@ product line, fills every rate, lists the NEEDS_RFQ lines with a Send RFQ
 per line, and re-prices automatically when a priced line's product or
 quantity changes. The engine already prices multi-line documents.
 
-**Line rate and tax** — owner decision pending: the line takes **NET_2**
-(pre-tax) and the header applies tax (recommended), or the procedure keeps
-TAX and the forms hide header tax for engine-priced quotes.
+**Line rate and tax** — decided 2026-09-06, built the same day: the line
+takes the **pre-tax figure** (NET_2 in the cost-based template: the
+engine's net minus every TAX-class component) and the quote header applies
+tax once. The engine still runs its tax step, so the trace, the stored
+document and the sample bill show the full bill; `priceDocumentLine()`
+returns `unit_rate` and `net` before tax plus `gross`, `tax_amount` and
+`tax_pct`, and both quote forms fill the header tax from `tax_pct` when the
+rep has not set one.
 
 ## 3. Quantity breaks and alternatives
 
@@ -225,7 +230,8 @@ with C if hands allow.
 
 ## 10. Decisions needed from the owner
 
-1. Line rate NET_2 (pre-tax) with header tax — yes / no.
+1. **Decided 2026-09-06:** line rate is pre-tax (NET_2), header applies
+   tax. Built (see §2).
 2. Opportunity stages default set.
 3. **Decided 2026-09-06:** a lead is **not** mandatory before an
    opportunity, and an opportunity is **not** mandatory for a quote. A

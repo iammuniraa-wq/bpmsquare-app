@@ -721,9 +721,10 @@ Three steps, each validated on the demo:
    day (`src/lib/tenantClock.ts` now resolves it in the tenant's timezone,
    `config.wfm.timezone`), and the why trace did not name the cost source
    (`PriceTrace` now shows rate × qty and "from supplier RFQ reply,
-   confirmed, as of …"). Open decision: the line rate includes the TAX
-   step while quote headers carry their own Tax % — recommendation is that
-   the line takes NET_2.
+   confirmed, as of …"). Decided the same day: the line takes the pre-tax
+   figure (net minus TAX-class components, NET_2 here) and the quote header
+   applies tax once; `priceDocumentLine()` returns `gross`, `tax_amount`
+   and `tax_pct` alongside the pre-tax `unit_rate`.
 
 Batches 2–8 below stand, but each is now delivered per technique: price
 list, value-based and variant follow the same three steps on these rails.
