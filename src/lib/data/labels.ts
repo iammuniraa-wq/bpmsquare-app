@@ -108,6 +108,9 @@ export type AnalyticsData = {
     accounts: number; contacts: number; customerAssets: number; openCases: number;
     workOrders: number; activeContracts: number; leads: number; technicians: number;
     products: number;
+    openDeals: number;
+    openDealValue: number;
+    weightedDealValue: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;

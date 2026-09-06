@@ -472,7 +472,18 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
-- **0119_standard_quote_attachments.sql — PENDING on both DBs** (written
+- **0120_opportunities.sql — PENDING on both DBs** (written 2026-09-06,
+  Sales Engine Piece B, `docs/sales-engine-architecture.md` §4). Tables
+  `opportunities` and `opportunity_lines` (RLS + tenant-isolation policies
+  in the same file), `opportunity_id` on `quotes`, `standard_quotes` and
+  `pricing_rfqs`, and the `pricing_documents.source` check widened to
+  accept `'opportunity'`. Seed: `scripts/seed-opportunities-demo.sql`
+  (run AFTER 0120 and the products seed; six demo deals across the
+  default stages, flips `features.pipeline` on for the demo tenant).
+  Every read tolerates the migration being pending (an error reads as no
+  deals; the board renders empty) -- nothing else is affected.
+- **0119_standard_quote_attachments.sql — applied to both DBs** (owner
+  confirmed 2026-09-06; written
   2026-09-06, owner request the same day,
   `docs/sales-engine-architecture.md` §3.7). New table
   `standard_quote_attachments` (RLS + tenant-isolation policy in the same

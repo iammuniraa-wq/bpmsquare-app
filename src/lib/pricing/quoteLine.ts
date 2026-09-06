@@ -50,7 +50,7 @@ export async function priceDocumentLine(
     productId: string;
     accountId?: string | null;
     quantity: number;
-    documentType: "quote" | "standard_quote" | "work_order";
+    documentType: "quote" | "standard_quote" | "work_order" | "opportunity";
     sourceId?: string | null;
     actorId?: string | null;
     pricingConfig?: PricingConfig | null;

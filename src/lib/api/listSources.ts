@@ -105,6 +105,24 @@ const PRODUCT_FIELDS: QueryableField[] = [
   { path: "status", type: "string" },
 ];
 
+const OPPORTUNITY_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "title", type: "string", searchable: true },
+  { path: "account_id", type: "string" },
+  { path: "account_name", type: "string", searchable: true },
+  { path: "stage", type: "string" },
+  { path: "outcome", type: "string" },
+  { path: "amount", type: "number" },
+  { path: "probability", type: "number" },
+  { path: "expected_close", type: "date" },
+  { path: "owner_id", type: "string" },
+  { path: "source", type: "string" },
+  { path: "competitor", type: "string", searchable: true },
+  { path: "created_at", type: "date" },
+  { path: "closed_at", type: "date" },
+];
+
 const PROJECT_FIELDS: QueryableField[] = [
   { path: "id", type: "string" },
   { path: "ref", type: "string", searchable: true },
@@ -334,6 +352,26 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         ...p,
         _links: { self: `/api/v1/products/${p.id}` },
       }));
+    },
+  },
+  opportunities: {
+    label: "Deals (pipeline)",
+    description: "Sales opportunities: a pursuit with a customer -- stage, outcome, amount (latest quote or its lines), probability, expected close.",
+    relatedWorkcenter: "pipeline",
+    fields: OPPORTUNITY_FIELDS,
+    load: async (tenantId) => {
+      // team and probability_override_reason are internal (who knows the
+      // customer, why a rep overrode the number) -- deliberately not selected.
+      const { data } = await createAdminSupabase()
+        .from("opportunities")
+        .select("id, ref, title, description, account_id, contact_id, stage, outcome, loss_reason, amount, currency, probability, expected_close, owner_id, source, competitor, custom_data, created_at, updated_at, closed_at, accounts(name)")
+        .eq("tenant_id", tenantId)
+        .order("updated_at", { ascending: false });
+      return (data ?? []).map((o) => {
+        const acc = Array.isArray(o.accounts) ? o.accounts[0] : o.accounts;
+        const { accounts: _a, ...rest } = o as Record<string, unknown> & { accounts?: unknown };
+        return { ...rest, account_name: (acc as { name?: string } | null)?.name ?? null, _links: { self: `/api/v1/opportunities/${o.id}`, account: `/api/v1/accounts/${o.account_id}` } };
+      });
     },
   },
   projects: {

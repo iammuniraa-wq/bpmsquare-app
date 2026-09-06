@@ -1467,6 +1467,9 @@ export type AnalyticsData = {
     accounts: number; contacts: number; customerAssets: number; openCases: number;
     workOrders: number; activeContracts: number; leads: number; technicians: number;
     products: number;
+    openDeals: number;
+    openDealValue: number;
+    weightedDealValue: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;
@@ -1509,7 +1512,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
-      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0 },
+      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0 },
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
@@ -1542,7 +1545,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     { data: accounts }, { data: contacts }, { data: assets },
     { data: cases }, { data: workOrders }, { data: contracts },
     { data: leads }, { data: technicians }, { data: quotes },
-    { data: invoices }, { data: activities }, { count: productCount },
+    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw },
   ] = await Promise.all([
     getTenant(),
     supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
@@ -1557,7 +1560,10 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     supabase.from("invoices").select("id, status, total, paid_amount, account_id, accounts(name)").eq("tenant_id", tenantId),
     supabase.from("activities").select("*, accounts(name)").eq("tenant_id", tenantId).order("at", { ascending: false }).limit(6),
     supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("status", "active"),
+    // 0120 may be pending on an environment: an error reads as no deals.
+    supabase.from("opportunities").select("amount, probability").eq("tenant_id", tenantId).eq("outcome", "open"),
   ]);
+  const openDeals = (openDealsRaw ?? []) as Array<{ amount: number | null; probability: number | null }>;
 
   const allAccounts    = (accounts    ?? []) as Array<{ id: string; type: string }>;
   const allAssets      = (assets      ?? []) as Array<{ id: string; kind: string; is_loaner: boolean; loaner_status: string | null }>;
@@ -1583,6 +1589,9 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     // Table may predate migration 0098 on an environment -- a null count
     // (relation missing) degrades to 0 rather than failing the dashboard.
     products:        productCount ?? 0,
+    openDeals:       openDeals.length,
+    openDealValue:   openDeals.reduce((s, d) => s + Number(d.amount ?? 0), 0),
+    weightedDealValue: openDeals.reduce((s, d) => s + Number(d.amount ?? 0) * (Number(d.probability ?? 0) / 100), 0),
   };
 
   const accountTypeCounts = new Map<string, number>();
@@ -2178,6 +2187,12 @@ const SEARCH_SPECS: SearchSpec[] = [
     textCols: ["name", "ref", "sku", "category", "sub_category"],
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.sku, r.category, r.sub_category].filter(Boolean).join(" · ") || "Product", href: ROUTES.product(r.id), matched: "name" }),
     featureKeys: ["products"],
+  },
+  {
+    type: "opportunity", table: "opportunities", columns: "id, ref, title, stage, outcome, amount",
+    textCols: ["title", "ref"],
+    toResult: (r) => ({ id: r.id, title: r.title, subtitle: [r.ref, r.stage, r.outcome].filter(Boolean).join(" · ") || "Deal", href: ROUTES.pipelineDetail(r.id), matched: "title" }),
+    featureKeys: ["pipeline"],
   },
   {
     type: "project", table: "wfm_projects", columns: "id, ref, name, code, status",

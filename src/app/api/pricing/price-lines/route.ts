@@ -28,7 +28,7 @@ type LineResult =
 async function priceOne(
   tenantId: string,
   input: LineInput,
-  args: { accountId: string | null; documentType: "quote" | "standard_quote"; sourceId: string | null; actorId: string; pricingConfig: PricingConfig | null }
+  args: { accountId: string | null; documentType: "quote" | "standard_quote" | "opportunity"; sourceId: string | null; actorId: string; pricingConfig: PricingConfig | null }
 ): Promise<LineResult> {
   if (!input.line_key || !input.product_id || !Number.isFinite(input.quantity) || input.quantity <= 0) {
     return { line_key: input.line_key ?? "?", ok: false, error: "product_id and a positive quantity are required" };
@@ -96,14 +96,8 @@ export async function POST(request: NextRequest) {
   } | null;
 
   const documentType = body?.document_type;
-  // "opportunity" is reserved for piece B: until the Opportunity object
-  // exists it is refused rather than silently priced as a quote, so a
-  // caller can't mistake the fallback for the real thing.
-  if (documentType === "opportunity") {
-    return NextResponse.json({ error: "document_type opportunity is not available yet" }, { status: 422 });
-  }
-  if (documentType !== "quote" && documentType !== "standard_quote") {
-    return NextResponse.json({ error: "document_type must be quote or standard_quote" }, { status: 422 });
+  if (documentType !== "quote" && documentType !== "standard_quote" && documentType !== "opportunity") {
+    return NextResponse.json({ error: "document_type must be quote, standard_quote or opportunity" }, { status: 422 });
   }
   const lines = Array.isArray(body?.lines) ? body!.lines!.filter((l) => l && typeof l === "object") : [];
   if (lines.length === 0) return NextResponse.json({ error: "No lines to price" }, { status: 422 });
@@ -113,11 +107,9 @@ export async function POST(request: NextRequest) {
   // the single-line route (MULTI_TENANT_GUARDRAILS.md).
   let sourceId: string | null = null;
   if (typeof body?.document_id === "string" && body.document_id) {
-    const table = documentType === "quote" ? "quotes" : documentType === "standard_quote" ? "standard_quotes" : null;
-    if (table) {
-      const { data: q } = await supabase.from(table).select("id").eq("id", body.document_id).eq("tenant_id", tenantId).maybeSingle();
-      sourceId = q?.id ? (q.id as string) : null;
-    }
+    const table = documentType === "quote" ? "quotes" : documentType === "standard_quote" ? "standard_quotes" : "opportunities";
+    const { data: q } = await supabase.from(table).select("id").eq("id", body.document_id).eq("tenant_id", tenantId).maybeSingle();
+    sourceId = q?.id ? (q.id as string) : null;
   }
 
   const tenant = await getTenant();

@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireWorkcenterView } from "@/lib/permissions";
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenant } from "@/lib/tenant";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import StandardQuoteDealCard from "./StandardQuoteDealCard";
 import { getStandardQuoteLive } from "@/lib/data/live";
 import { c, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -49,6 +51,12 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
   const data = await getStandardQuoteLive(id);
   if (!data) notFound();
   const { quote, lines, account, contact } = data;
+  // The deal this quote belongs to (0120), when Pipeline is on.
+  const tenant = await getTenant();
+  const pipelineOn = tenant?.features?.pipeline === true;
+  const deal = pipelineOn && quote.opportunity_id
+    ? (await createAdminSupabase().from("opportunities").select("id, ref, title, stage, outcome").eq("id", quote.opportunity_id).eq("tenant_id", quote.tenant_id).maybeSingle()).data as { id: string; ref: string | null; title: string; stage: string; outcome: string } | null
+    : null;
   // Which alternative options are chosen (0118: a break family inside an
   // option labels the option and the quantity separately).
   const chosenGroupIds = new Set(selectedLines(lines).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string));
@@ -199,6 +207,7 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
             <CtxRow label="Closed" value={fmtDate(quote.closed_at)} />
           </section>
 
+          {pipelineOn && <StandardQuoteDealCard quoteId={quote.id} accountId={quote.account_id} deal={deal} />}
           <StandardQuoteActionsPanel quote={quote} />
         </div>
       </div>

@@ -23,5 +23,6 @@ export const UNDOCUMENTED_ENDPOINTS = [
   "/api/v1/invoices",
   "/api/v1/purchase-orders",
   "/api/v1/products",
+  "/api/v1/opportunities",
   "/api/v1/projects",
 ] as const;
