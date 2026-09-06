@@ -36,7 +36,7 @@ type PriceOut = {
   document_id: string | null; replay_of: string | null;
 };
 
-const TABS = ["Versions", "Dimensions", "Components", "Procedures", "Rules", "Cost Models", "Test & Trace"] as const;
+const TABS = ["Versions", "Routing", "Dimensions", "Components", "Procedures", "Rules", "Cost Models", "Test & Trace"] as const;
 type Tab = (typeof TABS)[number];
 
 const btn: React.CSSProperties = { padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "var(--panel)", cursor: "pointer", color: c.muted };
@@ -180,13 +180,14 @@ export default function PricingEngineClient() {
         ))}
       </div>
 
-      {!isDraft && tab !== "Versions" && tab !== "Test & Trace" && (
+      {!isDraft && tab !== "Versions" && tab !== "Test & Trace" && tab !== "Routing" && (
         <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
           Viewing {selectedRow ? `v${selected} (${selectedRow.status})` : "—"} read-only. Only a DRAFT is editable — clone this version to change it.
         </div>
       )}
 
       {tab === "Versions" && <VersionsTab versions={versions} />}
+      {tab === "Routing" && <RoutingTab />}
       {tab === "Dimensions" && snapshot && <DimensionsTab snapshot={snapshot} editable mutate={mutate} />}
       {tab === "Components" && snapshot && <ComponentsTab snapshot={snapshot} editable={isDraft} mutate={mutate} />}
       {tab === "Procedures" && snapshot && <ProceduresTab snapshot={snapshot} editable={isDraft} mutate={mutate} />}
@@ -198,6 +199,87 @@ export default function PricingEngineClient() {
 }
 
 type MutateFn = (entity: string, op: "upsert" | "delete", data: Record<string, unknown>, versioned?: boolean) => Promise<boolean>;
+
+type RoutingRuleRow = { attribute: string; value: string; area: string };
+
+// Which Price Book a line prices against -- tenant-wide, so unlike every
+// other tab here it is not scoped to the selected config version or even to
+// the current area. First matching rule wins (top to bottom); no match
+// falls to default_area. See src/lib/pricing/routing.ts's routeToArea().
+function RoutingTab() {
+  const [rules, setRules] = useState<RoutingRuleRow[]>([]);
+  const [defaultArea, setDefaultArea] = useState("default");
+  const [attribute, setAttribute] = useState("product.category");
+  const [value, setValue] = useState("");
+  const [ruleArea, setRuleArea] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/settings/pricing-routing");
+    const json = await res.json();
+    if (!res.ok) { setError(json.error ?? "Failed to load routing"); return; }
+    setRules(json.rules ?? []);
+    setDefaultArea(json.default_area ?? "default");
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function save(nextRules: RoutingRuleRow[], nextDefault: string) {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const res = await fetch("/api/settings/pricing-routing", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rules: nextRules, default_area: nextDefault }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "Save failed"); return; }
+      setRules(json.rules ?? nextRules);
+      setDefaultArea(json.default_area ?? nextDefault);
+      setNotice("Routing saved.");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div style={{ ...cardStyle, padding: 14 }}>
+      <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+        Which Price Book a quote line prices against. First matching rule wins, top to bottom; a line matching none of these uses the default area below. Typically routed on <code style={mono}>product.category</code>.
+      </div>
+      {error && <div style={{ fontSize: 12, color: "var(--err-ink)", marginBottom: 8 }}>{error}</div>}
+      {notice && <div style={{ fontSize: 12, color: "var(--tealink)", marginBottom: 8 }}>{notice}</div>}
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
+        <thead><tr><th style={th}>Attribute</th><th style={th}>Value</th><th style={th}>Price Book (area)</th><th style={th}></th></tr></thead>
+        <tbody>
+          {rules.map((r, i) => (
+            <tr key={i}>
+              <td style={{ ...td, ...mono }}>{r.attribute}</td>
+              <td style={{ ...td, ...mono }}>{r.value}</td>
+              <td style={{ ...td, ...mono }}>{r.area}</td>
+              <td style={td}>
+                <button style={btn} disabled={busy} onClick={() => save(rules.filter((_, idx) => idx !== i), defaultArea)}>Delete</button>
+              </td>
+            </tr>
+          ))}
+          {rules.length === 0 && <tr><td style={td} colSpan={4}>No routing rules — every line prices against the default area.</td></tr>}
+        </tbody>
+      </table>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        <input style={{ ...input, ...mono, width: 180 }} placeholder="product.category" value={attribute} onChange={(e) => setAttribute(e.target.value)} />
+        <input style={{ ...input, ...mono, width: 180 }} placeholder="value (e.g. REBAR_DOWEL_BARS)" value={value} onChange={(e) => setValue(e.target.value)} />
+        <input style={{ ...input, ...mono, width: 180 }} placeholder="area (e.g. rebar_dowel_bars)" value={ruleArea} onChange={(e) => setRuleArea(e.target.value)} />
+        <button style={primaryBtn} disabled={busy || !attribute.trim() || !value.trim() || !ruleArea.trim()} onClick={async () => {
+          await save([...rules, { attribute: attribute.trim(), value: value.trim(), area: ruleArea.trim() }], defaultArea);
+          setValue(""); setRuleArea("");
+        }}>+ Add rule</button>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <label style={fieldLabel}>Default area (no rule matches)</label>
+        <input style={{ ...input, ...mono, width: 180 }} value={defaultArea} onChange={(e) => setDefaultArea(e.target.value)} />
+        <button style={btn} disabled={busy} onClick={() => save(rules, defaultArea)}>Save default</button>
+      </div>
+    </div>
+  );
+}
 
 function VersionsTab({ versions }: { versions: VersionRow[] }) {
   return (
