@@ -472,11 +472,11 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
-- **0121_pricing_area_isolation.sql — applied to the demo DB** (owner ran it
+- **0121_pricing_area_isolation.sql — applied to both DBs** (owner ran it
   2026-09-06; a syntax fix was needed first -- `UPDATE ... FROM LATERAL`
   cannot reference its own update target in Postgres (42P10), rewritten as
-  correlated scalar subqueries with `coalesce(...)` -- **still PENDING on
-  the other DB**). Verified live after applying: Default's Cost-based v2
+  correlated scalar subqueries with `coalesce(...)`). Verified live after
+  applying on the demo DB: Default's Cost-based v2
   (published) and v1 (superseded) both intact, same timestamps; a fresh
   Test & Trace on Default resolved unambiguously to `COST_SIMULATOR` with
   no cross-book bleed. The two throwaway test Price Books
@@ -508,7 +508,11 @@ deploy for an automatic schema change.
   note at the top of this entry) -- both throwaway test Price Books were
   removed via Discard once the migration made it safe again; no SQL cleanup
   was needed after all. The real Default book was untouched throughout.
-  **Still to do**: run this migration on the other database.
+  Confirmed applied on the second database too (re-running it there hit
+  `42P07: relation "..._key" already exists` on the constraint step --
+  expected, since `add constraint` isn't re-runnable like the `if not
+  exists` column/index statements elsewhere in the file; it just confirms
+  the first run succeeded). Nothing further pending on either database.
 - **0120_opportunities.sql — PENDING on both DBs** (written 2026-09-06,
   Sales Engine Piece B, `docs/sales-engine-architecture.md` §4). Tables
   `opportunities` and `opportunity_lines` (RLS + tenant-isolation policies
