@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { resolvePermissions, canViewWorkcenter, canEditWorkcenter } from "@/lib/permissions";
+import { missingColumnName } from "@/lib/pricing/quoteLineFlags";
 
 // PricingEngine config versions (spec §7). Gated on the "pricing" workcenter
 // (Business Role scoped -- an admin is always unrestricted) rather than a
@@ -83,17 +84,30 @@ export async function POST(req: Request) {
 
   if (cloneFrom !== null) {
     // Copy the versioned entities; dimensions and cost inputs are
-    // version-independent and need no copying.
+    // version-independent and need no copying. Always clones from THIS
+    // SAME area's own version (both call sites pass their own `area` here
+    // as the source) -- pricing_area (0121) is what stops this from also
+    // (or instead) picking up another Price Book's rows that happen to
+    // share the source version number, which every fresh book's v1 does.
+    // Tolerates 0121 being pending by reading unscoped, same as before this
+    // fix -- not worse, since this never deletes anything.
     for (const table of ["pricing_components", "pricing_procedures", "pricing_rules", "pricing_cost_models"] as const) {
-      const { data: rows, error: readErr } = await admin
-        .from(table).select("*").eq("tenant_id", tenantId).eq("config_version", cloneFrom);
+      let { data: rows, error: readErr } = await admin
+        .from(table).select("*").eq("tenant_id", tenantId).eq("pricing_area", area).eq("config_version", cloneFrom);
+      if (readErr && missingColumnName(readErr) === "pricing_area") {
+        ({ data: rows, error: readErr } = await admin.from(table).select("*").eq("tenant_id", tenantId).eq("config_version", cloneFrom));
+      }
       if (readErr) return NextResponse.json({ error: `Clone failed reading ${table}: ${readErr.message}` }, { status: 500 });
       if (!rows?.length) continue;
       const copies = rows.map((r) => {
         const { id: _id, created_at: _c, ...rest } = r as Record<string, unknown>;
-        return { ...rest, config_version: nextVersion };
+        return { ...rest, pricing_area: area, config_version: nextVersion };
       });
-      const { error: writeErr } = await admin.from(table).insert(copies);
+      let { error: writeErr } = await admin.from(table).insert(copies);
+      if (writeErr && missingColumnName(writeErr) === "pricing_area") {
+        const stripped = copies.map(({ pricing_area: _a, ...rest }) => rest);
+        ({ error: writeErr } = await admin.from(table).insert(stripped));
+      }
       if (writeErr) return NextResponse.json({ error: `Clone failed writing ${table}: ${writeErr.message}` }, { status: 500 });
     }
   }

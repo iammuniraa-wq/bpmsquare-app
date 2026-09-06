@@ -5,6 +5,7 @@ import { logChange } from "@/lib/changeLog";
 import { parseFormula } from "@/lib/pricing-core";
 import type { ProcedureStep } from "@/lib/pricing-core";
 import { validateSources, validateGuardrails } from "@/lib/pricing/validate";
+import { missingColumnName } from "@/lib/pricing/quoteLineFlags";
 
 // One config version: GET the full snapshot; POST {action:"publish"} runs the
 // pre-publish validation report and, only when clean, flips DRAFT->PUBLISHED
@@ -37,17 +38,33 @@ async function requireDelete() {
 
 type Ctx = { params: Promise<{ version: string }> };
 
+// pricing_area (0121) scopes a version's own tables to the ONE Price Book
+// they belong to -- two Price Books sharing a version number (every fresh
+// book starts at v1) would otherwise pool their rows together. Tolerates
+// 0121 being pending: retries unscoped rather than breaking Advanced/the
+// wizard the instant this code deploys ahead of the migration.
+function versionedQuery(admin: ReturnType<typeof createAdminSupabase>, table: string, tenantId: string, area: string, version: number, scoped: boolean) {
+  let q = admin.from(table).select("*").eq("tenant_id", tenantId).eq("config_version", version);
+  if (scoped) q = q.eq("pricing_area", area);
+  return q;
+}
+
 async function loadSnapshot(tenantId: string, area: string, version: number) {
   const admin = createAdminSupabase();
-  const [versionRow, components, procedures, rules, models, dimensions, inputs] = await Promise.all([
+  const load = async (scoped: boolean) => Promise.all([
     admin.from("pricing_config_versions").select("*").eq("tenant_id", tenantId).eq("pricing_area", area).eq("version", version).maybeSingle(),
-    admin.from("pricing_components").select("*").eq("tenant_id", tenantId).eq("config_version", version).order("code"),
-    admin.from("pricing_procedures").select("*").eq("tenant_id", tenantId).eq("config_version", version).order("code"),
-    admin.from("pricing_rules").select("*").eq("tenant_id", tenantId).eq("config_version", version).order("created_at"),
-    admin.from("pricing_cost_models").select("*").eq("tenant_id", tenantId).eq("config_version", version).order("code"),
+    versionedQuery(admin, "pricing_components", tenantId, area, version, scoped).order("code"),
+    versionedQuery(admin, "pricing_procedures", tenantId, area, version, scoped).order("code"),
+    versionedQuery(admin, "pricing_rules", tenantId, area, version, scoped).order("created_at"),
+    versionedQuery(admin, "pricing_cost_models", tenantId, area, version, scoped).order("code"),
     admin.from("pricing_dimensions").select("attribute, weight, label").eq("tenant_id", tenantId).order("attribute"),
     admin.from("pricing_cost_inputs").select("*").eq("tenant_id", tenantId).order("cost_model_code, path, valid_from"),
   ]);
+  let [versionRow, components, procedures, rules, models, dimensions, inputs] = await load(true);
+  const firstError = components.error ?? procedures.error ?? rules.error ?? models.error;
+  if (firstError && missingColumnName(firstError) === "pricing_area") {
+    [versionRow, components, procedures, rules, models, dimensions, inputs] = await load(false);
+  }
   return {
     version: versionRow.data,
     components: components.data ?? [],
@@ -214,9 +231,23 @@ export async function DELETE(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: `Only a DRAFT can be discarded (this version is ${row.status}).` }, { status: 409 });
   }
 
+  // pricing_area (0121) is what stops this from deleting another Price
+  // Book's rows that happen to share this version number -- every fresh
+  // book starts at v1, so without it a discard here could destroy a
+  // DIFFERENT area's DRAFT, PUBLISHED or even SUPERSEDED "immutable
+  // history" (found live 2026-09-06 building Catalog + Formula). Unlike
+  // the read paths in this file, a destructive delete does NOT degrade to
+  // the unscoped query when the column is missing -- it fails safe and
+  // asks the owner to run the migration, rather than silently doing the
+  // dangerous cross-book thing while 0121 is pending.
   for (const table of ["pricing_components", "pricing_procedures", "pricing_rules", "pricing_cost_models"] as const) {
-    const { error } = await admin.from(table).delete().eq("tenant_id", tenantId).eq("config_version", version);
-    if (error) return NextResponse.json({ error: `Discard failed clearing ${table}: ${error.message}` }, { status: 500 });
+    const { error } = await admin.from(table).delete().eq("tenant_id", tenantId).eq("pricing_area", area).eq("config_version", version);
+    if (error) {
+      if (missingColumnName(error) === "pricing_area") {
+        return NextResponse.json({ error: "Discard is disabled until migration 0121 (pricing_area) is applied -- it would otherwise risk deleting another Price Book's rows that share this version number." }, { status: 409 });
+      }
+      return NextResponse.json({ error: `Discard failed clearing ${table}: ${error.message}` }, { status: 500 });
+    }
   }
   const { error: delErr } = await admin
     .from("pricing_config_versions")

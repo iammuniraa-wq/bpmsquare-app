@@ -9,6 +9,7 @@ import {
 import { buildPricingDocumentRow, type PricingCallMeta, type PricingDocumentRow, type PricingDocumentSource } from "./documents";
 import { productCostCandidate, PURCHASE_PATH } from "./costSheet";
 import { tenantToday } from "@/lib/tenantClock";
+import { missingColumnName } from "./quoteLineFlags";
 
 // Persistence adapter for the pricing engine (spec §11.1): the ONLY place
 // that maps ontology tables into the pure core's types. The core never sees
@@ -71,17 +72,39 @@ export async function loadPricingConfig(
     dslVersion = (row.dsl_version as number) ?? 1;
   }
 
-  const [{ data: procedures }, { data: components }, { data: rules }, { data: dimensions }, { data: models }, { data: inputs }] =
-    await Promise.all([
-      admin.from("pricing_procedures").select("code, name, entry_mode, steps").eq("tenant_id", tenantId).eq("config_version", version),
-      admin.from("pricing_components").select("*").eq("tenant_id", tenantId).eq("config_version", version),
-      admin.from("pricing_rules").select("*").eq("tenant_id", tenantId).eq("config_version", version),
-      admin.from("pricing_dimensions").select("attribute, weight").eq("tenant_id", tenantId),
-      admin.from("pricing_cost_models").select("code, name, sources").eq("tenant_id", tenantId).eq("config_version", version),
-      // Tenant-wide rates only. Product-specific figures (an RFQ reply, an
-      // imported price-list cost) are line candidates -- see productCostCandidates.
-      admin.from("pricing_cost_inputs").select("*").eq("tenant_id", tenantId).is("product_id", null),
-    ]);
+  // pricing_area on these four tables (0121) scopes a version's content to
+  // the ONE Price Book it belongs to -- without it, two Price Books that
+  // happen to share a version number (every fresh book starts at v1)
+  // silently pool their components/procedures/rules/cost models together.
+  // Tolerates 0121 being pending: retries unscoped, same "never crash on a
+  // late migration" contract as insertLinesTolerant -- the bug this
+  // migration fixes simply persists a little longer, rather than the whole
+  // Pricing workcenter breaking the instant this code deploys.
+  const loadVersionedRows = (scoped: boolean) => Promise.all([
+    scoped
+      ? admin.from("pricing_procedures").select("code, name, entry_mode, steps").eq("tenant_id", tenantId).eq("pricing_area", area).eq("config_version", version)
+      : admin.from("pricing_procedures").select("code, name, entry_mode, steps").eq("tenant_id", tenantId).eq("config_version", version),
+    scoped
+      ? admin.from("pricing_components").select("*").eq("tenant_id", tenantId).eq("pricing_area", area).eq("config_version", version)
+      : admin.from("pricing_components").select("*").eq("tenant_id", tenantId).eq("config_version", version),
+    scoped
+      ? admin.from("pricing_rules").select("*").eq("tenant_id", tenantId).eq("pricing_area", area).eq("config_version", version)
+      : admin.from("pricing_rules").select("*").eq("tenant_id", tenantId).eq("config_version", version),
+    admin.from("pricing_dimensions").select("attribute, weight").eq("tenant_id", tenantId),
+    scoped
+      ? admin.from("pricing_cost_models").select("code, name, sources").eq("tenant_id", tenantId).eq("pricing_area", area).eq("config_version", version)
+      : admin.from("pricing_cost_models").select("code, name, sources").eq("tenant_id", tenantId).eq("config_version", version),
+    // Tenant-wide rates only. Product-specific figures (an RFQ reply, an
+    // imported price-list cost) are line candidates -- see productCostCandidates.
+    admin.from("pricing_cost_inputs").select("*").eq("tenant_id", tenantId).is("product_id", null),
+  ]);
+
+  let [procRes, compRes, ruleRes, dimRes, modelRes, inputRes] = await loadVersionedRows(true);
+  const firstError = procRes.error ?? compRes.error ?? ruleRes.error ?? modelRes.error;
+  if (firstError && missingColumnName(firstError) === "pricing_area") {
+    [procRes, compRes, ruleRes, dimRes, modelRes, inputRes] = await loadVersionedRows(false);
+  }
+  const procedures = procRes.data, components = compRes.data, rules = ruleRes.data, dimensions = dimRes.data, models = modelRes.data, inputs = inputRes.data;
 
   const registry: DimensionRegistry = {};
   for (const d of dimensions ?? []) registry[d.attribute as string] = Number(d.weight);
