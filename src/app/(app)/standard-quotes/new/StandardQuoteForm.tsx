@@ -703,6 +703,7 @@ export default function StandardQuoteForm({
   }
 
   const [aiJobDesc, setAiJobDesc] = useState("");
+  const [aiOpen, setAiOpen] = useState(false);
   const [aiDrafting, setAiDrafting] = useState(false);
   const [aiIntroDrafting, setAiIntroDrafting] = useState(false);
 
@@ -851,13 +852,13 @@ export default function StandardQuoteForm({
     setStep("lines");
     if (typeof window !== "undefined") window.scrollTo({ top: 0 });
   }
-  function stepTab(key: "details" | "lines", n: string, label: string) {
+  function stepTab(key: "details" | "lines", n: string, label: string, compact = false) {
     const active = step === key;
     return (
       <button
         type="button" onClick={() => (key === "lines" ? goToLines() : setStep("details"))}
         style={{
-          display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600,
+          display: "inline-flex", alignItems: "center", gap: 8, padding: compact ? "6px 10px" : "8px 14px", fontSize: compact ? 12.5 : 13, fontWeight: 600,
           color: active ? c.accent : c.muted, background: "none", border: "none", borderBottom: `2px solid ${active ? c.accent : "transparent"}`,
           marginBottom: -1, cursor: "pointer",
         }}
@@ -887,23 +888,28 @@ export default function StandardQuoteForm({
 
   return (
     <>
-      <div style={{ marginBottom: 12 }}>
-        <Link href={editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          ← {editQuote ? editQuote.ref : "All standard quotes"}
-        </Link>
-      </div>
-
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>{editQuote ? `Edit ${editQuote.ref}` : "New Standard Quote"}</h1>
-        <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>A plain quote for an account — line items, discount, tax, shipping</p>
-      </div>
+      {/* Page 2 gives the whole screen to the lines: its title, tabs and
+          essentials all sit in the one pinned bar, so the page chrome
+          below renders for page 1 only. */}
+      {step === "details" && (
+        <>
+          <div style={{ marginBottom: 12 }}>
+            <Link href={editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
+              ← {editQuote ? editQuote.ref : "All standard quotes"}
+            </Link>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>{editQuote ? `Edit ${editQuote.ref}` : "New Standard Quote"}</h1>
+            <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>A plain quote for an account — line items, discount, tax, shipping</p>
+          </div>
+          <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: `1px solid ${c.line}` }}>
+            {stepTab("details", "1", "Quote details")}
+            {stepTab("lines", "2", lineCount > 0 ? `Line items (${lineCount})` : "Line items")}
+          </div>
+        </>
+      )}
 
       <form onSubmit={handleSubmit}>
-        <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: `1px solid ${c.line}` }}>
-          {stepTab("details", "1", "Quote details")}
-          {stepTab("lines", "2", lineCount > 0 ? `Line items (${lineCount})` : "Line items")}
-        </div>
-
         {step === "details" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -997,9 +1003,17 @@ export default function StandardQuoteForm({
               ? { position: "fixed" as const, top: 0, left: pin.left, width: pin.width, zIndex: 20, borderRadius: "0 0 10px 10px", boxShadow: "0 4px 14px rgba(0,0,0,0.12)", boxSizing: "border-box" as const }
               : { borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }),
           }}>
+            <Link href={editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes} title={editQuote ? `Back to ${editQuote.ref}` : "All standard quotes"} style={{ fontSize: 14, color: c.muted, textDecoration: "none", whiteSpace: "nowrap" }}>←</Link>
+            <div style={{ display: "flex", alignItems: "center", margin: "-10px 0" }}>
+              {stepTab("details", "1", "Details", true)}
+              {stepTab("lines", "2", lineCount > 0 ? `Lines (${lineCount})` : "Lines", true)}
+            </div>
+            <div style={{ width: 1, alignSelf: "stretch", background: c.line }} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountName || "No account"}</div>
-              <div style={{ fontSize: 11.5, color: c.hint }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {editQuote ? editQuote.ref : "New Standard Quote"} · {accountName || "No account"}
+              </div>
+              <div style={{ fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>
                 {contactName || "No contact"}{validUntil ? ` · valid until ${validUntil}` : ""}
                 <button type="button" onClick={() => setStep("details")} style={{ marginLeft: 8, fontSize: 11.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}>Edit details</button>
               </div>
@@ -1019,29 +1033,6 @@ export default function StandardQuoteForm({
           </div>
           </div>
           {errorBox}
-            <section style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 10px" }}>Draft line items with AI</h3>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  style={inp}
-                  value={aiJobDesc}
-                  onChange={(e) => setAiJobDesc(e.target.value)}
-                  placeholder="Describe the job — e.g. install 3 split ACs and set up an annual AMC"
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); draftLinesWithAI(); } }}
-                />
-                <button
-                  type="button" disabled={aiDrafting || !aiJobDesc.trim()} onClick={draftLinesWithAI}
-                  style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 8, padding: "0 16px", cursor: aiDrafting ? "wait" : "pointer" }}
-                >
-                  {aiDrafting ? "Drafting…" : "✨ Draft with AI"}
-                </button>
-              </div>
-              <p style={{ fontSize: 11.5, color: c.hint, margin: "6px 0 0" }}>
-                AI suggests description, UOM, and quantity — rates are left at ₹0 for you to price.
-              </p>
-            </section>
-
-
             <section style={cardStyle}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
                 <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: 0 }}>Line items</h3>
@@ -1066,7 +1057,35 @@ export default function StandardQuoteForm({
                     {priceAllBusy ? "Pricing all…" : "⚡ Price all"}
                   </button>
                 )}
+                <button
+                  type="button" onClick={() => setAiOpen((o) => !o)}
+                  title="Describe the job and let AI draft the line items"
+                  style={{ marginLeft: pricingEngineQuotesEnabled && products.length > 0 && lines.some((l) => l.product_id) ? 0 : "auto", fontSize: 12, fontWeight: 600, color: aiOpen ? c.accent : c.muted, background: "none", border: `1px solid ${aiOpen ? c.accent : c.line}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}
+                >
+                  ✨ Draft with AI
+                </button>
               </div>
+              {aiOpen && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      style={cinp}
+                      autoFocus
+                      value={aiJobDesc}
+                      onChange={(e) => setAiJobDesc(e.target.value)}
+                      placeholder="Describe the job — e.g. install 3 split ACs and set up an annual AMC"
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); draftLinesWithAI(); } }}
+                    />
+                    <button
+                      type="button" disabled={aiDrafting || !aiJobDesc.trim()} onClick={draftLinesWithAI}
+                      style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "0 14px", cursor: aiDrafting ? "wait" : "pointer" }}
+                    >
+                      {aiDrafting ? "Drafting…" : "Draft"}
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 11, color: c.hint, margin: "4px 0 0" }}>AI suggests description, UOM and quantity — rates are left at ₹0 for you to price.</p>
+                </div>
+              )}
 
               <div style={{ overflowX: "auto" }}>
                 <div style={{ minWidth: 720, border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden" }}>
