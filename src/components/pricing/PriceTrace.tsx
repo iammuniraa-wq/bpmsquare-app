@@ -10,9 +10,29 @@ import { c } from "@/lib/theme";
 export type PriceTraceStep = {
   step: number; component?: string; subtotal?: string; status: string; reason?: string;
   rule_id?: string; matched_on?: Record<string, unknown>; specificity?: number;
-  inputs?: { path: string; rate: number; qty: number }[]; basis?: number; value?: number; result?: number;
+  inputs?: { path: string; rate: number; qty: number; source?: string | null; quality?: string | null; as_of?: string | null }[];
+  basis?: number; value?: number; result?: number;
   statistical?: boolean; manual?: boolean;
 };
+
+// Where a cost figure came from, in the words the setup ladder uses -- the
+// rep sees the same names the admin configured.
+const SOURCE_LABEL: Record<string, string> = {
+  PRODUCT_COST: "ERP cost price on the product",
+  RFQ: "supplier RFQ reply",
+  PRICE_LIST: "imported cost price list",
+  MANUAL: "rate kept by hand",
+};
+
+/** "supplier RFQ reply, confirmed, as of 2026-09-06" -- empty when the
+ *  input carries no provenance (a plain cost-model rate). */
+export function describeCostSource(inp: { source?: string | null; quality?: string | null; as_of?: string | null }): string {
+  if (!inp.source) return "";
+  const parts = [SOURCE_LABEL[inp.source] ?? inp.source];
+  if (inp.quality) parts.push(inp.quality);
+  if (inp.as_of) parts.push(`as of ${inp.as_of}`);
+  return parts.join(", ");
+}
 
 const mono: React.CSSProperties = { fontFamily: "monospace", fontSize: 11.5 };
 const th: React.CSSProperties = { textAlign: "left", fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, padding: "6px 8px", borderBottom: `1px solid ${c.line}` };
@@ -51,11 +71,18 @@ export default function PriceTrace({ steps, currency, compact = false }: { steps
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {steps.map((t, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12, color: t.status === "SUBTOTAL" ? c.ink : c.muted, fontWeight: t.status === "SUBTOTAL" ? 600 : 400 }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{describeTraceStep(t)}</span>
-            <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: (t.result ?? 0) < 0 ? "var(--err-ink)" : undefined }}>
-              {t.result !== undefined ? fmt(t.result) : ""}
-            </span>
+          <div key={i}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12, color: t.status === "SUBTOTAL" ? c.ink : c.muted, fontWeight: t.status === "SUBTOTAL" ? 600 : 400 }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{describeTraceStep(t)}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: (t.result ?? 0) < 0 ? "var(--err-ink)" : undefined }}>
+                {t.result !== undefined ? fmt(t.result) : ""}
+              </span>
+            </div>
+            {t.inputs?.filter((inp) => inp.qty !== 0).map((inp, j) => (
+              <div key={j} style={{ fontSize: 11, color: c.hint, paddingLeft: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {fmt(inp.rate)} × {fmt(inp.qty)}{describeCostSource(inp) ? ` · from ${describeCostSource(inp)}` : ""}
+              </div>
+            ))}
           </div>
         ))}
         {currency && <div style={{ fontSize: 11, color: c.hint }}>Amounts in {currency}</div>}
@@ -74,7 +101,7 @@ export default function PriceTrace({ steps, currency, compact = false }: { steps
             <td style={{ ...td, fontSize: 11.5, color: c.muted }}>
               {t.reason && <div>{t.reason}</div>}
               {t.rule_id && <div>rule <span style={mono}>{t.rule_id.slice(0, 8)}</span>{t.specificity !== undefined ? ` · specificity ${t.specificity}` : ""}{t.matched_on && Object.keys(t.matched_on).length > 0 ? ` · ${describeMatch(t.matched_on)}` : ""}</div>}
-              {t.inputs?.map((inp, j) => <div key={j} style={mono}>{inp.path}: {inp.rate} × {inp.qty}</div>)}
+              {t.inputs?.map((inp, j) => <div key={j} style={mono}>{inp.path}: {inp.rate} × {inp.qty}{describeCostSource(inp) ? ` · ${describeCostSource(inp)}` : ""}</div>)}
               {t.basis !== undefined && <div>basis {fmt(t.basis)}</div>}
             </td>
             <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums", color: (t.result ?? 0) < 0 ? "var(--err-ink)" : c.ink }}>
