@@ -3,7 +3,7 @@ import type { CompanyInfo } from "@/lib/tenant";
 import { Mail, Globe, MapPin } from "@/components/Icons";
 import { defaultStandardQuoteBlocks } from "@/lib/standardQuoteTemplateBlocks";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
-import { documentTotal } from "@/lib/sales/lineTotals";
+import { documentTotal, selectedLines } from "@/lib/sales/lineTotals";
 import { linesForPdf, parsePrintOptions } from "@/lib/sales/printOptions";
 
 export type StandardQuotePrintDocumentProps = {
@@ -91,6 +91,7 @@ export default function StandardQuotePrintDocument({
   // quantities appear, and can hide any single line -- presentation only,
   // the totals above never change.
   const printLines = linesForPdf(lines, parsePrintOptions(quote.print_options));
+  const chosenGroupIds = new Set(selectedLines(lines).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string));
   const hasBreakdown = quote.header_discount_pct > 0 || quote.tax_pct > 0 || quote.shipping_amount > 0;
   const logoIni = initials(co.name || "?");
 
@@ -216,21 +217,26 @@ export default function StandardQuotePrintDocument({
                 // hidden row must not leave a gap.
                 const notChosen = l.is_selected === false;
                 const isBreak = !!l.break_of;
+                // A break family inside an option (0118): the option's own
+                // "not selected" is about the GROUP, the quantity's about the
+                // row -- never both on one row for the same reason.
+                const groupNotChosen = l.group_type === "alternative" && !!l.group_id && !chosenGroupIds.has(l.group_id);
+                const qtyNotChosen = notChosen && !groupNotChosen;
                 return (
                 <tr key={l.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff", breakInside: "avoid", opacity: notChosen ? 0.5 : 1 }}>
                   <td style={{ padding: "7px 12px 7px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{i + 1}</td>
                   <td style={{ padding: "7px 12px", fontSize: 12.5 }}>
                     {l.group_type === "alternative" && (
-                      <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: notChosen ? "#8a96a5" : accent }}>
-                        {l.group_label || "Option"}{notChosen ? " — not selected" : ""}
+                      <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: groupNotChosen ? "#8a96a5" : accent }}>
+                        {l.group_label || "Option"}{groupNotChosen ? " — not selected" : ""}
                       </span>
                     )}
                     {isBreak && (
                       <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: notChosen ? "#8a96a5" : accent }}>
-                        Qty {l.qty}{notChosen ? " — not selected" : ""}
+                        Qty {l.qty}{qtyNotChosen ? " — not selected" : ""}
                       </span>
                     )}
-                    {!isBreak && l.group_type !== "alternative" && notChosen && (
+                    {!isBreak && (l.group_type !== "alternative" || !groupNotChosen) && notChosen && (
                       <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "#8a96a5" }}>
                         Base quantity — not selected
                       </span>

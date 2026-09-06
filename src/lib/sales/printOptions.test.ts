@@ -44,8 +44,22 @@ describe("linesForPdf", () => {
       L("b10", { group_id: "g2", group_type: "alternative", break_of: "b", break_qty: 10, is_selected: false }),
     ];
     expect(linesForPdf(lines, { alternatives: "chosen", breaks: "all" }).map((l) => l.id)).toEqual(["a"]);
-    expect(linesForPdf(lines, { alternatives: "all", breaks: "chosen" }).map((l) => l.id)).toEqual(["a"]);
+    // The unchosen option prints with only its would-be quantity (the base).
+    expect(linesForPdf(lines, { alternatives: "all", breaks: "chosen" }).map((l) => l.id)).toEqual(["a", "b"]);
     expect(linesForPdf(lines, { alternatives: "all", breaks: "all" }).map((l) => l.id)).toEqual(["a", "b", "b10"]);
+  });
+
+  it("a break inside the CHOSEN option follows the breaks rule even when alternatives = chosen", () => {
+    const lines = [
+      L("a", { group_id: "g1", group_type: "alternative", is_selected: true }),
+      L("a2", { group_id: "g1", group_type: "alternative", break_of: "a", break_qty: 2, is_selected: false }),
+      L("a5", { group_id: "g1", group_type: "alternative", break_of: "a", break_qty: 5, is_selected: false, show_on_pdf: false }),
+      L("b", { group_id: "g2", group_type: "alternative", is_selected: false }),
+    ];
+    expect(linesForPdf(lines, { alternatives: "chosen", breaks: "all" }).map((l) => l.id)).toEqual(["a", "a2"]);
+    expect(linesForPdf(lines, { alternatives: "chosen", breaks: "chosen" }).map((l) => l.id)).toEqual(["a"]);
+    const withBreakChosen = lines.map((l) => (l.id === "a" ? { ...l, is_selected: false } : l.id === "a2" ? { ...l, is_selected: true } : l));
+    expect(linesForPdf(withBreakChosen, { alternatives: "chosen", breaks: "chosen" }).map((l) => l.id)).toEqual(["a2"]);
   });
 });
 
