@@ -472,8 +472,20 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
-- **0121_pricing_area_isolation.sql — PENDING on both DBs** (written
-  2026-09-06, found live while building the Catalog + Formula pricing
+- **0121_pricing_area_isolation.sql — applied to the demo DB** (owner ran it
+  2026-09-06; a syntax fix was needed first -- `UPDATE ... FROM LATERAL`
+  cannot reference its own update target in Postgres (42P10), rewritten as
+  correlated scalar subqueries with `coalesce(...)` -- **still PENDING on
+  the other DB**). Verified live after applying: Default's Cost-based v2
+  (published) and v1 (superseded) both intact, same timestamps; a fresh
+  Test & Trace on Default resolved unambiguously to `COST_SIMULATOR` with
+  no cross-book bleed. The two throwaway test Price Books
+  (`catalog_formula_demo`, `catalog_formula_clean_test`) were removed via
+  the app's own "Discard" button, now safe again post-migration, rather
+  than the raw SQL cleanup originally drafted here -- both areas confirmed
+  gone from the Price Book picker; Default confirmed unaffected throughout.
+  Original bug write-up follows, written 2026-09-06, found live while
+  building the Catalog + Formula pricing
   technique, `docs/pricing-engine-architecture.md` §19). Real, pre-existing
   bug: `pricing_components`/`pricing_procedures`/`pricing_rules`/
   `pricing_cost_models` (0083) had no `pricing_area` column, only
@@ -492,13 +504,11 @@ deploy for an automatic schema change.
   scoped by it, and reads/non-destructive writes tolerate the migration
   being pending (degrade to the pre-fix behavior, not a crash); the
   "Discard" delete refuses instead of degrading, since silently doing the
-  unscoped delete is the dangerous direction. **Cleanup once applied**: two
-  throwaway DRAFT test Price Books were created live on the demo tenant
-  while finding this (`catalog_formula_demo`, `catalog_formula_clean_test`)
-  -- once `pricing_area` exists and rows are correctly attributed, delete
-  their `pricing_config_versions`/components/procedures/rules/cost_models
-  rows by `pricing_area in ('catalog_formula_demo','catalog_formula_clean_test')`;
-  the real Default book is untouched throughout.
+  unscoped delete is the dangerous direction. **Cleanup: done** (see the
+  note at the top of this entry) -- both throwaway test Price Books were
+  removed via Discard once the migration made it safe again; no SQL cleanup
+  was needed after all. The real Default book was untouched throughout.
+  **Still to do**: run this migration on the other database.
 - **0120_opportunities.sql — PENDING on both DBs** (written 2026-09-06,
   Sales Engine Piece B, `docs/sales-engine-architecture.md` §4). Tables
   `opportunities` and `opportunity_lines` (RLS + tenant-isolation policies
