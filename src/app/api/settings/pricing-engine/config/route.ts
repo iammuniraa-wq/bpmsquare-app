@@ -4,6 +4,42 @@ import { resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
 import { parseFormula, type CostSourceDef } from "@/lib/pricing-core";
 import { COMPONENT_ENUMS, COST_INPUT_KINDS, COST_QUALITIES } from "@/lib/pricing/enums";
 import { validateSources } from "@/lib/pricing/validate";
+import { missingColumnName } from "@/lib/pricing/quoteLineFlags";
+
+// pricing_area (0121) scopes component/procedure/rule/cost_model rows to the
+// ONE Price Book they belong to -- without it, two books sharing a version
+// number (every fresh book starts at v1) pool their rows together at pricing
+// time. Non-destructive writes (upsert) degrade to the old unscoped shape
+// while 0121 is pending, same "never crash on a late migration" contract as
+// insertLinesTolerant; a delete that would otherwise reach into another
+// Price Book's rows refuses instead (see the DELETE branches below) -- a
+// destructive write fails safe, it does not silently do the dangerous thing.
+const AREA_CONFLICT: Record<string, string> = {
+  pricing_components: "tenant_id,pricing_area,config_version,code",
+  pricing_procedures: "tenant_id,pricing_area,config_version,code",
+  pricing_cost_models: "tenant_id,pricing_area,config_version,code",
+};
+const LEGACY_CONFLICT: Record<string, string> = {
+  pricing_components: "tenant_id,config_version,code",
+  pricing_procedures: "tenant_id,config_version,code",
+  pricing_cost_models: "tenant_id,config_version,code",
+};
+
+async function upsertVersioned(admin: ReturnType<typeof createAdminSupabase>, table: keyof typeof AREA_CONFLICT, row: Record<string, unknown>, area: string) {
+  const { error } = await admin.from(table).upsert({ ...row, pricing_area: area }, { onConflict: AREA_CONFLICT[table] });
+  if (error && missingColumnName(error) === "pricing_area") {
+    return admin.from(table).upsert(row, { onConflict: LEGACY_CONFLICT[table] });
+  }
+  return { error };
+}
+
+async function deleteVersionedByCode(admin: ReturnType<typeof createAdminSupabase>, table: string, tenantId: string, area: string, version: number, code: string) {
+  const { error } = await admin.from(table).delete().eq("tenant_id", tenantId).eq("pricing_area", area).eq("config_version", version).eq("code", code);
+  if (error && missingColumnName(error) === "pricing_area") {
+    return { error: { message: `Delete is disabled until migration 0121 (pricing_area) is applied -- it would otherwise risk deleting another Price Book's "${code}".` } };
+  }
+  return { error };
+}
 
 // One mutation surface for all PricingEngine config entities (admin,
 // session-auth, service-role writes — the pricing tables are select-only
@@ -92,9 +128,8 @@ export async function POST(req: Request) {
       const code = typeof data.code === "string" ? data.code.trim().toUpperCase() : "";
       if (!code) return bad("component needs `code`.");
       if (op === "delete") {
-        const { error } = await admin.from("pricing_components").delete()
-          .eq("tenant_id", tenantId).eq("config_version", version!).eq("code", code);
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        const { error } = await deleteVersionedByCode(admin, "pricing_components", tenantId, area, version!, code);
+        if (error) return NextResponse.json({ error: error.message }, { status: error.message.startsWith("Delete is disabled") ? 409 : 500 });
         return NextResponse.json({ ok: true });
       }
       for (const [field, allowed] of Object.entries(COMPONENT_ENUMS)) {
@@ -103,7 +138,7 @@ export async function POST(req: Request) {
           return bad(`component.${field} must be one of: ${(allowed as readonly string[]).join(", ")}.`);
         }
       }
-      const { error } = await admin.from("pricing_components").upsert({
+      const { error } = await upsertVersioned(admin, "pricing_components", {
         tenant_id: tenantId, config_version: version!, code,
         name: (data.name as string) ?? code,
         class: (data.class as string) ?? "PRICE",
@@ -114,7 +149,7 @@ export async function POST(req: Request) {
         manual_override: (data.manual_override as string) ?? "FORBIDDEN",
         is_statistical: Boolean(data.is_statistical),
         resolution_strategy: (data.resolution_strategy as string) ?? "MOST_SPECIFIC",
-      }, { onConflict: "tenant_id,config_version,code" });
+      }, area);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ ok: true });
     }
@@ -124,9 +159,8 @@ export async function POST(req: Request) {
       const code = typeof data.code === "string" ? data.code.trim().toUpperCase() : "";
       if (!code) return bad("procedure needs `code`.");
       if (op === "delete") {
-        const { error } = await admin.from("pricing_procedures").delete()
-          .eq("tenant_id", tenantId).eq("config_version", version!).eq("code", code);
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        const { error } = await deleteVersionedByCode(admin, "pricing_procedures", tenantId, area, version!, code);
+        if (error) return NextResponse.json({ error: error.message }, { status: error.message.startsWith("Delete is disabled") ? 409 : 500 });
         return NextResponse.json({ ok: true });
       }
       const steps = data.steps;
@@ -137,10 +171,10 @@ export async function POST(req: Request) {
       }
       const entryMode = (data.entry_mode as string) ?? "LIST_DOWN";
       if (!["LIST_DOWN", "COST_UP"].includes(entryMode)) return bad("entry_mode must be LIST_DOWN or COST_UP.");
-      const { error } = await admin.from("pricing_procedures").upsert({
+      const { error } = await upsertVersioned(admin, "pricing_procedures", {
         tenant_id: tenantId, config_version: version!, code,
         name: (data.name as string) ?? code, entry_mode: entryMode, steps,
-      }, { onConflict: "tenant_id,config_version,code" });
+      }, area);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ ok: true });
     }
@@ -150,6 +184,9 @@ export async function POST(req: Request) {
       if (op === "delete") {
         const id = typeof data.id === "string" ? data.id : "";
         if (!id) return bad("rule delete needs `id`.");
+        // `id` is a UUID -- already immune to the cross-book collision this
+        // migration fixes -- so this stays a plain delete-by-id, unlike the
+        // whole-version discard and the delete-by-code cases above.
         const { error } = await admin.from("pricing_rules").delete()
           .eq("tenant_id", tenantId).eq("config_version", version!).eq("id", id);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -186,15 +223,24 @@ export async function POST(req: Request) {
         valid_to: (data.valid_to as string) ?? null,
         origin: "MANUAL", created_by: userId,
       };
+      // pricing_area (0121): a rule's own `id` is a UUID (never collides
+      // across Price Books), but the row still needs to carry its area so a
+      // future read of THIS area doesn't miss it -- tolerant of 0121 pending.
       if (typeof data.id === "string" && data.id) {
-        const { error } = await admin.from("pricing_rules").update(row)
+        let { error } = await admin.from("pricing_rules").update({ ...row, pricing_area: area })
           .eq("tenant_id", tenantId).eq("config_version", version!).eq("id", data.id);
+        if (error && missingColumnName(error) === "pricing_area") {
+          ({ error } = await admin.from("pricing_rules").update(row).eq("tenant_id", tenantId).eq("config_version", version!).eq("id", data.id));
+        }
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         return NextResponse.json({ ok: true, id: data.id });
       }
-      const { data: created, error } = await admin.from("pricing_rules").insert(row).select("id").single();
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ ok: true, id: created.id }, { status: 201 });
+      let created = await admin.from("pricing_rules").insert({ ...row, pricing_area: area }).select("id").single();
+      if (created.error && missingColumnName(created.error) === "pricing_area") {
+        created = await admin.from("pricing_rules").insert(row).select("id").single();
+      }
+      if (created.error) return NextResponse.json({ error: created.error.message }, { status: 500 });
+      return NextResponse.json({ ok: true, id: created.data.id }, { status: 201 });
     }
 
     // ── cost models ───────────────────────────────────────────────────────
@@ -202,9 +248,8 @@ export async function POST(req: Request) {
       const code = typeof data.code === "string" ? data.code.trim().toUpperCase() : "";
       if (!code) return bad("cost_model needs `code`.");
       if (op === "delete") {
-        const { error } = await admin.from("pricing_cost_models").delete()
-          .eq("tenant_id", tenantId).eq("config_version", version!).eq("code", code);
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        const { error } = await deleteVersionedByCode(admin, "pricing_cost_models", tenantId, area, version!, code);
+        if (error) return NextResponse.json({ error: error.message }, { status: error.message.startsWith("Delete is disabled") ? 409 : 500 });
         return NextResponse.json({ ok: true });
       }
       // The source ladder (0113): validated here so a broken rung can never
@@ -215,17 +260,17 @@ export async function POST(req: Request) {
         if ("error" in check) return bad(check.error);
         sources = check.sources;
       }
-      const { error } = await admin.from("pricing_cost_models").upsert({
+      const { error } = await upsertVersioned(admin, "pricing_cost_models", {
         tenant_id: tenantId, config_version: version!, code, name: (data.name as string) ?? code,
         ...(sources !== undefined ? { sources } : {}),
-      }, { onConflict: "tenant_id,config_version,code" });
+      }, area);
       if (error) {
         // 42703 = sources column missing: migration 0113 pending. Keep the
         // model editable without the ladder rather than failing authoring.
         if (sources !== undefined && (error.code === "42703" || /sources/.test(error.message))) {
-          const { error: retry } = await admin.from("pricing_cost_models").upsert({
+          const { error: retry } = await upsertVersioned(admin, "pricing_cost_models", {
             tenant_id: tenantId, config_version: version!, code, name: (data.name as string) ?? code,
-          }, { onConflict: "tenant_id,config_version,code" });
+          }, area);
           if (retry) return NextResponse.json({ error: retry.message }, { status: 500 });
           return NextResponse.json({ ok: true, warning: "Source ladder not saved: migration 0113 is pending." });
         }

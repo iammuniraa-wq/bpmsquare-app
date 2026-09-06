@@ -1041,3 +1041,32 @@ would need.
    first; the AI ask/edit and anomaly-digest pieces (Batches 5/6) have
    something real to point at only once quotes are actually flowing
    through it.
+
+### 19.6 A real bug this pressure test found: Price Books were never actually isolated from each other
+
+Building the Catalog + Formula template and testing it live surfaced a
+pre-existing defect that predates this technique entirely: `pricing_config_versions`
+is correctly scoped per `(tenant_id, pricing_area, version)`, but the four
+tables that hold a version's actual content —
+`pricing_components`/`pricing_procedures`/`pricing_rules`/`pricing_cost_models`
+(0083) — only ever carried `config_version`, no `pricing_area`. Since every
+new Price Book starts at version 1, any two Price Books that reach the same
+version number silently pool their rows together at pricing time; a fresh
+book's cost formula was observed reading the Default book's own
+(superseded) cost rate instead of its own. The same missing filter meant
+"Discard" on one book's draft could delete another book's rows by
+`config_version` alone — including published or superseded history the
+route's own comment says must be immutable.
+
+Fixed in migration 0121 (`pricing_area` added to all four tables, backfilled
+via an as-of join against `pricing_config_versions.created_at`, uniqueness/
+lookup keys widened) plus every read/write site in `src/lib/pricing/server.ts`
+and `api/settings/pricing-engine/{config,versions,versions/[version]}`.
+Reads and non-destructive writes tolerate the migration being pending (same
+contract as `insertLinesTolerant`); the destructive "Discard" delete refuses
+instead of degrading — see PROJECT.md's ledger entry for the exact scope and
+the cleanup needed for two throwaway test Price Books created while finding
+this. This was a latent bug in every one of the four pre-existing techniques
+too, not something Catalog + Formula introduced — it only surfaced now
+because this was the first time a second real Price Book was created
+against a tenant with pre-existing pricing history.

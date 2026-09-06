@@ -472,6 +472,33 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
+- **0121_pricing_area_isolation.sql — PENDING on both DBs** (written
+  2026-09-06, found live while building the Catalog + Formula pricing
+  technique, `docs/pricing-engine-architecture.md` §19). Real, pre-existing
+  bug: `pricing_components`/`pricing_procedures`/`pricing_rules`/
+  `pricing_cost_models` (0083) had no `pricing_area` column, only
+  `config_version` -- since every fresh Price Book starts at v1, any two
+  Price Books at the same version number silently pooled their content
+  together at pricing time (reproduced: a new book's cost formula read the
+  Default book's OWN superseded-v1 cost rate instead of its own). Worse,
+  "Discard" deleted by `config_version` alone too, so discarding one book's
+  draft could destroy another book's rows, including published/superseded
+  "immutable" history. Migration adds `pricing_area` to all four tables,
+  backfills it via an as-of join against `pricing_config_versions.created_at`
+  (correct for every tenant; only the demo tenant has ever used more than
+  one Price Book), and widens the uniqueness/lookup keys to include it.
+  Every query in `src/lib/pricing/server.ts` and
+  `api/settings/pricing-engine/{config,versions,versions/[version]}` is
+  scoped by it, and reads/non-destructive writes tolerate the migration
+  being pending (degrade to the pre-fix behavior, not a crash); the
+  "Discard" delete refuses instead of degrading, since silently doing the
+  unscoped delete is the dangerous direction. **Cleanup once applied**: two
+  throwaway DRAFT test Price Books were created live on the demo tenant
+  while finding this (`catalog_formula_demo`, `catalog_formula_clean_test`)
+  -- once `pricing_area` exists and rows are correctly attributed, delete
+  their `pricing_config_versions`/components/procedures/rules/cost_models
+  rows by `pricing_area in ('catalog_formula_demo','catalog_formula_clean_test')`;
+  the real Default book is untouched throughout.
 - **0120_opportunities.sql — PENDING on both DBs** (written 2026-09-06,
   Sales Engine Piece B, `docs/sales-engine-architecture.md` §4). Tables
   `opportunities` and `opportunity_lines` (RLS + tenant-isolation policies
