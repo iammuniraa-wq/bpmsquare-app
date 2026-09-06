@@ -184,12 +184,35 @@ Two halves, both needed:
   strip *any* missing column PostgREST names (not a hardcoded list, retry
   capped at 8) so the new group columns degrade the same way the 0114
   pricing columns already did.
-- **Not yet built:** quantity breaks (§3.4) have no UI on either quote
-  object — the schema and `lineTotals.ts` already support them (a break
-  row is just another line with `break_of` set). Quotations
-  (`QuoteForm.tsx`) has not been touched in this slice at all — it
-  already has alternatives; Price all lines there is next, and it is the
-  only remaining Piece A item Quotations needs.
+- **Quotations (`QuoteForm.tsx`):** Price all lines, auto re-price and
+  rate-override built the same way (slice 3) -- prices every product line
+  across every row (flat lines and every group's items, alternative or
+  not) in one call. Nothing else about Quotations was touched: its
+  existing alternative-group total (client `allLineItems` and server
+  `api/quotes/[id]/edit`) already correctly excluded the non-chosen
+  option before this piece -- confirmed by reading both, not assumed.
+- **Quantity breaks (§3.4), Standard Quotes only:** "+ Add quantity
+  break" under a top-level line (not inside an alternative option, in
+  this UI) adds a named quantity band; a radio picks the base quantity or
+  one break as the one that's charged; `Price with engine` on a break
+  prices that specific quantity. **Schema correction found while
+  building this:** `break_of` was created in 0116 as a hard foreign key
+  (`uuid references standard_quote_lines(id)`), but both quote objects
+  delete every line and re-insert the whole set on every save -- a new
+  break and its new parent line are always created in the SAME insert,
+  so neither side can know the parent's real row id before the statement
+  runs, exactly the problem `group_id` already solves by being a plain,
+  unconstrained tag. Migration 0117 drops the FK and changes the column
+  to `text`. `src/lib/pricing/quoteLineFlags.ts`'s new
+  `resolveLineIdsAndSelection()` is the server-side fix: the client sends
+  each line a `local_id` (meaningful only within that one request) and,
+  on a break row, `break_of` naming its parent's `local_id`; the server
+  assigns the real id each row is about to be inserted with, resolves
+  `break_of` to it, and drops any `break_of` that doesn't match another
+  line in the exact same submitted batch -- the same "never trust a
+  foreign id from the request body" rule as everywhere else
+  (MULTI_TENANT_GUARDRAILS.md), at the tightest possible scope. 11 new
+  unit tests, including the cross-batch-leak case.
 
 **Validated on the demo, 2026-09-06** (SQ-2026-0003, since deleted):
 Price all lines priced three product lines in one call; changing line 1's

@@ -472,19 +472,31 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
-- **0116_sales_line_contract.sql — PENDING on both DBs** (written
-  2026-09-06, Sales Engine Piece A, `docs/sales-engine-architecture.md`
-  §3.1: the shared document-line contract). Lifts Quotations' alternative
-  option-group columns (`group_id`/`group_label`/`group_type`, already on
-  `quote_lines` since 0047) onto `standard_quote_lines`, and adds quantity-
-  break columns (`break_of`, `break_qty`, `is_selected`) to both
-  `quote_lines` and `standard_quote_lines`. `is_selected` defaults `true`,
-  so every existing row keeps counting exactly as it does today until a
-  quote actually uses a group or a break. Nothing in the app writes these
-  new columns yet except `is_selected`'s default — the alternatives/breaks
-  UI is the next slice of Piece A. `src/lib/sales/lineTotals.ts` (pure,
-  unit-tested) is the one place that will decide, once wired, which rows
-  count toward a document's total.
+- **0116_sales_line_contract.sql — applied to both DBs** (owner confirmed
+  2026-09-06; written 2026-09-06, Sales Engine Piece A,
+  `docs/sales-engine-architecture.md` §3.1: the shared document-line
+  contract). Lifts Quotations' alternative option-group columns
+  (`group_id`/`group_label`/`group_type`, already on `quote_lines` since
+  0047) onto `standard_quote_lines`, and adds quantity-break columns
+  (`break_of`, `break_qty`, `is_selected`) to both `quote_lines` and
+  `standard_quote_lines`. Price all lines, auto re-price, rate override
+  and alternative option groups all validated on the demo the same day
+  (SQ-2026-0003, since deleted) -- see the architecture doc §3.5 for the
+  walk.
+- **0117_break_of_no_fk.sql — PENDING on both DBs** (written 2026-09-06,
+  Sales Engine Piece A: run AFTER 0116). Drops the foreign key on
+  `break_of` (both `quote_lines` and `standard_quote_lines`) and changes
+  its type from `uuid` to `text` -- 0116 created it as a hard FK, but both
+  quote objects delete-and-reinsert every line on every save, so a new
+  quantity break and its new parent line are always created in the same
+  insert and neither side can know the parent's real row id in advance.
+  `src/lib/pricing/quoteLineFlags.ts`'s `resolveLineIdsAndSelection()`
+  resolves it application-side instead, exactly like `group_id` already
+  does. Empty column everywhere (the UI that would populate it didn't
+  exist before this piece), so this is a safe, no-data-loss alter. Until
+  applied, saving a quote with a quantity break fails on the `break_of`
+  column's old uuid type/FK — Price all lines, auto re-price, rate
+  override and alternative options are unaffected.
 - **0115_pricing_cost_input_purchase_kind.sql — applied to both DBs**
   (owner confirmed 2026-09-06; found on the 2026-09-06 demo walk: "Save as confirmed cost" on an RFQ
   reply failed with `pricing_cost_inputs_kind_check` because 0083's check

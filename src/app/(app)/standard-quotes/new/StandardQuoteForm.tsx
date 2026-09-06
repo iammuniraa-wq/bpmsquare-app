@@ -22,6 +22,11 @@ type Line = {
   group_id: string;
   group_label: string;
   group_type: "" | "alternative";
+  /** Quantity break (0116, §3.4): this row prices `break_of`'s line at a
+   *  different quantity ("from qty 10…"). Breaks are scoped to top-level
+   *  lines only in this UI -- not to lines inside an alternative option. */
+  break_of: string;
+  break_qty: string;
   is_selected: boolean;
 };
 
@@ -62,7 +67,8 @@ const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDi
 function newLine(): Line {
   return {
     id: Math.random().toString(36).slice(2), description: "", uom: "Nos", qty: "1", rate: "0", discount_pct: "0",
-    product_id: "", pricing_document_id: "", group_id: "", group_label: "", group_type: "", is_selected: true,
+    product_id: "", pricing_document_id: "", group_id: "", group_label: "", group_type: "",
+    break_of: "", break_qty: "", is_selected: true,
   };
 }
 
@@ -76,13 +82,23 @@ function lineAmount(l: Line): number {
 // Consecutive-or-not, every line sharing a group_id renders as one block
 // (mirrors QuoteForm.tsx's editLinesToRows) -- an alternative option can
 // hold more than one line item, and they always show together regardless
-// of where each was inserted in the underlying array.
-type Row = { kind: "line"; line: Line } | { kind: "group"; group_id: string; label: string; lines: Line[] };
+// of where each was inserted in the underlying array. A top-level line's
+// quantity breaks (§3.4) nest under it the same way; breaks are scoped to
+// top-level lines only -- a line inside an alternative option cannot have
+// its own breaks in this UI.
+type Row = { kind: "line"; line: Line; breaks: Line[] } | { kind: "group"; group_id: string; label: string; lines: Line[] };
 
 function groupedRows(lines: Line[]): Row[] {
+  const breaksByParent = new Map<string, Line[]>();
+  for (const l of lines) {
+    if (!l.break_of) continue;
+    const arr = breaksByParent.get(l.break_of);
+    if (arr) arr.push(l); else breaksByParent.set(l.break_of, [l]);
+  }
   const rows: Row[] = [];
   const groupIndex = new Map<string, number>();
   for (const l of lines) {
+    if (l.break_of) continue; // rendered nested under its parent, never standalone
     if (l.group_type === "alternative" && l.group_id) {
       let idx = groupIndex.get(l.group_id);
       if (idx === undefined) {
@@ -92,10 +108,18 @@ function groupedRows(lines: Line[]): Row[] {
       }
       (rows[idx] as Extract<Row, { kind: "group" }>).lines.push(l);
     } else {
-      rows.push({ kind: "line", line: l });
+      rows.push({ kind: "line", line: l, breaks: breaksByParent.get(l.id) ?? [] });
     }
   }
   return rows;
+}
+
+/** Which row of a break family (the base line, or one of its breaks) is
+ *  the chosen quantity -- mirrors lineTotals.ts's own resolution so the
+ *  radio state and the on-screen total never disagree. */
+function chosenBreakId(line: Line, breaks: Line[]): string {
+  const explicit = breaks.find((b) => b.is_selected === true);
+  return explicit ? explicit.id : line.id;
 }
 
 type EditQuote = {
@@ -113,9 +137,11 @@ type EditQuote = {
   shipping_amount: number;
   intro_text: string | null;
   lines: {
+    id: string;
     sl_no: string | null; description: string; uom: string | null; qty: number; rate: number; discount_pct: number;
     product_id?: string | null; pricing_document_id?: string | null;
-    group_id?: string | null; group_label?: string | null; group_type?: string | null; is_selected?: boolean | null;
+    group_id?: string | null; group_label?: string | null; group_type?: string | null;
+    break_of?: string | null; break_qty?: number | null; is_selected?: boolean | null;
   }[];
 };
 
@@ -152,12 +178,18 @@ export default function StandardQuoteForm({
   const [lines, setLines] = useState<Line[]>(
     editQuote && editQuote.lines.length > 0
       ? editQuote.lines.map((l) => ({
-          id: Math.random().toString(36).slice(2),
+          // Using the real, stored row id (rather than a fresh random one)
+          // is what lets break_of -- another line's id, as of the last
+          // save -- still resolve correctly while this session displays
+          // and edits the loaded lines. See resolveLineIdsAndSelection for
+          // why a fresh save can never rely on ids surviving beyond it.
+          id: l.id,
           description: l.description, uom: l.uom ?? "Nos",
           qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct),
           product_id: l.product_id ?? "", pricing_document_id: l.pricing_document_id ?? "",
           group_id: l.group_id ?? "", group_label: l.group_label ?? "",
           group_type: l.group_type === "alternative" ? "alternative" : "",
+          break_of: l.break_of ?? "", break_qty: l.break_qty != null ? String(l.break_qty) : "",
           is_selected: l.is_selected !== false,
         }))
       : [newLine()]
@@ -225,6 +257,33 @@ export default function StandardQuoteForm({
   }
   const altGroupIds = [...new Set(lines.filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id))];
   const chosenGroupId = altGroupIds.find((gid) => lines.some((l) => l.group_id === gid && l.is_selected === true)) ?? altGroupIds[0] ?? null;
+
+  // Quantity breaks (Sales Engine Piece A, §3.4): a line can offer more
+  // than one quantity, each its own price ("1-9 at X, 10+ at Y"); only the
+  // chosen quantity counts toward the total. Scoped to top-level lines --
+  // not to lines inside an alternative option -- in this UI.
+  function addBreak(parentLine: Line) {
+    const existing = lines.filter((l) => l.break_of === parentLine.id);
+    const nextQty = existing.length > 0
+      ? Math.max(...existing.map((b) => parseFloat(b.break_qty) || 0)) + 10
+      : Math.max(2, (parseFloat(parentLine.qty) || 1) + 9);
+    setLines((ls) => [...ls, {
+      ...newLine(), break_of: parentLine.id, break_qty: String(nextQty), qty: String(nextQty),
+      description: parentLine.description, uom: parentLine.uom, product_id: parentLine.product_id, rate: parentLine.rate,
+    }]);
+  }
+  function removeBreak(breakId: string) {
+    setLines((ls) => ls.filter((l) => l.id !== breakId));
+  }
+  /** Marks exactly one row of a break family (the base line, or one break)
+   *  selected -- mirrors lineTotals.ts's own resolution. */
+  function chooseBreak(parentId: string, chosenId: string, breakIds: string[]) {
+    setLines((ls) => ls.map((l) => {
+      if (l.id === parentId) return { ...l, is_selected: chosenId === parentId };
+      if (breakIds.includes(l.id)) return { ...l, is_selected: l.id === chosenId };
+      return l;
+    }));
+  }
 
   async function priceWithEngine(lineId: string, productId: string, qty: string) {
     const quantity = parseFloat(qty) || 1;
@@ -513,7 +572,8 @@ export default function StandardQuoteForm({
 
   const accountContacts = contacts.filter((ct) => ct.account_id === accountId);
   const selectableLines: (SelectableLine & { id: string })[] = lines.map((l) => ({
-    id: l.id, amount: lineAmount(l), group_id: l.group_id || null, group_type: l.group_type || null, is_selected: l.is_selected,
+    id: l.id, amount: lineAmount(l), group_id: l.group_id || null, group_type: l.group_type || null,
+    break_of: l.break_of || null, is_selected: l.is_selected,
   }));
   const subtotal = documentTotal(selectableLines);
   const rows = groupedRows(lines);
@@ -581,18 +641,19 @@ export default function StandardQuoteForm({
     const cleanLines = lines.filter((l) => l.description.trim());
     if (cleanLines.length === 0) { setError("Add at least one line item"); return; }
     setError("");
-    // normalizeSelection resolves every alternative group to exactly one
-    // chosen set of lines before it ever reaches the server -- the same
-    // pure decision the total on screen was already made with.
-    const normalized = normalizeSelection(cleanLines.map((l) => ({
-      id: l.id, amount: lineAmount(l), group_id: l.group_id || null, group_type: l.group_type || null, is_selected: l.is_selected,
-    })));
-    const selectionById = new Map(normalized.map((n) => [n.id, n.is_selected]));
+    // Which alternative group / which quantity break is chosen is resolved
+    // authoritatively server-side (resolveLineIdsAndSelection) from
+    // local_id/break_of/group_id -- local_id is this line's own working id,
+    // meaningful only within this one request, so a brand-new break and its
+    // brand-new parent line can reference each other before either has a
+    // real row id.
     const linePayload = cleanLines.map((l) => ({
+      local_id: l.id,
       description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct,
       product_id: l.product_id || null, pricing_document_id: l.pricing_document_id || null,
       group_id: l.group_id || null, group_label: l.group_label || null, group_type: l.group_type || null,
-      is_selected: selectionById.get(l.id) ?? true,
+      break_of: l.break_of || null, break_qty: l.break_qty ? parseFloat(l.break_qty) || null : null,
+      is_selected: l.is_selected,
     }));
     startTransition(async () => {
       const commercial = {
@@ -760,17 +821,51 @@ export default function StandardQuoteForm({
                   if (row.kind === "line") {
                     lineNo += 1;
                     const line = row.line;
+                    const breaks = row.breaks;
+                    const hasBreaks = breaks.length > 0;
+                    const chosenId = hasBreaks ? chosenBreakId(line, breaks) : line.id;
+                    const breakIds = breaks.map((b) => b.id);
                     return (
                       <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10 }}>
                         <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: c.hint }}>Line {lineNo}</span>
                           {lines.length > 1 && (
-                            <button type="button" onClick={() => setLines((ls) => ls.filter((l) => l.id !== line.id))} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
+                            <button type="button" onClick={() => setLines((ls) => ls.filter((l) => l.id !== line.id && l.break_of !== line.id))} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
                               Remove
                             </button>
                           )}
                         </div>
+                        {hasBreaks && (
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginBottom: 8, fontSize: 11.5, color: chosenId === line.id ? c.accent : c.hint, fontWeight: 600 }}>
+                            <input type="radio" checked={chosenId === line.id} onChange={() => chooseBreak(line.id, line.id, breakIds)} />
+                            Base quantity ({line.qty || "1"})
+                          </label>
+                        )}
                         {renderLineFields(line)}
+                        {breaks.map((b) => (
+                          <div key={b.id} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${c.line}` }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                                <input type="radio" checked={chosenId === b.id} onChange={() => chooseBreak(line.id, b.id, breakIds)} />
+                                <span style={{ fontSize: 11.5, fontWeight: 600, color: chosenId === b.id ? c.accent : c.hint }}>From qty</span>
+                              </label>
+                              <input
+                                type="number" min="1" step="1" value={b.break_qty}
+                                onChange={(e) => setLines((ls) => ls.map((l) => (l.id === b.id ? { ...l, break_qty: e.target.value, qty: e.target.value } : l)))}
+                                style={{ ...inp, width: 70, padding: "4px 8px", fontSize: 12.5 }}
+                              />
+                              <button type="button" onClick={() => removeBreak(b.id)} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
+                                Remove break
+                              </button>
+                            </div>
+                            {renderLineFields(b)}
+                          </div>
+                        ))}
+                        {!line.group_type && (
+                          <button type="button" onClick={() => addBreak(line)} style={{ marginTop: 8, fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                            + Add quantity break
+                          </button>
+                        )}
                       </div>
                     );
                   }

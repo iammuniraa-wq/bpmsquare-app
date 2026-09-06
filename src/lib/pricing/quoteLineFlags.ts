@@ -1,6 +1,8 @@
 import "server-only";
+import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LineFlag } from "@/lib/pricing-core";
+import { normalizeSelection, type SelectableLine } from "@/lib/sales/lineTotals";
 
 // Quote lines remember the price that produced them (0113). The client
 // sends only pricing_document_id; the guardrail flags are derived HERE from
@@ -106,6 +108,40 @@ export async function flaggedLinesOf(
     .eq(parentColumn, documentId).eq("tenant_id", tenantId).not("pricing_flags", "is", null);
   if (error) return [];
   return (data ?? []) as { sl_no?: string | null; description?: string; pricing_flags?: LineFlag[] | null }[];
+}
+
+/**
+ * Sales Engine Piece A (sales-engine-architecture.md §3.4). Both quote
+ * objects delete every line and re-insert the whole set on every save, so
+ * a brand-new quantity break and its parent line are always created in
+ * the SAME insert -- neither side can know the parent's real row id
+ * before the statement runs. `local_id` is the client's own (arbitrary,
+ * request-scoped) working id for a line; `break_of` on a break row names
+ * the PARENT's `local_id`, not a real database id. This resolves both to
+ * the real ids the server is about to insert with, dropping any
+ * `break_of` that doesn't match another line in this exact request --
+ * the same "never trust a foreign id from the body" rule
+ * MULTI_TENANT_GUARDRAILS.md applies everywhere else, applied here at the
+ * tightest possible scope (this one document's own submitted lines).
+ * Also runs `normalizeSelection` so `is_selected` is never ambiguous
+ * across an alternative group or a break family.
+ */
+export function resolveLineIdsAndSelection<T extends Omit<SelectableLine, "id"> & { local_id?: string }>(
+  lines: T[]
+): (Omit<T, "local_id"> & { id: string; break_of: string | null })[] {
+  const realId = lines.map(() => randomUUID());
+  const idByLocalId = new Map<string, string>();
+  lines.forEach((l, i) => { if (l.local_id) idByLocalId.set(l.local_id, realId[i]); });
+
+  const withRealIds = lines.map((l, i) => {
+    const { local_id: _drop, ...rest } = l;
+    const resolvedBreakOf = l.break_of && idByLocalId.has(l.break_of) ? (idByLocalId.get(l.break_of) as string) : null;
+    return { ...rest, id: realId[i], break_of: resolvedBreakOf };
+  });
+
+  const selected = normalizeSelection(withRealIds);
+  const isSelectedById = new Map(selected.map((s) => [s.id, s.is_selected]));
+  return withRealIds.map((l) => ({ ...l, is_selected: isSelectedById.get(l.id) ?? true }));
 }
 
 /** The lines that would stop this quote going out: any flag whose policy is

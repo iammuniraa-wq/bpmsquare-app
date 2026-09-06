@@ -4,8 +4,7 @@ import { tenantHasFeature } from "@/lib/tenant";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
-import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds } from "@/lib/pricing/quoteLineFlags";
-import { normalizeSelection } from "@/lib/sales/lineTotals";
+import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, resolveLineIdsAndSelection } from "@/lib/pricing/quoteLineFlags";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -109,16 +108,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ("shipping_amount" in body) patch.shipping_amount = clampAmount(body.shipping_amount);
 
   type CleanLine = {
-    tenant_id: string; standard_quote_id: string; sl_no: string; description: string; uom: string | null;
+    id: string; tenant_id: string; standard_quote_id: string; sl_no: string; description: string; uom: string | null;
     qty: number; rate: number; discount_pct: number; amount: number; product_id: string | null; pricing_document_id: string | null;
-    group_id: string | null; group_label: string | null; group_type: string | null; is_selected: boolean;
+    group_id: string | null; group_label: string | null; group_type: string | null;
+    break_of: string | null; break_qty: number | null; is_selected: boolean;
   };
   let cleanLines: CleanLine[] | null = null;
   if (Array.isArray(body.lines)) {
     type RawLine = {
-      sl_no?: string; description: string; uom?: string; qty?: string; rate?: string; discount_pct?: string;
+      local_id?: string; sl_no?: string; description: string; uom?: string; qty?: string; rate?: string; discount_pct?: string;
       product_id?: string | null; pricing_document_id?: string | null;
-      group_id?: string | null; group_label?: string | null; group_type?: string | null; is_selected?: boolean;
+      group_id?: string | null; group_label?: string | null; group_type?: string | null;
+      break_of?: string | null; break_qty?: number | null; is_selected?: boolean;
     };
     const raw: RawLine[] = body.lines.filter((l: { description?: string }) => l?.description?.trim()).slice(0, 200);
     // Foreign ids from the body (0114): products verified against the
@@ -129,6 +130,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         const rate = Math.max(0, parseFloat(l.rate ?? "") || 0);
         const discountPct = Math.max(0, Math.min(100, parseFloat(l.discount_pct ?? "") || 0));
         return {
+          local_id: typeof l.local_id === "string" && l.local_id ? l.local_id : undefined,
           tenant_id: tenantId,
           standard_quote_id: id,
           sl_no: l.sl_no || String(i + 1),
@@ -141,19 +143,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           group_id: typeof l.group_id === "string" && l.group_id ? l.group_id : null,
           group_label: typeof l.group_label === "string" && l.group_label ? l.group_label : null,
           group_type: l.group_type === "alternative" ? "alternative" : null,
+          break_of: typeof l.break_of === "string" && l.break_of ? l.break_of : null,
+          break_qty: typeof l.break_qty === "number" && Number.isFinite(l.break_qty) ? l.break_qty : null,
           is_selected: l.is_selected !== false,
-          __key: String(i),
         };
       });
-    // group_id/is_selected decide real money -- resolved server-side via
-    // normalizeSelection, never trusted as-is from the client.
-    const selected = new Map(
-      normalizeSelection(withAmounts.map((l) => ({ id: l.__key, amount: l.amount, group_id: l.group_id, group_type: l.group_type, is_selected: l.is_selected })))
-        .map((n) => [n.id, n.is_selected])
-    );
-    const built: CleanLine[] = withAmounts.map(({ __key, ...l }) => ({ ...l, is_selected: selected.get(__key) ?? true }));
-    cleanLines = built;
-    patch.subtotal = built.filter((l) => l.is_selected).reduce((s, l) => s + l.amount, 0);
+    // local_id/break_of/group_id/is_selected decide real money -- resolved
+    // and recomputed server-side by resolveLineIdsAndSelection, never
+    // trusted as-is from the client.
+    cleanLines = resolveLineIdsAndSelection(withAmounts);
+    patch.subtotal = cleanLines.filter((l) => l.is_selected).reduce((s, l) => s + l.amount, 0);
   }
 
   if ("header_discount_pct" in patch || "tax_pct" in patch || "shipping_amount" in patch || "subtotal" in patch) {

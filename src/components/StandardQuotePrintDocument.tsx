@@ -203,7 +203,12 @@ export default function StandardQuotePrintDocument({
             </thead>
             <tbody>
               {lines.map((l, i) => {
-                const notChosen = l.group_type === "alternative" && l.is_selected === false;
+                // Not selected: an alternative option not offered, or a
+                // quantity break/base quantity that isn't the chosen one
+                // (0116, §3.3/§3.4) -- prints greyed out either way, so
+                // nothing looks silently dropped, but does not count.
+                const notChosen = l.is_selected === false;
+                const isBreak = !!l.break_of;
                 return (
                 <tr key={l.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff", breakInside: "avoid", opacity: notChosen ? 0.5 : 1 }}>
                   <td style={{ padding: "7px 12px 7px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{l.sl_no ?? i + 1}</td>
@@ -211,6 +216,16 @@ export default function StandardQuotePrintDocument({
                     {l.group_type === "alternative" && (
                       <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: notChosen ? "#8a96a5" : accent }}>
                         {l.group_label || "Option"}{notChosen ? " — not selected" : ""}
+                      </span>
+                    )}
+                    {isBreak && (
+                      <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: notChosen ? "#8a96a5" : accent }}>
+                        Qty {l.qty}{notChosen ? " — not selected" : ""}
+                      </span>
+                    )}
+                    {!isBreak && l.group_type !== "alternative" && notChosen && (
+                      <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "#8a96a5" }}>
+                        Base quantity — not selected
                       </span>
                     )}
                     {l.description}

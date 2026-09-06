@@ -99,13 +99,29 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
               </thead>
               <tbody>
                 {lines.map((l) => {
-                  const notSelected = l.group_type === "alternative" && l.is_selected === false;
+                  // Not selected: either an alternative option the customer
+                  // wasn't offered, or a quantity break that isn't the
+                  // chosen quantity (0116, §3.3/§3.4) -- either way the row
+                  // still prints, greyed out, so nothing looks silently
+                  // dropped, but it does not count toward the total.
+                  const notSelected = l.is_selected === false;
+                  const isBreak = !!l.break_of;
                   return (
                   <tr key={l.id} style={{ borderTop: `1px solid ${c.line}`, opacity: notSelected ? 0.55 : 1 }}>
                     <td style={{ padding: "8px 14px", fontSize: 13 }}>
                       {l.group_type === "alternative" && (
                         <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: notSelected ? c.hint : c.accent, marginRight: 6 }}>
                           {l.group_label || "Option"}{notSelected ? " · not chosen" : ""}
+                        </span>
+                      )}
+                      {isBreak && (
+                        <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: notSelected ? c.hint : c.accent, marginRight: 6 }}>
+                          Qty {l.qty}{notSelected ? " · not chosen" : ""}
+                        </span>
+                      )}
+                      {!isBreak && l.group_type !== "alternative" && notSelected && (
+                        <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: c.hint, marginRight: 6 }}>
+                          Base quantity · not chosen
                         </span>
                       )}
                       {l.description}
