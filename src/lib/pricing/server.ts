@@ -190,6 +190,10 @@ export type PriceCallResult = {
    *  migration 0111 is pending or the insert failed -- pricing itself never
    *  fails because the record could not be kept). */
   document_id: string | null;
+  /** Component codes of class TAX in this version -- so a consumer can
+   *  split a line's net into "before tax" and tax (quote lines take the
+   *  pre-tax figure; the quote header applies tax once). */
+  tax_components: string[];
 };
 
 export type RunPriceOptions = {
@@ -275,7 +279,10 @@ export async function runPrice(
     });
   } catch { /* metering must never break pricing */ }
 
-  return { result, config_version: config.version, procedure: procedure.code, calc_ms, document_id };
+  return {
+    result, config_version: config.version, procedure: procedure.code, calc_ms, document_id,
+    tax_components: config.components.filter((c) => c.class === "TAX").map((c) => c.code),
+  };
 }
 
 // ── Stored documents ────────────────────────────────────────────────────────

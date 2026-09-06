@@ -762,6 +762,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       if (!res.ok) { setPricingErrors((p) => ({ ...p, [lineId]: json.error ?? "Pricing failed" })); return; }
       updateLine(lineId, "rate", String(Math.round((json.unit_rate as number) * 100) / 100));
       updateLine(lineId, "pricing_document_id", json.document_id ?? "");
+      // The line rate is before tax; the header GST applies once. Fill it
+      // from the engine only when the rep has not set one.
+      if (gstRate === "" && typeof json.tax_pct === "number" && json.tax_pct > 0) setGstRate(String(json.tax_pct));
       setLinePricing((p) => ({ ...p, [lineId]: { kind: "priced", document_id: json.document_id ?? null, area: json.area, flags: json.flags ?? [], trace: json.trace ?? [], cost_sources: json.cost_sources ?? [], open: false } }));
     } catch {
       setPricingErrors((p) => ({ ...p, [lineId]: "Network error — try again." }));
@@ -823,7 +826,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       return (
         <div style={box}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ color: c.hint }}>Priced by engine{info.area !== "default" ? ` · ${info.area}` : ""}</span>
+            <span style={{ color: c.hint }}>Priced by engine, before tax{info.area !== "default" ? ` · ${info.area}` : ""}</span>
             <button type="button" onClick={() => setLinePricing((p) => ({ ...p, [lineId]: { ...info, open: !info.open } }))}
               style={{ fontSize: 11, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
               {info.open ? "hide why" : "why?"}

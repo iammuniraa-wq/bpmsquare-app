@@ -17,8 +17,15 @@ import { routeToArea, quoteLineContext } from "./routing";
 export type PricedLineOutcome =
   | {
       ok: true;
+      /** Per unit, BEFORE tax -- what lands on the quote line. */
       unit_rate: number;
+      /** Line value before tax. */
       net: number;
+      /** Line value including the engine's tax step (the full bill). */
+      gross: number;
+      tax_amount: number;
+      /** Effective tax percent the engine applied, for the quote header. */
+      tax_pct: number;
       currency: string | null;
       document_id: string | null;
       area: string;
@@ -71,16 +78,26 @@ export async function priceDocumentLine(
   const costItems = costItemsForProduct(product, args.quantity, candidates);
 
   try {
-    const { result, config_version, document_id } = await runPrice(
+    const { result, config_version, document_id, tax_components } = await runPrice(
       tenantId,
       { attributes: ctx.header, lines: [{ line_no: 1, quantity: args.quantity, attributes: ctx.line, cost_items: costItems }] },
       { pricingArea: area, meta: { source: args.documentType, sourceId: args.sourceId ?? null, actorId: args.actorId ?? null } }
     );
     const line = result.lines[0];
+    // Owner decision 2026-09-06: the LINE takes the pre-tax figure (NET_2 in
+    // the cost-based template) and the quote header applies tax once. The
+    // engine still runs its TAX step -- the trace and the stored document
+    // keep the full bill -- but what lands on the line excludes every
+    // TAX-class component.
+    const taxAmount = tax_components.reduce((sum, code) => sum + (line.components[code] ?? 0), 0);
+    const preTax = line.net - taxAmount;
     return {
       ok: true,
-      unit_rate: args.quantity > 0 ? line.net / args.quantity : line.net,
-      net: line.net,
+      unit_rate: args.quantity > 0 ? preTax / args.quantity : preTax,
+      net: preTax,
+      gross: line.net,
+      tax_amount: taxAmount,
+      tax_pct: preTax > 0 ? Math.round((taxAmount / preTax) * 10000) / 100 : 0,
       currency: result.currency,
       document_id,
       area,
