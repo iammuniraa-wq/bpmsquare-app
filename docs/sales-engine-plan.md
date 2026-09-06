@@ -11,12 +11,13 @@
 
 ## 0. The shape in one paragraph
 
-A **Lead** becomes an **Opportunity** (the Pipeline object; it does not exist
-today, `/pipeline` is a placeholder). An opportunity holds the customer, the
-lines being pursued and their engine prices, the people working it, the
-win rating and the deal room. Every **Quote** (Quotation or Standard Quote)
-belongs to an opportunity; a quote is one *version of the offer*, the
-opportunity is the *deal*. Pricing, approvals, the rules layer and the
+A **Lead** may become an **Opportunity** (the Pipeline object; it does not
+exist today, `/pipeline` is a placeholder). An opportunity holds the
+customer, the lines being pursued and their engine prices, the people
+working it, the win rating and the deal room. A **Quote** (Quotation or
+Standard Quote) *may* belong to an opportunity; when it does, the quote is
+one *version of the offer* and the opportunity is the *deal*. Neither link
+is mandatory (owner, 2026-09-06): a rep can start at any of the three. Pricing, approvals, the rules layer and the
 "win" intelligence hang off the deal so they are built once and seen on
 both the opportunity and its quotes. Won opportunity → work order /
 invoice, which already exist.
@@ -225,10 +226,15 @@ with C if hands allow.
 ## 10. Decisions needed from the owner
 
 1. Line rate NET_2 (pre-tax) with header tax — yes / no.
-2. Opportunity stages default set, and whether a lead is mandatory before
-   an opportunity (recommendation: no, an opportunity can start directly).
-3. Does a Standard Quote always belong to an opportunity (recommendation:
-   yes, auto-created if the rep starts from the quote).
+2. Opportunity stages default set.
+3. **Decided 2026-09-06:** a lead is **not** mandatory before an
+   opportunity, and an opportunity is **not** mandatory for a quote. A
+   quote can stand alone; `opportunity_id` is nullable on both quote
+   objects. Consequences: the win tab, approvals, versioning and rules
+   must work on a quote with no deal (they read the account and the quote
+   itself), and "Link to deal" / "Create deal from this quote" are actions
+   on the quote rather than an automatic wrapper. The Pipeline board shows
+   deals only; standalone quotes stay on Quotations / Standard Quotes.
 4. Approval policy examples for the demo (e.g. margin < floor → pricing
    manager; total > 10 lakh → sales head; both → both, in that order).
 5. Freight: which legs and bases the first real tenant needs.
