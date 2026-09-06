@@ -230,6 +230,27 @@ export default function StandardQuoteForm({
   // Editing an existing quote lands on its lines (the details are already
   // filled in); a new quote starts with the details.
   const [step, setStep] = useState<"details" | "lines">(editQuote ? "lines" : "details");
+  // The pinned bar on page 2. `position: sticky` can't be used: Shell's
+  // <main> has overflow-x auto, which makes it a (non-scrolling) scroll
+  // container that captures sticky while the window is what scrolls. So
+  // the bar is fixed by hand once its slot scrolls off the top; the slot
+  // keeps the bar's height so nothing jumps.
+  const pinSlotRef = useRef<HTMLDivElement>(null);
+  const [pin, setPin] = useState<{ left: number; width: number; height: number } | null>(null);
+  useEffect(() => {
+    if (step !== "lines") { setPin(null); return; }
+    const update = () => {
+      const slot = pinSlotRef.current;
+      if (!slot) return;
+      const r = slot.getBoundingClientRect();
+      if (r.top < 0) setPin((p) => (p && p.left === r.left && p.width === r.width ? p : { left: r.left, width: r.width, height: p?.height ?? slot.offsetHeight }));
+      else setPin(null);
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => { window.removeEventListener("scroll", update); window.removeEventListener("resize", update); };
+  }, [step]);
   const expand = (id: string) => setExpandedIds((s) => (s.has(id) ? s : new Set(s).add(id)));
   const repriceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   // A pending re-price must not fire into an unmounted form.
@@ -969,7 +990,13 @@ export default function StandardQuoteForm({
 
         {step === "lines" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ position: "sticky", top: 0, zIndex: 5, display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", padding: "10px 16px", background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+          <div ref={pinSlotRef} style={{ minHeight: pin ? pin.height : undefined }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", padding: "10px 16px", background: c.panel, border: `1px solid ${c.line}`,
+            ...(pin
+              ? { position: "fixed" as const, top: 0, left: pin.left, width: pin.width, zIndex: 20, borderRadius: "0 0 10px 10px", boxShadow: "0 4px 14px rgba(0,0,0,0.12)", boxSizing: "border-box" as const }
+              : { borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }),
+          }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountName || "No account"}</div>
               <div style={{ fontSize: 11.5, color: c.hint }}>
@@ -989,6 +1016,7 @@ export default function StandardQuoteForm({
                 {pending ? "Saving…" : editQuote ? "Save changes" : "Create quote"}
               </button>
             </div>
+          </div>
           </div>
           {errorBox}
             <section style={cardStyle}>
