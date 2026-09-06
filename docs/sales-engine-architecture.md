@@ -191,6 +191,38 @@ Two halves, both needed:
   already has alternatives; Price all lines there is next, and it is the
   only remaining Piece A item Quotations needs.
 
+**Validated on the demo, 2026-09-06** (SQ-2026-0003, since deleted):
+Price all lines priced three product lines in one call; changing line 1's
+quantity re-priced it automatically (confirmed by a fresh `pricing_documents`
+row appearing within a second, not just client-side arithmetic -- the
+per-unit rate is unchanged because nothing in the cost-based template
+varies by quantity, which is correct); overriding line 1's rate by hand
+showed "Rate overridden" and dropped its floor flag; two alternative
+options (8-Passenger vs 13-Passenger elevator) totalled independently,
+switching the radio moved the total between ₹27,19,797 and ₹36,63,797
+exactly (subtotal + 18% tax), and the detail page and the printed
+document both showed the unchosen option greyed out with "Not
+chosen"/"Not selected" rather than hiding it. No impact on Vikas
+Pioneers' real Quotations confirmed separately: Quotations code
+(`QuoteForm.tsx`, `api/quotes/**`) was untouched this piece except the
+already-shipped NET_2 label; the pricing engine and Standard Quotes were
+never turned on for the `vikas-pioneers` tenant; the `demo` tenant (where
+this was tested) is a separate row, `is_demo = true`, per
+[[tenant-landscape]].
+
+**Found during this validation, not yet acted on:** the `demo` tenant's
+`company_info` (used on every Standard Quote/Quotation PDF, print page and
+email header) is literally the real client's legal name and address
+("Vikas Pioneers (India) Pvt. Ltd.", Hosapete). It renders on any document
+generated from that tenant, unmasked -- including, retroactively, every
+screenshot in the cost-based walkthrough that showed a print/PDF view.
+The `__prep()` screenshot-masking script used for these walkthroughs only
+ever swapped the owner's personal email and name, never company_info. Not
+a code defect and not a cross-tenant leak (still the same demo tenant
+throughout), but worth the owner's attention before any walkthrough
+document or screenshot leaves the building -- either scrub `company_info`
+on the demo tenant, or treat these documents as internal-only.
+
 ### 3.5b Acceptance (demo)
 
 - SQ-2026-0002: "Price all lines" prices three lines in one click; changing
