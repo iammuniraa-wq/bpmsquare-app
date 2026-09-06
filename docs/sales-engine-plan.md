@@ -1,5 +1,9 @@
 # BPMSquare Sales Engine — plan v1.0 (2026-09-06)
 
+> This is the *why* and the sequence. The build spec — tables, routes,
+> components, events, acceptance — is `docs/sales-engine-architecture.md`.
+> Implement from that file.
+
 > Owner's questions after the cost-based walkthrough, answered as one plan:
 > freight, price-all, quantity breaks and alternatives, multi-supplier,
 > approvals, versioning, a rules layer, "win the quote", and the Pipeline
