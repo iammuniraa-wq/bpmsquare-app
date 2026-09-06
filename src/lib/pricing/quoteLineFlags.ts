@@ -39,28 +39,39 @@ export function withPricingColumns<T extends LineWithPricing>(rows: T[], flagsBy
   });
 }
 
-/** Insert document lines, tolerating a database where the pricing
- *  migration (0113 for quote_lines, 0114 for standard_quote_lines) is
- *  pending: on a missing-column error the pricing columns are stripped and
- *  the insert retried, so quoting never breaks because a migration is late. */
+/** Postgres/PostgREST names the offending column in the 42703 message
+ *  (`column "group_id" of relation "standard_quote_lines" does not
+ *  exist`) -- pull it out so the retry can drop exactly that column
+ *  rather than guessing from a hardcoded list. */
+function missingColumnName(error: { code?: string; message: string }): string | null {
+  if (error.code !== "42703" && !/does not exist/.test(error.message)) return null;
+  const m = /column "([a-zA-Z0-9_]+)"/.exec(error.message);
+  return m ? m[1] : null;
+}
+
+/** Insert document lines, tolerating a database where a pricing or
+ *  sales-engine migration (0113/0114 for the pricing columns, 0116 for
+ *  the alternative-group and quantity-break columns) is pending: on a
+ *  missing-column error the exact offending column is stripped from
+ *  every row and the insert retried -- repeatedly, since more than one
+ *  migration can be pending at once -- so quoting never breaks because a
+ *  migration is late. Capped so a genuinely different error can't loop. */
 export async function insertLinesTolerant(
   supabase: SupabaseClient,
   table: "quote_lines" | "standard_quote_lines",
   rows: Record<string, unknown>[]
-): Promise<{ error: { message: string } | null; strippedPricing: boolean }> {
-  const { error } = await supabase.from(table).insert(rows);
-  if (!error) return { error: null, strippedPricing: false };
-  const missingColumn = (error as { code?: string }).code === "42703" || /pricing_document_id|pricing_flags|product_id/.test(error.message);
-  if (!missingColumn) return { error, strippedPricing: false };
-  // standard_quote_lines.product_id arrives with the same migration as its
-  // pricing columns, so it is stripped with them; quote_lines has always
-  // had product_id and keeps it.
-  const stripped = rows.map(({ pricing_document_id: _d, pricing_flags: _f, ...rest }) => {
-    if (table === "standard_quote_lines") { const { product_id: _p, ...noProduct } = rest; return noProduct; }
-    return rest;
-  });
-  const { error: retry } = await supabase.from(table).insert(stripped);
-  return { error: retry, strippedPricing: true };
+): Promise<{ error: { message: string } | null; strippedColumns: string[] }> {
+  let current = rows;
+  const strippedColumns: string[] = [];
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { error } = await supabase.from(table).insert(current);
+    if (!error) return { error: null, strippedColumns };
+    const column = missingColumnName(error);
+    if (!column) return { error, strippedColumns };
+    strippedColumns.push(column);
+    current = current.map((row) => { const { [column]: _drop, ...rest } = row; return rest; });
+  }
+  return { error: { message: "Could not save lines — too many pending migrations" }, strippedColumns };
 }
 
 export function insertQuoteLinesTolerant(supabase: SupabaseClient, rows: Record<string, unknown>[]) {

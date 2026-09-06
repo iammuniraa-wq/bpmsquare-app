@@ -5,6 +5,7 @@ import { generateNextStandardQuoteRef } from "@/lib/standardQuoteRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds } from "@/lib/pricing/quoteLineFlags";
+import { normalizeSelection } from "@/lib/sales/lineTotals";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -73,11 +74,15 @@ export async function POST(request: NextRequest) {
 
   // product_id / pricing_document_id (0114) are foreign ids from the body:
   // a product must be this tenant's, the flags are derived from the
-  // verified document, never trusted from the client.
-  const rawLines: { description?: string; sl_no?: string; uom?: string; qty?: string; rate?: string; discount_pct?: string; product_id?: string | null; pricing_document_id?: string | null }[] =
+  // verified document, never trusted from the client. group_id/group_type/
+  // is_selected (0116, alternative option groups) determine which lines
+  // count toward the total -- recomputed server-side via normalizeSelection
+  // rather than trusted from the client, since is_selected decides real
+  // money.
+  const rawLines: { description?: string; sl_no?: string; uom?: string; qty?: string; rate?: string; discount_pct?: string; product_id?: string | null; pricing_document_id?: string | null; group_id?: string | null; group_label?: string | null; group_type?: string | null; is_selected?: boolean }[] =
     Array.isArray(lines) ? lines.filter((l) => l?.description?.trim()).slice(0, 200) : [];
   const knownProducts = await verifiedProductIds(supabase, tenantId, rawLines);
-  const cleanLines = rawLines.map((l, i) => {
+  const withAmounts = rawLines.map((l, i) => {
     const qty = Math.max(0, parseFloat(l.qty ?? "") || 1);
     const rate = Math.max(0, parseFloat(l.rate ?? "") || 0);
     const discountPct = Math.max(0, Math.min(100, parseFloat(l.discount_pct ?? "") || 0));
@@ -92,10 +97,23 @@ export async function POST(request: NextRequest) {
       amount: qty * rate * (1 - discountPct / 100),
       product_id: l.product_id && knownProducts.has(l.product_id) ? l.product_id : null,
       pricing_document_id: typeof l.pricing_document_id === "string" && l.pricing_document_id ? l.pricing_document_id : null,
+      group_id: typeof l.group_id === "string" && l.group_id ? l.group_id : null,
+      group_label: typeof l.group_label === "string" && l.group_label ? l.group_label : null,
+      group_type: l.group_type === "alternative" ? "alternative" : null,
+      is_selected: l.is_selected !== false,
+      __key: String(i),
     };
   });
+  const selected = new Map(
+    normalizeSelection(withAmounts.map((l) => ({ id: l.__key, amount: l.amount, group_id: l.group_id, group_type: l.group_type, is_selected: l.is_selected })))
+      .map((n) => [n.id, n.is_selected])
+  );
+  // normalizeSelection already resolved every group/break family to exactly
+  // one winner, so the total is a plain sum of what it left selected --
+  // no need to re-run group resolution a second time.
+  const cleanLines = withAmounts.map(({ __key, ...l }) => ({ ...l, is_selected: selected.get(__key) ?? true }));
 
-  const subtotal = cleanLines.reduce((s, l) => s + l.amount, 0);
+  const subtotal = cleanLines.filter((l) => l.is_selected).reduce((s, l) => s + l.amount, 0);
   const totals = computeStandardQuoteTotals(subtotal, headerDiscountPct, taxPct, shippingAmount);
 
   const baseInsert = {

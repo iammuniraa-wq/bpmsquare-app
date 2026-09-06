@@ -5,6 +5,7 @@ import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/c
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
 import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds } from "@/lib/pricing/quoteLineFlags";
+import { normalizeSelection } from "@/lib/sales/lineTotals";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -107,15 +108,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ("tax_pct" in body) patch.tax_pct = clampPct(body.tax_pct);
   if ("shipping_amount" in body) patch.shipping_amount = clampAmount(body.shipping_amount);
 
-  type CleanLine = { tenant_id: string; standard_quote_id: string; sl_no: string; description: string; uom: string | null; qty: number; rate: number; discount_pct: number; amount: number; product_id: string | null; pricing_document_id: string | null };
+  type CleanLine = {
+    tenant_id: string; standard_quote_id: string; sl_no: string; description: string; uom: string | null;
+    qty: number; rate: number; discount_pct: number; amount: number; product_id: string | null; pricing_document_id: string | null;
+    group_id: string | null; group_label: string | null; group_type: string | null; is_selected: boolean;
+  };
   let cleanLines: CleanLine[] | null = null;
   if (Array.isArray(body.lines)) {
-    type RawLine = { sl_no?: string; description: string; uom?: string; qty?: string; rate?: string; discount_pct?: string; product_id?: string | null; pricing_document_id?: string | null };
+    type RawLine = {
+      sl_no?: string; description: string; uom?: string; qty?: string; rate?: string; discount_pct?: string;
+      product_id?: string | null; pricing_document_id?: string | null;
+      group_id?: string | null; group_label?: string | null; group_type?: string | null; is_selected?: boolean;
+    };
     const raw: RawLine[] = body.lines.filter((l: { description?: string }) => l?.description?.trim()).slice(0, 200);
     // Foreign ids from the body (0114): products verified against the
     // tenant, pricing flags derived from the verified document below.
     const knownProducts = await verifiedProductIds(supabase, tenantId, raw);
-    const built: CleanLine[] = raw.map((l, i) => {
+    const withAmounts = raw.map((l, i) => {
         const qty = Math.max(0, parseFloat(l.qty ?? "") || 1);
         const rate = Math.max(0, parseFloat(l.rate ?? "") || 0);
         const discountPct = Math.max(0, Math.min(100, parseFloat(l.discount_pct ?? "") || 0));
@@ -129,10 +138,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           amount: qty * rate * (1 - discountPct / 100),
           product_id: l.product_id && knownProducts.has(l.product_id) ? l.product_id : null,
           pricing_document_id: typeof l.pricing_document_id === "string" && l.pricing_document_id ? l.pricing_document_id : null,
+          group_id: typeof l.group_id === "string" && l.group_id ? l.group_id : null,
+          group_label: typeof l.group_label === "string" && l.group_label ? l.group_label : null,
+          group_type: l.group_type === "alternative" ? "alternative" : null,
+          is_selected: l.is_selected !== false,
+          __key: String(i),
         };
       });
+    // group_id/is_selected decide real money -- resolved server-side via
+    // normalizeSelection, never trusted as-is from the client.
+    const selected = new Map(
+      normalizeSelection(withAmounts.map((l) => ({ id: l.__key, amount: l.amount, group_id: l.group_id, group_type: l.group_type, is_selected: l.is_selected })))
+        .map((n) => [n.id, n.is_selected])
+    );
+    const built: CleanLine[] = withAmounts.map(({ __key, ...l }) => ({ ...l, is_selected: selected.get(__key) ?? true }));
     cleanLines = built;
-    patch.subtotal = built.reduce((s, l) => s + l.amount, 0);
+    patch.subtotal = built.filter((l) => l.is_selected).reduce((s, l) => s + l.amount, 0);
   }
 
   if ("header_discount_pct" in patch || "tax_pct" in patch || "shipping_amount" in patch || "subtotal" in patch) {

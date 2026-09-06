@@ -8,6 +8,7 @@ import { cardStyle } from "@/components/Shell";
 import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
 import PriceTrace, { type PriceTraceStep } from "@/components/pricing/PriceTrace";
+import { documentTotal, normalizeSelection, type SelectableLine } from "@/lib/sales/lineTotals";
 
 type Line = {
   id: string; description: string; uom: string; qty: string; rate: string; discount_pct: string;
@@ -15,6 +16,13 @@ type Line = {
   product_id: string;
   /** The stored pricing document behind the rate, when the engine set it. */
   pricing_document_id: string;
+  /** Alternative option groups (0116, sales-engine-architecture.md §3.3):
+   *  lines sharing a group_id with group_type "alternative" compete for the
+   *  quote total -- only one group's lines count. "" means ungrouped. */
+  group_id: string;
+  group_label: string;
+  group_type: "" | "alternative";
+  is_selected: boolean;
 };
 
 export type StandardQuoteProduct = { id: string; ref: string | null; name: string; uom: string | null; list_price: number | null };
@@ -52,7 +60,10 @@ const fw: React.CSSProperties = { marginBottom: 16 };
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 function newLine(): Line {
-  return { id: Math.random().toString(36).slice(2), description: "", uom: "Nos", qty: "1", rate: "0", discount_pct: "0", product_id: "", pricing_document_id: "" };
+  return {
+    id: Math.random().toString(36).slice(2), description: "", uom: "Nos", qty: "1", rate: "0", discount_pct: "0",
+    product_id: "", pricing_document_id: "", group_id: "", group_label: "", group_type: "", is_selected: true,
+  };
 }
 
 function lineAmount(l: Line): number {
@@ -60,6 +71,31 @@ function lineAmount(l: Line): number {
   const rate = parseFloat(l.rate) || 0;
   const discount = Math.max(0, Math.min(100, parseFloat(l.discount_pct) || 0));
   return qty * rate * (1 - discount / 100);
+}
+
+// Consecutive-or-not, every line sharing a group_id renders as one block
+// (mirrors QuoteForm.tsx's editLinesToRows) -- an alternative option can
+// hold more than one line item, and they always show together regardless
+// of where each was inserted in the underlying array.
+type Row = { kind: "line"; line: Line } | { kind: "group"; group_id: string; label: string; lines: Line[] };
+
+function groupedRows(lines: Line[]): Row[] {
+  const rows: Row[] = [];
+  const groupIndex = new Map<string, number>();
+  for (const l of lines) {
+    if (l.group_type === "alternative" && l.group_id) {
+      let idx = groupIndex.get(l.group_id);
+      if (idx === undefined) {
+        idx = rows.length;
+        groupIndex.set(l.group_id, idx);
+        rows.push({ kind: "group", group_id: l.group_id, label: l.group_label || "Option", lines: [] });
+      }
+      (rows[idx] as Extract<Row, { kind: "group" }>).lines.push(l);
+    } else {
+      rows.push({ kind: "line", line: l });
+    }
+  }
+  return rows;
 }
 
 type EditQuote = {
@@ -76,7 +112,11 @@ type EditQuote = {
   tax_pct: number;
   shipping_amount: number;
   intro_text: string | null;
-  lines: { sl_no: string | null; description: string; uom: string | null; qty: number; rate: number; discount_pct: number; product_id?: string | null; pricing_document_id?: string | null }[];
+  lines: {
+    sl_no: string | null; description: string; uom: string | null; qty: number; rate: number; discount_pct: number;
+    product_id?: string | null; pricing_document_id?: string | null;
+    group_id?: string | null; group_label?: string | null; group_type?: string | null; is_selected?: boolean | null;
+  }[];
 };
 
 export default function StandardQuoteForm({
@@ -116,6 +156,9 @@ export default function StandardQuoteForm({
           description: l.description, uom: l.uom ?? "Nos",
           qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct),
           product_id: l.product_id ?? "", pricing_document_id: l.pricing_document_id ?? "",
+          group_id: l.group_id ?? "", group_label: l.group_label ?? "",
+          group_type: l.group_type === "alternative" ? "alternative" : "",
+          is_selected: l.is_selected !== false,
         }))
       : [newLine()]
   );
@@ -155,6 +198,33 @@ export default function StandardQuoteForm({
     }));
     setLinePricing((prev) => { const { [lineId]: _drop, ...rest } = prev; return rest; });
   }
+
+  // Alternative option groups (Sales Engine Piece A, §3.3). "Option A",
+  // "Option B"… auto-letters the next group; a group can hold more than one
+  // line item (they all count together when that option is chosen).
+  function addAlternativeOption() {
+    const used = new Set(lines.filter((l) => l.group_type === "alternative").map((l) => l.group_id));
+    const letter = String.fromCharCode(65 + used.size);
+    const groupId = Math.random().toString(36).slice(2);
+    setLines((ls) => [...ls, { ...newLine(), group_id: groupId, group_label: `Option ${letter}`, group_type: "alternative" }]);
+  }
+  function addItemToGroup(groupId: string, groupLabel: string) {
+    setLines((ls) => [...ls, { ...newLine(), group_id: groupId, group_label: groupLabel, group_type: "alternative" }]);
+  }
+  function removeGroup(groupId: string) {
+    setLines((ls) => { const rest = ls.filter((l) => l.group_id !== groupId); return rest.length ? rest : [newLine()]; });
+  }
+  function renameGroup(groupId: string, label: string) {
+    setLines((ls) => ls.map((l) => (l.group_id === groupId ? { ...l, group_label: label } : l)));
+  }
+  /** Marks every line of `groupId` selected and every other alternative
+   *  group's lines not-selected -- mirrors lineTotals.ts's own resolution
+   *  so the on-screen total and the radio state never disagree. */
+  function chooseGroup(groupId: string) {
+    setLines((ls) => ls.map((l) => (l.group_type === "alternative" && l.group_id ? { ...l, is_selected: l.group_id === groupId } : l)));
+  }
+  const altGroupIds = [...new Set(lines.filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id))];
+  const chosenGroupId = altGroupIds.find((gid) => lines.some((l) => l.group_id === gid && l.is_selected === true)) ?? altGroupIds[0] ?? null;
 
   async function priceWithEngine(lineId: string, productId: string, qty: string) {
     const quantity = parseFloat(qty) || 1;
@@ -351,12 +421,102 @@ export default function StandardQuoteForm({
     return <div style={{ ...box, color: "var(--amberink)" }}>{info.ref} saved but not sent: {info.reason}. Send it from Pricing → RFQs.</div>;
   }
 
+  /** The product/description/uom/qty/rate/discount/amount fields for one
+   *  line -- shared by an ungrouped line and every line inside an
+   *  alternative option, so the two only ever differ in their outer
+   *  header (Line N + Remove, vs. the option's own header). */
+  function renderLineFields(line: Line) {
+    return (
+      <>
+        {products.length > 0 && (
+          <div style={fw}>
+            <label style={lbl}>Product</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <select style={inp} value={line.product_id} onChange={(e) => {
+                const hadPrice = !!line.pricing_document_id;
+                chooseProduct(line.id, e.target.value);
+                if (hadPrice && e.target.value) scheduleAutoReprice(line.id, e.target.value, line.qty);
+              }}>
+                <option value="">— Free text (no product) —</option>
+                {products.map((p) => <option key={p.id} value={p.id}>{p.ref ? `${p.ref} · ` : ""}{p.name}</option>)}
+              </select>
+              {pricingEngineQuotesEnabled && line.product_id && (
+                <button
+                  type="button"
+                  disabled={pricingBusyIds.has(line.id)}
+                  onClick={() => priceWithEngine(line.id, line.product_id, line.qty)}
+                  title="Suggest a rate from the live Pricing Engine — you can still edit it before saving"
+                  style={{
+                    flexShrink: 0, fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg,
+                    border: "none", borderRadius: 8, padding: "9px 12px", cursor: pricingBusyIds.has(line.id) ? "default" : "pointer",
+                    opacity: pricingBusyIds.has(line.id) ? 0.6 : 1, whiteSpace: "nowrap",
+                  }}
+                >
+                  {pricingBusyIds.has(line.id) ? "Pricing…" : "⚡ Price with engine"}
+                </button>
+              )}
+            </div>
+            {pricingErrors[line.id] && <div style={{ fontSize: 11.5, color: "var(--err-ink)", marginTop: 4 }}>{pricingErrors[line.id]}</div>}
+            {pricingStatus(line.id, line.product_id, line.qty)}
+          </div>
+        )}
+        <div style={fw}>
+          <label style={lbl}>Description *</label>
+          <input style={inp} value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} placeholder="What's being quoted" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+          <div>
+            <label style={lbl}>UOM</label>
+            <select style={inp} value={line.uom} onChange={(e) => updateLine(line.id, { uom: e.target.value })}>
+              {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Qty</label>
+            <input style={inp} type="number" min="0" step="any" value={line.qty} onChange={(e) => {
+              const qty = e.target.value;
+              updateLine(line.id, { qty });
+              if (line.product_id && line.pricing_document_id) scheduleAutoReprice(line.id, line.product_id, qty);
+            }} />
+          </div>
+          <div>
+            <label style={lbl}>Rate (₹)</label>
+            <input style={inp} type="number" min="0" step="0.01" value={line.rate} onChange={(e) => {
+              const rate = e.target.value;
+              if (line.pricing_document_id) {
+                updateLine(line.id, { rate, pricing_document_id: "" });
+                setOverriddenIds((s) => new Set(s).add(line.id));
+                setLinePricing((p) => { const { [line.id]: _drop, ...rest } = p; return rest; });
+              } else {
+                updateLine(line.id, { rate });
+              }
+            }} />
+            {overriddenIds.has(line.id) && (
+              <div style={{ fontSize: 10.5, color: c.hint, marginTop: 3 }}>Rate overridden — no longer tracked by the engine</div>
+            )}
+          </div>
+          <div>
+            <label style={lbl}>Discount %</label>
+            <input style={inp} type="number" min="0" max="100" step="0.1" value={line.discount_pct} onChange={(e) => updateLine(line.id, { discount_pct: e.target.value })} />
+          </div>
+        </div>
+        <div style={{ textAlign: "right", fontSize: 12.5, color: c.muted, marginTop: 6 }}>
+          = {inr(lineAmount(line))}
+        </div>
+      </>
+    );
+  }
+
   const [aiJobDesc, setAiJobDesc] = useState("");
   const [aiDrafting, setAiDrafting] = useState(false);
   const [aiIntroDrafting, setAiIntroDrafting] = useState(false);
 
   const accountContacts = contacts.filter((ct) => ct.account_id === accountId);
-  const subtotal = lines.reduce((s, l) => s + lineAmount(l), 0);
+  const selectableLines: (SelectableLine & { id: string })[] = lines.map((l) => ({
+    id: l.id, amount: lineAmount(l), group_id: l.group_id || null, group_type: l.group_type || null, is_selected: l.is_selected,
+  }));
+  const subtotal = documentTotal(selectableLines);
+  const rows = groupedRows(lines);
   const totals = computeStandardQuoteTotals(
     subtotal,
     Math.max(0, Math.min(100, parseFloat(headerDiscountPct) || 0)),
@@ -381,8 +541,8 @@ export default function StandardQuoteForm({
         const json = await res.json();
         if (!res.ok) { setError(json.error ?? "AI drafting failed"); return; }
         const drafted: Line[] = (json.lines as { description: string; uom: string; qty: string }[]).map((l) => ({
-          id: Math.random().toString(36).slice(2),
-          description: l.description, uom: l.uom || "Nos", qty: l.qty || "1", rate: "0", discount_pct: "0", product_id: "", pricing_document_id: "",
+          ...newLine(), id: Math.random().toString(36).slice(2),
+          description: l.description, uom: l.uom || "Nos", qty: l.qty || "1",
         }));
         if (drafted.length === 0) { setError("AI didn't return any line items — try a more specific description"); return; }
         setLines((ls) => (ls.length === 1 && !ls[0].description.trim() ? drafted : [...ls, ...drafted]));
@@ -421,9 +581,18 @@ export default function StandardQuoteForm({
     const cleanLines = lines.filter((l) => l.description.trim());
     if (cleanLines.length === 0) { setError("Add at least one line item"); return; }
     setError("");
+    // normalizeSelection resolves every alternative group to exactly one
+    // chosen set of lines before it ever reaches the server -- the same
+    // pure decision the total on screen was already made with.
+    const normalized = normalizeSelection(cleanLines.map((l) => ({
+      id: l.id, amount: lineAmount(l), group_id: l.group_id || null, group_type: l.group_type || null, is_selected: l.is_selected,
+    })));
+    const selectionById = new Map(normalized.map((n) => [n.id, n.is_selected]));
     const linePayload = cleanLines.map((l) => ({
       description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct,
       product_id: l.product_id || null, pricing_document_id: l.pricing_document_id || null,
+      group_id: l.group_id || null, group_label: l.group_label || null, group_type: l.group_type || null,
+      is_selected: selectionById.get(l.id) ?? true,
     }));
     startTransition(async () => {
       const commercial = {
@@ -564,6 +733,14 @@ export default function StandardQuoteForm({
                   )}
                   <button
                     type="button"
+                    onClick={addAlternativeOption}
+                    title="Give the customer a choice between two or more offers -- only the one they pick counts toward the total"
+                    style={{ fontSize: 12, fontWeight: 600, color: c.muted, background: "transparent", border: `1px dashed ${c.line}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
+                  >
+                    + Add alternative option
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setLines((ls) => [...ls, newLine()])}
                     style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
                   >
@@ -579,93 +756,67 @@ export default function StandardQuoteForm({
                 </div>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {lines.map((line, idx) => (
-                  <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: c.hint }}>Line {idx + 1}</span>
-                      {lines.length > 1 && (
-                        <button type="button" onClick={() => setLines((ls) => ls.filter((l) => l.id !== line.id))} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    {products.length > 0 && (
-                      <div style={fw}>
-                        <label style={lbl}>Product</label>
-                        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                          <select style={inp} value={line.product_id} onChange={(e) => {
-                            const hadPrice = !!line.pricing_document_id;
-                            chooseProduct(line.id, e.target.value);
-                            if (hadPrice && e.target.value) scheduleAutoReprice(line.id, e.target.value, line.qty);
-                          }}>
-                            <option value="">— Free text (no product) —</option>
-                            {products.map((p) => <option key={p.id} value={p.id}>{p.ref ? `${p.ref} · ` : ""}{p.name}</option>)}
-                          </select>
-                          {pricingEngineQuotesEnabled && line.product_id && (
-                            <button
-                              type="button"
-                              disabled={pricingBusyIds.has(line.id)}
-                              onClick={() => priceWithEngine(line.id, line.product_id, line.qty)}
-                              title="Suggest a rate from the live Pricing Engine — you can still edit it before saving"
-                              style={{
-                                flexShrink: 0, fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg,
-                                border: "none", borderRadius: 8, padding: "9px 12px", cursor: pricingBusyIds.has(line.id) ? "default" : "pointer",
-                                opacity: pricingBusyIds.has(line.id) ? 0.6 : 1, whiteSpace: "nowrap",
-                              }}
-                            >
-                              {pricingBusyIds.has(line.id) ? "Pricing…" : "⚡ Price with engine"}
+                {(() => { let lineNo = 0; return rows.map((row) => {
+                  if (row.kind === "line") {
+                    lineNo += 1;
+                    const line = row.line;
+                    return (
+                      <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: c.hint }}>Line {lineNo}</span>
+                          {lines.length > 1 && (
+                            <button type="button" onClick={() => setLines((ls) => ls.filter((l) => l.id !== line.id))} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
+                              Remove
                             </button>
                           )}
                         </div>
-                        {pricingErrors[line.id] && <div style={{ fontSize: 11.5, color: "var(--err-ink)", marginTop: 4 }}>{pricingErrors[line.id]}</div>}
-                        {pricingStatus(line.id, line.product_id, line.qty)}
+                        {renderLineFields(line)}
                       </div>
-                    )}
-                    <div style={fw}>
-                      <label style={lbl}>Description *</label>
-                      <input style={inp} value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} placeholder="What's being quoted" />
+                    );
+                  }
+                  // An alternative option: one or more lines that together
+                  // make up one offer -- only the chosen option's lines
+                  // count toward the total (src/lib/sales/lineTotals.ts).
+                  const isChosen = row.group_id === chosenGroupId;
+                  return (
+                    <div key={row.group_id} style={{ border: `1px solid ${isChosen ? c.accent : c.line}`, borderRadius: 8, padding: 10, background: isChosen ? c.accentbg : "transparent" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                          <input type="radio" checked={isChosen} onChange={() => chooseGroup(row.group_id)} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: isChosen ? c.accent : c.hint }}>{isChosen ? "Selected option" : "Use this option"}</span>
+                        </label>
+                        <input
+                          value={row.label}
+                          onChange={(e) => renameGroup(row.group_id, e.target.value)}
+                          placeholder="Option name"
+                          style={{ ...inp, width: 180, padding: "4px 8px", fontSize: 12.5, fontWeight: 600 }}
+                        />
+                        <button type="button" onClick={() => addItemToGroup(row.group_id, row.label)} style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer" }}>
+                          + Add item
+                        </button>
+                        <button type="button" onClick={() => removeGroup(row.group_id)} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
+                          Remove option
+                        </button>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {row.lines.map((line) => (
+                          <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10, background: c.panel }}>
+                            <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+                              <span style={{ fontSize: 10.5, color: c.hint }}>Item</span>
+                              <button type="button" onClick={() => setLines((ls) => { const rest = ls.filter((l) => l.id !== line.id); return rest.length ? rest : [newLine()]; })} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
+                                Remove
+                              </button>
+                            </div>
+                            {renderLineFields(line)}
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ textAlign: "right", fontSize: 12.5, fontWeight: 600, color: c.ink, marginTop: 8 }}>
+                        Option total = {inr(row.lines.reduce((s, l) => s + lineAmount(l), 0))}
+                      </div>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
-                      <div>
-                        <label style={lbl}>UOM</label>
-                        <select style={inp} value={line.uom} onChange={(e) => updateLine(line.id, { uom: e.target.value })}>
-                          {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={lbl}>Qty</label>
-                        <input style={inp} type="number" min="0" step="any" value={line.qty} onChange={(e) => {
-                          const qty = e.target.value;
-                          updateLine(line.id, { qty });
-                          if (line.product_id && line.pricing_document_id) scheduleAutoReprice(line.id, line.product_id, qty);
-                        }} />
-                      </div>
-                      <div>
-                        <label style={lbl}>Rate (₹)</label>
-                        <input style={inp} type="number" min="0" step="0.01" value={line.rate} onChange={(e) => {
-                          const rate = e.target.value;
-                          if (line.pricing_document_id) {
-                            updateLine(line.id, { rate, pricing_document_id: "" });
-                            setOverriddenIds((s) => new Set(s).add(line.id));
-                            setLinePricing((p) => { const { [line.id]: _drop, ...rest } = p; return rest; });
-                          } else {
-                            updateLine(line.id, { rate });
-                          }
-                        }} />
-                        {overriddenIds.has(line.id) && (
-                          <div style={{ fontSize: 10.5, color: c.hint, marginTop: 3 }}>Rate overridden — no longer tracked by the engine</div>
-                        )}
-                      </div>
-                      <div>
-                        <label style={lbl}>Discount %</label>
-                        <input style={inp} type="number" min="0" max="100" step="0.1" value={line.discount_pct} onChange={(e) => updateLine(line.id, { discount_pct: e.target.value })} />
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right", fontSize: 12.5, color: c.muted, marginTop: 6 }}>
-                      = {inr(lineAmount(line))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                }); })()}
               </div>
 
               <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 14, paddingTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
