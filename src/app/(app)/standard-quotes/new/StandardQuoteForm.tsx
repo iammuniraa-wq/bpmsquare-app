@@ -268,7 +268,11 @@ export default function StandardQuoteForm({
       ? Math.max(...existing.map((b) => parseFloat(b.break_qty) || 0)) + 10
       : Math.max(2, (parseFloat(parentLine.qty) || 1) + 9);
     setLines((ls) => [...ls, {
-      ...newLine(), break_of: parentLine.id, break_qty: String(nextQty), qty: String(nextQty),
+      // is_selected starts false: a new break is an option to consider,
+      // not an automatic switch away from the base quantity that was
+      // already charged (newLine()'s own default of true is right for an
+      // ordinary line, wrong for a break that hasn't been chosen yet).
+      ...newLine(), break_of: parentLine.id, break_qty: String(nextQty), qty: String(nextQty), is_selected: false,
       description: parentLine.description, uom: parentLine.uom, product_id: parentLine.product_id, rate: parentLine.rate,
     }]);
   }
