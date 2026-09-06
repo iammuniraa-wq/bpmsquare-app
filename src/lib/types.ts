@@ -283,6 +283,14 @@ export type QuoteLine = {
    *  engine priced this line; its guardrail flags, derived server-side. */
   pricing_document_id?: string | null;
   pricing_flags?: { code: string; policy: "warn" | "block" | "approve"; floor_pct?: number; actual_pct?: number }[] | null;
+  /** Quantity break (0116, sales-engine-architecture.md §3.4): this row is
+   *  an alternative-quantity pricing of `break_of`, priced at `break_qty`. */
+  break_of?: string | null;
+  break_qty?: number | null;
+  /** Whether this row counts toward the document total (0116) -- false for
+   *  an unselected alternative-group line or an unselected break. Every
+   *  plain line defaults true. */
+  is_selected?: boolean;
 };
 
 export type WorkOrderStatus =
@@ -425,6 +433,18 @@ export type StandardQuoteLine = {
    *  flags it carried (0114) -- derived server-side, mirrors quote_lines. */
   pricing_document_id?: string | null;
   pricing_flags?: { code: string; policy: string; floor_pct?: number; actual_pct?: number }[] | null;
+  /** Alternative option groups (0116) -- same model Quotations already has:
+   *  a group_id ties lines together, group_type "alternative" means only
+   *  one group's lines count toward the total (is_selected on its lines). */
+  group_id?: string | null;
+  group_label?: string | null;
+  group_type?: string | null;
+  /** Quantity break (0116, sales-engine-architecture.md §3.4): this row is
+   *  an alternative-quantity pricing of `break_of`, priced at `break_qty`. */
+  break_of?: string | null;
+  break_qty?: number | null;
+  /** Whether this row counts toward the document total (0116). */
+  is_selected?: boolean;
 };
 
 // Standard Quote branded templates -- an ordered list of blocks a tenant can

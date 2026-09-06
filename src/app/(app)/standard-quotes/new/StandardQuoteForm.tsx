@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c } from "@/lib/theme";
@@ -23,10 +23,21 @@ export type StandardQuoteProduct = { id: string; ref: string | null; name: strin
 // so the two forms never drift (the rate, a why chip, a floor flag, or the
 // NEEDS_RFQ prompt with an inline Send RFQ).
 type LinePricing =
-  | { kind: "priced"; document_id: string | null; area: string; flags: { code: string; policy: string; floor_pct?: number; actual_pct?: number }[]; trace: PriceTraceStep[]; open: boolean }
+  | { kind: "priced"; document_id: string | null; area: string; flags: LineFlag[]; trace: PriceTraceStep[]; open: boolean }
   | { kind: "needs_rfq"; product: { id: string; name: string }; missing: { path: string; considered: { source: string; status: string; reason?: string }[] }[]; message: string; cost_model: string | null }
   | { kind: "rfq_sent"; ref: string; supplier: string; redirected: boolean }
   | { kind: "rfq_draft"; ref: string; reason: string };
+
+type LineFlag = { code: string; policy: string; floor_pct?: number; actual_pct?: number };
+
+// Response shape of POST /api/pricing/price-lines (Sales Engine Piece A,
+// docs/sales-engine-architecture.md §3.2) -- one entry per line submitted,
+// keyed back by line_key so a partial failure never loses track of which
+// line it belongs to.
+type PriceAllResult =
+  | { line_key: string; ok: true; unit_rate: number; document_id: string | null; area: string; flags: LineFlag[]; trace: PriceTraceStep[]; tax_pct: number }
+  | { line_key: string; ok: false; needs_rfq: true; product: { id: string; name: string }; missing: { path: string; considered: { source: string; status: string; reason?: string }[] }[]; message: string; cost_model: string | null }
+  | { line_key: string; ok: false; error: string };
 
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -121,6 +132,15 @@ export default function StandardQuoteForm({
   const [rfqMessage, setRfqMessage] = useState("");
   const [rfqBusy, setRfqBusy] = useState(false);
 
+  // Price all lines + auto re-price (Sales Engine Piece A). A line that a
+  // rep has manually re-rated after the engine priced it is "overridden" --
+  // no longer tracked by a pricing document, shown so nobody mistakes a
+  // hand-typed number for the engine's.
+  const [priceAllBusy, setPriceAllBusy] = useState(false);
+  const [priceAllSummary, setPriceAllSummary] = useState<{ priced: number; needsRfq: number; failed: number } | null>(null);
+  const [overriddenIds, setOverriddenIds] = useState<Set<string>>(new Set());
+  const repriceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
   function chooseProduct(lineId: string, productId: string) {
     const p = products.find((x) => x.id === productId);
     setLines((ls) => ls.map((l) => {
@@ -152,6 +172,7 @@ export default function StandardQuoteForm({
       }
       if (!res.ok) { setPricingErrors((p) => ({ ...p, [lineId]: json.error ?? "Pricing failed" })); return; }
       updateLine(lineId, { rate: String(Math.round((json.unit_rate as number) * 100) / 100), pricing_document_id: json.document_id ?? "" });
+      setOverriddenIds((s) => { if (!s.has(lineId)) return s; const n = new Set(s); n.delete(lineId); return n; });
       // The line rate is before tax; the header applies tax once. Fill the
       // header from the engine only when the rep has not set one.
       if ((parseFloat(taxPct) || 0) === 0 && typeof json.tax_pct === "number" && json.tax_pct > 0) setTaxPct(String(json.tax_pct));
@@ -160,6 +181,62 @@ export default function StandardQuoteForm({
       setPricingErrors((p) => ({ ...p, [lineId]: "Network error — try again." }));
     } finally {
       setPricingBusyIds((p) => { const n = new Set(p); n.delete(lineId); return n; });
+    }
+  }
+
+  /** Re-prices a line automatically, 600ms after its product or quantity
+   *  changed, but ONLY when it already carried an engine price -- a fresh
+   *  line's first price is still an explicit click (Price with engine). */
+  function scheduleAutoReprice(lineId: string, productId: string, qty: string) {
+    if (repriceTimers.current[lineId]) clearTimeout(repriceTimers.current[lineId]);
+    repriceTimers.current[lineId] = setTimeout(() => { priceWithEngine(lineId, productId, qty); }, 600);
+  }
+
+  /** Prices every line that names a product in one call
+   *  (docs/sales-engine-architecture.md §3.2) instead of one click each. */
+  async function priceAllLines() {
+    const targets = lines.filter((l) => l.product_id);
+    if (targets.length === 0) return;
+    setPriceAllBusy(true);
+    setPriceAllSummary(null);
+    setError("");
+    setPricingBusyIds((p) => { const n = new Set(p); for (const t of targets) n.add(t.id); return n; });
+    try {
+      const res = await fetch("/api/pricing/price-lines", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_type: "standard_quote",
+          document_id: editQuote?.id || undefined,
+          account_id: accountId || undefined,
+          lines: targets.map((l) => ({ line_key: l.id, product_id: l.product_id, quantity: parseFloat(l.qty) || 1 })),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(json.error ?? "Price all lines failed"); return; }
+      let priced = 0, needsRfq = 0, failed = 0;
+      let firstTaxPct: number | null = null;
+      for (const r of (json.results ?? []) as PriceAllResult[]) {
+        if (r.ok) {
+          priced++;
+          updateLine(r.line_key, { rate: String(Math.round(r.unit_rate * 100) / 100), pricing_document_id: r.document_id ?? "" });
+          setOverriddenIds((s) => { if (!s.has(r.line_key)) return s; const n = new Set(s); n.delete(r.line_key); return n; });
+          if (firstTaxPct === null && r.tax_pct > 0) firstTaxPct = r.tax_pct;
+          setLinePricing((p) => ({ ...p, [r.line_key]: { kind: "priced", document_id: r.document_id ?? null, area: r.area, flags: r.flags ?? [], trace: r.trace ?? [], open: false } }));
+        } else if ("needs_rfq" in r && r.needs_rfq) {
+          needsRfq++;
+          setLinePricing((p) => ({ ...p, [r.line_key]: { kind: "needs_rfq", product: r.product, missing: r.missing ?? [], message: r.message, cost_model: r.cost_model ?? null } }));
+        } else {
+          failed++;
+          setPricingErrors((p) => ({ ...p, [r.line_key]: "error" in r ? r.error : "Pricing failed" }));
+        }
+      }
+      if ((parseFloat(taxPct) || 0) === 0 && firstTaxPct) setTaxPct(String(firstTaxPct));
+      setPriceAllSummary({ priced, needsRfq, failed });
+    } catch {
+      setError("Network error pricing all lines — try again.");
+    } finally {
+      setPriceAllBusy(false);
+      setPricingBusyIds((p) => { const n = new Set(p); for (const t of targets) n.delete(t.id); return n; });
     }
   }
 
@@ -471,16 +548,36 @@ export default function StandardQuoteForm({
             </section>
 
             <section style={cardStyle}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
                 <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: 0 }}>Line items</h3>
-                <button
-                  type="button"
-                  onClick={() => setLines((ls) => [...ls, newLine()])}
-                  style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
-                >
-                  + Add line
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {pricingEngineQuotesEnabled && products.length > 0 && lines.some((l) => l.product_id) && (
+                    <button
+                      type="button"
+                      disabled={priceAllBusy}
+                      onClick={priceAllLines}
+                      title="Price every line that names a product, in one call"
+                      style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: priceAllBusy ? "default" : "pointer", opacity: priceAllBusy ? 0.6 : 1 }}
+                    >
+                      {priceAllBusy ? "Pricing all…" : "⚡ Price all lines"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setLines((ls) => [...ls, newLine()])}
+                    style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
+                  >
+                    + Add line
+                  </button>
+                </div>
               </div>
+              {priceAllSummary && (
+                <div style={{ fontSize: 12, color: c.muted, marginBottom: 10, padding: "6px 10px", borderRadius: 6, background: c.panel2 }}>
+                  {priceAllSummary.priced} priced
+                  {priceAllSummary.needsRfq > 0 ? ` · ${priceAllSummary.needsRfq} need a supplier reply` : ""}
+                  {priceAllSummary.failed > 0 ? ` · ${priceAllSummary.failed} failed` : ""}
+                </div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {lines.map((line, idx) => (
                   <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10 }}>
@@ -496,7 +593,11 @@ export default function StandardQuoteForm({
                       <div style={fw}>
                         <label style={lbl}>Product</label>
                         <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                          <select style={inp} value={line.product_id} onChange={(e) => chooseProduct(line.id, e.target.value)}>
+                          <select style={inp} value={line.product_id} onChange={(e) => {
+                            const hadPrice = !!line.pricing_document_id;
+                            chooseProduct(line.id, e.target.value);
+                            if (hadPrice && e.target.value) scheduleAutoReprice(line.id, e.target.value, line.qty);
+                          }}>
                             <option value="">— Free text (no product) —</option>
                             {products.map((p) => <option key={p.id} value={p.id}>{p.ref ? `${p.ref} · ` : ""}{p.name}</option>)}
                           </select>
@@ -533,11 +634,27 @@ export default function StandardQuoteForm({
                       </div>
                       <div>
                         <label style={lbl}>Qty</label>
-                        <input style={inp} type="number" min="0" step="any" value={line.qty} onChange={(e) => updateLine(line.id, { qty: e.target.value })} />
+                        <input style={inp} type="number" min="0" step="any" value={line.qty} onChange={(e) => {
+                          const qty = e.target.value;
+                          updateLine(line.id, { qty });
+                          if (line.product_id && line.pricing_document_id) scheduleAutoReprice(line.id, line.product_id, qty);
+                        }} />
                       </div>
                       <div>
                         <label style={lbl}>Rate (₹)</label>
-                        <input style={inp} type="number" min="0" step="0.01" value={line.rate} onChange={(e) => updateLine(line.id, { rate: e.target.value })} />
+                        <input style={inp} type="number" min="0" step="0.01" value={line.rate} onChange={(e) => {
+                          const rate = e.target.value;
+                          if (line.pricing_document_id) {
+                            updateLine(line.id, { rate, pricing_document_id: "" });
+                            setOverriddenIds((s) => new Set(s).add(line.id));
+                            setLinePricing((p) => { const { [line.id]: _drop, ...rest } = p; return rest; });
+                          } else {
+                            updateLine(line.id, { rate });
+                          }
+                        }} />
+                        {overriddenIds.has(line.id) && (
+                          <div style={{ fontSize: 10.5, color: c.hint, marginTop: 3 }}>Rate overridden — no longer tracked by the engine</div>
+                        )}
                       </div>
                       <div>
                         <label style={lbl}>Discount %</label>

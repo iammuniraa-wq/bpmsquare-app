@@ -162,7 +162,20 @@ Two halves, both needed:
    · 50+: 20,100"); only the selected break (or the parent) counts in the
    total. Acceptance of a break on the public page selects it.
 
-### 3.5 Acceptance (demo)
+### 3.5 Status (2026-09-06)
+
+**Built, awaiting migration 0116 + demo validation:** the line contract
+migration (0116), `src/lib/sales/lineTotals.ts` (pure, 18 unit tests),
+`POST /api/pricing/price-lines` (§3.2), and on `StandardQuoteForm.tsx`:
+Price all lines, auto re-price on product/qty change to an already-priced
+line, and rate-override detection (editing the rate by hand on a priced
+line clears its `pricing_document_id` and shows "Rate overridden — no
+longer tracked by the engine"). **Not yet built:** alternatives (§3.3) and
+quantity breaks (§3.4) have no UI on either quote object yet — the schema
+and `lineTotals.ts` are ready for them. Quotations (`QuoteForm.tsx`) has
+not been touched at all in this slice; Price all lines there is next.
+
+### 3.5b Acceptance (demo)
 
 - SQ-2026-0002: "Price all lines" prices three lines in one click; changing
   qty on line 1 re-prices it without a click; editing the rate by hand
