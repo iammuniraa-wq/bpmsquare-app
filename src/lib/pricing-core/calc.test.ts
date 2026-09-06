@@ -268,3 +268,35 @@ describe("scales", () => {
     expect(priceDocument(input).lines[0].components.LIST_PRICE).toBe(92 * 1200);
   });
 });
+
+describe("a required FORMULA component with no matching rule", () => {
+  // pricing-engine-architecture.md §19.1: a family with a catalog rate but
+  // no fallback formula (Safety Gear -- you cannot derive a hard hat's
+  // price from a weight formula) must stop the line, exactly like a
+  // required non-FORMULA component with no matching rule does a few lines
+  // above in resolveFor()'s own required check. Before this fix the
+  // FORMULA branch skipped straight to `skip()` regardless of `required`,
+  // silently contributing 0 instead.
+  const input: PriceInput = {
+    procedure: { procedure_id: "p5", entry_mode: "LIST_DOWN", steps: [{ step: 10, component: "RATE", required: true }] },
+    components: [component("RATE", { calc_type: "FORMULA" })],
+    rules: [rule("catalog", "RATE", { value: null, formula: "10 * ctx.line.quantity", match_attributes: { "customer.tier": "A" } })],
+    cost_models: [], registry: REGISTRY,
+    document: { attributes: { customer: { tier: "B" } }, lines: [{ line_no: 10, quantity: 5 }] },
+    pricing_date: "2026-08-15",
+  };
+
+  it("throws MISSING_REQUIRED_COMPONENT instead of pricing at zero", () => {
+    expect(() => priceDocument(input)).toThrow(PricingError);
+    try {
+      priceDocument(input);
+    } catch (e) {
+      expect((e as PricingError).code).toBe("MISSING_REQUIRED_COMPONENT");
+    }
+  });
+
+  it("still applies normally once a matching rule exists", () => {
+    const matching: PriceInput = { ...input, document: { attributes: { customer: { tier: "A" } }, lines: input.document.lines } };
+    expect(priceDocument(matching).lines[0].components.RATE).toBe(50);
+  });
+});

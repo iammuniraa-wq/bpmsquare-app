@@ -302,6 +302,14 @@ export function priceDocument(input: PriceInput): PriceResult {
         const resolved = formula ? [] : resolveFor(component);
         const src = formula ?? resolved[0]?.rule.formula;
         if (!src) {
+          // A FORMULA component obeys `required` exactly like the plain
+          // rule-resolution path below it -- a family with no catalog row
+          // AND no fallback formula (e.g. Safety Gear: you cannot derive a
+          // hard hat's price from a weight formula) must stop the line, not
+          // silently contribute 0 (spec §17 "never a silent zero").
+          if (step.required) {
+            throw new PricingError("MISSING_REQUIRED_COMPONENT", `Required component ${component.code} has no matching rule for this context`);
+          }
           return skip(step, component, "no formula and no matching rule");
         }
         let value: number;
