@@ -43,19 +43,26 @@ export type PdfLine = SelectableLine & { show_on_pdf?: boolean | null };
  * charged can be hidden -- the two are independent by design.
  */
 export function linesForPdf<T extends PdfLine>(lines: T[], options: PrintOptions, opts: { selectedOptionId?: string | null } = {}): T[] {
-  const chosen = new Set(selectedLines(lines, opts).map((l) => l.id));
-  const isBreakBase = new Set(lines.filter((l) => l.break_of).map((l) => l.break_of as string));
+  // The two decisions are independent: which OPTION is chosen (a group
+  // question) and, within each break family, which QUANTITY is chosen (a
+  // row question, answered the same way whether or not its option is the
+  // chosen one -- an unchosen option still has a "would-be" quantity).
+  const chosenGroups = new Set(
+    selectedLines(lines, opts).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string)
+  );
+  const familyChosen = new Map<string, string>();
+  for (const l of lines) {
+    if (!l.break_of) continue;
+    if (!familyChosen.has(l.break_of)) familyChosen.set(l.break_of, l.break_of);
+    if (l.is_selected === true) familyChosen.set(l.break_of, l.id);
+  }
   return lines.filter((l) => {
     if (l.show_on_pdf === false) return false;
-    if (chosen.has(l.id)) return true;
-    if (l.group_type === "alternative" && l.group_id) {
-      // An unchosen option's lines -- including any breaks they carry.
-      if (options.alternatives === "chosen") return false;
-      // Inside an offered option, an unchosen quantity follows the breaks rule.
-      if (l.break_of || isBreakBase.has(l.id)) return options.breaks === "all";
-      return true;
-    }
-    if (l.break_of || isBreakBase.has(l.id)) return options.breaks === "all";
-    return false; // an ordinary line explicitly deselected
+    const inGroup = l.group_type === "alternative" && !!l.group_id;
+    if (inGroup && !chosenGroups.has(l.group_id as string) && options.alternatives !== "all") return false;
+    const familyId = l.break_of || (familyChosen.has(l.id) ? l.id : null);
+    if (familyId && familyChosen.get(familyId) !== l.id && options.breaks !== "all") return false;
+    if (!inGroup && !familyId && l.is_selected === false) return false; // an ordinary line explicitly deselected
+    return true;
   });
 }

@@ -12,6 +12,7 @@ import { ROUTES } from "@/lib/constants";
 import type { StandardQuoteStatus } from "@/lib/types";
 import StandardQuoteActionsPanel from "./StandardQuoteActionsPanel";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
+import { selectedLines } from "@/lib/sales/lineTotals";
 
 const STATUS_TONE: Record<StandardQuoteStatus, PillarKey> = {
   draft: "blue", sent: "amber", accepted: "green", rejected: "red", expired: "red",
@@ -47,6 +48,9 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
   const data = await getStandardQuoteLive(id);
   if (!data) notFound();
   const { quote, lines, account, contact } = data;
+  // Which alternative options are chosen (0118: a break family inside an
+  // option labels the option and the quantity separately).
+  const chosenGroupIds = new Set(selectedLines(lines).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string));
 
   return (
     <>
@@ -107,6 +111,11 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
                   const notSelected = l.is_selected === false;
                   const isBreak = !!l.break_of;
                   const hiddenOnPdf = l.show_on_pdf === false;
+                  // A break family inside an option (0118): the option's own
+                  // "not chosen" is about the GROUP, the quantity's about the
+                  // row -- never both on one row for the same reason.
+                  const groupNotChosen = l.group_type === "alternative" && !!l.group_id && !chosenGroupIds.has(l.group_id);
+                  const qtyNotChosen = notSelected && !groupNotChosen;
                   return (
                   <tr key={l.id} style={{ borderTop: `1px solid ${c.line}`, opacity: notSelected ? 0.55 : 1 }}>
                     <td style={{ padding: "8px 14px", fontSize: 13 }}>
@@ -116,16 +125,16 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
                         </span>
                       )}
                       {l.group_type === "alternative" && (
-                        <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: notSelected ? c.hint : c.accent, marginRight: 6 }}>
-                          {l.group_label || "Option"}{notSelected ? " · not chosen" : ""}
+                        <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: groupNotChosen ? c.hint : c.accent, marginRight: 6 }}>
+                          {l.group_label || "Option"}{groupNotChosen ? " · not chosen" : ""}
                         </span>
                       )}
                       {isBreak && (
                         <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: notSelected ? c.hint : c.accent, marginRight: 6 }}>
-                          Qty {l.qty}{notSelected ? " · not chosen" : ""}
+                          Qty {l.qty}{qtyNotChosen ? " · not chosen" : ""}
                         </span>
                       )}
-                      {!isBreak && l.group_type !== "alternative" && notSelected && (
+                      {!isBreak && (l.group_type !== "alternative" || !groupNotChosen) && notSelected && (
                         <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: c.hint, marginRight: 6 }}>
                           Base quantity · not chosen
                         </span>
