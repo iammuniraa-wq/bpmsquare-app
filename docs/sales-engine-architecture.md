@@ -498,6 +498,24 @@ only, flips `features.pipeline` on): six deals across stages for the demo
 accounts, one linked to SQ-2026-0002, one from a lead, one lost with a
 reason.
 
+### 4.6b Status (2026-09-06) — built, awaiting the owner's live validation
+
+Built as specified with these deliberate deviations, all recorded here
+rather than silently: the migration is **0120** (0117–0119 were taken by
+Piece A's follow-ups); `config.opportunity_stages` uses the proposed
+defaults (Qualify 20 → Propose 50 → Negotiate 75 → Won → Lost) as the
+owner's decision on open decision #1; **Convert targets Standard Quotes
+only** (converting to a Quotation returns 422 until asked — decision 2);
+"Win this deal" and "Approvals" tabs wait for pieces E and C, so the deal
+page has Overview · Lines · Quotes with the Nova timeline as Activity;
+`stage_since` is derived from the change log (no extra column); the line
+editor was extracted to `src/components/sales/DocumentLinesEditor.tsx`
+as planned and Standard Quotes now render through it. §3b items not done
+in this piece, on purpose: no OpenAPI `EntityDef` (the endpoint is listed
+under `UNDOCUMENTED_ENDPOINTS` like products), no Drive guide refresh
+until the owner validates (memory: docs after testing), and the v1 API
+excludes `team` and `probability_override_reason` by design.
+
 ### 4.7 Acceptance
 
 Create a deal from the board → add PRD-0007/0008/0009 lines → Price all →

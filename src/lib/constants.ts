@@ -68,6 +68,8 @@ export const SUPABASE_COOKIE_OPTIONS = { secure: process.env.NODE_ENV === "produ
 export const ROUTES = {
   login: "/login",
   pipeline: "/pipeline",
+  pipelineNew: "/pipeline/new",
+  pipelineDetail: (id: string) => `/pipeline/${id}`,
   dashboard: "/",
   leads: "/leads",
   partners: "/partners",
@@ -725,6 +727,7 @@ export type AnalyticsMetricId =
   | "invoices_by_status" | "loaner_availability" | "recent_activity"
   | "account_news"
   | "quote_outcomes" | "quote_overdue" | "quote_source"
+  | "pipeline_open_value"
   | "wfm_attendance_today" | "wfm_night_shift_cost"
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"
   | "wfm_site_headcount" | "wfm_workforce_composition" | "wfm_leave_taken_by_type"
@@ -774,6 +777,31 @@ export const DEFAULT_QUOTE_STATUSES: QuoteStatusDef[] = [
   { value: "rejected",    label: "Rejected",    color: "#ef4444", is_closed: true },
 ];
 
+// Opportunity (deal) stages -- Sales Engine Piece B (docs/
+// sales-engine-architecture.md §4.1). Same shape as QuoteStatusDef plus a
+// probability hint per open stage and the outcome a closed stage implies.
+// Tenant-configurable via config.opportunity_stages; these are the
+// defaults (owner decision 2026-09-06).
+export type OpportunityStageDef = {
+  value: string;
+  label: string;
+  color: string;
+  is_initial?: boolean;
+  is_closed?: boolean;
+  /** 0..100 -- the stored probability while no override/rubric applies. */
+  probability_hint?: number;
+  /** For a closed stage: the outcome it implies (default won). */
+  outcome?: "won" | "lost" | "dropped";
+};
+
+export const DEFAULT_OPPORTUNITY_STAGES: OpportunityStageDef[] = [
+  { value: "qualify",   label: "Qualify",   color: "#3b82f6", is_initial: true, probability_hint: 20 },
+  { value: "propose",   label: "Propose",   color: "#8b5cf6", probability_hint: 50 },
+  { value: "negotiate", label: "Negotiate", color: "#f59e0b", probability_hint: 75 },
+  { value: "won",       label: "Won",       color: "#10b981", is_closed: true, outcome: "won" },
+  { value: "lost",      label: "Lost",      color: "#ef4444", is_closed: true, outcome: "lost" },
+];
+
 // Quote outcome -- the business RESULT, fully independent of pipeline status
 // (a status just tracks where the quote sits; a quote can be marked lost
 // while still "Sent", ahead of the paperwork catching up). "lost" (actively
@@ -813,6 +841,9 @@ export type TenantConfig = {
   custom_fields?: Record<string, CustomFieldDef[]>;
   // Configurable quote pipeline statuses. Falls back to DEFAULT_QUOTE_STATUSES if absent.
   quote_statuses?: QuoteStatusDef[];
+  // Opportunity (deal) stages for the Pipeline board (0120). Falls back to
+  // DEFAULT_OPPORTUNITY_STAGES if absent.
+  opportunity_stages?: OpportunityStageDef[];
   // Product category tree, defined by the tenant in Settings -> Sales config.
   // OOB depth is exactly two levels (category -> sub-categories); absent/empty
   // means the product form falls back to free-text category entry.

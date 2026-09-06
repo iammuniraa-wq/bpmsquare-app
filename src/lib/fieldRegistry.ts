@@ -82,7 +82,7 @@ export type EffectiveField = {
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
-  | "employee" | "product" | "project";
+  | "employee" | "product" | "project" | "opportunity";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -273,6 +273,37 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
 
       { key: "uom",         defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
       { key: "description", defaultLabel: "Description",     widget: "textarea", defaultSection: "Details" },
+    ],
+  },
+
+  // Opportunity / deal (0120). Stage values come from the tenant's own
+  // stage list; amount and probability are computed (§4.4) -- export-only.
+  // team and probability_override_reason are internal, managed on the deal
+  // screen, not fields a form or an import edits directly.
+  opportunity: {
+    sections: ["Deal", "Customer", "Forecast", "Ownership"],
+    fields: [
+      { key: "ref",    defaultLabel: "Deal ID", widget: "text", defaultSection: "Deal", locked: true, editable: false, exportOnly: true },
+      { key: "title",  defaultLabel: "Title",   widget: "text", defaultSection: "Deal", locked: true },
+      { key: "description", defaultLabel: "Description", widget: "textarea", defaultSection: "Deal" },
+      { key: "stage",  defaultLabel: "Stage",   widget: "text", defaultSection: "Deal", locked: true },
+      { key: "source", defaultLabel: "Source",  widget: "enum", defaultSection: "Deal", enumOptions: [
+        { value: "lead", label: "Lead" }, { value: "campaign", label: "Campaign" }, { value: "direct", label: "Direct" },
+        { value: "referral", label: "Referral" }, { value: "other", label: "Other" },
+      ] },
+      { key: "competitor", defaultLabel: "Competitor", widget: "text", defaultSection: "Customer" },
+      { key: "expected_close", defaultLabel: "Expected close", widget: "date", defaultSection: "Forecast" },
+      { key: "amount",      defaultLabel: "Amount (₹)",    widget: "number", defaultSection: "Forecast", locked: true, editable: false, exportOnly: true },
+      { key: "probability", defaultLabel: "Probability %", widget: "number", defaultSection: "Forecast", locked: true, editable: false, exportOnly: true },
+      { key: "outcome", defaultLabel: "Outcome", widget: "enum", defaultSection: "Forecast", locked: true, enumOptions: [
+        { value: "open", label: "Open" }, { value: "won", label: "Won" }, { value: "lost", label: "Lost" }, { value: "dropped", label: "Dropped" },
+      ] },
+      { key: "loss_reason", defaultLabel: "Loss reason", widget: "enum", defaultSection: "Forecast", enumOptions: [
+        { value: "price", label: "Price too high" }, { value: "silent", label: "Went silent" }, { value: "competitor", label: "Chose competitor" },
+        { value: "budget", label: "Budget cut" }, { value: "timing", label: "Bad timing" }, { value: "other", label: "Other" },
+      ] },
+      { key: "loss_note", defaultLabel: "Loss note", widget: "textarea", defaultSection: "Forecast" },
+      { key: "currency", defaultLabel: "Currency", widget: "text", defaultSection: "Ownership" },
     ],
   },
 
@@ -505,7 +536,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
-  "employee", "product", "project",
+  "employee", "product", "project", "opportunity",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

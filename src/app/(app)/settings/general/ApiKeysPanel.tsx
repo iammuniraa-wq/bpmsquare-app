@@ -8,6 +8,7 @@ import { c } from "@/lib/theme";
 // shown exactly once -- there is no path to retrieve it afterwards.
 
 const SCOPABLE_OBJECTS = [
+  { key: "opportunities", label: "Deals" },
   { key: "quotations", label: "Quotations" },
   { key: "accounts", label: "Accounts" },
   { key: "cases", label: "Cases" },

@@ -36,7 +36,7 @@ export function routeToArea(routing: PricingRouting | null | undefined, flatCtx:
  *  configurable mapping (context_map) is batch 2's remaining piece; until
  *  then these are the conventions. */
 export function quoteLineContext(args: {
-  documentType: "quote" | "standard_quote" | "work_order";
+  documentType: "quote" | "standard_quote" | "work_order" | "opportunity";
   account?: { type?: string | null; state?: string | null; industry?: string | null; id?: string | null } | null;
   product: { id: string; name: string; category?: string | null; sub_category?: string | null; list_price?: number | null; uom?: string | null; tax_percent?: number | null };
 }): { header: Record<string, unknown>; line: Record<string, unknown> } {

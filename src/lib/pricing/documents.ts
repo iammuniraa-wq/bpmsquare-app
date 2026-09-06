@@ -5,7 +5,7 @@
 
 import type { LineFlag, PriceInput, PriceResult, TraceStep } from "@/lib/pricing-core";
 
-export const PRICING_DOCUMENT_SOURCES = ["api", "quote", "standard_quote", "work_order", "test", "simulation"] as const;
+export const PRICING_DOCUMENT_SOURCES = ["api", "quote", "standard_quote", "work_order", "opportunity", "test", "simulation"] as const;
 export type PricingDocumentSource = (typeof PRICING_DOCUMENT_SOURCES)[number];
 
 /** Who priced what -- travels with runPrice() into the stored row. */

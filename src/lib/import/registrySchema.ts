@@ -40,6 +40,7 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   employees: null,
   products: "product",
   wfm_projects: "project",
+  opportunities: "opportunity",
 };
 
 export type ReferenceFieldDef = {
@@ -66,6 +67,9 @@ export const REFERENCE_FIELDS: Partial<Record<ImportObjectId, ReferenceFieldDef[
   quotes: [
     { key: "account_name", label: "Account", hint: "Must match an account already in the system", target: "accounts", required: true },
     { key: "contact_name", label: "Contact", hint: "Contact person at the account", target: "contacts" },
+  ],
+  opportunities: [
+    { key: "account_name", label: "Account", hint: "Must match an account already in the system", target: "accounts", required: true },
   ],
   wfm_projects: [
     { key: "parent_ref", label: "Sits under", hint: "Project ID of the parent (e.g. PRJ-0003) to create a sub-project — blank for a top-level project", target: "wfm_projects" },
@@ -114,6 +118,7 @@ const REQUIRED_KEYS: Partial<Record<ImportObjectId, string[]>> = {
   users: ["name", "email", "role"],
   products: ["name"],
   wfm_projects: ["name"],
+  opportunities: ["title"],
 };
 
 /** Quote line items — fixed shape, one row per line, never tenant-customizable. */
@@ -168,6 +173,7 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   purchase_orders: { label: "Purchase Orders", icon: "◫", description: "Orders placed with suppliers", dependsOn: ["suppliers", "quotes"] },
   inventory: { label: "Inventory", icon: "◧", description: "Stocked parts and spares", dependsOn: ["suppliers"] },
   products: { label: "Products", icon: "▩", description: "Sellable catalog — goods and service plans with list/cost prices", dependsOn: [] },
+  opportunities: { label: "Deals (pipeline)", icon: "◈", description: "Sales opportunities — a pursuit with a customer, its stage and expected close. Amount and probability are computed, not imported.", dependsOn: ["accounts"] },
   wfm_projects: { label: "Projects (workforce)", icon: "▦", description: "Project costing — projects and sub-projects that worked hours are attributed to. Import parents before children.", dependsOn: [] },
   users: { label: "Users", icon: "◍", description: "Invite team members and assign roles — each person receives an email invite", dependsOn: [] },
   // Never read -- employees is null in REGISTRY_OBJECT_TYPE (static spec,

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenant } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { listLeadsLive } from "@/lib/data/live";
 import { listAccounts } from "@/lib/data";
@@ -12,15 +12,16 @@ import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { ROUTES } from "@/lib/constants";
 import NewLeadButton from "./NewLeadButton";
+import ConvertLeadButton from "./ConvertLeadButton";
 
-type LeadStatus = "new" | "inspecting" | "quoted" | "won" | "lost";
+type LeadStatus = "new" | "inspecting" | "quoted" | "won" | "lost" | "converted";
 type LeadSource = "oem_referral" | "amc" | "direct" | "campaign";
 
 const STATUS_TONE: Record<LeadStatus, PillarKey> = {
-  new: "blue", inspecting: "teal", quoted: "amber", won: "green", lost: "red",
+  new: "blue", inspecting: "teal", quoted: "amber", won: "green", lost: "red", converted: "green",
 };
 const STATUS_LABEL: Record<LeadStatus, string> = {
-  new: "New", inspecting: "Inspecting", quoted: "Quoted", won: "Won", lost: "Lost",
+  new: "New", inspecting: "Inspecting", quoted: "Quoted", won: "Won", lost: "Lost", converted: "Converted to deal",
 };
 const SOURCE_LABEL: Record<LeadSource, string> = {
   oem_referral: "OEM Referral", amc: "AMC", direct: "Direct", campaign: "Campaign",
@@ -50,6 +51,7 @@ export default async function LeadsPage({
   const { status: statusFilter, q, page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const leads = await listLeadsLive();
+  const pipelineOn = (await getTenant())?.features?.pipeline === true;
   const summaries = await listAccounts();
   const accounts = summaries.map((s) => ({ id: s.account.id, name: s.account.name }));
 
@@ -122,6 +124,7 @@ export default async function LeadsPage({
                 <th style={th}>Source</th>
                 <th style={th}>Status</th>
                 <th style={th}>Created</th>
+                {pipelineOn && <th style={th}></th>}
               </tr>
             </thead>
             <tbody>
@@ -149,6 +152,11 @@ export default async function LeadsPage({
                   <td style={{ ...td, color: c.muted }}>
                     {lead.created_at ? fmtDate(lead.created_at) : "—"}
                   </td>
+                  {pipelineOn && (
+                    <td style={{ ...td, textAlign: "right" }}>
+                      {lead.status !== "converted" && lead.status !== "lost" && <ConvertLeadButton leadId={lead.id} />}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -68,7 +68,7 @@ export function missingColumnName(error: { code?: string; message: string }): st
  *  migration is late. Capped so a genuinely different error can't loop. */
 export async function insertLinesTolerant(
   supabase: SupabaseClient,
-  table: "quote_lines" | "standard_quote_lines",
+  table: "quote_lines" | "standard_quote_lines" | "opportunity_lines",
   rows: Record<string, unknown>[]
 ): Promise<{ error: { message: string } | null; strippedColumns: string[] }> {
   let current = rows;
@@ -133,8 +133,8 @@ export async function verifiedProductIds(
  *  crash). */
 export async function flaggedLinesOf(
   supabase: SupabaseClient,
-  table: "quote_lines" | "standard_quote_lines",
-  parentColumn: "quote_id" | "standard_quote_id",
+  table: "quote_lines" | "standard_quote_lines" | "opportunity_lines",
+  parentColumn: "quote_id" | "standard_quote_id" | "opportunity_id",
   tenantId: string,
   documentId: string,
   opts: { selectedOptionId?: string | null } = {}

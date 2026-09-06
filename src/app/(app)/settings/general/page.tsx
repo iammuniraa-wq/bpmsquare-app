@@ -77,6 +77,8 @@ const API_ENDPOINTS = [
   { method: "GET", path: "/api/v1/quotations",          desc: "List quotations · filter: ?status= &account_id=" },
   { method: "GET", path: "/api/v1/products",            desc: "List products · filters: ?category=, ?status=" },
   { method: "GET", path: "/api/v1/products/:id",        desc: "Product detail" },
+  { method: "GET", path: "/api/v1/opportunities",       desc: "List deals · filters: ?stage=, ?outcome=, ?account_id=" },
+  { method: "GET", path: "/api/v1/opportunities/:id",   desc: "Deal detail with lines and linked quotes" },
   { method: "GET", path: "/api/v1/projects",            desc: "Workforce projects + sub-projects · filters: ?status=, ?level=, ?parent_id=" },
   { method: "GET", path: "/api/v1/projects/:id",        desc: "Project detail — parent, level, sub-projects, links" },
   { method: "GET", path: "/api/v1/projects/:id/hours",  desc: "Hours for a project and its sub-projects, for a period (?from=&to=)" },

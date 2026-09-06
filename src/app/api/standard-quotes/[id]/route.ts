@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
-import { tenantHasFeature } from "@/lib/tenant";
+import { tenantHasFeature, getTenant } from "@/lib/tenant";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { opportunityStages } from "@/lib/sales/opportunity";
+import { refreshOpportunityDerived } from "@/lib/sales/opportunityServer";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
@@ -73,6 +76,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const allowed = ["contact_id", "valid_until", "terms", "notes", "status", "template_id", "intro_text"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key] || null;
+  // "Link to deal" / unlink (0120, decision 5: optional). A foreign id from
+  // the body -- verified against the tenant before it is written.
+  if ("opportunity_id" in body) {
+    if (body.opportunity_id) {
+      const { data: opp } = await supabase.from("opportunities").select("id").eq("id", body.opportunity_id).eq("tenant_id", tenantId).maybeSingle();
+      if (!opp) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+      patch.opportunity_id = opp.id;
+    } else patch.opportunity_id = null;
+  }
   if ("status" in body) patch.status = body.status;
 
   // Date profile (0059). Manual overrides first -- null clears, a valid
@@ -203,6 +215,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       tenantId, objectType: "standard_quotes", objectId: id, objectLabel: (updated as { ref?: string })?.ref ?? null,
       action: "update", actorId: user?.id, actorEmail: user?.email, changes,
     });
+  }
+
+  // A deal's amount follows its latest quote (§4.4): refresh the deal this
+  // quote belongs to now, and the one it just left.
+  const dealIds = [...new Set([before.opportunity_id, (updated as { opportunity_id?: string | null } | null)?.opportunity_id].filter((x): x is string => !!x))];
+  if (dealIds.length > 0) {
+    const stages = opportunityStages((await getTenant())?.config);
+    const admin = createAdminSupabase();
+    await Promise.all(dealIds.map((oid) => refreshOpportunityDerived(admin, tenantId, oid, stages)));
   }
 
   return NextResponse.json(updated);

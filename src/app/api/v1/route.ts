@@ -43,6 +43,8 @@ export async function GET(req: Request) {
       "GET /api/v1/invoices/:id":         "Invoice detail with line items and payments",
       "GET /api/v1/products":             "List products (sellable catalog; list price, tax, category)",
       "GET /api/v1/products/:id":         "Product detail",
+      "GET /api/v1/opportunities":        "List deals (pipeline) · filters: ?stage=, ?outcome=, ?account_id=, ?owner_id=",
+      "GET /api/v1/opportunities/:id":    "Deal detail with its lines and linked quotes",
       "GET /api/v1/projects":             "List workforce projects and sub-projects (project costing) · filters: ?status=, ?level=, ?parent_id=, ?account_id=",
       "GET /api/v1/projects/:id":         "Project detail — parent, level, sub-projects, linked sites/employees/shifts",
       "GET /api/v1/projects/:id/hours":   "Worked hours for a project and everything beneath it, for a period (?from=&to=) — the feed to invoice from",

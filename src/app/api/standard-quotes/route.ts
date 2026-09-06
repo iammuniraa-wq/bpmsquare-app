@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
-import { tenantHasFeature } from "@/lib/tenant";
+import { tenantHasFeature, getTenant } from "@/lib/tenant";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { opportunityStages } from "@/lib/sales/opportunity";
+import { refreshOpportunityDerived } from "@/lib/sales/opportunityServer";
 import { generateNextStandardQuoteRef } from "@/lib/standardQuoteRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
@@ -116,8 +119,17 @@ export async function POST(request: NextRequest) {
   // PDF options (0118): presentation only, stored as null when default.
   const printOptions = parsePrintOptions(body.print_options);
 
+  // The deal this quote is for (0120, optional) -- verified before use.
+  let opportunityId: string | null = null;
+  if (typeof body.opportunity_id === "string" && body.opportunity_id) {
+    const { data: opp } = await supabase.from("opportunities").select("id").eq("id", body.opportunity_id).eq("tenant_id", tenantId).maybeSingle();
+    if (!opp) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+    opportunityId = opp.id;
+  }
+
   const baseInsert = {
     print_options: isDefaultPrintOptions(printOptions) ? null : printOptions,
+    opportunity_id: opportunityId,
     tenant_id: tenantId,
     account_id,
     contact_id: contact_id || null,
@@ -169,6 +181,9 @@ export async function POST(request: NextRequest) {
     action: "create", actorId: user?.id, actorEmail: user?.email,
     changes: diffForLog("standard_quotes", {}, { account_id, contact_id, valid_until, total: subtotal }),
   });
+  if (opportunityId) {
+    await refreshOpportunityDerived(createAdminSupabase(), tenantId, opportunityId, opportunityStages((await getTenant())?.config));
+  }
 
   return NextResponse.json(quote, { status: 201 });
 }

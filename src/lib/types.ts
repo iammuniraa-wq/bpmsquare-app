@@ -173,7 +173,8 @@ export type Contract = {
   value: number | null;
 };
 
-export type LeadStatus = "new" | "inspecting" | "quoted" | "won" | "lost";
+/** "converted" (0120): the lead became an opportunity -- see leads/[id]/convert. */
+export type LeadStatus = "new" | "inspecting" | "quoted" | "won" | "lost" | "converted";
 
 export type Lead = {
   id: string;
@@ -416,6 +417,8 @@ export type StandardQuote = {
   /** What the PDF prints for unchosen options/quantities (0118) --
    *  src/lib/sales/printOptions.ts. null = print all, greyed out. */
   print_options?: { alternatives?: "all" | "chosen"; breaks?: "all" | "chosen" } | null;
+  /** The deal this quote belongs to (0120). Optional, never required. */
+  opportunity_id?: string | null;
 };
 
 export type StandardQuoteLine = {
@@ -452,6 +455,50 @@ export type StandardQuoteLine = {
    *  PDF. Presentation only -- never changes what is charged. */
   show_on_pdf?: boolean;
 };
+
+/** Opportunity / deal (0120, Sales Engine Piece B, docs/
+ *  sales-engine-architecture.md §4): a pursuit with a customer. */
+export type Opportunity = {
+  id: string;
+  tenant_id: string;
+  /** OPP-0001 -- display/reference only. */
+  ref: string | null;
+  account_id: string;
+  contact_id: string | null;
+  lead_id: string | null;
+  source: string | null;
+  source_campaign_id: string | null;
+  title: string;
+  description: string | null;
+  /** A value from config.opportunity_stages (DEFAULT_OPPORTUNITY_STAGES). */
+  stage: string;
+  outcome: QuoteOutcome;
+  loss_reason: LossReason | null;
+  loss_note: string | null;
+  expected_close: string | null;
+  /** §4.4: the latest linked quote's subtotal, else the lines' total. Stored. */
+  amount: number;
+  currency: string | null;
+  /** Stored: override if set, else the stage hint (later the win rubric). */
+  probability: number | null;
+  probability_override: number | null;
+  probability_override_reason: string | null;
+  owner_id: string | null;
+  team: { user_id: string; role: string }[];
+  competitor: string | null;
+  approval_status: string | null;
+  custom_data: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  /** When the stage last changed (from the change log); used for "days in stage". */
+  stage_since?: string | null;
+};
+
+/** The §3.1 document line, on an opportunity. Same columns as
+ *  StandardQuoteLine minus the print-only ones. */
+export type OpportunityLine = Omit<StandardQuoteLine, "standard_quote_id"> & { opportunity_id: string };
 
 /** A file stored against a Standard Quote (0119): customer communication,
  *  or a spreadsheet the lines were created from. */
