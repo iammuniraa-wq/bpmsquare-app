@@ -8,6 +8,7 @@ import {
 } from "@/lib/pricing-core";
 import { buildPricingDocumentRow, type PricingCallMeta, type PricingDocumentRow, type PricingDocumentSource } from "./documents";
 import { productCostCandidate, PURCHASE_PATH } from "./costSheet";
+import { tenantToday } from "@/lib/tenantClock";
 
 // Persistence adapter for the pricing engine (spec §11.1): the ONLY place
 // that maps ontology tables into the pure core's types. The core never sees
@@ -222,7 +223,8 @@ export async function runPrice(
       : `This config version has ${config.procedures.length} procedures — name one via options.procedure. Available: ${available}`);
   }
 
-  const pricingDate = opts.pricingDate ?? new Date().toISOString().slice(0, 10);
+  // The tenant's calendar date, never the server's UTC date (tenantClock.ts).
+  const pricingDate = opts.pricingDate ?? (await tenantToday(tenantId));
 
   const started = Date.now();
   const result = priceDocument({

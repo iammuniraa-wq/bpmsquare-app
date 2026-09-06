@@ -4,6 +4,7 @@ import { resolvePermissions, canEditWorkcenter, canViewWorkcenter } from "@/lib/
 import { logChange } from "@/lib/changeLog";
 import { getTenant } from "@/lib/tenant";
 import { sendRfqEmail } from "@/lib/pricing/rfqServer";
+import { tenantToday } from "@/lib/tenantClock";
 
 // One RFQ (cost-based step 2).
 // GET   -- the record with its product and supplier.
@@ -84,7 +85,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (rfq.status === "cancelled") return NextResponse.json({ error: "This RFQ was cancelled." }, { status: 409 });
     const value = Number(body.value);
     if (!Number.isFinite(value) || value <= 0) return NextResponse.json({ error: "Enter the supplier's unit price." }, { status: 422 });
-    const today = now.slice(0, 10);
+    const today = await tenantToday(tenantId);
     const validFrom = typeof body.valid_from === "string" && body.valid_from ? body.valid_from : today;
     const validTo = typeof body.valid_to === "string" && body.valid_to
       ? body.valid_to
