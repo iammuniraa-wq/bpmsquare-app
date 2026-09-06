@@ -98,9 +98,16 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
                 </tr>
               </thead>
               <tbody>
-                {lines.map((l) => (
-                  <tr key={l.id} style={{ borderTop: `1px solid ${c.line}` }}>
+                {lines.map((l) => {
+                  const notSelected = l.group_type === "alternative" && l.is_selected === false;
+                  return (
+                  <tr key={l.id} style={{ borderTop: `1px solid ${c.line}`, opacity: notSelected ? 0.55 : 1 }}>
                     <td style={{ padding: "8px 14px", fontSize: 13 }}>
+                      {l.group_type === "alternative" && (
+                        <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: notSelected ? c.hint : c.accent, marginRight: 6 }}>
+                          {l.group_label || "Option"}{notSelected ? " · not chosen" : ""}
+                        </span>
+                      )}
                       {l.description}
                       {(l.pricing_flags ?? []).map((f, i) => (
                         <div key={i} style={{ fontSize: 11, fontWeight: 600, marginTop: 2, color: f.policy === "block" ? "var(--err-ink)" : "var(--amberink)" }}>
@@ -115,7 +122,8 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
                     <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 12.5, color: c.muted }}>{l.discount_pct > 0 ? `${l.discount_pct}%` : "—"}</td>
                     <td style={{ padding: "8px 14px", textAlign: "right", fontSize: 13, fontWeight: 500 }}>{inr(l.amount)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </section>

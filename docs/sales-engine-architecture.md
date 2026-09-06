@@ -162,7 +162,36 @@ Two halves, both needed:
    · 50+: 20,100"); only the selected break (or the parent) counts in the
    total. Acceptance of a break on the public page selects it.
 
-### 3.5 Acceptance (demo)
+### 3.5 Status (2026-09-06)
+
+**Built, awaiting migration 0116 + demo validation:**
+- Migration 0116; `src/lib/sales/lineTotals.ts` (pure -- `selectedLines`/
+  `documentTotal`/`normalizeSelection` -- 18 unit tests).
+- `POST /api/pricing/price-lines` (§3.2).
+- `StandardQuoteForm.tsx`: Price all lines with a result summary; auto
+  re-price (debounced) when an already-priced line's product or quantity
+  changes; rate-override detection (editing the rate by hand clears
+  `pricing_document_id` and shows "Rate overridden").
+- **Alternatives (§3.3), Standard Quotes only:** "+ Add alternative
+  option" creates a named, auto-lettered option; an option can hold more
+  than one line ("+ Add item"); a radio picks which option is charged;
+  the on-screen total, the server-side subtotal/total (both `POST` and
+  `PATCH /api/standard-quotes`), the detail page and the printed PDF all
+  resolve the choice through the same `lineTotals.ts` functions (the
+  detail page and the PDF grey out the unchosen option instead of hiding
+  it, so the customer sees what they turned down but is never charged for
+  it). `insertLinesTolerant` (`quoteLineFlags.ts`) was generalised to
+  strip *any* missing column PostgREST names (not a hardcoded list, retry
+  capped at 8) so the new group columns degrade the same way the 0114
+  pricing columns already did.
+- **Not yet built:** quantity breaks (§3.4) have no UI on either quote
+  object — the schema and `lineTotals.ts` already support them (a break
+  row is just another line with `break_of` set). Quotations
+  (`QuoteForm.tsx`) has not been touched in this slice at all — it
+  already has alternatives; Price all lines there is next, and it is the
+  only remaining Piece A item Quotations needs.
+
+### 3.5b Acceptance (demo)
 
 - SQ-2026-0002: "Price all lines" prices three lines in one click; changing
   qty on line 1 re-prices it without a click; editing the rate by hand

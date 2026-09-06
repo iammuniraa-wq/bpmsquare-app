@@ -9,6 +9,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Next.js's build-time-only sentinel package -- see src/lib/testShims/serverOnly.ts.
+      "server-only": path.resolve(__dirname, "./src/lib/testShims/serverOnly.ts"),
     },
   },
 });

@@ -3,6 +3,7 @@ import type { CompanyInfo } from "@/lib/tenant";
 import { Mail, Globe, MapPin } from "@/components/Icons";
 import { defaultStandardQuoteBlocks } from "@/lib/standardQuoteTemplateBlocks";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
+import { documentTotal } from "@/lib/sales/lineTotals";
 
 export type StandardQuotePrintDocumentProps = {
   quote: StandardQuote;
@@ -80,7 +81,10 @@ export default function StandardQuotePrintDocument({
   const logoPosition = template?.logo_position ?? "left";
   const blocks = template?.blocks?.length ? template.blocks : defaultStandardQuoteBlocks();
 
-  const subtotal = lines.reduce((s, l) => s + l.amount, 0);
+  // Alternative option groups (0116): only the chosen option's lines are
+  // charged -- the unchosen option still prints, greyed out, so the
+  // customer sees what they turned down.
+  const subtotal = documentTotal(lines);
   const totals = computeStandardQuoteTotals(subtotal, quote.header_discount_pct, quote.tax_pct, quote.shipping_amount);
   const hasBreakdown = quote.header_discount_pct > 0 || quote.tax_pct > 0 || quote.shipping_amount > 0;
   const logoIni = initials(co.name || "?");
@@ -198,16 +202,26 @@ export default function StandardQuotePrintDocument({
               </tr>
             </thead>
             <tbody>
-              {lines.map((l, i) => (
-                <tr key={l.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff", breakInside: "avoid" }}>
+              {lines.map((l, i) => {
+                const notChosen = l.group_type === "alternative" && l.is_selected === false;
+                return (
+                <tr key={l.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff", breakInside: "avoid", opacity: notChosen ? 0.5 : 1 }}>
                   <td style={{ padding: "7px 12px 7px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{l.sl_no ?? i + 1}</td>
-                  <td style={{ padding: "7px 12px", fontSize: 12.5 }}>{l.description}</td>
+                  <td style={{ padding: "7px 12px", fontSize: 12.5 }}>
+                    {l.group_type === "alternative" && (
+                      <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: notChosen ? "#8a96a5" : accent }}>
+                        {l.group_label || "Option"}{notChosen ? " — not selected" : ""}
+                      </span>
+                    )}
+                    {l.description}
+                  </td>
                   <td style={{ padding: "7px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{l.uom ?? ""}</td>
                   <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{l.qty}</td>
                   <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{l.rate.toLocaleString("en-IN")}</td>
                   <td style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(l.amount)}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         );

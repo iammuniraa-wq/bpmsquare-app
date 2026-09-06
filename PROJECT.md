@@ -472,6 +472,19 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
+- **0116_sales_line_contract.sql — PENDING on both DBs** (written
+  2026-09-06, Sales Engine Piece A, `docs/sales-engine-architecture.md`
+  §3.1: the shared document-line contract). Lifts Quotations' alternative
+  option-group columns (`group_id`/`group_label`/`group_type`, already on
+  `quote_lines` since 0047) onto `standard_quote_lines`, and adds quantity-
+  break columns (`break_of`, `break_qty`, `is_selected`) to both
+  `quote_lines` and `standard_quote_lines`. `is_selected` defaults `true`,
+  so every existing row keeps counting exactly as it does today until a
+  quote actually uses a group or a break. Nothing in the app writes these
+  new columns yet except `is_selected`'s default — the alternatives/breaks
+  UI is the next slice of Piece A. `src/lib/sales/lineTotals.ts` (pure,
+  unit-tested) is the one place that will decide, once wired, which rows
+  count toward a document's total.
 - **0115_pricing_cost_input_purchase_kind.sql — applied to both DBs**
   (owner confirmed 2026-09-06; found on the 2026-09-06 demo walk: "Save as confirmed cost" on an RFQ
   reply failed with `pricing_cost_inputs_kind_check` because 0083's check
