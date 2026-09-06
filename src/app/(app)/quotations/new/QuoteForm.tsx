@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c, pillar, type PillarKey } from "@/lib/theme";
@@ -422,6 +422,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
     checkbox?: { checked: boolean; onToggle: () => void };
     small?: boolean;
     productId?: string | null;
+    /** Rate was edited by hand after the engine priced this line (Sales
+     *  Engine Piece A) -- no longer tracked by a pricing document. */
+    overridden?: boolean;
   }) {
     const qtyN   = parseFloat(opts.qty) || 0;
     const rateN  = parseFloat(opts.rate) || 0;
@@ -491,6 +494,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
             <div style={{ width: 100 }}>
               <span style={miniLbl}>Rate (₹)</span>
               <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={opts.rate} onChange={(e) => opts.onField("rate", e.target.value)} />
+              {opts.overridden && (
+                <div style={{ fontSize: 10, color: c.hint, marginTop: 2, maxWidth: 110 }}>Overridden — not tracked by the engine</div>
+              )}
             </div>
           )}
           {!isTechnical && pricingEngineQuotesEnabled && opts.productId && (
@@ -743,6 +749,96 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [rfqSupplierId, setRfqSupplierId]   = useState("");
   const [rfqMessage, setRfqMessage]         = useState("");
   const [rfqBusy, setRfqBusy]               = useState(false);
+
+  // Price all lines + auto re-price (Sales Engine Piece A,
+  // docs/sales-engine-architecture.md §3.2). A line the rep re-rates by
+  // hand after the engine priced it is "overridden" -- no longer tracked
+  // by a pricing document, shown so nobody mistakes a hand-typed number
+  // for the engine's.
+  const [priceAllBusy, setPriceAllBusy] = useState(false);
+  const [priceAllSummary, setPriceAllSummary] = useState<{ priced: number; needsRfq: number; failed: number } | null>(null);
+  const [overriddenIds, setOverriddenIds] = useState<Set<string>>(new Set());
+  const repriceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  function scheduleAutoReprice(lineId: string, productId: string, qty: string) {
+    if (repriceTimers.current[lineId]) clearTimeout(repriceTimers.current[lineId]);
+    repriceTimers.current[lineId] = setTimeout(() => { priceWithEngine(lineId, productId, qty); }, 600);
+  }
+
+  /** Wraps a line's onField so a quantity change to an already-priced line
+   *  re-prices automatically (debounced), and a manual rate edit on a
+   *  priced line clears its pricing_document_id and marks it overridden --
+   *  same rules as priceWithEngine's single-line flow, applied uniformly
+   *  whether the line sits at top level or inside a group. */
+  function makeOnField(lineId: string, productId: string | null | undefined, pricingDocumentId: string | null | undefined) {
+    return (field: keyof LineItem, val: string) => {
+      if (field === "qty") {
+        updateLine(lineId, "qty", val);
+        if (productId && pricingDocumentId) scheduleAutoReprice(lineId, productId, val);
+        return;
+      }
+      if (field === "rate" && pricingDocumentId) {
+        updateLine(lineId, "rate", val);
+        updateLine(lineId, "pricing_document_id", "");
+        setOverriddenIds((s) => new Set(s).add(lineId));
+        setLinePricing((p) => { const { [lineId]: _drop, ...rest } = p; return rest; });
+        return;
+      }
+      updateLine(lineId, field, val);
+    };
+  }
+
+  /** Prices every line across every row (flat lines and every group's
+   *  items, alternative or not) that names a product, in one call. */
+  async function priceAllLines() {
+    const targets = rows.flatMap((r) => (r.kind === "line" ? [r] : r.items)).filter((l) => l.product_id);
+    if (targets.length === 0) return;
+    setPriceAllBusy(true);
+    setPriceAllSummary(null);
+    setPricingBusyIds((p) => { const n = new Set(p); for (const t of targets) n.add(t.id); return n; });
+    try {
+      const res = await fetch("/api/pricing/price-lines", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_type: "quote",
+          document_id: editQuote?.quote.id || undefined,
+          account_id: accountId || undefined,
+          lines: targets.map((l) => ({ line_key: l.id, product_id: l.product_id, quantity: parseFloat(l.qty) || 1 })),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { return; }
+      let priced = 0, needsRfq = 0, failed = 0;
+      let firstTaxPct: number | null = null;
+      type PriceAllResult =
+        | { line_key: string; ok: true; unit_rate: number; document_id: string | null; area: string; flags: { code: string; policy: string; floor_pct?: number; actual_pct?: number }[]; trace: PriceTraceStep[]; cost_sources: { path: string; source?: string; quality?: string; as_of?: string | null }[]; tax_pct: number }
+        | { line_key: string; ok: false; needs_rfq: true; product: { id: string; name: string }; missing: { path: string; considered: { source: string; status: string; reason?: string }[] }[]; message: string; cost_model: string | null }
+        | { line_key: string; ok: false; error: string };
+      for (const r of (json.results ?? []) as PriceAllResult[]) {
+        if (r.ok) {
+          priced++;
+          updateLine(r.line_key, "rate", String(Math.round(r.unit_rate * 100) / 100));
+          updateLine(r.line_key, "pricing_document_id", r.document_id ?? "");
+          setOverriddenIds((s) => { if (!s.has(r.line_key)) return s; const n = new Set(s); n.delete(r.line_key); return n; });
+          if (firstTaxPct === null && r.tax_pct > 0) firstTaxPct = r.tax_pct;
+          setLinePricing((p) => ({ ...p, [r.line_key]: { kind: "priced", document_id: r.document_id ?? null, area: r.area, flags: r.flags ?? [], trace: r.trace ?? [], cost_sources: r.cost_sources ?? [], open: false } }));
+        } else if ("needs_rfq" in r && r.needs_rfq) {
+          needsRfq++;
+          setLinePricing((p) => ({ ...p, [r.line_key]: { kind: "needs_rfq", product: r.product, missing: r.missing ?? [], message: r.message, cost_model: r.cost_model ?? null } }));
+        } else {
+          failed++;
+          setPricingErrors((p) => ({ ...p, [r.line_key]: "error" in r ? r.error : "Pricing failed" }));
+        }
+      }
+      if (gstRate === "" && firstTaxPct) setGstRate(String(firstTaxPct));
+      setPriceAllSummary({ priced, needsRfq, failed });
+    } catch {
+      // best-effort summary UI; individual line errors already surface via pricingErrors
+    } finally {
+      setPriceAllBusy(false);
+      setPricingBusyIds((p) => { const n = new Set(p); for (const t of targets) n.delete(t.id); return n; });
+    }
+  }
 
   async function priceWithEngine(lineId: string, productId: string, qty: string) {
     const quantity = parseFloat(qty) || 1;
@@ -1338,7 +1434,16 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           <section style={cardStyle}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
               <h3 style={{ ...sectionTitle, margin: 0 }}>Particulars</h3>
-              <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {!isTechnical && pricingEngineQuotesEnabled && rows.some((r) => (r.kind === "line" ? [r] : r.items).some((l) => l.product_id)) && (
+                  <button
+                    type="button" disabled={priceAllBusy} onClick={priceAllLines}
+                    title="Price every line that names a product, in one call"
+                    style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "5px 12px", cursor: priceAllBusy ? "default" : "pointer", opacity: priceAllBusy ? 0.6 : 1 }}
+                  >
+                    {priceAllBusy ? "Pricing all…" : "⚡ Price all lines"}
+                  </button>
+                )}
                 {selectedIds.size >= 2 && (
                   <button onClick={groupSelected} style={{ fontSize: 12, fontWeight: 600, color: "var(--blueink)", background: "var(--bluebg)", border: "1px solid var(--blueline)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
                     ▦ Group selected ({selectedIds.size})
@@ -1349,6 +1454,13 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                 <button onClick={addLine} style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ Add line</button>
               </div>
             </div>
+            {priceAllSummary && (
+              <div style={{ fontSize: 12, color: c.muted, marginBottom: 10, padding: "6px 10px", borderRadius: 6, background: c.panel2 }}>
+                {priceAllSummary.priced} priced
+                {priceAllSummary.needsRfq > 0 ? ` · ${priceAllSummary.needsRfq} need a supplier reply` : ""}
+                {priceAllSummary.failed > 0 ? ` · ${priceAllSummary.failed} failed` : ""}
+              </div>
+            )}
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {rows.map((row) => {
@@ -1360,11 +1472,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                         id: row.id, slNo: row.sl_no, description: row.description,
                         uom: row.uom ?? "", category: row.category, qty: row.qty, rate: row.rate,
                         discount: row.discount, deduction: row.deduction,
-                        onField: (field, val) => updateLine(row.id, field, val),
+                        onField: makeOnField(row.id, row.product_id, row.pricing_document_id),
                         onRemove: () => removeRow(row.id),
                         onCatalog: () => openCatalog(row.id),
                         checkbox: { checked: sel, onToggle: () => toggleSelect(row.id) },
                         productId: row.product_id,
+                        overridden: overriddenIds.has(row.id),
                       })}
                     </div>
                   );
@@ -1424,11 +1537,12 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                               id: item.id, slNo: item.sl_no, description: item.description,
                               uom: item.uom ?? "", category: item.category, qty: item.qty, rate: item.rate,
                               discount: item.discount, deduction: item.deduction,
-                              onField: (field, val) => updateLine(item.id, field, val),
+                              onField: makeOnField(item.id, item.product_id, item.pricing_document_id),
                               onRemove: () => removeLineFromGroup(row.id, item.id),
                               onCatalog: () => openCatalog(item.id),
                               small: true,
                               productId: item.product_id,
+                              overridden: overriddenIds.has(item.id),
                             })}
                           </div>
                         );
