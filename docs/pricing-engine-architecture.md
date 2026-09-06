@@ -730,8 +730,9 @@ Batches 2–8 below stand, but each is now delivered per technique: price
 list, value-based and variant follow the same three steps on these rails.
 **Sequencing across the sales objects (Opportunity, line contract, rules
 layer, approvals, versioning, freight, multi-supplier, "win the deal") is
-in `docs/sales-engine-plan.md` (2026-09-06); batch 3 folds into its
-approval engine.**
+in `docs/sales-engine-plan.md` (2026-09-06), with the build spec in
+`docs/sales-engine-architecture.md`; batch 3 folds into its approval
+engine.**
 
 ### Batch 2 — Execution: the quote line, done properly (L)
 
