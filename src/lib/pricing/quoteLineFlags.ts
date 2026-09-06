@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LineFlag } from "@/lib/pricing-core";
-import { normalizeSelection, type SelectableLine } from "@/lib/sales/lineTotals";
+import { normalizeSelection, selectedLines, type SelectableLine } from "@/lib/sales/lineTotals";
 
 // Quote lines remember the price that produced them (0113). The client
 // sends only pricing_document_id; the guardrail flags are derived HERE from
@@ -41,14 +41,22 @@ export function withPricingColumns<T extends LineWithPricing>(rows: T[], flagsBy
   });
 }
 
-/** Postgres/PostgREST names the offending column in the 42703 message
- *  (`column "group_id" of relation "standard_quote_lines" does not
- *  exist`) -- pull it out so the retry can drop exactly that column
- *  rather than guessing from a hardcoded list. */
-function missingColumnName(error: { code?: string; message: string }): string | null {
-  if (error.code !== "42703" && !/does not exist/.test(error.message)) return null;
-  const m = /column "([a-zA-Z0-9_]+)"/.exec(error.message);
-  return m ? m[1] : null;
+/** The offending column, in either shape a missing column arrives in
+ *  through Supabase: Postgres's own 42703 (`column "x" of relation "y" does
+ *  not exist`) or, far more often, PostgREST's schema-cache miss
+ *  (`PGRST204: Could not find the 'x' column of 'y' in the schema cache`).
+ *  Pulled out so the retry drops exactly that column rather than guessing
+ *  from a hardcoded list. */
+export function missingColumnName(error: { code?: string; message: string }): string | null {
+  if (error.code === "PGRST204" || /schema cache/.test(error.message)) {
+    const m = /'([a-zA-Z0-9_]+)' column/.exec(error.message);
+    return m ? m[1] : null;
+  }
+  if (error.code === "42703" || /does not exist/.test(error.message)) {
+    const m = /column "([a-zA-Z0-9_]+)"/.exec(error.message);
+    return m ? m[1] : null;
+  }
+  return null;
 }
 
 /** Insert document lines, tolerating a database where a pricing or
@@ -94,20 +102,27 @@ export async function verifiedProductIds(
   return new Set((data ?? []).map((r) => r.id as string));
 }
 
-/** The flagged lines of one document, tolerating the pending migration
- *  (a missing column reads as "no flags", never as a crash). */
+/** The flagged lines of one document that actually COUNT -- a flag on an
+ *  alternative option the customer isn't offered, or on a quantity break
+ *  that isn't the chosen one, must not hold the quote (it isn't being
+ *  charged). Selection is resolved by the same lineTotals.ts rules the
+ *  total uses; Quotations pass the header's `selected_option_id`. Tolerates
+ *  the pending migration (a missing column reads as "no flags", never as a
+ *  crash). */
 export async function flaggedLinesOf(
   supabase: SupabaseClient,
   table: "quote_lines" | "standard_quote_lines",
   parentColumn: "quote_id" | "standard_quote_id",
   tenantId: string,
-  documentId: string
+  documentId: string,
+  opts: { selectedOptionId?: string | null } = {}
 ): Promise<{ sl_no?: string | null; description?: string; pricing_flags?: LineFlag[] | null }[]> {
+  type Row = SelectableLine & { sl_no?: string | null; description?: string; pricing_flags?: LineFlag[] | null };
   const { data, error } = await supabase
-    .from(table).select("sl_no, description, pricing_flags")
-    .eq(parentColumn, documentId).eq("tenant_id", tenantId).not("pricing_flags", "is", null);
+    .from(table).select("id, sl_no, description, pricing_flags, amount, group_id, group_type, break_of, is_selected")
+    .eq(parentColumn, documentId).eq("tenant_id", tenantId);
   if (error) return [];
-  return (data ?? []) as { sl_no?: string | null; description?: string; pricing_flags?: LineFlag[] | null }[];
+  return selectedLines((data ?? []) as Row[], opts).filter((l) => (l.pricing_flags?.length ?? 0) > 0);
 }
 
 /**

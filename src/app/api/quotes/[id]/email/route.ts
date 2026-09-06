@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Pricing guardrails (cost-based step 2, owner decision: block). A line
   // the engine flagged under a "block" policy holds the whole quote until
   // it is approved -- batch 3 adds the approval; until then it waits.
-  const blocked = blockingLines(await flaggedLinesOf(supabase, "quote_lines", "quote_id", tenantId, id));
+  const blocked = blockingLines(await flaggedLinesOf(supabase, "quote_lines", "quote_id", tenantId, id, { selectedOptionId: quote.selected_option_id ?? null }));
   if (blocked.length > 0) {
     return NextResponse.json({
       error: `This quote can't be sent: ${blocked.map((b) => `line ${b.label} is below the ${b.flag.floor_pct}% margin floor (${b.flag.actual_pct}%)`).join("; ")}. Re-price it, or wait for pricing approval.`,

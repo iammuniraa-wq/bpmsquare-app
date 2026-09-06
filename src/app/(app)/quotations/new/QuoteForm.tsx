@@ -759,6 +759,8 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [priceAllSummary, setPriceAllSummary] = useState<{ priced: number; needsRfq: number; failed: number } | null>(null);
   const [overriddenIds, setOverriddenIds] = useState<Set<string>>(new Set());
   const repriceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // A pending re-price must not fire into an unmounted form.
+  useEffect(() => () => { for (const t of Object.values(repriceTimers.current)) clearTimeout(t); }, []);
 
   function scheduleAutoReprice(lineId: string, productId: string, qty: string) {
     if (repriceTimers.current[lineId]) clearTimeout(repriceTimers.current[lineId]);
@@ -807,7 +809,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) { return; }
+      if (!res.ok) { setSaveError(json.error ?? "Price all lines failed"); return; }
       let priced = 0, needsRfq = 0, failed = 0;
       let firstTaxPct: number | null = null;
       type PriceAllResult =

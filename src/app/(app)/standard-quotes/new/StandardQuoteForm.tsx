@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c } from "@/lib/theme";
@@ -8,7 +8,7 @@ import { cardStyle } from "@/components/Shell";
 import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
 import PriceTrace, { type PriceTraceStep } from "@/components/pricing/PriceTrace";
-import { documentTotal, normalizeSelection, type SelectableLine } from "@/lib/sales/lineTotals";
+import { documentTotal, type SelectableLine } from "@/lib/sales/lineTotals";
 
 type Line = {
   id: string; description: string; uom: string; qty: string; rate: string; discount_pct: string;
@@ -215,6 +215,8 @@ export default function StandardQuoteForm({
   const [priceAllSummary, setPriceAllSummary] = useState<{ priced: number; needsRfq: number; failed: number } | null>(null);
   const [overriddenIds, setOverriddenIds] = useState<Set<string>>(new Set());
   const repriceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // A pending re-price must not fire into an unmounted form.
+  useEffect(() => () => { for (const t of Object.values(repriceTimers.current)) clearTimeout(t); }, []);
 
   function chooseProduct(lineId: string, productId: string) {
     const p = products.find((x) => x.id === productId);
