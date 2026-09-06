@@ -508,6 +508,15 @@ export default function StandardQuoteForm({
     else if (info?.kind === "rfq_sent") { label = "RFQ sent"; bg = "var(--tealbg)"; ink = "var(--tealink)"; title = `${info.ref} sent to ${info.supplier}`; }
     else if (info?.kind === "rfq_draft") { label = "RFQ draft"; bg = "var(--amberbg)"; ink = "var(--amberink)"; title = `${info.ref} saved but not sent`; }
     else if (overriddenIds.has(line.id)) { label = "Manual"; bg = c.panel2; ink = c.hint; title = "Rate overridden — no longer tracked by the engine"; }
+    else if (line.pricing_document_id) {
+      // Priced by the engine on an earlier save: the working isn't in this
+      // session, so the chip re-prices rather than expands.
+      return (
+        <button type="button" onClick={() => priceWithEngine(line.id, line.product_id, line.qty)} title="Priced by the engine when last saved — click to re-price" style={{ ...chip, background: "var(--tealbg)", color: "var(--tealink)", cursor: "pointer" }}>
+          Engine ↻
+        </button>
+      );
+    }
     else if (pricingEngineQuotesEnabled && line.product_id) {
       return (
         <button type="button" onClick={() => priceWithEngine(line.id, line.product_id, line.qty)} title="Suggest a rate from the Pricing Engine — you can still edit it" style={{ ...chip, background: c.accentbg, color: c.accent, cursor: "pointer" }}>
