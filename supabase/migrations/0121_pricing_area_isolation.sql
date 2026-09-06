@@ -43,33 +43,37 @@ alter table pricing_cost_models add column if not exists pricing_area text not n
 -- per the architecture doc's as-built baseline) is unaffected -- the join
 -- always resolves to its one and only area and the column default already
 -- matches it.
-update pricing_components c set pricing_area = v.pricing_area
-from lateral (
+--
+-- A correlated scalar subquery, not FROM LATERAL: Postgres does not let a
+-- LATERAL item in UPDATE's FROM clause see the update's own target table --
+-- the target isn't part of that FROM list, so `c` (pricing_components etc.)
+-- isn't visible to it (42P10). A scalar subquery in SET has always been
+-- able to reference the target row, which is exactly what this needs.
+-- coalesce(...) keeps the column's own default ('default') when no version
+-- row is found at all, since the column is NOT NULL.
+update pricing_components c set pricing_area = coalesce((
   select pcv.pricing_area from pricing_config_versions pcv
   where pcv.tenant_id = c.tenant_id and pcv.version = c.config_version and pcv.created_at <= c.created_at
   order by pcv.created_at desc limit 1
-) v;
+), c.pricing_area);
 
-update pricing_procedures c set pricing_area = v.pricing_area
-from lateral (
+update pricing_procedures c set pricing_area = coalesce((
   select pcv.pricing_area from pricing_config_versions pcv
   where pcv.tenant_id = c.tenant_id and pcv.version = c.config_version and pcv.created_at <= c.created_at
   order by pcv.created_at desc limit 1
-) v;
+), c.pricing_area);
 
-update pricing_rules c set pricing_area = v.pricing_area
-from lateral (
+update pricing_rules c set pricing_area = coalesce((
   select pcv.pricing_area from pricing_config_versions pcv
   where pcv.tenant_id = c.tenant_id and pcv.version = c.config_version and pcv.created_at <= c.created_at
   order by pcv.created_at desc limit 1
-) v;
+), c.pricing_area);
 
-update pricing_cost_models c set pricing_area = v.pricing_area
-from lateral (
+update pricing_cost_models c set pricing_area = coalesce((
   select pcv.pricing_area from pricing_config_versions pcv
   where pcv.tenant_id = c.tenant_id and pcv.version = c.config_version and pcv.created_at <= c.created_at
   order by pcv.created_at desc limit 1
-) v;
+), c.pricing_area);
 
 -- Widen the keys that used to assume config_version alone was enough to
 -- scope a Price Book's content -- so this exact bug can never come back at
