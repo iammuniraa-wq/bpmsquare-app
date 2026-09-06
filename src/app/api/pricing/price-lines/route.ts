@@ -4,6 +4,7 @@ import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { PricingConfigError } from "@/lib/pricing/server";
 import { priceDocumentLine } from "@/lib/pricing/quoteLine";
 import { PricingError, DslError } from "@/lib/pricing-core";
+import type { PricingConfig } from "@/lib/constants";
 
 // Sales Engine, Piece A -- "Price all lines" (docs/sales-engine-architecture.md
 // §3.2). Prices every product line of a document in one call instead of one
@@ -27,7 +28,7 @@ type LineResult =
 async function priceOne(
   tenantId: string,
   input: LineInput,
-  args: { accountId: string | null; documentType: "quote" | "standard_quote" | "opportunity"; sourceId: string | null; actorId: string; pricingConfig: unknown }
+  args: { accountId: string | null; documentType: "quote" | "standard_quote"; sourceId: string | null; actorId: string; pricingConfig: PricingConfig | null }
 ): Promise<LineResult> {
   if (!input.line_key || !input.product_id || !Number.isFinite(input.quantity) || input.quantity <= 0) {
     return { line_key: input.line_key ?? "?", ok: false, error: "product_id and a positive quantity are required" };
@@ -37,10 +38,10 @@ async function priceOne(
       productId: input.product_id,
       accountId: args.accountId,
       quantity: input.quantity,
-      documentType: args.documentType === "opportunity" ? "quote" : args.documentType, // priceDocumentLine doesn't know "opportunity" yet; routes the same as a quote until the Opportunity object exists (piece B)
+      documentType: args.documentType,
       sourceId: args.sourceId,
       actorId: args.actorId,
-      pricingConfig: args.pricingConfig as never,
+      pricingConfig: args.pricingConfig,
     });
     if (!outcome.ok) {
       return { line_key: input.line_key, ok: false, needs_rfq: true, area: outcome.area, cost_model: outcome.cost_model, missing: outcome.missing, product: outcome.product, message: outcome.message };
@@ -95,8 +96,14 @@ export async function POST(request: NextRequest) {
   } | null;
 
   const documentType = body?.document_type;
-  if (documentType !== "quote" && documentType !== "standard_quote" && documentType !== "opportunity") {
-    return NextResponse.json({ error: "document_type must be quote, standard_quote or opportunity" }, { status: 422 });
+  // "opportunity" is reserved for piece B: until the Opportunity object
+  // exists it is refused rather than silently priced as a quote, so a
+  // caller can't mistake the fallback for the real thing.
+  if (documentType === "opportunity") {
+    return NextResponse.json({ error: "document_type opportunity is not available yet" }, { status: 422 });
+  }
+  if (documentType !== "quote" && documentType !== "standard_quote") {
+    return NextResponse.json({ error: "document_type must be quote or standard_quote" }, { status: 422 });
   }
   const lines = Array.isArray(body?.lines) ? body!.lines!.filter((l) => l && typeof l === "object") : [];
   if (lines.length === 0) return NextResponse.json({ error: "No lines to price" }, { status: 422 });
@@ -120,7 +127,7 @@ export async function POST(request: NextRequest) {
       documentType,
       sourceId,
       actorId: userId,
-      pricingConfig: tenant?.config?.pricing ?? null,
+      pricingConfig: (tenant?.config?.pricing as PricingConfig | undefined) ?? null,
     })
   );
 

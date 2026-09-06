@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { insertLinesTolerant, resolveLineIdsAndSelection } from "./quoteLineFlags";
+import { insertLinesTolerant, resolveLineIdsAndSelection, missingColumnName, flaggedLinesOf } from "./quoteLineFlags";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Fake Supabase client whose .from(table).insert(rows) answers from a
@@ -39,6 +39,16 @@ describe("insertLinesTolerant", () => {
     expect(result.strippedColumns).toEqual(["group_id", "break_of"]);
   });
 
+  it("recognises PostgREST's schema-cache miss (PGRST204), the shape Supabase actually returns", async () => {
+    const supabase = fakeSupabase([
+      { error: { code: "PGRST204", message: "Could not find the 'break_qty' column of 'standard_quote_lines' in the schema cache" } },
+      { error: null },
+    ]);
+    const result = await insertLinesTolerant(supabase, "standard_quote_lines", [{ break_qty: 10, description: "x" }]);
+    expect(result.error).toBeNull();
+    expect(result.strippedColumns).toEqual(["break_qty"]);
+  });
+
   it("passes through a non-missing-column error immediately", async () => {
     const supabase = fakeSupabase([{ error: { code: "23505", message: "duplicate key value" } }]);
     const result = await insertLinesTolerant(supabase, "quote_lines", [{ description: "x" }]);
@@ -53,6 +63,68 @@ describe("insertLinesTolerant", () => {
     const result = await insertLinesTolerant(supabase, "quote_lines", [{ description: "x" }]);
     expect(result.error).not.toBeNull();
     expect(result.strippedColumns.length).toBe(8);
+  });
+});
+
+describe("missingColumnName", () => {
+  it("reads both error shapes and refuses everything else", () => {
+    expect(missingColumnName({ code: "42703", message: 'column "group_id" of relation "quote_lines" does not exist' })).toBe("group_id");
+    expect(missingColumnName({ code: "PGRST204", message: "Could not find the 'is_selected' column of 'quote_lines' in the schema cache" })).toBe("is_selected");
+    expect(missingColumnName({ code: "23505", message: "duplicate key value" })).toBeNull();
+    expect(missingColumnName({ code: "PGRST204", message: "something unparseable" })).toBeNull();
+  });
+});
+
+// Fake client whose select chain resolves to a fixed set of line rows --
+// enough to prove the send gate only counts lines that are being charged.
+function fakeSelect(rows: Record<string, unknown>[]): SupabaseClient {
+  const chain = { eq: vi.fn(), select: vi.fn() };
+  chain.select.mockReturnValue(chain);
+  chain.eq.mockReturnValueOnce(chain).mockReturnValue(Promise.resolve({ data: rows, error: null }));
+  return { from: () => chain } as unknown as SupabaseClient;
+}
+
+const block = [{ code: "MARGIN_FLOOR", policy: "block", floor_pct: 20, actual_pct: 12 }];
+
+describe("flaggedLinesOf", () => {
+  it("ignores a flag on the alternative option the customer is not being offered", async () => {
+    const supabase = fakeSelect([
+      { id: "a", sl_no: "1", description: "8P", amount: 100, group_id: "g", group_type: "alternative", is_selected: true, pricing_flags: null },
+      { id: "b", sl_no: "1", description: "13P", amount: 150, group_id: "g", group_type: "alternative", is_selected: false, pricing_flags: block },
+    ]);
+    const out = await flaggedLinesOf(supabase, "standard_quote_lines", "standard_quote_id", "t", "d");
+    expect(out).toEqual([]);
+  });
+
+  it("still holds the quote when the flagged option IS the chosen one", async () => {
+    const supabase = fakeSelect([
+      { id: "a", sl_no: "1", description: "8P", amount: 100, group_id: "g", group_type: "alternative", is_selected: false, pricing_flags: null },
+      { id: "b", sl_no: "1", description: "13P", amount: 150, group_id: "g", group_type: "alternative", is_selected: true, pricing_flags: block },
+    ]);
+    const out = await flaggedLinesOf(supabase, "standard_quote_lines", "standard_quote_id", "t", "d");
+    expect(out.map((l) => l.description)).toEqual(["13P"]);
+  });
+
+  it("ignores a flag on a quantity break that is not the chosen row", async () => {
+    const supabase = fakeSelect([
+      { id: "base", sl_no: "2", description: "Belt", amount: 500, break_of: null, is_selected: true, pricing_flags: null },
+      { id: "brk", sl_no: "2", description: "Belt", amount: 900, break_of: "base", is_selected: false, pricing_flags: block },
+    ]);
+    const out = await flaggedLinesOf(supabase, "standard_quote_lines", "standard_quote_id", "t", "d");
+    expect(out).toEqual([]);
+  });
+
+  it("uses the Quotation header's selected_option_id, not per-line is_selected", async () => {
+    const supabase = fakeSelect([
+      { id: "a", sl_no: "1", description: "8P", amount: 100, group_id: "g1", group_type: "alternative", is_selected: true, pricing_flags: null },
+      { id: "b", sl_no: "1", description: "13P", amount: 150, group_id: "g2", group_type: "alternative", is_selected: true, pricing_flags: block },
+    ]);
+    expect(await flaggedLinesOf(supabase, "quote_lines", "quote_id", "t", "d", { selectedOptionId: "g1" })).toEqual([]);
+    const again = fakeSelect([
+      { id: "a", sl_no: "1", description: "8P", amount: 100, group_id: "g1", group_type: "alternative", is_selected: true, pricing_flags: null },
+      { id: "b", sl_no: "1", description: "13P", amount: 150, group_id: "g2", group_type: "alternative", is_selected: true, pricing_flags: block },
+    ]);
+    expect((await flaggedLinesOf(again, "quote_lines", "quote_id", "t", "d", { selectedOptionId: "g2" })).map((l) => l.description)).toEqual(["13P"]);
   });
 });
 
