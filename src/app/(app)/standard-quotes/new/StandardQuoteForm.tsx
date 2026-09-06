@@ -64,6 +64,18 @@ const inp: React.CSSProperties = {
 const fw: React.CSSProperties = { marginBottom: 16 };
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
+// Compact line editor: one grid row per line, the same column template for
+// the header, ordinary lines and quantity-break sub-rows so columns line up.
+const GRID_COLUMNS = "26px minmax(0,1fr) 68px 66px 100px 58px 104px 96px 46px";
+const gridRow: React.CSSProperties = { display: "grid", gridTemplateColumns: GRID_COLUMNS, alignItems: "center", borderBottom: `1px solid ${c.line}` };
+const cell: React.CSSProperties = { padding: "4px 4px", display: "flex", alignItems: "center", minWidth: 0 };
+const headCell: React.CSSProperties = { padding: "6px 6px", fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const cinp: React.CSSProperties = { ...inp, padding: "6px 8px", fontSize: 12.5, borderRadius: 6 };
+const cnum: React.CSSProperties = { ...cinp, textAlign: "right", fontVariantNumeric: "tabular-nums" };
+const amountText: React.CSSProperties = { fontSize: 12.5, fontWeight: 600, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+const chip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 999, whiteSpace: "nowrap", border: "none", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" };
+const iconBtn: React.CSSProperties = { width: 20, height: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 15, lineHeight: 1, color: c.hint, background: "none", border: "none", cursor: "pointer", padding: 0, borderRadius: 4 };
+
 function newLine(): Line {
   return {
     id: Math.random().toString(36).slice(2), description: "", uom: "Nos", qty: "1", rate: "0", discount_pct: "0",
@@ -214,22 +226,28 @@ export default function StandardQuoteForm({
   const [priceAllBusy, setPriceAllBusy] = useState(false);
   const [priceAllSummary, setPriceAllSummary] = useState<{ priced: number; needsRfq: number; failed: number } | null>(null);
   const [overriddenIds, setOverriddenIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const expand = (id: string) => setExpandedIds((s) => (s.has(id) ? s : new Set(s).add(id)));
   const repriceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   // A pending re-price must not fire into an unmounted form.
   useEffect(() => () => { for (const t of Object.values(repriceTimers.current)) clearTimeout(t); }, []);
 
   function chooseProduct(lineId: string, productId: string) {
     const p = products.find((x) => x.id === productId);
-    setLines((ls) => ls.map((l) => {
-      if (l.id !== lineId) return l;
-      if (!p) return { ...l, product_id: "", pricing_document_id: "" };
-      return {
-        ...l, product_id: p.id, pricing_document_id: "",
-        description: l.description.trim() ? l.description : p.name,
-        uom: p.uom && (UOM_OPTIONS as readonly string[]).includes(p.uom) ? p.uom : l.uom,
-        rate: parseFloat(l.rate) > 0 ? l.rate : String(p.list_price ?? 0),
-      };
-    }));
+    setLines((ls) => {
+      const parent = ls.find((l) => l.id === lineId);
+      if (!parent) return ls;
+      const next: Line = !p
+        ? { ...parent, product_id: "", pricing_document_id: "" }
+        : {
+            ...parent, product_id: p.id, pricing_document_id: "",
+            description: parent.description.trim() ? parent.description : p.name,
+            uom: p.uom && (UOM_OPTIONS as readonly string[]).includes(p.uom) ? p.uom : parent.uom,
+            rate: parseFloat(parent.rate) > 0 ? parent.rate : String(p.list_price ?? 0),
+          };
+      // A quantity break is the same item: it follows the parent's product.
+      return ls.map((l) => (l.id === lineId ? next : l.break_of === lineId ? { ...l, product_id: next.product_id, description: next.description, uom: next.uom, pricing_document_id: "" } : l));
+    });
     setLinePricing((prev) => { const { [lineId]: _drop, ...rest } = prev; return rest; });
   }
 
@@ -303,9 +321,10 @@ export default function StandardQuoteForm({
       const json = await res.json().catch(() => ({}));
       if (res.status === 409 && json.needs_rfq) {
         setLinePricing((p) => ({ ...p, [lineId]: { kind: "needs_rfq", product: json.product, missing: json.missing ?? [], message: json.message, cost_model: json.cost_model ?? null } }));
+        expand(lineId);
         return;
       }
-      if (!res.ok) { setPricingErrors((p) => ({ ...p, [lineId]: json.error ?? "Pricing failed" })); return; }
+      if (!res.ok) { setPricingErrors((p) => ({ ...p, [lineId]: json.error ?? "Pricing failed" })); expand(lineId); return; }
       updateLine(lineId, { rate: String(Math.round((json.unit_rate as number) * 100) / 100), pricing_document_id: json.document_id ?? "" });
       setOverriddenIds((s) => { if (!s.has(lineId)) return s; const n = new Set(s); n.delete(lineId); return n; });
       // The line rate is before tax; the header applies tax once. Fill the
@@ -314,6 +333,7 @@ export default function StandardQuoteForm({
       setLinePricing((p) => ({ ...p, [lineId]: { kind: "priced", document_id: json.document_id ?? null, area: json.area, flags: json.flags ?? [], trace: json.trace ?? [], open: false } }));
     } catch {
       setPricingErrors((p) => ({ ...p, [lineId]: "Network error — try again." }));
+      expand(lineId);
     } finally {
       setPricingBusyIds((p) => { const n = new Set(p); n.delete(lineId); return n; });
     }
@@ -360,9 +380,11 @@ export default function StandardQuoteForm({
         } else if ("needs_rfq" in r && r.needs_rfq) {
           needsRfq++;
           setLinePricing((p) => ({ ...p, [r.line_key]: { kind: "needs_rfq", product: r.product, missing: r.missing ?? [], message: r.message, cost_model: r.cost_model ?? null } }));
+          expand(r.line_key);
         } else {
           failed++;
           setPricingErrors((p) => ({ ...p, [r.line_key]: "error" in r ? r.error : "Pricing failed" }));
+          expand(r.line_key);
         }
       }
       if ((parseFloat(taxPct) || 0) === 0 && firstTaxPct) setTaxPct(String(firstTaxPct));
@@ -416,159 +438,243 @@ export default function StandardQuoteForm({
     } finally { setRfqBusy(false); }
   }
 
-  function pricingStatus(lineId: string, productId: string, qty: string) {
-    const info = linePricing[lineId];
-    if (!info) return null;
-    const box: React.CSSProperties = { fontSize: 11.5, lineHeight: 1.45, marginTop: 6 };
-    if (info.kind === "priced") {
-      const blocked = info.flags.some((f) => f.policy === "block");
-      const warned = info.flags.length > 0 && !blocked;
-      return (
-        <div style={box}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ color: c.hint }}>Priced by engine, before tax{info.area !== "default" ? ` · ${info.area}` : ""}</span>
-            <button type="button" onClick={() => setLinePricing((p) => ({ ...p, [lineId]: { ...info, open: !info.open } }))}
-              style={{ fontSize: 11.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
-              {info.open ? "hide why" : "why?"}
-            </button>
-          </div>
-          {info.flags.map((f, i) => (
-            <div key={i} style={{ color: blocked ? "var(--err-ink)" : "var(--amberink)", fontWeight: 600 }}>
-              {f.code === "MARGIN_FLOOR" ? `Margin ${f.actual_pct}% is below the ${f.floor_pct}% floor` : f.code}
-              {blocked ? " — this quote can't be sent until approved" : warned ? " — check before sending" : ""}
-            </div>
-          ))}
-          {info.open && (
-            <div style={{ marginTop: 6, padding: 8, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel, overflowX: "auto" }}>
-              <PriceTrace steps={info.trace} compact />
-            </div>
-          )}
-        </div>
-      );
-    }
-    if (info.kind === "needs_rfq") {
-      const isOpen = rfqOpenId === lineId;
-      return (
-        <div style={box}>
-          <div style={{ color: "var(--amberink)", fontWeight: 600 }}>{info.message}</div>
-          {info.missing[0]?.considered?.length > 0 && (
-            <div style={{ color: c.hint }}>
-              Tried: {info.missing[0].considered.map((k) => `${k.source} (${k.reason ?? k.status})`).join("; ")}
-            </div>
-          )}
-          {!isOpen ? (
-            <button type="button" onClick={() => openRfq(lineId)}
-              style={{ marginTop: 4, fontSize: 11.5, fontWeight: 600, color: "#fff", background: c.accent, border: "none", borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>
-              Send RFQ to supplier
-            </button>
-          ) : (
-            <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6, maxWidth: 420 }}>
-              <select style={{ ...inp, fontSize: 12 }} value={rfqSupplierId} onChange={(e) => setRfqSupplierId(e.target.value)}>
-                <option value="">{rfqSuppliers === null ? "Loading suppliers…" : "Choose a supplier"}</option>
-                {(rfqSuppliers ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}{s.email ? "" : " (no email)"}</option>)}
-              </select>
-              <textarea style={{ ...inp, minHeight: 44, fontSize: 12 }} placeholder="Anything to add to the request (optional)" value={rfqMessage} onChange={(e) => setRfqMessage(e.target.value)} />
-              <div style={{ display: "flex", gap: 6 }}>
-                <button type="button" disabled={rfqBusy} onClick={() => sendRfq(lineId, productId, qty)}
-                  style={{ fontSize: 11.5, fontWeight: 600, color: "#fff", background: c.accent, border: "none", borderRadius: 6, padding: "6px 10px", cursor: rfqBusy ? "default" : "pointer", opacity: rfqBusy ? 0.6 : 1 }}>
-                  {rfqBusy ? "Sending…" : "Send"}
-                </button>
-                <button type="button" onClick={() => setRfqOpenId(null)} style={{ fontSize: 11.5, color: c.muted, background: "none", border: `1px solid ${c.line}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>Cancel</button>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-    if (info.kind === "rfq_sent") {
-      return <div style={{ ...box, color: "var(--tealink)" }}>{info.ref} sent to {info.supplier}{info.redirected ? " (redirected to the internal inbox)" : ""}. Price again once the reply is entered under Pricing → RFQs.</div>;
-    }
-    return <div style={{ ...box, color: "var(--amberink)" }}>{info.ref} saved but not sent: {info.reason}. Send it from Pricing → RFQs.</div>;
+  // Compact line editor (owner decision 2026-09-06: "too much on screen").
+  // One row per line; everything that is not a number the rep types --
+  // the engine's working, a flag's explanation, the RFQ form, an error,
+  // the secondary actions -- lives in a details panel under the row that
+  // opens from the status chip or the chevron. It opens by itself only
+  // when the line needs the rep to act (an RFQ, a failure).
+  function toggleExpanded(id: string) {
+    setExpandedIds((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   }
 
-  /** The product/description/uom/qty/rate/discount/amount fields for one
-   *  line -- shared by an ungrouped line and every line inside an
-   *  alternative option, so the two only ever differ in their outer
-   *  header (Line N + Remove, vs. the option's own header). */
-  function renderLineFields(line: Line) {
+  function removeLine(id: string) {
+    setLines((ls) => { const rest = ls.filter((l) => l.id !== id && l.break_of !== id); return rest.length ? rest : [newLine()]; });
+  }
+
+  /** A manual rate on an engine-priced line drops the pricing document
+   *  and marks the line overridden (a hand-typed number must never pass
+   *  for the engine's). */
+  function onRateChange(line: Line, rate: string) {
+    if (line.pricing_document_id) {
+      updateLine(line.id, { rate, pricing_document_id: "" });
+      setOverriddenIds((s) => new Set(s).add(line.id));
+      setLinePricing((p) => { const { [line.id]: _drop, ...rest } = p; return rest; });
+    } else {
+      updateLine(line.id, { rate });
+    }
+  }
+
+  function statusChip(line: Line) {
+    const info = linePricing[line.id];
+    const err = pricingErrors[line.id];
+    if (pricingBusyIds.has(line.id)) return <span style={{ ...chip, background: c.panel2, color: c.hint }}>Pricing…</span>;
+    let label = "", bg = "", ink = "", title = "";
+    if (err) { label = "Failed"; bg = "var(--err-bg)"; ink = "var(--err-ink)"; title = err; }
+    else if (info?.kind === "priced") {
+      const block = info.flags.find((f) => f.policy === "block");
+      const flag = block ?? info.flags[0];
+      if (flag) {
+        label = flag.code === "MARGIN_FLOOR" ? `${flag.actual_pct}% < ${flag.floor_pct}%` : flag.code;
+        bg = block ? "var(--err-bg)" : "var(--amberbg)"; ink = block ? "var(--err-ink)" : "var(--amberink)";
+        title = block ? "Below the margin floor — this quote can't be sent until approved" : "Check before sending";
+      } else { label = "Engine"; bg = "var(--tealbg)"; ink = "var(--tealink)"; title = "Priced by the engine, before tax — open for the working"; }
+    }
+    else if (info?.kind === "needs_rfq") { label = "Needs RFQ"; bg = "var(--amberbg)"; ink = "var(--amberink)"; title = info.message; }
+    else if (info?.kind === "rfq_sent") { label = "RFQ sent"; bg = "var(--tealbg)"; ink = "var(--tealink)"; title = `${info.ref} sent to ${info.supplier}`; }
+    else if (info?.kind === "rfq_draft") { label = "RFQ draft"; bg = "var(--amberbg)"; ink = "var(--amberink)"; title = `${info.ref} saved but not sent`; }
+    else if (overriddenIds.has(line.id)) { label = "Manual"; bg = c.panel2; ink = c.hint; title = "Rate overridden — no longer tracked by the engine"; }
+    else if (pricingEngineQuotesEnabled && line.product_id) {
+      return (
+        <button type="button" onClick={() => priceWithEngine(line.id, line.product_id, line.qty)} title="Suggest a rate from the Pricing Engine — you can still edit it" style={{ ...chip, background: c.accentbg, color: c.accent, cursor: "pointer" }}>
+          ⚡ Price
+        </button>
+      );
+    }
+    else return null;
+    return <button type="button" onClick={() => toggleExpanded(line.id)} title={title} style={{ ...chip, background: bg, color: ink, cursor: "pointer" }}>{label}</button>;
+  }
+
+  function detailPanel(line: Line, isBreak: boolean) {
+    const info = linePricing[line.id];
+    const err = pricingErrors[line.id];
+    const isOpen = rfqOpenId === line.id;
+    const linkBtn: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 };
     return (
-      <>
-        {products.length > 0 && (
-          <div style={fw}>
-            <label style={lbl}>Product</label>
-            <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-              <select style={inp} value={line.product_id} onChange={(e) => {
-                const hadPrice = !!line.pricing_document_id;
-                chooseProduct(line.id, e.target.value);
-                if (hadPrice && e.target.value) scheduleAutoReprice(line.id, e.target.value, line.qty);
-              }}>
-                <option value="">— Free text (no product) —</option>
+      <div style={{ padding: "8px 12px 10px 34px", background: c.panel2, borderBottom: `1px solid ${c.line}`, fontSize: 11.5, lineHeight: 1.5 }}>
+        {err && <div style={{ color: "var(--err-ink)", fontWeight: 600 }}>{err}</div>}
+        {overriddenIds.has(line.id) && <div style={{ color: c.hint }}>Rate overridden — no longer tracked by the engine.</div>}
+        {info?.kind === "priced" && (
+          <>
+            <div style={{ color: c.hint }}>Priced by engine, before tax{info.area !== "default" ? ` · ${info.area}` : ""}</div>
+            {info.flags.map((f, i) => {
+              const blocked = f.policy === "block";
+              return (
+                <div key={i} style={{ color: blocked ? "var(--err-ink)" : "var(--amberink)", fontWeight: 600 }}>
+                  {f.code === "MARGIN_FLOOR" ? `Margin ${f.actual_pct}% is below the ${f.floor_pct}% floor` : f.code}
+                  {blocked ? " — this quote can't be sent until approved" : " — check before sending"}
+                </div>
+              );
+            })}
+            {info.trace.length > 0 && (
+              <div style={{ marginTop: 6, padding: 8, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel, overflowX: "auto", maxWidth: 560 }}>
+                <PriceTrace steps={info.trace} compact />
+              </div>
+            )}
+          </>
+        )}
+        {info?.kind === "needs_rfq" && (
+          <>
+            <div style={{ color: "var(--amberink)", fontWeight: 600 }}>{info.message}</div>
+            {info.missing[0]?.considered?.length > 0 && (
+              <div style={{ color: c.hint }}>Tried: {info.missing[0].considered.map((k) => `${k.source} (${k.reason ?? k.status})`).join("; ")}</div>
+            )}
+            {!isOpen ? (
+              <button type="button" onClick={() => openRfq(line.id)} style={{ marginTop: 6, fontSize: 11.5, fontWeight: 600, color: "#fff", background: c.accent, border: "none", borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>
+                Send RFQ to supplier
+              </button>
+            ) : (
+              <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6, maxWidth: 420 }}>
+                <select style={{ ...inp, fontSize: 12 }} value={rfqSupplierId} onChange={(e) => setRfqSupplierId(e.target.value)}>
+                  <option value="">{rfqSuppliers === null ? "Loading suppliers…" : "Choose a supplier"}</option>
+                  {(rfqSuppliers ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}{s.email ? "" : " (no email)"}</option>)}
+                </select>
+                <textarea style={{ ...inp, minHeight: 44, fontSize: 12 }} placeholder="Anything to add to the request (optional)" value={rfqMessage} onChange={(e) => setRfqMessage(e.target.value)} />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button type="button" disabled={rfqBusy} onClick={() => sendRfq(line.id, line.product_id, line.qty)}
+                    style={{ fontSize: 11.5, fontWeight: 600, color: "#fff", background: c.accent, border: "none", borderRadius: 6, padding: "6px 10px", cursor: rfqBusy ? "default" : "pointer", opacity: rfqBusy ? 0.6 : 1 }}>
+                    {rfqBusy ? "Sending…" : "Send"}
+                  </button>
+                  <button type="button" onClick={() => setRfqOpenId(null)} style={{ fontSize: 11.5, color: c.muted, background: "none", border: `1px solid ${c.line}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+        {info?.kind === "rfq_sent" && (
+          <div style={{ color: "var(--tealink)" }}>{info.ref} sent to {info.supplier}{info.redirected ? " (redirected to the internal inbox)" : ""}. Price again once the reply is entered under Pricing → RFQs.</div>
+        )}
+        {info?.kind === "rfq_draft" && (
+          <div style={{ color: "var(--amberink)" }}>{info.ref} saved but not sent: {info.reason}. Send it from Pricing → RFQs.</div>
+        )}
+        <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap" }}>
+          {pricingEngineQuotesEnabled && line.product_id && (
+            <button type="button" disabled={pricingBusyIds.has(line.id)} onClick={() => priceWithEngine(line.id, line.product_id, line.qty)} style={linkBtn}>⚡ Price with engine</button>
+          )}
+          {!isBreak && !line.group_type && (
+            <button type="button" onClick={() => addBreak(line)} title="Offer this item at a second quantity, at its own rate — only the chosen quantity counts" style={linkBtn}>+ Add quantity break</button>
+          )}
+          <button type="button" onClick={() => toggleExpanded(line.id)} style={{ ...linkBtn, color: c.hint, fontWeight: 400 }}>Close</button>
+        </div>
+      </div>
+    );
+  }
+
+  function rowActions(line: Line) {
+    const open = expandedIds.has(line.id);
+    return (
+      <div style={{ ...cell, gap: 2, justifyContent: "flex-end" }}>
+        <button type="button" onClick={() => toggleExpanded(line.id)} title={open ? "Hide details" : "Details"} style={{ ...iconBtn, transform: open ? "rotate(90deg)" : "none" }}>›</button>
+        <button type="button" onClick={() => removeLine(line.id)} title="Remove" style={{ ...iconBtn, color: "var(--red)" }}>×</button>
+      </div>
+    );
+  }
+
+  function lineRow(line: Line, no: number, opts: { dim?: boolean; breaks?: Line[] }) {
+    const breaks = opts.breaks ?? [];
+    const hasBreaks = breaks.length > 0;
+    const breakIds = breaks.map((b) => b.id);
+    const chosenId = hasBreaks ? chosenBreakId(line, breaks) : line.id;
+    const isChosen = chosenId === line.id;
+    const product = products.find((p) => p.id === line.product_id);
+    return (
+      <div key={line.id}>
+        <div style={{ ...gridRow, opacity: opts.dim ? 0.55 : 1 }}>
+          <div style={{ ...cell, justifyContent: "center", fontSize: 11.5, color: c.hint }}>{no}</div>
+          <div style={{ ...cell, gap: 4 }}>
+            {products.length > 0 && (
+              <select
+                value={line.product_id} title={product ? `${product.ref ? `${product.ref} · ` : ""}${product.name}` : "Pick a catalog product to price it with the engine"}
+                onChange={(e) => {
+                  const hadPrice = !!line.pricing_document_id;
+                  chooseProduct(line.id, e.target.value);
+                  if (hadPrice && e.target.value) scheduleAutoReprice(line.id, e.target.value, line.qty);
+                }}
+                style={{ ...cinp, width: 118, flexShrink: 0, color: line.product_id ? c.ink : c.hint }}
+              >
+                <option value="">No product</option>
                 {products.map((p) => <option key={p.id} value={p.id}>{p.ref ? `${p.ref} · ` : ""}{p.name}</option>)}
               </select>
-              {pricingEngineQuotesEnabled && line.product_id && (
-                <button
-                  type="button"
-                  disabled={pricingBusyIds.has(line.id)}
-                  onClick={() => priceWithEngine(line.id, line.product_id, line.qty)}
-                  title="Suggest a rate from the live Pricing Engine — you can still edit it before saving"
-                  style={{
-                    flexShrink: 0, fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg,
-                    border: "none", borderRadius: 8, padding: "9px 12px", cursor: pricingBusyIds.has(line.id) ? "default" : "pointer",
-                    opacity: pricingBusyIds.has(line.id) ? 0.6 : 1, whiteSpace: "nowrap",
-                  }}
-                >
-                  {pricingBusyIds.has(line.id) ? "Pricing…" : "⚡ Price with engine"}
-                </button>
-              )}
-            </div>
-            {pricingErrors[line.id] && <div style={{ fontSize: 11.5, color: "var(--err-ink)", marginTop: 4 }}>{pricingErrors[line.id]}</div>}
-            {pricingStatus(line.id, line.product_id, line.qty)}
+            )}
+            <input style={cinp} value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} placeholder="What's being quoted" />
           </div>
-        )}
-        <div style={fw}>
-          <label style={lbl}>Description *</label>
-          <input style={inp} value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} placeholder="What's being quoted" />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
-          <div>
-            <label style={lbl}>UOM</label>
-            <select style={inp} value={line.uom} onChange={(e) => updateLine(line.id, { uom: e.target.value })}>
+          <div style={cell}>
+            <select style={cinp} value={line.uom} onChange={(e) => updateLine(line.id, { uom: e.target.value })}>
               {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
-          <div>
-            <label style={lbl}>Qty</label>
-            <input style={inp} type="number" min="0" step="any" value={line.qty} onChange={(e) => {
+          <div style={cell}>
+            <input style={cnum} type="number" min="0" step="any" value={line.qty} onChange={(e) => {
               const qty = e.target.value;
               updateLine(line.id, { qty });
               if (line.product_id && line.pricing_document_id) scheduleAutoReprice(line.id, line.product_id, qty);
             }} />
           </div>
-          <div>
-            <label style={lbl}>Rate (₹)</label>
-            <input style={inp} type="number" min="0" step="0.01" value={line.rate} onChange={(e) => {
-              const rate = e.target.value;
-              if (line.pricing_document_id) {
-                updateLine(line.id, { rate, pricing_document_id: "" });
-                setOverriddenIds((s) => new Set(s).add(line.id));
-                setLinePricing((p) => { const { [line.id]: _drop, ...rest } = p; return rest; });
-              } else {
-                updateLine(line.id, { rate });
-              }
+          <div style={cell}>
+            <input style={cnum} type="number" min="0" step="0.01" value={line.rate} onChange={(e) => onRateChange(line, e.target.value)} />
+          </div>
+          <div style={cell}>
+            <input style={cnum} type="number" min="0" max="100" step="0.1" value={line.discount_pct} onChange={(e) => updateLine(line.id, { discount_pct: e.target.value })} />
+          </div>
+          <div style={{ ...cell, justifyContent: "flex-end", gap: 6 }}>
+            {hasBreaks && <input type="radio" title="Quote the base quantity" checked={isChosen} onChange={() => chooseBreak(line.id, line.id, breakIds)} style={{ margin: 0 }} />}
+            <span style={{ ...amountText, color: hasBreaks && !isChosen ? c.hint : c.ink }}>{inr(lineAmount(line))}</span>
+          </div>
+          <div style={{ ...cell, overflow: "hidden" }}>{statusChip(line)}</div>
+          {rowActions(line)}
+        </div>
+        {expandedIds.has(line.id) && detailPanel(line, false)}
+        {breaks.map((b) => breakRow(line, b, chosenId, breakIds, !!opts.dim))}
+      </div>
+    );
+  }
+
+  /** A quantity break is the same item at another quantity: only the
+   *  quantity and the rate are its own (description, UOM, product and
+   *  discount follow the parent -- see updateLine). */
+  function breakRow(parent: Line, b: Line, chosenId: string, breakIds: string[], dim: boolean) {
+    const isChosen = chosenId === b.id;
+    return (
+      <div key={b.id}>
+        <div style={{ ...gridRow, background: c.panel2, opacity: dim ? 0.55 : 1 }}>
+          <div style={{ ...cell, justifyContent: "center", color: c.hint }}>↳</div>
+          <div style={{ ...cell, gap: 6 }}>
+            <span style={{ fontSize: 11.5, color: c.muted, whiteSpace: "nowrap" }}>From qty</span>
+            <input type="number" min="1" step="1" value={b.break_qty} style={{ ...cnum, width: 68, flex: "none" }} onChange={(e) => {
+              const v = e.target.value;
+              updateLine(b.id, { break_qty: v, qty: v });
+              if (b.product_id && b.pricing_document_id) scheduleAutoReprice(b.id, b.product_id, v);
             }} />
-            {overriddenIds.has(line.id) && (
-              <div style={{ fontSize: 10.5, color: c.hint, marginTop: 3 }}>Rate overridden — no longer tracked by the engine</div>
-            )}
+            <span style={{ fontSize: 11, color: c.hint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>same item, its own rate</span>
           </div>
-          <div>
-            <label style={lbl}>Discount %</label>
-            <input style={inp} type="number" min="0" max="100" step="0.1" value={line.discount_pct} onChange={(e) => updateLine(line.id, { discount_pct: e.target.value })} />
+          <div style={{ ...cell, fontSize: 11.5, color: c.hint }}>{parent.uom}</div>
+          <div style={{ ...cell, justifyContent: "flex-end", fontSize: 12.5, color: c.muted, fontVariantNumeric: "tabular-nums" }}>{b.qty || "—"}</div>
+          <div style={cell}>
+            <input style={cnum} type="number" min="0" step="0.01" value={b.rate} onChange={(e) => onRateChange(b, e.target.value)} />
+          </div>
+          <div style={{ ...cell, justifyContent: "flex-end", fontSize: 11.5, color: c.hint }}>{parent.discount_pct || "0"}%</div>
+          <div style={{ ...cell, justifyContent: "flex-end", gap: 6 }}>
+            <input type="radio" title="Quote this quantity" checked={isChosen} onChange={() => chooseBreak(parent.id, b.id, breakIds)} style={{ margin: 0 }} />
+            <span style={{ ...amountText, color: isChosen ? c.ink : c.hint }}>{inr(lineAmount(b))}</span>
+          </div>
+          <div style={{ ...cell, overflow: "hidden" }}>{statusChip(b)}</div>
+          <div style={{ ...cell, gap: 2, justifyContent: "flex-end" }}>
+            <button type="button" onClick={() => toggleExpanded(b.id)} title="Details" style={{ ...iconBtn, transform: expandedIds.has(b.id) ? "rotate(90deg)" : "none" }}>›</button>
+            <button type="button" onClick={() => removeBreak(b.id)} title="Remove this quantity break" style={{ ...iconBtn, color: "var(--red)" }}>×</button>
           </div>
         </div>
-        <div style={{ textAlign: "right", fontSize: 12.5, color: c.muted, marginTop: 6 }}>
-          = {inr(lineAmount(line))}
-        </div>
-      </>
+        {expandedIds.has(b.id) && detailPanel(b, true)}
+      </div>
     );
   }
 
@@ -590,9 +696,20 @@ export default function StandardQuoteForm({
     Math.max(0, parseFloat(shippingAmount) || 0)
   );
 
+  /** A quantity break is the same item at another quantity, so the fields
+   *  that describe the item (not its quantity or rate) follow the parent. */
+  const INHERITED_BY_BREAKS = ["description", "uom", "product_id", "discount_pct"] as const;
   function updateLine(id: string, patch: Partial<Line>) {
-    setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    const inherited: Partial<Line> = {};
+    for (const k of INHERITED_BY_BREAKS) if (k in patch) (inherited as Record<string, unknown>)[k] = patch[k];
+    const propagate = Object.keys(inherited).length > 0;
+    setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : propagate && l.break_of === id ? { ...l, ...inherited } : l)));
   }
+
+  const blockedCount = lines.filter((l) => {
+    const info = linePricing[l.id];
+    return info?.kind === "priced" && info.flags.some((f) => f.policy === "block");
+  }).length;
 
   function draftLinesWithAI() {
     if (!aiJobDesc.trim()) return;
@@ -784,140 +901,85 @@ export default function StandardQuoteForm({
             </section>
 
             <section style={cardStyle}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
                 <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: 0 }}>Line items</h3>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {pricingEngineQuotesEnabled && products.length > 0 && lines.some((l) => l.product_id) && (
-                    <button
-                      type="button"
-                      disabled={priceAllBusy}
-                      onClick={priceAllLines}
-                      title="Price every line that names a product, in one call"
-                      style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: priceAllBusy ? "default" : "pointer", opacity: priceAllBusy ? 0.6 : 1 }}
-                    >
-                      {priceAllBusy ? "Pricing all…" : "⚡ Price all lines"}
-                    </button>
-                  )}
+                {priceAllSummary && (
+                  <span style={{ fontSize: 11.5, color: c.muted }}>
+                    {priceAllSummary.priced} priced
+                    {priceAllSummary.needsRfq > 0 ? ` · ${priceAllSummary.needsRfq} need a supplier reply` : ""}
+                    {priceAllSummary.failed > 0 ? ` · ${priceAllSummary.failed} failed` : ""}
+                  </span>
+                )}
+                {blockedCount > 0 && (
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--err-ink)" }}>{blockedCount} below the margin floor — can&apos;t be sent until approved</span>
+                )}
+                {pricingEngineQuotesEnabled && products.length > 0 && lines.some((l) => l.product_id) && (
                   <button
                     type="button"
-                    onClick={addAlternativeOption}
-                    title="Give the customer a choice between two or more offers -- only the one they pick counts toward the total"
-                    style={{ fontSize: 12, fontWeight: 600, color: c.muted, background: "transparent", border: `1px dashed ${c.line}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
+                    disabled={priceAllBusy}
+                    onClick={priceAllLines}
+                    title="Price every line that names a product, in one call"
+                    style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: priceAllBusy ? "default" : "pointer", opacity: priceAllBusy ? 0.6 : 1 }}
                   >
-                    + Add alternative option
+                    {priceAllBusy ? "Pricing all…" : "⚡ Price all"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setLines((ls) => [...ls, newLine()])}
-                    style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
-                  >
-                    + Add line
-                  </button>
-                </div>
+                )}
               </div>
-              {priceAllSummary && (
-                <div style={{ fontSize: 12, color: c.muted, marginBottom: 10, padding: "6px 10px", borderRadius: 6, background: c.panel2 }}>
-                  {priceAllSummary.priced} priced
-                  {priceAllSummary.needsRfq > 0 ? ` · ${priceAllSummary.needsRfq} need a supplier reply` : ""}
-                  {priceAllSummary.failed > 0 ? ` · ${priceAllSummary.failed} failed` : ""}
-                </div>
-              )}
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {(() => { let lineNo = 0; return rows.map((row) => {
-                  if (row.kind === "line") {
-                    lineNo += 1;
-                    const line = row.line;
-                    const breaks = row.breaks;
-                    const hasBreaks = breaks.length > 0;
-                    const chosenId = hasBreaks ? chosenBreakId(line, breaks) : line.id;
-                    const breakIds = breaks.map((b) => b.id);
+
+              <div style={{ overflowX: "auto" }}>
+                <div style={{ minWidth: 720, border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden" }}>
+                  <div style={{ ...gridRow, background: c.panel2 }}>
+                    <div style={{ ...headCell, textAlign: "center" }}>#</div>
+                    <div style={headCell}>{products.length > 0 ? "Product · description" : "Description"}</div>
+                    <div style={headCell}>UOM</div>
+                    <div style={{ ...headCell, textAlign: "right" }}>Qty</div>
+                    <div style={{ ...headCell, textAlign: "right" }}>Rate (₹)</div>
+                    <div style={{ ...headCell, textAlign: "right" }}>Disc %</div>
+                    <div style={{ ...headCell, textAlign: "right" }}>Amount</div>
+                    <div style={headCell}>Price</div>
+                    <div style={headCell} />
+                  </div>
+                  {(() => { let no = 0; return rows.map((row) => {
+                    if (row.kind === "line") { no += 1; return lineRow(row.line, no, { breaks: row.breaks }); }
+                    // An alternative option: one or more lines that together
+                    // make up one offer -- only the chosen option's lines count
+                    // toward the total (src/lib/sales/lineTotals.ts).
+                    const isChosen = row.group_id === chosenGroupId;
+                    const groupTotal = row.lines.reduce((s, l) => s + lineAmount(l), 0);
                     return (
-                      <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10 }}>
-                        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: c.hint }}>Line {lineNo}</span>
-                          {lines.length > 1 && (
-                            <button type="button" onClick={() => setLines((ls) => ls.filter((l) => l.id !== line.id && l.break_of !== line.id))} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
-                              Remove
-                            </button>
-                          )}
+                      <div key={row.group_id}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px 5px 6px", background: isChosen ? c.accentbg : c.panel2, borderBottom: `1px solid ${c.line}`, borderLeft: `3px solid ${isChosen ? c.accent : c.line}` }}>
+                          <input type="radio" checked={isChosen} onChange={() => chooseGroup(row.group_id)} title="Quote this option" style={{ margin: 0 }} />
+                          <input
+                            value={row.label} onChange={(e) => renameGroup(row.group_id, e.target.value)} placeholder="Option name"
+                            style={{ ...cinp, width: 200, fontWeight: 600, background: "transparent", border: "1px solid transparent", padding: "3px 6px" }}
+                          />
+                          <span style={{ fontSize: 11.5, fontWeight: 600, color: isChosen ? c.accent : c.hint, whiteSpace: "nowrap" }}>
+                            {isChosen ? "Chosen" : "Alternative — not charged"} · {inr(groupTotal)}
+                          </span>
+                          <span style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
+                            <button type="button" onClick={() => addItemToGroup(row.group_id, row.label)} style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Item</button>
+                            <button type="button" onClick={() => removeGroup(row.group_id)} style={{ fontSize: 11.5, color: "var(--red)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Remove option</button>
+                          </span>
                         </div>
-                        {hasBreaks && (
-                          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginBottom: 8, fontSize: 11.5, color: chosenId === line.id ? c.accent : c.hint, fontWeight: 600 }}>
-                            <input type="radio" checked={chosenId === line.id} onChange={() => chooseBreak(line.id, line.id, breakIds)} />
-                            Base quantity ({line.qty || "1"})
-                          </label>
-                        )}
-                        {renderLineFields(line)}
-                        {breaks.map((b) => (
-                          <div key={b.id} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${c.line}` }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-                              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                                <input type="radio" checked={chosenId === b.id} onChange={() => chooseBreak(line.id, b.id, breakIds)} />
-                                <span style={{ fontSize: 11.5, fontWeight: 600, color: chosenId === b.id ? c.accent : c.hint }}>From qty</span>
-                              </label>
-                              <input
-                                type="number" min="1" step="1" value={b.break_qty}
-                                onChange={(e) => setLines((ls) => ls.map((l) => (l.id === b.id ? { ...l, break_qty: e.target.value, qty: e.target.value } : l)))}
-                                style={{ ...inp, width: 70, padding: "4px 8px", fontSize: 12.5 }}
-                              />
-                              <button type="button" onClick={() => removeBreak(b.id)} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
-                                Remove break
-                              </button>
-                            </div>
-                            {renderLineFields(b)}
-                          </div>
-                        ))}
-                        {!line.group_type && (
-                          <button type="button" onClick={() => addBreak(line)} style={{ marginTop: 8, fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                            + Add quantity break
-                          </button>
-                        )}
+                        {row.lines.map((line) => { no += 1; return lineRow(line, no, { dim: !isChosen }); })}
                       </div>
                     );
-                  }
-                  // An alternative option: one or more lines that together
-                  // make up one offer -- only the chosen option's lines
-                  // count toward the total (src/lib/sales/lineTotals.ts).
-                  const isChosen = row.group_id === chosenGroupId;
-                  return (
-                    <div key={row.group_id} style={{ border: `1px solid ${isChosen ? c.accent : c.line}`, borderRadius: 8, padding: 10, background: isChosen ? c.accentbg : "transparent" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                          <input type="radio" checked={isChosen} onChange={() => chooseGroup(row.group_id)} />
-                          <span style={{ fontSize: 11, fontWeight: 700, color: isChosen ? c.accent : c.hint }}>{isChosen ? "Selected option" : "Use this option"}</span>
-                        </label>
-                        <input
-                          value={row.label}
-                          onChange={(e) => renameGroup(row.group_id, e.target.value)}
-                          placeholder="Option name"
-                          style={{ ...inp, width: 180, padding: "4px 8px", fontSize: 12.5, fontWeight: 600 }}
-                        />
-                        <button type="button" onClick={() => addItemToGroup(row.group_id, row.label)} style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer" }}>
-                          + Add item
-                        </button>
-                        <button type="button" onClick={() => removeGroup(row.group_id)} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
-                          Remove option
-                        </button>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {row.lines.map((line) => (
-                          <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10, background: c.panel }}>
-                            <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-                              <span style={{ fontSize: 10.5, color: c.hint }}>Item</span>
-                              <button type="button" onClick={() => setLines((ls) => { const rest = ls.filter((l) => l.id !== line.id); return rest.length ? rest : [newLine()]; })} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
-                                Remove
-                              </button>
-                            </div>
-                            {renderLineFields(line)}
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ textAlign: "right", fontSize: 12.5, fontWeight: 600, color: c.ink, marginTop: 8 }}>
-                        Option total = {inr(row.lines.reduce((s, l) => s + lineAmount(l), 0))}
-                      </div>
-                    </div>
-                  );
-                }); })()}
+                  }); })()}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 18, marginTop: 8 }}>
+                <button type="button" onClick={() => setLines((ls) => [...ls, newLine()])} style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
+                  + Add line
+                </button>
+                <button
+                  type="button" onClick={addAlternativeOption}
+                  title="Give the customer a choice between two or more offers — only the one they pick counts toward the total"
+                  style={{ fontSize: 12, fontWeight: 600, color: c.muted, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}
+                >
+                  + Alternative option
+                </button>
               </div>
 
               <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 14, paddingTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
