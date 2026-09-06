@@ -4,7 +4,8 @@ import { tenantHasFeature } from "@/lib/tenant";
 import { generateNextStandardQuoteRef } from "@/lib/standardQuoteRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
-import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, resolveLineIdsAndSelection } from "@/lib/pricing/quoteLineFlags";
+import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, resolveLineIdsAndSelection, writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
+import { parsePrintOptions, isDefaultPrintOptions } from "@/lib/sales/printOptions";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
   // break_of are resolved to this insert's real row ids, and is_selected
   // is recomputed, by resolveLineIdsAndSelection rather than trusted from
   // the client, since together they decide real money.
-  const rawLines: { local_id?: string; description?: string; sl_no?: string; uom?: string; qty?: string; rate?: string; discount_pct?: string; product_id?: string | null; pricing_document_id?: string | null; group_id?: string | null; group_label?: string | null; group_type?: string | null; break_of?: string | null; break_qty?: number | null; is_selected?: boolean }[] =
+  const rawLines: { local_id?: string; description?: string; sl_no?: string; uom?: string; qty?: string; rate?: string; discount_pct?: string; product_id?: string | null; pricing_document_id?: string | null; group_id?: string | null; group_label?: string | null; group_type?: string | null; break_of?: string | null; break_qty?: number | null; is_selected?: boolean; show_on_pdf?: boolean }[] =
     Array.isArray(lines) ? lines.filter((l) => l?.description?.trim()).slice(0, 200) : [];
   const knownProducts = await verifiedProductIds(supabase, tenantId, rawLines);
   const withAmounts = rawLines.map((l, i) => {
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
       break_of: typeof l.break_of === "string" && l.break_of ? l.break_of : null,
       break_qty: typeof l.break_qty === "number" && Number.isFinite(l.break_qty) ? l.break_qty : null,
       is_selected: l.is_selected !== false,
+      show_on_pdf: l.show_on_pdf !== false,
     };
   });
   const cleanLines = resolveLineIdsAndSelection(withAmounts);
@@ -111,7 +113,11 @@ export async function POST(request: NextRequest) {
   const subtotal = cleanLines.filter((l) => l.is_selected).reduce((s, l) => s + l.amount, 0);
   const totals = computeStandardQuoteTotals(subtotal, headerDiscountPct, taxPct, shippingAmount);
 
+  // PDF options (0118): presentation only, stored as null when default.
+  const printOptions = parsePrintOptions(body.print_options);
+
   const baseInsert = {
+    print_options: isDefaultPrintOptions(printOptions) ? null : printOptions,
     tenant_id: tenantId,
     account_id,
     contact_id: contact_id || null,
@@ -134,7 +140,9 @@ export async function POST(request: NextRequest) {
   let qErr: { message: string; code?: string } | null = null;
   for (let attempt = 0; attempt < 3 && !quote; attempt++) {
     const ref = await generateNextStandardQuoteRef(supabase, tenantId);
-    const result = await supabase.from("standard_quotes").insert({ ...baseInsert, ref }).select("id, ref").single();
+    // Tolerates 0118 pending (print_options column missing) the way the
+    // line insert tolerates its own pending columns.
+    const result = await writeHeaderTolerant({ ...baseInsert, ref }, async (row) => await supabase.from("standard_quotes").insert(row).select("id, ref").single());
     if (!result.error) {
       quote = result.data;
     } else if (result.error.code === "23505") {

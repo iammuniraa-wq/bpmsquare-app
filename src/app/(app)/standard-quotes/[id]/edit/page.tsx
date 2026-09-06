@@ -39,6 +39,7 @@ export default async function EditStandardQuotePage({ params }: { params: Promis
         valid_until: quote.valid_until, inquiry_date: quote.inquiry_date, notes: quote.notes, terms: quote.terms, template_id: quote.template_id,
         header_discount_pct: quote.header_discount_pct, tax_pct: quote.tax_pct,
         shipping_amount: quote.shipping_amount, intro_text: quote.intro_text,
+        print_options: quote.print_options ?? null,
         lines: lines.map((l) => ({
           id: l.id,
           sl_no: l.sl_no, description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct,
@@ -46,6 +47,7 @@ export default async function EditStandardQuotePage({ params }: { params: Promis
           group_id: l.group_id ?? null, group_label: l.group_label ?? null, group_type: l.group_type ?? null,
           break_of: l.break_of ?? null, break_qty: l.break_qty ?? null,
           is_selected: l.is_selected ?? true,
+          show_on_pdf: l.show_on_pdf ?? true,
         })),
       }}
     />

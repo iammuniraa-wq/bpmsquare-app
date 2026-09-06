@@ -413,6 +413,9 @@ export type StandardQuote = {
   intro_text: string | null;
   inquiry_date: string | null;
   closed_at: string | null;
+  /** What the PDF prints for unchosen options/quantities (0118) --
+   *  src/lib/sales/printOptions.ts. null = print all, greyed out. */
+  print_options?: { alternatives?: "all" | "chosen"; breaks?: "all" | "chosen" } | null;
 };
 
 export type StandardQuoteLine = {
@@ -445,6 +448,9 @@ export type StandardQuoteLine = {
   break_qty?: number | null;
   /** Whether this row counts toward the document total (0116). */
   is_selected?: boolean;
+  /** Rep's per-line PDF override (0118): false hides the row from the
+   *  PDF. Presentation only -- never changes what is charged. */
+  show_on_pdf?: boolean;
 };
 
 // Standard Quote branded templates -- an ordered list of blocks a tenant can
@@ -723,6 +729,10 @@ export type Product = {
   /** What one unit consumes, for cost-based pricing (0113): [{ path, qty,
    *  kind? }]. Absent = one bought-in part priced at cost_price. */
   cost_sheet?: { path: string; qty: number; kind?: string }[] | null;
+  /** The product's own quantity breaks (0118), local or ERP-synced:
+   *  [{ from, rate }] -- rate null means "price it normally at that qty".
+   *  Offered by the Standard Quote add-line panel. */
+  qty_breaks?: { from: number; rate: number | null }[] | null;
   tax_percent: number | null;
   status: ProductStatus;
   custom_data: Record<string, unknown> | null;

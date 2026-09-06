@@ -4,7 +4,8 @@ import { tenantHasFeature } from "@/lib/tenant";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
-import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, resolveLineIdsAndSelection } from "@/lib/pricing/quoteLineFlags";
+import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, resolveLineIdsAndSelection, writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
+import { parsePrintOptions, isDefaultPrintOptions } from "@/lib/sales/printOptions";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -106,12 +107,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ("header_discount_pct" in body) patch.header_discount_pct = clampPct(body.header_discount_pct);
   if ("tax_pct" in body) patch.tax_pct = clampPct(body.tax_pct);
   if ("shipping_amount" in body) patch.shipping_amount = clampAmount(body.shipping_amount);
+  // PDF options (0118): presentation only, stored as null when default.
+  if ("print_options" in body) {
+    const po = parsePrintOptions(body.print_options);
+    patch.print_options = isDefaultPrintOptions(po) ? null : po;
+  }
 
   type CleanLine = {
     id: string; tenant_id: string; standard_quote_id: string; sl_no: string; description: string; uom: string | null;
     qty: number; rate: number; discount_pct: number; amount: number; product_id: string | null; pricing_document_id: string | null;
     group_id: string | null; group_label: string | null; group_type: string | null;
-    break_of: string | null; break_qty: number | null; is_selected: boolean;
+    break_of: string | null; break_qty: number | null; is_selected: boolean; show_on_pdf: boolean;
   };
   let cleanLines: CleanLine[] | null = null;
   if (Array.isArray(body.lines)) {
@@ -119,7 +125,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       local_id?: string; sl_no?: string; description: string; uom?: string; qty?: string; rate?: string; discount_pct?: string;
       product_id?: string | null; pricing_document_id?: string | null;
       group_id?: string | null; group_label?: string | null; group_type?: string | null;
-      break_of?: string | null; break_qty?: number | null; is_selected?: boolean;
+      break_of?: string | null; break_qty?: number | null; is_selected?: boolean; show_on_pdf?: boolean;
     };
     const raw: RawLine[] = body.lines.filter((l: { description?: string }) => l?.description?.trim()).slice(0, 200);
     // Foreign ids from the body (0114): products verified against the
@@ -146,6 +152,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           break_of: typeof l.break_of === "string" && l.break_of ? l.break_of : null,
           break_qty: typeof l.break_qty === "number" && Number.isFinite(l.break_qty) ? l.break_qty : null,
           is_selected: l.is_selected !== false,
+          show_on_pdf: l.show_on_pdf !== false,
         };
       });
     // local_id/break_of/group_id/is_selected decide real money -- resolved
@@ -163,7 +170,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     patch.total = computeStandardQuoteTotals(effectiveSubtotal, effectiveDiscountPct, effectiveTaxPct, effectiveShipping).total;
   }
 
-  const { error: uErr } = await supabase.from("standard_quotes").update(patch).eq("id", id).eq("tenant_id", tenantId);
+  // Tolerates 0118 pending (print_options column missing), like the lines.
+  const { error: uErr } = await writeHeaderTolerant(patch, async (row) => await supabase.from("standard_quotes").update(row).eq("id", id).eq("tenant_id", tenantId));
   if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
 
   if (cleanLines) {

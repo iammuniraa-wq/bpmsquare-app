@@ -472,6 +472,19 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
+- **0118_quote_pdf_options_product_breaks.sql — PENDING on both DBs**
+  (written 2026-09-06, owner decisions the same day,
+  `docs/sales-engine-architecture.md` §3.6). Three columns: the product's
+  own quantity breaks (`products.qty_breaks jsonb`, kept locally on the
+  product page or synced from the ERP -- what the Standard Quote add-line
+  panel offers), what the PDF prints for unchosen options and quantities
+  (`standard_quotes.print_options jsonb`), and a per-line PDF override
+  (`standard_quote_lines.show_on_pdf boolean default true`). Every write
+  tolerates the migration being pending (`writeHeaderTolerant` /
+  `insertLinesTolerant` strip the missing column and retry; the product
+  select falls back to the pre-0118 column list), so until it is applied
+  the panel offers no product breaks, the PDF prints as before, and
+  nothing is lost except those three settings.
 - **0116_sales_line_contract.sql — applied to both DBs** (owner confirmed
   2026-09-06; written 2026-09-06, Sales Engine Piece A,
   `docs/sales-engine-architecture.md` §3.1: the shared document-line

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { parseCostSheet } from "@/lib/pricing/costSheet";
+import { parseQtyBreaks } from "@/lib/sales/qtyBreaks";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -37,10 +38,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data", "available_segment_ids", "cost_sheet", "cost_price_as_of"];
+  const allowed = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data", "available_segment_ids", "cost_sheet", "cost_price_as_of", "qty_breaks"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
   patch.updated_at = new Date().toISOString();
+
+  // Quantity breaks (0118): well-formed rows only; none stored as null.
+  if ("qty_breaks" in patch) {
+    if (patch.qty_breaks !== null && !Array.isArray(patch.qty_breaks)) return NextResponse.json({ error: "qty_breaks must be an array" }, { status: 400 });
+    const breaks = parseQtyBreaks(patch.qty_breaks);
+    patch.qty_breaks = breaks.length > 0 ? breaks : null;
+  }
 
   // Cost sheet (0113): only well-formed rows survive; an empty sheet is
   // stored as null ("one bought-in part at cost_price").

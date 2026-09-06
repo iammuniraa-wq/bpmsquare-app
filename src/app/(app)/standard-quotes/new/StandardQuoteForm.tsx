@@ -23,14 +23,33 @@ type Line = {
   group_label: string;
   group_type: "" | "alternative";
   /** Quantity break (0116, §3.4): this row prices `break_of`'s line at a
-   *  different quantity ("from qty 10…"). Breaks are scoped to top-level
-   *  lines only in this UI -- not to lines inside an alternative option. */
+   *  different quantity ("from qty 10…"). A line inside an alternative
+   *  option can carry breaks too (0118) -- the break rows copy the
+   *  parent's group fields so lineTotals.ts composes both decisions. */
   break_of: string;
   break_qty: string;
   is_selected: boolean;
+  /** Rep's PDF override (0118): false hides the row from the PDF only. */
+  show_on_pdf: boolean;
 };
 
-export type StandardQuoteProduct = { id: string; ref: string | null; name: string; uom: string | null; list_price: number | null };
+export type StandardQuoteProduct = {
+  id: string; ref: string | null; name: string; uom: string | null; list_price: number | null;
+  /** Category (and sub-category) -- "alternatives" in the add-line panel
+   *  are other products of the same category (owner decision 2026-09-06). */
+  category: string | null; sub_category: string | null;
+  /** The product's own quantity breaks (0118), local or ERP-synced. */
+  qty_breaks: { from: number; rate: number | null }[];
+};
+
+type PrintOptions = { alternatives: "all" | "chosen"; breaks: "all" | "chosen" };
+
+// What "copy from previous quotes" shows (GET /api/standard-quotes/line-history).
+type HistoryItem = {
+  line_id: string; quote_ref: string; quote_status: string; quoted_at: string | null; account_name: string | null;
+  description: string; uom: string | null; qty: number; rate: number; discount_pct: number; amount: number;
+  product_id: string | null; was_chosen: boolean;
+};
 
 // What the engine said about one line -- mirrors quotations/new/QuoteForm.tsx
 // so the two forms never drift (the rate, a why chip, a floor flag, or the
@@ -80,8 +99,18 @@ function newLine(): Line {
   return {
     id: Math.random().toString(36).slice(2), description: "", uom: "Nos", qty: "1", rate: "0", discount_pct: "0",
     product_id: "", pricing_document_id: "", group_id: "", group_label: "", group_type: "",
-    break_of: "", break_qty: "", is_selected: true,
+    break_of: "", break_qty: "", is_selected: true, show_on_pdf: true,
   };
+}
+
+function breaksByParentOf(lines: Line[]): Map<string, Line[]> {
+  const m = new Map<string, Line[]>();
+  for (const l of lines) {
+    if (!l.break_of) continue;
+    const arr = m.get(l.break_of);
+    if (arr) arr.push(l); else m.set(l.break_of, [l]);
+  }
+  return m;
 }
 
 function lineAmount(l: Line): number {
@@ -101,12 +130,7 @@ function lineAmount(l: Line): number {
 type Row = { kind: "line"; line: Line; breaks: Line[] } | { kind: "group"; group_id: string; label: string; lines: Line[] };
 
 function groupedRows(lines: Line[]): Row[] {
-  const breaksByParent = new Map<string, Line[]>();
-  for (const l of lines) {
-    if (!l.break_of) continue;
-    const arr = breaksByParent.get(l.break_of);
-    if (arr) arr.push(l); else breaksByParent.set(l.break_of, [l]);
-  }
+  const breaksByParent = breaksByParentOf(lines);
   const rows: Row[] = [];
   const groupIndex = new Map<string, number>();
   for (const l of lines) {
@@ -148,12 +172,13 @@ type EditQuote = {
   tax_pct: number;
   shipping_amount: number;
   intro_text: string | null;
+  print_options?: { alternatives?: "all" | "chosen"; breaks?: "all" | "chosen" } | null;
   lines: {
     id: string;
     sl_no: string | null; description: string; uom: string | null; qty: number; rate: number; discount_pct: number;
     product_id?: string | null; pricing_document_id?: string | null;
     group_id?: string | null; group_label?: string | null; group_type?: string | null;
-    break_of?: string | null; break_qty?: number | null; is_selected?: boolean | null;
+    break_of?: string | null; break_qty?: number | null; is_selected?: boolean | null; show_on_pdf?: boolean | null;
   }[];
 };
 
@@ -203,9 +228,33 @@ export default function StandardQuoteForm({
           group_type: l.group_type === "alternative" ? "alternative" : "",
           break_of: l.break_of ?? "", break_qty: l.break_qty != null ? String(l.break_qty) : "",
           is_selected: l.is_selected !== false,
+          show_on_pdf: l.show_on_pdf !== false,
         }))
       : [newLine()]
   );
+  // What the PDF prints for unchosen options/quantities (0118).
+  const [printOptions, setPrintOptions] = useState<PrintOptions>({
+    alternatives: editQuote?.print_options?.alternatives === "chosen" ? "chosen" : "all",
+    breaks: editQuote?.print_options?.breaks === "chosen" ? "chosen" : "all",
+  });
+
+  // The add-line panel (0118, docs/sales-engine-architecture.md §3.6):
+  // "+ Add line" asks where the line comes from and, for a catalog
+  // product, whether to offer its quantity breaks and any alternatives.
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState<"catalog" | "previous" | "free">("catalog");
+  const [panelProductId, setPanelProductId] = useState("");
+  const [panelQty, setPanelQty] = useState("1");
+  const [breakChoice, setBreakChoice] = useState<"none" | "suggested" | "own">("none");
+  const [chosenBreakQtys, setChosenBreakQtys] = useState<Set<number>>(new Set());
+  const [ownBreaks, setOwnBreaks] = useState("");
+  const [altChoice, setAltChoice] = useState<"none" | "suggested" | "pick">("none");
+  const [chosenAltIds, setChosenAltIds] = useState<Set<string>>(new Set());
+  const [pickAltId, setPickAltId] = useState("");
+  const [historyScope, setHistoryScope] = useState<"account" | "product">("account");
+  const [history, setHistory] = useState<HistoryItem[] | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [chosenHistoryIds, setChosenHistoryIds] = useState<Set<string>>(new Set());
 
   // BPMSquare Pricing on the line (bpmsquarecore §10 doctrine: propose,
   // never silently decide) -- the engine suggests a rate, the rep still
@@ -293,32 +342,51 @@ export default function StandardQuoteForm({
   function renameGroup(groupId: string, label: string) {
     setLines((ls) => ls.map((l) => (l.group_id === groupId ? { ...l, group_label: label } : l)));
   }
-  /** Marks every line of `groupId` selected and every other alternative
-   *  group's lines not-selected -- mirrors lineTotals.ts's own resolution
-   *  so the on-screen total and the radio state never disagree. */
+  /** Marks `groupId` the chosen option and every other alternative group
+   *  not-selected -- mirrors lineTotals.ts's own resolution so the
+   *  on-screen total and the radio state never disagree. Within the chosen
+   *  option a break family keeps its own chosen quantity (exactly one row
+   *  of the family true); every row of an unchosen option is false. */
   function chooseGroup(groupId: string) {
-    setLines((ls) => ls.map((l) => (l.group_type === "alternative" && l.group_id ? { ...l, is_selected: l.group_id === groupId } : l)));
+    setLines((ls) => {
+      const families = breaksByParentOf(ls);
+      return ls.map((l) => {
+        if (!(l.group_type === "alternative" && l.group_id)) return l;
+        if (l.group_id !== groupId) return { ...l, is_selected: false };
+        if (l.break_of) return l; // its family decides below
+        const breaks = families.get(l.id);
+        if (!breaks || breaks.length === 0) return { ...l, is_selected: true };
+        const familyHasChoice = breaks.some((b) => b.is_selected === true);
+        return { ...l, is_selected: !familyHasChoice };
+      });
+    });
   }
   const altGroupIds = [...new Set(lines.filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id))];
   const chosenGroupId = altGroupIds.find((gid) => lines.some((l) => l.group_id === gid && l.is_selected === true)) ?? altGroupIds[0] ?? null;
 
   // Quantity breaks (Sales Engine Piece A, §3.4): a line can offer more
   // than one quantity, each its own price ("1-9 at X, 10+ at Y"); only the
-  // chosen quantity counts toward the total. Scoped to top-level lines --
-  // not to lines inside an alternative option -- in this UI.
+  // chosen quantity counts toward the total. A line inside an alternative
+  // option can carry them too (0118): the break copies the parent's group
+  // fields so both decisions compose in lineTotals.ts.
+  function breakRowFor(parent: Line, qty: number, rate?: number | null): Line {
+    return {
+      // is_selected starts false: a new break is an option to consider,
+      // not an automatic switch away from the base quantity that was
+      // already charged (newLine()'s own default of true is right for an
+      // ordinary line, wrong for a break that hasn't been chosen yet).
+      ...newLine(), break_of: parent.id, break_qty: String(qty), qty: String(qty), is_selected: false,
+      description: parent.description, uom: parent.uom, product_id: parent.product_id, discount_pct: parent.discount_pct,
+      rate: rate != null ? String(rate) : parent.rate,
+      group_id: parent.group_id, group_label: parent.group_label, group_type: parent.group_type,
+    };
+  }
   function addBreak(parentLine: Line) {
     const existing = lines.filter((l) => l.break_of === parentLine.id);
     const nextQty = existing.length > 0
       ? Math.max(...existing.map((b) => parseFloat(b.break_qty) || 0)) + 10
       : Math.max(2, (parseFloat(parentLine.qty) || 1) + 9);
-    setLines((ls) => [...ls, {
-      // is_selected starts false: a new break is an option to consider,
-      // not an automatic switch away from the base quantity that was
-      // already charged (newLine()'s own default of true is right for an
-      // ordinary line, wrong for a break that hasn't been chosen yet).
-      ...newLine(), break_of: parentLine.id, break_qty: String(nextQty), qty: String(nextQty), is_selected: false,
-      description: parentLine.description, uom: parentLine.uom, product_id: parentLine.product_id, rate: parentLine.rate,
-    }]);
+    setLines((ls) => [...ls, breakRowFor(parentLine, nextQty)]);
   }
   function removeBreak(breakId: string) {
     setLines((ls) => ls.filter((l) => l.id !== breakId));
@@ -594,9 +662,13 @@ export default function StandardQuoteForm({
           {pricingEngineQuotesEnabled && line.product_id && (
             <button type="button" disabled={pricingBusyIds.has(line.id)} onClick={() => priceWithEngine(line.id, line.product_id, line.qty)} style={linkBtn}>⚡ Price with engine</button>
           )}
-          {!isBreak && !line.group_type && (
+          {!isBreak && (
             <button type="button" onClick={() => addBreak(line)} title="Offer this item at a second quantity, at its own rate — only the chosen quantity counts" style={linkBtn}>+ Add quantity break</button>
           )}
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: c.muted, cursor: "pointer" }} title="Hides this row from the PDF only — it still counts if it is selected">
+            <input type="checkbox" checked={line.show_on_pdf} onChange={(e) => updateLine(line.id, { show_on_pdf: e.target.checked })} style={{ margin: 0 }} />
+            Show on PDF
+          </label>
           <button type="button" onClick={() => toggleExpanded(line.id)} style={{ ...linkBtn, color: c.hint, fontWeight: 400 }}>Close</button>
         </div>
       </div>
@@ -623,7 +695,7 @@ export default function StandardQuoteForm({
     return (
       <div key={line.id}>
         <div style={{ ...gridRow, opacity: opts.dim ? 0.55 : 1 }}>
-          <div style={{ ...cell, justifyContent: "center", fontSize: 11.5, color: c.hint }}>{no}</div>
+          <div style={{ ...cell, justifyContent: "center", fontSize: 11.5, color: c.hint, textDecoration: line.show_on_pdf ? "none" : "line-through" }} title={line.show_on_pdf ? undefined : "Hidden from the PDF"}>{no}</div>
           <div style={{ ...cell, gap: 4 }}>
             {products.length > 0 && (
               <select
@@ -711,6 +783,243 @@ export default function StandardQuoteForm({
     );
   }
 
+  // ---- Add-line panel (0118) ------------------------------------------
+  function resetPanel() {
+    setPanelProductId(""); setPanelQty("1");
+    setBreakChoice("none"); setChosenBreakQtys(new Set()); setOwnBreaks("");
+    setAltChoice("none"); setChosenAltIds(new Set()); setPickAltId("");
+    setChosenHistoryIds(new Set());
+  }
+
+  async function loadHistory(scope: "account" | "product", productId: string) {
+    setHistoryBusy(true); setHistory(null);
+    try {
+      const qs = scope === "account" ? `scope=account&account_id=${encodeURIComponent(accountId)}` : `scope=product&product_id=${encodeURIComponent(productId)}`;
+      const res = await fetch(`/api/standard-quotes/line-history?${qs}`);
+      const json = await res.json().catch(() => ({}));
+      setHistory(res.ok && Array.isArray(json.items) ? (json.items as HistoryItem[]) : []);
+    } catch { setHistory([]); } finally { setHistoryBusy(false); }
+  }
+
+  function nextOptionLetter(existing: Line[]): string {
+    const used = new Set(existing.filter((l) => l.group_type === "alternative").map((l) => l.group_id));
+    return String.fromCharCode(65 + used.size);
+  }
+
+  /** The catalog tab's "Add": the product line, its chosen quantity
+   *  breaks (unselected), and -- when alternatives were picked -- one
+   *  option group per product with the main product as the chosen one. */
+  function commitCatalogLine() {
+    const p = products.find((x) => x.id === panelProductId);
+    if (!p) { setError("Pick a product first"); return; }
+    setError("");
+    const qty = Math.max(0, parseFloat(panelQty) || 1);
+    const alts = altChoice === "none" ? [] : products.filter((x) => chosenAltIds.has(x.id) && x.id !== p.id);
+    const breaks: { from: number; rate: number | null }[] =
+      breakChoice === "suggested" ? p.qty_breaks.filter((b) => chosenBreakQtys.has(b.from))
+      : breakChoice === "own" ? [...new Set(ownBreaks.split(/[,\s]+/).map((s) => parseFloat(s)).filter((n) => Number.isFinite(n) && n > 1))].sort((a, b) => a - b).map((from) => ({ from, rate: null }))
+      : [];
+
+    setLines((ls) => {
+      const seed = ls.length === 1 && !ls[0].description.trim() && !ls[0].product_id ? [] : ls;
+      const lineFor = (prod: StandardQuoteProduct, group: { id: string; label: string } | null, selected: boolean): Line => ({
+        ...newLine(), product_id: prod.id, description: prod.name,
+        uom: prod.uom && (UOM_OPTIONS as readonly string[]).includes(prod.uom) ? prod.uom : "Nos",
+        qty: String(qty), rate: String(prod.list_price ?? 0), is_selected: selected,
+        group_id: group?.id ?? "", group_label: group?.label ?? "", group_type: group ? "alternative" : "",
+      });
+      let letterCode = nextOptionLetter(seed).charCodeAt(0);
+      const mainGroup = alts.length > 0 ? { id: Math.random().toString(36).slice(2), label: `Option ${String.fromCharCode(letterCode++)}: ${p.name}` } : null;
+      const main = lineFor(p, mainGroup, true);
+      const out: Line[] = [main, ...breaks.map((b) => breakRowFor(main, b.from, b.rate))];
+      for (const a of alts) {
+        out.push(lineFor(a, { id: Math.random().toString(36).slice(2), label: `Option ${String.fromCharCode(letterCode++)}: ${a.name}` }, false));
+      }
+      return [...seed, ...out];
+    });
+    resetPanel();
+    setPanelOpen(false);
+  }
+
+  /** The previous-quotes tab's "Add selected": copies of the ticked lines
+   *  (the insight -- when, to whom, how it went -- stays in the panel). */
+  function commitHistoryLines() {
+    const picked = (history ?? []).filter((h) => chosenHistoryIds.has(h.line_id));
+    if (picked.length === 0) return;
+    const known = new Set(products.map((p) => p.id));
+    setLines((ls) => {
+      const seed = ls.length === 1 && !ls[0].description.trim() && !ls[0].product_id ? [] : ls;
+      return [...seed, ...picked.map((h) => ({
+        ...newLine(), description: h.description, uom: h.uom && (UOM_OPTIONS as readonly string[]).includes(h.uom) ? h.uom : "Nos",
+        qty: String(h.qty), rate: String(h.rate), discount_pct: String(h.discount_pct ?? 0),
+        product_id: h.product_id && known.has(h.product_id) ? h.product_id : "",
+      }))];
+    });
+    resetPanel();
+    setPanelOpen(false);
+  }
+
+  function renderAddPanel() {
+    const p = products.find((x) => x.id === panelProductId) ?? null;
+    const suggestedAlts = p && p.category ? products.filter((x) => x.id !== p.id && x.category === p.category).slice(0, 8) : [];
+    const tabBtn = (key: typeof panelTab, label: string, disabled = false) => (
+      <button type="button" disabled={disabled} onClick={() => { setPanelTab(key); if (key === "previous" && history === null && !historyBusy) loadHistory(historyScope, panelProductId); }}
+        style={{ fontSize: 12, fontWeight: 600, padding: "5px 10px", borderRadius: 6, border: `1px solid ${panelTab === key ? c.accent : c.line}`, background: panelTab === key ? c.accentbg : "transparent", color: panelTab === key ? c.accent : c.muted, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1 }}>
+        {label}
+      </button>
+    );
+    const q = (label: string) => <div style={{ fontSize: 11.5, fontWeight: 700, color: c.ink, marginBottom: 4 }}>{label}</div>;
+    const radio = (name: string, value: string, current: string, onPick: () => void, label: string, disabled = false) => (
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: disabled ? c.hint : c.ink, cursor: disabled ? "default" : "pointer" }}>
+        <input type="radio" name={name} disabled={disabled} checked={current === value} onChange={onPick} style={{ margin: 0 }} />{label}
+      </label>
+    );
+    const primary: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "#fff", background: c.accent, border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer" };
+    const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
+    const statusTone = (s: string) => (s === "accepted" ? "var(--tealink)" : s === "rejected" || s === "expired" ? "var(--err-ink)" : c.muted);
+
+    return (
+      <div style={{ marginTop: 10, border: `1px solid ${c.accent}`, borderRadius: 8, padding: 12, background: c.panel }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: c.ink, marginRight: 6 }}>Add a line from</span>
+          {tabBtn("catalog", "Catalog", products.length === 0)}
+          {tabBtn("previous", "Previous quotes")}
+          {tabBtn("free", "Free text")}
+          <button type="button" onClick={() => { setLines((ls) => [...ls, newLine()]); setPanelOpen(false); }} style={{ marginLeft: "auto", fontSize: 11.5, color: c.hint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>Just a blank line</button>
+        </div>
+
+        {panelTab === "catalog" && (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px", gap: 8 }}>
+              <div>
+                {q("Product")}
+                <select value={panelProductId} onChange={(e) => { setPanelProductId(e.target.value); setChosenBreakQtys(new Set()); setChosenAltIds(new Set()); setBreakChoice("none"); setAltChoice("none"); }} style={cinp}>
+                  <option value="">Pick a product…</option>
+                  {products.map((x) => <option key={x.id} value={x.id}>{x.ref ? `${x.ref} · ` : ""}{x.name}</option>)}
+                </select>
+              </div>
+              <div>
+                {q("Qty")}
+                <input type="number" min="0" step="any" value={panelQty} onChange={(e) => setPanelQty(e.target.value)} style={cnum} />
+              </div>
+            </div>
+
+            {p && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div>
+                  {q("1. Include quantity breaks?")}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {radio("brk", "none", breakChoice, () => setBreakChoice("none"), "No — this quantity only")}
+                    {radio("brk", "suggested", breakChoice, () => { setBreakChoice("suggested"); setChosenBreakQtys(new Set(p.qty_breaks.map((b) => b.from))); },
+                      p.qty_breaks.length > 0 ? `Yes — the product's own breaks (${p.qty_breaks.length})` : "Yes — the product's own breaks (none defined)", p.qty_breaks.length === 0)}
+                    {breakChoice === "suggested" && (
+                      <div style={{ paddingLeft: 20, display: "flex", flexDirection: "column", gap: 3 }}>
+                        {p.qty_breaks.map((b) => (
+                          <label key={b.from} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: c.ink, cursor: "pointer" }}>
+                            <input type="checkbox" checked={chosenBreakQtys.has(b.from)} onChange={(e) => setChosenBreakQtys((s) => { const n = new Set(s); if (e.target.checked) n.add(b.from); else n.delete(b.from); return n; })} style={{ margin: 0 }} />
+                            From {b.from}{p.uom ? ` ${p.uom}` : ""} · {b.rate != null ? inr(b.rate) : "priced normally"}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {radio("brk", "own", breakChoice, () => setBreakChoice("own"), "Yes — I'll enter the quantities")}
+                    {breakChoice === "own" && (
+                      <input value={ownBreaks} onChange={(e) => setOwnBreaks(e.target.value)} placeholder="e.g. 10, 50, 100" style={{ ...cinp, marginLeft: 20, width: "calc(100% - 20px)" }} />
+                    )}
+                  </div>
+                </div>
+                <div>
+                  {q("2. Offer alternatives?")}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {radio("alt", "none", altChoice, () => setAltChoice("none"), "No — just this product")}
+                    {radio("alt", "suggested", altChoice, () => setAltChoice("suggested"),
+                      suggestedAlts.length > 0 ? `Yes — same category (${suggestedAlts.length} found)` : "Yes — same category (none found)", suggestedAlts.length === 0)}
+                    {altChoice === "suggested" && (
+                      <div style={{ paddingLeft: 20, display: "flex", flexDirection: "column", gap: 3 }}>
+                        {suggestedAlts.map((a) => (
+                          <label key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: c.ink, cursor: "pointer" }}>
+                            <input type="checkbox" checked={chosenAltIds.has(a.id)} onChange={(e) => setChosenAltIds((s) => { const n = new Set(s); if (e.target.checked) n.add(a.id); else n.delete(a.id); return n; })} style={{ margin: 0 }} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                            <span style={{ color: c.hint }}>{a.list_price != null ? inr(a.list_price) : ""}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {radio("alt", "pick", altChoice, () => setAltChoice("pick"), "Yes — I'll pick from the catalog")}
+                    {altChoice === "pick" && (
+                      <div style={{ paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }}>
+                        {[...chosenAltIds].map((id) => { const a = products.find((x) => x.id === id); return a ? (
+                          <div key={id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                            <span>{a.name}</span>
+                            <button type="button" onClick={() => setChosenAltIds((s) => { const n = new Set(s); n.delete(id); return n; })} style={{ fontSize: 12, color: "var(--red)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>×</button>
+                          </div>
+                        ) : null; })}
+                        <select value={pickAltId} onChange={(e) => { const id = e.target.value; if (id) setChosenAltIds((s) => new Set(s).add(id)); setPickAltId(""); }} style={cinp}>
+                          <option value="">Add an alternative…</option>
+                          {products.filter((x) => x.id !== p.id && !chosenAltIds.has(x.id)).map((x) => <option key={x.id} value={x.id}>{x.ref ? `${x.ref} · ` : ""}{x.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button type="button" onClick={commitCatalogLine} disabled={!p} style={{ ...primary, opacity: p ? 1 : 0.5, cursor: p ? "pointer" : "default" }}>
+                Add {p ? (altChoice !== "none" && chosenAltIds.size > 0 ? `as ${chosenAltIds.size + 1} options` : "line") : "line"}
+              </button>
+              <span style={{ fontSize: 11.5, color: c.hint }}>Rates start from list price — use Price all afterwards for engine prices.</span>
+            </div>
+          </div>
+        )}
+
+        {panelTab === "previous" && (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              {radio("hist", "account", historyScope, () => { setHistoryScope("account"); loadHistory("account", panelProductId); }, `Quoted to ${accountName || "this account"}`)}
+              {radio("hist", "product", historyScope, () => { setHistoryScope("product"); loadHistory("product", panelProductId); }, "Same product, any account", !panelProductId)}
+              {historyScope === "product" && (
+                <select value={panelProductId} onChange={(e) => { setPanelProductId(e.target.value); loadHistory("product", e.target.value); }} style={{ ...cinp, width: 260 }}>
+                  <option value="">Pick a product…</option>
+                  {products.map((x) => <option key={x.id} value={x.id}>{x.ref ? `${x.ref} · ` : ""}{x.name}</option>)}
+                </select>
+              )}
+            </div>
+            {historyBusy && <div style={{ fontSize: 12, color: c.hint }}>Looking up previous quotes…</div>}
+            {!historyBusy && history && history.length === 0 && <div style={{ fontSize: 12, color: c.hint }}>Nothing quoted before{historyScope === "account" ? " to this account" : " for this product"}.</div>}
+            {!historyBusy && history && history.length > 0 && (
+              <div style={{ border: `1px solid ${c.line}`, borderRadius: 6, overflow: "hidden" }}>
+                {history.map((h) => (
+                  <label key={h.line_id} style={{ display: "grid", gridTemplateColumns: "20px minmax(0,1fr) 150px 70px 90px 90px", gap: 8, alignItems: "center", padding: "5px 8px", borderBottom: `1px solid ${c.line}`, fontSize: 12, cursor: "pointer", background: chosenHistoryIds.has(h.line_id) ? c.accentbg : "transparent" }}>
+                    <input type="checkbox" checked={chosenHistoryIds.has(h.line_id)} onChange={(e) => setChosenHistoryIds((s) => { const n = new Set(s); if (e.target.checked) n.add(h.line_id); else n.delete(h.line_id); return n; })} style={{ margin: 0 }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.description}{h.was_chosen ? "" : <span style={{ color: c.hint }}> · was not the chosen option</span>}</span>
+                    <span style={{ color: c.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.quote_ref} · {fmtDate(h.quoted_at)}{historyScope === "product" && h.account_name ? ` · ${h.account_name}` : ""}</span>
+                    <span style={{ fontWeight: 600, color: statusTone(h.quote_status), textTransform: "capitalize" }}>{h.quote_status}</span>
+                    <span style={{ textAlign: "right", color: c.muted }}>{h.qty} {h.uom ?? ""}</span>
+                    <span style={{ textAlign: "right", fontWeight: 600 }}>{inr(h.rate)}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <div>
+              <button type="button" onClick={commitHistoryLines} disabled={chosenHistoryIds.size === 0} style={{ ...primary, opacity: chosenHistoryIds.size ? 1 : 0.5, cursor: chosenHistoryIds.size ? "pointer" : "default" }}>
+                Add {chosenHistoryIds.size || ""} selected
+              </button>
+            </div>
+          </div>
+        )}
+
+        {panelTab === "free" && (
+          <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+            <button type="button" onClick={() => { setLines((ls) => [...ls, newLine()]); setPanelOpen(false); }} style={primary}>Add a blank line</button>
+            <span style={{ fontSize: 11.5, color: c.hint }}>Type the description, quantity and rate on the row.</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const [aiJobDesc, setAiJobDesc] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
   const [aiDrafting, setAiDrafting] = useState(false);
@@ -723,6 +1032,7 @@ export default function StandardQuoteForm({
   }));
   const subtotal = documentTotal(selectableLines);
   const rows = groupedRows(lines);
+  const breaksByParent = breaksByParentOf(lines);
   const totals = computeStandardQuoteTotals(
     subtotal,
     Math.max(0, Math.min(100, parseFloat(headerDiscountPct) || 0)),
@@ -811,10 +1121,12 @@ export default function StandardQuoteForm({
       group_id: l.group_id || null, group_label: l.group_label || null, group_type: l.group_type || null,
       break_of: l.break_of || null, break_qty: l.break_qty ? parseFloat(l.break_qty) || null : null,
       is_selected: l.is_selected,
+      show_on_pdf: l.show_on_pdf,
     }));
     startTransition(async () => {
       const commercial = {
         header_discount_pct: headerDiscountPct, tax_pct: taxPct, shipping_amount: shippingAmount,
+        print_options: printOptions,
         intro_text: introText || null,
         inquiry_date: inquiryDate || null,
       };
@@ -1132,16 +1444,18 @@ export default function StandardQuoteForm({
                             <button type="button" onClick={() => removeGroup(row.group_id)} style={{ fontSize: 11.5, color: "var(--red)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Remove option</button>
                           </span>
                         </div>
-                        {row.lines.map((line) => { no += 1; return lineRow(line, no, { dim: !isChosen }); })}
+                        {row.lines.map((line) => { no += 1; return lineRow(line, no, { dim: !isChosen, breaks: breaksByParent.get(line.id) ?? [] }); })}
                       </div>
                     );
                   }); })()}
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 18, marginTop: 8 }}>
-                <button type="button" onClick={() => setLines((ls) => [...ls, newLine()])} style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
-                  + Add line
+              {panelOpen && renderAddPanel()}
+
+              <div style={{ display: "flex", gap: 18, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button type="button" onClick={() => { setPanelOpen((o) => !o); setPanelTab(products.length > 0 ? "catalog" : "free"); }} style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
+                  {panelOpen ? "− Close" : "+ Add line"}
                 </button>
                 <button
                   type="button" onClick={addAlternativeOption}
@@ -1150,6 +1464,23 @@ export default function StandardQuoteForm({
                 >
                   + Alternative option
                 </button>
+                {(altGroupIds.length > 0 || breaksByParent.size > 0) && (
+                  <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11.5, color: c.muted }} title="What the PDF prints for the options the customer did not choose — the total never changes">
+                    On the PDF:
+                    {altGroupIds.length > 0 && (
+                      <select value={printOptions.alternatives} onChange={(e) => setPrintOptions((p) => ({ ...p, alternatives: e.target.value === "chosen" ? "chosen" : "all" }))} style={{ ...cinp, width: "auto", padding: "3px 6px", fontSize: 11.5 }}>
+                        <option value="all">all options</option>
+                        <option value="chosen">chosen option only</option>
+                      </select>
+                    )}
+                    {breaksByParent.size > 0 && (
+                      <select value={printOptions.breaks} onChange={(e) => setPrintOptions((p) => ({ ...p, breaks: e.target.value === "chosen" ? "chosen" : "all" }))} style={{ ...cinp, width: "auto", padding: "3px 6px", fontSize: 11.5 }}>
+                        <option value="all">all quantities</option>
+                        <option value="chosen">chosen quantity only</option>
+                      </select>
+                    )}
+                  </span>
+                )}
               </div>
 
               <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 14, paddingTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>

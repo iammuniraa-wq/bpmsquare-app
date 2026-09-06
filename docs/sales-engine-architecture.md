@@ -274,6 +274,62 @@ on the demo tenant, or treat these documents as internal-only.
   margin tiers (25% / 22% / 20%) show in the why trace as
   "rule for everyone, band from 10".
 
+### 3.6 The line editor as shipped, the add-line panel, and PDF control (owner decisions 2026-09-06)
+
+The Piece A editor was rebuilt the same day after the owner judged it "too
+much on screen". What stands now, Standard Quotes only (the Quotations
+form is used daily by a live client and is untouched):
+
+- **Two pages.** Page 1 is the quote (account, contact, dates, template,
+  notes, terms, intro). Page 2 is the line table alone, with one pinned
+  bar carrying the back link, the step tabs, ref + account, contact /
+  valid-until, totals and Save. `position: sticky` cannot be used -- the
+  Shell's `<main>` has `overflow-x: auto`, which captures sticky while the
+  window scrolls -- so the form pins the bar by hand once its slot scrolls
+  off the top.
+- **One row per line**: `# · product + description · UOM · qty · rate ·
+  disc · amount · status chip · details/remove`. A quantity break is a
+  sub-row (from-qty, rate, amount, "quote this" radio); description, UOM,
+  product and discount follow the parent (`updateLine` propagates). An
+  alternative option is a band row over its item rows. A line inside an
+  option can carry breaks too: the break copies the parent's group fields
+  and `lineTotals.ts` composes both decisions (option chosen AND chosen
+  quantity); `chooseGroup` keeps a family's own chosen quantity.
+- **Everything else is collapsed.** The engine's state is a chip (Price /
+  Engine / Engine ↻ for a rate priced on an earlier save / `10% < 15%` red
+  when blocked / Needs RFQ / RFQ sent / Manual / Failed). The working, the
+  flag text, the RFQ form, errors and the secondary actions live in a
+  details panel that opens from the chip or the chevron, and by itself
+  only when the rep must act (RFQ needed, failure). The AI line drafter is
+  an open/close button in the line-items header.
+- **"+ Add line" asks where the line comes from** (0118, this section's
+  migration). Three sources: *Catalog* -- pick product and qty, then two
+  questions: *include quantity breaks?* (no / the product's own
+  `qty_breaks`, tick which / enter my own quantities) and *offer
+  alternatives?* (no / other products of the same category, tick which /
+  pick from the catalog). "Add" creates the line, its breaks (unselected)
+  and, when alternatives were picked, one option group per product with
+  the main product chosen. *Previous quotes* -- `GET
+  /api/standard-quotes/line-history`: the last lines quoted to this
+  account, or of this product to anyone, each with quote ref, date and
+  status; tick to copy. *Free text* -- a blank row. "Just a blank line"
+  keeps today's speed.
+- **Breaks source is the product** (owner: "per product list break from
+  ERP or local"): `products.qty_breaks` `[{ from, rate|null }]`, edited on
+  the product page (`ProductQtyBreaksCard`, mirrors the cost-sheet card)
+  or written by an ERP sync through `PATCH /api/products/:id`. Not yet on
+  Data Workbench or the v1 API -- same standing as `cost_sheet`.
+- **The rep controls the PDF** (`src/lib/sales/printOptions.ts`).
+  Document level, `standard_quotes.print_options`: alternatives *all* /
+  *chosen only*, quantity breaks *all* / *chosen only* (the selects appear
+  under the table once the quote has any). Line level,
+  `standard_quote_lines.show_on_pdf`: a "Show on PDF" checkbox in the
+  details panel; a hidden row's number is struck through in the editor and
+  labelled "not on PDF" on the detail page. `linesForPdf()` applies both
+  in the print document; the PDF numbers by print position so a hidden
+  row leaves no gap. Presentation only -- `lineTotals.ts` never reads any
+  of it, so hiding a charged line does not change the total.
+
 ## 4. Piece B — Opportunity (the Pipeline object)
 
 Follow bpmsquarecore §3b **completely**; Products (`ba5bcba`) is the

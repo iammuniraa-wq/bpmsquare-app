@@ -144,3 +144,29 @@ describe("normalizeSelection", () => {
     expect(documentTotal(normalized)).toBe(21200 + 1000);
   });
 });
+
+describe("lineTotals: quantity breaks inside an alternative option (0118)", () => {
+  const lines: L[] = [
+    { id: "a", amount: 1000, group_id: "optA", group_type: "alternative", is_selected: false },
+    { id: "a10", amount: 9000, group_id: "optA", group_type: "alternative", break_of: "a", is_selected: true },
+    { id: "b", amount: 2000, group_id: "optB", group_type: "alternative", is_selected: false },
+    { id: "b10", amount: 18000, group_id: "optB", group_type: "alternative", break_of: "b", is_selected: false },
+  ];
+
+  it("counts only the chosen quantity of the chosen option", () => {
+    expect(selectedLines(lines).map((l) => l.id)).toEqual(["a10"]);
+    expect(documentTotal(lines)).toBe(9000);
+  });
+
+  it("normalizeSelection marks every row of an unchosen option false, and only the chosen quantity of the chosen option true", () => {
+    const out = normalizeSelection(lines);
+    expect(out.map((l) => [l.id, l.is_selected])).toEqual([["a", false], ["a10", true], ["b", false], ["b10", false]]);
+  });
+
+  it("switching the option keeps that option's own chosen quantity", () => {
+    const switched: L[] = lines.map((l) => (l.group_id === "optB" ? { ...l, is_selected: l.id === "b" } : { ...l, is_selected: false }));
+    expect(selectedLines(switched).map((l) => l.id)).toEqual(["b"]);
+    const withBreak: L[] = lines.map((l) => (l.group_id === "optB" ? { ...l, is_selected: l.id === "b10" } : { ...l, is_selected: false }));
+    expect(selectedLines(withBreak).map((l) => l.id)).toEqual(["b10"]);
+  });
+});

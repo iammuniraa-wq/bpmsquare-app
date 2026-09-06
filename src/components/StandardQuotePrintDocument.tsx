@@ -4,6 +4,7 @@ import { Mail, Globe, MapPin } from "@/components/Icons";
 import { defaultStandardQuoteBlocks } from "@/lib/standardQuoteTemplateBlocks";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
 import { documentTotal } from "@/lib/sales/lineTotals";
+import { linesForPdf, parsePrintOptions } from "@/lib/sales/printOptions";
 
 export type StandardQuotePrintDocumentProps = {
   quote: StandardQuote;
@@ -86,6 +87,10 @@ export default function StandardQuotePrintDocument({
   // customer sees what they turned down.
   const subtotal = documentTotal(lines);
   const totals = computeStandardQuoteTotals(subtotal, quote.header_discount_pct, quote.tax_pct, quote.shipping_amount);
+  // What prints (0118): the rep decides whether unchosen options and
+  // quantities appear, and can hide any single line -- presentation only,
+  // the totals above never change.
+  const printLines = linesForPdf(lines, parsePrintOptions(quote.print_options));
   const hasBreakdown = quote.header_discount_pct > 0 || quote.tax_pct > 0 || quote.shipping_amount > 0;
   const logoIni = initials(co.name || "?");
 
@@ -202,16 +207,18 @@ export default function StandardQuotePrintDocument({
               </tr>
             </thead>
             <tbody>
-              {lines.map((l, i) => {
+              {printLines.map((l, i) => {
                 // Not selected: an alternative option not offered, or a
                 // quantity break/base quantity that isn't the chosen one
-                // (0116, §3.3/§3.4) -- prints greyed out either way, so
-                // nothing looks silently dropped, but does not count.
+                // (0116, §3.3/§3.4) -- prints greyed out (when the document's
+                // print options allow it) so nothing looks silently dropped,
+                // but does not count. Numbered by print position, since a
+                // hidden row must not leave a gap.
                 const notChosen = l.is_selected === false;
                 const isBreak = !!l.break_of;
                 return (
                 <tr key={l.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff", breakInside: "avoid", opacity: notChosen ? 0.5 : 1 }}>
-                  <td style={{ padding: "7px 12px 7px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{l.sl_no ?? i + 1}</td>
+                  <td style={{ padding: "7px 12px 7px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{i + 1}</td>
                   <td style={{ padding: "7px 12px", fontSize: 12.5 }}>
                     {l.group_type === "alternative" && (
                       <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: notChosen ? "#8a96a5" : accent }}>
