@@ -678,7 +678,7 @@ Three steps, each validated on the demo:
      `src/lib/pricing/costBased.golden.test.ts` (made part with salvage,
      bought-in part through the ladder, stale ERP cost falling to the RFQ
      reply, nothing in force → NEEDS_RFQ).
-2. **The quote line — built 2026-09-06, awaiting demo validation.**
+2. **The quote line — built 2026-09-06, validated on the demo the same day.**
    `src/lib/pricing/routing.ts` (Price Book routing from
    `config.pricing.routing`, first match wins) and `quoteLine.ts`
    (`priceDocumentLine()`: one function for quote, standard quote and work
@@ -691,7 +691,7 @@ Three steps, each validated on the demo:
    `pricing_flags` (never trusted from the client); the quote email route
    refuses to send while any line carries a `block` flag. Migration 0113
    (renumbered from 0110 when BIM's 0109/0112 landed first).
-3. **Setup and demo — built 2026-09-06, awaiting demo validation.** Cost
+3. **Setup and demo — built 2026-09-06, validated on the demo the same day.** Cost
    sheet card on the product page (`ProductCostSheetCard`, with cost price
    as-of and a staleness hint), `cost_price_as_of` on the product registry,
    the wizard's cost-based numbers step gains "Your cost rates", "Where a
@@ -711,7 +711,19 @@ Three steps, each validated on the demo:
    server-derived `pricing_flags`, and its email route refuses to send
    while a line carries a `block` flag. `pricing_rfqs.standard_quote_id`
    is the back-reference. Validation record:
-   `docs/BPMSquare_Pricing_CostBased_Walkthrough.docx`.
+   `docs/BPMSquare_Pricing_CostBased_Walkthrough.docx` — the full walk on
+   production (rates → ladder → sample bill → go live → three quote lines
+   → NEEDS_RFQ → RFQ sent → reply → re-price from the reply → region
+   margin rule + Block policy → v2 → floor flag → send gate → Test &
+   Trace). Four defects found and fixed on the walk: 0115 (PURCHASE kind
+   missing from the cost-input check), 0114 pending (Standard Quote lines
+   dropped the product on save), the engine's "today" was the server's UTC
+   day (`src/lib/tenantClock.ts` now resolves it in the tenant's timezone,
+   `config.wfm.timezone`), and the why trace did not name the cost source
+   (`PriceTrace` now shows rate × qty and "from supplier RFQ reply,
+   confirmed, as of …"). Open decision: the line rate includes the TAX
+   step while quote headers carry their own Tax % — recommendation is that
+   the line takes NET_2.
 
 Batches 2–8 below stand, but each is now delivered per technique: price
 list, value-based and variant follow the same three steps on these rails.
