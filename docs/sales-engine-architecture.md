@@ -233,6 +233,23 @@ never turned on for the `vikas-pioneers` tenant; the `demo` tenant (where
 this was tested) is a separate row, `is_demo = true`, per
 [[tenant-landscape]].
 
+**Validated on the demo, 2026-09-06, second pass** (after 0117; SQ-2026-0003
+recreated with a break, since deleted): quantity breaks confirmed end to
+end on Standard Quotes -- adding a break to a priced line left the base
+quantity as the active charge (a bug caught in this same pass: the new
+break's `is_selected` defaulted to `true` from the generic `newLine()`
+helper, silently switching the charge the instant a break was added,
+before the rep chose anything; fixed same day, `is_selected: false` on
+creation); pricing the break at qty 10 and hand-adjusting its rate for a
+volume discount, then selecting it, moved the total from ₹27,19,797-style
+single-line pricing to exactly subtotal + 18% tax on the break alone
+(₹1,85,000 → ₹2,18,300); saved, the detail page and the printed PDF both
+showed "Base quantity — not selected" greyed and "Qty 10" active, matching
+the alternatives pattern exactly. Quotations' Price all lines confirmed
+separately (`/quotations/new`): two catalog-linked lines priced in one
+call ("2 priced"), GST auto-filled to 18% in the summary panel, grand
+total (₹4,87,236.50) matched subtotal + GST exactly.
+
 **Found during this validation, not yet acted on:** the `demo` tenant's
 `company_info` (used on every Standard Quote/Quotation PDF, print page and
 email header) is literally the real client's legal name and address
