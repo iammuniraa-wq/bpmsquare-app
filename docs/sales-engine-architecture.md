@@ -321,14 +321,57 @@ form is used daily by a live client and is untouched):
   Data Workbench or the v1 API -- same standing as `cost_sheet`.
 - **The rep controls the PDF** (`src/lib/sales/printOptions.ts`).
   Document level, `standard_quotes.print_options`: alternatives *all* /
-  *chosen only*, quantity breaks *all* / *chosen only* (the selects appear
-  under the table once the quote has any). Line level,
-  `standard_quote_lines.show_on_pdf`: a "Show on PDF" checkbox in the
-  details panel; a hidden row's number is struck through in the editor and
-  labelled "not on PDF" on the detail page. `linesForPdf()` applies both
-  in the print document; the PDF numbers by print position so a hidden
-  row leaves no gap. Presentation only -- `lineTotals.ts` never reads any
-  of it, so hiding a charged line does not change the total.
+  *chosen only* (the select appears under the table once the quote has
+  options; the `breaks` key is stored but no longer applied -- see the
+  next point). Line level, `standard_quote_lines.show_on_pdf`: a "Show on
+  PDF" checkbox in the details panel; a hidden row's number is struck
+  through in the editor and labelled "not on PDF" on the detail page.
+  `linesForPdf()` applies both in the print document; the PDF numbers by
+  print position so a hidden row leaves no gap. Presentation only --
+  `lineTotals.ts` never reads any of it, so hiding a charged line does
+  not change the total.
+- **A quantity break is an offer, never what is charged** (owner decision
+  2026-09-06, superseding §3.4's "chosen quantity": "reps send multiple
+  qty breaks to upsell"). Options keep their radio (exclusive); a break
+  row has a checkbox, *offer*. The base line's quantity is what the
+  document totals, always; a ticked break prints on the quote as
+  "Option — qty N" with what that quantity would cost, an unticked one
+  stays on the line but does not print. `is_selected` on a break row
+  therefore means "offered", and `lineTotals.selectedLines()` never
+  returns a break row; a base line with breaks under it always counts,
+  even if its flag was left false by the earlier chosen-break model.
+
+### 3.7 Attachments and "create line items from a spreadsheet" (0119, owner request 2026-09-06)
+
+- **Storage.** `standard_quote_attachments` (id, tenant_id,
+  standard_quote_id, file_name, storage_path, mime_type, size_bytes, note,
+  uploaded_by) with the standard tenant-isolation policy, and a PRIVATE
+  bucket `quote-attachments` at `{tenant_id}/{quote_id}/{uuid}.{ext}`.
+  Customer correspondence is never a public URL: no storage policy grants
+  clients access; the API uploads and deletes with the service role and
+  hands out a 5-minute signed URL (`GET
+  /api/standard-quotes/:id/attachments/:attId`) after confirming the row
+  is this tenant's. 15 MB cap, an allowlist of document/image/spreadsheet
+  extensions (no SVG, no executables). Every upload and removal is a
+  change-log entry on the quote.
+- **Where.** An Attachments card on the quote's detail page, and the
+  form's third tab (page 3, "Files" in the pinned bar) once the quote
+  exists -- a new quote's tab says "Create the quote first".
+- **Create line items.** For an .xlsx/.csv attachment on a DRAFT quote,
+  `POST …/attachments/:attId/lines` with `mode`. `preview` reads the
+  first sheet (`src/lib/sales/spreadsheetServer.ts` +
+  `spreadsheetLines.ts`: header aliases shared with the Data Workbench
+  quote-lines import plus a product column -- ref, SKU or name -- resolved
+  against the tenant's catalog) and reports rows read, blanks skipped,
+  the quote's existing line count, how many rows duplicate an existing
+  line (same product, else same normalised description) and any product
+  keys not in the catalog. The rep then picks: no lines yet -> *Add N*;
+  otherwise *Replace the existing*, *Append all*, or *Append, skip
+  duplicates*. Writes go through the same helpers as the PATCH route
+  (verified product ids, `resolveLineIdsAndSelection`, pricing flags
+  re-derived, tolerant insert), existing lines are re-inserted with their
+  ids as `local_id` so their breaks and options survive, and the header
+  subtotal/total are recomputed. Not on the v1 API.
 
 ## 4. Piece B — Opportunity (the Pipeline object)
 

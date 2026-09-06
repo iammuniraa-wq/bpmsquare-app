@@ -3,14 +3,14 @@
 // nothing here changes which lines count toward the total -- that is
 // lineTotals.ts's job and it never reads these.
 
-import { selectedLines, type SelectableLine } from "./lineTotals";
+import { selectedLines, isOfferedBreak, type SelectableLine } from "./lineTotals";
 
 export type PrintOptions = {
   /** Alternative option groups: print every option (the unchosen ones
    *  greyed out) or only the chosen one. */
   alternatives: "all" | "chosen";
-  /** Quantity breaks: print every quantity (unchosen greyed out) or only
-   *  the chosen quantity. */
+  /** No longer applied (2026-09-06): a quantity break prints when the rep
+   *  ticks it on the line. Kept so stored values still parse. */
   breaks: "all" | "chosen";
 };
 
@@ -43,26 +43,20 @@ export type PdfLine = SelectableLine & { show_on_pdf?: boolean | null };
  * charged can be hidden -- the two are independent by design.
  */
 export function linesForPdf<T extends PdfLine>(lines: T[], options: PrintOptions, opts: { selectedOptionId?: string | null } = {}): T[] {
-  // The two decisions are independent: which OPTION is chosen (a group
-  // question) and, within each break family, which QUANTITY is chosen (a
-  // row question, answered the same way whether or not its option is the
-  // chosen one -- an unchosen option still has a "would-be" quantity).
+  // Which OPTION is chosen is a group question; a quantity break is an
+  // offer that prints when the rep ticked it (2026-09-06) -- so `breaks`
+  // in the print options is no longer consulted (kept for stored values).
   const chosenGroups = new Set(
     selectedLines(lines, opts).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string)
   );
-  const familyChosen = new Map<string, string>();
-  for (const l of lines) {
-    if (!l.break_of) continue;
-    if (!familyChosen.has(l.break_of)) familyChosen.set(l.break_of, l.break_of);
-    if (l.is_selected === true) familyChosen.set(l.break_of, l.id);
-  }
+  const bases = new Set(lines.filter((l) => l.break_of).map((l) => l.break_of as string));
   return lines.filter((l) => {
     if (l.show_on_pdf === false) return false;
     const inGroup = l.group_type === "alternative" && !!l.group_id;
     if (inGroup && !chosenGroups.has(l.group_id as string) && options.alternatives !== "all") return false;
-    const familyId = l.break_of || (familyChosen.has(l.id) ? l.id : null);
-    if (familyId && familyChosen.get(familyId) !== l.id && options.breaks !== "all") return false;
-    if (!inGroup && !familyId && l.is_selected === false) return false; // an ordinary line explicitly deselected
+    if (l.break_of) return isOfferedBreak(l);
+    if (bases.has(l.id)) return true;
+    if (!inGroup && l.is_selected === false) return false; // an ordinary line explicitly deselected
     return true;
   });
 }

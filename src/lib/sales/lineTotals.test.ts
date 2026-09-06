@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectedLines, documentTotal, normalizeSelection, type SelectableLine } from "./lineTotals";
+import { selectedLines, documentTotal, normalizeSelection, isOfferedBreak, type SelectableLine } from "./lineTotals";
 
 type L = SelectableLine & { id: string };
 
@@ -61,27 +61,30 @@ describe("lineTotals: alternative groups", () => {
   });
 });
 
-describe("lineTotals: quantity breaks", () => {
+describe("lineTotals: quantity breaks (offers, never charged -- 2026-09-06)", () => {
   const base: L = { id: "base", amount: 22365 };
   const break10: L = { id: "b10", amount: 21200, break_of: "base", break_qty: 10 };
   const break50: L = { id: "b50", amount: 20100, break_of: "base", break_qty: 50 };
 
-  it("defaults to the base line when no break is selected", () => {
+  it("totals the base line only, whatever the breaks say", () => {
     expect(documentTotal([base, break10, break50])).toBe(22365);
+    expect(documentTotal([base, break10, { ...break50, is_selected: true }])).toBe(22365);
+    expect(selectedLines([base, { ...break10, is_selected: true }, break50]).map((l) => l.id)).toEqual(["base"]);
   });
 
-  it("selects the chosen break instead of the base line", () => {
-    expect(documentTotal([base, break10, { ...break50, is_selected: true }])).toBe(20100);
+  it("a base line with breaks counts even if its own flag was left false by the old chosen-break model", () => {
+    expect(documentTotal([{ ...base, is_selected: false }, { ...break10, is_selected: true }])).toBe(22365);
   });
 
-  it("selectedLines returns exactly one row from the family", () => {
-    const result = selectedLines([base, { ...break10, is_selected: true }, break50]);
-    expect(result.map((l) => l.id)).toEqual(["b10"]);
-  });
-
-  it("a break family alongside an unrelated plain line only resolves the family", () => {
+  it("a break family alongside an unrelated plain line", () => {
     const plain: L = { id: "other", amount: 999 };
     expect(documentTotal([base, break10, plain])).toBe(22365 + 999);
+  });
+
+  it("isOfferedBreak reads the break's own flag, absent meaning offered", () => {
+    expect(isOfferedBreak(break10)).toBe(true);
+    expect(isOfferedBreak({ ...break10, is_selected: false })).toBe(false);
+    expect(isOfferedBreak(base)).toBe(false);
   });
 });
 
@@ -106,26 +109,14 @@ describe("normalizeSelection", () => {
     expect(normalized.find((l) => l.id === "a2")!.is_selected).toBe(true); // same group, both selected
   });
 
-  it("resolves a break family to exactly one selected row, base line included", () => {
+  it("keeps a break's offered flag and forces the base line on", () => {
     const lines: L[] = [
-      { id: "base", amount: 22365 },
+      { id: "base", amount: 22365, is_selected: false },
       { id: "b10", amount: 21200, break_of: "base" },
-      { id: "b50", amount: 20100, break_of: "base", is_selected: true },
+      { id: "b50", amount: 20100, break_of: "base", is_selected: false },
     ];
     const normalized = normalizeSelection(lines);
-    expect(normalized.find((l) => l.id === "base")!.is_selected).toBe(false);
-    expect(normalized.find((l) => l.id === "b10")!.is_selected).toBe(false);
-    expect(normalized.find((l) => l.id === "b50")!.is_selected).toBe(true);
-  });
-
-  it("defaults a break family to the base line when nothing is explicitly selected", () => {
-    const lines: L[] = [
-      { id: "base", amount: 22365 },
-      { id: "b10", amount: 21200, break_of: "base" },
-    ];
-    const normalized = normalizeSelection(lines);
-    expect(normalized.find((l) => l.id === "base")!.is_selected).toBe(true);
-    expect(normalized.find((l) => l.id === "b10")!.is_selected).toBe(false);
+    expect(normalized.map((l) => [l.id, l.is_selected])).toEqual([["base", true], ["b10", true], ["b50", false]]);
   });
 
   it("leaves an ordinary line untouched", () => {
@@ -141,32 +132,30 @@ describe("normalizeSelection", () => {
       { id: "b1", amount: 2000, group_id: "optB", group_type: "alternative" },
     ];
     const normalized = normalizeSelection(lines);
-    expect(documentTotal(normalized)).toBe(21200 + 1000);
+    expect(documentTotal(normalized)).toBe(22365 + 1000);
   });
 });
 
 describe("lineTotals: quantity breaks inside an alternative option (0118)", () => {
   const lines: L[] = [
-    { id: "a", amount: 1000, group_id: "optA", group_type: "alternative", is_selected: false },
+    { id: "a", amount: 1000, group_id: "optA", group_type: "alternative", is_selected: true },
     { id: "a10", amount: 9000, group_id: "optA", group_type: "alternative", break_of: "a", is_selected: true },
     { id: "b", amount: 2000, group_id: "optB", group_type: "alternative", is_selected: false },
-    { id: "b10", amount: 18000, group_id: "optB", group_type: "alternative", break_of: "b", is_selected: false },
+    { id: "b10", amount: 18000, group_id: "optB", group_type: "alternative", break_of: "b", is_selected: true },
   ];
 
-  it("counts only the chosen quantity of the chosen option", () => {
-    expect(selectedLines(lines).map((l) => l.id)).toEqual(["a10"]);
-    expect(documentTotal(lines)).toBe(9000);
+  it("counts only the chosen option's base line", () => {
+    expect(selectedLines(lines).map((l) => l.id)).toEqual(["a"]);
+    expect(documentTotal(lines)).toBe(1000);
   });
 
-  it("normalizeSelection marks every row of an unchosen option false, and only the chosen quantity of the chosen option true", () => {
+  it("normalizeSelection marks the unchosen option false but leaves every break's offered flag alone", () => {
     const out = normalizeSelection(lines);
-    expect(out.map((l) => [l.id, l.is_selected])).toEqual([["a", false], ["a10", true], ["b", false], ["b10", false]]);
+    expect(out.map((l) => [l.id, l.is_selected])).toEqual([["a", true], ["a10", true], ["b", false], ["b10", true]]);
   });
 
-  it("switching the option keeps that option's own chosen quantity", () => {
-    const switched: L[] = lines.map((l) => (l.group_id === "optB" ? { ...l, is_selected: l.id === "b" } : { ...l, is_selected: false }));
+  it("switching the option switches which base line is charged", () => {
+    const switched: L[] = lines.map((l) => (l.break_of ? l : { ...l, is_selected: l.group_id === "optB" }));
     expect(selectedLines(switched).map((l) => l.id)).toEqual(["b"]);
-    const withBreak: L[] = lines.map((l) => (l.group_id === "optB" ? { ...l, is_selected: l.id === "b10" } : { ...l, is_selected: false }));
-    expect(selectedLines(withBreak).map((l) => l.id)).toEqual(["b10"]);
   });
 });

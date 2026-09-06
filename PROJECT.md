@@ -472,8 +472,18 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
-- **0118_quote_pdf_options_product_breaks.sql — PENDING on both DBs**
-  (written 2026-09-06, owner decisions the same day,
+- **0119_standard_quote_attachments.sql — PENDING on both DBs** (written
+  2026-09-06, owner request the same day,
+  `docs/sales-engine-architecture.md` §3.7). New table
+  `standard_quote_attachments` (RLS + tenant-isolation policy in the same
+  file) and a PRIVATE storage bucket `quote-attachments` -- customer
+  communication kept with a Standard Quote, downloads only via a 5-minute
+  signed URL, and "Create line items" from an attached .xlsx/.csv
+  (Replace / Append / Skip duplicates). Until applied the Attachments
+  card lists nothing and an upload fails with the database's message;
+  nothing else is affected.
+- **0118_quote_pdf_options_product_breaks.sql — applied to both DBs**
+  (owner confirmed 2026-09-06; written 2026-09-06, owner decisions the same day,
   `docs/sales-engine-architecture.md` §3.6). Three columns: the product's
   own quantity breaks (`products.qty_breaks jsonb`, kept locally on the
   product page or synced from the ERP -- what the Standard Quote add-line

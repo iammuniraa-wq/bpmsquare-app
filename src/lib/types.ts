@@ -453,6 +453,21 @@ export type StandardQuoteLine = {
   show_on_pdf?: boolean;
 };
 
+/** A file stored against a Standard Quote (0119): customer communication,
+ *  or a spreadsheet the lines were created from. */
+export type StandardQuoteAttachment = {
+  id: string;
+  tenant_id: string;
+  standard_quote_id: string;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number;
+  note: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+};
+
 // Standard Quote branded templates -- an ordered list of blocks a tenant can
 // reorder, show/hide, and (for the two free-text ones) author content for.
 // "letterhead"/"quote_meta"/"bill_to"/"line_items"/"totals" are structural --

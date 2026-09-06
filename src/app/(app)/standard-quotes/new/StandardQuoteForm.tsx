@@ -9,6 +9,7 @@ import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
 import PriceTrace, { type PriceTraceStep } from "@/components/pricing/PriceTrace";
 import { documentTotal, type SelectableLine } from "@/lib/sales/lineTotals";
+import StandardQuoteAttachments from "../[id]/StandardQuoteAttachments";
 
 type Line = {
   id: string; description: string; uom: string; qty: string; rate: string; discount_pct: string;
@@ -150,13 +151,6 @@ function groupedRows(lines: Line[]): Row[] {
   return rows;
 }
 
-/** Which row of a break family (the base line, or one of its breaks) is
- *  the chosen quantity -- mirrors lineTotals.ts's own resolution so the
- *  radio state and the on-screen total never disagree. */
-function chosenBreakId(line: Line, breaks: Line[]): string {
-  const explicit = breaks.find((b) => b.is_selected === true);
-  return explicit ? explicit.id : line.id;
-}
 
 type EditQuote = {
   id: string;
@@ -278,7 +272,7 @@ export default function StandardQuoteForm({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   // Editing an existing quote lands on its lines (the details are already
   // filled in); a new quote starts with the details.
-  const [step, setStep] = useState<"details" | "lines">(editQuote ? "lines" : "details");
+  const [step, setStep] = useState<"details" | "lines" | "attachments">(editQuote ? "lines" : "details");
   // The pinned bar on page 2. `position: sticky` can't be used: Shell's
   // <main> has overflow-x auto, which makes it a (non-scrolling) scroll
   // container that captures sticky while the window is what scrolls. So
@@ -344,25 +338,13 @@ export default function StandardQuoteForm({
   }
   /** Marks `groupId` the chosen option and every other alternative group
    *  not-selected -- mirrors lineTotals.ts's own resolution so the
-   *  on-screen total and the radio state never disagree. Within the chosen
-   *  option a break family keeps its own chosen quantity (exactly one row
-   *  of the family true); every row of an unchosen option is false. */
+   *  on-screen total and the radio state never disagree. A break row's
+   *  flag ("offered") is its own and is left alone. */
   function chooseGroup(groupId: string) {
-    setLines((ls) => {
-      const families = breaksByParentOf(ls);
-      return ls.map((l) => {
-        if (!(l.group_type === "alternative" && l.group_id)) return l;
-        if (l.group_id !== groupId) return { ...l, is_selected: false };
-        if (l.break_of) return l; // its family decides below
-        const breaks = families.get(l.id);
-        if (!breaks || breaks.length === 0) return { ...l, is_selected: true };
-        const familyHasChoice = breaks.some((b) => b.is_selected === true);
-        return { ...l, is_selected: !familyHasChoice };
-      });
-    });
+    setLines((ls) => ls.map((l) => (l.group_type === "alternative" && l.group_id && !l.break_of ? { ...l, is_selected: l.group_id === groupId } : l)));
   }
   const altGroupIds = [...new Set(lines.filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id))];
-  const chosenGroupId = altGroupIds.find((gid) => lines.some((l) => l.group_id === gid && l.is_selected === true)) ?? altGroupIds[0] ?? null;
+  const chosenGroupId = altGroupIds.find((gid) => lines.some((l) => l.group_id === gid && !l.break_of && l.is_selected === true)) ?? altGroupIds[0] ?? null;
 
   // Quantity breaks (Sales Engine Piece A, §3.4): a line can offer more
   // than one quantity, each its own price ("1-9 at X, 10+ at Y"); only the
@@ -371,11 +353,10 @@ export default function StandardQuoteForm({
   // fields so both decisions compose in lineTotals.ts.
   function breakRowFor(parent: Line, qty: number, rate?: number | null): Line {
     return {
-      // is_selected starts false: a new break is an option to consider,
-      // not an automatic switch away from the base quantity that was
-      // already charged (newLine()'s own default of true is right for an
-      // ordinary line, wrong for a break that hasn't been chosen yet).
-      ...newLine(), break_of: parent.id, break_qty: String(qty), qty: String(qty), is_selected: false,
+      // is_selected on a break means "offered on the quote" (2026-09-06):
+      // a new break is offered until the rep unticks it. The base quantity
+      // stays what is charged either way.
+      ...newLine(), break_of: parent.id, break_qty: String(qty), qty: String(qty), is_selected: true,
       description: parent.description, uom: parent.uom, product_id: parent.product_id, discount_pct: parent.discount_pct,
       rate: rate != null ? String(rate) : parent.rate,
       group_id: parent.group_id, group_label: parent.group_label, group_type: parent.group_type,
@@ -391,14 +372,10 @@ export default function StandardQuoteForm({
   function removeBreak(breakId: string) {
     setLines((ls) => ls.filter((l) => l.id !== breakId));
   }
-  /** Marks exactly one row of a break family (the base line, or one break)
-   *  selected -- mirrors lineTotals.ts's own resolution. */
-  function chooseBreak(parentId: string, chosenId: string, breakIds: string[]) {
-    setLines((ls) => ls.map((l) => {
-      if (l.id === parentId) return { ...l, is_selected: chosenId === parentId };
-      if (breakIds.includes(l.id)) return { ...l, is_selected: l.id === chosenId };
-      return l;
-    }));
+  /** A break's checkbox: offered on the quote (printed) or not. Never
+   *  affects the total -- the base quantity is what is charged. */
+  function toggleBreak(breakId: string, offered: boolean) {
+    setLines((ls) => ls.map((l) => (l.id === breakId ? { ...l, is_selected: offered } : l)));
   }
 
   async function priceWithEngine(lineId: string, productId: string, qty: string) {
@@ -687,10 +664,6 @@ export default function StandardQuoteForm({
 
   function lineRow(line: Line, no: number, opts: { dim?: boolean; breaks?: Line[] }) {
     const breaks = opts.breaks ?? [];
-    const hasBreaks = breaks.length > 0;
-    const breakIds = breaks.map((b) => b.id);
-    const chosenId = hasBreaks ? chosenBreakId(line, breaks) : line.id;
-    const isChosen = chosenId === line.id;
     const product = products.find((p) => p.id === line.product_id);
     return (
       <div key={line.id}>
@@ -731,27 +704,27 @@ export default function StandardQuoteForm({
           <div style={cell}>
             <input style={cnum} type="number" min="0" max="100" step="0.1" value={line.discount_pct} onChange={(e) => updateLine(line.id, { discount_pct: e.target.value })} />
           </div>
-          <div style={{ ...cell, justifyContent: "flex-end", gap: 6 }}>
-            {hasBreaks && <input type="radio" title="Quote the base quantity" checked={isChosen} onChange={() => chooseBreak(line.id, line.id, breakIds)} style={{ margin: 0 }} />}
-            <span style={{ ...amountText, color: hasBreaks && !isChosen ? c.hint : c.ink }}>{inr(lineAmount(line))}</span>
+          <div style={{ ...cell, justifyContent: "flex-end" }}>
+            <span style={{ ...amountText, color: c.ink }}>{inr(lineAmount(line))}</span>
           </div>
           <div style={{ ...cell, overflow: "hidden" }}>{statusChip(line)}</div>
           {rowActions(line)}
         </div>
         {expandedIds.has(line.id) && detailPanel(line, false)}
-        {breaks.map((b) => breakRow(line, b, chosenId, breakIds, !!opts.dim))}
+        {breaks.map((b) => breakRow(line, b, !!opts.dim))}
       </div>
     );
   }
 
-  /** A quantity break is the same item at another quantity: only the
-   *  quantity and the rate are its own (description, UOM, product and
-   *  discount follow the parent -- see updateLine). */
-  function breakRow(parent: Line, b: Line, chosenId: string, breakIds: string[], dim: boolean) {
-    const isChosen = chosenId === b.id;
+  /** A quantity break is the same item at another quantity, OFFERED on the
+   *  quote to upsell (ticked = printed; the base quantity is what is
+   *  charged). Only the quantity and the rate are its own (description,
+   *  UOM, product and discount follow the parent -- see updateLine). */
+  function breakRow(parent: Line, b: Line, dim: boolean) {
+    const offered = b.is_selected;
     return (
       <div key={b.id}>
-        <div style={{ ...gridRow, background: c.panel2, opacity: dim ? 0.55 : 1 }}>
+        <div style={{ ...gridRow, background: c.panel2, opacity: dim ? 0.55 : offered ? 1 : 0.6 }}>
           <div style={{ ...cell, justifyContent: "center", color: c.hint }}>↳</div>
           <div style={{ ...cell, gap: 6 }}>
             <span style={{ fontSize: 11.5, color: c.muted, whiteSpace: "nowrap" }}>From qty</span>
@@ -760,7 +733,7 @@ export default function StandardQuoteForm({
               updateLine(b.id, { break_qty: v, qty: v });
               if (b.product_id && b.pricing_document_id) scheduleAutoReprice(b.id, b.product_id, v);
             }} />
-            <span style={{ fontSize: 11, color: c.hint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>same item, its own rate</span>
+            <span style={{ fontSize: 11, color: c.hint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>offer at its own rate</span>
           </div>
           <div style={{ ...cell, fontSize: 11.5, color: c.hint }}>{parent.uom}</div>
           <div style={{ ...cell, justifyContent: "flex-end", fontSize: 12.5, color: c.muted, fontVariantNumeric: "tabular-nums" }}>{b.qty || "—"}</div>
@@ -769,8 +742,11 @@ export default function StandardQuoteForm({
           </div>
           <div style={{ ...cell, justifyContent: "flex-end", fontSize: 11.5, color: c.hint }}>{parent.discount_pct || "0"}%</div>
           <div style={{ ...cell, justifyContent: "flex-end", gap: 6 }}>
-            <input type="radio" title="Quote this quantity" checked={isChosen} onChange={() => chooseBreak(parent.id, b.id, breakIds)} style={{ margin: 0 }} />
-            <span style={{ ...amountText, color: isChosen ? c.ink : c.hint }}>{inr(lineAmount(b))}</span>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }} title={offered ? "Offered on the quote — untick to leave it off the PDF" : "Not on the quote — tick to offer this quantity"}>
+              <input type="checkbox" checked={offered} onChange={(e) => toggleBreak(b.id, e.target.checked)} style={{ margin: 0 }} />
+              <span style={{ fontSize: 10.5, color: offered ? c.accent : c.hint, fontWeight: 600 }}>offer</span>
+            </label>
+            <span style={{ ...amountText, color: c.muted }}>{inr(lineAmount(b))}</span>
           </div>
           <div style={{ ...cell, overflow: "hidden" }}>{statusChip(b)}</div>
           <div style={{ ...cell, gap: 2, justifyContent: "flex-end" }}>
@@ -1173,11 +1149,18 @@ export default function StandardQuoteForm({
     setStep("lines");
     if (typeof window !== "undefined") window.scrollTo({ top: 0 });
   }
-  function stepTab(key: "details" | "lines", n: string, label: string, compact = false) {
+  function goToAttachments() {
+    // Attachments live on the saved quote (a private bucket keyed by its id).
+    if (!editQuote) { setError("Create the quote first — attachments are kept with the saved quote."); return; }
+    setError("");
+    setStep("attachments");
+  }
+  function stepTab(key: "details" | "lines" | "attachments", n: string, label: string, compact = false) {
     const active = step === key;
     return (
       <button
-        type="button" onClick={() => (key === "lines" ? goToLines() : setStep("details"))}
+        type="button" onClick={() => (key === "lines" ? goToLines() : key === "attachments" ? goToAttachments() : setStep("details"))}
+        title={key === "attachments" && !editQuote ? "Available once the quote is created" : undefined}
         style={{
           display: "inline-flex", alignItems: "center", gap: 8, padding: compact ? "6px 10px" : "8px 14px", fontSize: compact ? 12.5 : 13, fontWeight: 600,
           color: active ? c.accent : c.muted, background: "none", border: "none", borderBottom: `2px solid ${active ? c.accent : "transparent"}`,
@@ -1212,7 +1195,7 @@ export default function StandardQuoteForm({
       {/* Page 2 gives the whole screen to the lines: its title, tabs and
           essentials all sit in the one pinned bar, so the page chrome
           below renders for page 1 only. */}
-      {step === "details" && (
+      {step !== "lines" && (
         <>
           <div style={{ marginBottom: 12 }}>
             <Link href={editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
@@ -1226,6 +1209,7 @@ export default function StandardQuoteForm({
           <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: `1px solid ${c.line}` }}>
             {stepTab("details", "1", "Quote details")}
             {stepTab("lines", "2", lineCount > 0 ? `Line items (${lineCount})` : "Line items")}
+            {stepTab("attachments", "3", "Attachments")}
           </div>
         </>
       )}
@@ -1328,6 +1312,7 @@ export default function StandardQuoteForm({
             <div style={{ display: "flex", alignItems: "center", margin: "-10px 0" }}>
               {stepTab("details", "1", "Details", true)}
               {stepTab("lines", "2", lineCount > 0 ? `Lines (${lineCount})` : "Lines", true)}
+              {stepTab("attachments", "3", "Files", true)}
             </div>
             <div style={{ width: 1, alignSelf: "stretch", background: c.line }} />
             <div style={{ minWidth: 0 }}>
@@ -1464,21 +1449,13 @@ export default function StandardQuoteForm({
                 >
                   + Alternative option
                 </button>
-                {(altGroupIds.length > 0 || breaksByParent.size > 0) && (
+                {altGroupIds.length > 0 && (
                   <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11.5, color: c.muted }} title="What the PDF prints for the options the customer did not choose — the total never changes">
                     On the PDF:
-                    {altGroupIds.length > 0 && (
-                      <select value={printOptions.alternatives} onChange={(e) => setPrintOptions((p) => ({ ...p, alternatives: e.target.value === "chosen" ? "chosen" : "all" }))} style={{ ...cinp, width: "auto", padding: "3px 6px", fontSize: 11.5 }}>
-                        <option value="all">all options</option>
-                        <option value="chosen">chosen option only</option>
-                      </select>
-                    )}
-                    {breaksByParent.size > 0 && (
-                      <select value={printOptions.breaks} onChange={(e) => setPrintOptions((p) => ({ ...p, breaks: e.target.value === "chosen" ? "chosen" : "all" }))} style={{ ...cinp, width: "auto", padding: "3px 6px", fontSize: 11.5 }}>
-                        <option value="all">all quantities</option>
-                        <option value="chosen">chosen quantity only</option>
-                      </select>
-                    )}
+                    <select value={printOptions.alternatives} onChange={(e) => setPrintOptions((p) => ({ ...p, alternatives: e.target.value === "chosen" ? "chosen" : "all" }))} style={{ ...cinp, width: "auto", padding: "3px 6px", fontSize: 11.5 }}>
+                      <option value="all">all options</option>
+                      <option value="chosen">chosen option only</option>
+                    </select>
                   </span>
                 )}
               </div>
@@ -1506,6 +1483,29 @@ export default function StandardQuoteForm({
                 <div style={{ fontSize: 15, fontWeight: 700, color: c.ink, marginTop: 4 }}>Total: {inr(totals.total)}</div>
               </div>
             </section>
+        </div>
+        )}
+
+        {step === "attachments" && editQuote && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
+          <section style={cardStyle}>
+            <StandardQuoteAttachments
+              quoteId={editQuote.id}
+              canCreateLines
+              // Lines created from a file are written to the saved quote, so
+              // the form reloads from it; any unsaved edits on this form are
+              // dropped -- the sentence under the button says so.
+              onLinesCreated={() => { window.location.href = ROUTES.standardQuoteEdit(editQuote.id); }}
+            />
+            <p style={{ fontSize: 11.5, color: c.hint, margin: "10px 0 0" }}>Creating line items from a file saves them to the quote straight away and reloads this form — save any other edits first.</p>
+          </section>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {errorBox}
+            <button type="button" onClick={goToLines} style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              Back to line items →
+            </button>
+            {cancelLink}
+          </div>
         </div>
         )}
       </form>
