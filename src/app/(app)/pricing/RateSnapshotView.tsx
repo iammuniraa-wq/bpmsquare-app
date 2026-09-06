@@ -10,6 +10,7 @@ export type SnapshotRule = {
   match_attributes: Record<string, AttrValue>;
   value: number | null;
   scale?: { entries: ScaleEntry[] } | null;
+  formula?: string | null;
 };
 
 /**
@@ -53,8 +54,8 @@ export default function RateSnapshotView({ template, rules }: { template: Method
               {byComponent.get(cmp.code)!.map((rule) => (
                 <div key={rule.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5 }}>
                   <span style={{ color: c.muted }}>{describeCondition(template, rule.match_attributes)}</span>
-                  <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>
-                    {rule.scale?.entries ? formatTiers(rule.scale.entries, unit) : formatRateValue(rule.value, unit)}
+                  <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right", fontFamily: rule.formula ? "monospace" : undefined }}>
+                    {rule.formula ? rule.formula : rule.scale?.entries ? formatTiers(rule.scale.entries, unit) : formatRateValue(rule.value, unit)}
                   </span>
                 </div>
               ))}

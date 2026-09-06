@@ -25,7 +25,7 @@ import type {
   PriceComponent, PricingProcedure, CostModel, EntryMode, AttrValue,
 } from "@/lib/pricing-core";
 
-export type PricingMethodKey = "cost_based" | "price_list" | "value_based" | "variant";
+export type PricingMethodKey = "cost_based" | "price_list" | "value_based" | "variant" | "catalog_formula";
 
 export type ScaleEntry = { from: number; value: number };
 
@@ -34,6 +34,14 @@ export type RateRow = {
   match_attributes: Record<string, AttrValue>;
   value: number | null;       // flat components (calc_type PERCENT / FIXED_AMOUNT)
   tiers?: ScaleEntry[];       // volume-tiered components (calc_type SCALE_TIERED) — at least one band
+  /** A formula-mode row on a `formulaCapable` component (§19,
+   *  pricing-engine-architecture.md): a raw DSL expression instead of a
+   *  flat value, e.g. "ctx.cost.material.rate_per_unit * ctx.line.quantity".
+   *  Mutually exclusive with `value` in the UI, but both may be present on
+   *  the wire -- `flatRateFormula()` is what turns a plain number into an
+   *  equivalent formula before it is ever sent to a FORMULA-calc_type
+   *  component, since that component type never reads `.value` (calc.ts). */
+  formula?: string | null;
 };
 
 export type EditableComponent = {
@@ -53,8 +61,30 @@ export type EditableComponent = {
    * the basis -- so "margin % tiered by deal size" needs a FORMULA + scale()
    * DSL combination, not this. Tracked as follow-up, not faked here. */
   tiered: boolean;
+  /** True for a component whose calc_type is FORMULA (pricing-engine-
+   *  architecture.md §19.1/19.3): most rows still just need a flat rate
+   *  (a catalog SKU) -- the rate editor keeps those as a plain number and
+   *  `flatRateFormula()` wraps it before saving. The one row a tenant
+   *  writes as real DSL is the catch-all fallback (no dimensions matched,
+   *  or only the loosest one), which derives its rate from `ctx.line.*`
+   *  and `ctx.cost.*` instead of a number someone typed in. */
+  formulaCapable?: boolean;
+  /** Shown next to a formula-mode row -- the ctx.* paths this template's
+   *  cost model and dimensions actually make available, so a tenant is
+   *  never guessing what a formula can reference. */
+  formulaHelp?: string;
   defaultRows: RateRow[];
 };
+
+/** Turns a plain flat rate into the formula a FORMULA-calc_type component
+ *  requires (calc.ts's FORMULA branch reads `rule.formula` only -- a rule
+ *  with a `.value` and no `.formula` is SKIPPED, never priced at zero by
+ *  accident, but also never applied). Per running-unit of the line's own
+ *  quantity, matching how PER_UNIT/SCALE_TIERED already price a quantity-
+ *  basis component elsewhere in this file. */
+export function flatRateFormula(value: number): string {
+  return `${value} * ctx.line.quantity`;
+}
 
 /** A margin floor check: a purely statistical component storing the
  * tenant's minimum acceptable margin, surfaced as a warning on the Sample
@@ -382,7 +412,119 @@ const VARIANT: MethodTemplate = {
   ],
 };
 
-export const PRICING_METHODS: MethodTemplate[] = [COST_BASED, PRICE_LIST, VALUE_BASED, VARIANT];
+// ── 5. Catalog + Formula — a rate where you have one, a formula everywhere
+// else (pricing-engine-architecture.md §19, the Big Blue pressure test,
+// 2026-09-06). MOST_SPECIFIC already gives this for free: an exact-spec
+// catalog row (family + spec + variant) outranks a family-only fallback
+// rule, so the fallback only ever fires when nothing more specific was
+// authored. The fallback rule carries a formula instead of a flat value --
+// e.g. a weight-from-size × material-rate calculation -- so an odd size
+// nobody negotiated a rate for still prices itself instead of stopping the
+// quote. Needs zero pricing-core changes; MATERIAL_RATE's calc_type is
+// FORMULA like value-based's ADJUSTMENT, just resolved by rule instead of
+// applied unconditionally.
+const CATALOG_FORMULA_FACTORS = ["customer.tier", "region"];
+
+const CATALOG_FORMULA: MethodTemplate = {
+  key: "catalog_formula",
+  label: "Catalog + Formula",
+  tagline: "A negotiated rate where you have one, a cost formula everywhere else.",
+  description:
+    "Best when most of what you sell is a handful of standard sizes or grades " +
+    "with their own negotiated rate, but you also need to quote something " +
+    "outside that list without stopping to price it by hand. Enter the exact " +
+    "specs you have a rate for; everything else falls back to a formula built " +
+    "from your own cost inputs and the line's own attributes — never a silent " +
+    "zero, and never a manual guess.",
+  entryMode: "LIST_DOWN",
+  dimensions: [
+    { attribute: "product.family", weight: 50, label: "Product family" },
+    { attribute: "product.spec", weight: 30, label: "Size / spec" },
+    { attribute: "product.variant", weight: 15, label: "Finish / variant" },
+    { attribute: "region", weight: 10, label: "Region" },
+    { attribute: "customer.tier", weight: 20, label: "Customer tier" },
+  ],
+  components: [
+    comp({ code: "MATERIAL_RATE", name: "Rate per unit", class: "PRICE", calc_type: "FORMULA", calc_basis: "CUSTOM_METRIC", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
+    comp({ code: "FREIGHT", name: "Freight", class: "FREIGHT", calc_type: "FIXED_AMOUNT", calc_basis: "NET_SO_FAR", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
+    comp({ code: "MARGIN_MARKUP", name: "Margin", class: "MARKUP", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
+    comp({ code: "MARGIN_FLOOR", name: "Minimum acceptable margin", class: "STATISTICAL", calc_type: "FIXED_AMOUNT", calc_basis: "GROSS", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: true }),
+    comp({ code: "CUST_DISC", name: "Customer discount", class: "DISCOUNT", calc_type: "PERCENT", calc_basis: "NET_SO_FAR", sign: "NEGATIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
+    comp({ code: "TAX", name: "Tax", class: "TAX", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: false, rounding_rule: { precision: 2, mode: "HALF_UP" } }),
+  ],
+  procedure: {
+    procedure_id: "CATALOG_FORMULA",
+    entry_mode: "LIST_DOWN",
+    steps: [
+      { step: 10, component: "MATERIAL_RATE", required: true },
+      { step: 20, subtotal: "TOTAL_COST" },
+      { step: 30, component: "FREIGHT" },
+      { step: 40, subtotal: "LANDED_COST" },
+      { step: 50, component: "MARGIN_MARKUP", calc_basis_ref: "LANDED_COST" },
+      { step: 60, subtotal: "NET_1" },
+      { step: 65, component: "MARGIN_FLOOR", statistical: true, guardrail: { kind: "MARGIN_FLOOR", cost_subtotal: "LANDED_COST", revenue_subtotal: "NET_1", policy: "warn" } },
+      { step: 70, component: "CUST_DISC" },
+      { step: 80, subtotal: "NET_2" },
+      { step: 90, component: "TAX", calc_basis_ref: "NET_2" },
+      { step: 100, subtotal: "FINAL" },
+    ],
+  },
+  costModel: {
+    code: "CATALOG_FALLBACK_COST",
+    name: "Fallback cost inputs",
+    inputs: [
+      { path: "material.rate_per_unit", kind: "MATERIAL", value: 10 },
+    ],
+  },
+  editableComponents: [
+    {
+      component_code: "MATERIAL_RATE", label: "Rate per unit", unit: "currency",
+      help: "One row per exact spec you have a negotiated rate for. Add a catch-all row (leave spec/variant blank) with a formula for everything else.",
+      factors: ["product.family", "product.spec", "product.variant"], tiered: false, formulaCapable: true,
+      formulaHelp: "ctx.line.quantity — this line's quantity. ctx.cost.material.rate_per_unit — the cost input below. Add ctx.line.<your own dimension> for anything you condition on.",
+      defaultRows: [
+        { match_attributes: { "product.family": "example_item", "product.spec": "standard" }, value: 10 },
+        // The catch-all: empty match_attributes, like every other template's
+        // default row, so the Sample bill prices from the moment a tenant
+        // goes live -- the sample line carries no product attributes at all
+        // (sampleDocumentLine()). A tenant scopes this to one product.family
+        // once they have more than one family needing a different formula.
+        { match_attributes: {}, value: null, formula: "ctx.cost.material.rate_per_unit * ctx.line.quantity" },
+      ],
+    },
+    {
+      component_code: "FREIGHT", label: "Freight", unit: "currency",
+      help: "Flat, by region.",
+      factors: ["region"], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 0 }],
+    },
+    {
+      component_code: "MARGIN_MARKUP", label: "Margin", unit: "percent",
+      help: "On landed cost.",
+      factors: CATALOG_FORMULA_FACTORS, tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 20 }],
+    },
+    {
+      component_code: "MARGIN_FLOOR", label: "Minimum acceptable margin", unit: "percent",
+      help: "Margin on landed cost below which a line is flagged.",
+      factors: [], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 10 }],
+    },
+    {
+      component_code: "CUST_DISC", label: "Customer discount", unit: "percent",
+      factors: ["customer.tier"], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 0 }],
+    },
+    {
+      component_code: "TAX", label: "Tax", unit: "percent",
+      factors: [], tiered: false,
+      defaultRows: [{ match_attributes: {}, value: 18 }],
+    },
+  ],
+  marginGuardrail: { componentCode: "MARGIN_FLOOR", costSubtotal: "LANDED_COST", revenueSubtotal: "NET_1", policy: "warn" },
+};
+
+export const PRICING_METHODS: MethodTemplate[] = [COST_BASED, PRICE_LIST, VALUE_BASED, VARIANT, CATALOG_FORMULA];
 
 export function getMethodTemplate(key: PricingMethodKey): MethodTemplate {
   const found = PRICING_METHODS.find((m) => m.key === key);

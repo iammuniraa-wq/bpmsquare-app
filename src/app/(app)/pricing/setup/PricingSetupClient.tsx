@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { c, pillar } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import {
-  PRICING_METHODS, sampleDocumentLine, templateMutations, missingCostInputMutations, matchMethodTemplate,
+  PRICING_METHODS, sampleDocumentLine, templateMutations, missingCostInputMutations, matchMethodTemplate, flatRateFormula,
   type MethodTemplate, type PricingMethodKey, type EditableComponent, type RateRow, type ScaleEntry,
 } from "@/lib/pricing/wizard";
 import RateSnapshotView, { type SnapshotRule } from "../RateSnapshotView";
@@ -23,6 +23,15 @@ type RowsSetter = Dispatch<SetStateAction<RowsByComponent>>;
 
 type Phase = "loading" | "strategy" | "resume" | "numbers" | "sample" | "unsupported";
 
+/** A formula-capable row round-trips as "flat" when its stored formula is
+ *  exactly what `flatRateFormula()` would generate from its value -- so a
+ *  tenant who typed a plain number keeps seeing a plain number after a
+ *  save/reload, never raw DSL they never wrote. Anything else stored in
+ *  `formula` is a real, hand-written fallback and shows as one. */
+function isAutoFormula(value: number | null, formula: string | null | undefined): boolean {
+  return Boolean(formula) && formula === flatRateFormula(value ?? 0);
+}
+
 function rowsFromSnapshot(template: MethodTemplate, snapshot: Snapshot): RowsByComponent {
   const byComponent = new Map<string, SnapshotRule[]>();
   for (const r of snapshot.rules) {
@@ -34,7 +43,10 @@ function rowsFromSnapshot(template: MethodTemplate, snapshot: Snapshot): RowsByC
   for (const ec of template.editableComponents) {
     const existing = byComponent.get(ec.component_code);
     result[ec.component_code] = existing && existing.length > 0
-      ? existing.map((r) => ({ id: r.id, match_attributes: r.match_attributes, value: r.value, tiers: r.scale?.entries }))
+      ? existing.map((r) => ({
+          id: r.id, match_attributes: r.match_attributes, value: r.value, tiers: r.scale?.entries,
+          formula: ec.formulaCapable && !isAutoFormula(r.value, r.formula) ? (r.formula ?? null) : null,
+        }))
       : ec.defaultRows.map((r) => ({ ...r }));
   }
   return result;
@@ -119,6 +131,18 @@ function removeRow(setRows: RowsSetter, code: string, index: number) {
 
 function updateValue(setRows: RowsSetter, code: string, index: number, value: number) {
   setRows((prev) => ({ ...prev, [code]: prev[code].map((r, i) => (i === index ? { ...r, value } : r)) }));
+}
+
+function updateFormula(setRows: RowsSetter, code: string, index: number, formula: string) {
+  setRows((prev) => ({ ...prev, [code]: prev[code].map((r, i) => (i === index ? { ...r, formula } : r)) }));
+}
+
+/** Switching a formula-capable row between "flat rate" and "formula" is a
+ *  UI mode, not two different row shapes -- `formula: null` means flat
+ *  (saveNumbers derives the real formula from the number), a non-null
+ *  string, even empty, means the tenant is writing their own. */
+function toggleFormulaMode(setRows: RowsSetter, code: string, index: number, useFormula: boolean) {
+  setRows((prev) => ({ ...prev, [code]: prev[code].map((r, i) => (i === index ? { ...r, formula: useFormula ? (r.formula ?? "") : null } : r)) }));
 }
 
 function setCondition(setRows: RowsSetter, code: string, index: number, factor: string, value: string) {
@@ -316,6 +340,15 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
         // second, duplicate rule for the same condition.
         const savedList: RateRow[] = [];
         for (const row of currentList) {
+          // A formula-capable component's calc_type is FORMULA end to end
+          // (calc.ts never reads `.value` for it) -- a row left as a plain
+          // number still needs a real formula on the wire, or it would
+          // silently be SKIPPED at pricing time. `value` is kept alongside
+          // it purely so a flat-authored row still shows as a number next
+          // time (isAutoFormula), never so the engine reads it.
+          const formula = ec.formulaCapable
+            ? (row.formula && row.formula.trim() ? row.formula.trim() : flatRateFormula(row.value ?? 0))
+            : null;
           const res = await postJson("/api/settings/pricing-engine/config", {
             entity: "rule", op: "upsert", version, area,
             data: {
@@ -324,6 +357,7 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
               match_attributes: row.match_attributes,
               value: ec.tiered ? null : row.value,
               scale: ec.tiered ? { entries: row.tiers ?? [] } : null,
+              formula,
             },
           });
           savedList.push({ ...row, id: (res?.id as string | undefined) ?? row.id });
@@ -638,6 +672,21 @@ function RateRowEditor({ template, ec, row, index, canEdit, canRemoveRow, setRow
 
       {ec.tiered ? (
         <TierEditor ec={ec} tiers={row.tiers ?? []} rowIndex={index} canEdit={canEdit} setRows={setRows} />
+      ) : row.formula !== null && row.formula !== undefined ? (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              disabled={!canEdit} value={row.formula}
+              onChange={(e) => updateFormula(setRows, ec.component_code, index, e.target.value)}
+              placeholder="ctx.cost.material.rate_per_unit * ctx.line.quantity"
+              style={{ ...numInput, width: "100%", fontFamily: "monospace", textAlign: "left" }}
+            />
+            {canEdit && (
+              <button onClick={() => toggleFormulaMode(setRows, ec.component_code, index, false)} style={linkBtn}>Use a flat rate</button>
+            )}
+          </div>
+          {ec.formulaHelp && <div style={{ fontSize: 10.5, color: c.hint, marginTop: 4 }}>{ec.formulaHelp}</div>}
+        </div>
       ) : (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <input
@@ -646,6 +695,9 @@ function RateRowEditor({ template, ec, row, index, canEdit, canRemoveRow, setRow
             style={numInput}
           />
           <span style={{ fontSize: 12, color: c.muted }}>{ec.unit === "percent" ? "%" : ""}</span>
+          {ec.formulaCapable && canEdit && (
+            <button onClick={() => toggleFormulaMode(setRows, ec.component_code, index, true)} style={linkBtn}>Use a formula instead</button>
+          )}
         </div>
       )}
     </div>

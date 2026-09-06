@@ -917,3 +917,127 @@ Arabic/RTL, and a JS SDK for the embeds. Each waits for a paying demand.
 | 3 | Product name | **BPMSquare Pricing.** | Batch 7 applies it to the API index, OpenAPI title, embed views and the Drive guide; the workcenter label stays "Pricing". |
 | 4 | Approvals on quotes | **Block sending** until approved. | Batch 3 as written. |
 | 5 | Retention of stored contexts | 180 days default, per-tenant setting (assumed, not contested). | Batch 1 as written. |
+
+---
+
+## 19. Big Blue pressure test — the GCC engineered-product methodology (2026-09-06)
+
+Before committing to a Parametric or Variant technique as a standalone
+build, the owner asked to pressure-test the idea against two real
+businesses (Big Blue — Qatar engineered products/rebar & dowel bars/PTFE
+bearings/fasteners/safety gear; Trelleborg Sealing Solutions — global
+configured seals, as a scale stress-test, not a client). The result
+changes what gets built next, and simplifies it.
+
+### 19.1 The mechanism: one component, most-specific-wins, formula as the floor
+
+A line's base rate resolves the same way `resolveRules()`
+(`src/lib/pricing-core/resolution.ts`) already works for every other
+technique — **no core change required**:
+
+- A **catalog rule** matches an exact spec (e.g. `product.family=dowel_bar,
+  diameter_mm=16, coating=epoxy`) and carries a flat rate. Specificity =
+  sum of matched dimension weights (e.g. 95).
+- A **fallback rule** matches only the loosest attribute (e.g.
+  `product.family=dowel_bar`) and carries a `PriceRule.formula` instead of
+  a flat `value` — e.g. cross-section × steel density × steel rate +
+  coating rate, entirely in terms of `ctx.line.*` and `ctx.cost.*`, which
+  `calc_type: "FORMULA"` already evaluates (`calc.ts` lines 299-321).
+  Specificity = 50 (family only).
+- `matchesContext()` already treats an empty/partial `match_attributes` as
+  a universal match with specificity 0+weight-of-what's-there, so the
+  fallback rule automatically loses to any catalog row that also matches,
+  and automatically wins when no catalog row exists. This is not new
+  behaviour — it is what most-specific-wins has always done; a formula
+  fallback is just a rule that happens to carry a formula instead of a
+  number.
+- A family with **no fallback at all** (Safety Gear/PPE — you cannot
+  formula-derive a hard hat's price from its weight) simply leaves
+  `required: true` on the component: zero matching rules is
+  `MISSING_REQUIRED_COMPONENT`, the same "never a silent zero" discipline
+  cost-based already established for NEEDS_RFQ.
+
+Validated interactively in the **Rate Resolution Bench** artifact
+(2026-09-06): editing the catalog table live flips a line between the
+catalog rule and the formula, and unchecking "has a fallback" demonstrates
+the hard stop.
+
+**The one real gap found:** the wizard's `EditableComponent`/`RateRow`
+(`src/lib/pricing/wizard.ts`) only authors flat numbers and tiers today,
+never a formula string. That is the actual build item — not a new
+technique, not a new core primitive.
+
+### 19.2 Mixing techniques on one quote — already solved, not a new decision
+
+Big Blue's catalog spans families that want genuinely different shapes:
+rebar/dowel bars/bird spikes (catalog + weight formula), fasteners
+(catalog by grade, formula by weight — no per-length row), Safety Gear/PPE
+(catalog only, no formula, ever), and PTFE Bearings (catalog for standard
+sizes, but a **custom** bearing is closer to cost-based's cost-buildup —
+material + labour + testing — than a weight formula).
+
+This does not require choosing one technique per tenant, or a "does this
+quote use cost-up or variant" flag. `priceDocumentLine()` already routes
+**per line** to a Price Book via `routeToArea()`
+(`src/lib/pricing/routing.ts`) using that line's own product attributes.
+One Standard Quote can freely carry a rebar line (routes to an
+"Engineered Products" book), a custom PTFE bearing line (routes to a
+book using the existing cost-based cost-rollup machinery), and a Safety
+Gear line (routes to a catalog-only book) — each line prices through its
+own book's own procedure, independently, the way multi-line quotes
+already work today.
+
+**Conclusion: the cost-up vs. variant distinction is not worth enforcing
+as a global technique choice.** It is worth having as a **per-family
+composition** — each Price Book's procedure is assembled from the same
+shared toolbox (rule-match rate, formula fallback, cost-rollup, `ALL_APPLY`
+option-stacking for genuine add-ons, freight, margin, discount, tax) —
+never a rigid single "method" a tenant is locked into everywhere. The four
+wizard templates (cost-based/price-list/value-based/variant) stay useful
+as starting points for the Setup wizard; Advanced already lets a book mix
+pieces beyond its starting template, which is exactly what PTFE Bearings
+would need.
+
+### 19.3 Fitting it into the application — the concrete plan
+
+1. **Rate-editor formula row (the real build item).** `RateRow` gains a
+   `formula?: string` alternative to `value`/`tiers`; the wizard's rate
+   table renders a "formula" row distinctly (monospace, with the `ctx.*`
+   paths it may reference) alongside flat/tiered rows. No procedure/
+   component/core change — `calc_type: "FORMULA"` already consumes
+   `PriceRule.formula` from whichever rule wins resolution.
+2. **One Price Book per family**, each started from whichever wizard
+   template fits (Price List for rebar/dowel bars/fasteners/bird spikes/
+   safety gear; Advanced, composed from cost-based's cost-rollup piece,
+   for PTFE Bearings' custom-build path). Routing (`config.pricing.routing`)
+   maps `product.category`/`product.family` to the right book, per line,
+   as it already does.
+3. **One consolidated config surface.** The Pricing workcenter's existing
+   Price Book picker becomes the one place every family's dimensions,
+   catalog rows, formulas, freight, margin, discount and tax live —
+   nothing scattered per-object. This is a navigation/grouping change on
+   top of what's already built (§16.2), not new data model.
+4. **The AI layer — reuses what's already spec'd, doesn't invent a new
+   surface:**
+   - "Ask the rates" (query) is Batch 6's existing **Talk to data** plan —
+     a `pricing_documents`/rate-table `LIST_SOURCES` entry, queryable
+     the same way any other business data already is.
+   - "...and change the rate from there" (scoped edit) is Batch 5's
+     existing **`nlCompile`** pattern, just applied to its simplest case
+     first: one rule, restricted to already-registered dimensions, a
+     forced validated shape, back-translated and shown, user confirms,
+     lands as a DRAFT with `origin: AI_PROPOSED_APPROVED` — never a
+     silent write, logged in `pricing_ai_log`. Free-form authoring of
+     *new* dimensions/formulas/procedures from a conversation stays the
+     harder, later half of Batch 5.
+   - "Flag a probable cost increase / uncertainty" is Batch 6's existing
+     **anomaly digest** — it already lists "stale cost rates (unchanged
+     > N days)" as a flagged case. Nothing new to design; it needs Batch 1
+     (stored contexts) live first, same as before.
+5. **Sequencing is unchanged from §17's Execution → Analysis → Strategy
+   order** — this pressure test found the *content* of Batch 2 for a real
+   tenant shape, it did not reorder the batches. Build and validate the
+   rate/formula mechanism (Batch 2) on Big Blue's real product lines
+   first; the AI ask/edit and anomaly-digest pieces (Batches 5/6) have
+   something real to point at only once quotes are actually flowing
+   through it.
