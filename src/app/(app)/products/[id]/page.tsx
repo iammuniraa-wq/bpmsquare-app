@@ -13,6 +13,7 @@ import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import DeleteProductButton from "./DeleteProductButton";
 import ProductAvailabilityCard from "./ProductAvailabilityCard";
 import ProductCostSheetCard from "./ProductCostSheetCard";
+import ProductQtyBreaksCard from "./ProductQtyBreaksCard";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
@@ -104,6 +105,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               initial={(product.cost_sheet as { path: string; qty: number; kind?: string }[] | null | undefined) ?? null}
               initialAsOf={product.cost_price_as_of ?? null}
               costPrice={product.cost_price}
+            />
+          )}
+
+          {tenant?.features?.standard_quotes === true && (
+            <ProductQtyBreaksCard
+              productId={product.id}
+              initial={(product.qty_breaks as { from: number; rate: number | null }[] | null | undefined) ?? null}
+              uom={product.uom}
             />
           )}
 

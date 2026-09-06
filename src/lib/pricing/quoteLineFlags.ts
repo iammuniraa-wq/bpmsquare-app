@@ -84,6 +84,28 @@ export async function insertLinesTolerant(
   return { error: { message: "Could not save lines — too many pending migrations" }, strippedColumns };
 }
 
+/** Run a header insert/update, dropping any column the database does not
+ *  have yet (a pending migration such as 0118's print_options) and
+ *  retrying -- the same tolerance insertLinesTolerant gives line rows.
+ *  `run` receives the (possibly reduced) row and performs the write. */
+export async function writeHeaderTolerant<R extends { error: { code?: string; message: string } | null }>(
+  row: Record<string, unknown>,
+  run: (row: Record<string, unknown>) => Promise<R>
+): Promise<R & { strippedColumns: string[] }> {
+  let current = { ...row };
+  const strippedColumns: string[] = [];
+  let result = await run(current);
+  for (let attempt = 0; attempt < 4 && result.error; attempt++) {
+    const column = missingColumnName(result.error);
+    if (!column || !(column in current)) break;
+    strippedColumns.push(column);
+    const { [column]: _drop, ...rest } = current;
+    current = rest;
+    result = await run(current);
+  }
+  return { ...result, strippedColumns };
+}
+
 export function insertQuoteLinesTolerant(supabase: SupabaseClient, rows: Record<string, unknown>[]) {
   return insertLinesTolerant(supabase, "quote_lines", rows);
 }

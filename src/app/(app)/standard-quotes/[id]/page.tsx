@@ -106,9 +106,15 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
                   // dropped, but it does not count toward the total.
                   const notSelected = l.is_selected === false;
                   const isBreak = !!l.break_of;
+                  const hiddenOnPdf = l.show_on_pdf === false;
                   return (
                   <tr key={l.id} style={{ borderTop: `1px solid ${c.line}`, opacity: notSelected ? 0.55 : 1 }}>
                     <td style={{ padding: "8px 14px", fontSize: 13 }}>
+                      {hiddenOnPdf && (
+                        <span title="The rep hid this line from the PDF; it still counts if it is selected" style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: c.hint, marginRight: 6, border: `1px solid ${c.line}`, borderRadius: 4, padding: "0 4px" }}>
+                          not on PDF
+                        </span>
+                      )}
                       {l.group_type === "alternative" && (
                         <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: notSelected ? c.hint : c.accent, marginRight: 6 }}>
                           {l.group_label || "Option"}{notSelected ? " · not chosen" : ""}

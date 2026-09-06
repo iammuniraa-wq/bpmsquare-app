@@ -109,14 +109,18 @@ export function normalizeSelection<T extends SelectableLine>(lines: T[]): T[] {
   const chosenBreak = chosenBreakRowId(lines);
 
   return lines.map((l) => {
-    if (l.group_type === "alternative" && l.group_id) {
-      return { ...l, is_selected: l.group_id === chosenGroup };
-    }
+    // A line inside an alternative option can carry quantity breaks too
+    // (0118 add-line panel), so both conditions apply: the option must be
+    // chosen AND, within its break family, this must be the chosen row.
+    const groupOk = l.group_type === "alternative" && l.group_id ? l.group_id === chosenGroup : true;
     if (l.break_of) {
-      return { ...l, is_selected: chosenBreak.get(l.break_of) === l.id };
+      return { ...l, is_selected: groupOk && chosenBreak.get(l.break_of) === l.id };
     }
     if (chosenBreak.has(l.id)) {
-      return { ...l, is_selected: chosenBreak.get(l.id) === l.id };
+      return { ...l, is_selected: groupOk && chosenBreak.get(l.id) === l.id };
+    }
+    if (l.group_type === "alternative" && l.group_id) {
+      return { ...l, is_selected: groupOk };
     }
     return l;
   });
