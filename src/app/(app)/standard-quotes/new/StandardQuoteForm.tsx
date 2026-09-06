@@ -227,6 +227,9 @@ export default function StandardQuoteForm({
   const [priceAllSummary, setPriceAllSummary] = useState<{ priced: number; needsRfq: number; failed: number } | null>(null);
   const [overriddenIds, setOverriddenIds] = useState<Set<string>>(new Set());
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  // Editing an existing quote lands on its lines (the details are already
+  // filled in); a new quote starts with the details.
+  const [step, setStep] = useState<"details" | "lines">(editQuote ? "lines" : "details");
   const expand = (id: string) => setExpandedIds((s) => (s.has(id) ? s : new Set(s).add(id)));
   const repriceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   // A pending re-price must not fire into an unmounted form.
@@ -760,9 +763,9 @@ export default function StandardQuoteForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!accountId) { setError("Account is required"); return; }
+    if (!accountId) { setError("Account is required"); setStep("details"); return; }
     const cleanLines = lines.filter((l) => l.description.trim());
-    if (cleanLines.length === 0) { setError("Add at least one line item"); return; }
+    if (cleanLines.length === 0) { setError("Add at least one line item"); setStep("lines"); return; }
     setError("");
     // Which alternative group / which quantity break is chosen is resolved
     // authoritatively server-side (resolveLineIdsAndSelection) from
@@ -818,6 +821,49 @@ export default function StandardQuoteForm({
     });
   }
 
+  // Two pages (owner decision 2026-09-06): everything about the quote on
+  // page 1, the line items alone on page 2 with only the essentials pinned
+  // above them -- so the line editor gets the whole screen.
+  function goToLines() {
+    if (!accountId) { setError("Select an account first"); return; }
+    setError("");
+    setStep("lines");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+  }
+  function stepTab(key: "details" | "lines", n: string, label: string) {
+    const active = step === key;
+    return (
+      <button
+        type="button" onClick={() => (key === "lines" ? goToLines() : setStep("details"))}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600,
+          color: active ? c.accent : c.muted, background: "none", border: "none", borderBottom: `2px solid ${active ? c.accent : "transparent"}`,
+          marginBottom: -1, cursor: "pointer",
+        }}
+      >
+        <span style={{ width: 18, height: 18, borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", justifyContent: "center", background: active ? c.accent : c.panel2, color: active ? "#fff" : c.hint }}>{n}</span>
+        {label}
+      </button>
+    );
+  }
+  const errorBox = error ? (
+    <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "var(--err-ink)" }}>
+      {error}
+    </div>
+  ) : null;
+  const cancelLink = (
+    <Link href={editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes} style={{
+      display: "block", textAlign: "center", padding: "10px 0",
+      borderRadius: 8, border: `1px solid ${c.line}`,
+      color: c.muted, fontSize: 13, textDecoration: "none",
+    }}>
+      Cancel
+    </Link>
+  );
+  const accountName = accounts.find((a) => a.id === accountId)?.name ?? "";
+  const contactName = accountContacts.find((ct) => ct.id === contactId)?.name ?? "";
+  const lineCount = lines.filter((l) => l.description.trim() && !l.break_of).length;
+
   return (
     <>
       <div style={{ marginBottom: 12 }}>
@@ -826,15 +872,20 @@ export default function StandardQuoteForm({
         </Link>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>{editQuote ? `Edit ${editQuote.ref}` : "New Standard Quote"}</h1>
         <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>A plain quote for an account — line items, discount, tax, shipping</p>
       </div>
 
       <form onSubmit={handleSubmit}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: `1px solid ${c.line}` }}>
+          {stepTab("details", "1", "Quote details")}
+          {stepTab("lines", "2", lineCount > 0 ? `Line items (${lineCount})` : "Line items")}
+        </div>
+
+        {step === "details" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
             <section style={cardStyle}>
               <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 16px" }}>Quote for</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
@@ -878,6 +929,68 @@ export default function StandardQuoteForm({
               </div>
             </section>
 
+
+            <section style={cardStyle}>
+              <div style={fw}>
+                <label style={lbl}>Notes</label>
+                <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </div>
+              <div style={fw}>
+                <label style={lbl}>Terms</label>
+                <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms…" />
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                  <label style={{ ...lbl, marginBottom: 0 }}>Intro text (overrides the template&apos;s intro block for this quote)</label>
+                  <button
+                    type="button" disabled={aiIntroDrafting} onClick={draftIntroWithAI}
+                    style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: aiIntroDrafting ? "wait" : "pointer" }}
+                  >
+                    {aiIntroDrafting ? "Writing…" : "✨ Generate with AI"}
+                  </button>
+                </div>
+                <textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={introText} onChange={(e) => setIntroText(e.target.value)} placeholder="A short, personalized cover note for this quote…" />
+              </div>
+            </section>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {errorBox}
+            <button
+              type="button" onClick={goToLines}
+              style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
+            >
+              Next: line items →
+            </button>
+            {cancelLink}
+          </div>
+        </div>
+        )}
+
+        {step === "lines" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ position: "sticky", top: 0, zIndex: 5, display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", padding: "10px 16px", background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountName || "No account"}</div>
+              <div style={{ fontSize: 11.5, color: c.hint }}>
+                {contactName || "No contact"}{validUntil ? ` · valid until ${validUntil}` : ""}
+                <button type="button" onClick={() => setStep("details")} style={{ marginLeft: 8, fontSize: 11.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}>Edit details</button>
+              </div>
+            </div>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18 }}>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 11, color: c.hint }}>Subtotal {inr(totals.subtotal)}{totals.taxAmount > 0 ? ` · tax ${inr(totals.taxAmount)}` : ""}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: c.ink }}>Total {inr(totals.total)}</div>
+              </div>
+              <button
+                type="submit" disabled={pending}
+                style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: pending ? "wait" : "pointer", whiteSpace: "nowrap" }}
+              >
+                {pending ? "Saving…" : editQuote ? "Save changes" : "Create quote"}
+              </button>
+            </div>
+          </div>
+          {errorBox}
             <section style={cardStyle}>
               <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 10px" }}>Draft line items with AI</h3>
               <div style={{ display: "flex", gap: 8 }}>
@@ -899,6 +1012,7 @@ export default function StandardQuoteForm({
                 AI suggests description, UOM, and quantity — rates are left at ₹0 for you to price.
               </p>
             </section>
+
 
             <section style={cardStyle}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
@@ -1005,56 +1119,8 @@ export default function StandardQuoteForm({
                 <div style={{ fontSize: 15, fontWeight: 700, color: c.ink, marginTop: 4 }}>Total: {inr(totals.total)}</div>
               </div>
             </section>
-
-            <section style={cardStyle}>
-              <div style={fw}>
-                <label style={lbl}>Notes</label>
-                <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </div>
-              <div style={fw}>
-                <label style={lbl}>Terms</label>
-                <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms…" />
-              </div>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-                  <label style={{ ...lbl, marginBottom: 0 }}>Intro text (overrides the template&apos;s intro block for this quote)</label>
-                  <button
-                    type="button" disabled={aiIntroDrafting} onClick={draftIntroWithAI}
-                    style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: aiIntroDrafting ? "wait" : "pointer" }}
-                  >
-                    {aiIntroDrafting ? "Writing…" : "✨ Generate with AI"}
-                  </button>
-                </div>
-                <textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={introText} onChange={(e) => setIntroText(e.target.value)} placeholder="A short, personalized cover note for this quote…" />
-              </div>
-            </section>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {error && (
-              <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "var(--err-ink)" }}>
-                {error}
-              </div>
-            )}
-            <button
-              type="submit" disabled={pending}
-              style={{
-                width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-                background: c.accent, color: "#fff", fontWeight: 700, fontSize: 14,
-                cursor: pending ? "wait" : "pointer",
-              }}
-            >
-              {pending ? "Saving…" : editQuote ? "Save Changes" : "Create Standard Quote"}
-            </button>
-            <Link href={editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes} style={{
-              display: "block", textAlign: "center", padding: "10px 0",
-              borderRadius: 8, border: `1px solid ${c.line}`,
-              color: c.muted, fontSize: 13, textDecoration: "none",
-            }}>
-              Cancel
-            </Link>
-          </div>
         </div>
+        )}
       </form>
     </>
   );
