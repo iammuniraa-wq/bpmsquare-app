@@ -34,9 +34,11 @@ export async function GET() {
 
   const { data, error } = await createAdminSupabase().from("tenants").select("config").eq("id", tenantId).single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const cfg = (data?.config ?? {}) as { pricing?: { routing?: PricingRouting } };
+  const cfg = (data?.config ?? {}) as { pricing?: { routing?: PricingRouting; trace_detail?: boolean } };
   const routing: PricingRouting = cfg.pricing?.routing ?? { rules: [], default_area: "default" };
-  return NextResponse.json({ rules: routing.rules ?? [], default_area: routing.default_area ?? "default" });
+  // Undefined reads as ON -- see TenantConfig.pricing.trace_detail's own comment.
+  const trace_detail = cfg.pricing?.trace_detail !== false;
+  return NextResponse.json({ rules: routing.rules ?? [], default_area: routing.default_area ?? "default", trace_detail });
 }
 
 export async function PUT(request: NextRequest) {
@@ -56,9 +58,15 @@ export async function PUT(request: NextRequest) {
   const { data: current, error: readErr } = await admin.from("tenants").select("config").eq("id", tenantId).single();
   if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
 
-  const currentConfig = (current?.config ?? {}) as { pricing?: Record<string, unknown> };
-  const merged = { ...currentConfig, pricing: { ...(currentConfig.pricing ?? {}), routing } };
+  const currentConfig = (current?.config ?? {}) as { pricing?: { trace_detail?: boolean; [k: string]: unknown } };
+  const existingPricing = currentConfig.pricing ?? {};
+  // Only a request that actually names trace_detail changes it -- a plain
+  // routing-rule save (add/delete) must not clobber whatever was set before.
+  const traceDetail = typeof body.trace_detail === "boolean" ? body.trace_detail : existingPricing.trace_detail;
+  const mergedPricing: Record<string, unknown> = { ...existingPricing, routing };
+  if (traceDetail === undefined) delete mergedPricing.trace_detail; else mergedPricing.trace_detail = traceDetail;
+  const merged = { ...currentConfig, pricing: mergedPricing };
   const { error } = await admin.from("tenants").update({ config: merged }).eq("id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, ...routing });
+  return NextResponse.json({ ok: true, ...routing, trace_detail: traceDetail !== false });
 }

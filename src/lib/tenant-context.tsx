@@ -63,6 +63,15 @@ export function useTenantFeature(key: keyof Tenant["features"]): boolean {
   return tenant?.features?.[key] ?? false;
 }
 
+/** Whether the quote-line pricing trace shows the actual rate/formula and
+ *  the values it ran on (TenantConfig.pricing.trace_detail), not just which
+ *  rule matched. Undefined/unset reads as ON -- explainability is the
+ *  trust-building default (see PriceTrace's `detailed` prop). */
+export function useTraceDetail(): boolean {
+  const { tenant } = useContext(TenantContext);
+  return tenant?.config?.pricing?.trace_detail !== false;
+}
+
 /** The active visual theme direction (see TenantConfig.appearance.ui_theme).
  * Shell stamps this as a `data-theme` attribute on the app root, which is
  * what the CSS custom property overrides in globals.css key off. The retired

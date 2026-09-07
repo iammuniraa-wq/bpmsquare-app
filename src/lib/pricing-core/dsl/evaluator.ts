@@ -22,6 +22,11 @@ export type EvalContext = {
   /** Plain-data context: document/line/customer/contract/policy/cost trees. */
   ctx: Record<string, unknown>;
   hooks: EvalHooks;
+  /** Optional tap for explainability (spec §1.3): called with the dotted
+   *  path ("ctx." + path) and resolved scalar every time the formula reads
+   *  a ctx value. Never called for a missing (null) or list-valued path --
+   *  those aren't a "value used in the calculation" worth showing. */
+  record?: (path: string, value: Exclude<Value, null>) => void;
 };
 
 class Budget {
@@ -95,7 +100,11 @@ export function evaluate(node: Node, env: EvalContext): Value {
       case "str": return n.value;
       case "bool": return n.value;
       case "null": return null;
-      case "ctx": return resolvePath(env.ctx, n.path);
+      case "ctx": {
+        const v = resolvePath(env.ctx, n.path);
+        if (env.record && v !== null && !Array.isArray(v)) env.record(`ctx.${n.path.join(".")}`, v);
+        return v;
+      }
 
       case "unary": {
         const v = evalNode(n.operand);

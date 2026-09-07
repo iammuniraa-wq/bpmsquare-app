@@ -209,6 +209,7 @@ type RoutingRuleRow = { attribute: string; value: string; area: string };
 function RoutingTab() {
   const [rules, setRules] = useState<RoutingRuleRow[]>([]);
   const [defaultArea, setDefaultArea] = useState("default");
+  const [traceDetail, setTraceDetail] = useState(true);
   const [attribute, setAttribute] = useState("product.category");
   const [value, setValue] = useState("");
   const [ruleArea, setRuleArea] = useState("");
@@ -222,21 +223,25 @@ function RoutingTab() {
     if (!res.ok) { setError(json.error ?? "Failed to load routing"); return; }
     setRules(json.rules ?? []);
     setDefaultArea(json.default_area ?? "default");
+    setTraceDetail(json.trace_detail !== false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  async function save(nextRules: RoutingRuleRow[], nextDefault: string) {
+  async function save(nextRules: RoutingRuleRow[], nextDefault: string, nextTraceDetail?: boolean) {
     setBusy(true); setError(null); setNotice(null);
     try {
+      const body: Record<string, unknown> = { rules: nextRules, default_area: nextDefault };
+      if (nextTraceDetail !== undefined) body.trace_detail = nextTraceDetail;
       const res = await fetch("/api/settings/pricing-routing", {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rules: nextRules, default_area: nextDefault }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Save failed"); return; }
       setRules(json.rules ?? nextRules);
       setDefaultArea(json.default_area ?? nextDefault);
-      setNotice("Routing saved.");
+      setTraceDetail(json.trace_detail !== false);
+      setNotice("Saved.");
     } finally { setBusy(false); }
   }
 
@@ -272,10 +277,24 @@ function RoutingTab() {
           setValue(""); setRuleArea("");
         }}>+ Add rule</button>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
         <label style={fieldLabel}>Default area (no rule matches)</label>
         <input style={{ ...input, ...mono, width: 180 }} value={defaultArea} onChange={(e) => setDefaultArea(e.target.value)} />
         <button style={btn} disabled={busy} onClick={() => save(rules, defaultArea)}>Save default</button>
+      </div>
+      <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 14 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+          <input
+            type="checkbox" checked={traceDetail} disabled={busy}
+            onChange={(e) => save(rules, defaultArea, e.target.checked)}
+          />
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Detailed trace on quote lines</span>
+        </label>
+        <div style={{ fontSize: 11.5, color: c.hint, marginTop: 4, marginLeft: 24 }}>
+          When on (the default), a rep expanding a priced line sees the actual rate/formula and the values it ran on
+          -- e.g. <span style={mono}>610 × 500 = 3,05,000</span> -- not just which rule matched. Turn off only if that
+          detail is noise for your reps; Test &amp; Trace here in Advanced always shows full detail either way.
+        </div>
       </div>
     </div>
   );

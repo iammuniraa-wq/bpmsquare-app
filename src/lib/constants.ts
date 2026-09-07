@@ -959,6 +959,13 @@ export type PricingConfig = {
     rules?: { attribute: string; value: string; area: string }[];
     default_area?: string;
   };
+  /** Whether the quote-line pricing trace shows the actual rate/formula and
+   *  the values it was evaluated against (e.g. "610 x 500 = 3,05,000"), not
+   *  just which rule matched. Absent/undefined reads as ON -- explainability
+   *  is the trust-building default; a tenant turns it off only if the extra
+   *  detail is noise for their reps. Test & Trace (the admin/config tool)
+   *  always shows full detail regardless of this flag. */
+  trace_detail?: boolean;
 };
 
 export type EmailOutputMode = "partners" | "redirect";

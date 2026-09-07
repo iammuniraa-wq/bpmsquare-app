@@ -26,6 +26,7 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
 });
 import { richTextToDisplayHtml, isRichTextEmpty } from "@/lib/richText";
 import PriceTrace, { type PriceTraceStep } from "@/components/pricing/PriceTrace";
+import { useTraceDetail } from "@/lib/tenant-context";
 
 // Fields the drawer's own inputs already cover — CreateExtraFields renders whatever's
 // left (nameplate fields, tenant custom fields), same exclusion list as /assets/new.
@@ -200,6 +201,7 @@ type Props = {
 
 export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], products = [], textFragments, offerType, tenantEntities, isAdmin, editQuote, pricingEngineQuotesEnabled }: Props) {
   const router = useRouter();
+  const traceDetail = useTraceDetail();
   const eq = editQuote?.quote;
   const isTechnical = offerType === "technical";
   const today        = new Date().toISOString().slice(0, 10);
@@ -938,7 +940,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           ))}
           {info.open && (
             <div style={{ marginTop: 6, padding: 8, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel }}>
-              <PriceTrace steps={info.trace} compact />
+              <PriceTrace steps={info.trace} compact detailed={traceDetail} />
             </div>
           )}
         </div>
