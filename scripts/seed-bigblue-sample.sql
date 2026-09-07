@@ -91,7 +91,7 @@ select t.id, v.ref, v.name, v.type, v.city, v.state, 'Qatar', v.industry, v.empl
 with t as (select id from tenants where slug = 'bigblue')
 insert into contacts (tenant_id, ref, account_id, name, role, department, country)
 select t.id, v.ref, a.id, v.name, v.role, v.department, 'Qatar'
-  from t, (values
+  from t cross join (values
   ('CON-0001', 'ACC-0001', 'Khalid Al-Mansoori', 'Procurement Manager', 'Procurement'),
   ('CON-0002', 'ACC-0001', 'Ravi Menon',         'Quantity Surveyor',   'Commercial'),
   ('CON-0003', 'ACC-0002', 'Fatima Al-Thani',    'Project Director',    'Projects'),
