@@ -5,6 +5,7 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
+import { confirmLeave, setUnsavedGuard } from "@/lib/unsavedChanges";
 
 export type Tab = {
   href: string;   // unique key — one tab per URL
@@ -201,6 +202,17 @@ export function TabsProvider({ children, trackTabs = true }: { children: React.R
   const clearLimitWarning = useCallback(() => setLimitWarning(false), []);
 
   const closeTab = useCallback((href: string) => {
+    // Closing the tab you are on leaves the page: a dirty editor gets to
+    // object first (src/lib/unsavedChanges.tsx). Other tabs close freely.
+    if (href === pathname) {
+      void confirmLeave().then((ok) => { if (ok) { setUnsavedGuard(null); closeTabNow(href); } });
+      return;
+    }
+    closeTabNow(href);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, router]);
+
+  function closeTabNow(href: string) {
     setTabs((prev) => {
       const idx = prev.findIndex((t) => t.href === href);
       if (idx === -1) return prev;
@@ -214,7 +226,7 @@ export function TabsProvider({ children, trackTabs = true }: { children: React.R
       }
       return next;
     });
-  }, [pathname, router]);
+  }
 
   const closeAllTabs = useCallback(() => {
     tabsRef.current = [];
@@ -233,8 +245,9 @@ export function TabsProvider({ children, trackTabs = true }: { children: React.R
   }, []);
 
   const focusTab = useCallback((href: string) => {
-    router.push(href);
-  }, [router]);
+    if (href === pathname) return;
+    void confirmLeave().then((ok) => { if (ok) { setUnsavedGuard(null); router.push(href); } });
+  }, [router, pathname]);
 
   return (
     <Ctx.Provider value={{ tabs, activeHref: pathname, openTab, closeTab, closeAllTabs, focusTab, updateTabTitle, limitWarning, clearLimitWarning }}>

@@ -13,6 +13,7 @@ import type { Opportunity, OpportunityLine } from "@/lib/types";
 import { daysBetween, weightedValue, isClosedStage, outcomeForStage, OPPORTUNITY_SOURCES, OPPORTUNITY_SOURCE_LABEL, TEAM_ROLES, TEAM_ROLE_LABEL, type TeamRole } from "@/lib/sales/opportunity";
 import type { LinkedQuote } from "@/lib/sales/opportunityServer";
 import { documentTotal } from "@/lib/sales/lineTotals";
+import { useUnsavedChangesGuard } from "@/lib/unsavedChanges";
 import DocumentLinesEditor, { newLine, lineAmount, type Line, type StandardQuoteProduct } from "@/components/sales/DocumentLinesEditor";
 
 // The deal page (§4.5): header with the stage, the money and the people;
@@ -77,6 +78,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const [lines, setLines] = useState<Line[]>(initialLines.length > 0 ? toEditorLines(initialLines) : [newLine()]);
   const [savedLinesKey, setSavedLinesKey] = useState(JSON.stringify(lines));
   const linesDirty = JSON.stringify(lines) !== savedLinesKey;
+  useUnsavedChangesGuard(linesDirty, { body: "The deal's lines have unsaved edits. If you leave now they will be lost." });
   const linesTotal = documentTotal(lines.map((l) => ({ id: l.id, amount: lineAmount(l), group_id: l.group_id || null, group_type: l.group_type || null, break_of: l.break_of || null, is_selected: l.is_selected })));
 
   const stageDefNow = stages.find((s) => s.value === opp.stage);

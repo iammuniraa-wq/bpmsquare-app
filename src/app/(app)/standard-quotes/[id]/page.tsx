@@ -17,6 +17,7 @@ import StandardQuoteActionsPanel from "./StandardQuoteActionsPanel";
 import StandardQuoteAttachments from "./StandardQuoteAttachments";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import { selectedLines } from "@/lib/sales/lineTotals";
+import { pricingOnStandardQuotes } from "../formData";
 
 const STATUS_TONE: Record<StandardQuoteStatus, PillarKey> = {
   draft: "blue", sent: "amber", accepted: "green", rejected: "red", expired: "red",
@@ -97,8 +98,14 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
           </section>
 
           <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-            <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${c.line}` }}>
+            <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <h3 style={{ fontSize: 13, margin: 0, fontWeight: 600 }}>Line items</h3>
+              {pricingOnStandardQuotes(tenant) && quote.status === "draft" && (
+                <span style={{ fontSize: 11.5, color: c.muted }}>
+                  Engine pricing, the price trace and supplier RFQs are on the edit screen —{" "}
+                  <Link href={ROUTES.standardQuoteEdit(quote.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>click Edit to price the lines</Link>.
+                </span>
+              )}
             </div>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>

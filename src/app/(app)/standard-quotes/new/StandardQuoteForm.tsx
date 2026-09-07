@@ -10,6 +10,7 @@ import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
 import { documentTotal, type SelectableLine } from "@/lib/sales/lineTotals";
+import { useUnsavedChangesGuard, setUnsavedGuard } from "@/lib/unsavedChanges";
 import StandardQuoteAttachments from "../[id]/StandardQuoteAttachments";
 import DocumentLinesEditor, { newLine, lineAmount, type Line, type PrintOptions, type StandardQuoteProduct } from "@/components/sales/DocumentLinesEditor";
 
@@ -107,6 +108,15 @@ export default function StandardQuoteForm({
     alternatives: editQuote?.print_options?.alternatives === "chosen" ? "chosen" : "all",
     breaks: editQuote?.print_options?.breaks === "chosen" ? "chosen" : "all",
   });
+  // Unsaved-changes guard (owner report 2026-09-07): everything the save
+  // sends, snapshotted once at mount and compared on every render. `saved`
+  // flips right before the post-save navigation so the save itself is
+  // never questioned.
+  const snapshot = JSON.stringify({ accountId, contactId, validUntil, inquiryDate, notes, terms, introText, headerDiscountPct, taxPct, shippingAmount, templateId, printOptions, lines });
+  const [initialSnapshot] = useState(snapshot);
+  const [saved, setSaved] = useState(false);
+  const dirty = !saved && snapshot !== initialSnapshot;
+  useUnsavedChangesGuard(dirty, { body: editQuote ? `${editQuote.ref} has unsaved changes. If you leave now they will be lost.` : "This quote has not been created yet. If you leave now what you typed will be lost." });
   // Editing an existing quote lands on its lines (the details are already
   // filled in); a new quote starts with the details.
   const [step, setStep] = useState<"details" | "lines" | "attachments">(editQuote ? "lines" : "details");
@@ -226,7 +236,7 @@ export default function StandardQuoteForm({
             }),
           });
       const json = await res.json();
-      if (res.ok) router.push(ROUTES.standardQuote(editQuote ? editQuote.id : json.id));
+      if (res.ok) { setSaved(true); setUnsavedGuard(null); router.push(ROUTES.standardQuote(editQuote ? editQuote.id : json.id)); }
       else setError(json.error ?? `Failed to ${editQuote ? "save" : "create"} quote`);
     });
   }
@@ -305,7 +315,14 @@ export default function StandardQuoteForm({
         </>
       )}
 
-      <form onSubmit={handleSubmit}>
+      <form
+        onSubmit={handleSubmit}
+        // Enter inside a line field must not submit the whole quote (an
+        // implicit form submission saved and left the page with no warning).
+        // Textareas keep Enter; inputs with their own Enter handler already
+        // preventDefault before this runs.
+        onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault(); }}
+      >
         {step === "details" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -416,6 +433,7 @@ export default function StandardQuoteForm({
               </div>
             </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18 }}>
+              {dirty && <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--amberink)", whiteSpace: "nowrap" }}>Unsaved changes</span>}
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 11, color: c.hint }}>Subtotal {inr(totals.subtotal)}{totals.taxAmount > 0 ? ` · tax ${inr(totals.taxAmount)}` : ""}</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: c.ink }}>Total {inr(totals.total)}</div>
