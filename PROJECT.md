@@ -508,6 +508,63 @@ deploy for an automatic schema change.
   every seeded product through both books; totals matched lineTotals.ts),
   then removed from dev entirely -- the owner wants Big Blue on production
   only. Needs 0120 for the deals (skipped cleanly if pending).
+- **0122_fence_projects.sql — applied to both DBs** (owner confirmed
+  2026-09-07; written 2026-09-07, Fence Configurator Phase C,
+  `docs/fence-configurator-architecture.md` §7). Three tables, each with
+  RLS + tenant-isolation policy in the same file: `fence_security_profiles`
+  (tenant-authored presets -- NOT a fixed 3-tier enum, owner decision #2),
+  `fence_projects` (`ref` via masterRef, `FNC-####`; `custom_data` from day
+  one), and `fence_gates` (child object family, own real `id` per
+  bpmsquarecore §3). Seed: `scripts/seed-fence-materials-demo.sql` (run
+  AFTER 0122; 3 security profiles + 26 `products` rows tagged
+  `custom_data.fence_kind` for `src/lib/fence/materials.ts`'s resolver,
+  appends `FENCE_PIPES`/`FENCE_FABRIC`/`FENCE_HARDWARE` to the demo
+  tenant's existing `product_categories` rather than replacing it -- that
+  tenant's elevator categories from `seed-products-demo.sql` must survive;
+  flips `features.fence_projects` on for the demo tenant) --
+  **run and verified on the demo tenant 2026-09-07**: 3 security_profiles,
+  26 fence products, flag true, all 8 pre-existing categories preserved
+  plus 3 new ones appended (full verification query confirmed complete).
+  `scripts/seed-fence-materials-bigblue.sql` / `-cleanup.sql` (written
+  2026-09-07, same content retargeted at `slug = 'bigblue'` instead of
+  `is_demo`) exist so the client can see real sample data on their own
+  trial tenant, not just an empty screen -- owner's explicit intent is
+  this is test data to be removed later, hence the cleanup script; unlike
+  `seed-bigblue-sample-cleanup.sql` (which wipes bigblue's whole sandbox)
+  the fence cleanup is surgical, deleting only fence_gates/fence_projects/
+  fence_security_profiles rows, `FNC-%%`-sku products, and the 3 `FENCE_*`
+  category entries -- bigblue's other real data is untouched. **Run and
+  verified on production 2026-09-08** (cleanup script written, deliberately
+  not run yet -- test data stays until the engagement is done).
+  `features.fence_projects` is intentionally ON for both `demo` and
+  `bigblue` (owner decision 2026-09-07: "leave it like that let it be in
+  demo and bigblue tenants"). New `TenantFeatures.fence_projects` flag,
+  default OFF everywhere else (`NewTenantForm.tsx` `DEFAULT_FEATURES`).
+  **CRUD API routes + screens + nav entry shipped 2026-09-08**
+  (`docs/fence-configurator-architecture.md` §14a): `/api/fence-projects`
+  (+`[id]`, +`[id]/quote`), `src/components/fence/FenceConfigurator.tsx`
+  (create/edit, outside the `(app)` Shell for a full-screen feel), a
+  Shell-wrapped list page, a "Fence Projects" nav entry + workcenter key.
+  Deliberately NOT done in this pass, per bpmsquarecore §3b (explicit
+  deferral, not an oversight): custom fields, Data Workbench, v1 API, MCP,
+  Nova timeline/comments, global search, ⌘K action, analytics/reports,
+  change-history filter entry, Drive docs -- walk that list before calling
+  the object fully shipped. **AI-drafted intake + side-by-side profile
+  comparison shipped 2026-09-08** (`docs/fence-configurator-architecture.md`
+  §14b, owner decision -- two of the three original competitive
+  differentiators; the third, Won -> Work Order -> crew -> Invoice/AMC,
+  stays deferred, blocked on platform gaps unrelated to fence). Intake
+  reuses `extractRowsFromDocument` (the Data Workbench/Nova-draft
+  extraction engine already in production) via a new
+  `POST /api/fence-projects/draft` -- gated on `fence_projects` itself, not
+  `next_experience` (a real sold object, not an experimental Nova surface).
+  Untested end-to-end (needs `ANTHROPIC_API_KEY` + a live login, neither
+  available in this environment). Geometry
+  (`src/lib/fence/geometry.ts`) and BOM (`bom.ts`) are pure functions, no
+  DB dependency at all -- only `materials.ts`'s `resolveFenceMaterials`
+  and any future `fence_projects`/`fence_security_profiles` read need the
+  42P01 degrade-cleanly treatment, and only once they're called from a
+  route (nothing calls them yet).
 - **0121_pricing_area_isolation.sql — applied to both DBs** (owner ran it
   2026-09-06; a syntax fix was needed first -- `UPDATE ... FROM LATERAL`
   cannot reference its own update target in Postgres (42P10), rewritten as
