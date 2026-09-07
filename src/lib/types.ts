@@ -500,6 +500,61 @@ export type Opportunity = {
  *  StandardQuoteLine minus the print-only ones. */
 export type OpportunityLine = Omit<StandardQuoteLine, "standard_quote_id"> & { opportunity_id: string };
 
+/** Tenant-authored security preset (0122, Fence Configurator Phase C,
+ *  docs/fence-configurator-architecture.md §7). NOT a fixed 3-tier enum
+ *  (owner decision #2, 2026-09-07) -- every field is renameable/deletable
+ *  in Settings, like opportunity_stages or product_categories. */
+export type FenceSecurityProfile = {
+  id: string;
+  tenant_id: string;
+  label: string;
+  blurb: string | null;
+  post_spacing_m: number;
+  embedment_m: number;
+  pipe_class: string;
+  sort_order: number;
+  custom_data: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One configured fence run (0122). Becomes a Standard Quote once priced
+ *  (Phase D) -- standard_quote_id is set at that point, not before. */
+export type FenceProject = {
+  id: string;
+  tenant_id: string;
+  /** FNC-0001 -- display/reference only. */
+  ref: string | null;
+  account_id: string | null;
+  contact_id: string | null;
+  name: string;
+  layout: "open_run" | "closed_perimeter";
+  total_length_m: number;
+  security_profile_id: string | null;
+  fabric_height_m: number;
+  mesh_spec: string | null;
+  coating: string | null;
+  status: "draft" | "quoted" | "won" | "lost";
+  standard_quote_id: string | null;
+  custom_data: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Child of a fence project (§3 record identity: its own id is what
+ *  Update/Delete key on once created -- fence_project_id only resolves
+ *  the relationship at create time). */
+export type FenceGate = {
+  id: string;
+  tenant_id: string;
+  fence_project_id: string;
+  gate_type: "single_swing" | "double_swing" | "sliding";
+  width_m: number;
+  position_m: number | null;
+  created_at: string;
+};
+
 /** A file stored against a Standard Quote (0119): customer communication,
  *  or a spreadsheet the lines were created from. */
 export type StandardQuoteAttachment = {

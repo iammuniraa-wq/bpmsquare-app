@@ -143,6 +143,9 @@ export const ROUTES = {
   products: "/products",
   productNew: "/products/new",
   product: (id: string) => `/products/${id}`,
+  fenceProjects: "/fence-projects",
+  fenceProjectNew: "/fence-projects/new",
+  fenceProject: (id: string) => `/fence-projects/${id}`,
   inventory: "/inventory",
   inventoryNew: "/inventory/new",
   inventoryItem: (id: string) => `/inventory/${id}`,
@@ -224,6 +227,9 @@ export const NAV: NavGroup[] = [
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
+          // Fence Configurator (0122): a Standard Quotes source, not its own
+          // pillar -- lives beside the object it feeds, docs/fence-configurator-architecture.md.
+          { label: "Fence Projects", href: ROUTES.fenceProjects, icon: "⌗", pillar: "blue", featureKey: "fence_projects", workcenterKey: "fence_projects" },
         ],
       },
     ],
@@ -513,6 +519,13 @@ export type TenantFeatures = {
   // opt-in flag like pricing_engine/coverage_model rather than bundled into
   // the existing `reports` flag -- default OFF, missing key reads false.
   ai_reports: boolean;
+  // Fence Configurator (docs/fence-configurator-architecture.md, Phase C):
+  // parametric takeoff + BOM, priced through the same engine standard_quotes
+  // already uses. Mid-build -- Phase A/B/C only, no CRUD screens or nav yet
+  // (deliberate per bpmsquarecore §10: one piece at a time). Demo tenant only
+  // until the §3b checklist is walked in full; default OFF, missing key
+  // reads false, same shape as pricing_engine.
+  fence_projects: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in

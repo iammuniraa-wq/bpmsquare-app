@@ -1,0 +1,685 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { c, sh } from "@/lib/theme";
+import { ROUTES } from "@/lib/constants";
+import { computeGeometry, type FenceGateInput, type FenceLayout } from "@/lib/fence/geometry";
+import { computeBom, type FenceAccessories, type BomLine } from "@/lib/fence/bom";
+import { buildMaterialRequests, matchMaterials, distinctValues, type FenceCatalogRow } from "@/lib/fence/materialMatch";
+import type { FenceSecurityProfileRow } from "@/lib/fence/data";
+import Fence3DView from "./Fence3DView";
+
+const BOM_LABEL: Record<BomLine["kind"], string> = {
+  tension_band: "Tension bands",
+  brace_band: "Brace bands",
+  rail_end: "Rail ends",
+  carriage_bolt_set: "Carriage bolt sets",
+  truss_rod_set: "Truss rod sets",
+  tension_wire: "Tension wire",
+  tie_wire: "Tie wire",
+  barbed_wire: "Barbed wire",
+};
+
+// Not a fixed 3-tier enum -- every field here is meant to be renamed, tuned
+// or deleted (docs/fence-configurator-architecture.md owner decision #2).
+// Shape mirrors fence_security_profiles; "custom*" ids are local-only
+// profiles added in this session for a quick estimate -- Save is disabled
+// while one of those is active (profiles are a shared, tenant-level
+// preset, not a per-project snapshot: saving stores WHICH profile was
+// picked, not a copy of its numbers, so an ad hoc one has nowhere to go
+// without a Settings screen for authoring real profiles, which doesn't
+// exist yet -- an explicit, documented v1 gap, not silent data loss).
+type Profile = { id: string; label: string; blurb: string; spacing: number; pipe: string; embedment: number };
+
+const FALLBACK_PIPE_CLASSES = ["Commercial pipe", "Schedule 40", "SS20", "SS40"];
+const FALLBACK_PROFILES: Profile[] = [
+  { id: "yard", label: "General yard & storage", blurb: "Fenced boundary, low foot traffic", spacing: 3, pipe: "Schedule 40", embedment: 0.9 },
+];
+
+function toProfile(row: FenceSecurityProfileRow): Profile {
+  return { id: row.id, label: row.label, blurb: row.blurb ?? "", spacing: row.post_spacing_m, pipe: row.pipe_class, embedment: row.embedment_m };
+}
+
+let gateSeq = 0;
+function newGate(type: FenceGateInput["type"] = "double_swing", width_m = 3): FenceGateInput & { id: number } {
+  gateSeq += 1;
+  return { id: gateSeq, type, width_m };
+}
+
+const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export interface FenceProjectSnapshot {
+  id: string;
+  ref: string | null;
+  name: string;
+  status: "draft" | "quoted" | "won" | "lost";
+  standardQuoteId: string | null;
+  accountId: string | null;
+  contactId: string | null;
+  securityProfileId: string | null;
+  layout: FenceLayout;
+  totalLength: number;
+  fabricHeight: number;
+  meshSpec: string | null;
+  coating: string;
+  gates: { type: FenceGateInput["type"]; width_m: number }[];
+  strainingSpacing: number;
+  accessories: FenceAccessories;
+}
+
+/** What AI-drafted intake (§14b) can propose before anything is saved --
+ *  a subset of FenceProjectSnapshot, since a draft has no id/ref/status
+ *  yet. Only fields the extraction actually found are set; everything
+ *  else falls back to the same defaults a blank project would use. */
+export interface FenceDraftValues {
+  name?: string | null;
+  layout?: FenceLayout | null;
+  totalLength?: number | null;
+  securityProfileId?: string | null;
+  gates?: { type: FenceGateInput["type"]; width_m: number }[];
+}
+
+export default function FenceConfigurator({
+  profiles: initialProfiles,
+  catalog,
+  accounts,
+  contacts,
+  project,
+  draft,
+}: {
+  profiles: FenceSecurityProfileRow[];
+  catalog: FenceCatalogRow[];
+  accounts: { id: string; name: string }[];
+  contacts: { id: string; name: string; account_id: string }[];
+  /** Omitted in create mode; a saved snapshot puts the screen in edit mode. */
+  project?: FenceProjectSnapshot;
+  /** Create mode only -- seeds initial values from AI-drafted intake. */
+  draft?: FenceDraftValues;
+}) {
+  const router = useRouter();
+  const isEdit = !!project;
+
+  const [name, setName] = useState(project?.name ?? draft?.name ?? "New fence project");
+  const [accountId, setAccountId] = useState(project?.accountId ?? "");
+  const [contactId, setContactId] = useState(project?.contactId ?? "");
+
+  const [profiles, setProfiles] = useState<Profile[]>(() => (initialProfiles.length > 0 ? initialProfiles.map(toProfile) : FALLBACK_PROFILES));
+  const [activeId, setActiveId] = useState(() => {
+    const wanted = project?.securityProfileId ?? draft?.securityProfileId;
+    if (wanted && profiles.some((p) => p.id === wanted)) return wanted;
+    return profiles[0].id;
+  });
+  const pipeClasses = useMemo(() => {
+    const fromCatalog = distinctValues(catalog, ["line_post", "straining_post", "corner_post", "terminal_post", "gate_post"], "pipe_class");
+    return fromCatalog.length > 0 ? fromCatalog : FALLBACK_PIPE_CLASSES;
+  }, [catalog]);
+  const meshSpecs = useMemo(() => distinctValues(catalog, ["fabric"], "mesh_spec"), [catalog]);
+  const [meshSpec, setMeshSpec] = useState(project?.meshSpec ?? meshSpecs[0] ?? "");
+  const [layout, setLayout] = useState<FenceLayout>(project?.layout ?? draft?.layout ?? "closed_perimeter");
+  const [totalLength, setTotalLength] = useState(project?.totalLength ?? draft?.totalLength ?? 500);
+  const [strainingSpacing] = useState(project?.strainingSpacing ?? 100);
+  const [fabricHeight, setFabricHeight] = useState(project?.fabricHeight ?? 2);
+  const [gates, setGates] = useState<(FenceGateInput & { id: number })[]>(() => {
+    if (project) return project.gates.map((g) => newGate(g.type, g.width_m));
+    if (draft?.gates && draft.gates.length > 0) return draft.gates.map((g) => newGate(g.type, g.width_m));
+    return [newGate("double_swing", 6), newGate("double_swing", 4)];
+  });
+  const [accessories, setAccessories] = useState<FenceAccessories>(
+    project?.accessories ?? { truss_rods: true, tension_wire: true, tie_wire: true, barbed_wire: false }
+  );
+  const [view, setView] = useState<"plan" | "3d">("plan");
+  const [coating] = useState(project?.coating ?? "PVC coated"); // fixed for now -- a real coating picker is a future materials-UI phase
+
+  const [saving, setSaving] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [error, setError] = useState("");
+
+  const active = profiles.find((p) => p.id === activeId) ?? profiles[0];
+  const activeIsRealProfile = initialProfiles.some((p) => p.id === activeId);
+
+  const geometry = useMemo(
+    () =>
+      computeGeometry({
+        layout,
+        total_length_m: totalLength,
+        post_spacing_m: active.spacing,
+        embedment_m: active.embedment,
+        straining_spacing_m: strainingSpacing,
+        gates,
+        fabric_height_m: fabricHeight,
+      }),
+    [layout, totalLength, active.spacing, active.embedment, strainingSpacing, gates, fabricHeight]
+  );
+
+  const bom = useMemo(
+    () => computeBom({ geometry, fabric_height_m: fabricHeight, total_length_m: totalLength, accessories }),
+    [geometry, fabricHeight, totalLength, accessories]
+  );
+
+  // Re-matched against the tenant's own catalog on every change, client-side
+  // -- the catalog itself was fetched once at page load, so this stays a
+  // pure re-computation, same "one frame" feel as geometry/BOM (UX bar
+  // §1b), instead of a round trip per slider drag.
+  const resolved = useMemo(
+    () => matchMaterials(buildMaterialRequests(geometry, bom), catalog, { pipe_class: active.pipe, mesh_spec: meshSpec, coating }),
+    [geometry, bom, catalog, active.pipe, meshSpec, coating]
+  );
+  const unresolvedCount = resolved.filter((r) => !r.product_id).length;
+  const materialsCost = resolved.reduce((sum, r) => sum + (r.list_price ?? 0) * r.qty, 0);
+
+  const [compareOpen, setCompareOpen] = useState(false);
+  // Same layout/length/gates/fabric/mesh/coating/accessories, priced against
+  // EVERY profile's own numbers -- side-by-side, non-destructive comparison
+  // (each profile keeps its own tuned spacing/pipe/embedment in `profiles`
+  // state regardless of which one is active, so switching to compare never
+  // loses another profile's edits -- concept differentiator #2, per
+  // docs/fence-configurator-architecture.md §0).
+  const comparisons = useMemo(
+    () =>
+      profiles.map((p) => {
+        const geo = computeGeometry({
+          layout, total_length_m: totalLength, post_spacing_m: p.spacing, embedment_m: p.embedment,
+          straining_spacing_m: strainingSpacing, gates, fabric_height_m: fabricHeight,
+        });
+        const b = computeBom({ geometry: geo, fabric_height_m: fabricHeight, total_length_m: totalLength, accessories });
+        const res = matchMaterials(buildMaterialRequests(geo, b), catalog, { pipe_class: p.pipe, mesh_spec: meshSpec, coating });
+        return {
+          profile: p,
+          totalPosts: geo.total_posts,
+          cost: res.reduce((sum, r) => sum + (r.list_price ?? 0) * r.qty, 0),
+          unresolvedCount: res.filter((r) => !r.product_id).length,
+        };
+      }),
+    [profiles, layout, totalLength, strainingSpacing, gates, fabricHeight, accessories, catalog, meshSpec, coating]
+  );
+
+  function updateActive(patch: Partial<Profile>) {
+    setProfiles((ps) => ps.map((p) => (p.id === activeId ? { ...p, ...patch } : p)));
+  }
+  function addProfile() {
+    const id = `custom${Date.now()}`;
+    const p: Profile = { id, label: "New profile (estimate only)", blurb: "Not saved -- pick a real profile before saving the project", spacing: active.spacing, pipe: active.pipe, embedment: active.embedment };
+    setProfiles((ps) => [...ps, p]);
+    setActiveId(id);
+  }
+  function updateGate(id: number, patch: Partial<FenceGateInput>) {
+    setGates((gs) => gs.map((g) => (g.id === id ? { ...g, ...patch } : g)));
+  }
+
+  async function handleSave() {
+    if (!name.trim()) { setError("Name is required"); return; }
+    if (!activeIsRealProfile) { setError("Choose one of your tenant's security profiles before saving -- a local estimate profile isn't saved."); return; }
+    setError("");
+    setSaving(true);
+    const body = {
+      name: name.trim(),
+      account_id: accountId || null,
+      contact_id: contactId || null,
+      security_profile_id: activeId,
+      layout,
+      total_length_m: totalLength,
+      fabric_height_m: fabricHeight,
+      mesh_spec: meshSpec || null,
+      coating,
+      custom_data: { straining_spacing_m: strainingSpacing, accessories },
+      gates: gates.map((g) => ({ type: g.type, width_m: g.width_m })),
+    };
+    const res = await fetch(isEdit ? `/api/fence-projects/${project!.id}` : "/api/fence-projects", {
+      method: isEdit ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    setSaving(false);
+    if (!res.ok) { setError(json.error ?? "Could not save the project"); return; }
+    if (isEdit) router.refresh();
+    else router.push(ROUTES.fenceProject(json.id));
+  }
+
+  async function handleConvertToQuote() {
+    if (!project) return;
+    setError("");
+    setConverting(true);
+    const res = await fetch(`/api/fence-projects/${project.id}/quote`, { method: "POST" });
+    const json = await res.json();
+    setConverting(false);
+    if (!res.ok) { setError(json.error ?? "Could not create the quote"); return; }
+    router.push(ROUTES.standardQuote(json.quoteId));
+  }
+
+  return (
+    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: c.panel2, color: c.ink, fontFamily: "inherit" }}>
+      <div style={{ flex: "none", height: 48, display: "flex", alignItems: "center", gap: 14, padding: "0 16px", background: c.panel, borderBottom: `1px solid ${c.line}` }}>
+        <Link href={ROUTES.fenceProjects} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
+          ← Fence projects
+        </Link>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={{ fontWeight: 600, fontSize: 13.5, border: "none", background: "none", color: c.ink, outline: "none", width: 220 }}
+        />
+        {project?.ref && (
+          <span style={{ fontFamily: "monospace", fontSize: 10.5, color: c.muted, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 5, padding: "2px 7px" }}>
+            {project.ref}
+          </span>
+        )}
+        <span style={{ marginLeft: "auto", fontFamily: "monospace", fontSize: 11.5, color: c.muted }}>
+          {totalLength} m · {geometry.total_posts} posts · {gates.length} gate{gates.length === 1 ? "" : "s"}
+        </span>
+        {project?.standardQuoteId ? (
+          <Link
+            href={ROUTES.standardQuote(project.standardQuoteId)}
+            style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, background: c.accentbg, color: c.accent, textDecoration: "none" }}
+          >
+            View quote →
+          </Link>
+        ) : (
+          isEdit && (
+            <button
+              onClick={handleConvertToQuote}
+              disabled={converting}
+              style={{ padding: "6px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600, background: c.accentbg, color: c.accent, opacity: converting ? 0.6 : 1 }}
+            >
+              {converting ? "Converting…" : "Continue to quote"}
+            </button>
+          )
+        )}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{ padding: "6px 16px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600, background: c.accent, color: "#fff", opacity: saving ? 0.6 : 1 }}
+        >
+          {saving ? "Saving…" : isEdit ? "Save" : "Save project"}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ flex: "none", padding: "8px 16px", background: "#fdecea", color: "#c2402f", fontSize: 12.5 }}>{error}</div>
+      )}
+
+      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        <div style={{ flex: 1, position: "relative", background: view === "plan" ? `linear-gradient(${c.line} 1px, transparent 1px) 0 0/24px 24px, linear-gradient(90deg, ${c.line} 1px, transparent 1px) 0 0/24px 24px, ${c.panel2}` : c.panel2 }}>
+          {view === "plan" ? (
+            <PlanView layout={layout} totalLength={totalLength} lineposts={geometry.line_posts} gates={gates} />
+          ) : (
+            <Fence3DView layout={layout} totalLength={totalLength} gates={gates} fabricHeight={fabricHeight} geometry={geometry} coating={coating} />
+          )}
+          <div style={{ position: "absolute", top: 12, right: 12, display: "flex", background: c.panel, border: `1px solid ${c.line}`, borderRadius: 8, boxShadow: sh.card, padding: 3, gap: 3, zIndex: 2 }}>
+            {(["plan", "3d"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                style={{
+                  border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 6, fontSize: 11.5, fontWeight: 600,
+                  background: view === v ? c.accentbg : "none", color: view === v ? c.accent : c.muted,
+                }}
+              >
+                {v === "plan" ? "Plan" : "3D"}
+              </button>
+            ))}
+          </div>
+          <div style={{ position: "absolute", left: 16, bottom: 16, background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, boxShadow: sh.card, padding: "10px 14px", display: "flex", gap: 16 }}>
+            <Stat label={layout === "closed_perimeter" ? "perimeter" : "run"} value={`${totalLength} m`} />
+            <Divider />
+            <Stat label="posts" value={String(geometry.total_posts)} />
+            <Divider />
+            <Stat label="fabric" value={`${Math.round(geometry.fabric_area_m2)} m²`} />
+            <Divider />
+            <Stat label="gates" value={String(gates.length)} />
+          </div>
+        </div>
+
+        <div style={{ width: 340, flex: "none", background: c.panel, borderLeft: `1px solid ${c.line}`, overflowY: "auto", padding: 20 }}>
+          <Section label="Account">
+            <select value={accountId} onChange={(e) => { setAccountId(e.target.value); setContactId(""); }} style={inputStyle}>
+              <option value="">— None yet —</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </Section>
+          {accountId && (
+            <Field label="Contact">
+              <select value={contactId} onChange={(e) => setContactId(e.target.value)} style={inputStyle}>
+                <option value="">— None —</option>
+                {contacts.filter((ct) => ct.account_id === accountId).map((ct) => (
+                  <option key={ct.id} value={ct.id}>{ct.name}</option>
+                ))}
+              </select>
+            </Field>
+          )}
+
+          <Divider block />
+
+          <Section label="What are you protecting?">
+            {profiles.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setActiveId(p.id)}
+                style={{
+                  display: "block", width: "100%", textAlign: "left", cursor: "pointer",
+                  border: `1px solid ${p.id === activeId ? c.accent : c.line}`,
+                  boxShadow: p.id === activeId ? `0 0 0 2px ${c.accentbg}` : "none",
+                  borderRadius: 9, padding: "10px 12px", marginBottom: 8, background: c.panel2,
+                }}
+              >
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{p.label}</div>
+                <div style={{ fontSize: 11, color: c.muted, marginTop: 2 }}>{p.blurb}</div>
+              </button>
+            ))}
+            <button onClick={addProfile} style={ghostButtonStyle}>
+              + Try a custom estimate
+            </button>
+          </Section>
+
+          {profiles.length > 1 && (
+            <div style={{ marginBottom: 16 }}>
+              <button
+                onClick={() => setCompareOpen((v) => !v)}
+                style={{
+                  width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                  border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel2, padding: "8px 12px",
+                  fontSize: 12.5, fontWeight: 600, color: c.ink, cursor: "pointer",
+                }}
+              >
+                Compare against every profile
+                <span style={{ color: c.muted, fontWeight: 400 }}>{compareOpen ? "Hide ▲" : "Show ▼"}</span>
+              </button>
+              {compareOpen && (
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {comparisons.map((cmp) => (
+                    <div
+                      key={cmp.profile.id}
+                      style={{
+                        border: `1px solid ${cmp.profile.id === activeId ? c.accent : c.line}`,
+                        boxShadow: cmp.profile.id === activeId ? `0 0 0 2px ${c.accentbg}` : "none",
+                        borderRadius: 9, padding: "10px 12px", background: c.panel2,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                        <b style={{ fontSize: 12.5 }}>{cmp.profile.label}</b>
+                        <b style={{ fontFamily: "monospace", fontSize: 13.5 }}>{money(cmp.cost)}</b>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", fontSize: 10.5, color: c.muted, marginBottom: 8 }}>
+                        <span>{cmp.profile.spacing} m spacing</span>
+                        <span>{cmp.profile.pipe}</span>
+                        <span>{cmp.profile.embedment} m embedment</span>
+                        <span>{cmp.totalPosts} posts</span>
+                        {cmp.unresolvedCount > 0 && <span style={{ color: c.amber }}>{cmp.unresolvedCount} unpriced</span>}
+                      </div>
+                      <button
+                        onClick={() => setActiveId(cmp.profile.id)}
+                        disabled={cmp.profile.id === activeId}
+                        style={{
+                          width: "100%", border: "none", borderRadius: 6, padding: "6px 0", fontSize: 11.5, fontWeight: 600, cursor: cmp.profile.id === activeId ? "default" : "pointer",
+                          background: cmp.profile.id === activeId ? "none" : c.accentbg, color: cmp.profile.id === activeId ? c.muted : c.accent,
+                        }}
+                      >
+                        {cmp.profile.id === activeId ? "Currently active" : "Use this profile"}
+                      </button>
+                    </div>
+                  ))}
+                  <p style={{ fontSize: 10.5, color: c.muted, margin: "2px 2px 0" }}>
+                    Every profile keeps its own tuned numbers — switching to compare never overwrites another profile's edits.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeIsRealProfile ? (
+            <p style={{ fontSize: 11, color: c.muted, marginTop: -8, marginBottom: 16 }}>
+              Tenant profile — spacing/pipe/embedment below are a live estimate; edit the profile itself in Settings to change it for every project.
+            </p>
+          ) : (
+            <p style={{ fontSize: 11, color: c.amber, marginTop: -8, marginBottom: 16 }}>
+              Estimate-only profile — Save is disabled until you pick a real tenant profile above.
+            </p>
+          )}
+
+          <Divider block />
+
+          <Field label="Layout">
+            <SegPair
+              a={{ label: "Open run", active: layout === "open_run", onClick: () => setLayout("open_run") }}
+              b={{ label: "Closed perimeter", active: layout === "closed_perimeter", onClick: () => setLayout("closed_perimeter") }}
+            />
+          </Field>
+
+          <Field label={`Total length (${totalLength} m)`}>
+            <input type="range" min={80} max={1400} step={10} value={totalLength} onChange={(e) => setTotalLength(+e.target.value)} style={{ width: "100%" }} />
+          </Field>
+
+          <Field label={`Post spacing (${active.spacing} m)`}>
+            <input type="range" min={1.5} max={4} step={0.5} value={active.spacing} onChange={(e) => updateActive({ spacing: +e.target.value })} style={{ width: "100%" }} />
+          </Field>
+
+          <Field label="Pipe class">
+            <select value={active.pipe} onChange={(e) => updateActive({ pipe: e.target.value })} style={inputStyle}>
+              {pipeClasses.map((p) => (
+                <option key={p}>{p}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label={`Fabric height (${fabricHeight} m)`}>
+            <input type="range" min={1} max={3} step={0.1} value={fabricHeight} onChange={(e) => setFabricHeight(+e.target.value)} style={{ width: "100%" }} />
+          </Field>
+
+          {meshSpecs.length > 0 && (
+            <Field label="Fabric mesh">
+              <select value={meshSpec} onChange={(e) => setMeshSpec(e.target.value)} style={inputStyle}>
+                {meshSpecs.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+            </Field>
+          )}
+
+          <Divider block />
+
+          <Section label="Gates">
+            {gates.map((g) => (
+              <div key={g.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: "10px 12px", marginBottom: 8, background: c.panel2 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 600 }}>{g.width_m} m gate</span>
+                  <button onClick={() => setGates((gs) => gs.filter((x) => x.id !== g.id))} style={{ border: "none", background: "none", cursor: "pointer", color: c.muted }}>
+                    ✕
+                  </button>
+                </div>
+                <input type="range" min={1} max={12} step={0.5} value={g.width_m} onChange={(e) => updateGate(g.id, { width_m: +e.target.value })} style={{ width: "100%" }} />
+              </div>
+            ))}
+            <button onClick={() => setGates((gs) => [...gs, newGate()])} style={ghostButtonStyle}>
+              + Add gate
+            </button>
+          </Section>
+
+          <Divider block />
+
+          <Readout label="Line posts" value={geometry.line_posts} />
+          <Readout label="Straining posts" value={geometry.straining_posts} />
+          <Readout label="Corner / terminal" value={geometry.corner_posts + geometry.terminal_posts} />
+          <Readout label="Gate posts" value={geometry.gate_posts} />
+          <Readout label="Embedment depth" value={`${active.embedment} m`} />
+
+          <Divider block />
+
+          <Section label="Accessories">
+            {(
+              [
+                ["truss_rods", "Truss rods", "At every corner & straining post"],
+                ["tension_wire", "Tension wire", "3 rows, stiffens the fabric edge"],
+                ["tie_wire", "Tie wire", "Ties fabric to posts"],
+                ["barbed_wire", "Barbed wire top", "3-strand outward arms"],
+              ] as [keyof FenceAccessories, string, string][]
+            ).map(([key, label, note]) => (
+              <label key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${c.line}`, cursor: "pointer" }}>
+                <span>
+                  <div style={{ fontSize: 13 }}>{label}</div>
+                  <div style={{ fontSize: 11, color: c.muted }}>{note}</div>
+                </span>
+                <input type="checkbox" checked={accessories[key]} onChange={(e) => setAccessories((a) => ({ ...a, [key]: e.target.checked }))} />
+              </label>
+            ))}
+          </Section>
+
+          <Divider block />
+
+          <Section label="Hardware (live BOM)">
+            {bom.map((line) => (
+              <Readout key={line.kind} label={BOM_LABEL[line.kind]} value={`${line.qty} ${line.unit}`} />
+            ))}
+          </Section>
+
+          <Divider block />
+
+          <Section label="Estimated materials cost">
+            {catalog.length === 0 ? (
+              <p style={{ fontSize: 11.5, color: c.muted }}>No materials seeded for this tenant yet.</p>
+            ) : (
+              <>
+                {resolved
+                  .filter((r) => r.product_id)
+                  .map((r, i) => (
+                    <Readout key={`${r.fence_kind}-${i}`} label={r.product_name ?? r.fence_kind} value={money((r.list_price ?? 0) * r.qty)} />
+                  ))}
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 4px", borderTop: `1px solid ${c.line}`, fontSize: 13.5 }}>
+                  <b>Total</b>
+                  <b style={{ fontFamily: "monospace" }}>{money(materialsCost)}</b>
+                </div>
+                {unresolvedCount > 0 && (
+                  <p style={{ fontSize: 11, color: c.amber, marginTop: 8 }}>
+                    {unresolvedCount} line{unresolvedCount === 1 ? "" : "s"} not priced -- no matching product for this pipe class / mesh / coating combination.
+                  </p>
+                )}
+              </>
+            )}
+          </Section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlanView({ layout, totalLength, gates }: { layout: FenceLayout; totalLength: number; lineposts: number; gates: (FenceGateInput & { id: number })[] }) {
+  const scale = Math.max(0.4, Math.min(1, totalLength / 900));
+  const w = 200 + scale * 340;
+  const h = 130 + scale * 220;
+  const x0 = 350 - w / 2;
+  const y0 = 200 - h / 2;
+
+  if (layout === "open_run") {
+    const lx0 = 350 - w / 2;
+    const lx1 = 350 + w / 2;
+    return (
+      <svg viewBox="0 0 700 400" style={{ width: "100%", height: "100%" }}>
+        <line x1={lx0} y1={200} x2={lx1} y2={200} stroke={c.accent} strokeWidth={3} />
+        <circle cx={lx0} cy={200} r={5} fill={c.accent} />
+        <circle cx={lx1} cy={200} r={5} fill={c.accent} />
+        <text x={350} y={182} textAnchor="middle" fontFamily="monospace" fontSize={12} fill={c.ink}>
+          {totalLength} m open run
+        </text>
+      </svg>
+    );
+  }
+
+  const per = (totalLength / 4).toFixed(0);
+  const gateGapWidth = Math.min(w * 0.35, 60);
+  let gx = x0 + 20;
+
+  return (
+    <svg viewBox="0 0 700 400" style={{ width: "100%", height: "100%" }}>
+      <path d={`M${x0},${y0} L${x0 + w},${y0} L${x0 + w},${y0 + h} L${x0},${y0 + h} Z`} stroke={c.accent} strokeWidth={3} fill="none" />
+      {[
+        [x0, y0],
+        [x0 + w, y0],
+        [x0 + w, y0 + h],
+        [x0, y0 + h],
+      ].map(([cx, cy], i) => (
+        <circle key={i} cx={cx} cy={cy} r={5} fill={c.accent} />
+      ))}
+      {gates.map((g) => {
+        const gw = Math.min(gateGapWidth, w * 0.4);
+        const x1 = gx;
+        const x2 = gx + gw;
+        gx += gw + (w - 40 - gw * gates.length) / Math.max(1, gates.length - 0.3);
+        return (
+          <g key={g.id}>
+            <line x1={x1} y1={y0 + h} x2={x2} y2={y0 + h} stroke={c.amber} strokeWidth={3} strokeDasharray="4 4" />
+            <text x={(x1 + x2) / 2} y={y0 + h + 16} textAnchor="middle" fontFamily="monospace" fontSize={10} fill={c.amber}>
+              {g.width_m}m gate
+            </text>
+          </g>
+        );
+      })}
+      <text x={350} y={y0 - 10} textAnchor="middle" fontFamily="monospace" fontSize={12} fill={c.ink}>
+        {per} m per side · {totalLength} m total
+      </text>
+    </svg>
+  );
+}
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={labelStyle}>{label}</label>
+      {children}
+    </div>
+  );
+}
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 15 }}>
+      <label style={labelStyle}>{label}</label>
+      {children}
+    </div>
+  );
+}
+function Readout({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: `1px solid ${c.line}`, fontSize: 12.5 }}>
+      <span style={{ color: c.muted }}>{label}</span>
+      <span style={{ fontFamily: "monospace", fontWeight: 500 }}>{value}</span>
+    </div>
+  );
+}
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <b style={{ fontFamily: "monospace", fontSize: 15, lineHeight: 1.2 }}>{value}</b>
+      <span style={{ fontSize: 10.5, color: c.muted }}>{label}</span>
+    </div>
+  );
+}
+function Divider({ block }: { block?: boolean }) {
+  if (block) return <div style={{ height: 1, background: c.line, margin: "14px 0" }} />;
+  return <div style={{ width: 1, height: 26, background: c.line }} />;
+}
+function SegPair({ a, b }: { a: { label: string; active: boolean; onClick: () => void }; b: { label: string; active: boolean; onClick: () => void } }) {
+  const seg = (s: typeof a, first: boolean) => (
+    <button
+      onClick={s.onClick}
+      style={{
+        flex: 1, border: "none", cursor: "pointer", padding: "7px 6px", fontSize: 12, fontWeight: 500,
+        borderLeft: first ? "none" : `1px solid ${c.line}`,
+        background: s.active ? c.accent : c.panel2,
+        color: s.active ? "#fff" : c.muted,
+      }}
+    >
+      {s.label}
+    </button>
+  );
+  return (
+    <div style={{ display: "flex", border: `1px solid ${c.line}`, borderRadius: 7, overflow: "hidden" }}>
+      {seg(a, true)}
+      {seg(b, false)}
+    </div>
+  );
+}
+
+const labelStyle: React.CSSProperties = { display: "block", fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 };
+const inputStyle: React.CSSProperties = { width: "100%", border: `1px solid ${c.line}`, background: c.panel2, color: c.ink, borderRadius: 7, padding: "7px 9px", fontSize: 13 };
+const ghostButtonStyle: React.CSSProperties = { width: "100%", border: `1px dashed ${c.line}`, background: "none", borderRadius: 8, padding: 8, color: c.accent, fontWeight: 600, fontSize: 12.5, cursor: "pointer" };
