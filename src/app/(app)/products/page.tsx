@@ -1,4 +1,5 @@
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenantCurrency } from "@/lib/tenant";
+import { formatMoney } from "@/lib/currency";
 import Link from "next/link";
 import { requireTenantUser } from "@/lib/supabase-server";
 import type { Product } from "@/lib/types";
@@ -18,9 +19,6 @@ import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
-
-const inr = (n: number | null) =>
-  n == null ? "—" : "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
 const th: React.CSSProperties = {
   textAlign: "left", color: c.hint, fontWeight: 600,
@@ -48,6 +46,8 @@ export default async function ProductsPage({
 }) {
   await requireWorkcenterView("products");
   await requireFeature("products");
+  const cur = await getTenantCurrency();
+  const inr = (n: number | null) => (n == null ? "—" : formatMoney(n, cur, { maximumFractionDigits: 2 }));
   const { supabase, tenantId } = await requireTenantUser();
   const params = await searchParams;
   const { q, af } = params;

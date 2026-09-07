@@ -31,6 +31,12 @@
   ⚠️ The form **pre-ticks all eleven core CRM modules** — for a scoped
   tenant you must untick them one by one. `business_roles` is mandatory
   whenever WFM is on (employee master, Business Users, auto WFM roles).
+- **Currency.** Every amount the tenant sees, prints and emails is formatted
+  from one setting, `config.currency` (`src/lib/currency.ts`; INR when
+  unset). Pick it on the create form; it can be changed later in the
+  tenant's Settings → General → Currency or in /admin/tenants/[id]. It
+  relabels figures, it never converts them -- so settle it before any data
+  is loaded.
 - **Provisioning admin email.** Use a plus-alias of the operator's Gmail:
   `<operator>+<slug>@gmail.com`. This creates a genuinely NEW account with
   its own password (mail still lands in the operator's inbox). Do NOT use
@@ -44,7 +50,7 @@
 ## 1. Create the tenant — `/admin/tenants/new`
 
 Name, slug (short, lowercase, permanent), **custom domain (required** — the
-address users sign in at, e.g. `<slug>.bpmsquare.com`), accent colour, plan,
+address users sign in at, e.g. `<slug>.bpmsquare.com`), accent colour, currency, plan,
 admin alias email + initial password, feature flags per the package table.
 Real client tenants are created ONLY here — never via SQL (SQL-managed
 tenants are a dev-tenant-only convention).

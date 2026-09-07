@@ -1,6 +1,7 @@
 import type { StandardQuote, StandardQuoteLine, Account, Contact, StandardQuoteTemplate, StandardQuoteTemplateBlock } from "@/lib/types";
 import type { CompanyInfo } from "@/lib/tenant";
 import { Mail, Globe, MapPin } from "@/components/Icons";
+import { CURRENCIES, moneyFormatter, moneyLabel, type CurrencyCode } from "@/lib/currency";
 import { defaultStandardQuoteBlocks } from "@/lib/standardQuoteTemplateBlocks";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
 import { documentTotal, selectedLines } from "@/lib/sales/lineTotals";
@@ -14,9 +15,12 @@ export type StandardQuotePrintDocumentProps = {
   companyInfo?: CompanyInfo;
   logoUrl?: string | null;
   template?: StandardQuoteTemplate | null;
+  /** Tenant currency. A prop, not useCurrency(): these render under the bare
+   *  (print) layout with no TenantProvider, where the hook would silently
+   *  fall back to INR. */
+  currency?: CurrencyCode;
 };
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
@@ -65,8 +69,10 @@ function parseSpecs(content: string): { label: string; value: string }[] {
 // StandardQuoteTemplate -- an ordered, toggleable block list (see
 // src/lib/standardQuoteTemplateBlocks.ts) rather than a fixed layout.
 export default function StandardQuotePrintDocument({
-  quote, lines, account, contact, companyInfo = {}, logoUrl, template,
+  quote, lines, account, contact, companyInfo = {}, logoUrl, template, currency = "INR",
 }: StandardQuotePrintDocumentProps) {
+  const cur = CURRENCIES[currency];
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const co = {
     name: companyInfo.name ?? "",
     tagline: companyInfo.tagline ?? "",
@@ -203,8 +209,8 @@ export default function StandardQuotePrintDocument({
                 <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600 }}>Description</th>
                 <th style={{ padding: "7px 12px", textAlign: "center", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>UOM</th>
                 <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Qty</th>
-                <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Rate (₹)</th>
-                <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Amount (₹)</th>
+                <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>{moneyLabel("Rate", cur)}</th>
+                <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>{moneyLabel("Amount", cur)}</th>
               </tr>
             </thead>
             <tbody>
@@ -241,7 +247,7 @@ export default function StandardQuotePrintDocument({
                   </td>
                   <td style={{ padding: "7px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{l.uom ?? ""}</td>
                   <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{l.qty}</td>
-                  <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{l.rate.toLocaleString("en-IN")}</td>
+                  <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{l.rate.toLocaleString(cur.locale)}</td>
                   <td style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(l.amount)}</td>
                 </tr>
                 );

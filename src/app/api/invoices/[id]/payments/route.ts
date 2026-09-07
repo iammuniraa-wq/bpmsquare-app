@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
+import { getTenantCurrency } from "@/lib/tenant";
+import { formatMoney } from "@/lib/currency";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -71,9 +73,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-  const user = await getAuthUser();
+  const [user, cur] = await Promise.all([getAuthUser(), getTenantCurrency()]);
   const changes: { field: string; from: unknown; to: unknown }[] = [
-    { field: "Payment recorded", from: null, to: `₹${amount} on ${body.paid_on || new Date().toISOString().slice(0, 10)}${body.method ? ` via ${body.method}` : ""}` },
+    { field: "Payment recorded", from: null, to: `${formatMoney(amount, cur, {})} on ${body.paid_on || new Date().toISOString().slice(0, 10)}${body.method ? ` via ${body.method}` : ""}` },
   ];
   if (newStatus !== invoice.status) changes.push({ field: "status", from: invoice.status, to: newStatus });
   await logChange(supabase, {

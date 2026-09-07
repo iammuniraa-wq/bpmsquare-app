@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import type { InvoicePayment, InvoiceStatus } from "@/lib/types";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter, moneyLabel } from "@/lib/currency";
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -18,6 +19,8 @@ export default function RecordPaymentPanel({
   balanceDue: number;
   payments: InvoicePayment[];
 }) {
+  const cur = useCurrency();
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -71,7 +74,7 @@ export default function RecordPaymentPanel({
         <form onSubmit={submit}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div style={{ flex: "0 0 120px" }}>
-              <label style={{ display: "block", fontSize: 11, color: c.hint, marginBottom: 4 }}>Amount (₹)</label>
+              <label style={{ display: "block", fontSize: 11, color: c.hint, marginBottom: 4 }}>{moneyLabel("Amount", cur)}</label>
               <input type="number" min="0" max={balanceDue} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
                 placeholder={String(balanceDue)}
                 style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${c.line}`, fontSize: 13, boxSizing: "border-box" }} />

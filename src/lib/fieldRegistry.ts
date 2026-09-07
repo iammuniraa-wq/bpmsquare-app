@@ -264,8 +264,8 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "sub_category", defaultLabel: "Sub-category", widget: "select", defaultSection: "Identity", selectSource: "product_sub_category" },
       { key: "status", defaultLabel: "Status",   widget: "enum", defaultSection: "Identity", enumOptions: PRODUCT_STATUS_OPTIONS },
 
-      { key: "list_price",  defaultLabel: "List price (₹)", widget: "number", defaultSection: "Pricing" },
-      { key: "cost_price",  defaultLabel: "Cost price (₹)", widget: "number", defaultSection: "Pricing" },
+      { key: "list_price",  defaultLabel: "List price", widget: "number", defaultSection: "Pricing" },
+      { key: "cost_price",  defaultLabel: "Cost price", widget: "number", defaultSection: "Pricing" },
       // When the cost price was last confirmed (0113): BPMSquare Pricing's
       // source ladder treats a stale figure as unusable, never as current.
       { key: "cost_price_as_of", defaultLabel: "Cost price as of", widget: "date", defaultSection: "Pricing" },
@@ -293,7 +293,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       ] },
       { key: "competitor", defaultLabel: "Competitor", widget: "text", defaultSection: "Customer" },
       { key: "expected_close", defaultLabel: "Expected close", widget: "date", defaultSection: "Forecast" },
-      { key: "amount",      defaultLabel: "Amount (₹)",    widget: "number", defaultSection: "Forecast", locked: true, editable: false, exportOnly: true },
+      { key: "amount",      defaultLabel: "Amount",        widget: "number", defaultSection: "Forecast", locked: true, editable: false, exportOnly: true },
       { key: "probability", defaultLabel: "Probability %", widget: "number", defaultSection: "Forecast", locked: true, editable: false, exportOnly: true },
       { key: "outcome", defaultLabel: "Outcome", widget: "enum", defaultSection: "Forecast", locked: true, enumOptions: [
         { value: "open", label: "Open" }, { value: "won", label: "Won" }, { value: "lost", label: "Lost" }, { value: "dropped", label: "Dropped" },

@@ -7,6 +7,8 @@ import Donut from "@/components/Donut";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { useIsMobile } from "@/lib/useIsMobile";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 
 type BreakSegment = { start: string; end: string | null; minutes: number };
 type WorkSession = { in: string; out: string | null; gross_minutes: number; break_minutes: number; net_minutes: number; breaks: BreakSegment[] };
@@ -82,7 +84,8 @@ function dayStatus(d: DayRecord) {
  * lays out every column the desktop table has, as label/value pairs. */
 function MonthlyEmployeeCard({ r }: { r: EmployeeSummary }) {
   const [open, setOpen] = useState(false);
-  const rupees = (v: number) => `₹${Math.round(v).toLocaleString("en-IN")}`;
+  const cur = useCurrency();
+  const rupees = (v: number) => formatMoney(Math.round(v), cur, {});
   const items: [string, React.ReactNode][] = [
     ["Site", r.site_name ?? "—"],
     ["Days present", r.totals.days_present],
@@ -157,6 +160,7 @@ function CollapsibleCharts({ children }: { children: React.ReactNode }) {
 // ── Monthly view: one row per employee (the CA-facing roll-up) ─────────────
 
 function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[] }) {
+  const cur = useCurrency();
   const [page, setPage] = useState(1);
   const isMobile = useIsMobile();
   useEffect(() => { setPage((p) => clampPage(p, rows.length, DEFAULT_PAGE_SIZE)); }, [rows.length]);
@@ -205,9 +209,9 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
               <td style={td}>{r.totals.unpaid_leave_days}</td>
               <td style={td}>{r.totals.holiday_days}</td>
               <td style={td}>{r.totals.night_shifts}</td>
-              <td style={td}>{r.totals.night_allowance_total ? `₹${r.totals.night_allowance_total.toLocaleString("en-IN")}` : "—"}</td>
+              <td style={td}>{r.totals.night_allowance_total ? formatMoney(r.totals.night_allowance_total, cur, {}) : "—"}</td>
               <td style={td}>{r.totals.ot_minutes ? fmtHM(r.totals.ot_minutes) : "—"}</td>
-              <td style={td}>{r.totals.ot_amount ? `₹${Math.round(r.totals.ot_amount).toLocaleString("en-IN")}` : "—"}</td>
+              <td style={td}>{r.totals.ot_amount ? formatMoney(Math.round(r.totals.ot_amount), cur, {}) : "—"}</td>
               <td style={{ ...td, color: r.totals.incomplete_days > 0 ? statusInk.bad : undefined }}>{r.totals.incomplete_days || "—"}</td>
             </tr>
           ))}

@@ -1,5 +1,6 @@
 import type { Contact, Quote } from "@/lib/types";
 import { ROUTES } from "@/lib/constants";
+import { formatMoney, type CurrencyDef } from "@/lib/currency";
 
 /**
  * Nodes for Nova's Canvas (Constellation) graph -- the account's real
@@ -23,13 +24,14 @@ export type QuoteCanvasNode = CanvasNode & {
   total: number;
 };
 
-const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const money = (n: number, cur: CurrencyDef) => formatMoney(Math.round(n), cur, {});
 
 const CONTACT_ACCENTS: CanvasNode["accent"][] = ["teal", "purple", "pink", "orange"];
 
 export function buildAccountCanvas(input: {
   contacts: Pick<Contact, "id" | "name" | "role">[];
   quotes: Pick<Quote, "id" | "ref" | "status" | "total" | "outcome">[];
+  cur: CurrencyDef;
 }): { contactNodes: CanvasNode[]; dealNodes: QuoteCanvasNode[] } {
   const contactNodes: CanvasNode[] = input.contacts.slice(0, 4).map((ct, i) => ({
     id: `contact:${ct.id}`,
@@ -46,7 +48,7 @@ export function buildAccountCanvas(input: {
     .map((q) => ({
       id: `quote:${q.id}`,
       label: q.ref,
-      meta: `${q.status} · ${money(q.total ?? 0)}`,
+      meta: `${q.status} · ${money(q.total ?? 0, input.cur)}`,
       href: ROUTES.quotation(q.id),
       accent: "orange" as const,
       ref: q.ref,

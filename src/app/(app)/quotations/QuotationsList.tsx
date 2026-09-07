@@ -12,7 +12,8 @@ import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
 import ColSearch, { applyColFilters } from "@/components/ColSearch";
 import { parseConds, matchesConds, flattenForFilter } from "@/lib/advancedFilter";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
-import { useUserRole, useUiTheme } from "@/lib/tenant-context";
+import { useUserRole, useUiTheme, useCurrency } from "@/lib/tenant-context";
+import { formatMoney, moneyFormatter, type CurrencyDef } from "@/lib/currency";
 import type { EffectiveField } from "@/lib/fieldRegistry";
 import type { QuoteSummary } from "@/lib/data/labels";
 import { sortRows, type SortExtractor } from "@/lib/listSort";
@@ -61,7 +62,6 @@ const LS_SEEN_KEY = "bms_quotes_cols_seen";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 const muted = (v: React.ReactNode): React.ReactNode => <span style={{ color: c.muted }}>{v}</span>;
@@ -84,15 +84,16 @@ const BUSINESS_STATUS_LABEL: Record<string, string> = { pending: "Pending", po_r
 const OUTCOME_COLOR: Record<string, string> = { won: pillar.teal.fg, lost: pillar.red.fg, open: pillar.blue.fg };
 const OUTCOME_LABEL: Record<string, string> = { won: "Won", lost: "Lost", open: "Open" };
 
-function discountDisplay(q: QuoteSummary["quote"]): React.ReactNode {
+function discountDisplay(q: QuoteSummary["quote"], cur: CurrencyDef): React.ReactNode {
   if (q.discount_type === "pct" && q.discount_pct) return `${q.discount_pct}%`;
-  if (q.discount_type === "fixed" && q.discount_fixed) return inr(q.discount_fixed);
+  if (q.discount_type === "fixed" && q.discount_fixed) return formatMoney(q.discount_fixed, cur);
   return muted("—");
 }
 
 /** Standard Quote fields, built per-render since a couple (status) need
  * props (quoteStatuses) that aren't available at module scope. */
-function buildStandardColumns(quoteStatuses: QuoteStatusDef[]): ColDef[] {
+function buildStandardColumns(quoteStatuses: QuoteStatusDef[], cur: CurrencyDef): ColDef[] {
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   return [
     { id: "type",        label: "Type",           defaultOn: true,  group: "standard",
       render: (r) => muted(OFFER_TYPE_LABEL[r.quote.type] ?? r.quote.type), sortValue: (r) => r.quote.type },
@@ -123,7 +124,7 @@ function buildStandardColumns(quoteStatuses: QuoteStatusDef[]): ColDef[] {
     { id: "po_amount",   label: "PO amount",       defaultOn: false, group: "standard", align: "right",
       render: (r) => r.quote.po_amount != null ? inr(r.quote.po_amount) : muted("—"), sortValue: (r) => r.quote.po_amount },
     { id: "discount",    label: "Discount",        defaultOn: false, group: "standard",
-      render: (r) => discountDisplay(r.quote), sortValue: (r) => r.quote.discount_type === "fixed" ? r.quote.discount_fixed : r.quote.discount_pct },
+      render: (r) => discountDisplay(r.quote, cur), sortValue: (r) => r.quote.discount_type === "fixed" ? r.quote.discount_fixed : r.quote.discount_pct },
     { id: "gst_rate",    label: "GST %",           defaultOn: false, group: "standard",
       render: (r) => muted(r.quote.gst_rate != null ? `${r.quote.gst_rate}%` : "—"), sortValue: (r) => r.quote.gst_rate },
     { id: "revision",    label: "Revision",        defaultOn: false, group: "standard", align: "center",
@@ -180,6 +181,8 @@ const td: React.CSSProperties = {
 export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QUOTE_STATUSES, caseLinkedQuoteIds = [] }: { initialRows: QuoteSummary[]; quoteStatuses?: QuoteStatusDef[]; caseLinkedQuoteIds?: string[] }) {
   const router = useRouter();
   const role = useUserRole();
+  const cur = useCurrency();
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const modern = useUiTheme() !== "classic";
   const isAdmin = role === "admin";
 
@@ -259,7 +262,7 @@ export default function QuotationsList({ initialRows, quoteStatuses = DEFAULT_QU
   const [adaptOpen, setAdaptOpen]       = useState(false);
   const [customFields, setCustomFields] = useState<EffectiveField[]>([]);
 
-  const standardColumns = useMemo(() => buildStandardColumns(quoteStatuses), [quoteStatuses]);
+  const standardColumns = useMemo(() => buildStandardColumns(quoteStatuses, cur), [quoteStatuses, cur]);
   const customColumns   = useMemo(() => buildCustomColumns(customFields), [customFields]);
   const columns         = useMemo(() => [...standardColumns, ...customColumns], [standardColumns, customColumns]);
 

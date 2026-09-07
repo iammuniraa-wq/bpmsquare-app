@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenantCurrency } from "@/lib/tenant";
+import { moneyFormatter } from "@/lib/currency";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { listPurchaseOrdersLive, type PurchaseOrderRow } from "@/lib/data/live";
 import { c, type PillarKey } from "@/lib/theme";
@@ -25,7 +26,6 @@ const STATUS_LABEL: Record<PurchaseOrderStatus, string> = {
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 const th: React.CSSProperties = {
   textAlign: "left", color: c.hint, fontWeight: 600,
@@ -49,6 +49,7 @@ export default async function PurchaseOrdersPage({
 }) {
   await requireWorkcenterView("purchase_orders");
   await requireFeature("purchasing");
+  const inr = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
   const params = await searchParams;
   const { status: statusFilter, q, af } = params;
   const colFilters = parseColFilterParams(params);

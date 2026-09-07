@@ -6,6 +6,8 @@ import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import { useFeel } from "@/components/FeelProvider";
 import type { WfmShift } from "@/lib/wfm/types";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney, moneyLabel } from "@/lib/currency";
 
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -45,6 +47,7 @@ const BLANK_FORM = {
 };
 
 export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
+  const cur = useCurrency();
   const { confirm } = useFeel();
   const [shifts, setShifts] = useState<WfmShift[]>([]);
   const [error, setError] = useState("");
@@ -173,7 +176,7 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
             </div>
             {shiftForm.is_night_shift && (
               <div style={{ flex: "0 1 130px" }}>
-                <label style={lbl}>Allowance (₹)</label>
+                <label style={lbl}>{moneyLabel("Allowance", cur)}</label>
                 <input style={inp} value={shiftForm.night_allowance_amount} onChange={(e) => setShiftForm({ ...shiftForm, night_allowance_amount: e.target.value })} />
               </div>
             )}
@@ -217,7 +220,7 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
                 </td>
                 <td style={td}>{s.grace_minutes} min</td>
                 <td style={td}>{s.is_night_shift ? <Pill label="Night" tone="purple" /> : "—"}</td>
-                <td style={td}>{s.is_night_shift ? `₹${s.night_allowance_amount}/shift` : "—"}</td>
+                <td style={td}>{s.is_night_shift ? `${formatMoney(s.night_allowance_amount, cur, {})}/shift` : "—"}</td>
                 <td style={td}><Pill label={s.active ? "Active" : "Inactive"} tone={s.active ? "green" : "red"} /></td>
                 {canEdit && (
                   <td style={{ ...td, whiteSpace: "nowrap" }}>

@@ -2,6 +2,7 @@
 // IA follows the customer journey (pillars), per PROJECT.md §4.
 
 import type { PillarKey } from "./theme";
+import type { CurrencyCode } from "./currency";
 
 // The single shared app URL — every tenant without a `custom_domain` is reached here.
 // Hostnames other than this (and localhost, for dev) are resolved to a tenant via
@@ -944,6 +945,10 @@ export type TenantConfig = {
   // redirect mode regardless of this value -- see src/lib/emailOutput.ts --
   // so no test document can ever reach a real customer. Absent = partners.
   email_output?: EmailOutputConfig;
+  // Currency every money figure is shown, printed and emailed in
+  // (src/lib/currency.ts). Absent = INR, exactly what every tenant saw before
+  // the setting existed. Set in Settings → General → Currency (admin).
+  currency?: CurrencyCode;
   // BPMSquare Pricing (docs/pricing-engine-architecture.md §17). Absent keys
   // read as the defaults in src/lib/pricing/documents.ts.
   pricing?: PricingConfig;

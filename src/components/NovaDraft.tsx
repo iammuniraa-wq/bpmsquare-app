@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import { XIcon, CheckIcon } from "@/components/Icons";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 
 // Theme-aware error ink (the raw #ff8a76 failed contrast on the light panel),
 // and the real Nova CTA gradient token -- not a locally hand-picked one, so a
@@ -55,7 +57,7 @@ const MODE_META: Record<DraftMode, { label: string; sub: string; placeholder: st
   products: {
     label: "New product from paste",
     sub: "Paste a spec sheet or catalog line — Nova drafts the product",
-    placeholder: "e.g.\n\n45kW 3-phase induction motor, IE3 efficiency, foot-mounted. SKU MTR-45-IE3. List price ₹1,85,000.",
+    placeholder: "e.g.\n\n45kW 3-phase induction motor, IE3 efficiency, foot-mounted. SKU MTR-45-IE3. List price {money}.",
   },
 };
 
@@ -68,6 +70,7 @@ const CREATE_LABEL: Record<DraftMode, string> = {
 
 export default function NovaDraft() {
   const router = useRouter();
+  const cur = useCurrency();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<DraftMode>("accounts");
   const [phase, setPhase] = useState<Phase>("input");
@@ -437,7 +440,7 @@ export default function NovaDraft() {
                 onChange={(e) => setText(e.target.value)}
                 disabled={phase === "drafting"}
                 rows={9}
-                placeholder={meta.placeholder}
+                placeholder={meta.placeholder.replace("{money}", formatMoney(185_000, cur, {}))}
                 style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
               />
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

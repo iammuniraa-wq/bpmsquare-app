@@ -7,6 +7,8 @@ import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { useFeel } from "@/components/FeelProvider";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 
 type Line = { description: string; rate: number; source: string; minutes: number; hours: number; amount: number; cost: number; people: number };
 type Billed = { id: string; project_name: string; invoice_id: string; invoice_ref: string; invoice_status: string; period_from: string; period_to: string; minutes: number; amount: number };
@@ -22,10 +24,6 @@ type Preview = {
 };
 
 const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
-// Whole rupees print whole; anything with paise prints both digits, never
-// a lone ".8".
-const money = (n: number) =>
-  "₹" + n.toLocaleString("en-IN", Number.isInteger(n) ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -67,6 +65,11 @@ export default function ProjectBilling({
 }) {
   const router = useRouter();
   const { confirm } = useFeel();
+  const cur = useCurrency();
+  // Whole units print whole; anything with minor units prints both digits,
+  // never a lone ".8".
+  const money = (n: number) =>
+    formatMoney(n, cur, Number.isInteger(n) ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const [open, setOpen] = useState(false);
   const [{ from, to }, setPeriod] = useState(() => monthRange(-1));
   const [granularity, setGranularity] = useState<"project" | "sub_project">("project");

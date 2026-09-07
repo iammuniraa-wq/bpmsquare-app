@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase, getAuthUser, resolveHostTenant } from "./supabase-server";
 import type { TenantConfig, TenantFeatures } from "./constants";
+import { resolveCurrency, type CurrencyDef } from "./currency";
 
 export { isPlatformAdmin } from "./supabase-server";
 
@@ -118,6 +119,13 @@ export async function requireFeature(key: keyof TenantFeatures): Promise<void> {
  * can never disagree with the tenant scope the rest of the route already
  * uses.
  */
+/** The current request's tenant currency, for server components and
+ *  routes (client components use useCurrency()). INR when there is no
+ *  tenant or no setting. */
+export async function getTenantCurrency(): Promise<CurrencyDef> {
+  return resolveCurrency((await getTenant())?.config);
+}
+
 export async function tenantHasFeature(
   supabase: SupabaseClient,
   tenantId: string,

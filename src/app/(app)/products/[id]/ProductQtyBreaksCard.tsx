@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { c } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter } from "@/lib/currency";
 import { cardStyle } from "@/components/Shell";
 
 // Quantity breaks (0118, owner decision 2026-09-06): the product's own
@@ -14,13 +16,14 @@ type Row = { from: string; rate: string };
 
 const inp: React.CSSProperties = { padding: "6px 8px", fontSize: 12.5, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel2, color: c.ink, boxSizing: "border-box", width: "100%" };
 const link: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 };
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
 export default function ProductQtyBreaksCard({ productId, initial, uom }: {
   productId: string;
   initial: { from: number; rate: number | null }[] | null;
   uom: string | null;
 }) {
+  const cur = useCurrency();
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 2 });
   const toRows = (b: { from: number; rate: number | null }[] | null) => (b ?? []).map((x) => ({ from: String(x.from), rate: x.rate != null ? String(x.rate) : "" }));
   const [rows, setRows] = useState<Row[]>(toRows(initial));
   const [saved, setSaved] = useState<Row[]>(toRows(initial));
@@ -69,7 +72,7 @@ export default function ProductQtyBreaksCard({ productId, initial, uom }: {
       ) : (
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 20px", gap: 6, fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4 }}>
-            <span>From qty</span><span>Rate (₹, optional)</span><span />
+            <span>From qty</span><span>Rate ({cur.symbol}, optional)</span><span />
           </div>
           {rows.map((r, i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 20px", gap: 6, alignItems: "center" }}>

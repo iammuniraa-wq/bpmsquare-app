@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { c, pillar } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
 
 type Rfq = {
   id: string; ref: string | null; status: "draft" | "sent" | "replied" | "cancelled";
@@ -26,6 +27,7 @@ function StatusChip({ status }: { status: Rfq["status"] }) {
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "—");
 
 export default function RfqsClient() {
+  const cur = useCurrency();
   const [rfqs, setRfqs] = useState<Rfq[] | null>(null);
   const [pending, setPending] = useState(false);
   const [filter, setFilter] = useState<"open" | "all">("open");
@@ -115,7 +117,7 @@ export default function RfqsClient() {
             {replyFor === r.id && (
               <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
                 <label style={{ fontSize: 11, color: c.hint }}>Unit price<input type="number" style={{ ...input, width: "100%" }} value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} /></label>
-                <label style={{ fontSize: 11, color: c.hint }}>Currency<input style={{ ...input, width: "100%" }} placeholder="INR" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} /></label>
+                <label style={{ fontSize: 11, color: c.hint }}>Currency<input style={{ ...input, width: "100%" }} placeholder={cur.code} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} /></label>
                 <label style={{ fontSize: 11, color: c.hint }}>Valid from<input type="date" style={{ ...input, width: "100%" }} value={form.valid_from} onChange={(e) => setForm({ ...form, valid_from: e.target.value })} /></label>
                 <label style={{ fontSize: 11, color: c.hint }}>Valid to<input type="date" style={{ ...input, width: "100%" }} value={form.valid_to} onChange={(e) => setForm({ ...form, valid_to: e.target.value })} /></label>
                 <label style={{ fontSize: 11, color: c.hint, gridColumn: "1 / -1" }}>Note<input style={{ ...input, width: "100%" }} placeholder="Lead time, MOQ, anything the buyer should know" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></label>

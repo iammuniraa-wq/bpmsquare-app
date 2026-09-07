@@ -17,10 +17,8 @@ import ProductQtyBreaksCard from "./ProductQtyBreaksCard";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
-import { getTenant } from "@/lib/tenant";
-
-const inr = (n: number | null) =>
-  n == null ? "—" : "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+import { getTenant, getTenantCurrency } from "@/lib/tenant";
+import { formatMoney } from "@/lib/currency";
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -36,6 +34,8 @@ function CtxRow({ label, value }: { label: string; value: string }) {
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { supabase, tenantId, role } = await requireTenantUser();
+  const cur = await getTenantCurrency();
+  const inr = (n: number | null) => (n == null ? "—" : formatMoney(n, cur, { maximumFractionDigits: 2 }));
   const { id } = await params;
 
   const { data } = await supabase

@@ -4,6 +4,7 @@ import { tenantHasFeature, getTenant } from "@/lib/tenant";
 import { getNovaStreamItems } from "@/lib/nova/stream";
 import { getNovaFlows } from "@/lib/nova/flows";
 import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef, type TenantFeatures } from "@/lib/constants";
+import { resolveCurrency } from "@/lib/currency";
 
 /**
  * GET /api/nova/nav -- the data behind Nova's left rail (Needs You Now +
@@ -27,10 +28,11 @@ export async function GET() {
   const tenant = await getTenant();
   const features = (tenant?.features ?? {}) as TenantFeatures;
   const quoteStatuses: QuoteStatusDef[] = tenant?.config?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
+  const cur = resolveCurrency(tenant?.config);
 
   const [items, flows] = await Promise.all([
-    getNovaStreamItems(tenantId),
-    getNovaFlows(tenantId, features, quoteStatuses),
+    getNovaStreamItems(tenantId, cur),
+    getNovaFlows(tenantId, features, quoteStatuses, cur),
   ]);
 
   return NextResponse.json({ items, flows });

@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
+import { useIsNextgen3Layer, useTenantFeature, useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 import FlowBoard from "@/components/FlowBoard";
 import QuoteLanes from "@/components/QuoteLanes";
 import QuoteField from "@/components/QuoteField";
@@ -124,6 +125,7 @@ export default function FlowBoardSlot({
 }) {
   const nova = useIsNextgen3Layer();
   const aiReportsEnabled = useTenantFeature("ai_reports");
+  const cur = useCurrency();
   const [ask, setAsk] = useState<AskState | null>(null);
   const askAI = async (question: string) => {
     const q = question.trim();
@@ -165,14 +167,14 @@ export default function FlowBoardSlot({
   // re-derived from text again."
   const [tokens, setTokens] = useState<QuoteToken[]>(() => {
     const q = searchParams.get("q");
-    return q ? parseQuoteQuery(q).tokens : [];
+    return q ? parseQuoteQuery(q, cur).tokens : [];
   });
   const [leftover, setLeftover] = useState<string>(() => {
     const q = searchParams.get("q");
-    return q ? parseQuoteQuery(q).leftover : "";
+    return q ? parseQuoteQuery(q, cur).leftover : "";
   });
   const commitQuery = (text: string) => {
-    const parsed = parseQuoteQuery(text);
+    const parsed = parseQuoteQuery(text, cur);
     setTokens((prev) => [...prev.filter((p) => !parsed.tokens.some((n) => n.kind === p.kind)), ...parsed.tokens]);
     setLeftover(parsed.leftover);
   };
@@ -224,7 +226,7 @@ export default function FlowBoardSlot({
         onRemoveToken={removeToken}
         right={switcher}
         noun="quotes"
-        placeholder="Ask for what you want — e.g. drafts over ₹75,000 that haven't moved in a fortnight"
+        placeholder={`Ask for what you want — e.g. drafts over ${formatMoney(75_000, cur)} that haven't moved in a fortnight`}
         onAskAI={aiReportsEnabled ? askAI : undefined}
         aiBusy={ask?.status === "loading"}
       />

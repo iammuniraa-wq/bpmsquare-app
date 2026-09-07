@@ -2,6 +2,7 @@
 import { notFound } from "next/navigation";
 import { getWorkOrder, CASE_STATUS_LABEL } from "@/lib/data";
 import { getUserRole, getTenant } from "@/lib/tenant";
+import { formatMoney, resolveCurrency } from "@/lib/currency";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { getTechnicianAttendanceForDate, dateKeyInTz } from "@/lib/wfm/server";
 import { c, pillar, type PillarKey } from "@/lib/theme";
@@ -54,6 +55,7 @@ export default async function WorkOrderDetailPage({
   const { id } = await params;
   const [data, role, tenant] = await Promise.all([getWorkOrder(id), getUserRole(), getTenant()]);
   if (!data) notFound();
+  const cur = resolveCurrency(tenant?.config);
 
   const { workOrder: wo, account, asset, technician, serviceCase, quote, contract, loanerAsset } = data;
 
@@ -219,7 +221,7 @@ export default async function WorkOrderDetailPage({
                     <>
                       <Detail
                         label="Quoted labour"
-                        value={`${quotedLabour.qty}${quotedLabour.uom ? " " + quotedLabour.uom : ""} (₹${quotedLabour.value.toLocaleString("en-IN")})`}
+                        value={`${quotedLabour.qty}${quotedLabour.uom ? " " + quotedLabour.uom : ""} (${formatMoney(quotedLabour.value, cur, {})})`}
                       />
                       {laborUomIsHours && (
                         <Detail
@@ -249,14 +251,14 @@ export default async function WorkOrderDetailPage({
                 <Detail label="Quote" value={
                   <Link href={ROUTES.quotation(quote.id)} style={{ color: c.accent, fontFamily: "monospace", textDecoration: "none" }}>{quote.ref}</Link>
                 } />
-                <Detail label="Value" value={`₹${quote.total.toLocaleString("en-IN")}`} />
+                <Detail label="Value" value={formatMoney(quote.total, cur, {})} />
               </>
             )}
             {contract && (
               <>
                 <Detail label="Type" value={<Pill label="AMC" tone="teal" />} />
                 <Detail label="Contract" value={<span style={{ fontFamily: "monospace", fontSize: 12 }}>{contract.ref}</span>} />
-                {contract.value && <Detail label="AMC value" value={`₹${contract.value.toLocaleString("en-IN")}`} />}
+                {contract.value && <Detail label="AMC value" value={formatMoney(contract.value, cur, {})} />}
               </>
             )}
           </section>

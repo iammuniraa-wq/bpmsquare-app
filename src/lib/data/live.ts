@@ -22,6 +22,7 @@ import type {
 import { sortBySlNo } from "@/lib/lineOrder";
 import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
+import { formatMoney, resolveCurrency, type CurrencyDef } from "@/lib/currency";
 
 /**
  * Every read helper below scopes to this tenant explicitly (service-role client
@@ -2121,7 +2122,7 @@ type SearchSpec = {
   columns: string;
   textCols: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  toResult: (row: any) => Omit<SearchResult, "type">;
+  toResult: (row: any, cur: CurrencyDef) => Omit<SearchResult, "type">;
   /** Mirrors SearchObjectDef.featureKeys (lib/globalSearch.ts) -- when set,
    * this object's table isn't queried at all for a tenant without at least
    * one of these features enabled, not just hidden from the UI. */
@@ -2147,7 +2148,7 @@ const SEARCH_SPECS: SearchSpec[] = [
   {
     type: "quote", table: "quotes", columns: "id, ref, ref_no, po_number, name, total",
     textCols: ["ref", "ref_no", "po_number", "name"],
-    toResult: (r) => ({ id: r.id, title: r.ref, subtitle: r.name || (r.po_number ? `PO ${r.po_number}` : `₹${r.total ?? 0}`), href: ROUTES.quotation(r.id), matched: "ref" }),
+    toResult: (r, cur) => ({ id: r.id, title: r.ref, subtitle: r.name || (r.po_number ? `PO ${r.po_number}` : formatMoney(Number(r.total ?? 0), cur)), href: ROUTES.quotation(r.id), matched: "ref" }),
   },
   {
     type: "work_order", table: "work_orders", columns: "id, ref, description, status",
@@ -2157,13 +2158,13 @@ const SEARCH_SPECS: SearchSpec[] = [
   {
     type: "invoice", table: "invoices", columns: "id, ref, status, total",
     textCols: ["ref"],
-    toResult: (r) => ({ id: r.id, title: r.ref, subtitle: `₹${r.total ?? 0} · ${r.status}`, href: ROUTES.invoice(r.id), matched: "ref" }),
+    toResult: (r, cur) => ({ id: r.id, title: r.ref, subtitle: `${formatMoney(Number(r.total ?? 0), cur)} · ${r.status}`, href: ROUTES.invoice(r.id), matched: "ref" }),
     featureKeys: ["invoices"],
   },
   {
     type: "purchase_order", table: "purchase_orders", columns: "id, ref, status, total",
     textCols: ["ref"],
-    toResult: (r) => ({ id: r.id, title: r.ref, subtitle: `₹${r.total ?? 0} · ${r.status}`, href: ROUTES.purchaseOrder(r.id), matched: "ref" }),
+    toResult: (r, cur) => ({ id: r.id, title: r.ref, subtitle: `${formatMoney(Number(r.total ?? 0), cur)} · ${r.status}`, href: ROUTES.purchaseOrder(r.id), matched: "ref" }),
     featureKeys: ["purchasing"],
   },
   {
@@ -2270,8 +2271,9 @@ export async function globalSearchLive(
   if (term.length < 2) return [];
 
   const supabase = createAdminSupabase();
-  const { data: tenantRow } = await supabase.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  const { data: tenantRow } = await supabase.from("tenants").select("features, config").eq("id", tenantId).maybeSingle();
   const features = (tenantRow?.features ?? {}) as Record<string, boolean>;
+  const cur = resolveCurrency(tenantRow?.config as TenantConfig | null | undefined);
 
   const allowedTypes = access?.types ?? "all";
   const typeAllowed = (t: SearchObjectType) => allowedTypes === "all" || allowedTypes.includes(t);
@@ -2292,7 +2294,7 @@ export async function globalSearchLive(
         .eq("tenant_id", tenantId)
         .or(orFilter)
         .limit(perTypeLimit);
-      return (data ?? []).map((r) => ({ type: spec.type, ...spec.toResult(r), created_at: (r as { created_at?: string }).created_at ?? null }));
+      return (data ?? []).map((r) => ({ type: spec.type, ...spec.toResult(r, cur), created_at: (r as { created_at?: string }).created_at ?? null }));
     })
   );
   const results = byType.flat();

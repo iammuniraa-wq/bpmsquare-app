@@ -7,6 +7,7 @@
 // resolves products and writes.
 
 import type { ParsedSheet } from "@/lib/import/types";
+import { parseMoney } from "@/lib/currency";
 
 export type SheetLine = {
   row: number;
@@ -47,8 +48,8 @@ export function mapSheetColumns(headers: string[]): Record<keyof Omit<SheetLine,
 
 const num = (s: string | undefined, fallback: number) => {
   if (s === undefined) return fallback;
-  const n = parseFloat(String(s).replace(/[₹,\s]/g, ""));
-  return Number.isFinite(n) ? n : fallback;
+  const n = parseMoney(String(s));
+  return n ?? fallback;
 };
 
 export type SheetReadResult =

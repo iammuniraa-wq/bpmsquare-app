@@ -36,6 +36,8 @@
  * these isn't matched either; that's a real gap, not an oversight.
  */
 
+import { CURRENCIES, formatMoneyCompact, type CurrencyDef } from "@/lib/currency";
+
 export type QuoteToken =
   | { kind: "status"; value: "draft" | "sent"; label: string }
   | { kind: "outcome"; value: "won"; label: string }
@@ -67,12 +69,17 @@ function parseAmount(phrase: string): number | null {
   return num;
 }
 
-const money = (n: number) =>
-  n >= 10_000_000 ? `₹${(n / 10_000_000).toFixed(n % 10_000_000 ? 1 : 0)}Cr`
-  : n >= 100_000 ? `₹${(n / 100_000).toFixed(n % 100_000 ? 1 : 0)}L`
-  : "₹" + n.toLocaleString("en-IN");
+// Token labels drop the decimal when the amount is a round unit ("₹1L",
+// not "₹1.0L"); parsing above still accepts k/L/Cr shorthand whatever the
+// tenant currency, since people type it regardless.
+const money = (n: number, cur: CurrencyDef) => {
+  const unit = cur.grouping === "indian"
+    ? (n >= 10_000_000 ? 10_000_000 : n >= 100_000 ? 100_000 : 0)
+    : (n >= 1_000_000 ? 1_000_000 : n >= 1_000 ? 1_000 : 0);
+  return formatMoneyCompact(n, cur, unit && n % unit ? 1 : 0);
+};
 
-export function parseQuoteQuery(raw: string): QuoteQueryResult {
+export function parseQuoteQuery(raw: string, cur: CurrencyDef = CURRENCIES.INR): QuoteQueryResult {
   let text = raw;
   const tokens: QuoteToken[] = [];
 
@@ -85,11 +92,11 @@ export function parseQuoteQuery(raw: string): QuoteQueryResult {
 
   cut(new RegExp(`\\b(?:over|above|more than|at least)\\s*${AMOUNT}`, "i"), (m) => {
     const v = parseAmount(m[0]);
-    if (v != null) tokens.push({ kind: "value_min", value: v, label: `Value ≥ ${money(v)}` });
+    if (v != null) tokens.push({ kind: "value_min", value: v, label: `Value ≥ ${money(v, cur)}` });
   });
   cut(new RegExp(`\\b(?:under|below|less than|at most)\\s*${AMOUNT}`, "i"), (m) => {
     const v = parseAmount(m[0]);
-    if (v != null) tokens.push({ kind: "value_max", value: v, label: `Value ≤ ${money(v)}` });
+    if (v != null) tokens.push({ kind: "value_max", value: v, label: `Value ≤ ${money(v, cur)}` });
   });
   cut(/\b(?:no activity|no movement|haven'?t moved|not moved|idle|stale)\D{0,20}?(\d+)\s*(day|days|week|weeks)\b/i, (m) => {
     const n = parseInt(m[1], 10) * (/week/i.test(m[2]) ? 7 : 1);

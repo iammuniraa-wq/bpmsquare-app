@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { resolvePermissions, canViewWorkcenter } from "@/lib/permissions";
-import { tenantHasFeature } from "@/lib/tenant";
+import { tenantHasFeature, getTenantCurrency } from "@/lib/tenant";
+import type { CurrencyDef } from "@/lib/currency";
 import { LIST_SOURCES } from "@/lib/api/listSources";
 import { compileAndRun, type ReportResult, type CompileOutcome } from "@/lib/ai/reportCompile";
 import { normalizeReport } from "@/lib/reportView";
@@ -76,11 +77,11 @@ function routeTool(catalog: { key: string; description: string; fields: string[]
 // One line of ALREADY-COMPUTED fact per report -- the same numbers the
 // chart itself renders, reduced to text. This is what the summary call
 // below is allowed to talk about; it never sees a raw row.
-function digestReport(r: ReportResult): string {
+function digestReport(r: ReportResult, cur: CurrencyDef): string {
   const n = normalizeReport(r);
-  if (n.chartType === "stat") return `${n.title}: ${n.statValue?.toLocaleString("en-IN")}`;
+  if (n.chartType === "stat") return `${n.title}: ${n.statValue?.toLocaleString(cur.locale)}`;
   if ((n.chartType === "bar" || n.chartType === "line") && n.series?.length) {
-    const top = n.series.slice(0, 6).map((s) => `${s.key}=${s.value.toLocaleString("en-IN")}`).join(", ");
+    const top = n.series.slice(0, 6).map((s) => `${s.key}=${s.value.toLocaleString(cur.locale)}`).join(", ");
     return `${n.title}: ${top}${n.series.length > 6 ? ` (+${n.series.length - 6} more)` : ""}`;
   }
   return `${n.title}: ${n.tableRows?.length ?? 0} record(s)${n.tableTotal && n.tableTotal > (n.tableRows?.length ?? 0) ? ` of ${n.tableTotal} total` : ""}`;
@@ -91,9 +92,9 @@ function digestReport(r: ReportResult): string {
 // data to invent from, only text already derived from a real query result
 // (same "engine computes, model narrates" split as everywhere else in this
 // feature). Best-effort: a failure here drops the summary, never the charts.
-async function writeInsightsSummary(anthropic: Anthropic, question: string, reports: ReportResult[]): Promise<string | null> {
+async function writeInsightsSummary(anthropic: Anthropic, question: string, reports: ReportResult[], cur: CurrencyDef): Promise<string | null> {
   try {
-    const digest = reports.map(digestReport).join("\n");
+    const digest = reports.map((r) => digestReport(r, cur)).join("\n");
     const response = await anthropic.messages.create({
       model: "claude-opus-5",
       max_tokens: 300,
@@ -236,7 +237,7 @@ export async function POST(req: Request) {
     if (reports.length === 0) {
       return NextResponse.json({ status: "declined", reason: "Couldn't compile any of the angles for that question. Try something more specific." });
     }
-    const summary = await writeInsightsSummary(anthropic, question, reports);
+    const summary = await writeInsightsSummary(anthropic, question, reports, await getTenantCurrency());
     const primary = facets[0].object;
     return NextResponse.json({ status: "insights", question, object: primary, object_label: LIST_SOURCES[primary].label, summary, reports });
   }

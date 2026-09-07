@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenantCurrency } from "@/lib/tenant";
+import { moneyFormatter } from "@/lib/currency";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { listContracts } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
@@ -22,8 +23,6 @@ const STATUS_LABEL: Record<ContractStatus, string> = {
 
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 function daysLeft(endDate: string | null): number {
   if (!endDate) return 0;
@@ -48,7 +47,8 @@ export default async function AmcPage({
   await requireFeature("amc");
   const { q, status, expiring, page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
-  const contracts = await listContracts();
+  const [contracts, cur] = await Promise.all([listContracts(), getTenantCurrency()]);
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const active = contracts.filter((con) => con.status === "active");
   const expiringSoon = active.filter((con) => daysLeft(con.end_date) <= 60);
   const totalValue = active.reduce((s, con) => s + (con.value ?? 0), 0);

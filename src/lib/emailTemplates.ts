@@ -7,7 +7,7 @@ export const EMAIL_TEMPLATE_VARS: Record<EmailTemplateCategory, { key: string; l
     { key: "customer_name", label: "Contact name" },
     { key: "company_name",  label: "Your company name" },
     { key: "quote_ref",     label: "Quote reference" },
-    { key: "quote_total",   label: "Quote total (formatted, e.g. ₹86,500)" },
+    { key: "quote_total",   label: "Quote total (formatted, in your workspace currency)" },
     { key: "valid_until",   label: "Valid-until date" },
   ],
   invoice: [

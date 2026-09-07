@@ -13,6 +13,8 @@ import { isAnalyticsId } from "@/lib/analyticsMeta";
 import { isNovaNativeId, type NovaBlockId } from "@/lib/nova/streamLayout";
 import { listCachedMarketIntel } from "@/lib/nova/marketIntelClient";
 import NovaAdaptDrawer from "@/components/NovaAdaptDrawer";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 
 const SIGNAL_TONE_COLOR: Record<"positive" | "neutral" | "risk", string> = {
   positive: "var(--nova-teal-soft)", neutral: "var(--nova-ink-faint)", risk: "var(--nova-orange-soft)",
@@ -75,8 +77,6 @@ type Kpis = {
   overdueTotal: number;
 };
 
-const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
-
 // Only analytics widgets are individually resizable -- Nova's own 4 native
 // sections (KPI strip, quick actions, rankings, wins) are each a compound,
 // multi-item row designed to read at full width; there's no "compact"/"half"
@@ -122,6 +122,8 @@ export default function NovaStream({
   hasPersonalOverride: boolean;
 }) {
   const router = useRouter();
+  const cur = useCurrency();
+  const money = (n: number) => formatMoney(Math.round(n), cur, {});
   const name = userName ? `, ${userName}` : "";
   const [layout, setLayout] = useState<DashLayoutItem[]>(dashLayout);
   const [adaptOpen, setAdaptOpen] = useState(false);
@@ -192,7 +194,7 @@ export default function NovaStream({
       // tenant had Nova turned on can surface an id here that classic never
       // hit either. One bad widget must not take the whole Stream down.
       try {
-        return <div key={block.id}>{renderWidget(block.id, analytics, blockDisplaySize(block))}</div>;
+        return <div key={block.id}>{renderWidget(block.id, analytics, blockDisplaySize(block), cur)}</div>;
       } catch (e) {
         console.error(`[NovaStream] widget "${block.id}" failed to render`, e);
         return null;

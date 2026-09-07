@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from "@/lib/currency";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { TenantFeatures } from "@/lib/tenant";
@@ -69,6 +70,7 @@ export default function NewTenantForm() {
   const [accentColor, setAccentColor] = useState("#3b82f6");
   const [logoUrl, setLogoUrl]         = useState("");
   const [plan, setPlan]               = useState<"personal" | "small_business" | "enterprise">("personal");
+  const [currency, setCurrency]       = useState<CurrencyCode>(DEFAULT_CURRENCY);
   const [adminEmail, setAdminEmail]   = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [features, setFeatures]       = useState<TenantFeatures>({ ...DEFAULT_FEATURES });
@@ -99,6 +101,7 @@ export default function NewTenantForm() {
           admin_email: adminEmail || null,
           admin_password: adminPassword || null,
           custom_domain: customDomain || null,
+          currency,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -193,6 +196,12 @@ export default function NewTenantForm() {
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
         <h2 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Business size & first admin</h2>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Currency <span style={{ color: "#9ca3af" }}>(how every amount is shown)</span></label>
+            <select style={inputStyle} value={currency} onChange={(e) => setCurrency(e.target.value as CurrencyCode)}>
+              {Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
+            </select>
+          </div>
           <div>
             <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Business size</label>
             <select style={inputStyle} value={plan} onChange={(e) => setPlan(e.target.value as typeof plan)}>

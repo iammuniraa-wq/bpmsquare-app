@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getQuote } from "@/lib/data";
-import { getTenant } from "@/lib/tenant";
+import { getTenant, getTenantCurrency } from "@/lib/tenant";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import type { Asset } from "@/lib/types";
 import QuotePrint from "@/components/QuotePrint";
@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function QuotePrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [data, tenant] = await Promise.all([getQuote(id), getTenant()]);
+  const [data, tenant, currency] = await Promise.all([getQuote(id), getTenant(), getTenantCurrency()]);
   if (!data) notFound();
 
   const { quote, account, contact, site, lines, revisions } = data;
@@ -74,6 +74,7 @@ export default async function QuotePrintPage({ params }: { params: Promise<{ id:
       assets={assets}
       assetPrintFields={assetPrintFields}
       assetCustomFieldLabels={assetCustomFieldLabels}
+      currency={currency.code}
       ext={{
         quoteSignatureSlot: ext.quoteSignatureSlot?.(ctx) ?? null,
         quoteExtraSection: ext.quoteExtraSection?.(ctx) ?? null,

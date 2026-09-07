@@ -7,6 +7,8 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyLabel } from "@/lib/currency";
 
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
@@ -21,6 +23,7 @@ const fw: React.CSSProperties = { marginBottom: 16 };
 
 export default function InventoryForm({ suppliers }: { suppliers: { id: string; name: string }[] }) {
   const router = useRouter();
+  const cur = useCurrency();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
@@ -108,7 +111,7 @@ export default function InventoryForm({ suppliers }: { suppliers: { id: string; 
                 <input style={inp} type="number" min="0" step="1" value={form.reorder_level} onChange={set("reorder_level")} placeholder="Alert when stock falls to/below this" />
               </div>
               <div>
-                <label style={lbl}>Unit cost (₹)</label>
+                <label style={lbl}>{moneyLabel("Unit cost", cur)}</label>
                 <input style={inp} type="number" min="0" step="0.01" value={form.unit_cost} onChange={set("unit_cost")} />
               </div>
             </div>

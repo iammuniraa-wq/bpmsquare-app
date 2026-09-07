@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCase, CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/data";
 import { getUserRole, getTenant } from "@/lib/tenant";
+import { moneyFormatter, formatMoney, resolveCurrency } from "@/lib/currency";
 import type { ServiceCase, CasePhoto, InspectionReport } from "@/lib/types";
 import { c, pillar } from "@/lib/theme";
 import type { PillarKey } from "@/lib/theme";
@@ -50,8 +51,6 @@ const fmtDateTime = (s: string | null) =>
     hour: "2-digit", minute: "2-digit", hour12: true,
   }) : "—";
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
-
 const statusTone: Record<ServiceCase["status"], PillarKey> = {
   intake: "blue", inspection: "blue",
   report_sent: "purple", report_approved: "purple",
@@ -79,6 +78,8 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const [data, role, tenant] = await Promise.all([getCase(id), getUserRole(), getTenant()]);
   if (!data) notFound();
+  const cur = resolveCurrency(tenant?.config);
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
 
   const { serviceCase: sc, account, contact, assets, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases } = data;
   const quoteStatuses: QuoteStatusDef[] =
@@ -261,7 +262,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
                   <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>Rev. {quote.revision} · Valid until {quote.valid_until ? fmtDate(quote.valid_until) : "—"}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: c.ink }}>{"₹" + quote.total.toLocaleString("en-IN")}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: c.ink }}>{formatMoney(quote.total, cur, {})}</div>
                   <div style={{ marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end" }}>
                     <Link href={ROUTES.quotation(quote.id)} style={{ fontSize: 12, color: c.accent }}>View →</Link>
                     <Link href={ROUTES.quotationPrint(quote.id)} target="_blank" rel="noopener" style={{ fontSize: 12, color: c.muted }}>PDF ↗</Link>
@@ -401,7 +402,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
                 background: c.accent, color: "#fff", borderRadius: 8, padding: "8px 14px",
                 fontSize: 12.5, fontWeight: 600, textDecoration: "none",
               }}>
-                ₹ View quotation
+                {cur.symbol.length === 1 ? cur.symbol + " " : ""}View quotation
               </Link>
             )}
             {quote && (

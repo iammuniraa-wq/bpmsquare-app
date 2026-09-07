@@ -8,9 +8,11 @@ export function coerceBoolean(raw: string): boolean | null {
   return null;
 }
 
-/** Handles ₹ symbols, Indian digit grouping (1,50,000) and trailing/leading spaces. */
+/** Handles currency prefixes ("₹1,50,000", "QAR 2,690"), digit grouping and
+ *  trailing/leading spaces. Deliberately not parseMoney(): that accepts
+ *  "12abc" as 12, and an import validator must reject it, not coerce it. */
 export function coerceNumber(raw: string): number | null {
-  const cleaned = raw.replace(/[₹$€£,\s]/g, "").replace(/%$/, "");
+  const cleaned = raw.trim().replace(/^(-?)\s*[A-Za-z]{3}\s*(?=[\d.])/, "$1").replace(/[₹$€£,\s]/g, "").replace(/%$/, "");
   if (cleaned === "" || cleaned === "-") return null;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;

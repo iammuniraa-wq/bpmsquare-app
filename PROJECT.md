@@ -472,6 +472,35 @@ deploy for an automatic schema change.
   `MAX_DEPTH` in `src/lib/wfm/projectTree.ts`, not a setting. Purely
   additive: with the migration pending, every part still works and simply
   reads as "Part".
+- **Workspace currency (no migration) — 2026-09-07.** `TenantConfig.currency`
+  (`src/lib/currency.ts`; INR when unset, output byte-identical to the old
+  inline `₹` helpers, pinned by `currency.test.ts`) replaces 83 files' worth
+  of hardcoded rupee formatting: every list, form, dashboard tile, Nova
+  text, search subtitle, email variable, assistant prompt and PDF now
+  formats through it. Set on the create-tenant form, in /admin/tenants/[id]
+  and in Settings → General → Currency (admin, `PUT /api/settings/currency`).
+  Print documents receive it as a prop (the (print) layout has no
+  TenantProvider). Left as-is on purpose: nav/tab "₹" icon glyphs, the
+  lakh/crore parsing shorthand (output switches to K/M for non-Indian
+  currencies), date formatting. Owner decision: Big Blue is QAR-only, so the
+  seed below sets `config.currency = "QAR"`.
+- **scripts/seed-bigblue-sample.mjs — PENDING on production** (written
+  2026-09-07 for the Big Blue prospect tenant, slug `bigblue`, which the
+  owner created in /admin/tenants/new on production the same day). Not a
+  migration: a Node seed, run with the PRODUCTION `NEXT_PUBLIC_SUPABASE_URL`
+  + `SUPABASE_SERVICE_ROLE_KEY` in the shell (`node scripts/seed-bigblue-
+  sample.mjs`). Seeds, tenant-scoped only: flags, category tree, Asia/Qatar,
+  VAT 0, email redirect, company_info; 8 accounts, 10 contacts (no PII), 5
+  suppliers, 18 products; two PUBLISHED Price Books (`default` Cost-based
+  with floor 12 %/block, `steel_catalog` Catalog + Formula for REBAR and
+  DOWEL_BARS, routed via `config.pricing.routing`); 6 deals; 5 Standard
+  Quotes SQ-2026-0001…0005 with break offers and an alternative group.
+  Idempotent; `--cleanup` removes every sample row and the routing rules
+  again (owner decision: the sample data may be deleted once the client is
+  confirmed). Verified 2026-09-07 on a throwaway dev tenant (engine priced
+  every seeded product through both books; totals matched lineTotals.ts),
+  then removed from dev entirely -- the owner wants Big Blue on production
+  only. Needs 0120 for the deals (skipped cleanly if pending).
 - **0121_pricing_area_isolation.sql — applied to both DBs** (owner ran it
   2026-09-06; a syntax fix was needed first -- `UPDATE ... FROM LATERAL`
   cannot reference its own update target in Postgres (42P10), rewritten as

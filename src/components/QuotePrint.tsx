@@ -5,6 +5,7 @@ import QuotePrintDocument, { type QuotePrintDocumentProps } from "./QuotePrintDo
 import EmailComposeModal from "./EmailComposeModal";
 import { MessageSquare } from "@/components/Icons";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/whatsapp";
+import { CURRENCIES, moneyFormatter } from "@/lib/currency";
 
 type Props = QuotePrintDocumentProps & {
   /** Signed, no-login link to this quote's PDF, for the WhatsApp message. Null when
@@ -12,11 +13,11 @@ type Props = QuotePrintDocumentProps & {
   publicPdfLink?: string | null;
 };
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 export default function QuotePrint(props: Props) {
-  const { quote, account, contact, companyInfo, publicPdfLink } = props;
+  const { quote, account, contact, companyInfo, publicPdfLink, currency = "INR" } = props;
+  const inr = moneyFormatter(CURRENCIES[currency], { maximumFractionDigits: 0 });
   const recipient = contact?.email || contact?.email2 || account?.email || account?.email2 || null;
   const [emailState, setEmailState] = useState<"idle" | "sent">("idle");
   const [composeOpen, setComposeOpen] = useState(false);

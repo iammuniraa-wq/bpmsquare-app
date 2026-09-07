@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter } from "@/lib/currency";
 
 // Attachments on a Standard Quote (0119, docs/sales-engine-architecture.md
 // §3.7): customer communication kept with the quote, and -- for an .xlsx
@@ -16,7 +18,6 @@ type Preview = { file_name: string; rows: number; skipped_rows: number; existing
 const isSpreadsheet = (name: string) => /\.(xlsx|xlsm|csv|tsv|txt)$/i.test(name);
 const fmtSize = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 const btn: React.CSSProperties = { fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 6, border: `1px solid ${c.line}`, background: "transparent", color: c.ink, cursor: "pointer" };
 const primary: React.CSSProperties = { ...btn, border: "none", background: c.accent, color: "#fff" };
@@ -30,6 +31,7 @@ export default function StandardQuoteAttachments({ quoteId, canCreateLines, onLi
   /** Called after lines were created from a file; the host decides how to refresh. */
   onLinesCreated?: () => void;
 }) {
+  const inr = moneyFormatter(useCurrency(), { maximumFractionDigits: 0 });
   const router = useRouter();
   const [items, setItems] = useState<Attachment[] | null>(null);
   const [note, setNote] = useState("");

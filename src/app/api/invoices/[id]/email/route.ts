@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser, createAdminSupabase } from "@/lib/supabase-server";
 import { getTenant } from "@/lib/tenant";
+import { formatMoney, resolveCurrency } from "@/lib/currency";
 import { decryptAccount, decryptContact } from "@/lib/encryption";
 import { renderTemplate, DEFAULT_EMAIL_TEMPLATES } from "@/lib/emailTemplates";
 import { logEmail } from "@/lib/emailLog";
@@ -82,7 +83,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     customer_name: preferred?.name ?? "Sir/Madam",
     company_name: tenant?.name ?? "our team",
     invoice_ref: invoice.ref as string,
-    invoice_total: "₹" + Number(invoice.total).toLocaleString("en-IN", { maximumFractionDigits: 0 }),
+    invoice_total: formatMoney(Number(invoice.total), resolveCurrency(tenant?.config)),
     due_date: fmtDate(invoice.due_date as string | null),
   };
 
@@ -150,7 +151,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const fallback = template ?? DEFAULT_EMAIL_TEMPLATES.invoice;
     const vars = {
       customer_name: "Sir/Madam", company_name: companyName, invoice_ref: invoice.ref as string,
-      invoice_total: "₹" + Number(invoice.total).toLocaleString("en-IN", { maximumFractionDigits: 0 }),
+      invoice_total: formatMoney(Number(invoice.total), resolveCurrency(tenant.config)),
       due_date: fmtDate(invoice.due_date as string | null),
     };
     subject = subject || renderTemplate(fallback.subject, vars);

@@ -4,6 +4,8 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter, moneyLabel } from "@/lib/currency";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
@@ -23,7 +25,6 @@ const inp: React.CSSProperties = {
   background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
 };
 const fw: React.CSSProperties = { marginBottom: 16 };
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 type EditQuote = {
   id: string;
@@ -62,6 +63,8 @@ export default function StandardQuoteForm({
    *  server-side by the page, never inferred here. */
   pricingEngineQuotesEnabled?: boolean;
 }) {
+  const cur = useCurrency();
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -444,7 +447,7 @@ export default function StandardQuoteForm({
                   <input style={inp} type="number" min="0" max="100" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} />
                 </div>
                 <div>
-                  <label style={lbl}>Shipping / Handling (₹)</label>
+                  <label style={lbl}>{moneyLabel("Shipping / Handling", cur)}</label>
                   <input style={inp} type="number" min="0" step="0.01" value={shippingAmount} onChange={(e) => setShippingAmount(e.target.value)} />
                 </div>
               </div>

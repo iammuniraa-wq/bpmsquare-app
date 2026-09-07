@@ -1,4 +1,4 @@
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenantCurrency } from "@/lib/tenant";
 import Link from "next/link";
 import { listWorkOrders } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
@@ -56,6 +56,9 @@ export default async function WorkOrdersPage({
 }) {
   await requireWorkcenterView("work_orders");
   await requireFeature("work_orders");
+  const cur = await getTenantCurrency();
+  // Symbol currencies read as an icon ("₹ Billable"); ISO codes ("QAR Billable") do not.
+  const moneyGlyph = cur.symbol.length === 1 ? cur.symbol + " " : "";
   const { status: statusFilter, view, q, sort, page: pageParam, af } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const isCard = view !== "list";
@@ -147,7 +150,7 @@ export default async function WorkOrdersPage({
 
                 <div style={{ marginTop: "auto", paddingTop: 8, borderTop: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", fontSize: 11, color: c.hint }}>
                   <span>
-                    {authKind === "contract" ? "▥ AMC" : "₹ Billable"}
+                    {authKind === "contract" ? "▥ AMC" : `${moneyGlyph}Billable`}
                     {serviceCase ? ` · ${serviceCase.ref}` : ""}
                   </span>
                   <span>{wo.scheduled_for ? fmtDate(wo.scheduled_for) : ""}</span>
@@ -211,7 +214,7 @@ export default async function WorkOrdersPage({
                   )}
                   {wo.scheduled_for && <span>{fmtDate(wo.scheduled_for)}</span>}
                   <span style={{ color: authKind === "contract" ? pillar.teal.base : c.hint }}>
-                    {authKind === "contract" ? "▥" : "₹"} {authRef}
+                    {authKind === "contract" ? "▥ " : moneyGlyph}{authRef}
                   </span>
                   {serviceCase && (
                     <Link href={ROUTES.case(serviceCase.id)} style={{ color: pillar.teal.base, textDecoration: "none", fontWeight: 500 }}>

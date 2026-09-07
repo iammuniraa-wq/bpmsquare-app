@@ -2,13 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isPlatformAdmin } from "@/lib/tenant";
 import { createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-server";
 import { PRIMARY_HOST } from "@/lib/constants";
+import { isCurrencyCode, DEFAULT_CURRENCY } from "@/lib/currency";
 
 export async function POST(request: NextRequest) {
   const isAdmin = await isPlatformAdmin();
   if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
-  const { name, slug, accent_color, logo_url, plan, features, admin_email, admin_password, custom_domain } = body;
+  const { name, slug, accent_color, logo_url, plan, features, admin_email, admin_password, custom_domain, currency } = body;
 
   if (!name || !slug) {
     return NextResponse.json({ error: "name and slug are required" }, { status: 400 });
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     .insert({
       name, slug, accent_color, logo_url, plan, features,
       custom_domain: custom_domain || null, status: "active",
-      config: { appearance: { ui_theme: "modern" } },
+      config: { appearance: { ui_theme: "modern" }, currency: isCurrencyCode(currency) ? currency : DEFAULT_CURRENCY },
     })
     .select("id")
     .single();

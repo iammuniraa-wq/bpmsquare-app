@@ -15,10 +15,11 @@ import type { WorkcenterKey, ViewableWorkcenters } from "@/lib/workcenters";
 import { AlertTriangle, CheckIcon } from "@/components/Icons";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter } from "@/lib/currency";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -437,6 +438,8 @@ export default function ReportsClient({
   viewableWorkcenters: ViewableWorkcenters;
 }) {
   const router = useRouter();
+  const cur = useCurrency();
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const [, startTransition] = useTransition();
   const [rows]            = useState<QuoteSummary[]>(initialRows);
   const [filterStatus, setFilterStatus]   = useState<string>("");
@@ -1142,7 +1145,7 @@ export default function ReportsClient({
                   { label: "Account", key: null,             right: false },
                   { label: "Status",  key: null,             right: false },
                   { label: "Lines",   key: null,             right: false },
-                  { label: "Total ₹", key: "total" as const, right: true  },
+                  { label: `Total ${cur.symbol}`, key: "total" as const, right: true  },
                   { label: "Date",    key: "date"  as const, right: false },
                 ]).map(({ label, key, right }) => (
                   <th key={label}
