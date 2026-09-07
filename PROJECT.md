@@ -484,12 +484,19 @@ deploy for an automatic schema change.
   lakh/crore parsing shorthand (output switches to K/M for non-Indian
   currencies), date formatting. Owner decision: Big Blue is QAR-only, so the
   seed below sets `config.currency = "QAR"`.
-- **scripts/seed-bigblue-sample.mjs — PENDING on production** (written
-  2026-09-07 for the Big Blue prospect tenant, slug `bigblue`, which the
-  owner created in /admin/tenants/new on production the same day). Not a
-  migration: a Node seed, run with the PRODUCTION `NEXT_PUBLIC_SUPABASE_URL`
-  + `SUPABASE_SERVICE_ROLE_KEY` in the shell (`node scripts/seed-bigblue-
-  sample.mjs`). Seeds, tenant-scoped only: flags, category tree, Asia/Qatar,
+- **scripts/seed-bigblue-sample.sql — applied on production** (owner ran
+  it in the SQL editor 2026-09-07; written the same day for the Big Blue
+  prospect tenant, slug `bigblue`, created in /admin/tenants/new on
+  production). Not a migration. The `.mjs` twin does the same from a shell
+  with the production keys. First run hit two things worth knowing: a
+  `JOIN ... ON` cannot see a comma-separated FROM alias (fixed with `cross
+  join`), and the tenant already held an empty `default` DRAFT Price Book
+  from the morning's Catalog + Formula validation, so the seed skipped that
+  area and its leftover cost input (`material.rate_per_unit = 10`) had
+  shadowed the seed's 2,350 steel index -- the draft was deleted by hand,
+  the rate corrected, and the seed re-run (final counts: 27 rules, 2
+  published books). Lesson for the seed pattern: a "skip if any version
+  exists" guard should look at PUBLISHED versions, not drafts. Seeds, tenant-scoped only: flags, category tree, Asia/Qatar,
   VAT 0, email redirect, company_info; 8 accounts, 10 contacts (no PII), 5
   suppliers, 18 products; two PUBLISHED Price Books (`default` Cost-based
   with floor 12 %/block, `steel_catalog` Catalog + Formula for REBAR and
