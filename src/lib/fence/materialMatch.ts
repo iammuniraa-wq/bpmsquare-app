@@ -106,6 +106,20 @@ export function distinctValues(catalog: FenceCatalogRow[], fenceKinds: FenceMate
   return [...set].sort();
 }
 
+/** Rough "how fine is this mesh" signal parsed from the tenant's own label
+ *  (e.g. "Chain-link 16x16 . 4.9mm (mini-mesh)") -- tenant-authored specs
+ *  follow a "WxH · wire-mm" convention (scripts/seed-fence-materials-demo.sql's
+ *  own naming), so reading the first NxN number is a generic heuristic that
+ *  works for any tenant's real catalog without hardcoding specific mesh
+ *  names. Shared by the mesh-fineness swatch preview (FenceConfigurator)
+ *  and the actual 3D fabric texture (Fence3DView) so the preview matches
+ *  what the 3D view then shows. */
+export function meshGapPx(meshSpec: string): number {
+  const m = meshSpec.match(/(\d+)\s*[x×]\s*\d+/i);
+  const size = m ? parseInt(m[1], 10) : 40;
+  return Math.max(6, Math.min(26, Math.round(size * 0.5)));
+}
+
 export function matchMaterials(requests: MaterialRequest[], catalog: FenceCatalogRow[], selections: FenceSelections): ResolvedMaterialLine[] {
   const byKey = catalogByKey(catalog);
   return requests.map((req) => {
