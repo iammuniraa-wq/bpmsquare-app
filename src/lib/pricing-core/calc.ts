@@ -72,8 +72,12 @@ export type TraceStep = {
   specificity?: number;
   candidates_considered?: number;
   inputs?: TraceCostInput[];
+  calc_type?: PriceComponent["calc_type"];
   basis?: number;
   value?: number;                            // rule value / rate before basis application
+  qty?: number;                              // line quantity, set for PER_UNIT so rate x qty can be shown
+  formula?: string;                          // the DSL source actually evaluated (FORMULA components)
+  values_used?: { path: string; value: AttrValue }[]; // ctx reads the formula made, for "show your work"
   result?: number;                           // signed amount contributed (0 for statistical display)
   statistical?: boolean;
   manual?: boolean;
@@ -313,8 +317,17 @@ export function priceDocument(input: PriceInput): PriceResult {
           return skip(step, component, "no formula and no matching rule");
         }
         let value: number;
+        const seen = new Set<string>();
+        const valuesUsed: { path: string; value: AttrValue }[] = [];
         try {
-          const out = evaluate(parseFormula(src), { ctx: dslCtx, hooks });
+          const out = evaluate(parseFormula(src), {
+            ctx: dslCtx, hooks,
+            record: (path, v) => {
+              if (seen.has(path)) return;
+              seen.add(path);
+              valuesUsed.push({ path, value: v });
+            },
+          });
           if (typeof out !== "number") throw new DslError("formula did not produce a number", 0);
           value = out;
         } catch (e) {
@@ -324,7 +337,9 @@ export function priceDocument(input: PriceInput): PriceResult {
         return {
           step: step.step, component: component.code, status: "APPLIED",
           rule_id: resolved[0]?.rule.rule_id, matched_on: resolved[0]?.rule.match_attributes,
-          specificity: resolved[0]?.specificity, result: amount,
+          specificity: resolved[0]?.specificity, calc_type: component.calc_type,
+          formula: src, values_used: valuesUsed.length > 0 ? valuesUsed : undefined,
+          result: amount,
           statistical: component.is_statistical || step.statistical,
         };
       }
@@ -349,7 +364,9 @@ export function priceDocument(input: PriceInput): PriceResult {
         step: step.step, component: component.code, status: "APPLIED",
         rule_id: first.rule.rule_id, matched_on: first.rule.match_attributes,
         specificity: first.specificity, candidates_considered: first.candidatesConsidered,
+        calc_type: component.calc_type,
         basis, value: first.rule.value ?? undefined, result: amount,
+        qty: component.calc_type === "PER_UNIT" ? (line.quantity ?? undefined) : undefined,
         statistical: component.is_statistical || step.statistical,
       };
     }

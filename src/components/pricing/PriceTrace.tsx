@@ -11,7 +11,9 @@ export type PriceTraceStep = {
   step: number; component?: string; subtotal?: string; status: string; reason?: string;
   rule_id?: string; matched_on?: Record<string, unknown>; specificity?: number;
   inputs?: { path: string; rate: number; qty: number; source?: string | null; quality?: string | null; as_of?: string | null }[];
-  basis?: number; value?: number; result?: number;
+  calc_type?: string;
+  basis?: number; value?: number; qty?: number; result?: number;
+  formula?: string; values_used?: { path: string; value: string | number | boolean }[];
   statistical?: boolean; manual?: boolean;
 };
 
@@ -55,6 +57,43 @@ function describeMatch(matchedOn: Record<string, unknown> | undefined): string {
   return entries.map(([k, v]) => `${k} = ${String(v)}`).join(", ");
 }
 
+function fmtNum(n: number): string {
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+/** Substitute each ctx path the formula actually read with its resolved
+ *  value -- "610 * ctx.line.quantity" + quantity=500 -> "610 x 500". Purely
+ *  a display concern (the engine hands back the raw formula + the reads it
+ *  made); word-boundary regex is safe because path segments are a
+ *  restricted identifier charset (dsl/parser.ts rejects dunder segments). */
+function substituteFormula(formula: string, valuesUsed: { path: string; value: string | number | boolean }[] | undefined): string {
+  let out = formula;
+  for (const { path, value } of valuesUsed ?? []) {
+    const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const shown = typeof value === "number" ? fmtNum(value) : String(value);
+    out = out.replace(new RegExp(`\\b${escaped}\\b`, "g"), shown);
+  }
+  return out.replace(/\*/g, "×").replace(/\//g, "÷");
+}
+
+/** The "show your work" line for a step -- the actual rate/formula and the
+ *  values it ran on, not just which rule matched. Null when there's nothing
+ *  more concrete to add (a flat FIXED_AMOUNT rule, a manual override, scale
+ *  tables). This is what "trace_detail" (TenantConfig.pricing) gates. */
+function describeCalcDetail(t: PriceTraceStep): string | null {
+  if (t.formula) {
+    const shown = substituteFormula(t.formula, t.values_used);
+    return t.result !== undefined ? `${shown} = ${fmtNum(t.result)}` : shown;
+  }
+  if (t.calc_type === "PERCENT" && t.value !== undefined && t.basis !== undefined) {
+    return `${fmtNum(t.value)}% × ${fmtNum(t.basis)} = ${fmtNum(t.result ?? 0)}`;
+  }
+  if (t.calc_type === "PER_UNIT" && t.value !== undefined && t.qty !== undefined) {
+    return `${fmtNum(t.value)} × ${fmtNum(t.qty)} = ${fmtNum(t.result ?? 0)}`;
+  }
+  return null;
+}
+
 /** Plain-language one-liner for a step: what happened and why. */
 export function describeTraceStep(t: PriceTraceStep): string {
   if (t.status === "SUBTOTAL") return `Subtotal ${t.subtotal}`;
@@ -65,26 +104,36 @@ export function describeTraceStep(t: PriceTraceStep): string {
   return `${t.component}: ${t.reason ?? t.status.toLowerCase()}`;
 }
 
-export default function PriceTrace({ steps, currency, compact = false }: { steps: PriceTraceStep[]; currency?: string | null; compact?: boolean }) {
+export default function PriceTrace({
+  steps, currency, compact = false, detailed = true,
+}: { steps: PriceTraceStep[]; currency?: string | null; compact?: boolean; detailed?: boolean }) {
   const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
   if (compact) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {steps.map((t, i) => (
-          <div key={i}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12, color: t.status === "SUBTOTAL" ? c.ink : c.muted, fontWeight: t.status === "SUBTOTAL" ? 600 : 400 }}>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{describeTraceStep(t)}</span>
-              <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: (t.result ?? 0) < 0 ? "var(--err-ink)" : undefined }}>
-                {t.result !== undefined ? fmt(t.result) : ""}
-              </span>
-            </div>
-            {t.inputs?.filter((inp) => inp.qty !== 0).map((inp, j) => (
-              <div key={j} style={{ fontSize: 11, color: c.hint, paddingLeft: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {fmt(inp.rate)} × {fmt(inp.qty)}{describeCostSource(inp) ? ` · from ${describeCostSource(inp)}` : ""}
+        {steps.map((t, i) => {
+          const calc = detailed ? describeCalcDetail(t) : null;
+          return (
+            <div key={i}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12, color: t.status === "SUBTOTAL" ? c.ink : c.muted, fontWeight: t.status === "SUBTOTAL" ? 600 : 400 }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{describeTraceStep(t)}</span>
+                <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: (t.result ?? 0) < 0 ? "var(--err-ink)" : undefined }}>
+                  {t.result !== undefined ? fmt(t.result) : ""}
+                </span>
               </div>
-            ))}
-          </div>
-        ))}
+              {calc && (
+                <div style={{ fontSize: 11, color: c.hint, paddingLeft: 12, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {calc}
+                </div>
+              )}
+              {detailed && t.inputs?.filter((inp) => inp.qty !== 0).map((inp, j) => (
+                <div key={j} style={{ fontSize: 11, color: c.hint, paddingLeft: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {fmt(inp.rate)} × {fmt(inp.qty)}{describeCostSource(inp) ? ` · from ${describeCostSource(inp)}` : ""}
+                </div>
+              ))}
+            </div>
+          );
+        })}
         {currency && <div style={{ fontSize: 11, color: c.hint }}>Amounts in {currency}</div>}
       </div>
     );
@@ -101,6 +150,7 @@ export default function PriceTrace({ steps, currency, compact = false }: { steps
             <td style={{ ...td, fontSize: 11.5, color: c.muted }}>
               {t.reason && <div>{t.reason}</div>}
               {t.rule_id && <div>rule <span style={mono}>{t.rule_id.slice(0, 8)}</span>{t.specificity !== undefined ? ` · specificity ${t.specificity}` : ""}{t.matched_on && Object.keys(t.matched_on).length > 0 ? ` · ${describeMatch(t.matched_on)}` : ""}</div>}
+              {describeCalcDetail(t) && <div style={mono}>{describeCalcDetail(t)}</div>}
               {t.inputs?.map((inp, j) => <div key={j} style={mono}>{inp.path}: {inp.rate} × {inp.qty}{describeCostSource(inp) ? ` · ${describeCostSource(inp)}` : ""}</div>)}
               {t.basis !== undefined && <div>basis {fmt(t.basis)}</div>}
             </td>

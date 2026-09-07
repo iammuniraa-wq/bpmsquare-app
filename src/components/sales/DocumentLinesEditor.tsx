@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { c } from "@/lib/theme";
 import { UOM_OPTIONS } from "@/lib/constants";
 import PriceTrace, { type PriceTraceStep } from "@/components/pricing/PriceTrace";
+import { useTraceDetail } from "@/lib/tenant-context";
 
 // The ONE document-line editor (docs/sales-engine-architecture.md §4.5):
 // Standard Quotes and Opportunities (and later Quotations) render the same
@@ -173,6 +174,7 @@ export default function DocumentLinesEditor({
   onError: (message: string) => void;
 }) {
   const setLines = onChange;
+  const traceDetail = useTraceDetail();
   // The add-line panel (0118, docs/sales-engine-architecture.md §3.6):
   // "+ Add line" asks where the line comes from and, for a catalog
   // product, whether to offer its quantity breaks and any alternatives.
@@ -512,7 +514,7 @@ export default function DocumentLinesEditor({
             })}
             {info.trace.length > 0 && (
               <div style={{ marginTop: 6, padding: 8, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel, overflowX: "auto", maxWidth: 560 }}>
-                <PriceTrace steps={info.trace} compact />
+                <PriceTrace steps={info.trace} compact detailed={traceDetail} />
               </div>
             )}
           </>
