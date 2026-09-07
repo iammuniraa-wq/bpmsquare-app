@@ -1,6 +1,12 @@
 // Pricing setup wizard — starter templates for the four enterprise pricing
 // methods (PROJECT.md §11 "Enterprise methods taxonomy", owner's frame,
-// agreed 2026-08-16/17). Pure data + small formatting helpers: no framework
+// agreed 2026-08-16/17). The fourth slot was originally "Variant" (a base
+// model + ALL_APPLY options) -- the Big Blue pressure test (2026-09-06,
+// pricing-engine-architecture.md §19) concluded that isn't the shape real
+// catalog-driven manufacturers need, and replaced it with Catalog + Formula
+// below; Variant was never built out past this stub and has no validated
+// tenant behind it, so it was removed rather than kept alongside a fifth
+// template. Pure data + small formatting helpers: no framework
 // imports, so both the wizard page (client) and any server-side seeding can
 // import it. NOT part of src/lib/pricing-core (that boundary is CI-enforced
 // and reserved for the engine itself) — this is authoring convenience that
@@ -25,7 +31,7 @@ import type {
   PriceComponent, PricingProcedure, CostModel, EntryMode, AttrValue,
 } from "@/lib/pricing-core";
 
-export type PricingMethodKey = "cost_based" | "price_list" | "value_based" | "variant" | "catalog_formula";
+export type PricingMethodKey = "cost_based" | "price_list" | "value_based" | "catalog_formula";
 
 export type ScaleEntry = { from: number; value: number };
 
@@ -362,57 +368,7 @@ const VALUE_BASED: MethodTemplate = {
   ],
 };
 
-// ── 4. Variant — configured products, options ALL_APPLY ────────────────────
-
-const VARIANT: MethodTemplate = {
-  key: "variant",
-  label: "Variant",
-  tagline: "A base model plus options that each add their own price.",
-  description:
-    "Best for configured products — one base model, and a menu of options a " +
-    "customer picks from. Every option a line has adds its own price; there's " +
-    "no single \"most specific\" winner because they all apply together.",
-  entryMode: "LIST_DOWN",
-  dimensions: [
-    { attribute: "product.base_model", weight: 50, label: "Base model" },
-    { attribute: "option.code", weight: 40, label: "Option" },
-  ],
-  components: [
-    comp({ code: "BASE_PRICE", name: "Base price", class: "PRICE", calc_type: "SCALE_TIERED", calc_basis: "QUANTITY", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false }),
-    comp({ code: "OPTION_PRICE", name: "Option price", class: "PRICE", calc_type: "FIXED_AMOUNT", calc_basis: "NET_SO_FAR", sign: "POSITIVE", manual_override: "ALLOWED_WITH_REASON", is_statistical: false, resolution_strategy: "ALL_APPLY" }),
-    comp({ code: "TAX", name: "Tax", class: "TAX", calc_type: "PERCENT", calc_basis: "SUBTOTAL_REF", sign: "POSITIVE", manual_override: "FORBIDDEN", is_statistical: false, rounding_rule: { precision: 2, mode: "HALF_UP" } }),
-  ],
-  procedure: {
-    procedure_id: "VARIANT_PRICING",
-    entry_mode: "LIST_DOWN",
-    steps: [
-      { step: 10, component: "BASE_PRICE", required: true },
-      { step: 20, component: "OPTION_PRICE" },
-      { step: 30, subtotal: "NET_1" },
-      { step: 40, component: "TAX", calc_basis_ref: "NET_1" },
-      { step: 50, subtotal: "FINAL" },
-    ],
-  },
-  editableComponents: [
-    {
-      component_code: "BASE_PRICE", label: "Base model price", unit: "currency",
-      factors: ["product.base_model"], tiered: true,
-      defaultRows: [{ match_attributes: {}, value: null, tiers: [{ from: 0, value: 1000 }] }],
-    },
-    {
-      component_code: "OPTION_PRICE", label: "Option price", unit: "currency",
-      factors: ["option.code"], tiered: false,
-      defaultRows: [{ match_attributes: { "option.code": "PREMIUM_FINISH" }, value: 150 }],
-    },
-    {
-      component_code: "TAX", label: "Tax", unit: "percent",
-      factors: [], tiered: false,
-      defaultRows: [{ match_attributes: {}, value: 18 }],
-    },
-  ],
-};
-
-// ── 5. Catalog + Formula — a rate where you have one, a formula everywhere
+// ── 4. Catalog + Formula — a rate where you have one, a formula everywhere
 // else (pricing-engine-architecture.md §19, the Big Blue pressure test,
 // 2026-09-06). MOST_SPECIFIC already gives this for free: an exact-spec
 // catalog row (family + spec + variant) outranks a family-only fallback
@@ -524,7 +480,7 @@ const CATALOG_FORMULA: MethodTemplate = {
   marginGuardrail: { componentCode: "MARGIN_FLOOR", costSubtotal: "LANDED_COST", revenueSubtotal: "NET_1", policy: "warn" },
 };
 
-export const PRICING_METHODS: MethodTemplate[] = [COST_BASED, PRICE_LIST, VALUE_BASED, VARIANT, CATALOG_FORMULA];
+export const PRICING_METHODS: MethodTemplate[] = [COST_BASED, PRICE_LIST, VALUE_BASED, CATALOG_FORMULA];
 
 export function getMethodTemplate(key: PricingMethodKey): MethodTemplate {
   const found = PRICING_METHODS.find((m) => m.key === key);

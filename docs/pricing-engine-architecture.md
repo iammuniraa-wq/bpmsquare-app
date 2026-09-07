@@ -727,7 +727,10 @@ Three steps, each validated on the demo:
    and `tax_pct` alongside the pre-tax `unit_rate`.
 
 Batches 2–8 below stand, but each is now delivered per technique: price
-list, value-based and variant follow the same three steps on these rails.
+list and value-based follow the same three steps on these rails; catalog +
+formula already has, validated against Big Blue (§19) -- it replaced the
+originally-planned "variant" technique, which never went past a wizard
+stub (see wizard.ts's own header comment).
 **Sequencing across the sales objects (Opportunity, line contract, rules
 layer, approvals, versioning, freight, multi-supplier, "win the deal") is
 in `docs/sales-engine-plan.md` (2026-09-06), with the build spec in
@@ -993,8 +996,11 @@ composition** — each Price Book's procedure is assembled from the same
 shared toolbox (rule-match rate, formula fallback, cost-rollup, `ALL_APPLY`
 option-stacking for genuine add-ons, freight, margin, discount, tax) —
 never a rigid single "method" a tenant is locked into everywhere. The four
-wizard templates (cost-based/price-list/value-based/variant) stay useful
-as starting points for the Setup wizard; Advanced already lets a book mix
+wizard templates (cost-based/price-list/value-based/catalog+formula) stay
+useful as starting points for the Setup wizard -- "variant" (base model +
+ALL_APPLY options) was the fourth slot's original guess and is retired in
+favour of catalog+formula, per this pressure test's own conclusion; it
+never had a validated tenant behind it. Advanced already lets a book mix
 pieces beyond its starting template, which is exactly what PTFE Bearings
 would need.
 
@@ -1070,3 +1076,26 @@ this. This was a latent bug in every one of the four pre-existing techniques
 too, not something Catalog + Formula introduced — it only surfaced now
 because this was the first time a second real Price Book was created
 against a tenant with pre-existing pricing history.
+
+### 19.7 "Variant" retired from the wizard's template list (2026-09-07)
+
+Once Catalog + Formula was live and validated against a real tenant
+(Big Blue), the owner asked to drop "Variant" (base model + `ALL_APPLY`
+options) from `PRICING_METHODS` — it was the fourth slot's original guess
+at this technique (`src/lib/pricing/wizard.ts`, first commit, before any
+pressure test), never built out past a stub, with no golden test and no
+validated tenant behind it, unlike every other template. Catalog + Formula
+is what real catalog-driven manufacturers actually needed (§19.1–19.3), so
+keeping an unvalidated fifth option in the picker was confusion, not
+optionality.
+
+Removed: the `"variant"` `PricingMethodKey`, the `VARIANT` template
+constant, and its `PRICING_METHODS` entry. Safe to remove outright —
+`PricingMethodKey` is never persisted (only the resulting procedure/
+component/rule rows are), and `matchMethodTemplate()` already degrades a
+snapshot it doesn't recognize to the generic/JSON view rather than
+throwing, so a Price Book built from the old stub template (none observed
+in any tenant) would simply stop being labeled "Variant" in Today's
+rates/History, not break. The `ALL_APPLY` resolution strategy itself is
+unaffected — it's a real engine primitive, just no longer surfaced as its
+own named wizard starting point.
