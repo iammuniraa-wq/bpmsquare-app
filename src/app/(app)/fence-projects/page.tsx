@@ -103,7 +103,7 @@ export default async function FenceProjectsPage() {
                         background: c.accentbg, borderRadius: 6, padding: "4px 10px",
                         textDecoration: "none", whiteSpace: "nowrap",
                       }}>
-                        Open →
+                        Open in Fence Design Studio →
                       </Link>
                     </td>
                   </tr>

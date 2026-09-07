@@ -8,9 +8,11 @@ import { ROUTES } from "@/lib/constants";
 import Pill from "@/components/Pill";
 import { computeGeometry, type FenceGateInput, type FenceLayout } from "@/lib/fence/geometry";
 import { computeBom, type FenceAccessories, type BomLine } from "@/lib/fence/bom";
-import { buildMaterialRequests, matchMaterials, distinctValues, type FenceCatalogRow } from "@/lib/fence/materialMatch";
+import { buildMaterialRequests, matchMaterials, distinctValues, meshGapPx, type FenceCatalogRow } from "@/lib/fence/materialMatch";
 import type { FenceSecurityProfileRow } from "@/lib/fence/data";
 import Fence3DView from "./Fence3DView";
+
+const POST_KINDS = new Set(["line_post", "straining_post", "corner_post", "terminal_post", "gate_post"]);
 
 const STATUS_LABEL: Record<FenceProjectSnapshot["status"], string> = {
   draft: "Draft",
@@ -182,7 +184,21 @@ export default function FenceConfigurator({
   );
   const unresolvedCount = resolved.filter((r) => !r.product_id).length;
   const materialsCost = resolved.reduce((sum, r) => sum + (r.list_price ?? 0) * r.qty, 0);
+  const quantitiesByCategory = useMemo(() => {
+    const groups: { label: string; lines: typeof resolved }[] = [
+      { label: "Posts", lines: [] },
+      { label: "Fabric", lines: [] },
+      { label: "Hardware", lines: [] },
+    ];
+    for (const r of resolved) {
+      if (POST_KINDS.has(r.fence_kind)) groups[0].lines.push(r);
+      else if (r.fence_kind === "fabric") groups[1].lines.push(r);
+      else groups[2].lines.push(r);
+    }
+    return groups.filter((g) => g.lines.length > 0);
+  }, [resolved]);
 
+  const [quantitiesOpen, setQuantitiesOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   // Same layout/length/gates/fabric/mesh/coating/accessories, priced against
   // EVERY profile's own numbers -- side-by-side, non-destructive comparison
@@ -267,8 +283,10 @@ export default function FenceConfigurator({
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: c.panel2, color: c.ink, fontFamily: "inherit" }}>
       <div style={{ flex: "none", height: 48, display: "flex", alignItems: "center", gap: 14, padding: "0 16px", background: c.panel, borderBottom: `1px solid ${c.line}` }}>
         <Link href={ROUTES.fenceProjects} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          ← Fence projects
+          ← Fence Projects
         </Link>
+        <Divider />
+        <span style={{ fontWeight: 700, fontSize: 13.5, color: c.ink, whiteSpace: "nowrap" }}>Fence Design Studio</span>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -321,8 +339,50 @@ export default function FenceConfigurator({
           {view === "plan" ? (
             <PlanView layout={layout} totalLength={totalLength} lineposts={geometry.line_posts} gates={gates} />
           ) : (
-            <Fence3DView layout={layout} totalLength={totalLength} gates={gates} fabricHeight={fabricHeight} geometry={geometry} coating={coating} />
+            <Fence3DView layout={layout} totalLength={totalLength} gates={gates} fabricHeight={fabricHeight} geometry={geometry} coating={coating} meshSpec={meshSpec} />
           )}
+          <div style={{ position: "absolute", top: 12, left: 12, zIndex: 2 }}>
+            <button
+              onClick={() => setQuantitiesOpen((v) => !v)}
+              style={{
+                display: "flex", alignItems: "center", gap: 7, border: `1px solid ${c.line}`, cursor: "pointer",
+                background: quantitiesOpen ? c.accentbg : c.panel, color: quantitiesOpen ? c.accent : c.ink,
+                borderRadius: 8, boxShadow: sh.card, padding: "8px 14px", fontSize: 12.5, fontWeight: 600,
+              }}
+            >
+              ≡ Quantities
+            </button>
+            {quantitiesOpen && (
+              <div style={{ marginTop: 6, width: 300, maxHeight: 380, overflowY: "auto", background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, boxShadow: sh.card, padding: 14 }}>
+                {catalog.length === 0 ? (
+                  <p style={{ fontSize: 11.5, color: c.muted, margin: 0 }}>No materials seeded for this tenant yet.</p>
+                ) : (
+                  <>
+                    {quantitiesByCategory.map((group) => (
+                      <div key={group.label} style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>{group.label}</div>
+                        {group.lines.map((r, i) => (
+                          <div key={`${r.fence_kind}-${i}`} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "5px 0", borderTop: `1px solid ${c.line}`, fontSize: 12 }}>
+                            <span style={{ color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.product_name ?? BOM_LABEL[r.fence_kind as BomLine["kind"]] ?? r.fence_kind}</span>
+                            <span style={{ flex: "none", fontFamily: "monospace", color: c.muted }}>{r.qty} {r.uom}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0 2px", borderTop: `1px solid ${c.line}`, fontSize: 13 }}>
+                      <b>Total</b>
+                      <b style={{ fontFamily: "monospace" }}>{money(materialsCost)}</b>
+                    </div>
+                    {unresolvedCount > 0 && (
+                      <p style={{ fontSize: 10.5, color: c.amber, marginTop: 8 }}>
+                        {unresolvedCount} line{unresolvedCount === 1 ? "" : "s"} not priced -- no matching product for this pipe class / mesh / coating combination.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
           <div style={{ position: "absolute", top: 12, right: 12, display: "flex", background: c.panel, border: `1px solid ${c.line}`, borderRadius: 8, boxShadow: sh.card, padding: 3, gap: 3, zIndex: 2 }}>
             {(["plan", "3d"] as const).map((v) => (
               <button
@@ -471,6 +531,7 @@ export default function FenceConfigurator({
 
           <Field label={`Post spacing (${active.spacing} m)`}>
             <input type="range" min={1.5} max={4} step={0.5} value={active.spacing} onChange={(e) => updateActive({ spacing: +e.target.value })} style={{ width: "100%" }} />
+            <div style={{ fontSize: 10.5, color: c.muted, marginTop: 4 }}>Embedment depth: {active.embedment} m</div>
           </Field>
 
           <Field label="Pipe class">
@@ -487,11 +548,14 @@ export default function FenceConfigurator({
 
           {meshSpecs.length > 0 && (
             <Field label="Fabric mesh">
-              <select value={meshSpec} onChange={(e) => setMeshSpec(e.target.value)} style={inputStyle}>
-                {meshSpecs.map((m) => (
-                  <option key={m}>{m}</option>
-                ))}
-              </select>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <select value={meshSpec} onChange={(e) => setMeshSpec(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+                  {meshSpecs.map((m) => (
+                    <option key={m}>{m}</option>
+                  ))}
+                </select>
+                <MeshSwatch meshSpec={meshSpec} coating={coating} />
+              </div>
             </Field>
           )}
 
@@ -506,6 +570,15 @@ export default function FenceConfigurator({
                     ✕
                   </button>
                 </div>
+                <select
+                  value={g.type}
+                  onChange={(e) => updateGate(g.id, { type: e.target.value as FenceGateInput["type"] })}
+                  style={{ ...inputStyle, marginBottom: 8 }}
+                >
+                  <option value="double_swing">Double swing</option>
+                  <option value="single_swing">Single swing</option>
+                  <option value="sliding">Sliding</option>
+                </select>
                 <input type="range" min={1} max={12} step={0.5} value={g.width_m} onChange={(e) => updateGate(g.id, { width_m: +e.target.value })} style={{ width: "100%" }} />
               </div>
             ))}
@@ -513,14 +586,6 @@ export default function FenceConfigurator({
               + Add gate
             </button>
           </Section>
-
-          <Divider block />
-
-          <Readout label="Line posts" value={geometry.line_posts} />
-          <Readout label="Straining posts" value={geometry.straining_posts} />
-          <Readout label="Corner / terminal" value={geometry.corner_posts + geometry.terminal_posts} />
-          <Readout label="Gate posts" value={geometry.gate_posts} />
-          <Readout label="Embedment depth" value={`${active.embedment} m`} />
 
           <Divider block />
 
@@ -541,39 +606,6 @@ export default function FenceConfigurator({
                 <input type="checkbox" checked={accessories[key]} onChange={(e) => setAccessories((a) => ({ ...a, [key]: e.target.checked }))} />
               </label>
             ))}
-          </Section>
-
-          <Divider block />
-
-          <Section label="Hardware (live BOM)">
-            {bom.map((line) => (
-              <Readout key={line.kind} label={BOM_LABEL[line.kind]} value={`${line.qty} ${line.unit}`} />
-            ))}
-          </Section>
-
-          <Divider block />
-
-          <Section label="Estimated materials cost">
-            {catalog.length === 0 ? (
-              <p style={{ fontSize: 11.5, color: c.muted }}>No materials seeded for this tenant yet.</p>
-            ) : (
-              <>
-                {resolved
-                  .filter((r) => r.product_id)
-                  .map((r, i) => (
-                    <Readout key={`${r.fence_kind}-${i}`} label={r.product_name ?? r.fence_kind} value={money((r.list_price ?? 0) * r.qty)} />
-                  ))}
-                <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 4px", borderTop: `1px solid ${c.line}`, fontSize: 13.5 }}>
-                  <b>Total</b>
-                  <b style={{ fontFamily: "monospace" }}>{money(materialsCost)}</b>
-                </div>
-                {unresolvedCount > 0 && (
-                  <p style={{ fontSize: 11, color: c.amber, marginTop: 8 }}>
-                    {unresolvedCount} line{unresolvedCount === 1 ? "" : "s"} not priced -- no matching product for this pipe class / mesh / coating combination.
-                  </p>
-                )}
-              </>
-            )}
           </Section>
         </div>
       </div>
@@ -655,20 +687,32 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
-function Readout({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: `1px solid ${c.line}`, fontSize: 12.5 }}>
-      <span style={{ color: c.muted }}>{label}</span>
-      <span style={{ fontFamily: "monospace", fontWeight: 500 }}>{value}</span>
-    </div>
-  );
-}
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
       <b style={{ fontFamily: "monospace", fontSize: 15, lineHeight: 1.2 }}>{value}</b>
       <span style={{ fontSize: 10.5, color: c.muted }}>{label}</span>
     </div>
+  );
+}
+// A small live preview of the selected mesh -- the dropdown alone gave no
+// visual feedback when changed (the 3D view was the only place it showed
+// up, and only if you were on that tab). Gap spacing uses the same
+// meshGapPx heuristic as the actual 3D texture, so this genuinely matches
+// what you'd see there, not a decorative approximation.
+function MeshSwatch({ meshSpec, coating }: { meshSpec: string; coating: string }) {
+  const gap = meshGapPx(meshSpec);
+  const tint = coating === "GI" ? "#c7cdd2" : coating === "Powder coated" ? "#2b2f33" : "#3f6b46";
+  const lines: React.ReactNode[] = [];
+  for (let i = -32; i < 64; i += gap) {
+    lines.push(<line key={`a${i}`} x1={i} y1={0} x2={i + 32} y2={32} stroke={tint} strokeWidth={1.4} />);
+    lines.push(<line key={`b${i}`} x1={i + 32} y1={0} x2={i} y2={32} stroke={tint} strokeWidth={1.4} />);
+  }
+  return (
+    <svg width={36} height={36} viewBox="0 0 32 32" style={{ flex: "none", borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel2 }}>
+      <clipPath id="meshSwatchClip"><rect x={0} y={0} width={32} height={32} /></clipPath>
+      <g clipPath="url(#meshSwatchClip)">{lines}</g>
+    </svg>
   );
 }
 function Divider({ block }: { block?: boolean }) {

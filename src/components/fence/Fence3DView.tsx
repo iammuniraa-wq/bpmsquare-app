@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import type { FenceGateInput, FenceGeometryResult, FenceLayout } from "@/lib/fence/geometry";
+import { meshGapPx } from "@/lib/fence/materialMatch";
 
 // Real-time 3D preview (Phase E, docs/fence-configurator-architecture.md
 // §9) -- renders the SAME FenceGeometryResult the plan view and the BOM
@@ -29,6 +30,7 @@ interface Fence3DViewProps {
   fabricHeight: number;
   geometry: FenceGeometryResult;
   coating: string;
+  meshSpec: string;
 }
 
 interface SceneState {
@@ -107,17 +109,18 @@ function makeLabelSprite(text: string): THREE.Sprite {
   return sprite;
 }
 
-function chainLinkTexture(coating: string): THREE.CanvasTexture {
+function chainLinkTexture(coating: string, meshSpec: string): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 64;
   c.height = 64;
   const ctx = c.getContext("2d")!;
   const tint = coating === "GI" ? "#c7cdd2" : coating === "Powder coated" ? "#2b2f33" : "#3f6b46";
+  const gap = meshGapPx(meshSpec);
   ctx.strokeStyle = tint;
   ctx.lineWidth = 2.2;
   ctx.globalAlpha = 0.85;
   ctx.beginPath();
-  for (let i = -64; i < 128; i += 16) {
+  for (let i = -64; i < 128; i += gap) {
     ctx.moveTo(i, 0);
     ctx.lineTo(i + 64, 64);
     ctx.moveTo(i + 64, 0);
@@ -130,7 +133,7 @@ function chainLinkTexture(coating: string): THREE.CanvasTexture {
 }
 
 function buildFence(group: THREE.Group, props: Fence3DViewProps) {
-  const { layout, totalLength, gates, fabricHeight, geometry, coating } = props;
+  const { layout, totalLength, gates, fabricHeight, geometry, coating, meshSpec } = props;
   const scale = Math.max(0.4, Math.min(1, totalLength / 900));
   const W = 6 + scale * 16;
   const H = 5 + scale * 12;
@@ -138,7 +141,7 @@ function buildFence(group: THREE.Group, props: Fence3DViewProps) {
   const postMat = new THREE.MeshStandardMaterial({ color: 0x9aa3ac, metalness: 0.4, roughness: 0.5 });
   const cornerMat = new THREE.MeshStandardMaterial({ color: 0x818b93, metalness: 0.4, roughness: 0.5 });
   const gateMat = new THREE.MeshStandardMaterial({ color: 0x6c7680, metalness: 0.4, roughness: 0.5 });
-  const tex = chainLinkTexture(coating);
+  const tex = chainLinkTexture(coating, meshSpec);
 
   const footMat = new THREE.MeshStandardMaterial({ color: 0x8a8074, roughness: 0.95 });
 
@@ -156,19 +159,44 @@ function buildFence(group: THREE.Group, props: Fence3DViewProps) {
     foot.position.set(x, 0.04, z);
     group.add(foot);
   }
-  // An open gate leaf -- angled off the gap so it reads as a hinged panel,
-  // not just a break in the fence line. width_m drives how far it swings.
-  function addGateLeaf(hingeX: number, hingeZ: number, angle: number, leafLen: number, swing: number) {
+  // One leaf, framed (top/bottom/latch-side rails, not just a bare mesh
+  // plane) so it reads as an actual gate panel -- hinged at (hingeX,hingeZ),
+  // resting at `closedAngle` when shut, opened by `swing` radians.
+  function addGateLeaf(hingeX: number, hingeZ: number, closedAngle: number, leafLen: number, swing: number) {
+    const leafH = fabricHeight * 0.94;
     const t = tex.clone();
     t.needsUpdate = true;
-    t.repeat.set(leafLen / 1.1, fabricHeight / 1.1);
-    const mat = new THREE.MeshStandardMaterial({ map: t, color: 0xc98a3a, transparent: true, opacity: 0.75, side: THREE.DoubleSide, roughness: 0.85 });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(leafLen, fabricHeight * 0.94), mat);
-    const leafAngle = angle + swing;
-    mesh.position.set(hingeX + Math.cos(leafAngle) * (leafLen / 2), (fabricHeight * 0.94) / 2, hingeZ + Math.sin(leafAngle) * (leafLen / 2));
+    t.repeat.set(leafLen / 1.1, leafH / 1.1);
+    const mat = new THREE.MeshStandardMaterial({ map: t, color: 0xc98a3a, transparent: true, opacity: 0.78, side: THREE.DoubleSide, roughness: 0.85 });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(leafLen, leafH), mat);
+    const leafAngle = closedAngle + swing;
+    const midX = hingeX + Math.cos(leafAngle) * (leafLen / 2);
+    const midZ = hingeZ + Math.sin(leafAngle) * (leafLen / 2);
+    mesh.position.set(midX, leafH / 2, midZ);
     mesh.rotation.y = -leafAngle;
     group.add(mesh);
+
+    const frameMat = gateMat;
+    const top = new THREE.Mesh(new THREE.BoxGeometry(leafLen, 0.035, 0.035), frameMat);
+    top.position.set(midX, leafH, midZ);
+    top.rotation.y = -leafAngle;
+    group.add(top);
+    const latchX = hingeX + Math.cos(leafAngle) * leafLen;
+    const latchZ = hingeZ + Math.sin(leafAngle) * leafLen;
+    const latchPost = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, leafH, 8), frameMat);
+    latchPost.position.set(latchX, leafH / 2, latchZ);
+    group.add(latchPost);
   }
+  function addGateLintel(x1: number, z1: number, x2: number, z2: number, y: number) {
+    const len = Math.hypot(x2 - x1, z2 - z1);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(len, 0.04, 0.04), gateMat);
+    mesh.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+    mesh.rotation.y = -Math.atan2(z2 - z1, x2 - x1);
+    group.add(mesh);
+  }
+  // A top rail bar per fabric segment -- without it a side reads as a bare
+  // mesh plane floating between posts; the rail gives every edge a clean
+  // finished top line, same as the bottom fence line already implies.
   function addFabricSeg(x1: number, z1: number, angle: number, s0: number, s1: number) {
     if (s1 - s0 <= 0.05) return;
     const t = tex.clone();
@@ -177,9 +205,16 @@ function buildFence(group: THREE.Group, props: Fence3DViewProps) {
     const mat = new THREE.MeshStandardMaterial({ map: t, transparent: true, opacity: 0.8, side: THREE.DoubleSide, roughness: 0.9 });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(s1 - s0, fabricHeight), mat);
     const mid = s0 + (s1 - s0) / 2;
-    mesh.position.set(x1 + Math.cos(angle) * mid, fabricHeight / 2, z1 + Math.sin(angle) * mid);
+    const midX = x1 + Math.cos(angle) * mid;
+    const midZ = z1 + Math.sin(angle) * mid;
+    mesh.position.set(midX, fabricHeight / 2, midZ);
     mesh.rotation.y = -angle;
     group.add(mesh);
+
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(s1 - s0, 0.03, 0.03), postMat);
+    rail.position.set(midX, fabricHeight, midZ);
+    rail.rotation.y = -angle;
+    group.add(rail);
   }
   function addDimLabel(x: number, z: number, text: string, height = postH + 0.55) {
     const sprite = makeLabelSprite(text);
@@ -231,7 +266,17 @@ function buildFence(group: THREE.Group, props: Fence3DViewProps) {
           const pz2 = a[1] + Math.sin(angle) * (cursor + gw);
           addPost(px1, pz1, postH + 0.2, gateMat, 0.06);
           addPost(px2, pz2, postH + 0.2, gateMat, 0.06);
-          addGateLeaf(px1, pz1, angle, gw * 0.48, 0.6);
+          addGateLintel(px1, pz1, px2, pz2, postH + 0.2);
+          if (g.type === "sliding") {
+            // A sliding leaf parks flush alongside the run, past the opening --
+            // no swing, so draw it continuing straight past px2.
+            addGateLeaf(px2, pz2, angle, gw * 0.9, 0);
+          } else if (g.type === "single_swing") {
+            addGateLeaf(px1, pz1, angle, gw * 0.92, 0.65);
+          } else {
+            addGateLeaf(px1, pz1, angle, gw * 0.46, 0.6);
+            addGateLeaf(px2, pz2, angle + Math.PI, gw * 0.46, -0.6);
+          }
           addDimLabel((px1 + px2) / 2, (pz1 + pz2) / 2, `${g.width_m} m gate`, 0.35);
           cursor += gw + 0.3;
           if (gi < gates.length - 1) {
@@ -364,7 +409,7 @@ export default function Fence3DView(props: Fence3DViewProps) {
     buildFence(st.group, props);
     // props is a fresh object every render; depend on its actual fields.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.layout, props.totalLength, props.gates, props.fabricHeight, props.geometry, props.coating]);
+  }, [props.layout, props.totalLength, props.gates, props.fabricHeight, props.geometry, props.coating, props.meshSpec]);
 
   return <div ref={mountRef} style={{ width: "100%", height: "100%" }} />;
 }
