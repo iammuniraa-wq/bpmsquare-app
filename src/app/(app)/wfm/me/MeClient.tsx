@@ -10,6 +10,8 @@ import { computeDayHours } from "@/lib/wfm/hours";
 import { geoPermissionState, describeCameraError } from "@/lib/wfm/devicePermissions";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
@@ -345,6 +347,7 @@ function Bars({ points, valueOf, format }: { points: TrendPoint[]; valueOf: (p: 
 }
 
 export default function MeClient({ initialState = null }: { initialState?: MeState | null }) {
+  const cur = useCurrency();
   const [faceEnrollOpen, setFaceEnrollOpen] = useState(false);
   // Profile hub (portal Home): which tile is expanded, plus the change-password
   // form state used inside the Account settings tile.
@@ -1815,7 +1818,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Late marks</div><Stat value={String(monthTotals?.late_marks ?? 0)} label={`${monthTotals?.half_day_deductions ?? 0} half-day deduction(s)`} tone={(monthTotals?.late_marks ?? 0) > 0 ? statusInk.warn : undefined} /></section>
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Leave</div><Stat value={String((monthTotals?.paid_leave_days ?? 0) + (monthTotals?.unpaid_leave_days ?? 0))} label={`${monthTotals?.paid_leave_days ?? 0} paid · ${monthTotals?.unpaid_leave_days ?? 0} unpaid`} /></section>
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Holidays</div><Stat value={String(monthTotals?.holiday_days ?? 0)} label="this month" /></section>
-              <section className="stat-tile" style={cardStyle}><div style={capStyle}>Night shifts</div><Stat value={String(monthTotals?.night_shifts ?? 0)} label={monthTotals?.night_allowance_total ? `₹${monthTotals.night_allowance_total.toLocaleString("en-IN")} allowance` : "no allowance"} /></section>
+              <section className="stat-tile" style={cardStyle}><div style={capStyle}>Night shifts</div><Stat value={String(monthTotals?.night_shifts ?? 0)} label={monthTotals?.night_allowance_total ? `${formatMoney(monthTotals.night_allowance_total, cur, {})} allowance` : "no allowance"} /></section>
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Incomplete</div><Stat value={String(monthTotals?.incomplete_days ?? 0)} label="days missing a check-out" tone={(monthTotals?.incomplete_days ?? 0) > 0 ? statusInk.bad : undefined} /></section>
             </div>
           )}

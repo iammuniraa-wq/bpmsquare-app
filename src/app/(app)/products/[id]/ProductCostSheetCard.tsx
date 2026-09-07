@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { c } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 import { cardStyle } from "@/components/Shell";
 
 // Cost sheet (BPMSquare Pricing, cost-based step 3): what ONE unit of this
@@ -27,6 +29,7 @@ export default function ProductCostSheetCard({ productId, initial, initialAsOf, 
   initialAsOf: string | null;
   costPrice: number | null;
 }) {
+  const cur = useCurrency();
   const [rows, setRows] = useState<Row[]>((initial ?? []).map((r) => ({ path: r.path, qty: String(r.qty), kind: r.kind ?? "" })));
   const [asOf, setAsOf] = useState(initialAsOf ?? "");
   const [editing, setEditing] = useState(false);
@@ -66,7 +69,7 @@ export default function ProductCostSheetCard({ productId, initial, initialAsOf, 
         <div style={{ marginTop: 8 }}>
           {saved.rows.length === 0 ? (
             <div style={{ fontSize: 12, color: c.muted }}>
-              Bought-in at {costPrice != null ? `₹${costPrice.toLocaleString("en-IN")}` : "cost price (not set)"}
+              Bought-in at {costPrice != null ? formatMoney(costPrice, cur, {}) : "cost price (not set)"}
             </div>
           ) : saved.rows.map((r, i) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4 }}>

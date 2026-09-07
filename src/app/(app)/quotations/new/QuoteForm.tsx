@@ -26,7 +26,8 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
 });
 import { richTextToDisplayHtml, isRichTextEmpty } from "@/lib/richText";
 import PriceTrace, { type PriceTraceStep } from "@/components/pricing/PriceTrace";
-import { useTraceDetail } from "@/lib/tenant-context";
+import { useTraceDetail, useCurrency } from "@/lib/tenant-context";
+import { formatMoney, moneyFormatter, moneyLabel } from "@/lib/currency";
 
 // Fields the drawer's own inputs already cover — CreateExtraFields renders whatever's
 // left (nameplate fields, tenant custom fields), same exclusion list as /assets/new.
@@ -201,6 +202,7 @@ type Props = {
 
 export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], products = [], textFragments, offerType, tenantEntities, isAdmin, editQuote, pricingEngineQuotesEnabled }: Props) {
   const router = useRouter();
+  const cur = useCurrency();
   const traceDetail = useTraceDetail();
   const eq = editQuote?.quote;
   const isTechnical = offerType === "technical";
@@ -494,7 +496,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           </div>
           {!isTechnical && (
             <div style={{ width: 100 }}>
-              <span style={miniLbl}>Rate (₹)</span>
+              <span style={miniLbl}>{moneyLabel("Rate", cur)}</span>
               <input style={{ ...inp, textAlign: "right" }} type="number" min="0" step="100" value={opts.rate} onChange={(e) => opts.onField("rate", e.target.value)} />
               {opts.overridden && (
                 <div style={{ fontSize: 10, color: c.hint, marginTop: 2, maxWidth: 110 }}>Overridden — not tracked by the engine</div>
@@ -531,7 +533,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           )}
           {!isTechnical && opts.category === "material" && (
             <div style={{ width: 100 }}>
-              <span style={miniLbl}>Deduction (₹)</span>
+              <span style={miniLbl}>{moneyLabel("Deduction", cur)}</span>
               <input
                 style={{ ...inp, textAlign: "right", color: "var(--err-ink)" }} type="number" min="0" step="10"
                 value={opts.deduction} onChange={(e) => opts.onField("deduction", e.target.value)} placeholder="0"
@@ -696,7 +698,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const grandTotal = total + gstAmount;
   const poVal = parseFloat(poAmount) || 0;
 
-  const fmt = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+  const fmt = moneyFormatter(cur, {});
 
   // ── Row / line / group handlers ─────────────────────────────────────────────
 
@@ -1297,7 +1299,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
               </div>
               <div className="fg2">
                 <div>
-                  <span style={lbl}>PO amount (₹)</span>
+                  <span style={lbl}>{moneyLabel("PO amount", cur)}</span>
                   <input style={inp} type="number" min="0" step="1000" value={poAmount} onChange={(e) => setPoAmount(e.target.value)} placeholder="0" />
                 </div>
               </div>
@@ -1671,7 +1673,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: `1px solid ${c.line}` }}>
                       {(["pct", "fixed"] as const).map((t) => (
                         <button key={t} onClick={() => setDiscountType(t)} style={{ padding: "3px 11px", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: discountType === t ? c.accent : c.panel2, color: discountType === t ? "#fff" : c.muted }}>
-                          {t === "pct" ? "%" : "₹"}
+                          {t === "pct" ? "%" : cur.symbol}
                         </button>
                       ))}
                     </div>
@@ -1684,7 +1686,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       </>
                     ) : (
                       <>
-                        <span style={{ fontSize: 11, color: c.hint }}>₹</span>
+                        <span style={{ fontSize: 11, color: c.hint }}>{cur.symbol}</span>
                         <input type="number" min="0" step="100" value={discountFixed} onChange={(e) => setDiscountFixed(e.target.value)} style={{ width: 84, border: `1px solid ${c.line}`, borderRadius: 6, padding: "3px 6px", fontSize: 12, textAlign: "right", color: c.ink, fontFamily: "inherit" }} />
                       </>
                     )}
@@ -1867,7 +1869,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     <button key={item.id} onClick={() => insertProduct(item)} style={{ width: "100%", textAlign: "left", padding: "10px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: `1px solid ${c.line}` }} onMouseEnter={(e) => (e.currentTarget.style.background = c.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
                       <div style={{ fontSize: 12.5, color: c.ink, fontWeight: 500, lineHeight: 1.4 }}>{item.name}{item.sku ? ` (${item.sku})` : ""}</div>
                       <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>{item.list_price != null ? `₹${item.list_price.toLocaleString("en-IN")}` : "—"}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>{item.list_price != null ? formatMoney(item.list_price, cur, {}) : "—"}</span>
                         {item.uom && <span style={{ fontSize: 11, color: c.hint }}>/ {item.uom}</span>}
                         {item.category && <span style={{ fontSize: 11, color: c.hint }}>· {item.category}</span>}
                       </div>
@@ -1884,7 +1886,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                     <button key={item.id} onClick={() => insertInventoryItem(item)} style={{ width: "100%", textAlign: "left", padding: "10px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: `1px solid ${c.line}` }} onMouseEnter={(e) => (e.currentTarget.style.background = c.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
                       <div style={{ fontSize: 12.5, color: c.ink, fontWeight: 500, lineHeight: 1.4 }}>{item.name}{item.sku ? ` (${item.sku})` : ""}</div>
                       <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>{item.unit_cost != null ? `₹${item.unit_cost.toLocaleString("en-IN")}` : "—"}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>{item.unit_cost != null ? formatMoney(item.unit_cost, cur, {}) : "—"}</span>
                         <span style={{ fontSize: 11, color: c.hint }}>/ {item.uom}</span>
                         <span style={{ fontSize: 11, color: c.hint }}>· {item.qty_on_hand} on hand</span>
                       </div>
@@ -1902,7 +1904,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
                       <button key={item.id} onClick={() => insertCatalogItem(item)} style={{ width: "100%", textAlign: "left", padding: "10px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: `1px solid ${c.line}` }} onMouseEnter={(e) => (e.currentTarget.style.background = c.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
                         <div style={{ fontSize: 12.5, color: c.ink, fontWeight: 500, lineHeight: 1.4 }}>{item.description}</div>
                         <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>₹{item.rate.toLocaleString("en-IN")}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>{formatMoney(item.rate, cur, {})}</span>
                           <span style={{ fontSize: 11, color: c.hint }}>/ {item.unit}</span>
                           {item.notes && <span style={{ fontSize: 10.5, color: c.hint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>· {item.notes}</span>}
                         </div>

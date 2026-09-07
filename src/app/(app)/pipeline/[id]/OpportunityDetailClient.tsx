@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 import { cardStyle } from "@/components/Shell";
 import { useFeel } from "@/components/FeelProvider";
 import { ROUTES, LOSS_REASONS, LOSS_REASON_LABEL, type OpportunityStageDef } from "@/lib/constants";
@@ -20,7 +22,6 @@ import DocumentLinesEditor, { newLine, lineAmount, type Line, type StandardQuote
 type Member = { user_id: string; name: string | null; email: string | null };
 type Tab = "overview" | "lines" | "quotes";
 
-const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 const lbl: React.CSSProperties = { display: "block", fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 7, background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box" };
@@ -54,6 +55,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   todayKey: string;
   currentUserId: string;
 }) {
+  const cur = useCurrency();
+  const inr = (n: number) => formatMoney(Math.round(n), cur, {});
   const router = useRouter();
   const { confirm } = useFeel();
   const [pending, startTransition] = useTransition();

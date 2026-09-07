@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyLabel } from "@/lib/currency";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { useSalesConfig } from "@/lib/useSalesConfig";
@@ -20,6 +22,7 @@ const inp: React.CSSProperties = {
 const fw: React.CSSProperties = { marginBottom: 16 };
 
 export default function NewProductPage() {
+  const cur = useCurrency();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -115,11 +118,11 @@ export default function NewProductPage() {
             <input style={inp} type="number" step="0.01" value={form.tax_percent} onChange={set("tax_percent")} placeholder="18" />
           </div>
           <div style={fw}>
-            <label style={lbl}>List price (₹)</label>
+            <label style={lbl}>{moneyLabel("List price", cur)}</label>
             <input style={inp} type="number" step="0.01" value={form.list_price} onChange={set("list_price")} placeholder="External selling price" />
           </div>
           <div style={fw}>
-            <label style={lbl}>Cost price (₹)</label>
+            <label style={lbl}>{moneyLabel("Cost price", cur)}</label>
             <input style={inp} type="number" step="0.01" value={form.cost_price} onChange={set("cost_price")} placeholder="Internal cost" />
           </div>
         </div>

@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import { getInvoiceLive } from "@/lib/data/live";
-import { getTenant } from "@/lib/tenant";
+import { getTenant, getTenantCurrency } from "@/lib/tenant";
 import InvoicePrint from "@/components/InvoicePrint";
 
 export default async function InvoicePrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [data, tenant] = await Promise.all([getInvoiceLive(id), getTenant()]);
+  const [data, tenant, currency] = await Promise.all([getInvoiceLive(id), getTenant(), getTenantCurrency()]);
   if (!data) notFound();
 
   const { invoice, lines, payments, account, contact } = data;
@@ -21,6 +21,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
       logoUrl={tenant?.logo_url ?? null}
       tenantEntities={tenant?.config?.entities ?? []}
       tenantTax={tenant?.config?.tax ?? { label: "GST", rate: 18, inclusive: false }}
+      currency={currency.code}
     />
   );
 }

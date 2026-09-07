@@ -4,6 +4,8 @@ import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter, moneyLabel } from "@/lib/currency";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
@@ -25,7 +27,6 @@ const inp: React.CSSProperties = {
   background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
 };
 const fw: React.CSSProperties = { marginBottom: 16 };
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 function newLine(): Line {
   return { id: Math.random().toString(36).slice(2), description: "", uom: "Nos", qty: "1", rate: "0" };
@@ -39,6 +40,8 @@ export default function InvoiceForm({
   entities: { id: string; name: string; is_default?: boolean }[];
   quotes: QuoteOption[];
 }) {
+  const cur = useCurrency();
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -213,7 +216,7 @@ export default function InvoiceForm({
                         <input style={inp} type="number" min="0" step="any" value={line.qty} onChange={(e) => updateLine(line.id, { qty: e.target.value })} />
                       </div>
                       <div>
-                        <label style={lbl}>Rate (₹)</label>
+                        <label style={lbl}>{moneyLabel("Rate", cur)}</label>
                         <input style={inp} type="number" min="0" step="0.01" value={line.rate} onChange={(e) => updateLine(line.id, { rate: e.target.value })} />
                       </div>
                     </div>
@@ -238,7 +241,7 @@ export default function InvoiceForm({
                   </div>
                 ) : (
                   <div>
-                    <label style={lbl}>Discount (₹)</label>
+                    <label style={lbl}>{moneyLabel("Discount", cur)}</label>
                     <input style={inp} type="number" min="0" step="0.01" value={discountFixed} onChange={(e) => setDiscountFixed(e.target.value)} />
                   </div>
                 )}

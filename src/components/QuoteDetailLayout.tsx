@@ -16,7 +16,8 @@ import { ROUTES } from "@/lib/constants";
 import { MessageSquare, CheckIcon } from "@/components/Icons";
 import QuoteEditPanel from "@/components/QuoteEditPanel";
 import EmailComposeModal from "@/components/EmailComposeModal";
-import { useTenant, useTenantFeature, useIsNextgen3Layer } from "@/lib/tenant-context";
+import { useTenant, useTenantFeature, useIsNextgen3Layer, useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter, moneyLabel } from "@/lib/currency";
 import { celebrate } from "@/lib/celebrate";
 import NovaTimeline from "@/components/NovaTimeline";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/whatsapp";
@@ -334,7 +335,6 @@ interface Props {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -351,6 +351,8 @@ const td: React.CSSProperties = {
 
 export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES, existingInvoice = null, assets = [], publicPdfLink = null }: Props) {
   const router = useRouter();
+  const cur = useCurrency();
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const isTechnical = quote.type === "technical";
   const [currentStatus, setCurrentStatus] = useState<string>(quote.status);
   useEffect(() => { setCurrentStatus(quote.status); }, [quote.status]);
@@ -717,7 +719,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
             <td style={{ ...td, color: c.hint, fontSize: 11 }}>{line.sl_no || standaloneNum}</td>
             <td style={td}>{line.description}</td>
             <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.qty}</td>
-            <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.rate.toLocaleString("en-IN")}</td>
+            <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.rate.toLocaleString(cur.locale)}</td>
             <td style={{ ...td, textAlign: "right", fontWeight: 500 }}>{inr(line.amount)}</td>
           </tr>
         );
@@ -757,7 +759,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           </td>
           <td style={td}>{line.description}</td>
           <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.qty}</td>
-          <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.rate.toLocaleString("en-IN")}</td>
+          <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.rate.toLocaleString(cur.locale)}</td>
           <td style={{ ...td, textAlign: "right", fontWeight: 500 }}>{inr(line.amount)}</td>
         </tr>
       );
@@ -812,8 +814,8 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                   <th style={{ ...th, width: 28 }}>#</th>
                   <th style={th}>Description</th>
                   <th style={{ ...th, textAlign: "right", whiteSpace: "nowrap" }}>Qty</th>
-                  <th style={{ ...th, textAlign: "right", whiteSpace: "nowrap" }}>Rate (₹)</th>
-                  <th style={{ ...th, textAlign: "right", whiteSpace: "nowrap" }}>Amount (₹)</th>
+                  <th style={{ ...th, textAlign: "right", whiteSpace: "nowrap" }}>{moneyLabel("Rate", cur)}</th>
+                  <th style={{ ...th, textAlign: "right", whiteSpace: "nowrap" }}>{moneyLabel("Amount", cur)}</th>
                 </tr>
               </thead>
               <tbody>

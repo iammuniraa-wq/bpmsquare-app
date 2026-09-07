@@ -6,6 +6,8 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter } from "@/lib/currency";
 
 type ObjectType = "quote" | "case" | "work_order" | "account";
 
@@ -55,9 +57,10 @@ const fmtDate = (s: string) => {
   } catch { return s; }
 };
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Logs; isPlatformAdmin: boolean }) {
+  const cur = useCurrency();
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const [activeType, setActiveType] = useState<ObjectType | "all">("all");
   const [clearing, setClearing] = useState(false);
   const [cleared, setCleared] = useState(false);

@@ -4,6 +4,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { ROUTES } from "@/lib/constants";
+import { formatMoney, type CurrencyDef } from "@/lib/currency";
 
 /**
  * Nova Stream's action items -- REAL computed signals, not the design
@@ -33,7 +34,7 @@ const daysBetween = (a: Date, b: Date) => Math.floor((a.getTime() - b.getTime())
 
 // Quotes sent and awaiting a response -- older = more urgent, capped so a
 // years-old abandoned quote doesn't dominate the stream forever.
-async function getPendingQuoteItems(admin: SupabaseClient, tenantId: string, now: Date): Promise<NovaStreamItem[]> {
+async function getPendingQuoteItems(admin: SupabaseClient, tenantId: string, now: Date, cur: CurrencyDef): Promise<NovaStreamItem[]> {
   const { data } = await admin
     .from("quotes")
     .select("id, ref, total, submitted_at, accounts(name)")
@@ -56,7 +57,7 @@ async function getPendingQuoteItems(admin: SupabaseClient, tenantId: string, now
         kind: "quote_pending",
         score,
         title: `${accountName} hasn't responded to ${r.ref as string}`,
-        detail: `Sent ${days} day${days === 1 ? "" : "s"} ago · ₹${Number(r.total ?? 0).toLocaleString("en-IN")}`,
+        detail: `Sent ${days} day${days === 1 ? "" : "s"} ago · ${formatMoney(Number(r.total ?? 0), cur, {})}`,
         href: ROUTES.quotation(r.id as string),
         accent: "orange",
       };
@@ -65,7 +66,7 @@ async function getPendingQuoteItems(admin: SupabaseClient, tenantId: string, now
 }
 
 // AMC contracts lapsing within 30 days -- sooner = more urgent.
-async function getLapsingContractItems(admin: SupabaseClient, tenantId: string, now: Date): Promise<NovaStreamItem[]> {
+async function getLapsingContractItems(admin: SupabaseClient, tenantId: string, now: Date, cur: CurrencyDef): Promise<NovaStreamItem[]> {
   const cutoff = new Date(now.getTime() + 30 * DAY_MS).toISOString().slice(0, 10);
   const today = now.toISOString().slice(0, 10);
   const { data } = await admin
@@ -90,7 +91,7 @@ async function getLapsingContractItems(admin: SupabaseClient, tenantId: string, 
         kind: "contract_lapsing" as const,
         score: Math.max(20, score),
         title: `${accountName}'s AMC ${r.ref as string} lapses in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
-        detail: r.value ? `₹${Number(r.value).toLocaleString("en-IN")}/yr` : "Renewal due",
+        detail: r.value ? `${formatMoney(Number(r.value), cur, {})}/yr` : "Renewal due",
         href: ROUTES.amc,
         accent: "pink" as const,
       };
@@ -204,7 +205,7 @@ export type NovaWinItem = {
 // Recent good news -- quotes won and cases closed in the last 14 days,
 // tenant-wide. Balances the action stream's all-urgent framing with real
 // positive signal, same tenant-scoping discipline as every signal above.
-async function getRecentWins(admin: SupabaseClient, tenantId: string, now: Date): Promise<NovaWinItem[]> {
+async function getRecentWins(admin: SupabaseClient, tenantId: string, now: Date, cur: CurrencyDef): Promise<NovaWinItem[]> {
   const cutoff = new Date(now.getTime() - 14 * DAY_MS).toISOString();
 
   const [quotesR, casesR] = await Promise.allSettled([
@@ -235,7 +236,7 @@ async function getRecentWins(admin: SupabaseClient, tenantId: string, now: Date)
       wins.push({
         id: `win:quote:${q.id as string}`,
         title: `${q.ref as string} won`,
-        detail: `${accountName} · ₹${Number(q.total ?? 0).toLocaleString("en-IN")}`,
+        detail: `${accountName} · ${formatMoney(Number(q.total ?? 0), cur, {})}`,
         href: ROUTES.quotation(q.id as string),
         date: q.closed_at as string,
       });
@@ -263,13 +264,13 @@ async function getRecentWins(admin: SupabaseClient, tenantId: string, now: Date)
  * score first. Any one signal source failing (e.g. a table not yet
  * migrated) must not take the others down with it.
  */
-export async function getNovaStreamItems(tenantId: string): Promise<NovaStreamItem[]> {
+export async function getNovaStreamItems(tenantId: string, cur: CurrencyDef): Promise<NovaStreamItem[]> {
   const admin = createAdminSupabase();
   const now = new Date();
 
   const results = await Promise.allSettled([
-    getPendingQuoteItems(admin, tenantId, now),
-    getLapsingContractItems(admin, tenantId, now),
+    getPendingQuoteItems(admin, tenantId, now, cur),
+    getLapsingContractItems(admin, tenantId, now, cur),
     getUnquotedProductItems(admin, tenantId),
     getWfmApprovalItems(admin, tenantId),
   ]);
@@ -278,7 +279,7 @@ export async function getNovaStreamItems(tenantId: string): Promise<NovaStreamIt
   return items.sort((a, b) => b.score - a.score);
 }
 
-export async function getNovaRecentWins(tenantId: string): Promise<NovaWinItem[]> {
+export async function getNovaRecentWins(tenantId: string, cur: CurrencyDef): Promise<NovaWinItem[]> {
   const admin = createAdminSupabase();
-  return getRecentWins(admin, tenantId, new Date());
+  return getRecentWins(admin, tenantId, new Date(), cur);
 }

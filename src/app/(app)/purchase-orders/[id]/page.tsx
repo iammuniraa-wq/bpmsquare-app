@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireFeature, getUserRole } from "@/lib/tenant";
+import { requireFeature, getUserRole, getTenantCurrency } from "@/lib/tenant";
+import { moneyFormatter } from "@/lib/currency";
 import { getPurchaseOrderLive } from "@/lib/data/live";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { c, type PillarKey } from "@/lib/theme";
@@ -24,7 +25,6 @@ const STATUS_LABEL: Record<PurchaseOrderStatus, string> = {
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 function CtxRow({ label, value }: { label: string; value: string }) {
   return (
@@ -44,6 +44,7 @@ function CtxLabel({ children }: { children: React.ReactNode }) {
 
 export default async function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireFeature("purchasing");
+  const inr = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
   const { id } = await params;
   const [data, role] = await Promise.all([getPurchaseOrderLive(id), getUserRole()]);
   if (!data) notFound();

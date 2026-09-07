@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { ROUTES, type TenantFeatures } from "@/lib/constants";
+import { formatMoney, type CurrencyDef } from "@/lib/currency";
 
 /**
  * Nova Stream's "Rankings" -- replaces the predictive action stream (now
@@ -16,7 +17,7 @@ export type NovaRankings = {
   mostRepaired: NovaRankingRow[];
 };
 
-const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const money = (n: number, cur: CurrencyDef) => formatMoney(Math.round(n), cur, {});
 const TOP_N = 5;
 const ASSET_KIND_LABEL: Record<string, string> = {
   motor: "Motors", transformer: "Transformers", pump: "Pumps", generator: "Generators", panel: "Panels",
@@ -25,7 +26,7 @@ const ASSET_KIND_LABEL: Record<string, string> = {
 // Revenue basis prefers billed invoices (real, collected-or-collectible
 // money); a tenant without the invoices module falls back to won-quote
 // value (the next-most-real signal of who the business actually serves).
-async function topCustomersByInvoices(tenantId: string): Promise<NovaRankingRow[]> {
+async function topCustomersByInvoices(tenantId: string, cur: CurrencyDef): Promise<NovaRankingRow[]> {
   const admin = createAdminSupabase();
   const { data } = await admin
     .from("invoices")
@@ -42,10 +43,10 @@ async function topCustomersByInvoices(tenantId: string): Promise<NovaRankingRow[
   return [...byAccount.entries()]
     .sort((a, b) => b[1].value - a[1].value)
     .slice(0, TOP_N)
-    .map(([id, v]) => ({ id, label: v.name, detail: money(v.value), href: ROUTES.account(id) }));
+    .map(([id, v]) => ({ id, label: v.name, detail: money(v.value, cur), href: ROUTES.account(id) }));
 }
 
-async function topCustomersByWonQuotes(tenantId: string): Promise<NovaRankingRow[]> {
+async function topCustomersByWonQuotes(tenantId: string, cur: CurrencyDef): Promise<NovaRankingRow[]> {
   const admin = createAdminSupabase();
   const { data } = await admin
     .from("quotes")
@@ -62,10 +63,10 @@ async function topCustomersByWonQuotes(tenantId: string): Promise<NovaRankingRow
   return [...byAccount.entries()]
     .sort((a, b) => b[1].value - a[1].value)
     .slice(0, TOP_N)
-    .map(([id, v]) => ({ id, label: v.name, detail: money(v.value), href: ROUTES.account(id) }));
+    .map(([id, v]) => ({ id, label: v.name, detail: money(v.value, cur), href: ROUTES.account(id) }));
 }
 
-async function topProducts(tenantId: string): Promise<NovaRankingRow[]> {
+async function topProducts(tenantId: string, cur: CurrencyDef): Promise<NovaRankingRow[]> {
   const admin = createAdminSupabase();
   const { data } = await admin
     .from("quote_lines")
@@ -83,7 +84,7 @@ async function topProducts(tenantId: string): Promise<NovaRankingRow[]> {
   return [...byProduct.entries()]
     .sort((a, b) => b[1].value - a[1].value)
     .slice(0, TOP_N)
-    .map(([id, v]) => ({ id, label: v.name, detail: `${money(v.value)} · ${v.count} line${v.count === 1 ? "" : "s"}`, href: ROUTES.product(id) }));
+    .map(([id, v]) => ({ id, label: v.name, detail: `${money(v.value, cur)} · ${v.count} line${v.count === 1 ? "" : "s"}`, href: ROUTES.product(id) }));
 }
 
 async function mostRepaired(tenantId: string): Promise<NovaRankingRow[]> {
@@ -111,11 +112,11 @@ async function mostRepaired(tenantId: string): Promise<NovaRankingRow[]> {
  * source dropped rather than fatal to the rest -- same discipline as
  * getNovaStreamItems()/getNovaFlows().
  */
-export async function getNovaRankings(tenantId: string, features: TenantFeatures): Promise<NovaRankings> {
+export async function getNovaRankings(tenantId: string, features: TenantFeatures, cur: CurrencyDef): Promise<NovaRankings> {
   const jobs: [keyof NovaRankings, Promise<NovaRankingRow[]>][] = [];
-  if (features.invoices) jobs.push(["topCustomers", topCustomersByInvoices(tenantId)]);
-  else if (features.quotations) jobs.push(["topCustomers", topCustomersByWonQuotes(tenantId)]);
-  if (features.products && features.quotations) jobs.push(["topProducts", topProducts(tenantId)]);
+  if (features.invoices) jobs.push(["topCustomers", topCustomersByInvoices(tenantId, cur)]);
+  else if (features.quotations) jobs.push(["topCustomers", topCustomersByWonQuotes(tenantId, cur)]);
+  if (features.products && features.quotations) jobs.push(["topProducts", topProducts(tenantId, cur)]);
   if (features.cases && features.assets) jobs.push(["mostRepaired", mostRepaired(tenantId)]);
 
   const results = await Promise.allSettled(jobs.map(([, p]) => p));

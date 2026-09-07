@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import type { ServiceCase, Account, WorkOrder, Activity as ActivityRec } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useUiTheme, useIsNextgen3Layer } from "@/lib/tenant-context";
+import { useUiTheme, useIsNextgen3Layer, useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter, type CurrencyDef } from "@/lib/currency";
 import SilenceDetector from "@/components/SilenceDetector";
 import LossIntelligence from "@/components/LossIntelligence";
 import WfmSummaryWidget from "@/components/wfm/WfmSummaryWidget";
@@ -225,8 +226,6 @@ const todayStr = () =>
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const daysSince = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 /** Tiny inline area sparkline -- nextgen KPI tiles. Pure SVG, no library. */
 function Sparkline({ values, stroke }: { values: number[]; stroke: string }) {
@@ -544,6 +543,7 @@ function ProgressRing({ pct, color, size = 84, stroke = 9 }: { pct: number; colo
 }
 
 function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: number; color: string }[]; height?: number }) {
+  const inr = moneyFormatter(useCurrency(), { maximumFractionDigits: 0 });
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
     <div style={{ display: "flex", alignItems: "flex-end", gap: 18, height }}>
@@ -670,7 +670,8 @@ const WIDGET_TONE: Partial<Record<string, PillarKey>> = {
 };
 
 const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
-export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full"): React.ReactNode {
+export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full", cur: CurrencyDef): React.ReactNode {
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const COLORS = [pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.purple.base, pillar.green.base];
   const tone = WIDGET_TONE[id];
   const iconColor = tone ? pillar[tone].base : ledger.accent;
@@ -1169,6 +1170,8 @@ export function AdaptDrawer({
 
 export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin, hasPersonalOverride, userName }: Props) {
   const router = useRouter();
+  const cur = useCurrency();
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const uiTheme = useUiTheme();
   const modern = uiTheme !== "classic";
   const nextgen = uiTheme === "nextgen";
@@ -1614,7 +1617,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
 
   function renderMainBlock(block: DashLayoutItem) {
     if (isAnalyticsId(block.id)) {
-      return <div key={block.id}>{renderWidget(block.id, analytics, blockSize(block))}</div>;
+      return <div key={block.id}>{renderWidget(block.id, analytics, blockSize(block), cur)}</div>;
     }
     switch (block.id) {
       case "overview_strip": return <div key={block.id}>{renderOverviewStrip()}</div>;

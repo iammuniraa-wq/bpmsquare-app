@@ -8,6 +8,7 @@ import { decryptAccount } from "@/lib/encryption";
 import { computeRating, type RatingSignals } from "./rating";
 import { loadExternalCard } from "./externalSource";
 import { resolveCoverageForAccount } from "@/lib/coverage/resolve";
+import { formatMoney, type CurrencyDef } from "@/lib/currency";
 import type {
   Account360Card,
   Account360Payload,
@@ -25,7 +26,9 @@ import type {
  * client, where RLS is not a backstop (MULTI_TENANT_GUARDRAILS.md).
  */
 
-const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+// Local rounding wrapper; `cur` is threaded from the route because the
+// `config` this file receives is the account_360 sub-config, not TenantConfig.
+const money = (n: number, cur: CurrencyDef) => formatMoney(Math.round(n), cur, {});
 const DAY = 86_400_000;
 const daysSince = (iso: string | null | undefined): number | null =>
   iso ? Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / DAY)) : null;
@@ -43,7 +46,8 @@ const BUILTIN_CARD_IDS = ["pipeline", "revenue", "service", "people", "installed
 export async function buildAccount360(
   tenantId: string,
   accountId: string,
-  config: Account360Config | undefined
+  config: Account360Config | undefined,
+  cur: CurrencyDef
 ): Promise<Account360Payload | null> {
   const admin = createAdminSupabase();
 
@@ -116,8 +120,8 @@ export async function buildAccount360(
     subtitle: `${quotes.length} quotation${quotes.length === 1 ? "" : "s"} all time`,
     kind: "internal",
     stats: [
-      { label: "Open value", value: money(openValue), hint: `${openQuotes.length} open`, tone: openQuotes.length ? "neutral" : undefined },
-      { label: "Won value", value: money(wonValue), hint: `${wonQuotes.length} won`, tone: wonQuotes.length ? "good" : undefined },
+      { label: "Open value", value: money(openValue, cur), hint: `${openQuotes.length} open`, tone: openQuotes.length ? "neutral" : undefined },
+      { label: "Won value", value: money(wonValue, cur), hint: `${wonQuotes.length} won`, tone: wonQuotes.length ? "good" : undefined },
       {
         label: "Win rate",
         value: winRate === null ? "—" : `${winRate}%`,
@@ -131,7 +135,7 @@ export async function buildAccount360(
     rows: quotes.slice(0, 5).map((q) => ({
       title: q.ref,
       meta: `${fmtDate(q.quote_date ?? q.created_at)} · ${q.status}`,
-      value: money(q.total ?? 0),
+      value: money(q.total ?? 0, cur),
       tone: q.outcome === "won" ? ("good" as const) : q.outcome === "lost" || q.outcome === "dropped" ? ("bad" as const) : undefined,
       href: `/quotes/${q.id}`,
     })),
@@ -154,11 +158,11 @@ export async function buildAccount360(
     subtitle: `${liveInvoices.length} issued invoice${liveInvoices.length === 1 ? "" : "s"}`,
     kind: "internal",
     stats: [
-      { label: "Invoiced", value: money(invoicedTotal) },
-      { label: "Collected", value: money(collected), tone: collected > 0 ? "good" : undefined },
+      { label: "Invoiced", value: money(invoicedTotal, cur) },
+      { label: "Collected", value: money(collected, cur), tone: collected > 0 ? "good" : undefined },
       {
         label: "Outstanding",
-        value: money(outstanding),
+        value: money(outstanding, cur),
         hint: overdue.length ? `${overdue.length} overdue, oldest ${oldestOverdueDays}d` : "nothing past due",
         tone: overdue.length ? "bad" : outstanding > 0 ? "warn" : "good",
       },
@@ -166,7 +170,7 @@ export async function buildAccount360(
     rows: invoices.slice(0, 5).map((i) => ({
       title: i.ref,
       meta: `${i.status} · due ${fmtDate(i.due_date)}`,
-      value: money(i.total ?? 0),
+      value: money(i.total ?? 0, cur),
       tone: i.status === "paid" ? ("good" as const)
         : i.due_date && new Date(i.due_date).getTime() < Date.now() ? ("bad" as const)
         : undefined,
@@ -253,7 +257,7 @@ export async function buildAccount360(
     rows: contracts.slice(0, 5).map((c) => ({
       title: c.ref,
       meta: `${c.status} · ${fmtDate(c.start_date)} → ${fmtDate(c.end_date)}`,
-      value: c.value ? money(c.value) : undefined,
+      value: c.value ? money(c.value, cur) : undefined,
       tone: c.status === "active" ? ("good" as const) : undefined,
     })),
     empty: contracts.length === 0 ? "Not under contract" : undefined,
@@ -363,7 +367,7 @@ export async function buildAccount360(
   if (overdue.length > 0) {
     suggestions.push({
       id: "chase-overdue",
-      title: `Chase ${money(overdue.reduce((t, i) => t + Math.max(0, (i.total ?? 0) - (i.paid_amount ?? 0)), 0))} overdue`,
+      title: `Chase ${money(overdue.reduce((t, i) => t + Math.max(0, (i.total ?? 0) - (i.paid_amount ?? 0)), 0), cur)} overdue`,
       detail: `${overdue.length} invoice${overdue.length === 1 ? "" : "s"} past due, the oldest by ${oldestOverdueDays} days.`,
       urgency: "high",
       href: `/invoices/${overdue[0].id}`,
@@ -374,7 +378,7 @@ export async function buildAccount360(
     suggestions.push({
       id: "stale-quotes",
       title: `Follow up ${staleOpenQuotes.length} quotation${staleOpenQuotes.length === 1 ? "" : "s"}`,
-      detail: `Open with no decision for over three weeks — worth ${money(staleOpenQuotes.reduce((t, q) => t + (q.total ?? 0), 0))}.`,
+      detail: `Open with no decision for over three weeks — worth ${money(staleOpenQuotes.reduce((t, q) => t + (q.total ?? 0), 0), cur)}.`,
       urgency: "high",
       href: `/quotes/${staleOpenQuotes[0].id}`,
     });
@@ -427,7 +431,7 @@ export async function buildAccount360(
     suggestions.push({
       id: "won-not-invoiced",
       title: "Won work, nothing invoiced",
-      detail: `${wonQuotes.length} won quotation${wonQuotes.length === 1 ? "" : "s"} worth ${money(wonValue)} with no invoice raised against the account.`,
+      detail: `${wonQuotes.length} won quotation${wonQuotes.length === 1 ? "" : "s"} worth ${money(wonValue, cur)} with no invoice raised against the account.`,
       urgency: "high",
     });
   }

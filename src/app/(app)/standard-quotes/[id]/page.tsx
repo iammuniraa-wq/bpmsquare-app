@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireWorkcenterView } from "@/lib/permissions";
-import { requireFeature, getTenant } from "@/lib/tenant";
+import { requireFeature, getTenant, getTenantCurrency } from "@/lib/tenant";
+import { moneyFormatter } from "@/lib/currency";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import StandardQuoteDealCard from "./StandardQuoteDealCard";
 import { getStandardQuoteLive } from "@/lib/data/live";
@@ -26,7 +27,6 @@ const STATUS_LABEL: Record<StandardQuoteStatus, string> = {
 
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 function CtxRow({ label, value }: { label: string; value: string }) {
   return (
@@ -47,6 +47,7 @@ function CtxLabel({ children }: { children: React.ReactNode }) {
 export default async function StandardQuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkcenterView("standard_quotes");
   await requireFeature("standard_quotes");
+  const inr = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
   const { id } = await params;
   const data = await getStandardQuoteLive(id);
   if (!data) notFound();

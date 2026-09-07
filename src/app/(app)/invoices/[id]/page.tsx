@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireFeature, getUserRole } from "@/lib/tenant";
+import { requireFeature, getUserRole, getTenantCurrency } from "@/lib/tenant";
+import { moneyFormatter } from "@/lib/currency";
 import { getInvoiceLive } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -24,7 +25,6 @@ const STATUS_LABEL: Record<InvoiceStatus, string> = {
 
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 function CtxRow({ label, value }: { label: string; value: string }) {
   return (
@@ -44,6 +44,7 @@ function CtxLabel({ children }: { children: React.ReactNode }) {
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireFeature("invoices");
+  const inr = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
   const { id } = await params;
   const [data, role] = await Promise.all([getInvoiceLive(id), getUserRole()]);
   if (!data) notFound();

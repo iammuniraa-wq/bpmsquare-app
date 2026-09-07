@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoneyCompact } from "@/lib/currency";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, LOSS_REASONS, LOSS_REASON_LABEL, type OpportunityStageDef } from "@/lib/constants";
 import { daysBetween, weightedValue, isClosedStage, outcomeForStage } from "@/lib/sales/opportunity";
@@ -16,10 +18,6 @@ import type { OpportunityRow } from "@/lib/sales/opportunityServer";
 
 type Member = { user_id: string; name: string | null; email: string | null };
 
-const money = (n: number) =>
-  n >= 10_000_000 ? `₹${(n / 10_000_000).toFixed(2)} Cr`
-  : n >= 100_000 ? `₹${(n / 100_000).toFixed(1)} L`
-  : `₹${Math.round(n).toLocaleString("en-IN")}`;
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—");
 const initials = (m: Member | undefined) => {
   const s = m?.name || m?.email || "?";
@@ -35,6 +33,8 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
   todayKey: string;
   currentUserId: string;
 }) {
+  const cur = useCurrency();
+  const money = (n: number) => formatMoneyCompact(n, cur, n >= 10_000_000 ? 2 : 1);
   const router = useRouter();
   const [view, setView] = useState<"board" | "list">("board");
   const [owner, setOwner] = useState("");

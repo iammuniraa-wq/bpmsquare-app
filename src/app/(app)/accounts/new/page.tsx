@@ -8,6 +8,8 @@ import MobileSection from "@/components/MobileSection";
 import { ROUTES } from "@/lib/constants";
 import Link from "next/link";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoneyCompact } from "@/lib/currency";
 
 interface CFDef {
   id: string; field_key: string; field_label: string;
@@ -37,6 +39,7 @@ const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 
 const sectionHead: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 14px" };
 
 export default function NewAccountPage() {
+  const cur = useCurrency();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -217,7 +220,7 @@ export default function NewAccountPage() {
         </div>
         <div>
           <label style={label}>Annual revenue</label>
-          <input style={input} value={form.annual_revenue} onChange={set("annual_revenue")} placeholder="e.g. ₹5 Cr" />
+          <input style={input} value={form.annual_revenue} onChange={set("annual_revenue")} placeholder={`e.g. ${formatMoneyCompact(50_000_000, cur, 0)}`} />
         </div>
       </div>
       <div style={fw}>

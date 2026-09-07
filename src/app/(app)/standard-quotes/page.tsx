@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenantCurrency } from "@/lib/tenant";
+import { moneyFormatter } from "@/lib/currency";
 import { listStandardQuotes } from "@/lib/data/live";
 import type { StandardQuoteRow } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
@@ -26,8 +27,6 @@ const SUMMARY_STATUSES: StandardQuoteStatus[] = ["draft", "sent", "accepted", "r
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 const th: React.CSSProperties = {
   textAlign: "left", color: c.hint, fontWeight: 500,
@@ -54,6 +53,7 @@ export default async function StandardQuotesPage({
 }) {
   await requireWorkcenterView("standard_quotes");
   await requireFeature("standard_quotes");
+  const inr = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
   const params = await searchParams;
   const { status: statusFilter, q } = params;
   const { sort, dir } = readSortParams(params);

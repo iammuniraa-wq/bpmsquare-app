@@ -5,6 +5,8 @@ import Link from "next/link";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES, LOSS_REASON_LABEL, type LossReason } from "@/lib/constants";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 
 /**
  * Loss Intelligence — engagement layer, 3-layer theme only (parent gates).
@@ -24,9 +26,9 @@ const REASON_COLOR: Record<LossReason, string> = {
   budget: "#7c5cff", timing: "#0891b2", other: "#94a3b8",
 };
 
-const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
-
 export default function LossIntelligence() {
+  const cur = useCurrency();
+  const inr = (n: number) => formatMoney(Math.round(n), cur, {});
   const [mix, setMix] = useState<Mix[] | null>(null);
   const [recent, setRecent] = useState<Recent[]>([]);
   const [totalValue, setTotalValue] = useState(0);

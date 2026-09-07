@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney, formatMoneyCompact } from "@/lib/currency";
 
 /**
  * Nova — Quote Lanes ("Living quotes"). First shipped slice of the
@@ -30,13 +32,9 @@ type Card = {
 type LaneSummary = { count: number; value: number };
 type Payload = { cards: Card[]; normal: LaneSummary; cold: LaneSummary; action: LaneSummary; cold_days: number };
 
-const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
-const money = (n: number) =>
-  n >= 10_000_000 ? `₹${(n / 10_000_000).toFixed(1)}Cr`
-  : n >= 100_000 ? `₹${(n / 100_000).toFixed(1)}L`
-  : inr(n);
-
 function Card({ card, onOpen }: { card: Card; onOpen: (id: string) => void }) {
+  const cur = useCurrency();
+  const inr = (n: number) => formatMoney(Math.round(n), cur, {});
   const cold = card.lane === "cold";
   return (
     <article
@@ -74,6 +72,7 @@ function Card({ card, onOpen }: { card: Card; onOpen: (id: string) => void }) {
 }
 
 function LaneHead({ dot, title, summary, note }: { dot: string; title: string; summary: LaneSummary; note: string }) {
+  const money = (n: number) => formatMoneyCompact(n, useCurrency(), 1);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "6px 0 16px" }}>
       <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />
@@ -88,6 +87,8 @@ function LaneHead({ dot, title, summary, note }: { dot: string; title: string; s
 
 export default function QuoteLanes({ filterQuery }: { filterQuery?: string }) {
   const router = useRouter();
+  const cur = useCurrency();
+  const money = (n: number) => formatMoneyCompact(n, cur, 1);
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
 

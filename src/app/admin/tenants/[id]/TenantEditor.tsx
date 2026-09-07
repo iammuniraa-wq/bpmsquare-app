@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { CURRENCIES, resolveCurrency, type CurrencyCode } from "@/lib/currency";
 import { useRouter } from "next/navigation";
 import type { Tenant, TenantFeatures } from "@/lib/tenant";
 import { c } from "@/lib/theme";
@@ -87,6 +88,7 @@ export default function TenantEditor({ tenant, users }: Props) {
       ? "modern"
       : "classic"
   );
+  const [currency, setCurrency]       = useState<CurrencyCode>(resolveCurrency(tenant.config).code);
   const [apiKey, setApiKey]           = useState(tenant.api_key ?? "");
   const [saved, setSaved]             = useState(false);
   const [error, setError]             = useState("");
@@ -159,7 +161,7 @@ export default function TenantEditor({ tenant, users }: Props) {
         body: JSON.stringify({
           name, slug, accent_color: accentColor, logo_url: logoUrl || null, status, plan, features,
           custom_domain: customDomain || null, api_key: apiKey || null,
-          config: { ...tenant.config, appearance: { ...tenant.config?.appearance, ui_theme: uiTheme } },
+          config: { ...tenant.config, appearance: { ...tenant.config?.appearance, ui_theme: uiTheme }, currency },
         }),
       });
       if (res.ok) {
@@ -242,6 +244,12 @@ export default function TenantEditor({ tenant, users }: Props) {
               <option value="personal">Personal</option>
               <option value="small_business">Small business</option>
               <option value="enterprise">Enterprise</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Currency</label>
+            <select style={{ ...inputStyle }} value={currency} onChange={(e) => setCurrency(e.target.value as CurrencyCode)}>
+              {Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
             </select>
           </div>
         </div>

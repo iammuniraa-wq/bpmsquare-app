@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney, formatMoneyCompact } from "@/lib/currency";
 
 /**
  * Nova — Quote Field. Own full-screen tab in the Quotations view switcher
@@ -50,12 +52,6 @@ type Payload = { points: Point[]; exposed: Point[]; exposure_value: number; expo
 const COLOR: Record<Point["color"], string> = { draft: "#E4634A", sent: "#F0A93B", accepted: "#14C8B4" };
 const LABEL: Record<Point["color"], string> = { draft: "Draft, unsent", sent: "Sent", accepted: "Accepted / negotiating" };
 
-const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
-const money = (n: number) =>
-  n >= 10_000_000 ? `₹${(n / 10_000_000).toFixed(2)}Cr`
-  : n >= 100_000 ? `₹${(n / 100_000).toFixed(2)}L`
-  : inr(n);
-
 function median(values: number[]): number {
   if (values.length === 0) return 0;
   const s = [...values].sort((a, b) => a - b);
@@ -87,6 +83,9 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function QuoteField({ filterQuery }: { filterQuery?: string }) {
   const router = useRouter();
+  const cur = useCurrency();
+  const inr = (n: number) => formatMoney(Math.round(n), cur, {});
+  const money = (n: number) => formatMoneyCompact(n, cur, 2);
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<{ p: Point; clamped: boolean; x: number; y: number } | null>(null);
@@ -267,7 +266,7 @@ export default function QuoteField({ filterQuery }: { filterQuery?: string }) {
               <g key={v}>
                 <line x1={PAD_L} x2={W - PAD_R} y1={Y(v)} y2={Y(v)} stroke="var(--nova-line-soft)" />
                 <text x={PAD_L - 8} y={Y(v) + 3} textAnchor="end" fill="var(--nova-ink-faint)" fontFamily="var(--nova-font-body)" fontSize="9.5">
-                  {v === 0 ? "₹0" : v >= maxValue ? `${money(v)}+` : money(v)}
+                  {v === 0 ? inr(0) : v >= maxValue ? `${money(v)}+` : money(v)}
                 </text>
               </g>
             ))}

@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react";
 import type { Tenant } from "./tenant";
 import type { ViewableWorkcenters } from "./workcenters";
+import { resolveCurrency, type CurrencyDef } from "./currency";
 
 type TenantCtx = {
   tenant: Tenant | null;
@@ -61,6 +62,14 @@ export function useIsWfmSupervisor(): boolean {
 export function useTenantFeature(key: keyof Tenant["features"]): boolean {
   const { tenant } = useContext(TenantContext);
   return tenant?.features?.[key] ?? false;
+}
+
+/** The tenant's currency (TenantConfig.currency; INR when unset). Client
+ *  components format every money figure through this -- never a literal
+ *  symbol -- so one setting drives the whole workspace. */
+export function useCurrency(): CurrencyDef {
+  const { tenant } = useContext(TenantContext);
+  return resolveCurrency(tenant?.config);
 }
 
 /** Whether the quote-line pricing trace shows the actual rate/formula and

@@ -2,6 +2,7 @@ import type { Contract, Invoice, Quote, ServiceCase } from "@/lib/types";
 import { computeRating, type RatingSignals } from "@/lib/account360/rating";
 import type { Account360Rating } from "@/lib/account360/types";
 import { ROUTES } from "@/lib/constants";
+import { formatMoney, type CurrencyDef } from "@/lib/currency";
 
 /**
  * Nova's Account story timeline -- a REAL chronological event list built
@@ -33,7 +34,7 @@ const OPEN_CASE_STATUSES = new Set([
 const DAY = 86_400_000;
 const daysSince = (iso: string | null | undefined): number | null =>
   iso ? Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / DAY)) : null;
-const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const money = (n: number, cur: CurrencyDef) => formatMoney(Math.round(n), cur, {});
 
 export function buildAccountStoryEvents(input: {
   accountId: string;
@@ -42,8 +43,10 @@ export function buildAccountStoryEvents(input: {
   cases: Pick<ServiceCase, "id" | "ref" | "intake_at" | "closed_at">[];
   invoices: Pick<Invoice, "id" | "ref" | "total" | "paid_amount" | "issued_at" | "created_at">[];
   contracts: Pick<Contract, "id" | "ref" | "start_date" | "end_date" | "status">[];
+  cur: CurrencyDef;
 }): AccountStoryEvent[] {
   const events: AccountStoryEvent[] = [];
+  const { cur } = input;
 
   events.push({
     id: "account:created",
@@ -59,7 +62,7 @@ export function buildAccountStoryEvents(input: {
       id: `quote:${q.id}:created`,
       date: q.created_at,
       title: `Quote ${q.ref} sent`,
-      detail: money(q.total),
+      detail: money(q.total, cur),
       tone: "neutral",
       href: ROUTES.quotation(q.id),
     });
@@ -68,7 +71,7 @@ export function buildAccountStoryEvents(input: {
         id: `quote:${q.id}:closed`,
         date: q.closed_at,
         title: `Quote ${q.ref} ${q.outcome}`,
-        detail: money(q.total),
+        detail: money(q.total, cur),
         tone: q.outcome === "won" ? "good" : "bad",
         href: ROUTES.quotation(q.id),
       });
@@ -102,7 +105,7 @@ export function buildAccountStoryEvents(input: {
       id: `invoice:${inv.id}:issued`,
       date: issuedAt,
       title: `Invoice ${inv.ref} issued`,
-      detail: money(inv.total),
+      detail: money(inv.total, cur),
       tone: "neutral",
       href: ROUTES.invoice(inv.id),
     });
@@ -111,7 +114,7 @@ export function buildAccountStoryEvents(input: {
         id: `invoice:${inv.id}:paid`,
         date: issuedAt,
         title: `Invoice ${inv.ref} paid in full`,
-        detail: money(inv.paid_amount),
+        detail: money(inv.paid_amount, cur),
         tone: "good",
         href: ROUTES.invoice(inv.id),
       });

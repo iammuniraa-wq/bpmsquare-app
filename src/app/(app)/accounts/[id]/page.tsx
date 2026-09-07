@@ -29,6 +29,7 @@ import Account360Button from "@/components/Account360Button";
 import { buildAccountStoryEvents, computeAccountHealth } from "@/lib/nova/accountStory";
 import { buildAccountCanvas } from "@/lib/nova/accountCanvas";
 import { isNovaTenant } from "@/lib/nova/isNovaTenant";
+import { formatMoney, resolveCurrency } from "@/lib/currency";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
 
@@ -63,8 +64,6 @@ const TYPE_TONE: Record<Account["type"], PillarKey> = {
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-const fmtINR = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
@@ -159,6 +158,8 @@ export default async function AccountHubPage({
   if (!hub) notFound();
 
   const { account, referredBy } = hub;
+  const cur = resolveCurrency(tenant?.config);
+  const fmtMoney = (n: number) => formatMoney(n, cur, {});
   const features = tenant?.features as TenantFeatures | undefined;
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
@@ -216,6 +217,7 @@ export default async function AccountHubPage({
     cases: hub.cases,
     invoices: hub.invoices,
     contracts: hub.contracts,
+    cur,
   });
   const health = computeAccountHealth({
     quotes: hub.quotes,
@@ -223,10 +225,10 @@ export default async function AccountHubPage({
     invoices: hub.invoices,
     contacts: hub.contacts,
   });
-  const { contactNodes, dealNodes } = buildAccountCanvas({ contacts: hub.contacts, quotes: hub.quotes });
+  const { contactNodes, dealNodes } = buildAccountCanvas({ contacts: hub.contacts, quotes: hub.quotes, cur });
   const openQuoteCount = hub.quotes.filter((q) => q.outcome === "open").length;
   const openQuoteValue = hub.quotes.filter((q) => q.outcome === "open").reduce((t, q) => t + (q.total ?? 0), 0);
-  const canvasMeta = `${ACCOUNT_TYPE_LABEL[account.type]} · ${openQuoteCount} open worth ${fmtINR(openQuoteValue)}`;
+  const canvasMeta = `${ACCOUNT_TYPE_LABEL[account.type]} · ${openQuoteCount} open worth ${fmtMoney(openQuoteValue)}`;
 
   // Nova tenants land on the Story + Constellation view; the classic tabbed
   // hub becomes a distinct "details" destination reached via its own button
@@ -516,7 +518,7 @@ export default async function AccountHubPage({
             />
             {quotationTotal > 0 && (
               <div style={{ fontSize: 13, color: c.muted }}>
-                Total pipeline: <strong style={{ color: c.ink }}>{fmtINR(quotationTotal)}</strong>
+                Total pipeline: <strong style={{ color: c.ink }}>{fmtMoney(quotationTotal)}</strong>
               </div>
             )}
           </div>
@@ -539,7 +541,7 @@ export default async function AccountHubPage({
                   <tr key={q.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
                     <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{q.ref}</span></td>
                     <td style={td2}><QuoteStatusPill status={q.status} statuses={quoteStatuses} /></td>
-                    <td style={td2}><span style={{ fontWeight: 600, color: c.ink }}>{fmtINR(q.total)}</span></td>
+                    <td style={td2}><span style={{ fontWeight: 600, color: c.ink }}>{fmtMoney(q.total)}</span></td>
                     <td style={{ ...td2, color: c.hint, fontSize: 12 }}>{q.valid_until ? fmtDate(q.valid_until) : "—"}</td>
                     <td style={td2}>
                       {q.revision > 1
@@ -623,7 +625,7 @@ export default async function AccountHubPage({
             />
             {invoiceBalance > 0 && (
               <div style={{ fontSize: 13, color: c.muted }}>
-                Outstanding: <strong style={{ color: "var(--red)" }}>{fmtINR(invoiceBalance)}</strong>
+                Outstanding: <strong style={{ color: "var(--red)" }}>{fmtMoney(invoiceBalance)}</strong>
               </div>
             )}
           </div>
@@ -646,10 +648,10 @@ export default async function AccountHubPage({
                   <tr key={inv.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
                     <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{inv.ref}</span></td>
                     <td style={td2}><Pill label={INVOICE_LABEL[inv.status]} tone={INVOICE_TONE[inv.status]} /></td>
-                    <td style={td2}><span style={{ fontWeight: 600, color: c.ink }}>{fmtINR(inv.total)}</span></td>
+                    <td style={td2}><span style={{ fontWeight: 600, color: c.ink }}>{fmtMoney(inv.total)}</span></td>
                     <td style={td2}>
                       <span style={{ fontWeight: 600, color: inv.total - inv.paid_amount > 0 ? "var(--red)" : c.hint }}>
-                        {fmtINR(Math.max(0, inv.total - inv.paid_amount))}
+                        {fmtMoney(Math.max(0, inv.total - inv.paid_amount))}
                       </span>
                     </td>
                     <td style={{ ...td2, color: c.hint, fontSize: 12 }}>{inv.issued_at ? fmtDate(inv.issued_at) : "—"}</td>

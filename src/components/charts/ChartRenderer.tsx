@@ -3,6 +3,8 @@
 import { useId, useState } from "react";
 import { c, pillar } from "@/lib/theme";
 import type { NormalizedReport } from "@/lib/reportView";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatCompactNumber } from "@/lib/currency";
 
 // Report Builder's chart renderer. Follows the dataviz skill's mark specs:
 // bars ≤24px thick with a 4px rounded data-end, 2px lines, hairline
@@ -26,16 +28,8 @@ const ACCENT = pillar.blue.base;
 const OTHER = c.hint;
 const isCollapsedBucket = (key: string) => key === "Other" || key === "Earlier";
 
-// Indian-market compact numbers: 50K, 4.5L, 2.3Cr -- these are ₹ values far
-// more often than not, and 250M reads foreign to the audience reading them.
-function formatCompact(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 10_000_000) return (n / 10_000_000).toFixed(abs >= 100_000_000 ? 0 : 1).replace(/\.0$/, "") + "Cr";
-  if (abs >= 100_000) return (n / 100_000).toFixed(abs >= 1_000_000 ? 0 : 1).replace(/\.0$/, "") + "L";
-  if (abs >= 1_000) return (n / 1_000).toFixed(abs >= 10_000 ? 0 : 1).replace(/\.0$/, "") + "K";
-  return Math.round(n).toLocaleString("en-IN");
-}
-
+// Axis numbers are money values far more often than not, so they follow the
+// tenant currency's grouping (50K / 4.5L / 2.3Cr, or 50K / 2.5M) via formatCompactNumber.
 function niceMax(max: number): number {
   if (max <= 0) return 1;
   const magnitude = Math.pow(10, Math.floor(Math.log10(max)));
@@ -45,6 +39,7 @@ function niceMax(max: number): number {
 }
 
 function Tooltip({ x, y, label, value, pct }: { x: string; y: string; label: string; value: number; pct?: number }) {
+  const cur = useCurrency();
   return (
     <div
       style={{
@@ -55,7 +50,7 @@ function Tooltip({ x, y, label, value, pct }: { x: string; y: string; label: str
       }}
     >
       <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>
-        {value.toLocaleString("en-IN")}
+        {value.toLocaleString(cur.locale)}
         {pct !== undefined && <span style={{ fontWeight: 600, color: c.muted }}> · {pct}%</span>}
       </div>
       <div style={{ fontSize: 11, color: c.muted }}>{label}</div>
@@ -147,6 +142,7 @@ function useHorizontal(series: { key: string; value: number }[]): boolean {
 }
 
 function HorizontalBarChart({ series }: { series: { key: string; value: number }[] }) {
+  const cur = useCurrency();
   const W = 640, ROW_H = 30, PAD_T = 6, PAD_B = 6, LABEL_W = 170, VALUE_W = 62, PAD_R = 8;
   const H = PAD_T + PAD_B + series.length * ROW_H;
   const plotW = W - LABEL_W - VALUE_W - PAD_R;
@@ -175,7 +171,7 @@ function HorizontalBarChart({ series }: { series: { key: string; value: number }
                 fill={fill} opacity={hover === null || hover === i ? 1 : 0.45} />
               <text x={LABEL_W + barW + 7} y={cy} dominantBaseline="middle" fontSize={11} fontWeight={650}
                 fill={isOther ? c.hint : c.ink} style={{ fontVariantNumeric: "tabular-nums" }}>
-                {formatCompact(s.value)}
+                {formatCompactNumber(s.value, cur)}
               </text>
             </g>
           );
@@ -196,6 +192,7 @@ function HorizontalBarChart({ series }: { series: { key: string; value: number }
 }
 
 function BarChart({ series }: { series: { key: string; value: number }[] }) {
+  const cur = useCurrency();
   const W = 640, H = 260, PAD_L = 44, PAD_B = 40, PAD_T = 12, PAD_R = 12;
   const plotW = W - PAD_L - PAD_R, plotH = H - PAD_T - PAD_B;
   const max = niceMax(Math.max(...series.map((s) => s.value), 1));
@@ -216,7 +213,7 @@ function BarChart({ series }: { series: { key: string; value: number }[] }) {
               <g key={i}>
                 <line x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke={c.line} strokeWidth={1} />
                 <text x={PAD_L - 8} y={y} textAnchor="end" dominantBaseline="middle" fontSize={10} fill={c.hint}>
-                  {formatCompact(t)}
+                  {formatCompactNumber(t, cur)}
                 </text>
               </g>
             );
@@ -264,6 +261,7 @@ function AutoBarChart({ series }: { series: { key: string; value: number }[] }) 
 }
 
 function LineChart({ series }: { series: { key: string; value: number }[] }) {
+  const cur = useCurrency();
   const W = 640, H = 260, PAD_L = 44, PAD_B = 32, PAD_T = 12, PAD_R = 12;
   const plotW = W - PAD_L - PAD_R, plotH = H - PAD_T - PAD_B;
   const max = niceMax(Math.max(...series.map((s) => s.value), 1));
@@ -286,7 +284,7 @@ function LineChart({ series }: { series: { key: string; value: number }[] }) {
           return (
             <g key={i}>
               <line x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke={c.line} strokeWidth={1} />
-              <text x={PAD_L - 8} y={y} textAnchor="end" dominantBaseline="middle" fontSize={10} fill={c.hint}>{formatCompact(t)}</text>
+              <text x={PAD_L - 8} y={y} textAnchor="end" dominantBaseline="middle" fontSize={10} fill={c.hint}>{formatCompactNumber(t, cur)}</text>
             </g>
           );
         })}
@@ -299,7 +297,7 @@ function LineChart({ series }: { series: { key: string; value: number }[] }) {
         ))}
         {points.length > 0 && (
           <text x={points[points.length - 1].x} y={points[points.length - 1].y - 10} textAnchor="end" fontSize={11} fontWeight={700} fill={c.ink}>
-            {formatCompact(points[points.length - 1].value)}
+            {formatCompactNumber(points[points.length - 1].value, cur)}
           </text>
         )}
         {points.map((p, i) => (
@@ -321,9 +319,10 @@ function LineChart({ series }: { series: { key: string; value: number }[] }) {
 }
 
 function StatTile({ value }: { value: number }) {
+  const cur = useCurrency();
   return (
     <div style={{ padding: "28px 16px", textAlign: "center" }}>
-      <div style={{ fontSize: 48, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{value.toLocaleString("en-IN")}</div>
+      <div style={{ fontSize: 48, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{value.toLocaleString(cur.locale)}</div>
     </div>
   );
 }

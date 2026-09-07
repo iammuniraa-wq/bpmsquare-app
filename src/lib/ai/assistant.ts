@@ -8,6 +8,7 @@ import { LIST_SOURCES } from "@/lib/api/listSources";
 import { parseListQuery, applyListQuery } from "@/lib/api/query";
 import { compiledQueryToSearchParams, type CompiledQueryInput } from "@/lib/ai/nlCompile";
 import { compileAndRun, type ReportResult } from "@/lib/ai/reportCompile";
+import type { CurrencyDef } from "@/lib/currency";
 
 /**
  * Conversational data assistant (the bottom-right dock).
@@ -274,7 +275,8 @@ async function runChart(
 function systemPrompt(
   sources: [string, (typeof LIST_SOURCES)[string]][],
   lookups: QuickLookup[],
-  today: string
+  today: string,
+  currency: CurrencyDef
 ): string {
   return (
     "You are the BPMSquare Assistant -- the in-app helper for a business running its sales, service and operations on BPMSquare. " +
@@ -294,7 +296,10 @@ function systemPrompt(
     "1. NEVER state a number, list or fact about the user's data without querying for it first in this conversation. If a tool errors, fix the query and retry.\n" +
     "2. TWO ways to answer a data question -- pick the one that fits: query_data for a specific number or short list you'll describe in a sentence ('how many', 'total value', 'list the top 3'); chart for anything that's naturally a breakdown, a trend, a ranking, or a broad 'insights about X' / 'how's X doing' question -- chart hands the whole sub-question to the same compile engine Talk to data uses and renders inline, so don't also re-derive the numbers yourself with query_data first.\n" +
     "3. Group-level thresholds ('accounts with quote value over 50k') use group_by + aggregate + having -- the condition is on the group's total, not single rows (query_data only; chart's engine handles this on its own from the question text). Trends use group_by on a date field (bucketed monthly unless you set group_period). Quotations carry their own cash link (invoiced_total, paid_total, balance_due) -- quote-to-cash questions are single queries there.\n" +
-    "4. Understand casual Indian business shorthand: 50k=50000, 1L/1 lakh=100000, 1cr=10000000. Format money as ₹ with Indian digit grouping, compact where natural (₹4.5L, ₹2.3Cr).\n" +
+    "4. Understand casual Indian business shorthand: 50k=50000, 1L/1 lakh=100000, 1cr=10000000. " +
+    (currency.grouping === "indian"
+      ? `Format money as ${currency.symbol} with Indian digit grouping, compact where natural (${currency.symbol}4.5L, ${currency.symbol}2.3Cr).\n`
+      : `Format money as ${currency.symbol} with standard digit grouping, compact where natural (${currency.symbol} 4.5K, ${currency.symbol} 2.3M).\n`) +
     "5. Keep answers SHORT and direct -- one sentence for a number, a compact bullet list for a query_data breakdown (top items only, note how many more), one short takeaway line when a chart already rendered the breakdown. This renders in a small chat panel.\n" +
     "6. Say what you measured when it's not obvious (e.g. 'counting draft + sent quotes as open').\n" +
     "7. You cannot create, change or delete anything from this chat, and you have no tool that can -- if asked to, say so and point to the right place: the Create buttons above this chat or ⌘K can draft a record from pasted text on Nova, and every record has its own New page.\n" +
@@ -307,7 +312,7 @@ export type AssistantReply = { answer: string; report?: ReportResult };
 
 export async function askAssistant(
   history: ChatTurn[],
-  ctx: { supabase: SupabaseClient; tenantId: string; perms: PermissionSet }
+  ctx: { supabase: SupabaseClient; tenantId: string; perms: PermissionSet; currency: CurrencyDef }
 ): Promise<AssistantReply> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new AssistantError("The assistant isn't configured yet (missing ANTHROPIC_API_KEY).");
@@ -340,7 +345,7 @@ export async function askAssistant(
         model: "claude-opus-5",
         max_tokens: 1000,
         tools,
-        system: systemPrompt(sources, lookups, today),
+        system: systemPrompt(sources, lookups, today, ctx.currency),
         messages,
       });
     } catch (e) {

@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 import { STANDARD_QUOTE_REQUIRED_BLOCKS } from "@/lib/types";
 import StandardQuotePrintDocument from "@/components/StandardQuotePrintDocument";
+import { useCurrency } from "@/lib/tenant-context";
 
 const BLOCK_LABELS: Record<StandardQuoteTemplateBlockType, string> = {
   letterhead: "Letterhead (logo + company)",
@@ -67,6 +68,7 @@ export default function TemplateBuilderClient({
   logoUrl: string | null;
 }) {
   const router = useRouter();
+  const cur = useCurrency();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -307,6 +309,7 @@ export default function TemplateBuilderClient({
                 companyInfo={companyInfo}
                 logoUrl={logoUrl}
                 template={previewTemplate}
+                currency={cur.code}
               />
             </div>
           </div>

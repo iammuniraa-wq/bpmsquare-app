@@ -6,6 +6,7 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { COMPONENT_ENUMS, COST_INPUT_KINDS, enumLabel } from "@/lib/pricing/enums";
 import PriceTrace from "@/components/pricing/PriceTrace";
+import { useCurrency } from "@/lib/tenant-context";
 
 // PricingEngine cockpit (admin-only; the routes enforce it server-side).
 // Versions are the spine: everything except Dimensions and Cost Inputs is
@@ -818,6 +819,7 @@ function RulesTab({ snapshot, editable, mutate }: { snapshot: Snapshot; editable
 const BLANK_COST_INPUT = { modelCode: "", path: "", kind: "MATERIAL", value: "", uom: "", currency: "", validFrom: "", validTo: "" };
 
 function CostModelsTab({ snapshot, editable, mutate }: { snapshot: Snapshot; editable: boolean; mutate: MutateFn }) {
+  const cur = useCurrency();
   const [modelCode, setModelCode] = useState("");
   const [inputForm, setInputForm] = useState(BLANK_COST_INPUT);
   const [editingInputId, setEditingInputId] = useState<string | null>(null);
@@ -926,7 +928,7 @@ function CostModelsTab({ snapshot, editable, mutate }: { snapshot: Snapshot; edi
               </div>
               <div>
                 <label style={fieldLabel}>Currency</label>
-                <input style={{ ...input, width: "100%", boxSizing: "border-box" }} placeholder="INR" value={inputForm.currency} onChange={(e) => setIn("currency", e.target.value)} />
+                <input style={{ ...input, width: "100%", boxSizing: "border-box" }} placeholder={cur.code} value={inputForm.currency} onChange={(e) => setIn("currency", e.target.value)} />
               </div>
               <div>
                 <label style={fieldLabel}>Valid from</label>

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireFeature, getUserRole } from "@/lib/tenant";
+import { requireFeature, getUserRole, getTenantCurrency } from "@/lib/tenant";
+import { formatMoney } from "@/lib/currency";
 import { getInventoryLive } from "@/lib/data/live";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { c } from "@/lib/theme";
@@ -37,7 +38,7 @@ function CtxLabel({ children }: { children: React.ReactNode }) {
 export default async function InventoryDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireFeature("purchasing");
   const { id } = await params;
-  const [data, role] = await Promise.all([getInventoryLive(id), getUserRole()]);
+  const [data, role, cur] = await Promise.all([getInventoryLive(id), getUserRole(), getTenantCurrency()]);
   if (!data) notFound();
   const { item, supplier, transactions } = data;
 
@@ -75,7 +76,7 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
               <div style={{ fontSize: 12, color: c.muted }}>Reorder level: {item.reorder_level} {item.uom}</div>
             )}
             {item.unit_cost != null && (
-              <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>Unit cost: ₹{item.unit_cost.toLocaleString("en-IN")}</div>
+              <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>Unit cost: {formatMoney(item.unit_cost, cur, {})}</div>
             )}
           </section>
 

@@ -7,6 +7,8 @@ import type { PricingItem, PricingCategory } from "@/lib/types";
 import { c } from "@/lib/theme";
 import Pill from "@/components/Pill";
 import type { PillarKey } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney, moneyLabel } from "@/lib/currency";
 
 const CAT_TONE: Record<PricingCategory, PillarKey> = {
   labour: "blue", material: "teal", testing: "purple", transport: "amber",
@@ -22,6 +24,7 @@ const inputSt: React.CSSProperties = {
 };
 
 function AddRow({ onAdd }: { onAdd: (item: PricingItem) => void }) {
+  const cur = useCurrency();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState({ category: "labour" as PricingCategory, description: "", unit: "", rate: "", notes: "" });
@@ -74,7 +77,7 @@ function AddRow({ onAdd }: { onAdd: (item: PricingItem) => void }) {
           <input style={inputSt} value={form.unit} onChange={(e) => set("unit", e.target.value)} placeholder="per job" />
         </div>
         <div>
-          <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 3 }}>Rate (₹)</label>
+          <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 3 }}>{moneyLabel("Rate", cur)}</label>
           <input style={inputSt} type="number" min="0" value={form.rate} onChange={(e) => set("rate", e.target.value)} placeholder="0" />
         </div>
       </div>
@@ -96,6 +99,7 @@ function AddRow({ onAdd }: { onAdd: (item: PricingItem) => void }) {
 }
 
 function ItemRow({ item, onUpdate, onDelete }: { item: PricingItem; onUpdate: (item: PricingItem) => void; onDelete: (id: string) => void }) {
+  const cur = useCurrency();
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState({ description: item.description, unit: item.unit, rate: String(item.rate), notes: item.notes ?? "" });
@@ -148,7 +152,7 @@ function ItemRow({ item, onUpdate, onDelete }: { item: PricingItem; onUpdate: (i
         {item.notes && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>{item.notes}</div>}
       </div>
       <div style={{ fontSize: 12.5, color: c.muted }}>{item.unit}</div>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>₹{item.rate.toLocaleString("en-IN")}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{formatMoney(item.rate, cur, {})}</div>
       <div style={{ display: "flex", gap: 5 }}>
         <button onClick={() => setEditing(true)} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: c.accentbg, color: c.accent, border: "none", cursor: "pointer" }}>Edit</button>
         <button onClick={del} disabled={pending} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: "var(--err-bg)", color: "var(--err-ink)", border: "none", cursor: "pointer" }}>✕</button>
@@ -159,6 +163,7 @@ function ItemRow({ item, onUpdate, onDelete }: { item: PricingItem; onUpdate: (i
 
 export default function PricingClient({ initialItems }: { initialItems: PricingItem[] }) {
   const router = useRouter();
+  const cur = useCurrency();
   const [items, setItems] = useState(initialItems);
 
   const add = (item: PricingItem) => { setItems((p) => [...p, item]); router.refresh(); };
@@ -178,7 +183,7 @@ export default function PricingClient({ initialItems }: { initialItems: PricingI
                 <span style={{ fontSize: 12, color: c.hint }}>{catItems.length} items</span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 80px", gap: 12, padding: "0 0 6px", borderBottom: `1px solid ${c.line}` }}>
-                {["Description", "Unit", "Rate (₹)", ""].map((h, i) => (
+                {["Description", "Unit", moneyLabel("Rate", cur), ""].map((h, i) => (
                   <div key={i} style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
                 ))}
               </div>

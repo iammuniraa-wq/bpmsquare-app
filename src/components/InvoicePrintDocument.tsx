@@ -2,6 +2,7 @@ import type { Invoice, InvoiceLine, InvoicePayment, Account, Contact } from "@/l
 import type { CompanyInfo } from "@/lib/tenant";
 import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
 import { Mail, Globe, MapPin } from "@/components/Icons";
+import { CURRENCIES, moneyFormatter, moneyLabel, type CurrencyCode } from "@/lib/currency";
 
 export type InvoicePrintDocumentProps = {
   invoice: Invoice;
@@ -13,9 +14,12 @@ export type InvoicePrintDocumentProps = {
   logoUrl?: string | null;
   tenantEntities?: TenantEntity[];
   tenantTax?: TenantTaxConfig;
+  /** Tenant currency. A prop, not useCurrency(): these render under the bare
+   *  (print) layout with no TenantProvider, where the hook would silently
+   *  fall back to INR. */
+  currency?: CurrencyCode;
 };
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
@@ -29,8 +33,10 @@ function initials(name: string): string {
 // server-rendered PDF route (api/invoices/[id]/pdf) -- mirrors QuotePrintDocument.tsx.
 export default function InvoicePrintDocument({
   invoice, lines, payments, account, contact,
-  companyInfo = {}, logoUrl, tenantEntities = [], tenantTax,
+  companyInfo = {}, logoUrl, tenantEntities = [], tenantTax, currency = "INR",
 }: InvoicePrintDocumentProps) {
+  const cur = CURRENCIES[currency];
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const entity = tenantEntities.find((e) => e.id === invoice.entity_id) ?? null;
 
   const co = {
@@ -138,8 +144,8 @@ export default function InvoicePrintDocument({
             <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600 }}>Description</th>
             <th style={{ padding: "7px 12px", textAlign: "center", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>UOM</th>
             <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Qty</th>
-            <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Rate (₹)</th>
-            <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Amount (₹)</th>
+            <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>{moneyLabel("Rate", cur)}</th>
+            <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>{moneyLabel("Amount", cur)}</th>
           </tr>
         </thead>
         <tbody>
@@ -149,7 +155,7 @@ export default function InvoicePrintDocument({
               <td style={{ padding: "7px 12px", fontSize: 12.5 }}>{l.description}</td>
               <td style={{ padding: "7px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{l.uom ?? ""}</td>
               <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{l.qty}</td>
-              <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{l.rate.toLocaleString("en-IN")}</td>
+              <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{l.rate.toLocaleString(cur.locale)}</td>
               <td style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(l.amount)}</td>
             </tr>
           ))}

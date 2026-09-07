@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { DEFAULT_QUOTE_STATUSES, ROUTES, type QuoteStatusDef, type TenantFeatures } from "@/lib/constants";
+import { formatMoney, type CurrencyDef } from "@/lib/currency";
 
 /**
  * Nova's "Flows" -- outcome-oriented workflow trackers replacing literal
@@ -19,7 +20,7 @@ export type NovaFlow = {
   href: string;
 };
 
-const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const money = (n: number, cur: CurrencyDef) => formatMoney(Math.round(n), cur, {});
 const DAY_MS = 86_400_000;
 
 // Mirrors the CASE_TONE stage order used elsewhere (accounts hub, account
@@ -30,7 +31,7 @@ const CASE_STAGE_ORDER = [
   "quote_sent", "quote_approved", "in_repair", "qa", "ready",
 ];
 
-async function pipelineFlow(tenantId: string, quoteStatuses: QuoteStatusDef[]) {
+async function pipelineFlow(tenantId: string, quoteStatuses: QuoteStatusDef[], cur: CurrencyDef) {
   const admin = createAdminSupabase();
   const { data } = await admin
     .from("quotes")
@@ -51,7 +52,7 @@ async function pipelineFlow(tenantId: string, quoteStatuses: QuoteStatusDef[]) {
   return {
     id: "pipeline" as const,
     label: "Close pipeline",
-    detail: `${money(openValue)} open · ${quotes.length} deal${quotes.length === 1 ? "" : "s"}`,
+    detail: `${money(openValue, cur)} open · ${quotes.length} deal${quotes.length === 1 ? "" : "s"}`,
     percent: Math.round(avgProgress * 100),
     href: ROUTES.quotations,
   };
@@ -135,10 +136,10 @@ async function cashFlow(tenantId: string) {
  * dashboard's own widgets use. One failing source is dropped, not fatal to
  * the rest -- same discipline as getNovaStreamItems().
  */
-export async function getNovaFlows(tenantId: string, features: TenantFeatures, quoteStatuses: QuoteStatusDef[]): Promise<NovaFlow[]> {
+export async function getNovaFlows(tenantId: string, features: TenantFeatures, quoteStatuses: QuoteStatusDef[], cur: CurrencyDef): Promise<NovaFlow[]> {
   const now = new Date();
   const jobs: Promise<NovaFlow | null>[] = [];
-  if (features.quotations) jobs.push(pipelineFlow(tenantId, quoteStatuses?.length ? quoteStatuses : DEFAULT_QUOTE_STATUSES));
+  if (features.quotations) jobs.push(pipelineFlow(tenantId, quoteStatuses?.length ? quoteStatuses : DEFAULT_QUOTE_STATUSES, cur));
   if (features.cases) jobs.push(casesFlow(tenantId, now));
   if (features.amc) jobs.push(contractsFlow(tenantId, now));
   if (features.invoices) jobs.push(cashFlow(tenantId));

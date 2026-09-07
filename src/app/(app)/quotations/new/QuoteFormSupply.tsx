@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c, pillar } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter, moneyLabel } from "@/lib/currency";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import type { Account, Contact } from "@/lib/types";
@@ -56,6 +58,7 @@ function clearDraft() { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /*
 type Props = { accounts: Account[]; contacts: Contact[] };
 
 export default function QuoteFormSupply({ accounts, contacts }: Props) {
+  const cur = useCurrency();
   const router = useRouter();
   const today        = new Date().toISOString().slice(0, 10);
   const defaultValid = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
@@ -142,7 +145,7 @@ export default function QuoteFormSupply({ accounts, contacts }: Props) {
     return { rate, taxable, tax };
   }).filter((b) => b.taxable > 0);
 
-  const fmt = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = moneyFormatter(cur, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const accountContacts = contacts.filter((ct) => ct.account_id === accountId);
   const selectedAccount = accounts.find((a) => a.id === accountId);
@@ -289,7 +292,7 @@ export default function QuoteFormSupply({ accounts, contacts }: Props) {
               gridTemplateColumns: "1fr 90px 70px 60px 90px 80px 90px 28px",
               gap: 6, marginBottom: 6,
             }}>
-              {["Description", "HSN / SAC", "Qty", "Unit", "Rate (₹)", "GST %", "Amount", ""].map((h) => (
+              {["Description", "HSN / SAC", "Qty", "Unit", moneyLabel("Rate", cur), "GST %", "Amount", ""].map((h) => (
                 <div key={h} style={{ fontSize: 10, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</div>
               ))}
             </div>

@@ -8,6 +8,8 @@ import { ROUTES } from "@/lib/constants";
 import PhotoUploader from "./PhotoUploader";
 import type { CasePhoto } from "@/lib/types";
 import { Clipboard, Pencil, CheckIcon } from "@/components/Icons";
+import { useCurrency } from "@/lib/tenant-context";
+import { moneyFormatter } from "@/lib/currency";
 
 type InspectionReportProps = {
   id: string;
@@ -79,8 +81,6 @@ const actionRow: React.CSSProperties = {
   marginTop: 16, paddingTop: 14, borderTop: `1px solid ${c.line}`,
 };
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
-
 // ── Intake reference (collapsible reference during inspection) ─────────────────
 
 function IntakeReference({ notes, photos }: { notes: string | null; photos: CasePhoto[] }) {
@@ -123,6 +123,7 @@ function IntakeReference({ notes, photos }: { notes: string | null; photos: Case
 // ── Read-only inspection report ───────────────────────────────────────────────
 
 function InspectionReportView({ report, onEdit }: { report: NonNullable<InspectionReportProps>; onEdit: () => void }) {
+  const inr = moneyFormatter(useCurrency(), { maximumFractionDigits: 0 });
   return (
     <div style={{ ...card, borderLeftColor: "#6c6bd4" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -154,6 +155,7 @@ export default function CaseActions({
   accountId, assetIds, intakePhotos, inspectionPhotos, intakeNotes,
 }: Props) {
   const router = useRouter();
+  const cur = useCurrency();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [localNotes, setLocalNotes] = useState(notes ?? "");
@@ -283,7 +285,7 @@ export default function CaseActions({
                 onChange={(e) => setRecommendations(e.target.value)} placeholder="Recommended repair actions…" />
             </div>
             <div style={fw}>
-              <label style={lbl}>Estimated cost (₹, optional)</label>
+              <label style={lbl}>Estimated cost ({cur.symbol}, optional)</label>
               <input style={inp} type="number" min={0} value={estimatedCost}
                 onChange={(e) => setEstimatedCost(e.target.value)} placeholder="e.g. 14999" />
             </div>

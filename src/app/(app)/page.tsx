@@ -11,6 +11,7 @@ import { isNovaTenant } from "@/lib/nova/isNovaTenant";
 import { resolveNovaLayout } from "@/lib/nova/streamLayout";
 import { isAnalyticsId } from "@/lib/analyticsMeta";
 import type { TenantFeatures } from "@/lib/constants";
+import { resolveCurrency } from "@/lib/currency";
 
 function greetingForHour(hour: number): string {
   if (hour < 12) return "Morning";
@@ -49,10 +50,11 @@ export default async function DashboardPage() {
   if (isNovaTenant(tenant)) {
     try {
       const features = (tenant?.features ?? {}) as TenantFeatures;
+      const cur = resolveCurrency(tenant?.config);
       const [{ data: membership }, { kpis, overdueInvoices }, recentWins] = await Promise.all([
         supabase.from("tenant_users").select("dashboard_layout_override, display_name, employee_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
         getDashboardSummary(),
-        getNovaRecentWins(tenantId),
+        getNovaRecentWins(tenantId, cur),
       ]);
       let firstName = firstNameFrom(membership?.display_name);
       if (!firstName && membership?.employee_id) {
@@ -77,7 +79,7 @@ export default async function DashboardPage() {
 
       const needsAnalytics = effectiveLayout.some((b) => isAnalyticsId(b.id));
       const [rankings, analytics] = await Promise.all([
-        getNovaRankings(tenantId, features),
+        getNovaRankings(tenantId, features, cur),
         needsAnalytics ? getAnalyticsData() : Promise.resolve(null),
       ]);
       const now = new Date();

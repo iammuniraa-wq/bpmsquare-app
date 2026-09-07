@@ -3,6 +3,7 @@ import type { Quote, QuoteLine, QuoteRevision, Account, Contact, Site, Asset } f
 import type { CompanyInfo } from "@/lib/tenant";
 import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
 import { MapPin, Mail, Globe } from "@/components/Icons";
+import { CURRENCIES, moneyFormatter, moneyLabel, type CurrencyCode } from "@/lib/currency";
 import { richTextToDisplayHtml } from "@/lib/richText";
 
 const OFFER_TITLE: Record<string, string> = {
@@ -58,9 +59,12 @@ export type QuotePrintDocumentProps = {
     quoteExtraSection?: ReactNode;
     quoteSubject?: string | null;
   };
+  /** Tenant currency. A prop, not useCurrency(): these render under the bare
+   *  (print) layout with no TenantProvider, where the hook would silently
+   *  fall back to INR. */
+  currency?: CurrencyCode;
 };
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -81,8 +85,10 @@ export default function QuotePrintDocument({
   quote, account, contact, site, lines,
   companyInfo = {}, logoUrl, tenantEntities = [], tenantTax,
   assets = [], assetPrintFields = [], assetCustomFieldLabels = {},
-  ext = {},
+  ext = {}, currency = "INR",
 }: QuotePrintDocumentProps) {
+  const cur = CURRENCIES[currency];
+  const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const isTechnical = quote.type === "technical";
 
   // If quote has an entity_id, override company details from that entity
@@ -372,8 +378,8 @@ export default function QuotePrintDocument({
             <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600 }}>Description</th>
             <th style={{ padding: "7px 12px", textAlign: "center", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>UOM</th>
             <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Qty</th>
-            {!isTechnical && <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Rate (₹)</th>}
-            {!isTechnical && <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Amount (₹)</th>}
+            {!isTechnical && <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>{moneyLabel("Rate", cur)}</th>}
+            {!isTechnical && <th style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>{moneyLabel("Amount", cur)}</th>}
             {isTechnical && <th style={{ padding: "7px 28px 7px 12px" }} />}
           </tr>
         </thead>
@@ -428,7 +434,7 @@ export default function QuotePrintDocument({
                     <td style={{ padding: "6px 12px 6px 8px", fontSize: 12.5 }}>{line.description}</td>
                     <td style={{ padding: "6px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{line.uom ?? ""}</td>
                     <td style={{ padding: "6px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
-                    {!isTechnical && <td style={{ padding: "6px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString("en-IN")}</td>}
+                    {!isTechnical && <td style={{ padding: "6px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString(cur.locale)}</td>}
                     {!isTechnical && <td style={{ padding: "6px 28px 6px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(line.amount)}</td>}
                     {isTechnical && <td />}
                   </tr>
@@ -459,7 +465,7 @@ export default function QuotePrintDocument({
                     <td style={{ padding: "7px 12px", fontSize: 12.5 }}>{line.description}</td>
                     <td style={{ padding: "7px 12px", textAlign: "center", color: "#5f6b7a", fontSize: 12 }}>{line.uom ?? ""}</td>
                     <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.qty}</td>
-                    {!isTechnical && <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString("en-IN")}</td>}
+                    {!isTechnical && <td style={{ padding: "7px 12px", textAlign: "right", color: "#5f6b7a", fontSize: 12 }}>{line.rate.toLocaleString(cur.locale)}</td>}
                     {!isTechnical && <td style={{ padding: "7px 28px 7px 12px", textAlign: "right", fontWeight: 500, fontSize: 12.5 }}>{inr(line.amount)}</td>}
                     {isTechnical && <td style={{ padding: "7px 28px" }} />}
                   </tr>

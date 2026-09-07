@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { getQuote } from "@/lib/data";
 import { getTenant, tenantHasFeature } from "@/lib/tenant";
+import { formatMoney, resolveCurrency } from "@/lib/currency";
 import { renderTemplate, DEFAULT_EMAIL_TEMPLATES } from "@/lib/emailTemplates";
 import { logEmail } from "@/lib/emailLog";
 import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       customer_name: contact?.name ?? "Sir/Madam",
       company_name: companyName,
       quote_ref: quote.ref,
-      quote_total: "₹" + quote.total.toLocaleString("en-IN", { maximumFractionDigits: 0 }),
+      quote_total: formatMoney(quote.total, resolveCurrency(tenant.config)),
       valid_until: quote.valid_until ? new Date(quote.valid_until).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
     };
     subject = subject || renderTemplate(fallback.subject, vars);

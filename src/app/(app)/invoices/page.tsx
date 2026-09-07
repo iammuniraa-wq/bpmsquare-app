@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenantCurrency } from "@/lib/tenant";
+import { moneyFormatter } from "@/lib/currency";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { listInvoices, type InvoiceRow } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
@@ -27,8 +28,6 @@ const SUMMARY_STATUSES: InvoiceStatus[] = ["draft", "sent", "partial", "paid", "
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
-
 const th: React.CSSProperties = {
   textAlign: "left", color: c.hint, fontWeight: 500,
   padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 11.5,
@@ -54,6 +53,7 @@ export default async function InvoicesPage({
 }) {
   await requireWorkcenterView("invoices");
   await requireFeature("invoices");
+  const inr = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
   const params = await searchParams;
   const { status: statusFilter, q, from, to, af } = params;
   const colFilters = parseColFilterParams(params);

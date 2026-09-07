@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFeel } from "@/components/FeelProvider";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoneyCompact } from "@/lib/currency";
 
 /**
  * Nova — the Flow Board.
@@ -38,11 +40,6 @@ type Payload = { statuses: StatusDef[]; quotes: Quote[]; history_days: number };
 
 const DAY = 86_400_000;
 const FALLBACK_DWELL = 14;
-const money = (n: number) =>
-  n >= 10_000_000 ? `₹${(n / 10_000_000).toFixed(1)}Cr`
-  : n >= 100_000 ? `₹${(n / 100_000).toFixed(1)}L`
-  : `₹${Math.round(n).toLocaleString("en-IN")}`;
-
 /** Where a quote sat at time t, and when it arrived there. */
 function stateAt(q: Quote, t: number): { status: string; since: number } | null {
   let cur: { status: string; since: number } | null = null;
@@ -63,6 +60,8 @@ function median(values: number[]): number | null {
 
 export default function FlowBoard() {
   const router = useRouter();
+  const cur = useCurrency();
+  const money = (n: number) => formatMoneyCompact(n, cur, 1);
   const { toast } = useFeel();
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);

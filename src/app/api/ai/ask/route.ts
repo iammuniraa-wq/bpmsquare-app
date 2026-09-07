@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { resolvePermissions } from "@/lib/permissions";
+import { getTenantCurrency } from "@/lib/tenant";
 import { askAssistant, capabilityList, AssistantError, type ChatTurn } from "@/lib/ai/assistant";
 
 // The chart tool makes a nested model call inside a turn (compileAndRun),
@@ -57,10 +58,10 @@ export async function POST(request: NextRequest) {
   // Anthropic requires the first message to be from the user.
   while (history.length && history[0].role !== "user") history.shift();
 
-  const perms = await resolvePermissions(supabase, tenantId, userId, role);
+  const [perms, currency] = await Promise.all([resolvePermissions(supabase, tenantId, userId, role), getTenantCurrency()]);
 
   try {
-    const reply = await askAssistant(history, { supabase, tenantId, perms });
+    const reply = await askAssistant(history, { supabase, tenantId, perms, currency });
     return NextResponse.json(reply);
   } catch (e) {
     if (e instanceof AssistantError) return NextResponse.json({ error: e.message }, { status: 503 });

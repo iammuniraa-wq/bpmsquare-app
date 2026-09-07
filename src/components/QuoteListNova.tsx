@@ -6,6 +6,8 @@ import Link from "next/link";
 import { ROUTES, type QuoteStatusDef } from "@/lib/constants";
 import type { QuoteSummary } from "@/lib/data";
 import QuoteStatusPill from "@/components/QuoteStatusPill";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 
 /**
  * Nova — List, redrawn (third slice of the Quotations redesign, owner
@@ -34,7 +36,6 @@ import QuoteStatusPill from "@/components/QuoteStatusPill";
  */
 
 const DAY = 86_400_000;
-const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
 function ageChip(days: number) {
   const color = days >= 14 ? "#E4634A" : days >= 7 ? "#F0A93B" : "var(--nova-ink-faint)";
@@ -52,6 +53,8 @@ function ageChip(days: number) {
 
 export default function QuoteListNova({ rows, quoteStatuses }: { rows: QuoteSummary[]; quoteStatuses: QuoteStatusDef[] }) {
   const router = useRouter();
+  const cur = useCurrency();
+  const inr = (n: number) => formatMoney(Math.round(n), cur, {});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
