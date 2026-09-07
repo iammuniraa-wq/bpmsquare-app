@@ -323,7 +323,8 @@ export function priceDocument(input: PriceInput): PriceResult {
         const amount = applyRounding(applySign(value, component.sign), component.rounding_rule);
         return {
           step: step.step, component: component.code, status: "APPLIED",
-          rule_id: resolved[0]?.rule.rule_id, result: amount,
+          rule_id: resolved[0]?.rule.rule_id, matched_on: resolved[0]?.rule.match_attributes,
+          specificity: resolved[0]?.specificity, result: amount,
           statistical: component.is_statistical || step.statistical,
         };
       }
