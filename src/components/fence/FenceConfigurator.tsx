@@ -5,11 +5,25 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c, sh } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
+import Pill from "@/components/Pill";
 import { computeGeometry, type FenceGateInput, type FenceLayout } from "@/lib/fence/geometry";
 import { computeBom, type FenceAccessories, type BomLine } from "@/lib/fence/bom";
 import { buildMaterialRequests, matchMaterials, distinctValues, type FenceCatalogRow } from "@/lib/fence/materialMatch";
 import type { FenceSecurityProfileRow } from "@/lib/fence/data";
 import Fence3DView from "./Fence3DView";
+
+const STATUS_LABEL: Record<FenceProjectSnapshot["status"], string> = {
+  draft: "Draft",
+  quoted: "Quoted",
+  won: "Won",
+  lost: "Lost",
+};
+const STATUS_TONE: Record<FenceProjectSnapshot["status"], "amber" | "blue" | "green" | "red"> = {
+  draft: "amber",
+  quoted: "blue",
+  won: "green",
+  lost: "red",
+};
 
 const BOM_LABEL: Record<BomLine["kind"], string> = {
   tension_band: "Tension bands",
@@ -264,6 +278,9 @@ export default function FenceConfigurator({
           <span style={{ fontFamily: "monospace", fontSize: 10.5, color: c.muted, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 5, padding: "2px 7px" }}>
             {project.ref}
           </span>
+        )}
+        {project && (
+          <Pill label={STATUS_LABEL[project.status]} tone={STATUS_TONE[project.status]} />
         )}
         <span style={{ marginLeft: "auto", fontFamily: "monospace", fontSize: 11.5, color: c.muted }}>
           {totalLength} m · {geometry.total_posts} posts · {gates.length} gate{gates.length === 1 ? "" : "s"}

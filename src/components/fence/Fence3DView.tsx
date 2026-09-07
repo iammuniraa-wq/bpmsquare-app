@@ -51,9 +51,60 @@ function disposeGroup(group: THREE.Group) {
     if (obj instanceof THREE.Mesh) {
       obj.geometry.dispose();
       const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-      mats.forEach((m) => m.dispose());
+      mats.forEach((m) => {
+        if ("map" in m && m.map) (m.map as THREE.Texture).dispose();
+        m.dispose();
+      });
+    } else if (obj instanceof THREE.Sprite) {
+      obj.material.map?.dispose();
+      obj.material.dispose();
     }
   }
+}
+
+// Dimension labels (2026-09-08): the plain scene had posts and fabric but
+// no way to read a length off it -- the one thing that made Fence Studio's
+// own 3D view legible at a glance. A canvas-drawn label baked onto a
+// THREE.Sprite always faces the camera for free (no manual billboarding)
+// and needs no font-loader asset, matching chainLinkTexture's own
+// canvas-texture approach just above.
+function makeLabelSprite(text: string): THREE.Sprite {
+  const fontPx = 44;
+  const measure = document.createElement("canvas").getContext("2d")!;
+  measure.font = `600 ${fontPx}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  const padX = fontPx * 0.55;
+  const padY = fontPx * 0.4;
+  const w = Math.ceil(measure.measureText(text).width + padX * 2);
+  const h = Math.ceil(fontPx + padY * 2);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.font = `600 ${fontPx}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  ctx.textBaseline = "middle";
+  const r = 12;
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.arcTo(w, 0, w, h, r);
+  ctx.arcTo(w, h, 0, h, r);
+  ctx.arcTo(0, h, 0, 0, r);
+  ctx.arcTo(0, 0, w, 0, r);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(255,255,255,0.94)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(16,24,32,0.15)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = "#101820";
+  ctx.fillText(text, padX, h / 2 + 1);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  const worldHeight = 0.55;
+  sprite.scale.set((worldHeight * w) / h, worldHeight, 1);
+  return sprite;
 }
 
 function chainLinkTexture(coating: string): THREE.CanvasTexture {
@@ -89,9 +140,33 @@ function buildFence(group: THREE.Group, props: Fence3DViewProps) {
   const gateMat = new THREE.MeshStandardMaterial({ color: 0x6c7680, metalness: 0.4, roughness: 0.5 });
   const tex = chainLinkTexture(coating);
 
+  const footMat = new THREE.MeshStandardMaterial({ color: 0x8a8074, roughness: 0.95 });
+
+  // Cap + footing on every post -- a bare cylinder read as a wire stub;
+  // a domed cap and a footing disk make it read as an actual post meeting
+  // the ground and the fabric, at basically no extra cost.
   function addPost(x: number, z: number, tall: number, mat: THREE.Material, r: number) {
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, tall, 10), mat);
     mesh.position.set(x, tall / 2, z);
+    group.add(mesh);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(r * 1.15, 8, 5), mat);
+    cap.position.set(x, tall, z);
+    group.add(cap);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(r * 3.2, r * 3.6, 0.08, 10), footMat);
+    foot.position.set(x, 0.04, z);
+    group.add(foot);
+  }
+  // An open gate leaf -- angled off the gap so it reads as a hinged panel,
+  // not just a break in the fence line. width_m drives how far it swings.
+  function addGateLeaf(hingeX: number, hingeZ: number, angle: number, leafLen: number, swing: number) {
+    const t = tex.clone();
+    t.needsUpdate = true;
+    t.repeat.set(leafLen / 1.1, fabricHeight / 1.1);
+    const mat = new THREE.MeshStandardMaterial({ map: t, color: 0xc98a3a, transparent: true, opacity: 0.75, side: THREE.DoubleSide, roughness: 0.85 });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(leafLen, fabricHeight * 0.94), mat);
+    const leafAngle = angle + swing;
+    mesh.position.set(hingeX + Math.cos(leafAngle) * (leafLen / 2), (fabricHeight * 0.94) / 2, hingeZ + Math.sin(leafAngle) * (leafLen / 2));
+    mesh.rotation.y = -leafAngle;
     group.add(mesh);
   }
   function addFabricSeg(x1: number, z1: number, angle: number, s0: number, s1: number) {
@@ -106,8 +181,14 @@ function buildFence(group: THREE.Group, props: Fence3DViewProps) {
     mesh.rotation.y = -angle;
     group.add(mesh);
   }
+  function addDimLabel(x: number, z: number, text: string, height = postH + 0.55) {
+    const sprite = makeLabelSprite(text);
+    sprite.position.set(x, height, z);
+    group.add(sprite);
+  }
 
   const pxPerM = W / Math.max(1, totalLength);
+  const perSide = totalLength / 4;
 
   if (layout === "closed_perimeter") {
     const pts: [number, number][] = [
@@ -128,6 +209,10 @@ function buildFence(group: THREE.Group, props: Fence3DViewProps) {
     edges.forEach(([a, b], ei) => {
       const isBottom = ei === 2 && gates.length > 0;
       const angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
+      const midX = (a[0] + b[0]) / 2;
+      const midZ = (a[1] + b[1]) / 2;
+      addDimLabel(midX, midZ, `${Math.round(perSide)} m`);
+
       if (!isBottom) {
         for (let i = 1; i <= perEdge; i++) {
           const t = i / (perEdge + 1);
@@ -146,6 +231,8 @@ function buildFence(group: THREE.Group, props: Fence3DViewProps) {
           const pz2 = a[1] + Math.sin(angle) * (cursor + gw);
           addPost(px1, pz1, postH + 0.2, gateMat, 0.06);
           addPost(px2, pz2, postH + 0.2, gateMat, 0.06);
+          addGateLeaf(px1, pz1, angle, gw * 0.48, 0.6);
+          addDimLabel((px1 + px2) / 2, (pz1 + pz2) / 2, `${g.width_m} m gate`, 0.35);
           cursor += gw + 0.3;
           if (gi < gates.length - 1) {
             const gap = Math.max(0.3, (runLen - 0.8 - gw * gates.length) / Math.max(1, gates.length));
@@ -165,6 +252,7 @@ function buildFence(group: THREE.Group, props: Fence3DViewProps) {
       addPost(-W / 2 + W * t, 0, postH, postMat, 0.045);
     }
     addFabricSeg(-W / 2, 0, 0, 0, W);
+    addDimLabel(0, 0, `${Math.round(totalLength)} m open run`);
   }
 }
 
