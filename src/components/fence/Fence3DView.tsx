@@ -109,24 +109,43 @@ function makeLabelSprite(text: string): THREE.Sprite {
   return sprite;
 }
 
+// Twin offset strokes (a light highlight beside a dark shadow line) per
+// diagonal instead of one flat line -- suggests a round wire catching
+// light at the diamond crossings rather than a printed grid pattern.
+// Doubled canvas resolution (128 vs the original 64) so the highlight/
+// shadow offset stays crisp once tiled across a long fence run.
 function chainLinkTexture(coating: string, meshSpec: string): THREE.CanvasTexture {
+  const size = 128;
   const c = document.createElement("canvas");
-  c.width = 64;
-  c.height = 64;
+  c.width = size;
+  c.height = size;
   const ctx = c.getContext("2d")!;
   const tint = coating === "GI" ? "#c7cdd2" : coating === "Powder coated" ? "#2b2f33" : "#3f6b46";
-  const gap = meshGapPx(meshSpec);
-  ctx.strokeStyle = tint;
-  ctx.lineWidth = 2.2;
-  ctx.globalAlpha = 0.85;
-  ctx.beginPath();
-  for (let i = -64; i < 128; i += gap) {
-    ctx.moveTo(i, 0);
-    ctx.lineTo(i + 64, 64);
-    ctx.moveTo(i + 64, 0);
-    ctx.lineTo(i, 64);
+  const highlight = coating === "Powder coated" ? "#565d63" : "#ffffff";
+  const gap = meshGapPx(meshSpec) * 2;
+
+  function diagonals(dir: 1 | -1, stroke: string, width: number, alpha: number, offset: number) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = width;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    for (let i = -size; i < size * 2; i += gap) {
+      const x = i + offset;
+      if (dir === 1) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + size, size);
+      } else {
+        ctx.moveTo(x + size, 0);
+        ctx.lineTo(x, size);
+      }
+    }
+    ctx.stroke();
   }
-  ctx.stroke();
+  diagonals(1, tint, 3.4, 0.9, 0);
+  diagonals(-1, tint, 3.4, 0.9, 0);
+  diagonals(1, highlight, 1.1, 0.35, -1.2);
+  diagonals(-1, highlight, 1.1, 0.35, 1.2);
+
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   return tex;
@@ -138,9 +157,13 @@ function buildFence(group: THREE.Group, props: Fence3DViewProps) {
   const W = 6 + scale * 16;
   const H = 5 + scale * 12;
   const postH = 1.6 + fabricHeight * 0.9;
-  const postMat = new THREE.MeshStandardMaterial({ color: 0x9aa3ac, metalness: 0.4, roughness: 0.5 });
-  const cornerMat = new THREE.MeshStandardMaterial({ color: 0x818b93, metalness: 0.4, roughness: 0.5 });
-  const gateMat = new THREE.MeshStandardMaterial({ color: 0x6c7680, metalness: 0.4, roughness: 0.5 });
+  // Higher metalness + lower roughness now actually reads as metal --
+  // the scene has a real (if simple) environment map to reflect since
+  // scene.environment is set in the mount effect; before that, metalness
+  // had nothing to bounce and every post looked like flat grey plastic.
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x9aa3ac, metalness: 0.75, roughness: 0.35 });
+  const cornerMat = new THREE.MeshStandardMaterial({ color: 0x818b93, metalness: 0.75, roughness: 0.35 });
+  const gateMat = new THREE.MeshStandardMaterial({ color: 0x6c7680, metalness: 0.7, roughness: 0.4 });
   const tex = chainLinkTexture(coating, meshSpec);
 
   const footMat = new THREE.MeshStandardMaterial({ color: 0x8a8074, roughness: 0.95 });
@@ -323,6 +346,29 @@ export default function Fence3DView(props: Fence3DViewProps) {
     sun.position.set(10, 20, 10);
     scene.add(sun);
 
+    // A simple sky, used as both background and environment map -- without
+    // an environment, MeshStandardMaterial's metalness has nothing to
+    // reflect and every "metal" post just reads as flat grey plastic
+    // regardless of its metalness value. A plain vertical gradient read as
+    // equirectangular is a cheap way to give metals *something* real to
+    // pick up, well short of an actual HDRI but a real, visible improvement.
+    const skyCanvas = document.createElement("canvas");
+    skyCanvas.width = 8;
+    skyCanvas.height = 128;
+    const skyCtx = skyCanvas.getContext("2d")!;
+    const skyGrad = skyCtx.createLinearGradient(0, 0, 0, 128);
+    skyGrad.addColorStop(0, "#bcd4ea");
+    skyGrad.addColorStop(0.55, "#e7edf1");
+    skyGrad.addColorStop(0.58, "#d9d2c2");
+    skyGrad.addColorStop(1, "#c7bfa8");
+    skyCtx.fillStyle = skyGrad;
+    skyCtx.fillRect(0, 0, 8, 128);
+    const skyTex = new THREE.CanvasTexture(skyCanvas);
+    skyTex.mapping = THREE.EquirectangularReflectionMapping;
+    skyTex.colorSpace = THREE.SRGBColorSpace;
+    scene.background = skyTex;
+    scene.environment = skyTex;
+
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: 0xd8d2c2, roughness: 1 }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.02;
@@ -393,6 +439,7 @@ export default function Fence3DView(props: Fence3DViewProps) {
       renderer.domElement.removeEventListener("pointerdown", onDown);
       renderer.domElement.removeEventListener("wheel", onWheel);
       disposeGroup(group);
+      skyTex.dispose();
       renderer.dispose();
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
       stateRef.current = null;

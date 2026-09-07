@@ -199,6 +199,8 @@ export default function FenceConfigurator({
   }, [resolved]);
 
   const [quantitiesOpen, setQuantitiesOpen] = useState(false);
+  const [accountSectionOpen, setAccountSectionOpen] = useState(!project?.accountId);
+  const [profileSectionOpen, setProfileSectionOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   // Same layout/length/gates/fabric/mesh/coating/accessories, priced against
   // EVERY profile's own numbers -- side-by-side, non-destructive comparison
@@ -409,28 +411,38 @@ export default function FenceConfigurator({
         </div>
 
         <div style={{ width: 340, flex: "none", background: c.panel, borderLeft: `1px solid ${c.line}`, overflowY: "auto", padding: 20 }}>
-          <Section label="Account">
+          <Collapsible
+            label="Account"
+            summary={accountId ? accounts.find((a) => a.id === accountId)?.name : "— None yet —"}
+            open={accountSectionOpen}
+            onToggle={() => setAccountSectionOpen((v) => !v)}
+          >
             <select value={accountId} onChange={(e) => { setAccountId(e.target.value); setContactId(""); }} style={inputStyle}>
               <option value="">— None yet —</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </select>
-          </Section>
-          {accountId && (
-            <Field label="Contact">
-              <select value={contactId} onChange={(e) => setContactId(e.target.value)} style={inputStyle}>
-                <option value="">— None —</option>
-                {contacts.filter((ct) => ct.account_id === accountId).map((ct) => (
-                  <option key={ct.id} value={ct.id}>{ct.name}</option>
-                ))}
-              </select>
-            </Field>
-          )}
+            {accountId && (
+              <Field label="Contact">
+                <select value={contactId} onChange={(e) => setContactId(e.target.value)} style={inputStyle}>
+                  <option value="">— None —</option>
+                  {contacts.filter((ct) => ct.account_id === accountId).map((ct) => (
+                    <option key={ct.id} value={ct.id}>{ct.name}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
+          </Collapsible>
 
           <Divider block />
 
-          <Section label="What are you protecting?">
+          <Collapsible
+            label="What are you protecting?"
+            summary={active.label}
+            open={profileSectionOpen}
+            onToggle={() => setProfileSectionOpen((v) => !v)}
+          >
             {profiles.map((p) => (
               <button
                 key={p.id}
@@ -449,7 +461,7 @@ export default function FenceConfigurator({
             <button onClick={addProfile} style={ghostButtonStyle}>
               + Try a custom estimate
             </button>
-          </Section>
+          </Collapsible>
 
           {profiles.length > 1 && (
             <div style={{ marginBottom: 16 }}>
@@ -671,6 +683,30 @@ function PlanView({ layout, totalLength, gates }: { layout: FenceLayout; totalLe
   );
 }
 
+// A collapsed-by-default section with its current value shown inline in
+// the header -- the sidebar was reading as more than half screen just to
+// show a single account picker and a 3-card profile list, both of which
+// have a clear "current value" that doesn't need to stay expanded once set.
+function Collapsible({ label, summary, open, onToggle, children }: { label: string; summary?: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+          border: "none", background: "none", padding: 0, marginBottom: open ? 8 : 0, cursor: "pointer",
+        }}
+      >
+        <span style={labelStyle}>{label}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: c.ink, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {!open && summary}
+          <span style={{ color: c.muted, fontWeight: 400 }}>{open ? "▲" : "▼"}</span>
+        </span>
+      </button>
+      {open && children}
+    </div>
+  );
+}
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 16 }}>
