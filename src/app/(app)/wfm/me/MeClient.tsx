@@ -422,7 +422,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     const id = setInterval(() => setLiveNow(Date.now()), 15_000);
     return () => clearInterval(id);
   }, [meActive]);
-  const liveHours = me && liveNow > 0
+  // A login with no employee record gets `{ employee: null }` from the
+  // state route -- no `today` list at all -- so this must not run before
+  // the "No employee profile" branch below gets to render.
+  const liveHours = me && me.employee && Array.isArray(me.today) && liveNow > 0
     ? computeDayHours(me.today as { kind: PresenceKind; ts: string }[], new Date(liveNow))
     : null;
   const liveWorked = liveHours
