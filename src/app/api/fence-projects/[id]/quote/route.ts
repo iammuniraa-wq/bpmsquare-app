@@ -27,6 +27,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const { data: project } = await supabase.from("fence_projects").select("*").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (project.standard_quote_id) {
+    // Idempotency guard: the UI hides "Continue to quote" once a quote
+    // exists, but that's client-side only -- a repeat POST (double click,
+    // a retried request after a network blip) would otherwise create a
+    // second Standard Quote and silently overwrite this pointer to it.
+    return NextResponse.json({ error: "This project already has a quote. Refresh the page to see it.", quoteId: project.standard_quote_id }, { status: 409 });
+  }
   if (!project.account_id) return NextResponse.json({ error: "Add an account to this project before converting it to a quote." }, { status: 400 });
   if (!project.security_profile_id) return NextResponse.json({ error: "Choose a security profile before converting it to a quote." }, { status: 400 });
 

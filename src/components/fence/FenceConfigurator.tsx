@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c, sh } from "@/lib/theme";
@@ -150,10 +150,53 @@ export default function FenceConfigurator({
 
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+
+  // Tracks whether anything has changed since the last save (initialized to
+  // the as-loaded state, updated to the just-saved state on every successful
+  // save). Used only to warn that an already-quoted project has drifted from
+  // its quote -- there's no re-quote action yet (owner decision: keep the
+  // quote immutable once issued, don't invent a revision flow under time
+  // pressure), so this is informational, not a blocker.
+  const currentConfigSnapshot = JSON.stringify({
+    name, accountId, contactId, activeId, layout, totalLength, fabricHeight, meshSpec,
+    gates: gates.map((g) => ({ type: g.type, width_m: g.width_m })), accessories,
+  });
+  const lastSavedSnapshotRef = useRef(currentConfigSnapshot);
+  const isDirtySinceQuote = isEdit && !!project?.standardQuoteId && currentConfigSnapshot !== lastSavedSnapshotRef.current;
 
   const active = profiles.find((p) => p.id === activeId) ?? profiles[0];
   const activeIsRealProfile = initialProfiles.some((p) => p.id === activeId);
+  // Previously any spacing/pipe/embedment tweak was a live estimate only --
+  // switching profiles or leaving the page silently discarded it, with no
+  // way to actually change the tenant's real preset short of another SQL
+  // script. Comparing against the profile's own as-loaded values lets the
+  // sidebar offer to persist a real tuning, without a full profile-authoring
+  // Settings screen.
+  const originalActiveProfile = initialProfiles.find((p) => p.id === activeId);
+  const profileTuned =
+    activeIsRealProfile && !!originalActiveProfile &&
+    (active.spacing !== originalActiveProfile.post_spacing_m ||
+      active.pipe !== originalActiveProfile.pipe_class ||
+      active.embedment !== originalActiveProfile.embedment_m ||
+      active.label !== originalActiveProfile.label ||
+      active.blurb !== (originalActiveProfile.blurb ?? ""));
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  async function handleSaveProfile() {
+    setSavingProfile(true);
+    setError("");
+    const res = await fetch(`/api/fence-security-profiles/${activeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: active.label, blurb: active.blurb, post_spacing_m: active.spacing, embedment_m: active.embedment, pipe_class: active.pipe }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setSavingProfile(false);
+    if (!res.ok) { setError(json.error ?? "Could not save the profile"); return; }
+    router.refresh();
+  }
 
   const geometry = useMemo(
     () =>
@@ -266,6 +309,7 @@ export default function FenceConfigurator({
     const json = await res.json();
     setSaving(false);
     if (!res.ok) { setError(json.error ?? "Could not save the project"); return; }
+    lastSavedSnapshotRef.current = currentConfigSnapshot;
     if (isEdit) router.refresh();
     else router.push(ROUTES.fenceProject(json.id));
   }
@@ -277,8 +321,26 @@ export default function FenceConfigurator({
     const res = await fetch(`/api/fence-projects/${project.id}/quote`, { method: "POST" });
     const json = await res.json();
     setConverting(false);
-    if (!res.ok) { setError(json.error ?? "Could not create the quote"); return; }
+    if (!res.ok) {
+      // 409 means a quote already exists (the idempotency guard) -- follow
+      // it there instead of just showing an error, since that's almost
+      // certainly what the user actually wants.
+      if (res.status === 409 && json.quoteId) { router.push(ROUTES.standardQuote(json.quoteId)); return; }
+      setError(json.error ?? "Could not create the quote");
+      return;
+    }
     router.push(ROUTES.standardQuote(json.quoteId));
+  }
+
+  async function handleDelete() {
+    if (!project) return;
+    if (!window.confirm(`Delete "${project.name}"? This can't be undone.`)) return;
+    setError("");
+    setDeleting(true);
+    const res = await fetch(`/api/fence-projects/${project.id}`, { method: "DELETE" });
+    setDeleting(false);
+    if (!res.ok) { const json = await res.json().catch(() => ({})); setError(json.error ?? "Could not delete the project"); return; }
+    router.push(ROUTES.fenceProjects);
   }
 
   return (
@@ -330,10 +392,24 @@ export default function FenceConfigurator({
         >
           {saving ? "Saving…" : isEdit ? "Save" : "Save project"}
         </button>
+        {isEdit && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            style={{ padding: "6px 10px", borderRadius: 7, border: `1px solid ${c.line}`, cursor: "pointer", fontSize: 12.5, fontWeight: 600, background: "none", color: "#c2402f", opacity: deleting ? 0.6 : 1 }}
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        )}
       </div>
 
       {error && (
         <div style={{ flex: "none", padding: "8px 16px", background: "#fdecea", color: "#c2402f", fontSize: 12.5 }}>{error}</div>
+      )}
+      {!error && isDirtySinceQuote && (
+        <div style={{ flex: "none", padding: "8px 16px", background: c.accentbg, color: c.accent, fontSize: 12.5 }}>
+          This project has changed since {project?.ref ?? "its quote"} was created — the quote won&rsquo;t reflect these changes.
+        </div>
       )}
 
       <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
@@ -553,6 +629,19 @@ export default function FenceConfigurator({
               ))}
             </select>
           </Field>
+
+          {profileTuned && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: -8, marginBottom: 15, padding: "8px 10px", borderRadius: 7, background: c.accentbg }}>
+              <span style={{ fontSize: 11, color: c.accent }}>Tuned from &ldquo;{originalActiveProfile?.label}&rdquo; -- estimate only until saved.</span>
+              <button
+                onClick={handleSaveProfile}
+                disabled={savingProfile}
+                style={{ flex: "none", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 600, background: c.accent, color: "#fff", cursor: "pointer", opacity: savingProfile ? 0.6 : 1 }}
+              >
+                {savingProfile ? "Saving…" : "Save to profile"}
+              </button>
+            </div>
+          )}
 
           <Field label={`Fabric height (${fabricHeight} m)`}>
             <input type="range" min={1} max={3} step={0.1} value={fabricHeight} onChange={(e) => setFabricHeight(+e.target.value)} style={{ width: "100%" }} />
