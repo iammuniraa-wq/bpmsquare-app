@@ -130,9 +130,41 @@ export default function LeaveRangePicker({
     border: `1px solid ${c.line}`, background: c.panel, color: c.muted,
     borderRadius: 7, width: 28, height: 28, cursor: "pointer", fontSize: 13, lineHeight: 1,
   };
+  const dateInput: React.CSSProperties = {
+    flex: "1 1 120px", padding: "7px 9px", fontSize: 12.5, border: `1px solid ${c.line}`,
+    borderRadius: 7, background: c.panel, color: c.ink, outline: "none",
+  };
+
+  // Dragging across the grid never worked on touch (mouseenter doesn't fire
+  // during a touch drag) and is fiddly with a trackpad too, especially
+  // across a month boundary -- plain date inputs are the reliable path on
+  // both, and jump `visibleMonth` to whichever end was just typed so the
+  // grid below stays in sync with what was picked. Clicking/dragging the
+  // grid still works exactly as before; this is additive, not a replacement.
+  function setFrom(v: string) {
+    if (!v) { onChange(null, to); return; }
+    onChange(v, to && to >= v ? to : v);
+    setVisibleMonth(v.slice(0, 7));
+  }
+  function setTo(v: string) {
+    if (!v) { onChange(from, null); return; }
+    onChange(from && from <= v ? from : v, v);
+    setVisibleMonth(v.slice(0, 7));
+  }
 
   return (
     <div style={{ userSelect: "none" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: "block", fontSize: 10.5, color: c.hint, marginBottom: 3 }}>From</label>
+          <input type="date" style={dateInput} min={minDate} value={from ?? ""} onChange={(e) => setFrom(e.target.value)} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: "block", fontSize: 10.5, color: c.hint, marginBottom: 3 }}>To</label>
+          <input type="date" style={dateInput} min={from ?? minDate} value={to ?? ""} onChange={(e) => setTo(e.target.value)} />
+        </div>
+      </div>
+
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <button type="button" style={navBtn} onClick={() => setVisibleMonth((m) => addMonths(m, -1))} aria-label="Previous month">‹</button>
         <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink, minWidth: 132, textAlign: "center" }}>
@@ -192,7 +224,7 @@ export default function LeaveRangePicker({
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginTop: 10, fontSize: 11, color: c.hint }}>
-        <span>Click a day, or drag across several.</span>
+        <span>Type dates above, or click/drag on the calendar.</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
           <span style={{ width: 5, height: 5, borderRadius: "50%", background: pillar.green.base }} /> Holiday
         </span>

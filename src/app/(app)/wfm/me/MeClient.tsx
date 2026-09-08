@@ -121,7 +121,7 @@ type Analytics = {
 };
 
 type Geo = { lat: number; lng: number; accuracy_m: number } | null;
-type Tab = "profile" | "home" | "time" | "timeline" | "leave" | "requests" | "calendar" | "analytics";
+type Tab = "profile" | "home" | "time" | "timeline" | "requests" | "calendar" | "analytics";
 type TimeView = "daily" | "monthly";
 
 const LEAVE_INSIGHTS_LS_KEY = "bms_wfm_leave_insights";
@@ -131,7 +131,6 @@ const LEAVE_INSIGHTS_LS_KEY = "bms_wfm_leave_insights";
 const TABS: { key: Tab; label: string }[] = [
   { key: "home", label: "Attendance" },
   { key: "time", label: "Time" },
-  { key: "leave", label: "Leave" },
   { key: "requests", label: "Requests" },
   { key: "profile", label: "Profile" },
   { key: "timeline", label: "Timeline" },
@@ -814,24 +813,6 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     pendingCorr: corrections.filter((r) => r.status === "pending").length,
   }), [leaveRequests, corrections]);
 
-  // One place to see every request regardless of type -- leave keeps its own
-  // form/table on the Leave tab, but Requests shows the same rows here too.
-  type UnifiedRequest = {
-    id: string; label: string; range: string; reason_text: string;
-    status: string; supervisor_remark: string | null; created_at: string;
-  };
-  const unifiedRequests = useMemo<UnifiedRequest[]>(() => {
-    const range = (from: string, to: string) => (from === to ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`);
-    const fromLeave: UnifiedRequest[] = leaveRequests.map((r) => ({
-      id: r.id, label: r.wfm_leave_types?.name ?? "Leave", range: range(r.date_from, r.date_to),
-      reason_text: r.reason_text, status: r.status, supervisor_remark: r.supervisor_remark, created_at: r.created_at,
-    }));
-    const fromAdvance: UnifiedRequest[] = advanceRequests.map((r) => ({
-      id: r.id, label: r.kind === "wfh" ? "Work from home" : "Overtime (advance notice)", range: range(r.date_from, r.date_to),
-      reason_text: r.reason_text, status: r.status, supervisor_remark: r.supervisor_remark, created_at: r.created_at,
-    }));
-    return [...fromLeave, ...fromAdvance].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  }, [leaveRequests, advanceRequests]);
   const pendingAdvance = useMemo(() => advanceRequests.filter((r) => r.status === "pending").length, [advanceRequests]);
   const openClarifications = useMemo(() => clarificationThreads.filter((t) => t.status === "open").length, [clarificationThreads]);
 
@@ -1343,7 +1324,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           everyday tabs and club the rest (Timeline / Calendar / Analytics)
           into one native "More" dropdown -- one row, no wrapping. */}
       <div style={{ display: "flex", gap: isMobile ? 5 : 7, marginBottom: 14, flexWrap: isMobile ? "nowrap" : "wrap", alignItems: "center", overflowX: isMobile ? "auto" : undefined }}>
-        {(isMobile ? TABS.filter((t) => ["home", "time", "leave", "requests"].includes(t.key)) : TABS).map((t) => {
+        {(isMobile ? TABS.filter((t) => ["home", "time", "requests", "profile"].includes(t.key)) : TABS).map((t) => {
           const compact = isMobile ? { padding: "7px 10px", fontSize: 12, whiteSpace: "nowrap" as const } : {};
           return (
             <button
@@ -1354,24 +1335,22 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                 : { ...btn, ...compact }}
             >
               {t.label}
-              {t.key === "leave" && pendingLeave > 0 && <span style={{ marginLeft: 6, opacity: 0.85 }}>({pendingLeave})</span>}
-              {t.key === "requests" && (pendingAdvance + openClarifications) > 0 && <span style={{ marginLeft: 6, opacity: 0.85 }}>({pendingAdvance + openClarifications})</span>}
+              {t.key === "requests" && (pendingLeave + pendingAdvance + openClarifications) > 0 && <span style={{ marginLeft: 6, opacity: 0.85 }}>({pendingLeave + pendingAdvance + openClarifications})</span>}
             </button>
           );
         })}
         {isMobile && (
           <select
-            value={["profile", "timeline", "calendar", "analytics"].includes(tab) ? tab : ""}
+            value={["timeline", "calendar", "analytics"].includes(tab) ? tab : ""}
             onChange={(e) => { if (e.target.value) setTab(e.target.value as Tab); }}
             style={{
               padding: "7px 8px", fontSize: 12, fontWeight: 600, borderRadius: 8,
               border: `1px solid ${c.line}`, cursor: "pointer", outline: "none",
-              background: ["profile", "timeline", "calendar", "analytics"].includes(tab) ? "var(--tenant-accent, #378ADD)" : c.panel,
-              color: ["profile", "timeline", "calendar", "analytics"].includes(tab) ? "#fff" : c.ink,
+              background: ["timeline", "calendar", "analytics"].includes(tab) ? "var(--tenant-accent, #378ADD)" : c.panel,
+              color: ["timeline", "calendar", "analytics"].includes(tab) ? "#fff" : c.ink,
             }}
           >
             <option value="" disabled>More…</option>
-            <option value="profile">Profile</option>
             <option value="timeline">Timeline</option>
             <option value="calendar">Calendar</option>
             <option value="analytics">Analytics</option>
@@ -2120,10 +2099,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         </>
       )}
 
-      {tab === "leave" && (
+      {tab === "requests" && (
         <>
-          {/* Collapsed row: the balance headline stays readable at a glance,
-              so closing the panel costs nothing but the vertical space. */}
+          {/* Leave, moved here from its own former tab (workspace was
+              crowded -- one Requests place beats a tab per request type). */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
             <button
               type="button"
@@ -2171,18 +2150,18 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
             </>
           )}
 
-          {/* The "no leave types configured" case is a blocker, not an
-              insight -- it stays visible whether or not the panel is open,
-              since it explains why + Request leave is disabled. */}
           {leaveBalance.length === 0 && (
             <section style={{ ...cardStyle, marginBottom: 14 }}>
               <div style={{ fontSize: 12, color: c.hint }}>No leave types configured yet — ask your admin to set them up in Settings → Workforce → Leave Types.</div>
             </section>
           )}
 
-          <section style={cardStyle}>
+          <section style={{ ...cardStyle, marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>My leave requests</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>
+                Leave
+                {pendingLeave > 0 && <span style={{ color: statusInk.warn, fontWeight: 500 }}> · {pendingLeave} pending</span>}
+              </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 {leaveRequests.length > 0 && (
                   <select style={{ ...inp, width: "auto" }} value={leaveFilter} onChange={(e) => setLeaveFilter(e.target.value)}>
@@ -2204,7 +2183,8 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                 alignItems: "flex-start", padding: "12px 0", borderBottom: `1px solid ${c.line}`, marginBottom: 10,
               }}>
                 {/* Pick the dates by dragging on the calendar (the ADP
-                    gesture) rather than typing two dates. */}
+                    gesture), or just type them -- dragging alone was hard to
+                    use both on touch (no hover events) and on a trackpad. */}
                 <LeaveRangePicker
                   from={leaveDraft.date_from || null}
                   to={leaveDraft.date_to || null}
@@ -2265,25 +2245,15 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
               </div>
             ))}
           </section>
-        </>
-      )}
 
-      {tab === "requests" && (
-        <>
-          {/* Leave keeps its own mature calendar-picker form on the Leave
-              tab -- this button just gets you there, rather than a second,
-              worse copy of the same flow living here too. OT/WFH are new: a
-              real form, right here. */}
+          {/* OT / WFH advance requests. */}
           <section style={{ ...cardStyle, marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>
-                Your requests
-                {(pendingLeave + pendingAdvance) > 0 && <span style={{ color: statusInk.warn, fontWeight: 500 }}> · {pendingLeave + pendingAdvance} pending</span>}
+                Overtime / Work from home
+                {pendingAdvance > 0 && <span style={{ color: statusInk.warn, fontWeight: 500 }}> · {pendingAdvance} pending</span>}
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button style={btn} onClick={() => { setTab("leave"); setShowLeaveForm(true); }}>+ Leave</button>
-                <button style={btn} onClick={() => setShowAdvanceForm(true)}>+ OT / WFH</button>
-              </div>
+              <button style={btn} onClick={() => setShowAdvanceForm(true)}>+ OT / WFH</button>
             </div>
 
             {showAdvanceForm && (
@@ -2343,12 +2313,12 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
               </div>
             )}
 
-            {unifiedRequests.length === 0 && <div style={{ fontSize: 12, color: c.hint }}>No requests yet.</div>}
-            {unifiedRequests.map((r) => (
+            {advanceRequests.length === 0 && <div style={{ fontSize: 12, color: c.hint }}>No requests yet.</div>}
+            {advanceRequests.map((r) => (
               <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5, gap: 10 }}>
                 <div style={{ minWidth: 0 }}>
-                  <span style={{ color: c.ink, fontWeight: 600 }}>{r.label}</span>
-                  <span style={{ color: c.muted, marginLeft: 8 }}>{r.range}</span>
+                  <span style={{ color: c.ink, fontWeight: 600 }}>{r.kind === "wfh" ? "Work from home" : "Overtime"}</span>
+                  <span style={{ color: c.muted, marginLeft: 8 }}>{fmtDate(r.date_from)}{r.date_to !== r.date_from && ` – ${fmtDate(r.date_to)}`}</span>
                   <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{r.reason_text}</div>
                   {r.supervisor_remark && <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Supervisor: {r.supervisor_remark}</div>}
                 </div>
@@ -2611,7 +2581,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                 <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("time")}>View timesheet</button>
               </section>
 
-              <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("leave")}>
+              <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("requests")}>
                 <div style={capStyle}>Leave</div>
                 {leaveBalance.length === 0 ? (
                   <div style={{ fontSize: 12, color: c.hint }}>No leave types configured.</div>
@@ -2624,7 +2594,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                   ))
                 )}
                 {pendingLeave > 0 && <div style={{ fontSize: 11.5, color: statusInk.warn, marginTop: 8 }}>{pendingLeave} request(s) awaiting approval</div>}
-                <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("leave")}>Request leave</button>
+                <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("requests")}>Request leave</button>
               </section>
 
               <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("calendar")}>
