@@ -4,8 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pager from "@/components/Pager";
-import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { paginate, clampPage } from "@/lib/paginate";
 import { useIsMobile } from "@/lib/useIsMobile";
+
+// Scoped smaller than the app-wide DEFAULT_PAGE_SIZE (20) -- this widget
+// already has a name/code search box, so fewer rows per page reads cleaner
+// without costing a round trip (everything here is already in memory).
+const PAGE_SIZE = 10;
 
 /**
  * Attendance summary on the dashboard, for a supervisor.
@@ -201,9 +206,9 @@ export default function WfmSummaryWidget() {
   // are judged against a shift) and zero punches counted as present.
   const dayPresent = dayRows.filter((d) => d.day.first_in && !d.day.on_leave).length;
   const listTotal = view === "day" ? dayRows.length : monthRows.length;
-  const cPage = clampPage(page, listTotal, DEFAULT_PAGE_SIZE);
-  const pageDayRows = paginate(dayRows, cPage, DEFAULT_PAGE_SIZE);
-  const pageMonthRows = paginate(monthRows, cPage, DEFAULT_PAGE_SIZE);
+  const cPage = clampPage(page, listTotal, PAGE_SIZE);
+  const pageDayRows = paginate(dayRows, cPage, PAGE_SIZE);
+  const pageMonthRows = paginate(monthRows, cPage, PAGE_SIZE);
   const dayMinutes = dayRows.reduce((t, d) => t + d.day.net_minutes, 0);
 
   const th: React.CSSProperties = {
@@ -474,7 +479,7 @@ export default function WfmSummaryWidget() {
                       )))}
                   </tbody>
                 </table>
-                <Pager page={cPage} total={listTotal} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+                <Pager page={cPage} total={listTotal} pageSize={PAGE_SIZE} onPage={setPage} />
               </div>
             </>
           )}

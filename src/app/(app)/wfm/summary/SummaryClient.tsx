@@ -5,10 +5,15 @@ import { c, pillar, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Donut from "@/components/Donut";
 import Pager from "@/components/Pager";
-import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { paginate, clampPage } from "@/lib/paginate";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useCurrency } from "@/lib/tenant-context";
 import { formatMoney } from "@/lib/currency";
+
+// Scoped smaller than the app-wide DEFAULT_PAGE_SIZE (20) -- this page
+// already has a name/code search box, so fewer rows per page reads cleaner
+// without costing a round trip (everything here is already in memory).
+const PAGE_SIZE = 10;
 
 type BreakSegment = { start: string; end: string | null; minutes: number };
 type WorkSession = { in: string; out: string | null; gross_minutes: number; break_minutes: number; net_minutes: number; breaks: BreakSegment[] };
@@ -163,8 +168,8 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
   const cur = useCurrency();
   const [page, setPage] = useState(1);
   const isMobile = useIsMobile();
-  useEffect(() => { setPage((p) => clampPage(p, rows.length, DEFAULT_PAGE_SIZE)); }, [rows.length]);
-  const pageRows = paginate(rows, page, DEFAULT_PAGE_SIZE);
+  useEffect(() => { setPage((p) => clampPage(p, rows.length, PAGE_SIZE)); }, [rows.length]);
+  const pageRows = paginate(rows, page, PAGE_SIZE);
   if (isMobile) {
     return (
       <section style={{ ...cardStyle, padding: 0, marginBottom: 18 }}>
@@ -174,7 +179,7 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
         {pageRows.map((r) => <MonthlyEmployeeCard key={r.employee_id} r={r} />)}
         {rows.length === 0 && <div style={{ padding: "14px 12px", fontSize: 12, color: c.hint }}>No employees in this section.</div>}
         <div style={{ padding: "0 12px 10px" }}>
-          <Pager page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+          <Pager page={page} total={rows.length} pageSize={PAGE_SIZE} onPage={setPage} />
         </div>
       </section>
     );
@@ -219,7 +224,7 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
         </tbody>
       </table>
       <div style={{ padding: "0 12px 10px" }}>
-        <Pager page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
+        <Pager page={page} total={rows.length} pageSize={PAGE_SIZE} onPage={setPage} />
       </div>
     </section>
   );
@@ -524,11 +529,11 @@ export default function SummaryClient({ initial = null }: {
             Click an employee to see every punch they booked. Total worked ={" "}
             {deductBreaks ? "check-out − check-in − breaks" : "check-out − check-in (breaks not deducted)"}.
           </div>
-          {paginate(filtered, clampPage(dailyPage, filtered.length, DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE).map((emp) => (
+          {paginate(filtered, clampPage(dailyPage, filtered.length, PAGE_SIZE), PAGE_SIZE).map((emp) => (
             <DailyEmployee key={emp.employee_id} emp={emp} deductBreaks={deductBreaks} dayFilter={dayFilter || undefined} />
           ))}
           {filtered.length === 0 && <div style={{ ...cardStyle, color: c.hint, fontSize: 12.5 }}>No employees.</div>}
-          <Pager page={clampPage(dailyPage, filtered.length, DEFAULT_PAGE_SIZE)} total={filtered.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setDailyPage} />
+          <Pager page={clampPage(dailyPage, filtered.length, PAGE_SIZE)} total={filtered.length} pageSize={PAGE_SIZE} onPage={setDailyPage} />
         </>
       )}
     </>
