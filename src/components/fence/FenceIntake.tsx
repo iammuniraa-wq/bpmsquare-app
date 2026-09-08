@@ -71,6 +71,11 @@ export default function FenceIntake({
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: c.panel2, color: c.ink, fontFamily: "inherit" }}>
+      <style>{`
+        @media (max-width: 760px) {
+          .fence-intake-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
       <div style={{ flex: "none", height: 48, display: "flex", alignItems: "center", gap: 14, padding: "0 16px", background: c.panel, borderBottom: `1px solid ${c.line}` }}>
         <span style={{ fontWeight: 600, fontSize: 13.5 }}>New fence project</span>
         <button onClick={onSkip} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", color: c.muted, fontSize: 12.5, fontWeight: 600 }}>
@@ -85,7 +90,7 @@ export default function FenceIntake({
             Paste the client's email or message as-is. Nova reads it the same way it reads any pasted intake across BPMSquare — no separate tool, no re-typing into a spec sheet.
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+          <div className="fence-intake-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
             <div style={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 12, boxShadow: sh.card, padding: 4 }}>
               <textarea
                 value={text}
