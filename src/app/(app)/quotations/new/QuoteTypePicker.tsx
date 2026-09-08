@@ -18,16 +18,20 @@ function TypeIcon({ id, size = 26, color }: { id: string; size?: number; color: 
   }
 }
 
-export default function QuoteTypePicker({ visibleTypeIds }: { visibleTypeIds?: string[] }) {
+export default function QuoteTypePicker({ visibleTypeIds, accountId }: { visibleTypeIds?: string[]; accountId?: string | null }) {
   const router = useRouter();
   const visibleTypes = QUOTE_TYPES.filter((qt) => !visibleTypeIds || visibleTypeIds.includes(qt.id));
+  // Arriving from an account's own page (accounts/[id]/page.tsx passes
+  // ?account_id=) -- carried through to whichever type is picked next, and
+  // used here so "← Quotations" doesn't strand the rep on the unfiltered list.
+  const typeHref = (id: string) => `${ROUTES.quotationNew}?type=${id}${accountId ? `&account_id=${accountId}` : ""}`;
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 12, color: c.muted, marginBottom: 12, cursor: "pointer" }}
-          onClick={() => router.push(ROUTES.quotations)}>
-          ← Quotations
+          onClick={() => router.push(accountId ? ROUTES.account(accountId) : ROUTES.quotations)}>
+          ← {accountId ? "Back to account" : "Quotations"}
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: "0 0 6px" }}>
           New Quotation
@@ -53,7 +57,7 @@ export default function QuoteTypePicker({ visibleTypeIds }: { visibleTypeIds?: s
               key={qt.id}
               type="button"
               disabled={!available}
-              onClick={() => router.push(`${ROUTES.quotationNew}?type=${qt.id}`)}
+              onClick={() => router.push(typeHref(qt.id))}
               style={{
                 textAlign: "left",
                 background: available ? c.panel : c.panel2,

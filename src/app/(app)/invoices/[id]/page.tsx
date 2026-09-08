@@ -59,10 +59,15 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     <>
       <TabTitle title={invoice.ref} />
 
-      <div style={{ marginBottom: 8 }}>
+      <div style={{ marginBottom: 8, display: "flex", gap: 12 }}>
         <Link href={ROUTES.invoices} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>
           ← All invoices
         </Link>
+        {account && (
+          <Link href={ROUTES.account(account.id)} style={{ fontSize: 11.5, color: c.accent, textDecoration: "none" }}>
+            ← Back to {account.name}
+          </Link>
+        )}
       </div>
 
       <PageHeader

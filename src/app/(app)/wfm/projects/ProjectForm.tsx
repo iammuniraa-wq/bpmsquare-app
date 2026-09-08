@@ -379,12 +379,17 @@ export default function ProjectForm({
     if (!saved) return;
     // After adding a sub-project, go back to the one it sits under, not the
     // top-level list -- a project usually gets several in one sitting.
+    // Same idea one level up: a project created from an account's own page
+    // (accounts/[id]/page.tsx passes ?account=) returns there so the new
+    // project shows up under it, rather than the unfiltered project list.
     router.push(
       editing
         ? ROUTES.wfmProject(project!.id)
         : parentSel
           ? ROUTES.wfmProject(parentSel)
-          : ROUTES.wfmProjects
+          : accountSel
+            ? ROUTES.account(accountSel)
+            : ROUTES.wfmProjects
     );
     router.refresh();
   }
@@ -648,7 +653,12 @@ export default function ProjectForm({
         </button>
         <button
           type="button"
-          onClick={() => (parentId && !editing ? router.push(ROUTES.wfmProject(parentId)) : router.back())}
+          onClick={() => {
+            if (editing) { router.back(); return; }
+            if (parentId) { router.push(ROUTES.wfmProject(parentId)); return; }
+            if (accountId) { router.push(ROUTES.account(accountId)); return; }
+            router.back();
+          }}
           style={{
             padding: "9px 18px", borderRadius: 7, fontSize: 13, fontWeight: 600,
             background: "none", color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer",

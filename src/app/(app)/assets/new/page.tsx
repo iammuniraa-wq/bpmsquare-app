@@ -74,7 +74,10 @@ export default function NewAssetPage() {
       });
       const json = await res.json();
       if (res.ok) {
-        router.push(ROUTES.assets);
+        // Created from an account's own page (accounts/[id]/page.tsx passes
+        // ?account_id=) -- return there so the new asset shows up under it,
+        // rather than dropping the rep on the unfiltered assets list.
+        router.push(prefillAccountId ? ROUTES.account(prefillAccountId) : ROUTES.assets);
       } else {
         setError(json.error ?? "Failed to create asset");
       }
@@ -84,8 +87,8 @@ export default function NewAssetPage() {
   return (
     <>
       <div style={{ marginBottom: 12 }}>
-        <Link href={ROUTES.assets} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          ← All assets
+        <Link href={prefillAccountId ? ROUTES.account(prefillAccountId) : ROUTES.assets} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
+          {prefillAccountId ? "← Back to account" : "← All assets"}
         </Link>
       </div>
 
@@ -205,7 +208,7 @@ export default function NewAssetPage() {
                 {pending ? "Saving…" : "Create Asset"}
               </button>
               <Link
-                href={ROUTES.assets}
+                href={prefillAccountId ? ROUTES.account(prefillAccountId) : ROUTES.assets}
                 style={{
                   padding: "10px 18px", borderRadius: 8, border: `1px solid ${c.line}`,
                   color: c.muted, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center",

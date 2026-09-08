@@ -223,7 +223,7 @@ export default function NewCasePage() {
               {optionalFields}
             </div>
             {error && <ErrorBox msg={error} />}
-            <SubmitRow pending={pending} cancelHref={ROUTES.cases} />
+            <SubmitRow pending={pending} cancelHref={prefillAccountId ? ROUTES.account(prefillAccountId) : ROUTES.cases} />
           </div>
         </div>
 
@@ -236,7 +236,7 @@ export default function NewCasePage() {
             {optionalFields}
           </MobileSection>
           {error && <ErrorBox msg={error} />}
-          <SubmitRow pending={pending} cancelHref={ROUTES.cases} />
+          <SubmitRow pending={pending} cancelHref={prefillAccountId ? ROUTES.account(prefillAccountId) : ROUTES.cases} />
         </div>
       </form>
     </>

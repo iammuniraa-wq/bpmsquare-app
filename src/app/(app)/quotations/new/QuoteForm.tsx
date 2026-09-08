@@ -198,9 +198,14 @@ type Props = {
    *  server-side (see quotations/new/page.tsx) -- shows "Price with engine"
    *  on product-linked lines. Off by default for every existing tenant. */
   pricingEngineQuotesEnabled?: boolean;
+  /** Set when arriving from an account's own page (accounts/[id]/page.tsx
+   *  passes ?account_id=) -- prefills the account and, for a brand-new
+   *  quote, is where Cancel and "Draft saved" return to instead of the
+   *  unfiltered quotations list. */
+  defaultAccountId?: string | null;
 };
 
-export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], products = [], textFragments, offerType, tenantEntities, isAdmin, editQuote, pricingEngineQuotesEnabled }: Props) {
+export default function QuoteForm({ accounts, contacts, assets: initialAssets, pricingItems, inventoryItems = [], products = [], textFragments, offerType, tenantEntities, isAdmin, editQuote, pricingEngineQuotesEnabled, defaultAccountId }: Props) {
   const router = useRouter();
   const cur = useCurrency();
   const traceDetail = useTraceDetail();
@@ -212,7 +217,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   const [localAssets, setLocalAssets] = useState<Asset[]>(initialAssets);
 
   // Account & contact
-  const [accountId, setAccountId] = useState(eq?.account_id ?? "");
+  const [accountId, setAccountId] = useState(eq?.account_id ?? defaultAccountId ?? "");
   const [contactId, setContactId] = useState(eq?.contact_id ?? "");
 
   // Quote meta
@@ -1169,7 +1174,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
           Saved as draft for {selectedAccount?.name ?? "the customer"}.
         </p>
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-          <Link href={ROUTES.quotations} style={{ background: c.accent, color: "#fff", padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>All quotations</Link>
+          <Link href={defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.quotations} style={{ background: c.accent, color: "#fff", padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>{defaultAccountId ? "Back to account" : "All quotations"}</Link>
           <Link href={ROUTES.quotationPrint(savedId)} target="_blank" style={{ background: pillar.teal.bg, color: pillar.teal.fg, padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>🖨 Preview PDF</Link>
           <button onClick={() => setSavedId(null)} style={{ border: `1px solid ${c.line}`, background: c.panel, color: c.muted, padding: "8px 20px", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>Edit again</button>
         </div>
@@ -1181,8 +1186,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   return (
     <>
       <div style={{ marginBottom: 10 }}>
-        <Link href={editQuote ? ROUTES.quotation(editQuote.quote.id) : ROUTES.quotations} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          ← {editQuote ? editQuote.quote.ref : "Quotations"}
+        <Link
+          href={editQuote ? ROUTES.quotation(editQuote.quote.id) : defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.quotations}
+          style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}
+        >
+          ← {editQuote ? editQuote.quote.ref : defaultAccountId ? "Back to account" : "Quotations"}
         </Link>
       </div>
 

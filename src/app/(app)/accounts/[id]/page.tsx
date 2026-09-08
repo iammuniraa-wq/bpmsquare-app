@@ -365,8 +365,8 @@ export default async function AccountHubPage({
             { href: `${ROUTES.caseNew}?account_id=${id}`,      label: "New case",       icon: <ActivityIcon size={13} color={pillar.teal.base} />, bg: pillar.teal.bg },
             { href: `${ROUTES.contactNew}?account_id=${id}`,   label: "New contact",    icon: <Phone size={13} color={pillar.blue.base} />,     bg: pillar.blue.bg },
             { href: `${ROUTES.assetNew}?account_id=${id}`,     label: "New asset",      icon: <Gear size={13} color={pillar.green.base} />,     bg: pillar.green.bg },
-            { href: ROUTES.quotationNew,                       label: "New quotation",  icon: <Package size={13} color={pillar.amber.base} />,  bg: pillar.amber.bg },
-            ...(features?.invoices ? [{ href: ROUTES.invoiceNew, label: "New invoice", icon: <FileText size={13} color={pillar.purple.base} />, bg: pillar.purple.bg }] : []),
+            { href: `${ROUTES.quotationNew}?account_id=${id}`,  label: "New quotation",  icon: <Package size={13} color={pillar.amber.base} />,  bg: pillar.amber.bg },
+            ...(features?.invoices ? [{ href: `${ROUTES.invoiceNew}?account_id=${id}`, label: "New invoice", icon: <FileText size={13} color={pillar.purple.base} />, bg: pillar.purple.bg }] : []),
             ...(features?.wfm_projects ? [{ href: `${ROUTES.wfmProjectNew}?account=${id}`, label: "New project", icon: <Gear size={13} color={pillar.teal.base} />, bg: pillar.teal.bg }] : []),
           ]} />
         </div>
@@ -514,7 +514,7 @@ export default async function AccountHubPage({
             <SectionHead
               label="Quotations"
               count={hub.quotes.length}
-              action={<AddLink href={ROUTES.quotationNew} label="New quotation" />}
+              action={<AddLink href={`${ROUTES.quotationNew}?account_id=${id}`} label="New quotation" />}
             />
             {quotationTotal > 0 && (
               <div style={{ fontSize: 13, color: c.muted }}>
@@ -523,7 +523,7 @@ export default async function AccountHubPage({
             )}
           </div>
           {hub.quotes.length === 0 ? (
-            <EmptyRow label="No quotations yet." href={ROUTES.quotationNew} linkLabel="Create first quotation" />
+            <EmptyRow label="No quotations yet." href={`${ROUTES.quotationNew}?account_id=${id}`} linkLabel="Create first quotation" />
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
@@ -621,7 +621,7 @@ export default async function AccountHubPage({
             <SectionHead
               label="Invoices"
               count={hub.invoices.length}
-              action={<AddLink href={ROUTES.invoiceNew} label="New invoice" />}
+              action={<AddLink href={`${ROUTES.invoiceNew}?account_id=${id}`} label="New invoice" />}
             />
             {invoiceBalance > 0 && (
               <div style={{ fontSize: 13, color: c.muted }}>
@@ -630,7 +630,7 @@ export default async function AccountHubPage({
             )}
           </div>
           {hub.invoices.length === 0 ? (
-            <EmptyRow label="No invoices yet." href={ROUTES.invoiceNew} linkLabel="Create first invoice" />
+            <EmptyRow label="No invoices yet." href={`${ROUTES.invoiceNew}?account_id=${id}`} linkLabel="Create first invoice" />
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
