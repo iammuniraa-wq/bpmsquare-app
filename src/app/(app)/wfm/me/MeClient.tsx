@@ -878,7 +878,15 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     const group = PUNCH_KIND_GROUP[k];
     return !group || enabledPunchTypes[group];
   });
-  const activeKind = selectedKind && punchOptions.includes(selectedKind) ? selectedKind : punchOptions[0] ?? null;
+  // Check in/out cover nearly every punch, so they get their own big
+  // always-visible buttons (client decision 2026-09-08: employees asked for
+  // "direct punch in/out, no dropdown games"). Everything else legal right
+  // now -- breaks, OT, business trip, work from home -- goes in one small
+  // "Other" dropdown instead of competing for the same visual weight.
+  const canCheckIn = punchOptions.includes("check_in");
+  const canCheckOut = punchOptions.includes("check_out");
+  const otherOptions: PresenceKind[] = punchOptions.filter((k) => k !== "check_in" && k !== "check_out");
+  const activeOther = selectedKind && otherOptions.includes(selectedKind) ? selectedKind : otherOptions[0] ?? null;
 
   // Supervisor-managed workforce (client decision 2026-08-21): when a tenant
   // turns employee self-service off, employees no longer punch from their
@@ -1103,36 +1111,68 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           {liveBreak > 0 && ` · breaks ${fmtHM(liveBreak)}`}
         </div>
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14, alignItems: "center" }}>
+      <div style={{ marginTop: 14 }}>
         {!selfService ? (
           <span style={{ fontSize: 12, color: c.hint, lineHeight: 1.5 }}>
             Punch in and out at the office kiosk — it recognises you by face, no phone needed. Your hours here update automatically.
           </span>
-        ) : punchOptions.length === 0 ? (
+        ) : !canCheckIn && !canCheckOut && otherOptions.length === 0 ? (
           <span style={{ fontSize: 12, color: c.hint }}>No punch action available right now.</span>
         ) : (
           <>
-            <select
-              value={activeKind ?? ""}
-              onChange={(e) => setSelectedKind(e.target.value as PresenceKind)}
-              disabled={busy}
-              style={{
-                padding: "11px 12px", borderRadius: 8, border: `1px solid ${c.line}`,
-                background: c.panel, color: c.ink, fontSize: 13.5, fontWeight: 600,
-                outline: "none", cursor: "pointer", minWidth: 170,
-              }}
-            >
-              {punchOptions.map((k) => (
-                <option key={k} value={k}>{PUNCH_KIND_LABEL[k]}</option>
-              ))}
-            </select>
-            <button
-              style={{ ...btnPrimary, background: punchTone(activeKind), padding: "12px 24px", fontSize: 14 }}
-              disabled={busy || !activeKind}
-              onClick={() => activeKind && startPunch(activeKind)}
-            >
-              {busy ? "Working…" : "Punch"}
-            </button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                style={{
+                  flex: 1, padding: "18px 12px", fontSize: 16, fontWeight: 700, borderRadius: 12, border: "none",
+                  background: canCheckIn ? "#10b981" : c.panel2, color: canCheckIn ? "#fff" : c.hint,
+                  cursor: canCheckIn && !busy ? "pointer" : "not-allowed", opacity: canCheckIn ? 1 : 0.55,
+                }}
+                disabled={!canCheckIn || busy}
+                onClick={() => startPunch("check_in")}
+              >
+                Check in
+              </button>
+              <button
+                style={{
+                  flex: 1, padding: "18px 12px", fontSize: 16, fontWeight: 700, borderRadius: 12, border: "none",
+                  background: canCheckOut ? "#ef4444" : c.panel2, color: canCheckOut ? "#fff" : c.hint,
+                  cursor: canCheckOut && !busy ? "pointer" : "not-allowed", opacity: canCheckOut ? 1 : 0.55,
+                }}
+                disabled={!canCheckOut || busy}
+                onClick={() => startPunch("check_out")}
+              >
+                Check out
+              </button>
+            </div>
+            {busy && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 6 }}>Working…</div>}
+
+            {/* Everything that isn't the common case: breaks, OT, business
+                trip, work from home -- one small dropdown, not four extra
+                buttons fighting the two above for attention. */}
+            {otherOptions.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+                <select
+                  value={activeOther ?? ""}
+                  onChange={(e) => setSelectedKind(e.target.value as PresenceKind)}
+                  disabled={busy}
+                  style={{
+                    flex: 1, minWidth: 140, padding: "8px 10px", borderRadius: 8, border: `1px solid ${c.line}`,
+                    background: c.panel, color: c.ink, fontSize: 12.5, fontWeight: 600, outline: "none", cursor: "pointer",
+                  }}
+                >
+                  {otherOptions.map((k) => (
+                    <option key={k} value={k}>{PUNCH_KIND_LABEL[k]}</option>
+                  ))}
+                </select>
+                <button
+                  style={{ ...btn, background: punchTone(activeOther), borderColor: "transparent", color: "#fff", padding: "8px 16px", fontSize: 12.5 }}
+                  disabled={busy || !activeOther}
+                  onClick={() => activeOther && startPunch(activeOther)}
+                >
+                  Go
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
