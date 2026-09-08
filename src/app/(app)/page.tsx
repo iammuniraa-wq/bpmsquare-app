@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { getDashboardSummary, getAnalyticsData } from "@/lib/data";
 import { getTenant, getUserRole } from "@/lib/tenant";
 import { requireTenantUser } from "@/lib/supabase-server";
@@ -35,21 +34,15 @@ export default async function DashboardPage() {
   const [tenant, role] = await Promise.all([getTenant(), getUserRole()]);
   const { supabase, tenantId, userId } = await requireTenantUser();
 
-  // Fetched once, up front, for two reasons: (1) whether to redirect below,
-  // and (2) both branches further down need it anyway (display name,
-  // dashboard layout override) -- was two separate identical queries before.
+  // Fetched once, up front -- both branches further down need it anyway
+  // (display name, dashboard layout override); was two separate identical
+  // queries before. (The "land WFM employees on My Workforce instead of
+  // here" decision lives at login time only -- see LoginForm.tsx /
+  // api/auth/landing -- NOT here, so visiting/navigating to Dashboard from
+  // inside the app, e.g. the sidebar's own Dashboard link, still works.)
   const { data: membership } = await supabase
     .from("tenant_users").select("dashboard_layout_override, display_name, employee_id")
     .eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
-
-  // WFM employees (owner decision 2026-09-08, after BIM employees asked why
-  // login shows a KPI dashboard instead of straight to punch): anyone whose
-  // login is linked to a WFM employee record lands on My Workforce instead
-  // of here, irrespective of tenant role or WFM role (employee/supervisor
-  // both included) -- My Workforce IS their dashboard, not a page to find.
-  if ((tenant?.features as TenantFeatures | undefined)?.wfm && membership?.employee_id) {
-    redirect("/wfm/me");
-  }
 
   // Nova tenants get the Stream home screen instead of the classic KPI
   // dashboard -- still needs the same summary aggregate (kpis, overdue
