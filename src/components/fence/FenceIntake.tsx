@@ -76,7 +76,7 @@ export default function FenceIntake({
           .fence-intake-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
-      <div style={{ flex: "none", height: 48, display: "flex", alignItems: "center", gap: 14, padding: "0 16px", background: c.panel, borderBottom: `1px solid ${c.line}` }}>
+      <div style={{ flex: "none", minHeight: 48, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 14, padding: "8px 16px", background: c.panel, borderBottom: `1px solid ${c.line}` }}>
         <span style={{ fontWeight: 600, fontSize: 13.5 }}>New fence project</span>
         <button onClick={onSkip} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", color: c.muted, fontSize: 12.5, fontWeight: 600 }}>
           Skip — start blank →

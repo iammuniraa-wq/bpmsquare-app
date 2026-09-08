@@ -16,6 +16,13 @@ export default function PageHeader({
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
+        // wrap + gap is purely additive: on any page where title+action
+        // already fit on one line (every existing caller, at normal widths)
+        // this changes nothing -- it only kicks in once the combined
+        // content is wider than the viewport, wrapping the action below
+        // the title instead of forcing horizontal overflow.
+        flexWrap: "wrap",
+        gap: 10,
         marginBottom: 16,
       }}
     >
