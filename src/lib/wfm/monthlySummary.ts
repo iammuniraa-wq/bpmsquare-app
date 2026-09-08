@@ -85,6 +85,51 @@ export type EmployeeMonthSummary = {
   };
 };
 
+// PostgREST caps a single .select() at its configured max rows (1000 by
+// default on Supabase) -- a real, previously-fixed bug class in this
+// codebase (business-ref generation hit the same wall, PROJECT.md's 2026-08-04
+// review). With ~80 employees x several punches/day, one calendar month's
+// presence events cross that cap only a few days in, and because the query
+// is ordered oldest-first, it is the MOST RECENT events -- today's -- that
+// silently fall off, not the oldest. That is exactly what a BIM supervisor
+// reported 2026-09-08: every day up to a few days ago showed real punches,
+// today showed everyone "Absent" tenant-wide, and the Live Board (which only
+// queries a rolling 36h window, nowhere near the cap) was unaffected. Fixed
+// by paginating instead of trusting one .select() to return everything.
+const PRESENCE_EVENTS_PAGE_SIZE = 1000;
+
+async function fetchAllPresenceEvents(
+  admin: ReturnType<typeof createAdminSupabase>,
+  tenantId: string,
+  employeeIds: string[],
+  gteIso: string,
+  ltIso: string
+): Promise<{ employee_id: string; kind: string; ts: string }[]> {
+  const all: { employee_id: string; kind: string; ts: string }[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await admin
+      .from("wfm_presence_events")
+      .select("employee_id, kind, ts")
+      .eq("tenant_id", tenantId)
+      .in("employee_id", employeeIds)
+      .is("superseded_by", null)
+      .gte("ts", gteIso)
+      .lt("ts", ltIso)
+      .order("ts", { ascending: true })
+      .range(from, from + PRESENCE_EVENTS_PAGE_SIZE - 1);
+    if (error) {
+      console.error("monthly summary: presence events page failed:", error.message);
+      break;
+    }
+    const page = (data ?? []) as { employee_id: string; kind: string; ts: string }[];
+    all.push(...page);
+    if (page.length < PRESENCE_EVENTS_PAGE_SIZE) break;
+    from += PRESENCE_EVENTS_PAGE_SIZE;
+  }
+  return all;
+}
+
 function daysInMonth(yearMonth: string): string[] {
   const [y, m] = yearMonth.split("-").map(Number);
   const count = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -176,15 +221,7 @@ export async function getMonthlySummary(
   const windowEnd = new Date(`${dates[dates.length - 1]}T00:00:00Z`);
   windowEnd.setUTCDate(windowEnd.getUTCDate() + 2);
 
-  const { data: events } = await admin
-    .from("wfm_presence_events")
-    .select("employee_id, kind, ts")
-    .eq("tenant_id", tenantId)
-    .in("employee_id", employeeRows.map((e) => e.id))
-    .is("superseded_by", null)
-    .gte("ts", windowStart.toISOString())
-    .lt("ts", windowEnd.toISOString())
-    .order("ts", { ascending: true });
+  const events = await fetchAllPresenceEvents(admin, tenantId, employeeRows.map((e) => e.id as string), windowStart.toISOString(), windowEnd.toISOString());
 
   const eventsByEmp = new Map<string, { kind: PresenceKind; ts: string }[]>();
   for (const e of events ?? []) {
