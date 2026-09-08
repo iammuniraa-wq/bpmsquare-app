@@ -13,6 +13,20 @@ import type { TenantBranding } from "@/lib/tenant";
 
 type Branding = TenantBranding | null;
 
+// Only called for a plain login with no explicit `next` -- asks the server
+// (api/auth/landing) whether this login is WFM-linked and should skip the
+// KPI dashboard for My Workforce. Always resolves (falls back to "/" on any
+// failure) so a network hiccup here never blocks signing in.
+async function landingPath(): Promise<string> {
+  try {
+    const res = await fetch("/api/auth/landing");
+    const json = await res.json().catch(() => null);
+    return typeof json?.path === "string" ? json.path : "/";
+  } catch {
+    return "/";
+  }
+}
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
   height: 44,
@@ -28,7 +42,12 @@ const inputStyle: React.CSSProperties = {
 
 function LoginFormInner({ branding }: { branding: Branding }) {
   const searchParams = useSearchParams();
-  const next = safeInternalPath(searchParams.get("next"));
+  // Whether the CALLER explicitly asked for a destination (an invite link, a
+  // deep link from a "session expired" bounce, ...) -- that always wins over
+  // the WFM landing check below. Only a plain, no-`next` login is eligible
+  // to be redirected to My Workforce instead of the default dashboard.
+  const explicitNext = searchParams.get("next");
+  const next = safeInternalPath(explicitNext);
 
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
@@ -80,7 +99,7 @@ function LoginFormInner({ branding }: { branding: Branding }) {
     if (err) {
       setError(codeLogin ? "Incorrect ID or password. Please try again." : "Incorrect email or password. Please try again.");
     } else {
-      window.location.href = next;
+      window.location.href = explicitNext ? next : await landingPath();
     }
   }
 
