@@ -345,13 +345,32 @@ export default function FenceConfigurator({
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: c.panel2, color: c.ink, fontFamily: "inherit" }}>
-      <div style={{ flex: "none", height: 48, display: "flex", alignItems: "center", gap: 14, padding: "0 16px", background: c.panel, borderBottom: `1px solid ${c.line}` }}>
+      {/* Below ~860px the header wraps to a second line, the canvas/sidebar
+          split stacks vertically instead of side-by-side (the sidebar was
+          otherwise crowding the canvas to nothing on a phone), and the
+          Quantities popover never exceeds the viewport width. `!important`
+          is needed because these properties are also set inline for the
+          desktop default, which otherwise always wins over a plain class
+          rule regardless of media query. */}
+      <style>{`
+        @media (max-width: 860px) {
+          .fence-header { flex-wrap: wrap !important; height: auto !important; padding: 10px 14px !important; row-gap: 8px; }
+          .fence-name-input { width: 100% !important; order: 5; flex-basis: 100%; }
+          .fence-stat-summary { display: none !important; }
+          .fence-body { flex-direction: column !important; }
+          .fence-canvas-pane { flex: 0 0 42vh !important; min-height: 260px; }
+          .fence-sidebar { width: 100% !important; flex: 1 1 auto !important; border-left: none !important; border-top: 1px solid ${c.line}; }
+          .fence-quantities-panel { width: calc(100vw - 24px) !important; max-width: 320px !important; }
+        }
+      `}</style>
+      <div className="fence-header" style={{ flex: "none", height: 48, display: "flex", alignItems: "center", gap: 14, padding: "0 16px", background: c.panel, borderBottom: `1px solid ${c.line}` }}>
         <Link href={ROUTES.fenceProjects} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           ← Fence Projects
         </Link>
         <Divider />
         <span style={{ fontWeight: 700, fontSize: 13.5, color: c.ink, whiteSpace: "nowrap" }}>Fence Design Studio</span>
         <input
+          className="fence-name-input"
           value={name}
           onChange={(e) => setName(e.target.value)}
           style={{ fontWeight: 600, fontSize: 13.5, border: "none", background: "none", color: c.ink, outline: "none", width: 220 }}
@@ -364,7 +383,7 @@ export default function FenceConfigurator({
         {project && (
           <Pill label={STATUS_LABEL[project.status]} tone={STATUS_TONE[project.status]} />
         )}
-        <span style={{ marginLeft: "auto", fontFamily: "monospace", fontSize: 11.5, color: c.muted }}>
+        <span className="fence-stat-summary" style={{ marginLeft: "auto", fontFamily: "monospace", fontSize: 11.5, color: c.muted }}>
           {totalLength} m · {geometry.total_posts} posts · {gates.length} gate{gates.length === 1 ? "" : "s"}
         </span>
         {project?.standardQuoteId ? (
@@ -412,8 +431,8 @@ export default function FenceConfigurator({
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-        <div style={{ flex: 1, position: "relative", background: view === "plan" ? `linear-gradient(${c.line} 1px, transparent 1px) 0 0/24px 24px, linear-gradient(90deg, ${c.line} 1px, transparent 1px) 0 0/24px 24px, ${c.panel2}` : c.panel2 }}>
+      <div className="fence-body" style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        <div className="fence-canvas-pane" style={{ flex: 1, position: "relative", background: view === "plan" ? `linear-gradient(${c.line} 1px, transparent 1px) 0 0/24px 24px, linear-gradient(90deg, ${c.line} 1px, transparent 1px) 0 0/24px 24px, ${c.panel2}` : c.panel2 }}>
           {view === "plan" ? (
             <PlanView layout={layout} totalLength={totalLength} lineposts={geometry.line_posts} gates={gates} />
           ) : (
@@ -431,7 +450,7 @@ export default function FenceConfigurator({
               ≡ Quantities
             </button>
             {quantitiesOpen && (
-              <div style={{ marginTop: 6, width: 300, maxHeight: 380, overflowY: "auto", background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, boxShadow: sh.card, padding: 14 }}>
+              <div className="fence-quantities-panel" style={{ marginTop: 6, width: 300, maxHeight: 380, overflowY: "auto", background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, boxShadow: sh.card, padding: 14 }}>
                 {catalog.length === 0 ? (
                   <p style={{ fontSize: 11.5, color: c.muted, margin: 0 }}>No materials seeded for this tenant yet.</p>
                 ) : (
@@ -486,7 +505,7 @@ export default function FenceConfigurator({
           </div>
         </div>
 
-        <div style={{ width: 340, flex: "none", background: c.panel, borderLeft: `1px solid ${c.line}`, overflowY: "auto", padding: 20 }}>
+        <div className="fence-sidebar" style={{ width: 340, flex: "none", background: c.panel, borderLeft: `1px solid ${c.line}`, overflowY: "auto", padding: 20 }}>
           <Collapsible
             label="Account"
             summary={accountId ? accounts.find((a) => a.id === accountId)?.name : "— None yet —"}
