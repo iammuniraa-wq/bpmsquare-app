@@ -11,9 +11,9 @@ const OFFER_TYPES: QuoteOfferType[] = ["quotation", "technical", "budgetary"];
 export default async function NewQuotationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{ type?: string; account_id?: string }>;
 }) {
-  const { type } = await searchParams;
+  const { type, account_id } = await searchParams;
   const tenant = await getTenant();
 
   if (!type) {
@@ -24,13 +24,13 @@ export default async function NewQuotationPage({
     const visibleTypeIds = QUOTE_TYPES
       .filter((qt) => qt.id in vis ? vis[qt.id as keyof typeof vis] !== false : true)
       .map((qt) => qt.id);
-    return <QuoteTypePicker visibleTypeIds={visibleTypeIds} />;
+    return <QuoteTypePicker visibleTypeIds={visibleTypeIds} accountId={account_id ?? null} />;
   }
 
   const data = await getQuoteFormData();
 
   if (type === "supply") {
-    return <QuoteFormSupply accounts={data.accounts} contacts={data.contacts} />;
+    return <QuoteFormSupply accounts={data.accounts} contacts={data.contacts} defaultAccountId={account_id ?? null} />;
   }
 
   const offerType: QuoteOfferType = OFFER_TYPES.includes(type as QuoteOfferType)

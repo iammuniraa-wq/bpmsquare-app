@@ -2,8 +2,13 @@ import { requireFeature } from "@/lib/tenant";
 import { requireTenantUser } from "@/lib/supabase-server";
 import InvoiceForm from "./InvoiceForm";
 
-export default async function NewInvoicePage() {
+export default async function NewInvoicePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ account_id?: string }>;
+}) {
   await requireFeature("invoices");
+  const { account_id } = await searchParams;
   const { supabase, tenantId } = await requireTenantUser();
 
   const [{ data: accounts }, { data: contacts }, { data: tenantRow }, { data: approvedQuotes }, { data: invoicedQuotes }] = await Promise.all([
@@ -36,6 +41,7 @@ export default async function NewInvoicePage() {
       contacts={contacts ?? []}
       entities={entities}
       quotes={quotes}
+      defaultAccountId={account_id ?? null}
     />
   );
 }

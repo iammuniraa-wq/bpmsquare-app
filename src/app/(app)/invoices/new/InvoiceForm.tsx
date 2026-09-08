@@ -33,12 +33,16 @@ function newLine(): Line {
 }
 
 export default function InvoiceForm({
-  accounts, contacts, entities, quotes,
+  accounts, contacts, entities, quotes, defaultAccountId,
 }: {
   accounts: { id: string; name: string }[];
   contacts: { id: string; name: string; account_id: string }[];
   entities: { id: string; name: string; is_default?: boolean }[];
   quotes: QuoteOption[];
+  /** Set when arriving from an account's own page (accounts/[id]/page.tsx
+   *  passes ?account_id=) -- prefills the account and is where Cancel
+   *  returns to instead of the unfiltered invoices list. */
+  defaultAccountId?: string | null;
 }) {
   const cur = useCurrency();
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
@@ -46,7 +50,7 @@ export default function InvoiceForm({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
-  const [accountId, setAccountId] = useState("");
+  const [accountId, setAccountId] = useState(defaultAccountId ?? "");
   const [contactId, setContactId] = useState("");
   const [entityId, setEntityId] = useState(entities.find((e) => e.is_default)?.id ?? "");
   const [quoteId, setQuoteId] = useState("");
@@ -117,8 +121,8 @@ export default function InvoiceForm({
   return (
     <>
       <div style={{ marginBottom: 12 }}>
-        <Link href={ROUTES.invoices} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          ← All invoices
+        <Link href={defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.invoices} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
+          ← {defaultAccountId ? "Back to account" : "All invoices"}
         </Link>
       </div>
 
@@ -281,7 +285,7 @@ export default function InvoiceForm({
             >
               {pending ? "Saving…" : "Create Invoice"}
             </button>
-            <Link href={ROUTES.invoices} style={{
+            <Link href={defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.invoices} style={{
               display: "block", textAlign: "center", padding: "10px 0",
               borderRadius: 8, border: `1px solid ${c.line}`,
               color: c.muted, fontSize: 13, textDecoration: "none",

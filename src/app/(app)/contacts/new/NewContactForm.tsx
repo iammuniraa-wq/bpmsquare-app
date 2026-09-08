@@ -127,7 +127,10 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
       });
       const json = await res.json();
       if (res.ok) {
-        router.push(ROUTES.contacts);
+        // Created from an account's own page (accounts/[id]/page.tsx passes
+        // ?account_id=) -- return there so the new contact shows up under
+        // it, rather than dropping the rep on the unfiltered contacts list.
+        router.push(defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.contacts);
       } else {
         setError(json.error ?? "Failed to create contact");
       }
@@ -283,7 +286,7 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
         {pending ? "Saving…" : "Create Contact"}
       </button>
       <Link
-        href={ROUTES.contacts}
+        href={defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.contacts}
         style={{
           padding: "10px 18px", borderRadius: 8, border: `1px solid ${c.line}`,
           color: c.muted, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center",

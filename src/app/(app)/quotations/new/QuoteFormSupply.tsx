@@ -55,15 +55,21 @@ function saveDraft(d: object) { try { sessionStorage.setItem(DRAFT_KEY, JSON.str
 function loadDraft() { try { const r = sessionStorage.getItem(DRAFT_KEY); return r ? JSON.parse(r) : null; } catch { return null; } }
 function clearDraft() { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* noop */ } }
 
-type Props = { accounts: Account[]; contacts: Contact[] };
+type Props = {
+  accounts: Account[]; contacts: Contact[];
+  /** Set when arriving from an account's own page (accounts/[id]/page.tsx
+   *  passes ?account_id=) -- prefills the account and is where "Draft saved"
+   *  returns to instead of the unfiltered quotations list. */
+  defaultAccountId?: string | null;
+};
 
-export default function QuoteFormSupply({ accounts, contacts }: Props) {
+export default function QuoteFormSupply({ accounts, contacts, defaultAccountId }: Props) {
   const cur = useCurrency();
   const router = useRouter();
   const today        = new Date().toISOString().slice(0, 10);
   const defaultValid = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
 
-  const [accountId,  setAccountId]  = useState("");
+  const [accountId,  setAccountId]  = useState(defaultAccountId ?? "");
   const [contactId,  setContactId]  = useState("");
   const [quoteDate,  setQuoteDate]  = useState(today);
   const [validUntil, setValidUntil] = useState(defaultValid);
@@ -196,7 +202,7 @@ export default function QuoteFormSupply({ accounts, contacts }: Props) {
           Supply quotation saved as draft for {selectedAccount?.name ?? "the customer"}.
         </p>
         <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
-          <Link href={ROUTES.quotations} style={{ background: c.accent, color: "#fff", padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>All quotations</Link>
+          <Link href={defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.quotations} style={{ background: c.accent, color: "#fff", padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>{defaultAccountId ? "Back to account" : "All quotations"}</Link>
           <Link href={ROUTES.quotationPrint(savedId)} target="_blank" style={{ background: pillar.teal.bg, color: pillar.teal.fg, padding: "8px 20px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>🖨 Preview PDF</Link>
           <button onClick={() => setSavedId(null)} style={{ border: `1px solid ${c.line}`, background: c.panel, color: c.muted, padding: "8px 20px", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>Edit again</button>
         </div>
