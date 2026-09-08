@@ -263,6 +263,65 @@ export type WfmOtSession = {
   created_at: string;
 };
 
+// Advance requests (0123) -- OT and WFH share one table (identical shape: a
+// date range, a reason, approve/reject, no side-effect record to write).
+// Leave keeps its own table (wfm_leave_requests, above) since approving it
+// writes a real wfm_leave_records row. An `ot` row here is advance NOTICE
+// only and never gates the ot_in/ot_out punch (that stays exactly as it
+// works today: punch first, wfm_ot_sessions approval after). A `wfh` row is
+// the actual gate: mobile_work_start is blocked without an approved one
+// covering today (see isWfhApprovedForDate, lib/wfm/advanceRequests.ts).
+export type AdvanceRequestKind = "ot" | "wfh";
+export type AdvanceRequestStatus = "pending" | "approved" | "rejected";
+
+export type WfmAdvanceRequest = {
+  id: string;
+  employee_id: string;
+  kind: AdvanceRequestKind;
+  date_from: string; // YYYY-MM-DD
+  date_to: string;
+  reason_text: string;
+  status: AdvanceRequestStatus;
+  supervisor_remark: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+// Clarification threads (0123) -- a real back-and-forth, anchored to a
+// specific punch/correction/OT session (or 'general', not tied to a
+// record), so either side can ask a question with the context obvious.
+// Generalizes, but does NOT replace, the one-shot correction/recheck reply
+// flows above -- those stay the system of record for approve/reject
+// decisions; a thread is the conversation around one.
+export type ClarificationAnchorType = "general" | "punch" | "correction" | "ot_session";
+export type ClarificationStatus = "open" | "resolved";
+
+export type WfmClarificationThread = {
+  id: string;
+  employee_id: string;
+  anchor_type: ClarificationAnchorType;
+  target_event_id: string | null;
+  target_correction_id: string | null;
+  target_ot_session_id: string | null;
+  subject: string;
+  status: ClarificationStatus;
+  opened_by_role: "employee" | "supervisor";
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WfmClarificationMessage = {
+  id: string;
+  thread_id: string;
+  employee_id: string;
+  sender_role: "employee" | "supervisor";
+  sender_user_id: string;
+  body: string;
+  created_at: string;
+};
+
 // Supervisor-initiated recheck requests (0072) -- the other direction from
 // corrections above: a supervisor flags a punch/day and the employee
 // responds. linked_correction_id is set when the employee's response was

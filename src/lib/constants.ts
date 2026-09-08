@@ -592,10 +592,12 @@ export type WfmConfig = {
   // Per-event-type email notification toggles. Each fires synchronously
   // from the route that creates the underlying event -- see src/lib/wfm/notify.ts.
   notifications: {
-    late_arrival: boolean;       // check-in past shift start+grace -> supervisor
-    correction_pending: boolean; // employee files a correction -> supervisor
-    leave_pending: boolean;      // employee files a leave request -> supervisor
-    recheck_flagged: boolean;    // supervisor flags a punch/day -> employee
+    late_arrival: boolean;             // check-in past shift start+grace -> supervisor
+    correction_pending: boolean;       // employee files a correction -> supervisor
+    leave_pending: boolean;            // employee files a leave request -> supervisor
+    recheck_flagged: boolean;          // supervisor flags a punch/day -> employee
+    advance_request_pending: boolean;  // employee files an OT/WFH advance request -> supervisor
+    clarification_message: boolean;    // either side posts in a clarification thread -> the other
   };
   /** Push an employee's own phone once they pass a worked-hours threshold, so
    *  they know to punch out (client request, BIM 2026-09-04). Off by default:
@@ -719,6 +721,8 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
     correction_pending: true,
     leave_pending: true,
     recheck_flagged: true,
+    advance_request_pending: true,
+    clarification_message: true,
   },
   long_day_alert: { enabled: false, after_hours: 9 },
   employment_types: DEFAULT_EMPLOYMENT_TYPES,

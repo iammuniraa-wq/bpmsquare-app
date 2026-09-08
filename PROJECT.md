@@ -508,6 +508,27 @@ deploy for an automatic schema change.
   every seeded product through both books; totals matched lineTotals.ts),
   then removed from dev entirely -- the owner wants Big Blue on production
   only. Needs 0120 for the deals (skipped cleanly if pending).
+- **0123_wfm_advance_requests_and_clarifications.sql — PENDING on both DBs**
+  (written 2026-09-09, owner request the same day: one "Requests" surface
+  for OT/WFH advance notice, plus real back-and-forth clarification threads
+  instead of one-shot correction/recheck replies). Two new tables, each with
+  RLS + tenant-isolation policy in the same file, same "select-only, writes
+  via the admin client" convention every WFM table follows:
+  `wfm_advance_requests` (kind `ot`|`wfh`, date range, reason, approve/
+  reject -- leave keeps its own separate table since approving it writes a
+  real leave record; this one has no side-effect record) and
+  `wfm_clarification_threads` + `wfm_clarification_messages` (anchored to a
+  punch/correction/OT session via three typed nullable FKs, or 'general').
+  **Behavior change once applied: WFH (`mobile_work_start`) is blocked
+  without an approved `wfh` row covering today** (`isWfhApprovedForDate`,
+  `lib/wfm/advanceRequests.ts`, enforced in `api/wfm/punch/route.ts` and
+  mirrored client-side so the dropdown never offers it) -- OT stays exactly
+  as it worked before (punch first, `wfm_ot_sessions` approval after; an
+  `ot` row here is advance notice only, never a gate). Until this migration
+  runs, every read 42P01s cleanly (empty request list, empty conversation
+  list) and the WFH gate itself fails safe -- `isWfhApprovedForDate` returns
+  false on a query error, so WFH would appear NOT approved rather than
+  silently bypassing the check.
 - **0122_fence_projects.sql — applied to both DBs** (owner confirmed
   2026-09-07; written 2026-09-07, Fence Configurator Phase C,
   `docs/fence-configurator-architecture.md` §7). Three tables, each with

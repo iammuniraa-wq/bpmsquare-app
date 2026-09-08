@@ -23,6 +23,8 @@ import PunchAudit from "@/components/wfm/PunchAudit";
 import {
   allowedKinds, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
   type PresenceKind, type PunchState, type LeaveRequestStatus,
+  type AdvanceRequestKind, type WfmAdvanceRequest,
+  type ClarificationAnchorType, type WfmClarificationThread, type WfmClarificationMessage,
 } from "@/lib/wfm/types";
 import { enqueuePunch, flushQueue, listQueuedPunches, listRejectedPunches, discardRejectedPunch, type QueuedPunch } from "@/lib/wfm/offlineQueue";
 import { useIsNextgen3Layer } from "@/lib/tenant-context";
@@ -57,6 +59,9 @@ type MeState = {
   timezone: string;
   /** Optional punch-type groups this tenant has switched on. */
   punch_types?: { ot: boolean; mobile_work: boolean; business_trip: boolean };
+  /** Whether mobile_work_start (WFH) is legal today -- an approved
+   *  wfm_advance_requests row covers it. False also means "not requested". */
+  wfh_approved_today?: boolean;
   require_location?: boolean;
   selfie_mode?: "off" | "shift" | "all";
   employee_self_service?: boolean;
@@ -103,6 +108,7 @@ type LeaveRequest = {
   id: string; date_from: string; date_to: string; half_day: boolean;
   reason_text: string; status: LeaveRequestStatus; supervisor_remark: string | null;
   wfm_leave_types: { name: string; category: string } | null;
+  created_at: string;
 };
 type TrendPoint = {
   month: string; working_minutes: number; days_present: number;
@@ -115,7 +121,7 @@ type Analytics = {
 };
 
 type Geo = { lat: number; lng: number; accuracy_m: number } | null;
-type Tab = "profile" | "home" | "time" | "timeline" | "leave" | "calendar" | "analytics";
+type Tab = "profile" | "home" | "time" | "timeline" | "leave" | "requests" | "calendar" | "analytics";
 type TimeView = "daily" | "monthly";
 
 const LEAVE_INSIGHTS_LS_KEY = "bms_wfm_leave_insights";
@@ -126,6 +132,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "home", label: "Attendance" },
   { key: "time", label: "Time" },
   { key: "leave", label: "Leave" },
+  { key: "requests", label: "Requests" },
   { key: "profile", label: "Profile" },
   { key: "timeline", label: "Timeline" },
   { key: "calendar", label: "Calendar" },
@@ -374,7 +381,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [bcMsg, setBcMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   // My Approvals (supervisors): loaded when the tile is opened.
   type ApprovalQueue = { count: number; items: { id: string; who: string; when: string }[] };
-  const [approvals, setApprovals] = useState<{ corrections: ApprovalQueue; leave: ApprovalQueue; overtime: ApprovalQueue } | null>(null);
+  const [approvals, setApprovals] = useState<{
+    corrections: ApprovalQueue; leave: ApprovalQueue; overtime: ApprovalQueue;
+    advance_requests: ApprovalQueue; clarifications: ApprovalQueue;
+  } | null>(null);
   // Engagement layer (3-layer theme only): checking out at/after your
   // shift's end earns a full-shift celebration. Judged on wall-clock in
   // the tenant's timezone against the assigned shift, never on pay math.
@@ -466,17 +476,37 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [recheckBusy, setRecheckBusy] = useState(false);
   const [correctionFromRecheckId, setCorrectionFromRecheckId] = useState<string | null>(null);
   const [leaveDraft, setLeaveDraft] = useState({ leave_type_id: "", date_from: todayKey(), date_to: todayKey(), half_day: false, reason_text: "" });
+  // Requests tab: OT/WFH advance requests + clarification threads (0123) --
+  // Leave keeps its own mature form on the Leave tab; this tab links to it
+  // rather than rebuilding the calendar picker a second time.
+  const [advanceRequests, setAdvanceRequests] = useState<WfmAdvanceRequest[]>([]);
+  const [showAdvanceForm, setShowAdvanceForm] = useState(false);
+  const [advanceDraft, setAdvanceDraft] = useState<{ kind: AdvanceRequestKind; date_from: string; date_to: string; reason_text: string }>(
+    { kind: "wfh", date_from: todayKey(), date_to: todayKey(), reason_text: "" }
+  );
+  const [clarificationThreads, setClarificationThreads] = useState<WfmClarificationThread[]>([]);
+  const [showClarificationForm, setShowClarificationForm] = useState(false);
+  const [clarificationDraft, setClarificationDraft] = useState<{ anchor_type: ClarificationAnchorType; target_id: string; subject: string; body: string }>(
+    { anchor_type: "general", target_id: "", subject: "", body: "" }
+  );
+  const [ownOtSessions, setOwnOtSessions] = useState<{ id: string; ot_date: string; minutes: number }[]>([]);
+  const [expandedThreadId, setExpandedThreadId] = useState<string | null>(null);
+  const [expandedMessages, setExpandedMessages] = useState<WfmClarificationMessage[]>([]);
+  const [expandedLoading, setExpandedLoading] = useState(false);
+  const [replyText, setReplyText] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const loadSecondary = useCallback(async () => {
     try {
-      const [tsRes, holRes, corrRes, leaveRes, anRes] = await Promise.all([
+      const [tsRes, holRes, corrRes, leaveRes, anRes, advRes, clarRes] = await Promise.all([
         fetch(`/api/wfm/me/timesheet?month=${month}`),
         fetch("/api/wfm/holidays"),
         fetch("/api/wfm/corrections"),
         fetch("/api/wfm/leave-requests"),
         fetch("/api/wfm/me/analytics"),
+        fetch("/api/wfm/advance-requests"),
+        fetch("/api/wfm/clarifications"),
       ]);
       if (tsRes.ok) {
         const ts = await tsRes.json();
@@ -489,6 +519,8 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       if (corrRes.ok) setCorrections(await corrRes.json());
       if (leaveRes.ok) setLeaveRequests(await leaveRes.json());
       if (anRes.ok) setAnalytics(await anRes.json());
+      if (advRes.ok) setAdvanceRequests(await advRes.json());
+      if (clarRes.ok) setClarificationThreads(await clarRes.json());
     } catch {
       // Secondary data (timesheet, holidays, ...) is optional -- offline, just
       // flag it; never blank the page over it, /state already succeeded.
@@ -782,6 +814,27 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     pendingCorr: corrections.filter((r) => r.status === "pending").length,
   }), [leaveRequests, corrections]);
 
+  // One place to see every request regardless of type -- leave keeps its own
+  // form/table on the Leave tab, but Requests shows the same rows here too.
+  type UnifiedRequest = {
+    id: string; label: string; range: string; reason_text: string;
+    status: string; supervisor_remark: string | null; created_at: string;
+  };
+  const unifiedRequests = useMemo<UnifiedRequest[]>(() => {
+    const range = (from: string, to: string) => (from === to ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`);
+    const fromLeave: UnifiedRequest[] = leaveRequests.map((r) => ({
+      id: r.id, label: r.wfm_leave_types?.name ?? "Leave", range: range(r.date_from, r.date_to),
+      reason_text: r.reason_text, status: r.status, supervisor_remark: r.supervisor_remark, created_at: r.created_at,
+    }));
+    const fromAdvance: UnifiedRequest[] = advanceRequests.map((r) => ({
+      id: r.id, label: r.kind === "wfh" ? "Work from home" : "Overtime (advance notice)", range: range(r.date_from, r.date_to),
+      reason_text: r.reason_text, status: r.status, supervisor_remark: r.supervisor_remark, created_at: r.created_at,
+    }));
+    return [...fromLeave, ...fromAdvance].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }, [leaveRequests, advanceRequests]);
+  const pendingAdvance = useMemo(() => advanceRequests.filter((r) => r.status === "pending").length, [advanceRequests]);
+  const openClarifications = useMemo(() => clarificationThreads.filter((t) => t.status === "open").length, [clarificationThreads]);
+
   // MUST stay above the early returns below (loading / no-profile / consent /
   // camera): a hook that renders only on some paths trips React's
   // "rendered fewer hooks than expected" the moment one of them is taken —
@@ -816,6 +869,106 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       setLeaveDraft({ leave_type_id: "", date_from: todayKey(), date_to: todayKey(), half_day: false, reason_text: "" });
       setNotice({ tone: "ok", text: "Leave request submitted — your supervisor will review it." });
       await load();
+    } catch {
+      setNotice({ tone: "err", text: "Network error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitAdvanceRequest() {
+    if (!advanceDraft.reason_text.trim()) { setNotice({ tone: "err", text: "Please give a reason" }); return; }
+    if (advanceDraft.date_to < advanceDraft.date_from) { setNotice({ tone: "err", text: "End date can't be before start date" }); return; }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/wfm/advance-requests", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...advanceDraft, reason_text: advanceDraft.reason_text.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setNotice({ tone: "err", text: json.error ?? "Could not submit" }); return; }
+      setShowAdvanceForm(false);
+      setAdvanceDraft({ kind: "wfh", date_from: todayKey(), date_to: todayKey(), reason_text: "" });
+      setNotice({ tone: "ok", text: `${advanceDraft.kind === "wfh" ? "Work from home" : "Overtime"} request submitted — your supervisor will review it.` });
+      await load();
+    } catch {
+      setNotice({ tone: "err", text: "Network error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Own OT sessions, for the "About an OT session" anchor picker only --
+  // loaded once, lazily, the first time that anchor type is chosen.
+  async function loadOwnOtSessions() {
+    if (ownOtSessions.length > 0) return;
+    try {
+      const res = await fetch("/api/wfm/ot-sessions");
+      if (res.ok) setOwnOtSessions(await res.json());
+    } catch { /* picker just stays empty */ }
+  }
+
+  async function submitClarification() {
+    if (clarificationDraft.anchor_type !== "general" && !clarificationDraft.target_id) {
+      setNotice({ tone: "err", text: "Please pick what this is about" }); return;
+    }
+    if (!clarificationDraft.body.trim()) { setNotice({ tone: "err", text: "Please write your question" }); return; }
+    setBusy(true);
+    try {
+      const payload: Record<string, unknown> = {
+        anchor_type: clarificationDraft.anchor_type,
+        subject: clarificationDraft.subject.trim() || undefined,
+        body: clarificationDraft.body.trim(),
+      };
+      if (clarificationDraft.anchor_type === "punch") payload.target_event_id = clarificationDraft.target_id;
+      if (clarificationDraft.anchor_type === "correction") payload.target_correction_id = clarificationDraft.target_id;
+      if (clarificationDraft.anchor_type === "ot_session") payload.target_ot_session_id = clarificationDraft.target_id;
+
+      const res = await fetch("/api/wfm/clarifications", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) { setNotice({ tone: "err", text: json.error ?? "Could not start the conversation" }); return; }
+      setShowClarificationForm(false);
+      setClarificationDraft({ anchor_type: "general", target_id: "", subject: "", body: "" });
+      setNotice({ tone: "ok", text: "Sent — you'll hear back here." });
+      await load();
+    } catch {
+      setNotice({ tone: "err", text: "Network error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleThread(id: string) {
+    if (expandedThreadId === id) { setExpandedThreadId(null); return; }
+    setExpandedThreadId(id);
+    setExpandedMessages([]);
+    setReplyText("");
+    setExpandedLoading(true);
+    try {
+      const res = await fetch(`/api/wfm/clarifications/${id}`);
+      const json = await res.json();
+      if (res.ok) setExpandedMessages(json.messages ?? []);
+    } catch { /* leave empty, reply still works */ }
+    finally { setExpandedLoading(false); }
+  }
+
+  async function submitReply(id: string, resolve?: boolean) {
+    if (!replyText.trim() && resolve === undefined) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/wfm/clarifications/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...(replyText.trim() ? { message: replyText.trim() } : {}), ...(resolve !== undefined ? { resolve } : {}) }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setNotice({ tone: "err", text: json.error ?? "Could not send" }); return; }
+      setReplyText("");
+      const msgRes = await fetch(`/api/wfm/clarifications/${id}`);
+      if (msgRes.ok) setExpandedMessages((await msgRes.json()).messages ?? []);
+      setClarificationThreads((list) => list.map((t) => (t.id === id ? { ...t, ...json } : t)));
     } catch {
       setNotice({ tone: "err", text: "Network error" });
     } finally {
@@ -876,7 +1029,12 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const enabledPunchTypes = me.punch_types ?? { ot: false, mobile_work: false, business_trip: false };
   const punchOptions = allowedKinds(me.state as PunchState).filter((k) => {
     const group = PUNCH_KIND_GROUP[k];
-    return !group || enabledPunchTypes[group];
+    if (group && !enabledPunchTypes[group]) return false;
+    // WFH needs advance approval, not just the tenant switch above (owner
+    // decision 2026-09-09) -- the punch route enforces this too; this just
+    // stops the dropdown from offering something it would reject.
+    if (k === "mobile_work_start" && !me.wfh_approved_today) return false;
+    return true;
   });
   // Check in/out cover nearly every punch, so they get their own big
   // always-visible buttons (client decision 2026-09-08: employees asked for
@@ -1185,7 +1343,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           everyday tabs and club the rest (Timeline / Calendar / Analytics)
           into one native "More" dropdown -- one row, no wrapping. */}
       <div style={{ display: "flex", gap: isMobile ? 5 : 7, marginBottom: 14, flexWrap: isMobile ? "nowrap" : "wrap", alignItems: "center", overflowX: isMobile ? "auto" : undefined }}>
-        {(isMobile ? TABS.filter((t) => ["home", "time", "leave", "profile"].includes(t.key)) : TABS).map((t) => {
+        {(isMobile ? TABS.filter((t) => ["home", "time", "leave", "requests"].includes(t.key)) : TABS).map((t) => {
           const compact = isMobile ? { padding: "7px 10px", fontSize: 12, whiteSpace: "nowrap" as const } : {};
           return (
             <button
@@ -1197,21 +1355,23 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
             >
               {t.label}
               {t.key === "leave" && pendingLeave > 0 && <span style={{ marginLeft: 6, opacity: 0.85 }}>({pendingLeave})</span>}
+              {t.key === "requests" && (pendingAdvance + openClarifications) > 0 && <span style={{ marginLeft: 6, opacity: 0.85 }}>({pendingAdvance + openClarifications})</span>}
             </button>
           );
         })}
         {isMobile && (
           <select
-            value={["timeline", "calendar", "analytics"].includes(tab) ? tab : ""}
+            value={["profile", "timeline", "calendar", "analytics"].includes(tab) ? tab : ""}
             onChange={(e) => { if (e.target.value) setTab(e.target.value as Tab); }}
             style={{
               padding: "7px 8px", fontSize: 12, fontWeight: 600, borderRadius: 8,
               border: `1px solid ${c.line}`, cursor: "pointer", outline: "none",
-              background: ["timeline", "calendar", "analytics"].includes(tab) ? "var(--tenant-accent, #378ADD)" : c.panel,
-              color: ["timeline", "calendar", "analytics"].includes(tab) ? "#fff" : c.ink,
+              background: ["profile", "timeline", "calendar", "analytics"].includes(tab) ? "var(--tenant-accent, #378ADD)" : c.panel,
+              color: ["profile", "timeline", "calendar", "analytics"].includes(tab) ? "#fff" : c.ink,
             }}
           >
             <option value="" disabled>More…</option>
+            <option value="profile">Profile</option>
             <option value="timeline">Timeline</option>
             <option value="calendar">Calendar</option>
             <option value="analytics">Analytics</option>
@@ -1361,7 +1521,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           {me.is_supervisor && (
             <ProfileTile
               title="My Approvals"
-              subtitle="Corrections, leave and overtime waiting on you"
+              subtitle="Corrections, leave, overtime, OT/WFH requests and open conversations waiting on you"
               open={openTile === "approvals"}
               onToggle={() => {
                 const opening = openTile !== "approvals";
@@ -1377,8 +1537,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                     ["Corrections", approvals.corrections, "/wfm/corrections"],
                     ["Leave requests", approvals.leave, "/wfm/leave"],
                     ["Overtime", approvals.overtime, "/wfm/corrections"],
-                  ] as const).map(([label, q, href]) => (
-                    <a key={label} href={href} style={{ display: "block", padding: "9px 0", borderBottom: `1px solid ${c.line}`, textDecoration: "none" }}>
+                    ["OT/WFH requests", approvals.advance_requests, null],
+                    ["Clarifications", approvals.clarifications, null],
+                  ] as const).map(([label, q, href]) => {
+                    const row = (
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{label}</span>
                         <span style={{
@@ -1386,13 +1548,28 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                           background: q.count > 0 ? "var(--tenant-accent, #378ADD)" : c.line, color: q.count > 0 ? "#fff" : c.muted,
                         }}>{q.count}</span>
                       </div>
-                      {q.items.length > 0 && (
-                        <div style={{ fontSize: 11.5, color: c.muted, marginTop: 3 }}>
-                          {q.items.map((it) => `${it.who} · ${it.when}`).join("  ·  ")}
-                        </div>
-                      )}
-                    </a>
-                  ))
+                    );
+                    const detail = q.items.length > 0 && (
+                      <div style={{ fontSize: 11.5, color: c.muted, marginTop: 3 }}>
+                        {q.items.map((it) => `${it.who} · ${it.when}`).join("  ·  ")}
+                      </div>
+                    );
+                    // The two new queues live on THIS page's own Requests tab,
+                    // not a separate route -- a same-page tab switch, not a link.
+                    return href ? (
+                      <a key={label} href={href} style={{ display: "block", padding: "9px 0", borderBottom: `1px solid ${c.line}`, textDecoration: "none" }}>
+                        {row}{detail}
+                      </a>
+                    ) : (
+                      <button
+                        key={label}
+                        onClick={() => { setTab("requests"); setOpenTile(null); }}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 0", borderBottom: `1px solid ${c.line}`, border: "none", borderBottomStyle: "solid", background: "transparent", cursor: "pointer" }}
+                      >
+                        {row}{detail}
+                      </button>
+                    );
+                  })
                 )}
                 <div style={{ fontSize: 11, color: c.hint, marginTop: 8 }}>Tap a queue to review and approve.</div>
               </div>
@@ -2087,6 +2264,246 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                 <Pill label={r.status} tone={STATUS_TONE[r.status]} />
               </div>
             ))}
+          </section>
+        </>
+      )}
+
+      {tab === "requests" && (
+        <>
+          {/* Leave keeps its own mature calendar-picker form on the Leave
+              tab -- this button just gets you there, rather than a second,
+              worse copy of the same flow living here too. OT/WFH are new: a
+              real form, right here. */}
+          <section style={{ ...cardStyle, marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>
+                Your requests
+                {(pendingLeave + pendingAdvance) > 0 && <span style={{ color: statusInk.warn, fontWeight: 500 }}> · {pendingLeave + pendingAdvance} pending</span>}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={btn} onClick={() => { setTab("leave"); setShowLeaveForm(true); }}>+ Leave</button>
+                <button style={btn} onClick={() => setShowAdvanceForm(true)}>+ OT / WFH</button>
+              </div>
+            </div>
+
+            {showAdvanceForm && (
+              <div
+                onClick={() => setShowAdvanceForm(false)}
+                style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  role="dialog" aria-modal="true"
+                  style={{ background: c.panel, borderRadius: 12, width: 440, maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.35)", padding: 20 }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: c.ink }}>Request OT or work from home</div>
+                    <button style={{ border: "none", background: "none", color: c.hint, fontSize: 20, cursor: "pointer", lineHeight: 1 }} onClick={() => setShowAdvanceForm(false)} aria-label="Close">×</button>
+                  </div>
+                  <div style={{ fontSize: 12, color: c.muted, marginBottom: 14 }}>
+                    {advanceDraft.kind === "wfh"
+                      ? "Your supervisor must approve this before you can punch work-from-home on these dates."
+                      : "Advance notice only — your supervisor still approves the actual overtime after you punch it."}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div>
+                      <label style={lbl}>Type</label>
+                      <select style={inp} value={advanceDraft.kind} onChange={(e) => setAdvanceDraft({ ...advanceDraft, kind: e.target.value as AdvanceRequestKind })}>
+                        <option value="wfh">Work from home</option>
+                        <option value="ot">Overtime (advance notice)</option>
+                      </select>
+                    </div>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <div style={{ flex: "1 1 130px" }}>
+                        <label style={lbl}>From</label>
+                        <input
+                          style={inp} type="date" value={advanceDraft.date_from}
+                          onChange={(e) => setAdvanceDraft({ ...advanceDraft, date_from: e.target.value, date_to: advanceDraft.date_to < e.target.value ? e.target.value : advanceDraft.date_to })}
+                        />
+                      </div>
+                      <div style={{ flex: "1 1 130px" }}>
+                        <label style={lbl}>To</label>
+                        <input style={inp} type="date" min={advanceDraft.date_from} value={advanceDraft.date_to} onChange={(e) => setAdvanceDraft({ ...advanceDraft, date_to: e.target.value })} />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={lbl}>Reason</label>
+                      <input
+                        style={inp} value={advanceDraft.reason_text}
+                        onChange={(e) => setAdvanceDraft({ ...advanceDraft, reason_text: e.target.value })}
+                        placeholder={advanceDraft.kind === "wfh" ? "e.g. Internet installation at home" : "e.g. Month-end close"}
+                      />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+                      <button style={btn} disabled={busy} onClick={() => setShowAdvanceForm(false)}>Cancel</button>
+                      <button style={btnPrimary} disabled={busy} onClick={submitAdvanceRequest}>Submit</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {unifiedRequests.length === 0 && <div style={{ fontSize: 12, color: c.hint }}>No requests yet.</div>}
+            {unifiedRequests.map((r) => (
+              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${c.line}`, fontSize: 12.5, gap: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ color: c.ink, fontWeight: 600 }}>{r.label}</span>
+                  <span style={{ color: c.muted, marginLeft: 8 }}>{r.range}</span>
+                  <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{r.reason_text}</div>
+                  {r.supervisor_remark && <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Supervisor: {r.supervisor_remark}</div>}
+                </div>
+                <Pill label={r.status} tone={STATUS_TONE[r.status]} />
+              </div>
+            ))}
+          </section>
+
+          {/* Clarifications: per-event threads (a punch, a correction, an OT
+              session, or a plain question), all listed in one place instead
+              of scattered across the pages those events live on. */}
+          <section style={cardStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>
+                Clarifications
+                {openClarifications > 0 && <span style={{ color: statusInk.warn, fontWeight: 500 }}> · {openClarifications} open</span>}
+              </div>
+              <button style={btn} onClick={() => setShowClarificationForm(true)}>+ Ask a question</button>
+            </div>
+
+            {showClarificationForm && (
+              <div
+                onClick={() => setShowClarificationForm(false)}
+                style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  role="dialog" aria-modal="true"
+                  style={{ background: c.panel, borderRadius: 12, width: 460, maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.35)", padding: 20 }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: c.ink }}>Ask a question</div>
+                    <button style={{ border: "none", background: "none", color: c.hint, fontSize: 20, cursor: "pointer", lineHeight: 1 }} onClick={() => setShowClarificationForm(false)} aria-label="Close">×</button>
+                  </div>
+                  <div style={{ fontSize: 12, color: c.muted, marginBottom: 14 }}>Goes straight to your supervisor.</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div>
+                      <label style={lbl}>What&apos;s this about?</label>
+                      <select
+                        style={inp} value={clarificationDraft.anchor_type}
+                        onChange={(e) => {
+                          const v = e.target.value as ClarificationAnchorType;
+                          setClarificationDraft({ ...clarificationDraft, anchor_type: v, target_id: "" });
+                          if (v === "ot_session") void loadOwnOtSessions();
+                        }}
+                      >
+                        <option value="general">Something else</option>
+                        <option value="punch">A punch today</option>
+                        <option value="correction">A correction I filed</option>
+                        <option value="ot_session">An OT session</option>
+                      </select>
+                    </div>
+                    {clarificationDraft.anchor_type === "punch" && (
+                      <div>
+                        <label style={lbl}>Which punch</label>
+                        <select style={inp} value={clarificationDraft.target_id} onChange={(e) => setClarificationDraft({ ...clarificationDraft, target_id: e.target.value })}>
+                          <option value="">Choose…</option>
+                          {me.today.map((ev) => <option key={ev.id} value={ev.id}>{KIND_LABEL[ev.kind]} — {fmtTime(ev.ts)}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {clarificationDraft.anchor_type === "correction" && (
+                      <div>
+                        <label style={lbl}>Which correction</label>
+                        <select style={inp} value={clarificationDraft.target_id} onChange={(e) => setClarificationDraft({ ...clarificationDraft, target_id: e.target.value })}>
+                          <option value="">Choose…</option>
+                          {corrections.map((cr) => <option key={cr.id} value={cr.id}>{fmtDate(cr.target_date)} — {ISSUE_LABEL[cr.requested_change.issue] ?? cr.requested_change.issue}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {clarificationDraft.anchor_type === "ot_session" && (
+                      <div>
+                        <label style={lbl}>Which OT session</label>
+                        <select style={inp} value={clarificationDraft.target_id} onChange={(e) => setClarificationDraft({ ...clarificationDraft, target_id: e.target.value })}>
+                          <option value="">Choose…</option>
+                          {ownOtSessions.map((ot) => <option key={ot.id} value={ot.id}>{ot.ot_date} — {Math.round(ot.minutes / 6) / 10}h</option>)}
+                        </select>
+                      </div>
+                    )}
+                    <div>
+                      <label style={lbl}>Subject (optional)</label>
+                      <input style={inp} value={clarificationDraft.subject} onChange={(e) => setClarificationDraft({ ...clarificationDraft, subject: e.target.value })} placeholder="Short summary" />
+                    </div>
+                    <div>
+                      <label style={lbl}>Your question</label>
+                      <textarea
+                        style={{ ...inp, resize: "vertical" }} rows={3} value={clarificationDraft.body}
+                        onChange={(e) => setClarificationDraft({ ...clarificationDraft, body: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+                      <button style={btn} disabled={busy} onClick={() => setShowClarificationForm(false)}>Cancel</button>
+                      <button style={btnPrimary} disabled={busy} onClick={submitClarification}>Send</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {clarificationThreads.length === 0 && <div style={{ fontSize: 12, color: c.hint }}>No conversations yet.</div>}
+            {clarificationThreads.map((t) => {
+              const open = expandedThreadId === t.id;
+              return (
+                <div key={t.id} style={{ borderBottom: `1px solid ${c.line}` }}>
+                  <button
+                    onClick={() => toggleThread(t.id)}
+                    style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "9px 0", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{t.subject}</span>
+                      <span style={{ fontSize: 11, color: c.hint, marginLeft: 8 }}>
+                        {new Date(t.updated_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </span>
+                    <Pill label={t.status} tone={t.status === "open" ? "amber" : "green"} />
+                  </button>
+                  {open && (
+                    <div style={{ paddingBottom: 14 }}>
+                      {expandedLoading ? (
+                        <div style={{ fontSize: 12, color: c.hint }}>Loading…</div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+                          {expandedMessages.map((m) => (
+                            <div
+                              key={m.id}
+                              style={{
+                                alignSelf: m.sender_role === "supervisor" ? "flex-start" : "flex-end",
+                                maxWidth: "85%",
+                                background: m.sender_role === "supervisor" ? c.panel2 : "var(--tenant-accent, #378ADD)",
+                                color: m.sender_role === "supervisor" ? c.ink : "#fff",
+                                borderRadius: 10, padding: "7px 11px", fontSize: 12.5,
+                              }}
+                            >
+                              <div>{m.body}</div>
+                              <div style={{ fontSize: 10, opacity: 0.75, marginTop: 3 }}>
+                                {m.sender_role === "supervisor" ? "Supervisor" : "You"} · {new Date(m.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input style={{ ...inp, flex: 1 }} value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Reply…" />
+                        <button style={btn} disabled={busy || !replyText.trim()} onClick={() => submitReply(t.id)}>Send</button>
+                      </div>
+                      <div style={{ marginTop: 8 }}>
+                        <button style={{ ...btn, fontSize: 11.5 }} disabled={busy} onClick={() => submitReply(t.id, t.status === "open")}>
+                          {t.status === "open" ? "Mark resolved" : "Reopen"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </section>
         </>
       )}

@@ -21,14 +21,26 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const stored = ((data?.config as TenantConfig | null)?.wfm ?? {}) as Partial<WfmConfig>;
-  return NextResponse.json({ ...DEFAULT_WFM_CONFIG, ...stored });
+  // notifications is deep-merged, not spread whole -- a tenant that saved
+  // this config before a new notification key existed would otherwise get
+  // that key back as undefined instead of its real default (this GET is
+  // what feeds the Settings checkboxes, unlike getWfmConfig elsewhere in the
+  // app, which already merges this way).
+  return NextResponse.json({
+    ...DEFAULT_WFM_CONFIG,
+    ...stored,
+    notifications: { ...DEFAULT_WFM_CONFIG.notifications, ...(stored.notifications ?? {}) },
+  });
 }
 
 const FACE_MODES = ["off", "flag_only"];
 const GEOFENCE_MODES = ["block", "flag", "off"];
 const SELFIE_MODES = ["off", "shift", "all"];
 const FACE_PUNCH_MODES = ["off", "kiosk"];
-const NOTIFICATION_KEYS = ["late_arrival", "correction_pending", "leave_pending", "recheck_flagged"] as const;
+const NOTIFICATION_KEYS = [
+  "late_arrival", "correction_pending", "leave_pending", "recheck_flagged",
+  "advance_request_pending", "clarification_message",
+] as const;
 const PUNCH_TYPE_KEYS = ["ot", "mobile_work", "business_trip"] as const;
 // Codes are what employees.employment_type stores -- keep them machine-safe
 // and stable; only the label is meant to be edited freely afterwards.

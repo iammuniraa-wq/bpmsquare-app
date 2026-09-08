@@ -3,6 +3,7 @@ import { locationRequiredFor, selfieRequiredFor, LOW_ACCURACY_THRESHOLD_M } from
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/lib/wfm/server";
 import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
+import { isWfhApprovedForDate } from "@/lib/wfm/advanceRequests";
 import { ROUTES } from "@/lib/constants";
 import {
   applyPunch, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
@@ -140,6 +141,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `${PUNCH_KIND_LABEL[kind]} is not enabled for this workspace` }, { status: 403 });
   }
 
+  // WFH is the one optional punch type that needs advance approval, not just
+  // the tenant switch above (owner decision 2026-09-09) -- OT stays punch-
+  // first-approve-after as it always has (wfm_ot_sessions, below).
+  const dayKey = shiftDayKey(tsDate, config.timezone, shift);
+  if (kind === "mobile_work_start" && !(await isWfhApprovedForDate(admin, tenantId, employee.id, dayKey))) {
+    return NextResponse.json(
+      { error: "Work from home isn't approved for today — request it from the Requests tab first." },
+      { status: 403 }
+    );
+  }
+
   const lat = typeof geo?.lat === "number" ? geo.lat : null;
   const lng = typeof geo?.lng === "number" ? geo.lng : null;
   const accuracy = typeof geo?.accuracy_m === "number" ? geo.accuracy_m : null;
@@ -212,7 +224,7 @@ export async function POST(request: NextRequest) {
   // a costing lookup succeeding. See WFM_PROJECT_COSTING.md §4.
   const projectId = await resolveProjectForPunch(
     admin, tenantId, employee.id,
-    shiftDayKey(tsDate, config.timezone, shift),
+    dayKey,
     within ? site!.id : null,
     employee.shift_id ?? null
   );
@@ -288,7 +300,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Today's running total (tenant timezone): now − first check_in of today.
-  const todayKey = shiftDayKey(tsDate, config.timezone, shift);
+  const todayKey = dayKey;
   const dayStart = new Date(tsDate.getTime() - 36 * 60 * 60 * 1000).toISOString();
   const { data: recent } = await admin
     .from("wfm_presence_events")

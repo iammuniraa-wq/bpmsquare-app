@@ -35,6 +35,8 @@ const NOTIFICATION_ITEMS = [
   { key: "correction_pending", label: "Correction request submitted", hint: "Notify the supervisor when an employee files one." },
   { key: "leave_pending", label: "Leave request submitted", hint: "Notify the supervisor when an employee files one." },
   { key: "recheck_flagged", label: "Flagged for review", hint: "Notify the employee when a supervisor flags their punch." },
+  { key: "advance_request_pending", label: "OT/WFH request submitted", hint: "Notify the supervisor when an employee files an advance OT or work-from-home request." },
+  { key: "clarification_message", label: "Clarification message", hint: "Notify the other side when either you or an employee posts in a clarification thread." },
 ] as const;
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
