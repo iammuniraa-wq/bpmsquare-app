@@ -337,11 +337,17 @@ export default function SummaryClient({ initial = null }: {
   initial?: { month: string; employees: EmployeeSummary[]; deduct_breaks: boolean } | null;
 }) {
   const isMobile = useIsMobile();
-  const [view, setView] = useState<"daily" | "monthly">("monthly");
+  // "range" (owner decision 2026-09-09, "custom date frames"): the summary
+  // TABLE only -- day-by-day detail for an arbitrary range is export-only,
+  // per the same decision, so there's no daily view to switch to here.
+  const [view, setView] = useState<"daily" | "monthly" | "range">("monthly");
   // Daily view's optional single-date focus ("" = the whole month).
   const [dayFilter, setDayFilter] = useState("");
   const [dailyPage, setDailyPage] = useState(1);
   const [month, setMonth] = useState(initial?.month ?? new Date().toISOString().slice(0, 7));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [customFrom, setCustomFrom] = useState(`${todayStr.slice(0, 7)}-01`);
+  const [customTo, setCustomTo] = useState(todayStr);
   const [rows, setRows] = useState<EmployeeSummary[]>(initial?.employees ?? []);
   const [deductBreaks, setDeductBreaks] = useState(initial?.deduct_breaks ?? true);
   const [siteFilter, setSiteFilter] = useState("");
@@ -372,10 +378,32 @@ export default function SummaryClient({ initial = null }: {
     }
   }, []);
 
+  const loadRange = useCallback(async (from: string, to: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/wfm/summary?from=${from}&to=${to}`);
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "Failed to load"); return; }
+      setRows(json.employees);
+      setDeductBreaks(json.deduct_breaks !== false);
+    } catch {
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
+    if (view === "range") return; // its own effect below
     if (serverSeeded.current) { serverSeeded.current = false; return; }
     load(month);
-  }, [month, load]);
+  }, [month, view, load]);
+
+  useEffect(() => {
+    if (view !== "range") return;
+    loadRange(customFrom, customTo);
+  }, [view, customFrom, customTo, loadRange]);
 
   const sites = useMemo(() => [...new Set(rows.map((r) => r.site_name).filter(Boolean))] as string[], [rows]);
 
@@ -443,7 +471,16 @@ export default function SummaryClient({ initial = null }: {
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <button style={view === "daily" ? btnActive : btn} onClick={() => setView("daily")}>Daily — detailed</button>
         <button style={view === "monthly" ? btnActive : btn} onClick={() => setView("monthly")}>Monthly summary</button>
-        <input style={inp} type="month" value={month} onChange={(e) => { const m = e.target.value; setMonth(m); if (dayFilter && !dayFilter.startsWith(m)) setDayFilter(""); }} />
+        <button style={view === "range" ? btnActive : btn} onClick={() => setView("range")}>Custom range</button>
+        {view === "range" ? (
+          <>
+            <input style={inp} type="date" value={customFrom} max={customTo} onChange={(e) => setCustomFrom(e.target.value)} />
+            <span style={{ fontSize: 12, color: c.hint }}>to</span>
+            <input style={inp} type="date" value={customTo} min={customFrom} max={todayStr} onChange={(e) => setCustomTo(e.target.value)} />
+          </>
+        ) : (
+          <input style={inp} type="month" value={month} onChange={(e) => { const m = e.target.value; setMonth(m); if (dayFilter && !dayFilter.startsWith(m)) setDayFilter(""); }} />
+        )}
         {view === "daily" && (
           <input
             style={inp}
@@ -461,7 +498,7 @@ export default function SummaryClient({ initial = null }: {
         {view === "daily" && dayFilter && (
           <button style={btn} onClick={() => setDayFilter("")}>All days</button>
         )}
-        <a style={btnPrimary} href={`/api/wfm/summary/export?month=${month}`}>Export to Excel</a>
+        <a style={btnPrimary} href={view === "range" ? `/api/wfm/summary/export?from=${customFrom}&to=${customTo}` : `/api/wfm/summary/export?month=${month}`}>Export to Excel</a>
         {loading && <span style={{ fontSize: 12, color: c.hint }}>Loading…</span>}
       </div>
 
@@ -518,8 +555,18 @@ export default function SummaryClient({ initial = null }: {
         <span style={{ fontSize: 11.5, color: c.hint }}>{filtered.length} of {rows.length}</span>
       </div>
 
-      {view === "monthly" ? (
+      {view === "monthly" || view === "range" ? (
         <>
+          {view === "range" && (
+            <div style={{ ...cardStyle, marginBottom: 14, fontSize: 12.5, color: c.ink, lineHeight: 1.5 }}>
+              Custom range: <strong>{fmtDay(customFrom)} – {fmtDay(customTo)}</strong>. This screen shows the
+              summary table only — for the full day-by-day breakdown (every punch, break and OT segment) in
+              this range, use{" "}
+              <a href={`/api/wfm/summary/export?from=${customFrom}&to=${customTo}`} style={{ color: "var(--tenant-accent, #378ADD)", fontWeight: 600 }}>
+                Export to Excel
+              </a>.
+            </div>
+          )}
           <MonthlySection title="Full-Time" rows={filtered.filter((r) => r.employment_type === "full_time")} />
           <MonthlySection title="Contractors" rows={filtered.filter((r) => r.employment_type === "contractor")} />
         </>

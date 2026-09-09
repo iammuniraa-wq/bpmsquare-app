@@ -131,6 +131,9 @@ export const DAILY_DETAIL_COLUMNS: DailyDetailColumn[] = [
     accessor: ({ day, deductBreaks }) => durationDays(deductBreaks ? day.net_minutes : day.gross_minutes),
     numFmt: DURATION_FMT,
   },
+  // APPROVED OT only, same rule as the monthly OT Hours column above --
+  // pending/rejected sessions never reach this figure.
+  { header: "OT Hours", width: 11, accessor: ({ day }) => durationDays(day.ot_minutes), numFmt: DURATION_FMT },
   { header: "Status", width: 20, accessor: ({ day }) => dayStatus(day) },
 ];
 
@@ -205,6 +208,7 @@ export const PAYROLL_DAY_COLUMNS: DailyDetailColumn[] = [
     numFmt: DURATION_FMT,
     sum: true,
   },
+  { header: "OT", width: 9, accessor: ({ day }) => durationDays(day.ot_minutes), numFmt: DURATION_FMT, sum: true },
   { header: "Status", width: 20, accessor: ({ day }) => dayStatus(day) },
 ];
 

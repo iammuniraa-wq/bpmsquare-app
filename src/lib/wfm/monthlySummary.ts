@@ -137,6 +137,33 @@ function daysInMonth(yearMonth: string): string[] {
   return Array.from({ length: count }, (_, i) => `${yearMonth}-${String(i + 1).padStart(2, "0")}`);
 }
 
+// A custom-range report (owner decision 2026-09-09, "full in export for
+// custom dates") is capped generously above a calendar quarter -- long
+// enough for any real payroll cycle, short enough that a typo'd year can't
+// silently ask for a decade of presence events.
+export const MAX_RANGE_DAYS = 93;
+
+export function dateRangeArray(from: string, to: string): string[] | null {
+  const start = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return null;
+  const out: string[] = [];
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+    if (out.length > MAX_RANGE_DAYS) return null;
+  }
+  return out;
+}
+
+/** First/last day of the calendar month `dateKey` falls in -- used to widen
+ *  the leave-records fetch beyond a custom range's own bounds (see its call
+ *  site) so the monthly paid-leave-allowance rule always sees a day's
+ *  WHOLE month, never just the slice a partial range happens to cover. */
+function monthBounds(dateKey: string): [string, string] {
+  const [y, m] = dateKey.slice(0, 7).split("-").map(Number);
+  return [`${dateKey.slice(0, 7)}-01`, `${dateKey.slice(0, 7)}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`];
+}
+
 function weekdayIndex(dateKey: string, timezone: string): number {
   const noon = new Date(`${dateKey}T12:00:00Z`); // safely mid-day, no DST/offset edge case
   const name = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(noon);
@@ -154,9 +181,34 @@ export async function getMonthlySummary(
   yearMonth: string,
   employeeIds?: string[]
 ): Promise<EmployeeMonthSummary[]> {
+  return buildSummaries(tenantId, daysInMonth(yearMonth), employeeIds);
+}
+
+/**
+ * Same rules-engine pass, over an arbitrary inclusive date range instead of
+ * a calendar month (owner decision 2026-09-09: a custom-range report for the
+ * export, capped at MAX_RANGE_DAYS). Returns null for an invalid or
+ * too-long range rather than throwing, since both come straight from a
+ * request's own query params.
+ */
+export async function getSummaryForRange(
+  tenantId: string,
+  from: string,
+  to: string,
+  employeeIds?: string[]
+): Promise<EmployeeMonthSummary[] | null> {
+  const dates = dateRangeArray(from, to);
+  if (!dates) return null;
+  return buildSummaries(tenantId, dates, employeeIds);
+}
+
+async function buildSummaries(
+  tenantId: string,
+  dates: string[],
+  employeeIds?: string[]
+): Promise<EmployeeMonthSummary[]> {
   const admin = createAdminSupabase();
   const config = await getWfmConfig(admin, tenantId);
-  const dates = daysInMonth(yearMonth);
   const todayKey = dateKeyInTz(new Date(), config.timezone);
 
   let employeeQuery = admin
@@ -179,11 +231,16 @@ export async function getMonthlySummary(
     admin.from("wfm_shifts").select("*").eq("tenant_id", tenantId),
     admin.from("wfm_holidays").select("date, name, applies_to").eq("tenant_id", tenantId)
       .gte("date", dates[0]).lte("date", dates[dates.length - 1]),
+    // Widened to the WHOLE calendar month(s) the range touches, not just the
+    // range's own bounds -- a custom range that only covers part of a month
+    // (e.g. the 1st-15th) still needs every leave day in that full month
+    // loaded, or the paid-days-per-month allowance below undercounts and
+    // wrongly calls a day "still paid" that the full month would not.
     admin.from("wfm_leave_records")
       .select("employee_id, leave_type_id, date_from, date_to, half_day, wfm_leave_types(name, category)")
       .eq("tenant_id", tenantId)
-      .lte("date_from", dates[dates.length - 1])
-      .gte("date_to", dates[0]),
+      .lte("date_from", monthBounds(dates[dates.length - 1])[1])
+      .gte("date_to", monthBounds(dates[0])[0]),
     // OT is read from its own session rows (not re-derived from events):
     // each row already carries the day it started on, so an all-night
     // stretch stays one payable block instead of splitting at midnight.

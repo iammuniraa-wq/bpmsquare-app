@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
-import { getMonthlySummary, type EmployeeMonthSummary } from "@/lib/wfm/monthlySummary";
+import { getMonthlySummary, getSummaryForRange, MAX_RANGE_DAYS, type EmployeeMonthSummary } from "@/lib/wfm/monthlySummary";
 import {
   MONTHLY_SUMMARY_COLUMNS, DAILY_DETAIL_COLUMNS,
   PAYROLL_SUMMARY_COLUMNS, PAYROLL_SUMMARY_TOTAL_FROM, PAYROLL_DAY_COLUMNS,
@@ -31,7 +31,7 @@ function writeSection(sheet: ExcelJS.Worksheet, title: string, rows: EmployeeMon
   });
 
   if (rows.length === 0) {
-    sheet.addRow(["No employees in this section for the selected month."]);
+    sheet.addRow(["No employees in this section for the selected period."]);
   }
   for (const r of rows) {
     sheet.addRow(MONTHLY_SUMMARY_COLUMNS.map((c) => c.accessor(r)));
@@ -77,7 +77,7 @@ function writeDailyDetail(
       wrote++;
     }
   }
-  if (wrote === 0) sheet.addRow(["No attendance recorded for the selected month."]);
+  if (wrote === 0) sheet.addRow(["No attendance recorded for the selected period."]);
 }
 
 /**
@@ -88,14 +88,14 @@ function writeDailyDetail(
  */
 function writePayrollSummary(
   sheet: ExcelJS.Worksheet,
-  month: string,
+  label: string,
   tenantName: string,
   rows: EmployeeMonthSummary[]
 ) {
   sheet.columns = PAYROLL_SUMMARY_COLUMNS.map((c) => ({ width: c.width }));
   PAYROLL_SUMMARY_COLUMNS.forEach((c, i) => { if (c.numFmt) sheet.getColumn(i + 1).numFmt = c.numFmt; });
 
-  const titleRow = sheet.addRow([`Monthly Payroll Summary — ${monthLabel(month)}`]);
+  const titleRow = sheet.addRow([`Payroll Summary — ${label}`]);
   titleRow.font = { bold: true, size: 14 };
   sheet.mergeCells(titleRow.number, 1, titleRow.number, PAYROLL_SUMMARY_COLUMNS.length);
 
@@ -112,7 +112,7 @@ function writePayrollSummary(
   });
 
   if (rows.length === 0) {
-    sheet.addRow(["No employees for the selected month."]);
+    sheet.addRow(["No employees for the selected period."]);
     return;
   }
 
@@ -146,7 +146,7 @@ function writePayrollSummary(
  */
 function writePayrollReport(
   sheet: ExcelJS.Worksheet,
-  month: string,
+  label: string,
   tenantName: string,
   rows: EmployeeMonthSummary[],
   deductBreaks: boolean,
@@ -156,7 +156,7 @@ function writePayrollReport(
   PAYROLL_DAY_COLUMNS.forEach((c, i) => { if (c.numFmt) sheet.getColumn(i + 1).numFmt = c.numFmt; });
   const width = PAYROLL_DAY_COLUMNS.length;
 
-  const titleRow = sheet.addRow([`Employee-wise Attendance & Payroll Detail — ${monthLabel(month)}`]);
+  const titleRow = sheet.addRow([`Employee-wise Attendance & Payroll Detail — ${label}`]);
   titleRow.font = { bold: true, size: 14 };
   sheet.mergeCells(titleRow.number, 1, titleRow.number, width);
 
@@ -171,7 +171,7 @@ function writePayrollReport(
 
   if (rows.length === 0) {
     sheet.addRow([]);
-    sheet.addRow(["No attendance recorded for the selected month."]);
+    sheet.addRow(["No attendance recorded for the selected period."]);
     return;
   }
 
@@ -195,7 +195,7 @@ function writePayrollReport(
     // week-off rows per employee would bury the days that actually matter.
     const days = employee.days.filter((d) => d.punches > 0 || d.on_leave || d.holiday || d.absent);
     if (days.length === 0) {
-      sheet.addRow(["No attendance recorded this month."]);
+      sheet.addRow(["No attendance recorded in this period."]);
       continue;
     }
     const firstDataRow = headerRow.number + 1;
@@ -223,10 +223,18 @@ function writePayrollReport(
 const monthLabel = (month: string) =>
   new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
 
-// GET /api/wfm/summary/export?month=YYYY-MM — the CA-facing Excel export
-// (spec §5.6, "THE deliverable"). Placeholder layout (two sheets:
-// Full-Time / Contractors) until the client's actual CA format sample
-// arrives -- see summaryExportTemplate.ts for the swappable column config.
+const shortDate = (date: string) =>
+  new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// GET /api/wfm/summary/export?month=YYYY-MM (a calendar month) OR
+// ?from=YYYY-MM-DD&to=YYYY-MM-DD (a custom range, owner decision 2026-09-09
+// -- capped at MAX_RANGE_DAYS, full fidelity: every sheet below, same as the
+// month path). The CA-facing Excel export (spec §5.6, "THE deliverable").
+// Placeholder layout (two sheets: Full-Time / Contractors) until the
+// client's actual CA format sample arrives -- see summaryExportTemplate.ts
+// for the swappable column config.
 export async function GET(request: NextRequest) {
   let ctx;
   try {
@@ -238,23 +246,37 @@ export async function GET(request: NextRequest) {
   const { tenantId } = ctx;
 
   const month = request.nextUrl.searchParams.get("month");
-  if (!month || !MONTH_RE.test(month)) {
-    return NextResponse.json({ error: "month (YYYY-MM) is required" }, { status: 400 });
+  const from = request.nextUrl.searchParams.get("from");
+  const to = request.nextUrl.searchParams.get("to");
+  const isRange = !!(from || to);
+
+  if (isRange && (!from || !DATE_RE.test(from) || !to || !DATE_RE.test(to))) {
+    return NextResponse.json({ error: "from and to (YYYY-MM-DD) are both required for a custom range" }, { status: 400 });
+  }
+  if (!isRange && (!month || !MONTH_RE.test(month))) {
+    return NextResponse.json({ error: "month (YYYY-MM), or from/to (YYYY-MM-DD), is required" }, { status: 400 });
   }
 
   // Mirrors GET /api/wfm/summary exactly: the workbook a supervisor downloads
   // must never contain a site they don't supervise.
   const scope = await resolveWfmScope(ctx);
+  const employeeIds = scope.unrestricted ? undefined : (scope.employeeIds ?? []);
   const admin = createAdminSupabase();
+
   const [summaries, config, { data: tenantRow }] = await Promise.all([
-    getMonthlySummary(tenantId, month, scope.unrestricted ? undefined : (scope.employeeIds ?? [])),
+    isRange ? getSummaryForRange(tenantId, from!, to!, employeeIds) : getMonthlySummary(tenantId, month!, employeeIds),
     getWfmConfig(admin, tenantId),
     admin.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
   ]);
+  if (summaries === null) {
+    return NextResponse.json({ error: `to must be on or after from, and the range can't exceed ${MAX_RANGE_DAYS} days` }, { status: 400 });
+  }
   const tenantName = (tenantRow?.name as string | undefined) ?? "";
+  const label = isRange ? `${shortDate(from!)} – ${shortDate(to!)}` : monthLabel(month!);
+  const fileTag = isRange ? `${from}_to_${to}` : month!;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "BPMSquare";
-  workbook.created = new Date(`${month}-01T00:00:00Z`);
+  workbook.created = new Date(`${isRange ? from : `${month}-01`}T00:00:00Z`);
 
   // One sheet per CONFIGURED employment type, not the old hardcoded
   // Full-Time/Contractors pair -- a tenant that adds e.g. "Intern" gets its
@@ -268,10 +290,10 @@ export async function GET(request: NextRequest) {
   const payrollRows = [...summaries].sort((a, b) =>
     (a.employee_code ?? "").localeCompare(b.employee_code ?? "") || a.full_name.localeCompare(b.full_name)
   );
-  writePayrollSummary(workbook.addWorksheet("Summary"), month, tenantName, payrollRows);
+  writePayrollSummary(workbook.addWorksheet("Summary"), label, tenantName, payrollRows);
   writePayrollReport(
     workbook.addWorksheet("Payroll Report"),
-    month, tenantName, payrollRows, config.deduct_breaks, config.timezone
+    label, tenantName, payrollRows, config.deduct_breaks, config.timezone
   );
 
   const configuredCodes = new Set(config.employment_types.map((t) => t.code));
@@ -279,15 +301,15 @@ export async function GET(request: NextRequest) {
     const rows = summaries.filter((s) => s.employment_type === type.code);
     // Excel sheet names: 31 chars max, and : \ / ? * [ ] are illegal.
     const sheetName = type.label.replace(/[:\\/?*[\]]/g, "-").slice(0, 31) || type.code.slice(0, 31);
-    writeSection(workbook.addWorksheet(sheetName), `Attendance Summary — ${month} — ${type.label}`, rows);
+    writeSection(workbook.addWorksheet(sheetName), `Attendance Summary — ${label} — ${type.label}`, rows);
   }
   const unclassified = summaries.filter((s) => !configuredCodes.has(s.employment_type));
   if (unclassified.length > 0) {
-    writeSection(workbook.addWorksheet("Other"), `Attendance Summary — ${month} — Other`, unclassified);
+    writeSection(workbook.addWorksheet("Other"), `Attendance Summary — ${label} — Other`, unclassified);
   }
   writeDailyDetail(
     workbook.addWorksheet("Daily Detail"),
-    `Daily Attendance Detail — ${month}`,
+    `Daily Attendance Detail — ${label}`,
     summaries,
     config.deduct_breaks,
     config.timezone
@@ -297,7 +319,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="wfm-summary-${month}.xlsx"`,
+      "Content-Disposition": `attachment; filename="wfm-summary-${fileTag}.xlsx"`,
     },
   });
 }
