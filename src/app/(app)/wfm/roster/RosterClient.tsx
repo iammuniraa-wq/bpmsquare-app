@@ -775,8 +775,8 @@ export default function RosterClient({ initial = null }: {
           <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Shift changes &amp; days off</div>
           <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>
             A different shift, or a day off, for selected employees on specific dates only — the standing
-            site and shift above stay as they are. For a holiday that applies to everyone, use Settings →
-            Workforce → Holidays instead.
+            site and shift above stay as they are. For a holiday that applies to everyone, use
+            Leave &amp; Holidays instead.
           </div>
         </div>
 

@@ -191,16 +191,19 @@ export default function HolidaysClient() {
             {visible.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={4}>No holidays configured.</td></tr>}
           </tbody>
         </table>
-        <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div style={{ flex: "0 1 150px" }}><label style={lbl}>Date</label><input style={inp} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
-          <div style={{ flex: "1 1 180px" }}><label style={lbl}>Name</label><input style={inp} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Independence Day" /></div>
-          <div style={{ flex: "0 1 150px" }}>
-            <label style={lbl}>Applies to</label>
-            <select style={inp} value={form.applies_to} onChange={(e) => setForm({ ...form, applies_to: e.target.value as Holiday["applies_to"] })}>
-              <option value="all">Everyone</option><option value="full_time">Full-time only</option><option value="contractor">Contractors only</option>
-            </select>
+        <div style={{ padding: 14, borderTop: `1px solid ${c.line}`, background: "var(--panel-2, rgba(127,127,127,0.04))" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink, marginBottom: 12 }}>Add a holiday</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+            <div><label style={lbl}>Date</label><input style={inp} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+            <div><label style={lbl}>Name</label><input style={inp} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Independence Day" /></div>
+            <div>
+              <label style={lbl}>Applies to</label>
+              <select style={inp} value={form.applies_to} onChange={(e) => setForm({ ...form, applies_to: e.target.value as Holiday["applies_to"] })}>
+                <option value="all">Everyone</option><option value="full_time">Full-time only</option><option value="contractor">Contractors only</option>
+              </select>
+            </div>
           </div>
-          <button style={btnPrimary} disabled={busy} onClick={addHoliday}>Add holiday</button>
+          <button style={{ ...btnPrimary, marginTop: 14 }} disabled={busy} onClick={addHoliday}>Add holiday</button>
         </div>
       </section>
     </>

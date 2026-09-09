@@ -256,31 +256,37 @@ export default function LeaveClient({ initial = null }: {
         <div style={{ padding: "0 12px 4px" }}>
           <Pager page={rcPage} total={visibleRecords.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setRecordPage} />
         </div>
-        <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div style={{ flex: "1 1 160px" }}>
-            <label style={lbl}>Employee</label>
-            <select style={inp} value={recordForm.employee_id} onChange={(e) => setRecordForm({ ...recordForm, employee_id: e.target.value })}>
-              <option value="">— select —</option>
-              {employees.map((e) => <option key={e.id} value={e.id}>{[e.first_name, e.last_name].filter(Boolean).join(" ")} {e.employee_code ? `(${e.employee_code})` : ""}</option>)}
-            </select>
+        <div style={{ padding: 14, borderTop: `1px solid ${c.line}`, background: "var(--panel-2, rgba(127,127,127,0.04))" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink, marginBottom: 12 }}>Add a leave record directly</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+            <div>
+              <label style={lbl}>Employee</label>
+              <select style={inp} value={recordForm.employee_id} onChange={(e) => setRecordForm({ ...recordForm, employee_id: e.target.value })}>
+                <option value="">— select —</option>
+                {employees.map((e) => <option key={e.id} value={e.id}>{[e.first_name, e.last_name].filter(Boolean).join(" ")} {e.employee_code ? `(${e.employee_code})` : ""}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Leave type</label>
+              <select style={inp} value={recordForm.leave_type_id} onChange={(e) => setRecordForm({ ...recordForm, leave_type_id: e.target.value })}>
+                <option value="">— select —</option>
+                {types.filter((t) => t.active).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div><label style={lbl}>From</label><input style={inp} type="date" value={recordForm.date_from} onChange={(e) => setRecordForm({ ...recordForm, date_from: e.target.value })} /></div>
+            <div><label style={lbl}>To</label><input style={inp} type="date" value={recordForm.date_to} onChange={(e) => setRecordForm({ ...recordForm, date_to: e.target.value })} /></div>
+            <div>
+              <label style={lbl}>Half-day</label>
+              <select style={inp} value={recordForm.half_day ? "yes" : "no"} onChange={(e) => setRecordForm({ ...recordForm, half_day: e.target.value === "yes" })}>
+                <option value="no">No</option><option value="yes">Yes</option>
+              </select>
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={lbl}>Remarks</label>
+              <input style={inp} value={recordForm.remarks} onChange={(e) => setRecordForm({ ...recordForm, remarks: e.target.value })} />
+            </div>
           </div>
-          <div style={{ flex: "1 1 140px" }}>
-            <label style={lbl}>Leave type</label>
-            <select style={inp} value={recordForm.leave_type_id} onChange={(e) => setRecordForm({ ...recordForm, leave_type_id: e.target.value })}>
-              <option value="">— select —</option>
-              {types.filter((t) => t.active).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
-          <div style={{ flex: "0 1 140px" }}><label style={lbl}>From</label><input style={inp} type="date" value={recordForm.date_from} onChange={(e) => setRecordForm({ ...recordForm, date_from: e.target.value })} /></div>
-          <div style={{ flex: "0 1 140px" }}><label style={lbl}>To</label><input style={inp} type="date" value={recordForm.date_to} onChange={(e) => setRecordForm({ ...recordForm, date_to: e.target.value })} /></div>
-          <div style={{ flex: "0 1 100px" }}>
-            <label style={lbl}>Half-day</label>
-            <select style={inp} value={recordForm.half_day ? "yes" : "no"} onChange={(e) => setRecordForm({ ...recordForm, half_day: e.target.value === "yes" })}>
-              <option value="no">No</option><option value="yes">Yes</option>
-            </select>
-          </div>
-          <div style={{ flex: "1 1 160px" }}><label style={lbl}>Remarks</label><input style={inp} value={recordForm.remarks} onChange={(e) => setRecordForm({ ...recordForm, remarks: e.target.value })} /></div>
-          <button style={btnPrimary} disabled={busy} onClick={addRecord}>Add leave</button>
+          <button style={{ ...btnPrimary, marginTop: 14 }} disabled={busy} onClick={addRecord}>Add leave</button>
         </div>
       </section>
     </>
