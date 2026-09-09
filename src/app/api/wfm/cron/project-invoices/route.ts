@@ -4,10 +4,10 @@ import { getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
 import { createProjectInvoice, projectBillingPreview } from "@/lib/wfm/billingServer";
 import { previousMonth } from "@/lib/wfm/billing";
 
-// GET /api/wfm/cron/project-invoices — month-end auto-draft. Triggered by
-// .github/workflows/wfm-project-invoices.yml on the 1st (NOT a Vercel cron:
-// the Hobby plan's two slots are taken, and a third rejects the deploy --
-// see wfm-hours-alert.yml).
+// GET /api/wfm/cron/project-invoices — month-end auto-draft. Vercel cron
+// (vercel.json) -- see api/pricing/cron/retention/route.ts's header for why
+// this moved off GitHub Actions on 2026-09-09 (Pro plan lifted the Hobby
+// cron-count cap this was working around).
 //
 // For every tenant with config.wfm.costing.auto_draft_monthly on: each
 // top-level, account-linked, active project with hours last month gets a

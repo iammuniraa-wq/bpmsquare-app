@@ -451,16 +451,15 @@ deploy for an automatic schema change.
   shift-day; the unique index is what stops a 15-minute cron buzzing the same
   phone repeatedly). Push rather than email because employees sign in by code
   and their account carries a synthetic address at employee.bpmsquare.local,
-  which can never receive mail. **The 15-minute trigger is a GitHub Actions
-  workflow (.github/workflows/wfm-hours-alert.yml), NOT a Vercel cron** --
-  this project is on Vercel Hobby, which allows two crons per project and
-  runs them once a day; vercel.json already uses both, and adding a third
-  made Vercel REJECT every deployment, silently freezing production at
-  e82167b on 2026-09-04. Needs a CRON_SECRET repository secret matching the
-  Vercel env var. Still gated per tenant by
-  `config.wfm.long_day_alert.enabled`, default OFF -- no tenant has it on
-  yet, so running the SQL and setting the keys changes nothing until the
-  toggle in Settings -> Workforce is switched on.
+  which can never receive mail. ~~The 15-minute trigger is a GitHub Actions
+  workflow (.github/workflows/wfm-hours-alert.yml), NOT a Vercel cron -- this
+  project is on Vercel Hobby...~~ **Moved back to a native Vercel cron
+  2026-09-09** once the project was confirmed on Pro (see the "Vercel Hobby
+  constraint" entry below) -- also fixed the same day: the alert claimed an
+  employee's shift-day as "done" even when zero push actually sent (no
+  subscription yet), permanently silencing anyone who hadn't opted in before
+  their first long day. Still gated per tenant by
+  `config.wfm.long_day_alert.enabled`, and BIM has since switched it on.
 - 0107_wfm_project_level_label.sql — **applied to both DBs** (owner confirmed
   2026-09-05). One nullable
   `level_label text` column on `wfm_projects`. A project is broken into parts
@@ -761,9 +760,10 @@ deploy for an automatic schema change.
   invoice covers — the double-billing guard; select-only RLS per the WFM
   convention). Degrades while pending: project pages re-read without
   `bill_rate`, and the "Bill hours" card reports the migration as the
-  blocker instead of crashing. The month-end auto-draft is a GitHub Actions
-  workflow (`.github/workflows/wfm-project-invoices.yml`, 1st of the month,
-  same CRON_SECRET as the hours alert) and is gated per tenant by
+  blocker instead of crashing. The month-end auto-draft runs 1st of the
+  month, same CRON_SECRET as the hours alert -- a native Vercel cron since
+  2026-09-09 (was GitHub Actions; see the "Vercel Hobby constraint" ledger
+  entry) -- and is gated per tenant by
   `config.wfm.costing.auto_draft_monthly`, default off. Rates live in
   Settings → Workforce → General → Project billing; nothing bills at a zero
   rate. Design and rules: WFM_PROJECT_COSTING.md §11–12.
@@ -857,9 +857,15 @@ bpmsquarecore.md §2b): follow it 100% for every future client tenant.
   proper-roles work: the supervisor-only path is currently unreachable
   (all supervisors are admins), so the divergence — if real — is latent,
   not gone.
-- Vercel Hobby constraint (hard-learned): crons may fire at most once per
+- ~~Vercel Hobby constraint (hard-learned): crons may fire at most once per
   day; a sub-daily schedule in `vercel.json` fails EVERY deploy's config
-  validation silently. Webhooks cron runs daily 20:30 UTC.
+  validation silently.~~ **No longer applies — confirmed 2026-09-09 the
+  project is on Vercel Pro**, which supports up to 100 crons/project at
+  per-minute precision (Vercel lifted this platform-wide in Jan 2026). The
+  three jobs that were routed around this via GitHub Actions
+  (`wfm-hours-alert.yml`, `pricing-retention.yml`, `wfm-project-invoices.yml`)
+  moved back into native `vercel.json` crons the same day; those workflow
+  files are deleted. Webhooks cron runs daily 20:30 UTC.
 - Drive docs: Admin & Setup Guide needs a Number Ranges section on its next
   refresh; owner still to drag How_to_Use_BPMSquare.pptx into the folder.
 - Status-schema engine (see `/root/.claude/plans` history / task #27):
