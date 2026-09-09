@@ -61,13 +61,29 @@ export async function wfmSitesPayload(supabase: SupabaseClient, tenantId: string
   // The supervisor's name is joined in so the Sites screen can show WHO runs
   // each site without a second round-trip and without the client having to
   // resolve ids against the employee list itself.
-  return orThrow(
+  const sites = orThrow(
     await supabase
       .from("wfm_sites")
       .select("id, name, lat, lng, radius_m, active, created_at, supervisor_id, supervisor:employees!supervisor_id(first_name, last_name, employee_code)")
       .eq("tenant_id", tenantId)
       .order("name")
   );
+
+  // Extra approvers (0124). Read separately and tolerantly rather than joined:
+  // a pending 0124 must leave the Sites screen working exactly as it did
+  // before the column existed, not 500 the whole tab (§3b).
+  const { data: approverRows } = await supabase
+    .from("wfm_site_approvers")
+    .select("site_id, employee_id")
+    .eq("tenant_id", tenantId);
+
+  const bySite = new Map<string, string[]>();
+  for (const row of approverRows ?? []) {
+    const site = row.site_id as string;
+    bySite.set(site, [...(bySite.get(site) ?? []), row.employee_id as string]);
+  }
+
+  return (sites ?? []).map((s) => ({ ...s, approver_ids: bySite.get(s.id as string) ?? [] }));
 }
 
 export async function wfmLeaveTypesPayload(supabase: SupabaseClient, tenantId: string) {

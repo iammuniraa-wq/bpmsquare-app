@@ -25,7 +25,7 @@ export async function GET() {
     scope.unrestricted ? q : q.in("employee_id", scope.employeeIds ?? []);
 
   const PREVIEW = 3;
-  const [corr, leave, ot] = await Promise.all([
+  const [corr, leave, ot, advance, clarifications] = await Promise.all([
     scoped(
       admin
         .from("wfm_correction_requests")
@@ -53,6 +53,24 @@ export async function GET() {
         .order("started_at", { ascending: false })
         .limit(PREVIEW)
     ),
+    scoped(
+      admin
+        .from("wfm_advance_requests")
+        .select("id, kind, date_from, date_to, employees(first_name, last_name)", { count: "exact" })
+        .eq("tenant_id", ctx.tenantId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(PREVIEW)
+    ),
+    scoped(
+      admin
+        .from("wfm_clarification_threads")
+        .select("id, subject, updated_at, employees(first_name, last_name)", { count: "exact" })
+        .eq("tenant_id", ctx.tenantId)
+        .eq("status", "open")
+        .order("updated_at", { ascending: false })
+        .limit(PREVIEW)
+    ),
   ]);
 
   const name = (e: unknown): string => {
@@ -72,6 +90,17 @@ export async function GET() {
     overtime: {
       count: ot.count ?? 0,
       items: (ot.data ?? []).map((r) => ({ id: r.id, who: name(r.employees), when: `${r.ot_date} · ${Math.round((r.minutes as number) / 60 * 10) / 10}h` })),
+    },
+    advance_requests: {
+      count: advance.count ?? 0,
+      items: (advance.data ?? []).map((r) => ({ id: r.id, who: name(r.employees), when: `${r.kind === "wfh" ? "WFH" : "OT"} · ${r.date_from}${r.date_to !== r.date_from ? ` → ${r.date_to}` : ""}` })),
+    },
+    // Open conversations, not a true approval queue -- a thread can be open
+    // while waiting on the OTHER side to reply. Surfaced for visibility, not
+    // counted as pending action the way the three queues above are.
+    clarifications: {
+      count: clarifications.count ?? 0,
+      items: (clarifications.data ?? []).map((r) => ({ id: r.id, who: name(r.employees), when: r.subject as string })),
     },
   });
 }

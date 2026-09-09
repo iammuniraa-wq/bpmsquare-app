@@ -11,6 +11,8 @@ import { type PresenceKind } from "@/lib/wfm/types";
 // accepted always agree.
 import { computeDayHours, shiftDayKey, punchStateAt } from "@/lib/wfm/hours";
 import { attributePunch } from "@/lib/wfm/projectServer";
+import { isWfhApprovedForDate } from "@/lib/wfm/advanceRequests";
+import { isSecondSaturday } from "@/lib/wfm/saturdayRule";
 import { tenantHasFeature } from "@/lib/tenant";
 
 /**
@@ -153,6 +155,18 @@ export async function buildWfmMeState(ctx: WfmContext) {
   // punch -- until now the only people who could see attribution were
   // supervisors, after the fact. Null when the module is off or nothing
   // applies; never blocks the screen.
+  // Whether mobile_work_start (WFH) is legal today -- so the punch dropdown
+  // never offers an option the punch route would reject. OT is deliberately
+  // NOT gated the same way (see wfm_advance_requests' own header comment).
+  const wfhApprovedToday = config.punch_types.mobile_work
+    ? await isWfhApprovedForDate(admin, tenantId, employee.id, todayKey)
+    : false;
+
+  // 2nd Saturday: a live date check (see lib/wfm/saturdayRule.ts), same one
+  // the punch route enforces -- this is just so the dropdown doesn't offer
+  // an option the route would reject.
+  const secondSaturdayToday = config.saturday_rule.enabled && isSecondSaturday(todayKey, config.timezone);
+
   let todayProject: { id: string; name: string; source: string } | null = null;
   if (await tenantHasFeature(admin, tenantId, "wfm_projects")) {
     const attributed = await attributePunch(
@@ -187,6 +201,8 @@ export async function buildWfmMeState(ctx: WfmContext) {
     shift: shift ?? null,
     timezone: config.timezone,
     punch_types: config.punch_types,
+    wfh_approved_today: wfhApprovedToday,
+    is_second_saturday_today: secondSaturdayToday,
     // The client refuses BEFORE opening the camera rather than letting
     // someone take a selfie and only then be rejected. The punch route is
     // the real enforcement; this is so the refusal happens early.

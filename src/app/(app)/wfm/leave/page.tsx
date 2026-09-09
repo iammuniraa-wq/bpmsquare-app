@@ -6,6 +6,7 @@ import { wfmEmployeesPayload, wfmLeaveTypesPayload, wfmLeaveRecordsPayload, wfmL
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import LeaveClient from "./LeaveClient";
+import LeaveHolidaysTabs from "./LeaveHolidaysTabs";
 
 export default async function WfmLeavePage() {
   await requireWorkcenterView("wfm");
@@ -28,12 +29,12 @@ export default async function WfmLeavePage() {
 
   return (
     <>
-      <TabTitle title="Leave" />
+      <TabTitle title="Leave & Holidays" />
       <PageHeader
-        title="Leave"
-        subtitle="Approve leave requests and enter leave records directly. Leave types and the holiday calendar are configured in Settings → Workforce."
+        title="Leave & Holidays"
+        subtitle="Approve leave requests, enter leave records directly, and manage the holiday calendar. Leave types are configured in Settings → Workforce."
       />
-      <LeaveClient initial={initial} />
+      <LeaveHolidaysTabs initial={initial} />
     </>
   );
 }

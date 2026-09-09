@@ -154,6 +154,10 @@ const getWfmConfigCached = cache(async (tenantId: string): Promise<WfmConfig> =>
     notifications: { ...DEFAULT_WFM_CONFIG.notifications, ...(stored.notifications ?? {}) },
     punch_types: { ...DEFAULT_WFM_CONFIG.punch_types, ...(stored.punch_types ?? {}) },
     costing: { ...DEFAULT_WFM_CONFIG.costing, ...(stored.costing ?? {}) },
+    long_day_alert: { ...DEFAULT_WFM_CONFIG.long_day_alert, ...(stored.long_day_alert ?? {}) },
+    break_alert: { ...DEFAULT_WFM_CONFIG.break_alert, ...(stored.break_alert ?? {}) },
+    holiday_week_alert: { ...DEFAULT_WFM_CONFIG.holiday_week_alert, ...(stored.holiday_week_alert ?? {}) },
+    saturday_rule: { ...DEFAULT_WFM_CONFIG.saturday_rule, ...(stored.saturday_rule ?? {}) },
     // An empty/absent list means "never configured" -- fall back to the seed
     // pair rather than leaving a tenant with no selectable employment type.
     employment_types:

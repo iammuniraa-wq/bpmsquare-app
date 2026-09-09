@@ -592,10 +592,12 @@ export type WfmConfig = {
   // Per-event-type email notification toggles. Each fires synchronously
   // from the route that creates the underlying event -- see src/lib/wfm/notify.ts.
   notifications: {
-    late_arrival: boolean;       // check-in past shift start+grace -> supervisor
-    correction_pending: boolean; // employee files a correction -> supervisor
-    leave_pending: boolean;      // employee files a leave request -> supervisor
-    recheck_flagged: boolean;    // supervisor flags a punch/day -> employee
+    late_arrival: boolean;             // check-in past shift start+grace -> supervisor
+    correction_pending: boolean;       // employee files a correction -> supervisor
+    leave_pending: boolean;            // employee files a leave request -> supervisor
+    recheck_flagged: boolean;          // supervisor flags a punch/day -> employee
+    advance_request_pending: boolean;  // employee files an OT/WFH advance request -> supervisor
+    clarification_message: boolean;    // either side posts in a clarification thread -> the other
   };
   /** Push an employee's own phone once they pass a worked-hours threshold, so
    *  they know to punch out (client request, BIM 2026-09-04). Off by default:
@@ -606,6 +608,48 @@ export type WfmConfig = {
   long_day_alert: {
     enabled: boolean;
     after_hours: number;
+  };
+  /** Nudge an employee whose BREAK has run long, on their own phone, so a
+   *  forgotten break_end doesn't quietly eat their worked hours (client
+   *  request, BIM 2026-09-10: "break notifications, standard + custom").
+   *
+   *  Standard vs custom is one setting, not two features: leaving
+   *  `after_minutes` and `message` alone gives every tenant the same standard
+   *  reminder, and a tenant whose breaks are genuinely 45 minutes -- or who
+   *  wants to say it in their own words, or their own language -- overrides
+   *  either. Blank `message` means the standard wording, never a blank push.
+   *
+   *  Same delivery constraints as long_day_alert: needs VAPID keys server-side
+   *  AND the employee to have tapped "Turn on", so it is off by default rather
+   *  than promising something that silently does nothing. */
+  break_alert: {
+    enabled: boolean;
+    after_minutes: number;
+    message: string;
+  };
+  /** A start-of-week push telling employees which holidays fall in the next
+   *  seven days (client request, BIM 2026-09-10). Reads the same wfm_holidays
+   *  rows the monthly summary and the roster already use, so it can never
+   *  announce a holiday the timesheet doesn't honour. One digest per employee
+   *  per week, and nothing is sent in a week with no holidays in it. */
+  holiday_week_alert: {
+    enabled: boolean;
+  };
+  /** Alternate/6-hour Saturday (owner decision 2026-09-09, BIM): every
+   *  Saturday is a short day on `short_shift_id`, EXCEPT the 2nd Saturday of
+   *  the month, which is a full holiday. Materialized as real data, not a
+   *  live rule baked into the shift resolver -- a monthly generator (cron +
+   *  an on-demand button on the Roster page) writes ordinary
+   *  wfm_roster_assignments rows for the short Saturdays and an ordinary
+   *  wfm_holidays row for the 2nd, additively (never overwrites a row a
+   *  supervisor already set). Every existing holiday/roster code path (late/
+   *  absence, the employee's holiday calendar, ...) then just works, unchanged.
+   *  The 2nd-Saturday punch gate (api/wfm/punch/route.ts) is a live date
+   *  check, not dependent on the row existing yet, so it can't be bypassed by
+   *  the generator simply not having run. */
+  saturday_rule: {
+    enabled: boolean;
+    short_shift_id: string | null;
   };
   // Employment types this tenant actually uses. Was a hardcoded
   // full_time|contractor enum until a tenant needed "Intern" -- now a
@@ -719,8 +763,13 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
     correction_pending: true,
     leave_pending: true,
     recheck_flagged: true,
+    advance_request_pending: true,
+    clarification_message: true,
   },
   long_day_alert: { enabled: false, after_hours: 9 },
+  break_alert: { enabled: false, after_minutes: 30, message: "" },
+  holiday_week_alert: { enabled: false },
+  saturday_rule: { enabled: false, short_shift_id: null },
   employment_types: DEFAULT_EMPLOYMENT_TYPES,
   punch_types: { ot: false, mobile_work: false, business_trip: false },
   ot_rate_per_hour: 0,

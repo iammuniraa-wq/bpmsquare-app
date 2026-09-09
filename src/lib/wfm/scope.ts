@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { createAdminSupabase } from "@/lib/supabase-server";
+import { sitesApprovedBy } from "./siteApprovers";
 import type { WfmContext } from "./server";
 
 type Admin = ReturnType<typeof createAdminSupabase>;
@@ -16,6 +17,11 @@ type Admin = ReturnType<typeof createAdminSupabase>;
  *
  *   employee ──(site assigned on that date)──▶ wfm_sites.supervisor_id
  *   supervisor ──employees.supervisor_id──▶ manager ──▶ …
+ *
+ * Since 0124 a site may ALSO carry extra approvers (wfm_site_approvers) —
+ * peers of that site's supervisor rather than a second hierarchy, added
+ * because one named supervisor going on leave froze every request at their
+ * site. They widen both questions below and nothing else.
  *
  * "Manager" is therefore not a role: it is a supervisor with other
  * supervisors beneath them, and their reach is the union of their whole
@@ -116,12 +122,14 @@ export const resolveWfmScope = cache(async function resolveWfmScope(
   const subordinates = await descendantSupervisors(admin, tenantId, employee.id);
   const treeIds = [employee.id, ...subordinates];
 
-  const { data: siteRows } = await admin
-    .from("wfm_sites")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .in("supervisor_id", treeIds);
-  const siteIds = (siteRows ?? []).map((s) => s.id as string);
+  // Two ways to reach a site: run it (wfm_sites.supervisor_id, the reporting
+  // tree) or be named an extra approver for it (wfm_site_approvers, 0124 --
+  // empty while that migration is pending, so this is the old behaviour then).
+  const [{ data: siteRows }, approverSiteIds] = await Promise.all([
+    admin.from("wfm_sites").select("id").eq("tenant_id", tenantId).in("supervisor_id", treeIds),
+    sitesApprovedBy(admin, tenantId, treeIds),
+  ]);
+  const siteIds = [...new Set([...(siteRows ?? []).map((s) => s.id as string), ...approverSiteIds])];
 
   const visible = new Set<string>(subordinates);
 
@@ -217,21 +225,25 @@ export async function canApproveFor(
     };
   }
 
-  const { data: site } = await admin
-    .from("wfm_sites")
-    .select("id, name, supervisor_id")
-    .eq("id", siteId)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const [{ data: site }, approverSiteIds] = await Promise.all([
+    admin.from("wfm_sites").select("id, name, supervisor_id").eq("id", siteId).eq("tenant_id", tenantId).maybeSingle(),
+    sitesApprovedBy(admin, tenantId, treeIds),
+  ]);
+
+  // Named as an extra approver for this site (0124). Checked BEFORE the
+  // site-supervisor rule and independently of it: the whole point is that a
+  // site whose one supervisor is away still has somebody who can act, so this
+  // must also work on a site that has no supervisor_id set at all.
+  if (approverSiteIds.includes(siteId)) return { ok: true };
+
+  if (site?.supervisor_id && treeIds.includes(site.supervisor_id as string)) return { ok: true };
 
   if (!site?.supervisor_id) {
     return {
       ok: false,
-      reason: `${site?.name ?? "That site"} has no supervisor assigned — set one in Settings → Workforce → Sites.`,
+      reason: `${site?.name ?? "That site"} has no supervisor or approver assigned — set one in Settings → Workforce → Sites.`,
     };
   }
-
-  if (treeIds.includes(site.supervisor_id as string)) return { ok: true };
 
   return { ok: false, reason: "That employee doesn't work at a site you supervise." };
 }

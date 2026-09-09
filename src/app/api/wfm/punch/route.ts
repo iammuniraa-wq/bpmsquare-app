@@ -3,6 +3,8 @@ import { locationRequiredFor, selfieRequiredFor, LOW_ACCURACY_THRESHOLD_M } from
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/lib/wfm/server";
 import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
+import { isWfhApprovedForDate } from "@/lib/wfm/advanceRequests";
+import { isSecondSaturday } from "@/lib/wfm/saturdayRule";
 import { ROUTES } from "@/lib/constants";
 import {
   applyPunch, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
@@ -140,6 +142,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `${PUNCH_KIND_LABEL[kind]} is not enabled for this workspace` }, { status: 403 });
   }
 
+  // WFH is the one optional punch type that needs advance approval, not just
+  // the tenant switch above (owner decision 2026-09-09) -- OT stays punch-
+  // first-approve-after as it always has (wfm_ot_sessions, below).
+  const dayKey = shiftDayKey(tsDate, config.timezone, shift);
+  if (kind === "mobile_work_start" && !(await isWfhApprovedForDate(admin, tenantId, employee.id, dayKey))) {
+    return NextResponse.json(
+      { error: "Work from home isn't approved for today — request it from the Requests tab first." },
+      { status: 403 }
+    );
+  }
+
+  // 2nd Saturday of the month is a full holiday (owner decision 2026-09-09,
+  // BIM) -- coming in and working it must go through OT approval, same as
+  // any other day nobody was expected in. A LIVE date check, not a lookup
+  // against whatever wfm_holidays row the generator may or may not have
+  // written yet -- the gate can't be bypassed just because that row is late
+  // or missing. Only session-STARTS are blocked; ot_in is exactly the path
+  // this is meant to push people onto, and ending an already-open session
+  // (check_out etc.) is never something to refuse.
+  if (
+    config.saturday_rule.enabled &&
+    (kind === "check_in" || kind === "mobile_work_start" || kind === "business_trip_start") &&
+    isSecondSaturday(dayKey, config.timezone)
+  ) {
+    return NextResponse.json(
+      { error: "Today is the 2nd Saturday — a company holiday. Punch OT in if you're working today; your supervisor will need to approve it." },
+      { status: 403 }
+    );
+  }
+
   const lat = typeof geo?.lat === "number" ? geo.lat : null;
   const lng = typeof geo?.lng === "number" ? geo.lng : null;
   const accuracy = typeof geo?.accuracy_m === "number" ? geo.accuracy_m : null;
@@ -212,7 +244,7 @@ export async function POST(request: NextRequest) {
   // a costing lookup succeeding. See WFM_PROJECT_COSTING.md §4.
   const projectId = await resolveProjectForPunch(
     admin, tenantId, employee.id,
-    shiftDayKey(tsDate, config.timezone, shift),
+    dayKey,
     within ? site!.id : null,
     employee.shift_id ?? null
   );
@@ -288,7 +320,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Today's running total (tenant timezone): now − first check_in of today.
-  const todayKey = shiftDayKey(tsDate, config.timezone, shift);
+  const todayKey = dayKey;
   const dayStart = new Date(tsDate.getTime() - 36 * 60 * 60 * 1000).toISOString();
   const { data: recent } = await admin
     .from("wfm_presence_events")

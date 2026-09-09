@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { verifySiteSupervisor } from "@/lib/wfm/siteSupervisor";
+import { setSiteApprovers } from "@/lib/wfm/siteApprovers";
 
 // PATCH /api/wfm/sites/[id] — edit / activate / deactivate (tenant admin only).
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +37,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     patch.supervisor_id = supervisor.id;
   }
 
+  // Extra approvers (0124) live in their own table, so this is a separate
+  // write rather than a column on the patch. Same "only when the key is
+  // present" rule as supervisor_id above: a plain deactivate must not silently
+  // wipe a site's approver list.
+  let approverIds: string[] | null = null;
+  if ("approver_ids" in body) {
+    const result = await setSiteApprovers(admin, tenantId, id, body.approver_ids);
+    if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+    approverIds = result.ids;
+  }
+
   if (Object.keys(patch).length === 0) {
+    if (approverIds) return NextResponse.json({ id, approver_ids: approverIds });
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
@@ -49,5 +62,5 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(data);
+  return NextResponse.json(approverIds ? { ...data, approver_ids: approverIds } : data);
 }

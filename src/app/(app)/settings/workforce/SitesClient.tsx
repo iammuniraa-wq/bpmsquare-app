@@ -61,6 +61,9 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
 
   const blank = { name: "", lat: "", lng: "", radius_m: "150", supervisor_id: "" };
   const [siteForm, setSiteForm] = useState(blank);
+  // Extra approvers are a list, so they sit beside the string-keyed form
+  // rather than being squeezed into it.
+  const [approverIds, setApproverIds] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     const [sitesRes, empRes] = await Promise.all([
@@ -88,8 +91,10 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
   // A site with nobody assigned has no approver at all -- overtime, leave and
   // corrections from its staff reach nobody. Deliberately not escalated to a
   // tenant admin behind the scenes, so surfacing it here is the whole safety net.
+  // Extra approvers (0124) count: a site run entirely by named approvers and
+  // no single supervisor is covered, and warning about it would be wrong.
   const unsupervised = useMemo(
-    () => sites.filter((s) => s.active && !s.supervisor_id),
+    () => sites.filter((s) => s.active && !s.supervisor_id && (s.approver_ids ?? []).length === 0),
     [sites]
   );
 
@@ -126,13 +131,17 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
       lng,
       radius_m: parseInt(siteForm.radius_m) || 150,
       supervisor_id: siteForm.supervisor_id || null,
+      // The site's own supervisor is never also listed as an extra approver --
+      // they already approve by virtue of running the site, and showing them
+      // twice invites someone to "remove" them here and assume it took effect.
+      approver_ids: approverIds.filter((id) => id !== siteForm.supervisor_id),
     };
     const wasEditing = !!editingId;
     const ok = editingId
       ? await send(`/api/wfm/sites/${editingId}`, payload, "PATCH")
       : await send("/api/wfm/sites", payload);
     if (ok) {
-      setSiteForm(blank); setAdding(false); setEditingId(null);
+      setSiteForm(blank); setApproverIds([]); setAdding(false); setEditingId(null);
       setOkMsg(wasEditing ? `Site "${payload.name}" updated.` : `Site "${payload.name}" created.`);
     }
   }
@@ -148,10 +157,11 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
       radius_m: String(s.radius_m),
       supervisor_id: s.supervisor_id ?? "",
     });
+    setApproverIds(s.approver_ids ?? []);
   }
 
   function cancelEdit() {
-    setSiteForm(blank); setAdding(false); setEditingId(null); setError("");
+    setSiteForm(blank); setApproverIds([]); setAdding(false); setEditingId(null); setError("");
   }
 
   const pickedLat = siteForm.lat ? parseFloat(siteForm.lat) : null;
@@ -234,6 +244,55 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
             <button style={btn} disabled={busy} onClick={cancelEdit}>Cancel</button>
           </div>
 
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
+            <label style={lbl}>Others who can also approve here</label>
+            <div style={{ fontSize: 12, color: c.muted, marginBottom: 8, maxWidth: 720 }}>
+              Optional. Anyone ticked here approves this site&apos;s leave, comp-off, sick leave,
+              work-from-home, overtime and corrections alongside the supervisor — so requests
+              don&apos;t sit waiting when one person is away. They see this site&apos;s people, and
+              nothing else changes about their access.
+            </div>
+            {activePeople.length === 0 ? (
+              <div style={{ fontSize: 12, color: c.hint }}>No active employees to choose from yet.</div>
+            ) : (
+              <div style={{
+                maxHeight: 200, overflowY: "auto", border: `1px solid ${c.line}`,
+                borderRadius: 8, padding: "6px 4px",
+              }}>
+                {activePeople
+                  .filter((p) => p.id !== siteForm.supervisor_id)
+                  .map((p) => (
+                    <label
+                      key={p.id}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "6px 8px", fontSize: 12.5, color: c.ink, cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={approverIds.includes(p.id)}
+                        onChange={(e) =>
+                          setApproverIds((prev) =>
+                            e.target.checked ? [...prev, p.id] : prev.filter((id) => id !== p.id)
+                          )
+                        }
+                      />
+                      <span>
+                        {personName(p)}
+                        {p.employee_code && <span style={{ color: c.hint }}> · {p.employee_code}</span>}
+                      </span>
+                    </label>
+                  ))}
+              </div>
+            )}
+            {siteForm.supervisor_id && (
+              <div style={{ fontSize: 11.5, color: c.hint, marginTop: 6 }}>
+                The supervisor you picked above already approves for this site, so they aren&apos;t listed here.
+              </div>
+            )}
+          </div>
+
           <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8 }}>
             {activePeople.length === 0
               ? "There are no active employees yet — add people under Workforce → Employees, then come back and assign one here."
@@ -275,11 +334,12 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
             <div style={{ fontSize: 12, color: c.muted, marginTop: 3, maxWidth: 720 }}>
               A site is a place people punch in at. Its <strong>radius</strong> is the geofence — how far
               from the pin a punch still counts as on-site. Its <strong>supervisor</strong> approves the
-              overtime, leave and corrections of everyone assigned to work there.
+              overtime, leave and corrections of everyone assigned to work there, and you can name
+              extra approvers alongside them so requests don&apos;t wait when one person is away.
             </div>
           </div>
           {canEdit && (
-            <button style={btnPrimary} onClick={() => { setAdding(true); setEditingId(null); setSiteForm(blank); setError(""); }}>
+            <button style={btnPrimary} onClick={() => { setAdding(true); setEditingId(null); setSiteForm(blank); setApproverIds([]); setError(""); }}>
               + Add site
             </button>
           )}
@@ -308,8 +368,21 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
                         <span style={{ color: c.hint, fontSize: 11.5 }}> · {s.supervisor.employee_code}</span>
                       )}
                     </span>
+                  ) : (s.approver_ids ?? []).length > 0 ? (
+                    <span style={{ color: c.hint }}>No single supervisor</span>
                   ) : (
                     <span style={{ color: pillar.amber.fg, fontWeight: 600 }}>Not assigned</span>
+                  )}
+                  {(s.approver_ids ?? []).length > 0 && (
+                    <div style={{ fontSize: 11.5, color: c.hint, marginTop: 3 }}>
+                      + also {(s.approver_ids ?? [])
+                        .map((id) => {
+                          const p = people.find((x) => x.id === id);
+                          return p ? personName(p) : null;
+                        })
+                        .filter(Boolean)
+                        .join(", ")}
+                    </div>
                   )}
                 </td>
                 <td style={td}>{s.radius_m} m</td>

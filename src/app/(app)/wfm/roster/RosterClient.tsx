@@ -9,6 +9,56 @@ import { ROUTES } from "@/lib/constants";
 import type { WfmShift, WfmSite } from "@/lib/wfm/types";
 import { depthOf } from "@/lib/wfm/projectTree";
 import { groupSpans, type Span } from "@/lib/wfm/rosterSpans";
+import { parseImportFile, ImportParseError } from "@/lib/import/parse";
+import type { ParsedSheet } from "@/lib/import/types";
+import { csvCell } from "@/lib/import/template";
+
+function csvRow(cells: string[]): string {
+  return cells.map(csvCell).join(",");
+}
+
+type UploadResult = { applied: number; skipped: { row: number; reason: string }[] };
+
+// "Date" alone (single day) still works -- it's just an alias for Date From
+// with no Date To, same as leaving Date To blank on purpose. That keeps last
+// week's template valid while letting a new one cover a whole week or month
+// in a single row instead of one row per day.
+const ROSTER_ALIASES: Record<"employee" | "date_from" | "date_to" | "shift" | "site" | "day_off" | "note", string[]> = {
+  employee: ["employee code", "employee", "code", "employee id"],
+  date_from: ["date from", "from date", "from", "date"],
+  date_to: ["date to", "to date", "to"],
+  shift: ["shift"],
+  site: ["site"],
+  day_off: ["day off", "dayoff", "off"],
+  note: ["note", "notes"],
+};
+
+function colIndex(headers: string[], aliases: string[]): number {
+  const norm = headers.map((h) => h.trim().toLowerCase());
+  return aliases.reduce((found, a) => (found !== -1 ? found : norm.indexOf(a)), -1);
+}
+
+function sheetToRosterRows(sheet: ParsedSheet) {
+  const employeeIdx = colIndex(sheet.headers, ROSTER_ALIASES.employee);
+  const dateFromIdx = colIndex(sheet.headers, ROSTER_ALIASES.date_from);
+  if (employeeIdx === -1 || dateFromIdx === -1) {
+    throw new Error('The file needs at least "Employee Code" and "Date From" (or "Date") columns.');
+  }
+  const dateToIdx = colIndex(sheet.headers, ROSTER_ALIASES.date_to);
+  const shiftIdx = colIndex(sheet.headers, ROSTER_ALIASES.shift);
+  const siteIdx = colIndex(sheet.headers, ROSTER_ALIASES.site);
+  const dayOffIdx = colIndex(sheet.headers, ROSTER_ALIASES.day_off);
+  const noteIdx = colIndex(sheet.headers, ROSTER_ALIASES.note);
+  return sheet.rows.map((cells) => ({
+    employee: cells[employeeIdx] ?? "",
+    date_from: cells[dateFromIdx] ?? "",
+    date_to: dateToIdx !== -1 ? cells[dateToIdx] ?? "" : "",
+    shift: shiftIdx !== -1 ? cells[shiftIdx] ?? "" : "",
+    site: siteIdx !== -1 ? cells[siteIdx] ?? "" : "",
+    day_off: dayOffIdx !== -1 ? cells[dayOffIdx] ?? "" : "",
+    note: noteIdx !== -1 ? cells[noteIdx] ?? "" : "",
+  }));
+}
 
 type EmployeeRow = {
   id: string;
@@ -60,6 +110,7 @@ const btnTiny: React.CSSProperties = { ...btn, padding: "3px 8px", fontSize: 10.
 const hhmm = (t: string) => t.slice(0, 5);
 const fmtDate = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" });
 const todayKey = () => new Date().toISOString().slice(0, 10);
+const thisMonthKey = () => new Date().toISOString().slice(0, 7);
 
 /** The API route and the server prefetch return the project differently --
  *  read whichever is present so the column is populated either way. */
@@ -216,6 +267,19 @@ export default function RosterClient({ initial = null }: {
   const serverSeeded = useRef(initial != null);
   const [error, setError] = useState("");
 
+  // ── Upload: a whole roster spreadsheet, one row per employee+date ─────
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // ── Alternate-Saturday roster generator (Settings -> Workforce turns the
+  // rule on and picks the short-day shift; this just materializes it) ─────
+  const [satMonth, setSatMonth] = useState(thisMonthKey());
+  const [satBusy, setSatBusy] = useState(false);
+  const [satError, setSatError] = useState("");
+  const [satResult, setSatResult] = useState<{ month: string; holiday_created: boolean; roster_rows_created: number; roster_rows_skipped: number } | null>(null);
+
   // ── Section A: standing site + shift (bulk matrix) ────────────────────
   const [searchA, setSearchA] = useState("");
   const [siteFilterA, setSiteFilterA] = useState("");
@@ -299,6 +363,73 @@ export default function RosterClient({ initial = null }: {
       .catch(() => { /* roster still works without it */ });
     return () => { cancelled = true; };
   }, []);
+
+  async function handleRosterFile(file: File) {
+    setUploadBusy(true);
+    setUploadError("");
+    setUploadResult(null);
+    try {
+      const sheet = await parseImportFile(file);
+      const rows = sheetToRosterRows(sheet);
+      if (rows.length === 0) { setUploadError("That file has no data rows."); return; }
+      const res = await fetch("/api/wfm/roster/bulk-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setUploadError(json.error ?? "Upload failed"); return; }
+      setUploadResult(json);
+      await load();
+    } catch (e) {
+      setUploadError(e instanceof ImportParseError || e instanceof Error ? e.message : "Could not read that file");
+    } finally {
+      setUploadBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function downloadRosterTemplate() {
+    // Pre-filled with every active employee's code + name -- a supervisor
+    // filling this in by hand shouldn't have to go look up ids first. Dates/
+    // shift/site are left blank per row for them to fill in (or delete rows
+    // for anyone not being rostered this time).
+    const activeEmployees = employees
+      .filter((e) => e.status === "active")
+      .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`));
+    const header = "Employee Code,Employee Name,Date From,Date To,Shift,Site,Day Off,Note";
+    const rows = activeEmployees.length > 0
+      ? activeEmployees.map((e) => csvRow([e.employee_code ?? "", `${e.first_name} ${e.last_name}`.trim(), "", "", "", "", "", ""]))
+      : [csvRow(["EMP-001", "Example Employee", "", "", "", "", "", ""])];
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "roster-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function generateSaturdayRoster() {
+    setSatBusy(true);
+    setSatError("");
+    setSatResult(null);
+    try {
+      const res = await fetch("/api/wfm/saturday-roster/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: satMonth }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setSatError(json.error ?? "Could not generate"); return; }
+      setSatResult(json);
+      await load();
+    } catch {
+      setSatError("Network error");
+    } finally {
+      setSatBusy(false);
+    }
+  }
 
   // ── Section A logic ───────────────────────────────────────────────────
   const activeShifts = useMemo(() => shifts.filter((s) => s.active), [shifts]);
@@ -529,6 +660,70 @@ export default function RosterClient({ initial = null }: {
     <>
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
 
+      {/* ── Upload a roster spreadsheet ────────────────────────────────── */}
+      <section style={{ ...cardStyle, marginBottom: 22 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 3 }}>Upload a roster spreadsheet</div>
+        <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+          One row per employee, covering a single day or a whole date range (a week, a month, however long) — each
+          row can carry its own shift, site, day off, or note, unlike the bulk tools below which apply one set of
+          values to everyone selected. Columns: Employee Code, Date From, Date To (YYYY-MM-DD; leave Date To blank
+          for a single day), Shift, Site, Day Off (yes/no), Note.
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button type="button" style={btn} onClick={downloadRosterTemplate}>Download template</button>
+          <input
+            ref={fileInputRef} type="file" accept=".xlsx,.xlsm,.csv"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleRosterFile(f); }}
+            disabled={uploadBusy}
+            style={{ fontSize: 12.5 }}
+          />
+          {uploadBusy && <span style={{ fontSize: 12, color: c.hint }}>Uploading…</span>}
+        </div>
+        {uploadError && <div style={{ fontSize: 12.5, color: statusInk.bad, marginTop: 8 }}>{uploadError}</div>}
+        {uploadResult && (
+          <div style={{ fontSize: 12.5, color: c.ink, marginTop: 8 }}>
+            Applied {uploadResult.applied} row(s).
+            {uploadResult.skipped.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                <div style={{ color: statusInk.warn, fontWeight: 600 }}>{uploadResult.skipped.length} row(s) skipped:</div>
+                <ul style={{ margin: "4px 0 0", paddingLeft: 18, color: c.muted }}>
+                  {uploadResult.skipped.slice(0, 20).map((s, i) => <li key={i}>Row {s.row}: {s.reason}</li>)}
+                </ul>
+                {uploadResult.skipped.length > 20 && <div style={{ color: c.hint, marginTop: 4 }}>…and {uploadResult.skipped.length - 20} more.</div>}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* ── Alternate-Saturday roster generator ──────────────────────────
+          Runs automatically on the 25th of each month for next month (see
+          api/wfm/cron/saturday-roster); this is the same generator, for
+          backfilling a month it missed or generating right after turning
+          the rule on in Settings -> Workforce. Additive -- never touches a
+          row someone already set for that employee+date. */}
+      <section style={{ ...cardStyle, marginBottom: 22 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 3 }}>Alternate-Saturday roster</div>
+        <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+          Runs on its own every month once the rule is on in Settings → Workforce. Use this to backfill a
+          month it missed, or to generate right after turning the rule on.
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <input type="month" style={inp} value={satMonth} onChange={(e) => setSatMonth(e.target.value)} />
+          <button type="button" style={btnPrimary} disabled={satBusy} onClick={generateSaturdayRoster}>
+            {satBusy ? "Generating…" : "Generate"}
+          </button>
+        </div>
+        {satError && <div style={{ fontSize: 12.5, color: statusInk.bad, marginTop: 8 }}>{satError}</div>}
+        {satResult && (
+          <div style={{ fontSize: 12.5, color: c.ink, marginTop: 8 }}>
+            {satResult.month}: {satResult.holiday_created ? "2nd Saturday holiday created" : "2nd Saturday holiday already existed"},{" "}
+            {satResult.roster_rows_created} short-day row(s) added
+            {satResult.roster_rows_skipped > 0 && `, ${satResult.roster_rows_skipped} already had their own roster entry`}.
+          </div>
+        )}
+      </section>
+
       {/* ── Section A: standing site + shift ──────────────────────────── */}
       <section style={{ ...cardStyle, padding: 0, marginBottom: 22, overflowX: "auto" }}>
         <div style={{ padding: "12px 14px", borderBottom: `1px solid ${c.line}` }}>
@@ -636,8 +831,8 @@ export default function RosterClient({ initial = null }: {
           <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Shift changes &amp; days off</div>
           <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>
             A different shift, or a day off, for selected employees on specific dates only — the standing
-            site and shift above stay as they are. For a holiday that applies to everyone, use Settings →
-            Workforce → Holidays instead.
+            site and shift above stay as they are. For a holiday that applies to everyone, use
+            Leave &amp; Holidays instead.
           </div>
         </div>
 

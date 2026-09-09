@@ -507,6 +507,50 @@ deploy for an automatic schema change.
   every seeded product through both books; totals matched lineTotals.ts),
   then removed from dev entirely -- the owner wants Big Blue on production
   only. Needs 0120 for the deals (skipped cleanly if pending).
+- **0124_wfm_site_approvers_and_employee_alerts.sql — PENDING on both DBs**
+  (written 2026-09-10, BIM client list of the same day). Two tables, each
+  with RLS + a tenant-isolation policy in the same file, WFM's select-only
+  convention: `wfm_site_approvers` (extra approvers per site, additive to
+  `wfm_sites.supervisor_id` -- one named supervisor going on leave used to
+  freeze every comp-off/sick-leave/WFH request at their site) and
+  `wfm_employee_alerts` (claim rows for the two new push alerts: break
+  overrun and the weekly holiday digest). The alert claims are a NEW table
+  rather than a `kind` column on `wfm_hours_alerts` deliberately -- that
+  table backs the long-day alert BIM already runs in production, and adding
+  a column would break it for as long as this migration stayed pending.
+  Until 0124 runs, every path degrades to the pre-0124 product: approver
+  lookups return empty (so authority resolves exactly as it did through
+  `supervisor_id` alone), the Sites screen shows no extra approvers, and
+  both new alerts simply never claim, so nothing is sent. Turning the two
+  alerts on also needs `break_alert` / `holiday_week_alert` in
+  Settings → Workforce → Phone reminders, both default off.
+- **0123_wfm_advance_requests_and_clarifications.sql — PENDING on both DBs**
+  (written 2026-09-09, owner request the same day: one "Requests" surface
+  for OT/WFH advance notice, plus real back-and-forth clarification threads
+  instead of one-shot correction/recheck replies). Two new tables, each with
+  RLS + tenant-isolation policy in the same file, same "select-only, writes
+  via the admin client" convention every WFM table follows:
+  `wfm_advance_requests` (kind `ot`|`wfh`, date range, reason, approve/
+  reject -- leave keeps its own separate table since approving it writes a
+  real leave record; this one has no side-effect record) and
+  `wfm_clarification_threads` + `wfm_clarification_messages` (anchored to a
+  punch/correction/OT session via three typed nullable FKs, or 'general').
+  **Behavior change once applied: WFH (`mobile_work_start`) is blocked
+  without an approved `wfh` row covering today** (`isWfhApprovedForDate`,
+  `lib/wfm/advanceRequests.ts`, enforced in `api/wfm/punch/route.ts` and
+  mirrored client-side so the dropdown never offers it) -- OT stays exactly
+  as it worked before (punch first, `wfm_ot_sessions` approval after; an
+  `ot` row here is advance notice only, never a gate). Until this migration
+  runs, every read 42P01s cleanly (empty request list, empty conversation
+  list). **Corrected 2026-09-10:** `isWfhApprovedForDate` used to return
+  false on ANY query error, including the 42P01 raised while this migration
+  is pending -- meaning shipping this code to a database without 0123 would
+  have taken WFH punching away from every employee who has it today, which
+  is a worse outage than the feature merely being absent (§3b: a pending
+  migration renders as the feature being off, never as a break). It now
+  distinguishes: 42P01/42703 (migration pending) = no gate, the exact
+  pre-0123 behaviour; any other error still denies, since an approval that
+  could not be verified must not open the gate.
 - **0122_fence_projects.sql — applied to both DBs** (owner confirmed
   2026-09-07; written 2026-09-07, Fence Configurator Phase C,
   `docs/fence-configurator-architecture.md` §7). Three tables, each with

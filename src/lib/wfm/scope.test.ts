@@ -14,6 +14,7 @@ function fakeAdmin(tables: {
   employees: Row[];
   wfm_sites: Row[];
   wfm_roster_assignments: Row[];
+  wfm_site_approvers: Row[];
 }) {
   return {
     from(table: keyof typeof tables) {
@@ -83,6 +84,9 @@ beforeEach(() => {
       { id: SITE_C, supervisor_id: LATHA, name: "Site C" },
     ],
     wfm_roster_assignments: [],
+    // Extra site approvers (0124). Empty by default so every test above still
+    // describes the pre-0124 product; the block at the bottom fills it in.
+    wfm_site_approvers: [],
   };
 });
 
@@ -184,5 +188,52 @@ describe("canApproveFor", () => {
     const r = await canApproveFor(ctxFor(KIRAN), RAVI, "2026-08-12");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toMatch(/no supervisor/i);
+  });
+});
+
+// ── Extra site approvers (0124) ─────────────────────────────────────────────
+// The point of the feature: one named supervisor being away must stop freezing
+// every request at their site. Kiran runs Site B and has no business with
+// Site A — until Site A names them an extra approver.
+describe("extra site approvers", () => {
+  it("lets a named approver approve at a site they don't supervise", async () => {
+    expect((await canApproveFor(ctxFor(KIRAN), RAVI, "2026-08-12")).ok).toBe(false);
+    fixture.wfm_site_approvers = [{ site_id: SITE_A, employee_id: KIRAN }];
+    expect(await canApproveFor(ctxFor(KIRAN), RAVI, "2026-08-12")).toEqual({ ok: true });
+  });
+
+  it("works on a site with no supervisor at all — the on-leave case", async () => {
+    fixture.wfm_sites = [{ id: SITE_A, supervisor_id: null, name: "Site A" }];
+    fixture.wfm_site_approvers = [{ site_id: SITE_A, employee_id: KIRAN }];
+    expect(await canApproveFor(ctxFor(KIRAN), RAVI, "2026-08-12")).toEqual({ ok: true });
+  });
+
+  it("does not leak to other sites", async () => {
+    fixture.wfm_site_approvers = [{ site_id: SITE_A, employee_id: KIRAN }];
+    // Latha runs Site C and was named nowhere — still refused at Site A.
+    expect((await canApproveFor(ctxFor(LATHA), RAVI, "2026-08-12")).ok).toBe(false);
+  });
+
+  it("still refuses self-approval — an approver can't clear their own request", async () => {
+    fixture.employees = [
+      ...fixture.employees,
+      { id: "tara", supervisor_id: null, site_id: SITE_A, wfm_role: "supervisor", status: "active" },
+    ];
+    fixture.wfm_site_approvers = [{ site_id: SITE_A, employee_id: "tara" }];
+    expect((await canApproveFor(ctxFor("tara"), "tara", "2026-08-12")).ok).toBe(false);
+  });
+
+  it("a manager inherits a subordinate's approver grant, like any other reach", async () => {
+    // Kiran reports to Arun, so naming Kiran on Site A puts it in Arun's reach
+    // too — the same rule that already lets Arun approve at Kiran's own site.
+    fixture.wfm_site_approvers = [{ site_id: SITE_A, employee_id: KIRAN }];
+    expect(await canApproveFor(ctxFor(ARUN), RAVI, "2026-08-12")).toEqual({ ok: true });
+  });
+
+  it("widens visibility too, not just authority", async () => {
+    fixture.wfm_site_approvers = [{ site_id: SITE_A, employee_id: KIRAN }];
+    const scope = await resolveWfmScope(ctxFor(KIRAN));
+    expect(new Set(scope.employeeIds)).toEqual(new Set([RAVI, SUNIL, MEENA]));
+    expect(scope.siteIds).toContain(SITE_A);
   });
 });

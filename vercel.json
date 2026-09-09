@@ -26,6 +26,14 @@
     {
       "path": "/api/wfm/cron/project-invoices",
       "schedule": "30 0 1 * *"
+    },
+    {
+      "path": "/api/wfm/cron/saturday-roster",
+      "schedule": "0 3 25 * *"
+    },
+    {
+      "path": "/api/wfm/cron/holiday-week",
+      "schedule": "0 3 * * 1"
     }
   ]
 }

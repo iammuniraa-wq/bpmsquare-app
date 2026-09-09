@@ -21,14 +21,30 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const stored = ((data?.config as TenantConfig | null)?.wfm ?? {}) as Partial<WfmConfig>;
-  return NextResponse.json({ ...DEFAULT_WFM_CONFIG, ...stored });
+  // notifications is deep-merged, not spread whole -- a tenant that saved
+  // this config before a new notification key existed would otherwise get
+  // that key back as undefined instead of its real default (this GET is
+  // what feeds the Settings checkboxes, unlike getWfmConfig elsewhere in the
+  // app, which already merges this way).
+  return NextResponse.json({
+    ...DEFAULT_WFM_CONFIG,
+    ...stored,
+    notifications: { ...DEFAULT_WFM_CONFIG.notifications, ...(stored.notifications ?? {}) },
+    saturday_rule: { ...DEFAULT_WFM_CONFIG.saturday_rule, ...(stored.saturday_rule ?? {}) },
+    long_day_alert: { ...DEFAULT_WFM_CONFIG.long_day_alert, ...(stored.long_day_alert ?? {}) },
+    break_alert: { ...DEFAULT_WFM_CONFIG.break_alert, ...(stored.break_alert ?? {}) },
+    holiday_week_alert: { ...DEFAULT_WFM_CONFIG.holiday_week_alert, ...(stored.holiday_week_alert ?? {}) },
+  });
 }
 
 const FACE_MODES = ["off", "flag_only"];
 const GEOFENCE_MODES = ["block", "flag", "off"];
 const SELFIE_MODES = ["off", "shift", "all"];
 const FACE_PUNCH_MODES = ["off", "kiosk"];
-const NOTIFICATION_KEYS = ["late_arrival", "correction_pending", "leave_pending", "recheck_flagged"] as const;
+const NOTIFICATION_KEYS = [
+  "late_arrival", "correction_pending", "leave_pending", "recheck_flagged",
+  "advance_request_pending", "clarification_message",
+] as const;
 const PUNCH_TYPE_KEYS = ["ot", "mobile_work", "business_trip"] as const;
 // Codes are what employees.employment_type stores -- keep them machine-safe
 // and stable; only the label is meant to be edited freely afterwards.
@@ -144,6 +160,49 @@ export async function PUT(request: NextRequest) {
         typeof incoming.after_hours === "number" && Number.isFinite(incoming.after_hours)
           ? Math.min(24, Math.max(1, Math.round(incoming.after_hours * 2) / 2))
           : current.after_hours,
+    };
+  }
+
+  // Break-overrun push alert. after_minutes is clamped the same way and for
+  // the same reason as long_day_alert.after_hours; the custom message is
+  // trimmed and length-capped because it becomes a push notification body,
+  // where an unbounded string is simply truncated by the OS anyway.
+  if (body.break_alert && typeof body.break_alert === "object") {
+    const incoming = body.break_alert as { enabled?: unknown; after_minutes?: unknown; message?: unknown };
+    const current = DEFAULT_WFM_CONFIG.break_alert;
+    next.break_alert = {
+      enabled: typeof incoming.enabled === "boolean" ? incoming.enabled : current.enabled,
+      after_minutes:
+        typeof incoming.after_minutes === "number" && Number.isFinite(incoming.after_minutes)
+          ? Math.min(240, Math.max(5, Math.round(incoming.after_minutes)))
+          : current.after_minutes,
+      message: typeof incoming.message === "string" ? incoming.message.trim().slice(0, 160) : current.message,
+    };
+  }
+
+  if (body.holiday_week_alert && typeof body.holiday_week_alert === "object") {
+    const incoming = body.holiday_week_alert as { enabled?: unknown };
+    next.holiday_week_alert = {
+      enabled:
+        typeof incoming.enabled === "boolean" ? incoming.enabled : DEFAULT_WFM_CONFIG.holiday_week_alert.enabled,
+    };
+  }
+
+  // Alternate-Saturday rule. short_shift_id is a foreign id from the request
+  // body, so it's verified against this tenant's own wfm_shifts before being
+  // trusted (MULTI_TENANT_GUARDRAILS.md) -- both here and again by the
+  // generator itself, since a shift can be deleted after this was saved.
+  if (body.saturday_rule && typeof body.saturday_rule === "object") {
+    const incoming = body.saturday_rule as { enabled?: unknown; short_shift_id?: unknown };
+    let shiftId: string | null = null;
+    if (typeof incoming.short_shift_id === "string" && incoming.short_shift_id) {
+      const { data: shift } = await admin
+        .from("wfm_shifts").select("id").eq("id", incoming.short_shift_id).eq("tenant_id", tenantId).maybeSingle();
+      shiftId = shift ? (shift.id as string) : null;
+    }
+    next.saturday_rule = {
+      enabled: typeof incoming.enabled === "boolean" ? incoming.enabled : DEFAULT_WFM_CONFIG.saturday_rule.enabled,
+      short_shift_id: shiftId,
     };
   }
 

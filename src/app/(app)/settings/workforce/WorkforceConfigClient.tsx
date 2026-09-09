@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { SettingsField, SettingsRow, settingsInput as inp } from "@/components/settings/SettingsField";
@@ -26,8 +26,8 @@ const TIMEZONES = [
 
 const PUNCH_TYPE_ITEMS = [
   { key: "ot", label: "Overtime", hint: "Employees punch overtime as its own session after checking out; each one needs supervisor approval before it counts toward pay." },
-  { key: "mobile_work", label: "Mobile work", hint: "Working away from a site — counts as ordinary working time, just labelled differently." },
-  { key: "business_trip", label: "Business trip", hint: "Travel time recorded as working time." },
+  { key: "mobile_work", label: "Work from home", hint: "Working from home — ordinary working time, just labelled differently. Employees must have an approved work-from-home request for the day before they can punch it." },
+  { key: "business_trip", label: "Site visit", hint: "Time at a customer or project site, recorded as ordinary working time. Needs no advance approval — the employee just picks it when they punch in." },
 ] as const;
 
 const NOTIFICATION_ITEMS = [
@@ -35,6 +35,8 @@ const NOTIFICATION_ITEMS = [
   { key: "correction_pending", label: "Correction request submitted", hint: "Notify the supervisor when an employee files one." },
   { key: "leave_pending", label: "Leave request submitted", hint: "Notify the supervisor when an employee files one." },
   { key: "recheck_flagged", label: "Flagged for review", hint: "Notify the employee when a supervisor flags their punch." },
+  { key: "advance_request_pending", label: "OT/WFH request submitted", hint: "Notify the supervisor when an employee files an advance OT or work-from-home request." },
+  { key: "clarification_message", label: "Clarification message", hint: "Notify the other side when either you or an employee posts in a clarification thread." },
 ] as const;
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -69,6 +71,12 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  // Only needed for the Saturday-rule shift picker -- fetched lazily rather
+  // than server-prefetched, since most tenants never touch this section.
+  const [shifts, setShifts] = useState<{ id: string; name: string; start_time: string; end_time: string; active: boolean }[]>([]);
+  useEffect(() => {
+    fetch("/api/wfm/shifts").then(async (r) => { if (r.ok) setShifts(await r.json()); }).catch(() => {});
+  }, []);
 
   const dirty = useMemo(() => JSON.stringify(cfg) !== JSON.stringify(savedCfg), [cfg, savedCfg]);
 
@@ -154,9 +162,15 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
     punchTypes: enabledPunchTypes.length
       ? `${enabledPunchTypes.join(", ")} on${cfg.punch_types.ot && cfg.ot_rate_per_hour ? ` · OT at ${cfg.ot_rate_per_hour}/hr` : ""}`
       : "Check in, check out and breaks only",
-    reminder: cfg.long_day_alert?.enabled
-      ? `On — after ${cfg.long_day_alert.after_hours ?? 9} hours worked`
-      : "Off",
+    reminder:
+      [
+        cfg.long_day_alert?.enabled ? `punch out after ${cfg.long_day_alert.after_hours ?? 9}h` : null,
+        cfg.break_alert?.enabled ? `break over ${cfg.break_alert.after_minutes ?? 30}m` : null,
+        cfg.holiday_week_alert?.enabled ? "weekly holiday digest" : null,
+      ].filter(Boolean).join(" · ") || "All off",
+    saturdayRule: cfg.saturday_rule?.enabled
+      ? `On — ${shifts.find((s) => s.id === cfg.saturday_rule.short_shift_id)?.name ?? "pick a shift"} on alternate Saturdays, 2nd Saturday off`
+      : "Off — every Saturday follows the standing shift",
     notifications: `${notifOn} of ${NOTIFICATION_ITEMS.length} on`,
     billing: costing.default_bill_rate > 0 || Object.values(costing.rates_by_employment_type).some((r) => (r.bill ?? 0) > 0)
       ? [
@@ -477,7 +491,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
         )}
       </SettingsSection>
 
-      <SettingsSection id="wfm-reminder" title="Punch-out reminder" summary={summaries.reminder}>
+      <SettingsSection id="wfm-reminder" title="Phone reminders" summary={summaries.reminder}>
         <SettingsRow
           label="Remind employees to punch out"
           help="Sent to the employee's own phone, not to a supervisor. They must open My Workforce on their phone once and allow notifications."
@@ -513,6 +527,110 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
               }
               style={{ ...inp, width: 100 }}
             />
+          </SettingsRow>
+        )}
+
+        <SettingsRow
+          label="Remind employees whose break runs long"
+          help="Catches a forgotten break-end, which otherwise keeps eating worked time until the day is closed. One reminder per person per day."
+        >
+          <Toggle
+            checked={cfg.break_alert?.enabled === true}
+            onChange={(v) =>
+              setCfg({
+                ...cfg,
+                break_alert: {
+                  enabled: v,
+                  after_minutes: cfg.break_alert?.after_minutes ?? 30,
+                  message: cfg.break_alert?.message ?? "",
+                },
+              })
+            }
+          />
+        </SettingsRow>
+
+        {cfg.break_alert?.enabled && (
+          <>
+            <SettingsRow label="After this many minutes on break" help="Counted from the break-start punch.">
+              <input
+                type="number"
+                min={5}
+                max={240}
+                step={5}
+                value={cfg.break_alert?.after_minutes ?? 30}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    break_alert: {
+                      enabled: true,
+                      after_minutes: Number(e.target.value) || 30,
+                      message: cfg.break_alert?.message ?? "",
+                    },
+                  })
+                }
+                style={{ ...inp, width: 100 }}
+              />
+            </SettingsRow>
+            <SettingsRow
+              label="Your own wording (optional)"
+              help="Leave blank for the standard message, which tells them how long they've been on break."
+            >
+              <input
+                type="text"
+                maxLength={160}
+                placeholder="You've been on break for 35m. Punch back in when you're ready."
+                value={cfg.break_alert?.message ?? ""}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    break_alert: {
+                      enabled: true,
+                      after_minutes: cfg.break_alert?.after_minutes ?? 30,
+                      message: e.target.value,
+                    },
+                  })
+                }
+                style={inp}
+              />
+            </SettingsRow>
+          </>
+        )}
+
+        <SettingsRow
+          label="Tell employees about holidays coming this week"
+          help="A single message every Monday morning naming each holiday in the next seven days, taken from the holiday calendar. Nothing is sent in a week with no holidays."
+        >
+          <Toggle
+            checked={cfg.holiday_week_alert?.enabled === true}
+            onChange={(v) => setCfg({ ...cfg, holiday_week_alert: { enabled: v } })}
+          />
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection id="wfm-saturday-rule" title="Alternate Saturdays" summary={summaries.saturdayRule}>
+        <SettingsRow
+          label="Every Saturday is a short day; the 2nd is a holiday"
+          help="Applied automatically: a short-day roster row for every Saturday except the 2nd, and a holiday for the 2nd, materialized a month ahead (and editable afterward, exactly like any other roster/holiday entry). Coming in and working the 2nd Saturday requires the OT punch, same as any other day nobody was expected in."
+          first
+        >
+          <Toggle
+            checked={cfg.saturday_rule?.enabled === true}
+            onChange={(v) => setCfg({ ...cfg, saturday_rule: { enabled: v, short_shift_id: cfg.saturday_rule?.short_shift_id ?? null } })}
+          />
+        </SettingsRow>
+
+        {cfg.saturday_rule?.enabled && (
+          <SettingsRow label="Short-day shift" help="Which shift applies on the 1st, 3rd, 4th and 5th Saturdays. Create it under Shifts first if it doesn't exist yet.">
+            <select
+              style={inp}
+              value={cfg.saturday_rule?.short_shift_id ?? ""}
+              onChange={(e) => setCfg({ ...cfg, saturday_rule: { enabled: true, short_shift_id: e.target.value || null } })}
+            >
+              <option value="">— select —</option>
+              {shifts.filter((s) => s.active).map((s) => (
+                <option key={s.id} value={s.id}>{s.name} ({s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)})</option>
+              ))}
+            </select>
           </SettingsRow>
         )}
       </SettingsSection>
