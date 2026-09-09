@@ -886,7 +886,12 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const canCheckIn = punchOptions.includes("check_in");
   const canCheckOut = punchOptions.includes("check_out");
   const otherOptions: PresenceKind[] = punchOptions.filter((k) => k !== "check_in" && k !== "check_out");
-  const activeOther = selectedKind && otherOptions.includes(selectedKind) ? selectedKind : otherOptions[0] ?? null;
+  // Deliberately NOT auto-selected (production incident, BIM 2026-09-09):
+  // when OT was the only "other" option, the dropdown pre-armed "OT in" the
+  // moment the page loaded, so one stray/habitual tap on "Go" recorded a real
+  // OT punch nobody meant to make. Nothing is active here until the employee
+  // has actually opened the dropdown and picked something themselves.
+  const activeOther = selectedKind && otherOptions.includes(selectedKind) ? selectedKind : null;
 
   // Supervisor-managed workforce (client decision 2026-08-21): when a tenant
   // turns employee self-service off, employees no longer punch from their
@@ -1160,6 +1165,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
                     background: c.panel, color: c.ink, fontSize: 12.5, fontWeight: 600, outline: "none", cursor: "pointer",
                   }}
                 >
+                  <option value="" disabled>Other…</option>
                   {otherOptions.map((k) => (
                     <option key={k} value={k}>{PUNCH_KIND_LABEL[k]}</option>
                   ))}
