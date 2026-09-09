@@ -1,10 +1,49 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { c } from "@/lib/theme";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { parseImportFile, ImportParseError } from "@/lib/import/parse";
+import type { ParsedSheet } from "@/lib/import/types";
 
 type Holiday = { id: string; date: string; name: string; applies_to: "all" | "full_time" | "contractor" };
+type UploadResult = { applied: number; skipped: { row: number; reason: string }[] };
+
+const HOLIDAY_ALIASES: Record<"date" | "name" | "applies_to", string[]> = {
+  date: ["date"],
+  name: ["name", "holiday", "holiday name"],
+  applies_to: ["applies to", "applies_to", "audience"],
+};
+
+function colIndex(headers: string[], aliases: string[]): number {
+  const norm = headers.map((h) => h.trim().toLowerCase());
+  return aliases.reduce((found, a) => (found !== -1 ? found : norm.indexOf(a)), -1);
+}
+
+function sheetToHolidayRows(sheet: ParsedSheet): { date: string; name: string; applies_to: string }[] {
+  const dateIdx = colIndex(sheet.headers, HOLIDAY_ALIASES.date);
+  const nameIdx = colIndex(sheet.headers, HOLIDAY_ALIASES.name);
+  if (dateIdx === -1 || nameIdx === -1) {
+    throw new Error('The file needs at least "Date" and "Name" columns.');
+  }
+  const appliesIdx = colIndex(sheet.headers, HOLIDAY_ALIASES.applies_to);
+  return sheet.rows.map((cells) => ({
+    date: cells[dateIdx] ?? "",
+    name: cells[nameIdx] ?? "",
+    applies_to: appliesIdx !== -1 ? cells[appliesIdx] ?? "" : "",
+  }));
+}
+
+function downloadHolidayTemplate() {
+  const csv = ["Date,Name,Applies To", "2027-01-26,Republic Day,all"].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "holidays-template.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const lbl: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box" };
@@ -20,6 +59,10 @@ export default function HolidaysClient() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ date: "", name: "", applies_to: "all" as Holiday["applies_to"] });
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/wfm/holidays");
@@ -61,12 +104,68 @@ export default function HolidaysClient() {
     }
   }
 
+  async function handleFile(file: File) {
+    setUploadBusy(true);
+    setUploadError("");
+    setUploadResult(null);
+    try {
+      const sheet = await parseImportFile(file);
+      const rows = sheetToHolidayRows(sheet);
+      if (rows.length === 0) { setUploadError("That file has no data rows."); return; }
+      const res = await fetch("/api/wfm/holidays/bulk-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setUploadError(json.error ?? "Upload failed"); return; }
+      setUploadResult(json);
+      await load();
+    } catch (e) {
+      setUploadError(e instanceof ImportParseError || e instanceof Error ? e.message : "Could not read that file");
+    } finally {
+      setUploadBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   const q = query.trim().toLowerCase();
   const visible = holidays.filter((h) => !q || h.name.toLowerCase().includes(q));
 
   return (
     <>
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
+
+      <section style={{ ...cardStyle, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, marginBottom: 3 }}>Upload a whole year at once</div>
+        <div style={{ fontSize: 12, color: c.muted, marginBottom: 10 }}>Columns: Date (YYYY-MM-DD), Name, Applies To (all / full_time / contractor — optional, defaults to everyone).</div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button type="button" style={btn} onClick={downloadHolidayTemplate}>Download template</button>
+          <input
+            ref={fileInputRef} type="file" accept=".xlsx,.xlsm,.csv"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
+            disabled={uploadBusy}
+            style={{ fontSize: 12.5 }}
+          />
+          {uploadBusy && <span style={{ fontSize: 12, color: c.hint }}>Uploading…</span>}
+        </div>
+        {uploadError && <div style={{ fontSize: 12.5, color: statusInk.bad, marginTop: 8 }}>{uploadError}</div>}
+        {uploadResult && (
+          <div style={{ fontSize: 12.5, color: c.ink, marginTop: 8 }}>
+            Added/updated {uploadResult.applied} holiday(s).
+            {uploadResult.skipped.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                <div style={{ color: statusInk.warn, fontWeight: 600 }}>{uploadResult.skipped.length} row(s) skipped:</div>
+                <ul style={{ margin: "4px 0 0", paddingLeft: 18, color: c.muted }}>
+                  {uploadResult.skipped.slice(0, 20).map((s, i) => <li key={i}>Row {s.row}: {s.reason}</li>)}
+                </ul>
+                {uploadResult.skipped.length > 20 && <div style={{ color: c.hint, marginTop: 4 }}>…and {uploadResult.skipped.length - 20} more.</div>}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
       <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
         <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div>

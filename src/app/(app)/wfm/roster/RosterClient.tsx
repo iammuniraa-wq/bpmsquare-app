@@ -9,6 +9,44 @@ import { ROUTES } from "@/lib/constants";
 import type { WfmShift, WfmSite } from "@/lib/wfm/types";
 import { depthOf } from "@/lib/wfm/projectTree";
 import { groupSpans, type Span } from "@/lib/wfm/rosterSpans";
+import { parseImportFile, ImportParseError } from "@/lib/import/parse";
+import type { ParsedSheet } from "@/lib/import/types";
+
+type UploadResult = { applied: number; skipped: { row: number; reason: string }[] };
+
+const ROSTER_ALIASES: Record<"employee" | "date" | "shift" | "site" | "day_off" | "note", string[]> = {
+  employee: ["employee code", "employee", "code", "employee id"],
+  date: ["date"],
+  shift: ["shift"],
+  site: ["site"],
+  day_off: ["day off", "dayoff", "off"],
+  note: ["note", "notes"],
+};
+
+function colIndex(headers: string[], aliases: string[]): number {
+  const norm = headers.map((h) => h.trim().toLowerCase());
+  return aliases.reduce((found, a) => (found !== -1 ? found : norm.indexOf(a)), -1);
+}
+
+function sheetToRosterRows(sheet: ParsedSheet) {
+  const employeeIdx = colIndex(sheet.headers, ROSTER_ALIASES.employee);
+  const dateIdx = colIndex(sheet.headers, ROSTER_ALIASES.date);
+  if (employeeIdx === -1 || dateIdx === -1) {
+    throw new Error('The file needs at least "Employee Code" and "Date" columns.');
+  }
+  const shiftIdx = colIndex(sheet.headers, ROSTER_ALIASES.shift);
+  const siteIdx = colIndex(sheet.headers, ROSTER_ALIASES.site);
+  const dayOffIdx = colIndex(sheet.headers, ROSTER_ALIASES.day_off);
+  const noteIdx = colIndex(sheet.headers, ROSTER_ALIASES.note);
+  return sheet.rows.map((cells) => ({
+    employee: cells[employeeIdx] ?? "",
+    date: cells[dateIdx] ?? "",
+    shift: shiftIdx !== -1 ? cells[shiftIdx] ?? "" : "",
+    site: siteIdx !== -1 ? cells[siteIdx] ?? "" : "",
+    day_off: dayOffIdx !== -1 ? cells[dayOffIdx] ?? "" : "",
+    note: noteIdx !== -1 ? cells[noteIdx] ?? "" : "",
+  }));
+}
 
 type EmployeeRow = {
   id: string;
@@ -216,6 +254,12 @@ export default function RosterClient({ initial = null }: {
   const serverSeeded = useRef(initial != null);
   const [error, setError] = useState("");
 
+  // ── Upload: a whole roster spreadsheet, one row per employee+date ─────
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   // ── Section A: standing site + shift (bulk matrix) ────────────────────
   const [searchA, setSearchA] = useState("");
   const [siteFilterA, setSiteFilterA] = useState("");
@@ -299,6 +343,47 @@ export default function RosterClient({ initial = null }: {
       .catch(() => { /* roster still works without it */ });
     return () => { cancelled = true; };
   }, []);
+
+  async function handleRosterFile(file: File) {
+    setUploadBusy(true);
+    setUploadError("");
+    setUploadResult(null);
+    try {
+      const sheet = await parseImportFile(file);
+      const rows = sheetToRosterRows(sheet);
+      if (rows.length === 0) { setUploadError("That file has no data rows."); return; }
+      const res = await fetch("/api/wfm/roster/bulk-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setUploadError(json.error ?? "Upload failed"); return; }
+      setUploadResult(json);
+      await load();
+    } catch (e) {
+      setUploadError(e instanceof ImportParseError || e instanceof Error ? e.message : "Could not read that file");
+    } finally {
+      setUploadBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function downloadRosterTemplate() {
+    const exampleEmployee = employees.find((e) => e.status === "active")?.employee_code ?? "EMP-001";
+    const exampleShift = shifts.find((s) => s.active)?.name ?? "";
+    const csv = [
+      "Employee Code,Date,Shift,Site,Day Off,Note",
+      `${exampleEmployee},${todayKey()},${exampleShift},,no,`,
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "roster-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   // ── Section A logic ───────────────────────────────────────────────────
   const activeShifts = useMemo(() => shifts.filter((s) => s.active), [shifts]);
@@ -528,6 +613,41 @@ export default function RosterClient({ initial = null }: {
   return (
     <>
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
+
+      {/* ── Upload a roster spreadsheet ────────────────────────────────── */}
+      <section style={{ ...cardStyle, marginBottom: 22 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 3 }}>Upload a roster spreadsheet</div>
+        <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+          One row per employee per date — each row can carry its own shift, site, day off, or note, unlike the
+          bulk tools below which apply one set of values to everyone selected. Columns: Employee Code, Date
+          (YYYY-MM-DD), Shift, Site, Day Off (yes/no), Note.
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button type="button" style={btn} onClick={downloadRosterTemplate}>Download template</button>
+          <input
+            ref={fileInputRef} type="file" accept=".xlsx,.xlsm,.csv"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleRosterFile(f); }}
+            disabled={uploadBusy}
+            style={{ fontSize: 12.5 }}
+          />
+          {uploadBusy && <span style={{ fontSize: 12, color: c.hint }}>Uploading…</span>}
+        </div>
+        {uploadError && <div style={{ fontSize: 12.5, color: statusInk.bad, marginTop: 8 }}>{uploadError}</div>}
+        {uploadResult && (
+          <div style={{ fontSize: 12.5, color: c.ink, marginTop: 8 }}>
+            Applied {uploadResult.applied} row(s).
+            {uploadResult.skipped.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                <div style={{ color: statusInk.warn, fontWeight: 600 }}>{uploadResult.skipped.length} row(s) skipped:</div>
+                <ul style={{ margin: "4px 0 0", paddingLeft: 18, color: c.muted }}>
+                  {uploadResult.skipped.slice(0, 20).map((s, i) => <li key={i}>Row {s.row}: {s.reason}</li>)}
+                </ul>
+                {uploadResult.skipped.length > 20 && <div style={{ color: c.hint, marginTop: 4 }}>…and {uploadResult.skipped.length - 20} more.</div>}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* ── Section A: standing site + shift ──────────────────────────── */}
       <section style={{ ...cardStyle, padding: 0, marginBottom: 22, overflowX: "auto" }}>
