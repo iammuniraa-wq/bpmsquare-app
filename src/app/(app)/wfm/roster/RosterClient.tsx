@@ -14,9 +14,14 @@ import type { ParsedSheet } from "@/lib/import/types";
 
 type UploadResult = { applied: number; skipped: { row: number; reason: string }[] };
 
-const ROSTER_ALIASES: Record<"employee" | "date" | "shift" | "site" | "day_off" | "note", string[]> = {
+// "Date" alone (single day) still works -- it's just an alias for Date From
+// with no Date To, same as leaving Date To blank on purpose. That keeps last
+// week's template valid while letting a new one cover a whole week or month
+// in a single row instead of one row per day.
+const ROSTER_ALIASES: Record<"employee" | "date_from" | "date_to" | "shift" | "site" | "day_off" | "note", string[]> = {
   employee: ["employee code", "employee", "code", "employee id"],
-  date: ["date"],
+  date_from: ["date from", "from date", "from", "date"],
+  date_to: ["date to", "to date", "to"],
   shift: ["shift"],
   site: ["site"],
   day_off: ["day off", "dayoff", "off"],
@@ -30,17 +35,19 @@ function colIndex(headers: string[], aliases: string[]): number {
 
 function sheetToRosterRows(sheet: ParsedSheet) {
   const employeeIdx = colIndex(sheet.headers, ROSTER_ALIASES.employee);
-  const dateIdx = colIndex(sheet.headers, ROSTER_ALIASES.date);
-  if (employeeIdx === -1 || dateIdx === -1) {
-    throw new Error('The file needs at least "Employee Code" and "Date" columns.');
+  const dateFromIdx = colIndex(sheet.headers, ROSTER_ALIASES.date_from);
+  if (employeeIdx === -1 || dateFromIdx === -1) {
+    throw new Error('The file needs at least "Employee Code" and "Date From" (or "Date") columns.');
   }
+  const dateToIdx = colIndex(sheet.headers, ROSTER_ALIASES.date_to);
   const shiftIdx = colIndex(sheet.headers, ROSTER_ALIASES.shift);
   const siteIdx = colIndex(sheet.headers, ROSTER_ALIASES.site);
   const dayOffIdx = colIndex(sheet.headers, ROSTER_ALIASES.day_off);
   const noteIdx = colIndex(sheet.headers, ROSTER_ALIASES.note);
   return sheet.rows.map((cells) => ({
     employee: cells[employeeIdx] ?? "",
-    date: cells[dateIdx] ?? "",
+    date_from: cells[dateFromIdx] ?? "",
+    date_to: dateToIdx !== -1 ? cells[dateToIdx] ?? "" : "",
     shift: shiftIdx !== -1 ? cells[shiftIdx] ?? "" : "",
     site: siteIdx !== -1 ? cells[siteIdx] ?? "" : "",
     day_off: dayOffIdx !== -1 ? cells[dayOffIdx] ?? "" : "",
@@ -372,9 +379,12 @@ export default function RosterClient({ initial = null }: {
   function downloadRosterTemplate() {
     const exampleEmployee = employees.find((e) => e.status === "active")?.employee_code ?? "EMP-001";
     const exampleShift = shifts.find((s) => s.active)?.name ?? "";
+    const weekEnd = new Date();
+    weekEnd.setDate(weekEnd.getDate() + 6);
     const csv = [
-      "Employee Code,Date,Shift,Site,Day Off,Note",
-      `${exampleEmployee},${todayKey()},${exampleShift},,no,`,
+      "Employee Code,Date From,Date To,Shift,Site,Day Off,Note",
+      // One row covering a whole week -- Date To blank means a single day.
+      `${exampleEmployee},${todayKey()},${weekEnd.toISOString().slice(0, 10)},${exampleShift},,no,`,
     ].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -618,9 +628,10 @@ export default function RosterClient({ initial = null }: {
       <section style={{ ...cardStyle, marginBottom: 22 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 3 }}>Upload a roster spreadsheet</div>
         <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
-          One row per employee per date — each row can carry its own shift, site, day off, or note, unlike the
-          bulk tools below which apply one set of values to everyone selected. Columns: Employee Code, Date
-          (YYYY-MM-DD), Shift, Site, Day Off (yes/no), Note.
+          One row per employee, covering a single day or a whole date range (a week, a month, however long) — each
+          row can carry its own shift, site, day off, or note, unlike the bulk tools below which apply one set of
+          values to everyone selected. Columns: Employee Code, Date From, Date To (YYYY-MM-DD; leave Date To blank
+          for a single day), Shift, Site, Day Off (yes/no), Note.
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button type="button" style={btn} onClick={downloadRosterTemplate}>Download template</button>
