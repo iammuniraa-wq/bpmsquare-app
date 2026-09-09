@@ -11,6 +11,11 @@ import { depthOf } from "@/lib/wfm/projectTree";
 import { groupSpans, type Span } from "@/lib/wfm/rosterSpans";
 import { parseImportFile, ImportParseError } from "@/lib/import/parse";
 import type { ParsedSheet } from "@/lib/import/types";
+import { csvCell } from "@/lib/import/template";
+
+function csvRow(cells: string[]): string {
+  return cells.map(csvCell).join(",");
+}
 
 type UploadResult = { applied: number; skipped: { row: number; reason: string }[] };
 
@@ -377,15 +382,18 @@ export default function RosterClient({ initial = null }: {
   }
 
   function downloadRosterTemplate() {
-    const exampleEmployee = employees.find((e) => e.status === "active")?.employee_code ?? "EMP-001";
-    const exampleShift = shifts.find((s) => s.active)?.name ?? "";
-    const weekEnd = new Date();
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    const csv = [
-      "Employee Code,Date From,Date To,Shift,Site,Day Off,Note",
-      // One row covering a whole week -- Date To blank means a single day.
-      `${exampleEmployee},${todayKey()},${weekEnd.toISOString().slice(0, 10)},${exampleShift},,no,`,
-    ].join("\n");
+    // Pre-filled with every active employee's code + name -- a supervisor
+    // filling this in by hand shouldn't have to go look up ids first. Dates/
+    // shift/site are left blank per row for them to fill in (or delete rows
+    // for anyone not being rostered this time).
+    const activeEmployees = employees
+      .filter((e) => e.status === "active")
+      .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`));
+    const header = "Employee Code,Employee Name,Date From,Date To,Shift,Site,Day Off,Note";
+    const rows = activeEmployees.length > 0
+      ? activeEmployees.map((e) => csvRow([e.employee_code ?? "", `${e.first_name} ${e.last_name}`.trim(), "", "", "", "", "", ""]))
+      : [csvRow(["EMP-001", "Example Employee", "", "", "", "", "", ""])];
+    const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
