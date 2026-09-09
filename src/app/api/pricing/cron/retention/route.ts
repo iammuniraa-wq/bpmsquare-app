@@ -4,9 +4,15 @@ import { pricingRetentionDays, retentionCutoff } from "@/lib/pricing/documents";
 import type { TenantConfig } from "@/lib/constants";
 
 // GET /api/pricing/cron/retention — daily purge of stored pricing contexts
-// past each tenant's config.pricing.retention_days (default 180). Triggered
-// by .github/workflows/pricing-retention.yml, NOT a Vercel cron: the Hobby
-// plan's two cron slots are taken (see wfm-hours-alert.yml for the history).
+// past each tenant's config.pricing.retention_days (default 180). Vercel
+// cron (vercel.json) -- was a GitHub Actions workflow until 2026-09-09,
+// back when the Hobby plan's two-cron-per-project cap meant a third native
+// cron got the whole deployment rejected. Now on Pro (100 crons/project,
+// per-minute precision as of Vercel's Jan-2026 change), no reason not to
+// run it natively; that also drops the GitHub Actions repo secret and its
+// own "best-effort, can silently stop after 60 days" schedule as failure
+// modes. Vercel auto-sends `Authorization: Bearer $CRON_SECRET` on every
+// invocation, matching the check below with no code change needed.
 //
 // Platform-wide by nature; every delete is tenant-scoped. Simulation replays
 // of a purged document keep their own row -- replay_of is ON DELETE SET NULL.

@@ -6,6 +6,11 @@ import { sendToEmployee, pushConfigured } from "@/lib/wfm/push";
 import type { PresenceKind } from "@/lib/wfm/types";
 
 // GET /api/wfm/cron/hours-alert — Vercel cron (vercel.json), every 15 min.
+// Ran as a GitHub Actions workflow instead from 2026-09-04 to 2026-09-09 --
+// the Hobby plan's two-cron-per-project cap made a third native cron reject
+// the whole deployment. Moved back once the project was confirmed on Pro
+// (100 crons/project, per-minute precision): see
+// api/pricing/cron/retention/route.ts's header for the full reasoning.
 //
 // Tells an employee, on their own phone, that they have passed the tenant's
 // worked-hours threshold and should punch out. Client request (BIM,
