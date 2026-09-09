@@ -507,8 +507,10 @@ deploy for an automatic schema change.
   every seeded product through both books; totals matched lineTotals.ts),
   then removed from dev entirely -- the owner wants Big Blue on production
   only. Needs 0120 for the deals (skipped cleanly if pending).
-- **0124_wfm_site_approvers_and_employee_alerts.sql — PENDING on both DBs**
-  (written 2026-09-10, BIM client list of the same day). Two tables, each
+- **0124_wfm_site_approvers_and_employee_alerts.sql — PENDING**
+  (written 2026-09-10, BIM client list of the same day. Confirmed ABSENT from
+  production 2026-09-10 by the same `pg_class` check that found 0123 already
+  applied -- both tables missing. Dev DB state unverified.) Two tables, each
   with RLS + a tenant-isolation policy in the same file, WFM's select-only
   convention: `wfm_site_approvers` (extra approvers per site, additive to
   `wfm_sites.supervisor_id` -- one named supervisor going on leave used to
@@ -524,7 +526,16 @@ deploy for an automatic schema change.
   both new alerts simply never claim, so nothing is sent. Turning the two
   alerts on also needs `break_alert` / `holiday_week_alert` in
   Settings → Workforce → Phone reminders, both default off.
-- **0123_wfm_advance_requests_and_clarifications.sql — PENDING on both DBs**
+- **0123_wfm_advance_requests_and_clarifications.sql — APPLIED to production**
+  (verified 2026-09-10 by querying `pg_class`/`pg_policies`/`pg_indexes`: all
+  three tables present, RLS on, one policy each, index counts 4/3/2 as
+  written. Applied by hand at some point after 2026-09-09; this ledger still
+  said PENDING, which is the drift `production-schema-drift` warns about --
+  check the live database, not this file, before assuming. Dev DB state
+  unverified.) **No WFH lockout resulted**: the gate this migration activates
+  only bites when `config.wfm.punch_types.mobile_work` is on, and BIM has it
+  off -- zero WFH requests ever, zero `mobile_work_start` punches in the
+  preceding 30 days (checked 2026-09-10).
   (written 2026-09-09, owner request the same day: one "Requests" surface
   for OT/WFH advance notice, plus real back-and-forth clarification threads
   instead of one-shot correction/recheck replies). Two new tables, each with
