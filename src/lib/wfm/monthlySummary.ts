@@ -6,6 +6,7 @@ import { makeShiftResolver, type RosterLike, type ShiftLike } from "./effectiveS
 import { computeDayHours, shiftDayKey, workSessions, overnightTail, type BreakSegment, type WorkSession } from "./hours";
 import type { PresenceKind } from "./types";
 import { paidWithinMonthlyAllowance } from "./leaveRules";
+import { isSecondSaturday } from "./saturdayRule";
 
 // Shared per-employee-per-month aggregation — the one place the "rules
 // engine" (§6) actually runs across a whole month, used by BOTH the
@@ -334,7 +335,16 @@ export async function getMonthlySummary(
       const holiday = (holidays ?? []).find(
         (h) => h.date === date && (h.applies_to === "all" || h.applies_to === emp.employment_type)
       );
-      const isWeekOff = config.week_off_days.includes(weekdayOf(date));
+      // The `|| isSecondSaturday` half is defense-in-depth, not the primary
+      // mechanism: the Saturday rule's generator (saturdayRosterServer.ts)
+      // writes a real wfm_holidays row for the 2nd Saturday ahead of time,
+      // which the `holiday` lookup above already catches on its own. This
+      // covers the month it hasn't run yet (a missed cron, or the rule was
+      // just switched on) -- a live date check, same rationale as the punch
+      // route's own 2nd-Saturday gate, so absence/lateness can't be judged
+      // against a shift nobody was expected to work just because a row is late.
+      const isWeekOff = config.week_off_days.includes(weekdayOf(date))
+        || (config.saturday_rule.enabled && isSecondSaturday(date, config.timezone));
 
       let late = false;
       let absent = false;

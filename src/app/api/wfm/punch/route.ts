@@ -4,6 +4,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/lib/wfm/server";
 import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
 import { isWfhApprovedForDate } from "@/lib/wfm/advanceRequests";
+import { isSecondSaturday } from "@/lib/wfm/saturdayRule";
 import { ROUTES } from "@/lib/constants";
 import {
   applyPunch, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
@@ -148,6 +149,25 @@ export async function POST(request: NextRequest) {
   if (kind === "mobile_work_start" && !(await isWfhApprovedForDate(admin, tenantId, employee.id, dayKey))) {
     return NextResponse.json(
       { error: "Work from home isn't approved for today — request it from the Requests tab first." },
+      { status: 403 }
+    );
+  }
+
+  // 2nd Saturday of the month is a full holiday (owner decision 2026-09-09,
+  // BIM) -- coming in and working it must go through OT approval, same as
+  // any other day nobody was expected in. A LIVE date check, not a lookup
+  // against whatever wfm_holidays row the generator may or may not have
+  // written yet -- the gate can't be bypassed just because that row is late
+  // or missing. Only session-STARTS are blocked; ot_in is exactly the path
+  // this is meant to push people onto, and ending an already-open session
+  // (check_out etc.) is never something to refuse.
+  if (
+    config.saturday_rule.enabled &&
+    (kind === "check_in" || kind === "mobile_work_start" || kind === "business_trip_start") &&
+    isSecondSaturday(dayKey, config.timezone)
+  ) {
+    return NextResponse.json(
+      { error: "Today is the 2nd Saturday — a company holiday. Punch OT in if you're working today; your supervisor will need to approve it." },
       { status: 403 }
     );
   }

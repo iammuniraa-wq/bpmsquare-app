@@ -30,6 +30,7 @@ export async function GET() {
     ...DEFAULT_WFM_CONFIG,
     ...stored,
     notifications: { ...DEFAULT_WFM_CONFIG.notifications, ...(stored.notifications ?? {}) },
+    saturday_rule: { ...DEFAULT_WFM_CONFIG.saturday_rule, ...(stored.saturday_rule ?? {}) },
   });
 }
 
@@ -156,6 +157,24 @@ export async function PUT(request: NextRequest) {
         typeof incoming.after_hours === "number" && Number.isFinite(incoming.after_hours)
           ? Math.min(24, Math.max(1, Math.round(incoming.after_hours * 2) / 2))
           : current.after_hours,
+    };
+  }
+
+  // Alternate-Saturday rule. short_shift_id is a foreign id from the request
+  // body, so it's verified against this tenant's own wfm_shifts before being
+  // trusted (MULTI_TENANT_GUARDRAILS.md) -- both here and again by the
+  // generator itself, since a shift can be deleted after this was saved.
+  if (body.saturday_rule && typeof body.saturday_rule === "object") {
+    const incoming = body.saturday_rule as { enabled?: unknown; short_shift_id?: unknown };
+    let shiftId: string | null = null;
+    if (typeof incoming.short_shift_id === "string" && incoming.short_shift_id) {
+      const { data: shift } = await admin
+        .from("wfm_shifts").select("id").eq("id", incoming.short_shift_id).eq("tenant_id", tenantId).maybeSingle();
+      shiftId = shift ? (shift.id as string) : null;
+    }
+    next.saturday_rule = {
+      enabled: typeof incoming.enabled === "boolean" ? incoming.enabled : DEFAULT_WFM_CONFIG.saturday_rule.enabled,
+      short_shift_id: shiftId,
     };
   }
 

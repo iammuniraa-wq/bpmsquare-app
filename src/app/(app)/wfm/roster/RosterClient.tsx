@@ -110,6 +110,7 @@ const btnTiny: React.CSSProperties = { ...btn, padding: "3px 8px", fontSize: 10.
 const hhmm = (t: string) => t.slice(0, 5);
 const fmtDate = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" });
 const todayKey = () => new Date().toISOString().slice(0, 10);
+const thisMonthKey = () => new Date().toISOString().slice(0, 7);
 
 /** The API route and the server prefetch return the project differently --
  *  read whichever is present so the column is populated either way. */
@@ -272,6 +273,13 @@ export default function RosterClient({ initial = null }: {
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // ── Alternate-Saturday roster generator (Settings -> Workforce turns the
+  // rule on and picks the short-day shift; this just materializes it) ─────
+  const [satMonth, setSatMonth] = useState(thisMonthKey());
+  const [satBusy, setSatBusy] = useState(false);
+  const [satError, setSatError] = useState("");
+  const [satResult, setSatResult] = useState<{ month: string; holiday_created: boolean; roster_rows_created: number; roster_rows_skipped: number } | null>(null);
+
   // ── Section A: standing site + shift (bulk matrix) ────────────────────
   const [searchA, setSearchA] = useState("");
   const [siteFilterA, setSiteFilterA] = useState("");
@@ -401,6 +409,26 @@ export default function RosterClient({ initial = null }: {
     a.download = "roster-template.csv";
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function generateSaturdayRoster() {
+    setSatBusy(true);
+    setSatError("");
+    setSatResult(null);
+    try {
+      const res = await fetch("/api/wfm/saturday-roster/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: satMonth }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setSatError(json.error ?? "Could not generate"); return; }
+      setSatResult(json);
+      await load();
+    } catch {
+      setSatError("Network error");
+    } finally {
+      setSatBusy(false);
+    }
   }
 
   // ── Section A logic ───────────────────────────────────────────────────
@@ -664,6 +692,34 @@ export default function RosterClient({ initial = null }: {
                 {uploadResult.skipped.length > 20 && <div style={{ color: c.hint, marginTop: 4 }}>…and {uploadResult.skipped.length - 20} more.</div>}
               </div>
             )}
+          </div>
+        )}
+      </section>
+
+      {/* ── Alternate-Saturday roster generator ──────────────────────────
+          Runs automatically on the 25th of each month for next month (see
+          api/wfm/cron/saturday-roster); this is the same generator, for
+          backfilling a month it missed or generating right after turning
+          the rule on in Settings -> Workforce. Additive -- never touches a
+          row someone already set for that employee+date. */}
+      <section style={{ ...cardStyle, marginBottom: 22 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 3 }}>Alternate-Saturday roster</div>
+        <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+          Runs on its own every month once the rule is on in Settings → Workforce. Use this to backfill a
+          month it missed, or to generate right after turning the rule on.
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <input type="month" style={inp} value={satMonth} onChange={(e) => setSatMonth(e.target.value)} />
+          <button type="button" style={btnPrimary} disabled={satBusy} onClick={generateSaturdayRoster}>
+            {satBusy ? "Generating…" : "Generate"}
+          </button>
+        </div>
+        {satError && <div style={{ fontSize: 12.5, color: statusInk.bad, marginTop: 8 }}>{satError}</div>}
+        {satResult && (
+          <div style={{ fontSize: 12.5, color: c.ink, marginTop: 8 }}>
+            {satResult.month}: {satResult.holiday_created ? "2nd Saturday holiday created" : "2nd Saturday holiday already existed"},{" "}
+            {satResult.roster_rows_created} short-day row(s) added
+            {satResult.roster_rows_skipped > 0 && `, ${satResult.roster_rows_skipped} already had their own roster entry`}.
           </div>
         )}
       </section>

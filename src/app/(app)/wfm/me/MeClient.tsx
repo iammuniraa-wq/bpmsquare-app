@@ -62,6 +62,9 @@ type MeState = {
   /** Whether mobile_work_start (WFH) is legal today -- an approved
    *  wfm_advance_requests row covers it. False also means "not requested". */
   wfh_approved_today?: boolean;
+  /** 2nd Saturday of the month under the Saturday rule -- a full holiday;
+   *  starting a normal session is blocked, only OT is offered. */
+  is_second_saturday_today?: boolean;
   require_location?: boolean;
   selfie_mode?: "off" | "shift" | "all";
   employee_self_service?: boolean;
@@ -1015,6 +1018,10 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     // decision 2026-09-09) -- the punch route enforces this too; this just
     // stops the dropdown from offering something it would reject.
     if (k === "mobile_work_start" && !me.wfh_approved_today) return false;
+    // 2nd Saturday is a full holiday under the Saturday rule -- starting a
+    // normal session is blocked, only OT (not a "session start" in this
+    // sense) stays offered.
+    if (me.is_second_saturday_today && (k === "check_in" || k === "mobile_work_start" || k === "business_trip_start")) return false;
     return true;
   });
   // Check in/out cover nearly every punch, so they get their own big
@@ -1247,7 +1254,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         <div style={capStyle}>Punch</div>
         <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{fmtHM(liveWorked)}</div>
         <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
-          {me.state === "out" && me.today.length === 0 && "Not checked in yet"}
+          {me.state === "out" && me.today.length === 0 && (me.is_second_saturday_today ? "2nd Saturday — company holiday" : "Not checked in yet")}
           {me.state === "out" && me.today.length > 0 && "Checked out for today"}
           {me.state === "in" && "You're checked in"}
           {me.state === "break" && "On break"}

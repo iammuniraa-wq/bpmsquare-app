@@ -609,6 +609,22 @@ export type WfmConfig = {
     enabled: boolean;
     after_hours: number;
   };
+  /** Alternate/6-hour Saturday (owner decision 2026-09-09, BIM): every
+   *  Saturday is a short day on `short_shift_id`, EXCEPT the 2nd Saturday of
+   *  the month, which is a full holiday. Materialized as real data, not a
+   *  live rule baked into the shift resolver -- a monthly generator (cron +
+   *  an on-demand button on the Roster page) writes ordinary
+   *  wfm_roster_assignments rows for the short Saturdays and an ordinary
+   *  wfm_holidays row for the 2nd, additively (never overwrites a row a
+   *  supervisor already set). Every existing holiday/roster code path (late/
+   *  absence, the employee's holiday calendar, ...) then just works, unchanged.
+   *  The 2nd-Saturday punch gate (api/wfm/punch/route.ts) is a live date
+   *  check, not dependent on the row existing yet, so it can't be bypassed by
+   *  the generator simply not having run. */
+  saturday_rule: {
+    enabled: boolean;
+    short_shift_id: string | null;
+  };
   // Employment types this tenant actually uses. Was a hardcoded
   // full_time|contractor enum until a tenant needed "Intern" -- now a
   // tenant-editable list. `code` is what employees.employment_type stores and
@@ -725,6 +741,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
     clarification_message: true,
   },
   long_day_alert: { enabled: false, after_hours: 9 },
+  saturday_rule: { enabled: false, short_shift_id: null },
   employment_types: DEFAULT_EMPLOYMENT_TYPES,
   punch_types: { ot: false, mobile_work: false, business_trip: false },
   ot_rate_per_hour: 0,

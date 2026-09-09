@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { SettingsField, SettingsRow, settingsInput as inp } from "@/components/settings/SettingsField";
@@ -71,6 +71,12 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  // Only needed for the Saturday-rule shift picker -- fetched lazily rather
+  // than server-prefetched, since most tenants never touch this section.
+  const [shifts, setShifts] = useState<{ id: string; name: string; start_time: string; end_time: string; active: boolean }[]>([]);
+  useEffect(() => {
+    fetch("/api/wfm/shifts").then(async (r) => { if (r.ok) setShifts(await r.json()); }).catch(() => {});
+  }, []);
 
   const dirty = useMemo(() => JSON.stringify(cfg) !== JSON.stringify(savedCfg), [cfg, savedCfg]);
 
@@ -159,6 +165,9 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
     reminder: cfg.long_day_alert?.enabled
       ? `On — after ${cfg.long_day_alert.after_hours ?? 9} hours worked`
       : "Off",
+    saturdayRule: cfg.saturday_rule?.enabled
+      ? `On — ${shifts.find((s) => s.id === cfg.saturday_rule.short_shift_id)?.name ?? "pick a shift"} on alternate Saturdays, 2nd Saturday off`
+      : "Off — every Saturday follows the standing shift",
     notifications: `${notifOn} of ${NOTIFICATION_ITEMS.length} on`,
     billing: costing.default_bill_rate > 0 || Object.values(costing.rates_by_employment_type).some((r) => (r.bill ?? 0) > 0)
       ? [
@@ -515,6 +524,34 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
               }
               style={{ ...inp, width: 100 }}
             />
+          </SettingsRow>
+        )}
+      </SettingsSection>
+
+      <SettingsSection id="wfm-saturday-rule" title="Alternate Saturdays" summary={summaries.saturdayRule}>
+        <SettingsRow
+          label="Every Saturday is a short day; the 2nd is a holiday"
+          help="Applied automatically: a short-day roster row for every Saturday except the 2nd, and a holiday for the 2nd, materialized a month ahead (and editable afterward, exactly like any other roster/holiday entry). Coming in and working the 2nd Saturday requires the OT punch, same as any other day nobody was expected in."
+          first
+        >
+          <Toggle
+            checked={cfg.saturday_rule?.enabled === true}
+            onChange={(v) => setCfg({ ...cfg, saturday_rule: { enabled: v, short_shift_id: cfg.saturday_rule?.short_shift_id ?? null } })}
+          />
+        </SettingsRow>
+
+        {cfg.saturday_rule?.enabled && (
+          <SettingsRow label="Short-day shift" help="Which shift applies on the 1st, 3rd, 4th and 5th Saturdays. Create it under Shifts first if it doesn't exist yet.">
+            <select
+              style={inp}
+              value={cfg.saturday_rule?.short_shift_id ?? ""}
+              onChange={(e) => setCfg({ ...cfg, saturday_rule: { enabled: true, short_shift_id: e.target.value || null } })}
+            >
+              <option value="">— select —</option>
+              {shifts.filter((s) => s.active).map((s) => (
+                <option key={s.id} value={s.id}>{s.name} ({s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)})</option>
+              ))}
+            </select>
           </SettingsRow>
         )}
       </SettingsSection>

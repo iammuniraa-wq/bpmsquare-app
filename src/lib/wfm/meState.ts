@@ -12,6 +12,7 @@ import { type PresenceKind } from "@/lib/wfm/types";
 import { computeDayHours, shiftDayKey, punchStateAt } from "@/lib/wfm/hours";
 import { attributePunch } from "@/lib/wfm/projectServer";
 import { isWfhApprovedForDate } from "@/lib/wfm/advanceRequests";
+import { isSecondSaturday } from "@/lib/wfm/saturdayRule";
 import { tenantHasFeature } from "@/lib/tenant";
 
 /**
@@ -161,6 +162,11 @@ export async function buildWfmMeState(ctx: WfmContext) {
     ? await isWfhApprovedForDate(admin, tenantId, employee.id, todayKey)
     : false;
 
+  // 2nd Saturday: a live date check (see lib/wfm/saturdayRule.ts), same one
+  // the punch route enforces -- this is just so the dropdown doesn't offer
+  // an option the route would reject.
+  const secondSaturdayToday = config.saturday_rule.enabled && isSecondSaturday(todayKey, config.timezone);
+
   let todayProject: { id: string; name: string; source: string } | null = null;
   if (await tenantHasFeature(admin, tenantId, "wfm_projects")) {
     const attributed = await attributePunch(
@@ -196,6 +202,7 @@ export async function buildWfmMeState(ctx: WfmContext) {
     timezone: config.timezone,
     punch_types: config.punch_types,
     wfh_approved_today: wfhApprovedToday,
+    is_second_saturday_today: secondSaturdayToday,
     // The client refuses BEFORE opening the camera rather than letting
     // someone take a selfie and only then be rejected. The punch route is
     // the real enforcement; this is so the refusal happens early.
