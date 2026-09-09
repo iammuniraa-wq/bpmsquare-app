@@ -19,6 +19,12 @@ export type WfmSite = {
    * (employees.site_id and wfm_sites.supervisor_id), so every embed across
    * that pair must name which one it means. */
   supervisor?: { first_name: string; last_name: string; employee_code: string | null } | null;
+  /** Additional people who may also approve for this site (0124,
+   * wfm_site_approvers). Peers of supervisor_id, not a second hierarchy —
+   * added because one named supervisor going on leave froze every comp-off,
+   * sick-leave and WFH request at their site. Empty (and absent while 0124 is
+   * pending) means the pre-0124 behaviour: supervisor_id is the only route. */
+  approver_ids?: string[];
 };
 
 export type WfmProjectStatus = "planned" | "active" | "on_hold" | "completed" | "cancelled";
@@ -162,6 +168,14 @@ export function isOtKind(kind: PresenceKind): boolean { return OT_KINDS.includes
 /** Optional punch-type groups a tenant can enable; the core four are always on. */
 export type PunchTypeGroup = "ot" | "mobile_work" | "business_trip";
 
+/**
+ * User-facing wording. The `mobile_work_*` / `business_trip_*` KIND STRINGS
+ * are frozen -- they are written into wfm_presence_events rows, pinned by that
+ * table's check constraint (0077), and every historical row already carries
+ * them; renaming them would be a data migration for a wording change. The
+ * labels below are the editable half (client wording, BIM 2026-09-10:
+ * "Work from home" and "Site visit" are what their people actually say).
+ */
 export const PUNCH_KIND_LABEL: Record<PresenceKind, string> = {
   check_in: "Check in",
   check_out: "Check out",
@@ -169,10 +183,10 @@ export const PUNCH_KIND_LABEL: Record<PresenceKind, string> = {
   break_end: "Break end",
   ot_in: "OT in",
   ot_out: "OT out",
-  mobile_work_start: "Mobile work start",
-  mobile_work_end: "Mobile work end",
-  business_trip_start: "Business trip start",
-  business_trip_end: "Business trip end",
+  mobile_work_start: "Work from home start",
+  mobile_work_end: "Work from home end",
+  business_trip_start: "Site visit start",
+  business_trip_end: "Site visit end",
 };
 
 /** Which optional group a kind belongs to (undefined = always-on core kind). */

@@ -31,6 +31,9 @@ export async function GET() {
     ...stored,
     notifications: { ...DEFAULT_WFM_CONFIG.notifications, ...(stored.notifications ?? {}) },
     saturday_rule: { ...DEFAULT_WFM_CONFIG.saturday_rule, ...(stored.saturday_rule ?? {}) },
+    long_day_alert: { ...DEFAULT_WFM_CONFIG.long_day_alert, ...(stored.long_day_alert ?? {}) },
+    break_alert: { ...DEFAULT_WFM_CONFIG.break_alert, ...(stored.break_alert ?? {}) },
+    holiday_week_alert: { ...DEFAULT_WFM_CONFIG.holiday_week_alert, ...(stored.holiday_week_alert ?? {}) },
   });
 }
 
@@ -157,6 +160,31 @@ export async function PUT(request: NextRequest) {
         typeof incoming.after_hours === "number" && Number.isFinite(incoming.after_hours)
           ? Math.min(24, Math.max(1, Math.round(incoming.after_hours * 2) / 2))
           : current.after_hours,
+    };
+  }
+
+  // Break-overrun push alert. after_minutes is clamped the same way and for
+  // the same reason as long_day_alert.after_hours; the custom message is
+  // trimmed and length-capped because it becomes a push notification body,
+  // where an unbounded string is simply truncated by the OS anyway.
+  if (body.break_alert && typeof body.break_alert === "object") {
+    const incoming = body.break_alert as { enabled?: unknown; after_minutes?: unknown; message?: unknown };
+    const current = DEFAULT_WFM_CONFIG.break_alert;
+    next.break_alert = {
+      enabled: typeof incoming.enabled === "boolean" ? incoming.enabled : current.enabled,
+      after_minutes:
+        typeof incoming.after_minutes === "number" && Number.isFinite(incoming.after_minutes)
+          ? Math.min(240, Math.max(5, Math.round(incoming.after_minutes)))
+          : current.after_minutes,
+      message: typeof incoming.message === "string" ? incoming.message.trim().slice(0, 160) : current.message,
+    };
+  }
+
+  if (body.holiday_week_alert && typeof body.holiday_week_alert === "object") {
+    const incoming = body.holiday_week_alert as { enabled?: unknown };
+    next.holiday_week_alert = {
+      enabled:
+        typeof incoming.enabled === "boolean" ? incoming.enabled : DEFAULT_WFM_CONFIG.holiday_week_alert.enabled,
     };
   }
 

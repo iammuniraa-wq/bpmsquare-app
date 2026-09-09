@@ -87,6 +87,9 @@ type MonthTotals = {
   days_present: number; working_minutes: number; late_marks: number;
   half_day_deductions: number; paid_leave_days: number; unpaid_leave_days: number;
   holiday_days: number; night_shifts: number; night_allowance_total: number; incomplete_days: number;
+  // Present in the API payload since the OT work; surfaced on the employee's
+  // own month view so overtime isn't a number only their supervisor can see.
+  absent_days?: number; ot_minutes?: number; ot_amount?: number; ot_pending_minutes?: number;
 };
 type BreakSegment = { start: string; end: string | null; minutes: number };
 type WorkSession = { in: string; out: string | null; gross_minutes: number; break_minutes: number; net_minutes: number; breaks: BreakSegment[] };
@@ -144,8 +147,8 @@ const TABS: { key: Tab; label: string }[] = [
 const KIND_LABEL: Record<PresenceKind, string> = {
   check_in: "Check in", check_out: "Check out", break_start: "Break", break_end: "End break",
   ot_in: "OT in", ot_out: "OT out",
-  mobile_work_start: "Mobile work", mobile_work_end: "End mobile work",
-  business_trip_start: "Business trip", business_trip_end: "End business trip",
+  mobile_work_start: "Work from home", mobile_work_end: "End work from home",
+  business_trip_start: "Site visit", business_trip_end: "End site visit",
 };
 const ISSUE_LABEL: Record<string, string> = {
   missing_check_in: "Missing check-in", missing_check_out: "Missing check-out",
@@ -157,6 +160,8 @@ const fmtHM = (mins: number) => `${Math.floor(mins / 60)}h ${String(Math.abs(Mat
 const fmtTime = (s: string) => new Date(s).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 const fmtDate = (s: string) => new Date(s + (s.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 const fmtMonth = (m: string) => new Date(m + "-01T00:00:00").toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
+/** "September 2026" — spelled out, for headings people read as a sentence. */
+const fmtMonthName = (m: string) => new Date(m + "-01T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 
@@ -2021,8 +2026,74 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           )}
 
           {timeView === "monthly" && (
-            /* Phone: minmax(200px) stacked these one per row -- eight tall
-               cards. 140px puts two per row. */
+            <>
+            {/* Plain-language month summary (client request, BIM 2026-09-10:
+                employees couldn't tell what the month's numbers meant or which
+                ones they still had to do something about). The tiles below
+                stay -- this says the same figures in sentences, states the
+                rule each one follows, and separates "for information" from
+                "this needs you to act". */}
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 8 }}>
+                How {fmtMonthName(month)} adds up
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                <li style={{ fontSize: 12.5, color: c.ink }}>
+                  You worked <strong>{fmtHM(monthTotals?.working_minutes ?? 0)}</strong> across{" "}
+                  <strong>{monthTotals?.days_present ?? 0}</strong> day(s) you punched in.
+                  {" "}That&apos;s each day&apos;s check-out minus its check-in
+                  {deductBreaks ? ", with break time taken off" : ", with break time left in"}.
+                </li>
+                {(monthTotals?.ot_minutes ?? 0) > 0 && (
+                  <li style={{ fontSize: 12.5, color: c.ink }}>
+                    <strong>{fmtHM(monthTotals?.ot_minutes ?? 0)}</strong> of approved overtime is counted
+                    separately from the hours above
+                    {(monthTotals?.ot_amount ?? 0) > 0 ? ` (${formatMoney(monthTotals?.ot_amount ?? 0, cur, {})})` : ""}.
+                  </li>
+                )}
+                <li style={{ fontSize: 12.5, color: c.ink }}>
+                  Days you weren&apos;t expected in aren&apos;t counted against you:{" "}
+                  <strong>{monthTotals?.holiday_days ?? 0}</strong> holiday(s) and your weekly off days.
+                </li>
+                <li style={{ fontSize: 12.5, color: c.ink }}>
+                  Leave taken: <strong>{monthTotals?.paid_leave_days ?? 0}</strong> paid and{" "}
+                  <strong>{monthTotals?.unpaid_leave_days ?? 0}</strong> unpaid.
+                  {(monthTotals?.unpaid_leave_days ?? 0) > 0 ? " Unpaid days are not paid for." : ""}
+                </li>
+                <li style={{ fontSize: 12.5, color: c.ink }}>
+                  <strong>{monthTotals?.late_marks ?? 0}</strong> late arrival(s)
+                  {(monthTotals?.half_day_deductions ?? 0) > 0
+                    ? ` — enough to make ${monthTotals?.half_day_deductions} half-day deduction(s) this month.`
+                    : ". Not enough to cost you a half day."}
+                </li>
+              </ul>
+
+              {((monthTotals?.incomplete_days ?? 0) > 0 || (monthTotals?.ot_pending_minutes ?? 0) > 0) && (
+                <div style={{
+                  marginTop: 12, paddingTop: 12, borderTop: `1px solid ${c.line}`,
+                  fontSize: 12.5, color: c.ink,
+                }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Still needs sorting out</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {(monthTotals?.incomplete_days ?? 0) > 0 && (
+                      <li>
+                        <strong>{monthTotals?.incomplete_days}</strong> day(s) have no check-out, so those
+                        hours aren&apos;t counted yet. Use <em>Request correction</em> below to have them fixed.
+                      </li>
+                    )}
+                    {(monthTotals?.ot_pending_minutes ?? 0) > 0 && (
+                      <li>
+                        <strong>{fmtHM(monthTotals?.ot_pending_minutes ?? 0)}</strong> of overtime is waiting
+                        on your supervisor&apos;s approval. It only counts toward pay once approved.
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </section>
+
+            {/* Phone: minmax(200px) stacked these one per row -- eight tall
+               cards. 140px puts two per row. */}
             <div style={{ ...grid(isMobile ? 140 : 200), marginBottom: 14 }}>
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Total worked</div><Stat value={fmtHM(monthTotals?.working_minutes ?? 0)} label={deductBreaks ? "breaks deducted" : "breaks not deducted"} /></section>
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Days present</div><Stat value={String(monthTotals?.days_present ?? 0)} label="days with a punch" /></section>
@@ -2032,7 +2103,20 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Holidays</div><Stat value={String(monthTotals?.holiday_days ?? 0)} label="this month" /></section>
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Night shifts</div><Stat value={String(monthTotals?.night_shifts ?? 0)} label={monthTotals?.night_allowance_total ? `${formatMoney(monthTotals.night_allowance_total, cur, {})} allowance` : "no allowance"} /></section>
               <section className="stat-tile" style={cardStyle}><div style={capStyle}>Incomplete</div><Stat value={String(monthTotals?.incomplete_days ?? 0)} label="days missing a check-out" tone={(monthTotals?.incomplete_days ?? 0) > 0 ? statusInk.bad : undefined} /></section>
+              <section className="stat-tile" style={cardStyle}>
+                <div style={capStyle}>Overtime</div>
+                <Stat
+                  value={fmtHM(monthTotals?.ot_minutes ?? 0)}
+                  label={
+                    (monthTotals?.ot_pending_minutes ?? 0) > 0
+                      ? `approved · ${fmtHM(monthTotals?.ot_pending_minutes ?? 0)} awaiting approval`
+                      : "approved this month"
+                  }
+                  tone={(monthTotals?.ot_pending_minutes ?? 0) > 0 ? statusInk.warn : undefined}
+                />
+              </section>
             </div>
+            </>
           )}
 
           <section style={cardStyle}>

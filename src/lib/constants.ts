@@ -609,6 +609,32 @@ export type WfmConfig = {
     enabled: boolean;
     after_hours: number;
   };
+  /** Nudge an employee whose BREAK has run long, on their own phone, so a
+   *  forgotten break_end doesn't quietly eat their worked hours (client
+   *  request, BIM 2026-09-10: "break notifications, standard + custom").
+   *
+   *  Standard vs custom is one setting, not two features: leaving
+   *  `after_minutes` and `message` alone gives every tenant the same standard
+   *  reminder, and a tenant whose breaks are genuinely 45 minutes -- or who
+   *  wants to say it in their own words, or their own language -- overrides
+   *  either. Blank `message` means the standard wording, never a blank push.
+   *
+   *  Same delivery constraints as long_day_alert: needs VAPID keys server-side
+   *  AND the employee to have tapped "Turn on", so it is off by default rather
+   *  than promising something that silently does nothing. */
+  break_alert: {
+    enabled: boolean;
+    after_minutes: number;
+    message: string;
+  };
+  /** A start-of-week push telling employees which holidays fall in the next
+   *  seven days (client request, BIM 2026-09-10). Reads the same wfm_holidays
+   *  rows the monthly summary and the roster already use, so it can never
+   *  announce a holiday the timesheet doesn't honour. One digest per employee
+   *  per week, and nothing is sent in a week with no holidays in it. */
+  holiday_week_alert: {
+    enabled: boolean;
+  };
   /** Alternate/6-hour Saturday (owner decision 2026-09-09, BIM): every
    *  Saturday is a short day on `short_shift_id`, EXCEPT the 2nd Saturday of
    *  the month, which is a full holiday. Materialized as real data, not a
@@ -741,6 +767,8 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
     clarification_message: true,
   },
   long_day_alert: { enabled: false, after_hours: 9 },
+  break_alert: { enabled: false, after_minutes: 30, message: "" },
+  holiday_week_alert: { enabled: false },
   saturday_rule: { enabled: false, short_shift_id: null },
   employment_types: DEFAULT_EMPLOYMENT_TYPES,
   punch_types: { ot: false, mobile_work: false, business_trip: false },

@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { getWfmConfig } from "@/lib/wfm/server";
 import { shiftDayKey, workSessions } from "@/lib/wfm/hours";
+import { openBreakMinutes, breakAlertBody } from "@/lib/wfm/breakAlert";
+import { claimAlert, releaseAlert } from "@/lib/wfm/employeeAlerts";
 import { sendToEmployee, pushConfigured } from "@/lib/wfm/push";
 import type { PresenceKind } from "@/lib/wfm/types";
 
@@ -12,9 +14,20 @@ import type { PresenceKind } from "@/lib/wfm/types";
 // (100 crons/project, per-minute precision): see
 // api/pricing/cron/retention/route.ts's header for the full reasoning.
 //
-// Tells an employee, on their own phone, that they have passed the tenant's
-// worked-hours threshold and should punch out. Client request (BIM,
-// 2026-09-04): the alert must reach the EMPLOYEE, not a supervisor.
+// Two employee-facing push alerts, in one pass because they need exactly the
+// same data (this tenant's active employees and their day's punches) and the
+// same 15-minute cadence. Both reach the EMPLOYEE, not a supervisor -- the
+// client's explicit ask for each:
+//
+//   1. LONG DAY (BIM, 2026-09-04) -- you have passed the tenant's worked-hours
+//      threshold, punch out.
+//   2. BREAK OVERRUN (BIM, 2026-09-10) -- your break has run past the tenant's
+//      allowance. The real failure this catches is a forgotten break_end,
+//      which otherwise keeps eating worked time until the day is closed.
+//
+// The route path stays /hours-alert even though it now does both: it is
+// named in vercel.json and renaming it would drop the cron on deploy for no
+// user-visible gain.
 //
 // Worked minutes are computed with the same workSessions() the timesheet and
 // the monthly summary use -- the sum of a day's sessions, net of breaks per
@@ -49,14 +62,18 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const now = new Date();
-  const results: { tenant: string; alerted: number }[] = [];
+  const results: { tenant: string; alerted: number; breaks: number }[] = [];
 
   for (const tenant of tenants ?? []) {
     const config = await getWfmConfig(admin, tenant.id as string);
-    const alert = config.long_day_alert;
-    if (!alert?.enabled || !(alert.after_hours > 0)) continue;
+    const longDay = config.long_day_alert;
+    const breakCfg = config.break_alert;
+    const longDayOn = !!longDay?.enabled && longDay.after_hours > 0;
+    const breakOn = !!breakCfg?.enabled && breakCfg.after_minutes > 0;
+    // Either alert alone is reason enough to load this tenant's day.
+    if (!longDayOn && !breakOn) continue;
 
-    const thresholdMinutes = alert.after_hours * 60;
+    const thresholdMinutes = (longDay?.after_hours ?? 0) * 60;
 
     const [{ data: employees }, { data: shifts }, { data: events }] = await Promise.all([
       admin
@@ -82,6 +99,7 @@ export async function GET(request: NextRequest) {
     }
 
     let alerted = 0;
+    let breakAlerted = 0;
 
     for (const emp of employees ?? []) {
       const evs = byEmployee.get(emp.id as string);
@@ -91,6 +109,32 @@ export async function GET(request: NextRequest) {
       const dayKey = shiftDayKey(now, config.timezone, shift ?? null);
       const today = evs.filter((e) => shiftDayKey(new Date(e.ts), config.timezone, shift ?? null) === dayKey);
       if (today.length === 0) continue;
+
+      // ── Break overrun ───────────────────────────────────────────────────
+      // Checked before the long-day guards below and independently of them:
+      // an overlong break can happen an hour into a shift, nowhere near the
+      // worked-hours threshold. openBreakMinutes returns null unless a break
+      // is genuinely still open, so a normal closed break never fires.
+      // One per employee per shift-day, like the long-day alert -- a second
+      // long break the same day is deliberately not a second buzz.
+      if (breakOn) {
+        const onBreak = openBreakMinutes(today, now);
+        if (onBreak !== null && onBreak >= breakCfg.after_minutes) {
+          const claimed = await claimAlert(admin, tenant.id as string, emp.id as string, "break_overrun", dayKey);
+          if (claimed) {
+            const sent = await sendToEmployee(admin, tenant.id as string, emp.id as string, {
+              title: "You're still on break",
+              body: breakAlertBody(onBreak, breakCfg.message),
+              url: "/wfm/me",
+              tag: `break-${dayKey}`,
+            });
+            if (sent > 0) breakAlerted += 1;
+            else await releaseAlert(admin, tenant.id as string, emp.id as string, "break_overrun", dayKey);
+          }
+        }
+      }
+
+      if (!longDayOn) continue;
 
       // Still on the clock? A closed day, or one that ended on an OT punch,
       // is not something to interrupt.
@@ -146,7 +190,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (alerted > 0) results.push({ tenant: tenant.slug as string, alerted });
+    if (alerted > 0 || breakAlerted > 0) {
+      results.push({ tenant: tenant.slug as string, alerted, breaks: breakAlerted });
+    }
   }
 
   return NextResponse.json({ ok: true, results });

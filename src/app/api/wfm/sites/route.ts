@@ -3,6 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { wfmSitesPayload } from "@/lib/wfm/bootstrap";
 import { verifySiteSupervisor } from "@/lib/wfm/siteSupervisor";
+import { setSiteApprovers } from "@/lib/wfm/siteApprovers";
 
 // GET /api/wfm/sites — list sites (supervisor/admin).
 export async function GET() {
@@ -33,8 +34,9 @@ export async function POST(request: NextRequest) {
   const { tenantId } = ctx;
 
   const body = await request.json().catch(() => null);
-  const { name, lat, lng, radius_m, supervisor_id } = (body ?? {}) as {
-    name?: string; lat?: number; lng?: number; radius_m?: number; supervisor_id?: string | null;
+  const { name, lat, lng, radius_m, supervisor_id, approver_ids } = (body ?? {}) as {
+    name?: string; lat?: number; lng?: number; radius_m?: number;
+    supervisor_id?: string | null; approver_ids?: unknown;
   };
   if (!name?.trim() || typeof lat !== "number" || typeof lng !== "number") {
     return NextResponse.json({ error: "name, lat and lng are required" }, { status: 400 });
@@ -61,5 +63,18 @@ export async function POST(request: NextRequest) {
     .select("id, name, lat, lng, radius_m, active, supervisor_id")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+
+  // Extra approvers are optional on create. A failure here is reported but
+  // does NOT unwind the site: the site exists and is usable with its primary
+  // supervisor, and silently deleting it would be the bigger surprise.
+  let approverIds: string[] = [];
+  if (approver_ids !== undefined) {
+    const result = await setSiteApprovers(admin, tenantId, data.id as string, approver_ids);
+    if ("error" in result) {
+      return NextResponse.json({ ...data, approver_ids: [], approver_error: result.error });
+    }
+    approverIds = result.ids;
+  }
+
+  return NextResponse.json({ ...data, approver_ids: approverIds });
 }

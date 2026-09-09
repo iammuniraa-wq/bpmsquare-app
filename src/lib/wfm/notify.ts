@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { logEmail } from "@/lib/emailLog";
 import { loadEmailOutput, resolveOutbound } from "@/lib/emailOutput";
+import { approversForSite } from "./siteApprovers";
 import { tenantOrigin } from "@/lib/constants";
 
 /**
@@ -37,10 +38,18 @@ export async function getEmployeeLoginEmail(
 }
 
 /**
- * Who should hear about this employee's attendance event: their explicit
- * supervisor (employees.supervisor_id) if one is set and has a login,
- * otherwise every tenant admin (the pre-existing tenant-wide fallback —
- * unchanged behavior for tenants that never set up a reporting line).
+ * Who should hear about this employee's attendance event: everyone who could
+ * actually act on it — their explicit supervisor (employees.supervisor_id),
+ * their site's supervisor, and any extra approvers named for that site
+ * (wfm_site_approvers, 0124) — otherwise every tenant admin (the pre-existing
+ * tenant-wide fallback, unchanged for tenants with no reporting line at all).
+ *
+ * Sending only to employees.supervisor_id used to mean a request approvable
+ * by three people was announced to one of them, and if that one was on leave
+ * the mail went nowhere anyone was reading. Recipients are deliberately a
+ * SUPERSET of one approver rather than an exact mirror of canApproveFor():
+ * this is a "somebody look at this" nudge, and the approve route re-checks
+ * authority properly anyway (lib/wfm/scope.ts) before letting anyone act.
  */
 export async function getSupervisorEmails(
   admin: ReturnType<typeof createAdminSupabase>,
@@ -49,14 +58,37 @@ export async function getSupervisorEmails(
 ): Promise<string[]> {
   const { data: employee } = await admin
     .from("employees")
-    .select("supervisor_id")
+    .select("supervisor_id, site_id")
     .eq("id", employeeId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
 
-  if (employee?.supervisor_id) {
-    const email = await getEmployeeLoginEmail(admin, tenantId, employee.supervisor_id);
-    if (email) return [email];
+  const approverIds = new Set<string>();
+  if (employee?.supervisor_id) approverIds.add(employee.supervisor_id as string);
+
+  if (employee?.site_id) {
+    const [{ data: site }, extra] = await Promise.all([
+      admin
+        .from("wfm_sites")
+        .select("supervisor_id")
+        .eq("id", employee.site_id as string)
+        .eq("tenant_id", tenantId)
+        .maybeSingle(),
+      approversForSite(admin, tenantId, employee.site_id as string),
+    ]);
+    if (site?.supervisor_id) approverIds.add(site.supervisor_id as string);
+    extra.forEach((id) => approverIds.add(id));
+  }
+
+  // Never mail the request's own author about their own request.
+  approverIds.delete(employeeId);
+
+  if (approverIds.size > 0) {
+    const resolved = await Promise.all(
+      [...approverIds].map((id) => getEmployeeLoginEmail(admin, tenantId, id))
+    );
+    const emails = resolved.filter((e): e is string => !!e);
+    if (emails.length > 0) return [...new Set(emails)];
   }
 
   const { data: admins } = await admin
