@@ -121,7 +121,24 @@ export async function GET(request: NextRequest) {
         url: "/wfm/me",
         tag: `long-day-${dayKey}`,
       });
-      if (sent > 0) alerted += 1;
+      if (sent > 0) {
+        alerted += 1;
+      } else {
+        // Nothing actually reached a device -- most commonly, this employee
+        // has never opened /wfm/me and tapped "Turn on" for push yet (a push
+        // subscription only exists after that explicit tap; a browser will
+        // not let the server prompt for it). The claim above already marked
+        // this shift-day "alerted" even though zero notifications went out --
+        // release it so the NEXT run (15 minutes later) tries again, instead
+        // of this employee silently never being told for the rest of the day
+        // even if they enable push five minutes from now.
+        await admin
+          .from("wfm_hours_alerts")
+          .delete()
+          .eq("tenant_id", tenant.id)
+          .eq("employee_id", emp.id)
+          .eq("day_key", dayKey);
+      }
     }
 
     if (alerted > 0) results.push({ tenant: tenant.slug as string, alerted });
