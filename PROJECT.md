@@ -507,10 +507,12 @@ deploy for an automatic schema change.
   every seeded product through both books; totals matched lineTotals.ts),
   then removed from dev entirely -- the owner wants Big Blue on production
   only. Needs 0120 for the deals (skipped cleanly if pending).
-- **0124_wfm_site_approvers_and_employee_alerts.sql — PENDING**
-  (written 2026-09-10, BIM client list of the same day. Confirmed ABSENT from
-  production 2026-09-10 by the same `pg_class` check that found 0123 already
-  applied -- both tables missing. Dev DB state unverified.) Two tables, each
+- **0124_wfm_site_approvers_and_employee_alerts.sql — APPLIED to production**
+  (written and applied 2026-09-10, BIM client list of the same day. Verified
+  after the run: both tables present, RLS on, one policy each, 4 indexes on
+  `wfm_site_approvers` and 3 on `wfm_employee_alerts` -- primary key, the
+  unique constraint, and the lookup indexes, matching the DDL. Dev DB state
+  unverified.) Two tables, each
   with RLS + a tenant-isolation policy in the same file, WFM's select-only
   convention: `wfm_site_approvers` (extra approvers per site, additive to
   `wfm_sites.supervisor_id` -- one named supervisor going on leave used to
