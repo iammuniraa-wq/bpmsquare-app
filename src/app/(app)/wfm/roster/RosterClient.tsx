@@ -5,6 +5,8 @@ import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { ROUTES } from "@/lib/constants";
 import type { WfmShift, WfmSite } from "@/lib/wfm/types";
 import { depthOf } from "@/lib/wfm/projectTree";
@@ -283,6 +285,7 @@ export default function RosterClient({ initial = null }: {
   // ── Section A: standing site + shift (bulk matrix) ────────────────────
   const [searchA, setSearchA] = useState("");
   const [siteFilterA, setSiteFilterA] = useState("");
+  const [pageA, setPageA] = useState(1);
   const [pendingShift, setPendingShift] = useState<Map<string, string | null>>(new Map());
   const [pendingSite, setPendingSite] = useState<Map<string, string | null>>(new Map());
   const [savingA, setSavingA] = useState(false);
@@ -452,6 +455,23 @@ export default function RosterClient({ initial = null }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [employees, qA, siteFilterA, pendingSite]
   );
+
+  // The matrix used to render every active employee at once -- around a
+  // hundred rows for the client that asked for this, which is unreadable and
+  // buries the Save button. Paged for DISPLAY only: everything that acts in
+  // bulk (assignAllVisible*, saveAssignmentChanges) still works off the full
+  // filtered list / the pending maps, so paging can never silently narrow
+  // what an "Assign all" or a Save applies to.
+  const clampedPageA = clampPage(pageA, visibleEmployeesA.length, DEFAULT_PAGE_SIZE);
+  const pageEmployeesA = useMemo(
+    () => paginate(visibleEmployeesA, clampedPageA, DEFAULT_PAGE_SIZE),
+    [visibleEmployeesA, clampedPageA]
+  );
+
+  // Filtering to three people while sitting on page 5 would show an empty
+  // table; clampPage would fix it on the next render, but jumping back to the
+  // first page is what the reader expects.
+  useEffect(() => { setPageA(1); }, [qA, siteFilterA]);
 
   // useCallback so the memoised MatrixRow's callback props keep a stable
   // identity across renders -- otherwise every row would re-render on any tick.
@@ -730,8 +750,10 @@ export default function RosterClient({ initial = null }: {
           <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Standing site &amp; shift</div>
           <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>
             Everyone&apos;s default site and shift. Tick a cell to change someone — this applies every day until
-            changed again, or overridden for specific dates below. A column&apos;s &quot;Assign all&quot; sets a whole
-            filtered group at once. Filter by site first to manage one location&apos;s team together.
+            changed again, or overridden for specific dates below. A column&apos;s &quot;Assign all&quot; sets
+            <strong> everyone currently filtered</strong>, not just the page you are looking at. Filter by
+            site or search first to manage one location&apos;s team together; unsaved ticks are kept as you
+            page, and Save applies all of them at once.
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             <input
@@ -765,7 +787,7 @@ export default function RosterClient({ initial = null }: {
                   <th key={s.id} style={thCenter}>
                     <div>{s.name}</div>
                     <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleSite(s.id)}>
-                      Assign all{qA || siteFilterA ? " filtered" : ""}
+                      Assign all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
                     </button>
                   </th>
                 ))}
@@ -773,7 +795,7 @@ export default function RosterClient({ initial = null }: {
                   <th style={thCenter}>
                     <div>Unassigned</div>
                     <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleSite(null)}>
-                      Clear all{qA || siteFilterA ? " filtered" : ""}
+                      Clear all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
                     </button>
                   </th>
                 )}
@@ -782,7 +804,7 @@ export default function RosterClient({ initial = null }: {
                     <div>{s.name}</div>
                     <div style={{ fontWeight: 400, color: c.hint, fontSize: 10.5 }}>{hhmm(s.start_time)}–{hhmm(s.end_time)}</div>
                     <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleShift(s.id)}>
-                      Assign all{qA || siteFilterA ? " filtered" : ""}
+                      Assign all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
                     </button>
                   </th>
                 ))}
@@ -790,14 +812,14 @@ export default function RosterClient({ initial = null }: {
                   <th style={activeSites.length === 0 ? thCenter : { ...thCenter, borderLeft: activeShifts.length === 0 ? `1px solid ${c.line}` : undefined }}>
                     <div>Unassigned</div>
                     <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleShift(null)}>
-                      Clear all{qA || siteFilterA ? " filtered" : ""}
+                      Clear all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
                     </button>
                   </th>
                 )}
               </tr>
             </thead>
             <tbody>
-              {visibleEmployeesA.map((e) => (
+              {pageEmployeesA.map((e) => (
                 <MatrixRow
                   key={e.id}
                   e={e}
@@ -815,6 +837,22 @@ export default function RosterClient({ initial = null }: {
               )}
             </tbody>
           </table>
+        )}
+
+        {/* Paging is presentation only. "Assign all" and Save deliberately act
+            on the whole filtered set, not this page -- see assignAllVisible*,
+            which iterate visibleEmployeesA, and saveAssignmentChanges, which
+            works off the pending maps. An edit made on page 1 is still pending
+            (and still saved) while you are looking at page 5. */}
+        {visibleEmployeesA.length > 0 && (
+          <div style={{ padding: "0 12px" }}>
+            <Pager
+              page={clampedPageA}
+              total={visibleEmployeesA.length}
+              pageSize={DEFAULT_PAGE_SIZE}
+              onPage={setPageA}
+            />
+          </div>
         )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderTop: `1px solid ${c.line}` }}>
