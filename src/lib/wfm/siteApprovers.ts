@@ -93,6 +93,22 @@ export async function setSiteApprovers(
   if (!Array.isArray(employeeIds)) return { error: "approver_ids must be an array of employee ids" };
   const wanted = [...new Set(employeeIds.filter((v): v is string => typeof v === "string" && v.length > 0))];
 
+  // The site id reaches this function from a URL path segment, which makes it
+  // a foreign id from the request exactly like the employee ids below --
+  // verify it before writing, per MULTI_TENANT_GUARDRAILS.md. Skipping this
+  // let a tenant-A admin PATCH a tenant-B site uuid and persist rows carrying
+  // it: no read path could surface them (every one filters on tenant_id), but
+  // it planted cross-tenant references, leaked whether a given site uuid
+  // exists, and answered 200 for a site the caller does not have.
+  // Verified HERE rather than in the route so a future caller cannot miss it.
+  const { data: site } = await admin
+    .from("wfm_sites")
+    .select("id")
+    .eq("id", siteId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!site) return { error: "Unknown site" };
+
   if (wanted.length > 0) {
     const { data: verified, error } = await admin
       .from("employees")
