@@ -682,19 +682,6 @@ export type WfmConfig = {
   // tenant still needs a way to record them; only the punch/enroll
   // self-service is withdrawn. Per-tenant so Vikas/demo are untouched.
   employee_self_service: boolean;
-  /** Where people land after signing in (client request, BIM 2026-09-10:
-   *  "My Workforce should be the default page for everyone, whatever role").
-   *
-   *  "role_based" is the behaviour every existing tenant has: a plain
-   *  employee lands on My Workforce, a supervisor on the Live Board, anyone
-   *  whose login isn't linked to an employee record on the Dashboard.
-   *
-   *  "my_workforce" sends every role there instead -- admins and supervisors
-   *  included. It deliberately does NOT apply to a login with no employee
-   *  record: My Workforce can only tell that person "you aren't set up yet",
-   *  which is a dead end, not a landing page, so those fall back to the
-   *  Dashboard. Nothing here stops anyone navigating anywhere afterwards. */
-  landing_page: "role_based" | "my_workforce";
   // How employees sign in to the self-service portal (client decision
   // 2026-08-21). "email" = a real email address, the model every existing
   // tenant uses. "code" = employee code + password, no personal email: the
@@ -787,7 +774,6 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   punch_types: { ot: false, mobile_work: false, business_trip: false },
   ot_rate_per_hour: 0,
   employee_self_service: true,
-  landing_page: "role_based",
   login_mode: "email",
   face_login: false,
   passkey_login: false,

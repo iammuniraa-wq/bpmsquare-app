@@ -103,9 +103,6 @@ export async function PUT(request: NextRequest) {
   if (body.login_mode === "email" || body.login_mode === "code") {
     next.login_mode = body.login_mode;
   }
-  if (body.landing_page === "role_based" || body.landing_page === "my_workforce") {
-    next.landing_page = body.landing_page;
-  }
   if (typeof body.face_login === "boolean") {
     next.face_login = body.face_login;
   }
