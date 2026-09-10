@@ -20,6 +20,11 @@ export async function GET() {
     }
     const { data: membership } = await supabase
       .from("tenant_users").select("employee_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
+    // Both settings agree on one thing: a login with no employee record must
+    // not be sent to My Workforce, because all that page can tell them is
+    // that they aren't set up yet. `landing_page: "my_workforce"` widens WHO
+    // goes there (every role, supervisors and admins included, rather than
+    // only non-supervisor employees) -- it does not remove that floor.
     return NextResponse.json({ path: membership?.employee_id ? ROUTES.wfmMe : ROUTES.dashboard });
   } catch {
     return NextResponse.json({ path: ROUTES.dashboard });

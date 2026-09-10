@@ -1029,14 +1029,30 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
     if (me.is_second_saturday_today && (k === "check_in" || k === "mobile_work_start" || k === "business_trip_start")) return false;
     return true;
   });
-  // Check in/out cover nearly every punch, so they get their own big
-  // always-visible buttons (client decision 2026-09-08: employees asked for
-  // "direct punch in/out, no dropdown games"). Everything else legal right
-  // now -- breaks, OT, business trip, work from home -- goes in one small
-  // "Other" dropdown instead of competing for the same visual weight.
+  // The four everyday punches get their own big buttons, and all four are
+  // ALWAYS on screen -- client decision 2026-09-10 (BIM): a button that
+  // appears and disappears with the state machine makes people hunt for the
+  // one they need, so instead the shape of the tile never changes and only
+  // the ENABLED ones are lit. The state machine still decides what is legal
+  // (types.ts TRANSITIONS): out -> check in; in -> break in or check out;
+  // break -> break out or check out. A dimmed button is not merely styled
+  // off -- it is `disabled`, so the illegal punch cannot be fired.
+  //
+  // Everything rarer -- OT, work from home, site visit -- stays in the small
+  // "Other" dropdown rather than competing with these for attention.
   const canCheckIn = punchOptions.includes("check_in");
   const canCheckOut = punchOptions.includes("check_out");
-  const otherOptions: PresenceKind[] = punchOptions.filter((k) => k !== "check_in" && k !== "check_out");
+  const canBreakStart = punchOptions.includes("break_start");
+  const canBreakEnd = punchOptions.includes("break_end");
+  const BIG_PUNCHES: { kind: PresenceKind; label: string; tone: string; can: boolean }[] = [
+    { kind: "check_in", label: "Check in", tone: "#10b981", can: canCheckIn },
+    { kind: "check_out", label: "Check out", tone: "#ef4444", can: canCheckOut },
+    { kind: "break_start", label: "Break in", tone: "#f59e0b", can: canBreakStart },
+    { kind: "break_end", label: "Break out", tone: "#3b82f6", can: canBreakEnd },
+  ];
+  const otherOptions: PresenceKind[] = punchOptions.filter(
+    (k) => !BIG_PUNCHES.some((b) => b.kind === k)
+  );
   // Deliberately NOT auto-selected (production incident, BIM 2026-09-09):
   // when OT was the only "other" option, the dropdown pre-armed "OT in" the
   // moment the page loaded, so one stray/habitual tap on "Go" recorded a real
@@ -1272,33 +1288,26 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
           <span style={{ fontSize: 12, color: c.hint, lineHeight: 1.5 }}>
             Punch in and out at the office kiosk — it recognises you by face, no phone needed. Your hours here update automatically.
           </span>
-        ) : !canCheckIn && !canCheckOut && otherOptions.length === 0 ? (
-          <span style={{ fontSize: 12, color: c.hint }}>No punch action available right now.</span>
         ) : (
           <>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                style={{
-                  flex: 1, padding: "18px 12px", fontSize: 16, fontWeight: 700, borderRadius: 12, border: "none",
-                  background: canCheckIn ? "#10b981" : c.panel2, color: canCheckIn ? "#fff" : c.hint,
-                  cursor: canCheckIn && !busy ? "pointer" : "not-allowed", opacity: canCheckIn ? 1 : 0.55,
-                }}
-                disabled={!canCheckIn || busy}
-                onClick={() => startPunch("check_in")}
-              >
-                Check in
-              </button>
-              <button
-                style={{
-                  flex: 1, padding: "18px 12px", fontSize: 16, fontWeight: 700, borderRadius: 12, border: "none",
-                  background: canCheckOut ? "#ef4444" : c.panel2, color: canCheckOut ? "#fff" : c.hint,
-                  cursor: canCheckOut && !busy ? "pointer" : "not-allowed", opacity: canCheckOut ? 1 : 0.55,
-                }}
-                disabled={!canCheckOut || busy}
-                onClick={() => startPunch("check_out")}
-              >
-                Check out
-              </button>
+            {/* Always four, always in the same places -- see BIG_PUNCHES. */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {BIG_PUNCHES.map((b) => (
+                <button
+                  key={b.kind}
+                  style={{
+                    padding: "18px 12px", fontSize: 16, fontWeight: 700, borderRadius: 12, border: "none",
+                    background: b.can ? b.tone : c.panel2, color: b.can ? "#fff" : c.hint,
+                    cursor: b.can && !busy ? "pointer" : "not-allowed", opacity: b.can ? 1 : 0.55,
+                    transition: "background .15s, opacity .15s",
+                  }}
+                  disabled={!b.can || busy}
+                  onClick={() => startPunch(b.kind)}
+                  aria-disabled={!b.can}
+                >
+                  {b.label}
+                </button>
+              ))}
             </div>
             {busy && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 6 }}>Working…</div>}
 

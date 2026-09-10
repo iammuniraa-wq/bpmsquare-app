@@ -229,6 +229,20 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
           </SettingsField>
 
           <SettingsField
+            label="Landing page after sign-in"
+            help="Where people arrive when they sign in or open the home page. Choosing My Workforce sends everyone there — supervisors and admins too, not just employees — so punching in is the first thing on screen. Anyone whose login isn't linked to an employee record still gets the Dashboard, since My Workforce would have nothing to show them. Everyone can still navigate anywhere their role allows."
+          >
+            <select
+              style={inp}
+              value={cfg.landing_page === "my_workforce" ? "my_workforce" : "role_based"}
+              onChange={(e) => setCfg({ ...cfg, landing_page: e.target.value as WfmConfig["landing_page"] })}
+            >
+              <option value="role_based">By role — employees to My Workforce, supervisors to the Live board</option>
+              <option value="my_workforce">My Workforce, for everyone</option>
+            </select>
+          </SettingsField>
+
+          <SettingsField
             label="Working hours"
             help="Breaks are always recorded; this only controls whether they subtract from the daily total."
           >

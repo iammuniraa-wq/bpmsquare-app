@@ -144,6 +144,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // read above for the password-gate check (PATHNAME_HEADER is set once by
   // middleware.ts -- a Server Component layout has no other way to know
   // the current pathname).
+  // Client decision (BIM 2026-09-10): a workspace can declare that EVERY
+  // role lands on My Workforce -- admins and supervisors included, not just
+  // the plain employees the branch below covers. Config-driven rather than
+  // keyed off a tenant slug, per bpmsquarecore.md §1.
+  //
+  // Two deliberate limits. It fires only on "/", so a supervisor who opens
+  // the Live Board or Roster still gets the page they asked for -- sending
+  // them back from those is the exact regression the comment below records.
+  // And it requires wfmEmployeeActive: without an employee record My
+  // Workforce can only say "you aren't set up yet", so an unlinked admin
+  // keeps the dashboard rather than landing on a dead end.
+  const wfmLandsEveryoneOnMe =
+    wfmEmployeeActive && tenant.config?.wfm?.landing_page === "my_workforce";
+  if (wfmLandsEveryoneOnMe && pathname === "/") {
+    redirect(ROUTES.wfmMe);
+  }
+
   const restrictedToWfmOnly = Array.isArray(viewable) && viewable.every((wc) => wc === "wfm");
   if (wfmEmployeeActive && restrictedToWfmOnly) {
     if (isWfmSupervisor) {
