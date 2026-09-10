@@ -44,7 +44,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   let approverIds: string[] | null = null;
   if ("approver_ids" in body) {
     const result = await setSiteApprovers(admin, tenantId, id, body.approver_ids);
-    if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+    if ("error" in result) {
+      // A site that isn't this tenant's is a 404 like any other unknown id,
+      // not a 400 -- the caller supplied a well-formed request for something
+      // that does not exist for them.
+      const status = result.error === "Unknown site" ? 404 : 400;
+      return NextResponse.json({ error: result.error }, { status });
+    }
     approverIds = result.ids;
   }
 

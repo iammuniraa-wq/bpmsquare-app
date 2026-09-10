@@ -5,9 +5,17 @@ import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getSupervisorEmails, getEmployeeLoginEmail, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 
-/** May this caller see/act on a thread about `employeeId`? Same "own rows or
- *  my subtree" rule the RLS policy encodes, re-checked here because every
- *  write goes through the admin client (RLS doesn't apply to it). */
+/** May this caller see/act on a thread about `employeeId`?
+ *
+ *  This is STRICTER than 0123's RLS policy, not a restatement of it (an
+ *  earlier version of this comment claimed they matched -- they do not, and
+ *  the 2026-09-10 audit caught it). That policy's supervisor branch is
+ *  uncorrelated to the row: it asks only "is the caller a supervisor or admin
+ *  in this tenant", so at the database level ANY supervisor can read ANY
+ *  employee's threads tenant-wide. The subtree narrowing lives only here, in
+ *  the API layer -- which is the same shape 0063 uses for presence events and
+ *  corrections, but worth knowing, because a caller reaching PostgREST
+ *  directly with their own session is bounded by the policy, not by this. */
 async function canAccessThread(
   ctx: Awaited<ReturnType<typeof requireWfm>>,
   employeeId: string
