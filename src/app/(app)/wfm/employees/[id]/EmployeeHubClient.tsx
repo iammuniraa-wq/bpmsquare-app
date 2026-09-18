@@ -75,7 +75,9 @@ function one<T>(v: T | T[] | null | undefined): T | null {
 }
 
 const ISSUE_LABEL: Record<CorrectionIssue, string> = {
-  missing_check_in: "Missing check-in", missing_check_out: "Missing check-out", wrong_time: "Wrong time", other: "Other",
+  missing_check_in: "Missing check-in", missing_check_out: "Missing check-out",
+  missing_break_start: "Missing break in", missing_break_end: "Missing break out",
+  wrong_time: "Wrong time", other: "Other",
 };
 const CORRECTION_TONE = { pending: "amber", approved: "green", rejected: "red" } as const;
 const LEAVE_TONE = { pending: "amber", approved: "green", rejected: "red" } as const;

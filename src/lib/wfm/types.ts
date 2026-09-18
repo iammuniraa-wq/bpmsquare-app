@@ -216,7 +216,17 @@ export type PresenceEvent = {
   superseded_by: string | null;
 };
 
-export type CorrectionIssue = "missing_check_in" | "missing_check_out" | "wrong_time" | "other";
+/** What an employee says went wrong with a punch. The missing_* variants name
+ * the kind they forgot, so approving one can write exactly that event;
+ * wrong_time takes its kind from the punch being corrected instead, and
+ * "other" writes no event at all (an administrative note for the supervisor).
+ * Break variants added 2026-09-18 (KAN-26): forgetting a break punch is at
+ * least as common as forgetting a check-in, and an unclosed break silently
+ * eats worked time until the day closes. */
+export type CorrectionIssue =
+  | "missing_check_in" | "missing_check_out"
+  | "missing_break_start" | "missing_break_end"
+  | "wrong_time" | "other";
 export type CorrectionStatus = "pending" | "approved" | "rejected";
 
 export type WfmCorrectionRequest = {
