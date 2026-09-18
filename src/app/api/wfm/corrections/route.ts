@@ -6,8 +6,14 @@ import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 import type { CorrectionIssue, PresenceKind } from "@/lib/wfm/types";
 
-const ISSUES: CorrectionIssue[] = ["missing_check_in", "missing_check_out", "wrong_time", "other"];
+const ISSUES: CorrectionIssue[] = [
+  "missing_check_in", "missing_check_out",
+  "missing_break_start", "missing_break_end",
+  "wrong_time", "other",
+];
 const ISSUE_KIND: Partial<Record<CorrectionIssue, PresenceKind>> = {
+  missing_break_start: "break_start",
+  missing_break_end: "break_end",
   missing_check_in: "check_in",
   missing_check_out: "check_out",
 };
@@ -85,7 +91,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "reason_text is required" }, { status: 400 });
   }
   let kind = ISSUE_KIND[issue as CorrectionIssue];
-  const needsTime = issue === "missing_check_in" || issue === "missing_check_out" || issue === "wrong_time";
+  // Everything except "other" writes a real event on approval, so it needs a
+  // time to write it at. Derived from the kind map rather than listed by hand,
+  // so adding a further missing_* issue can't forget this.
+  const needsTime = !!ISSUE_KIND[issue as CorrectionIssue] || issue === "wrong_time";
   if (needsTime && !proposed_ts) {
     return NextResponse.json({ error: "proposed_ts is required for this issue type" }, { status: 400 });
   }

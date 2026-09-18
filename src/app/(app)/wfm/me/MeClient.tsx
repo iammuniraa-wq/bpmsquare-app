@@ -152,6 +152,7 @@ const KIND_LABEL: Record<PresenceKind, string> = {
 };
 const ISSUE_LABEL: Record<string, string> = {
   missing_check_in: "Missing check-in", missing_check_out: "Missing check-out",
+  missing_break_start: "Missing break in", missing_break_end: "Missing break out",
   wrong_time: "Wrong time", other: "Other",
 };
 const STATUS_TONE: Record<string, "amber" | "green" | "red"> = { pending: "amber", approved: "green", rejected: "red" };
