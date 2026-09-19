@@ -334,7 +334,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Nova's black ground wearing light-mode borders and card fills, with no way
   // back: the dark toggle is hidden on Nova. Nova is dark by definition, so it
   // no longer asks the flag.
-  const mode = uiTheme === "nextgen" && !isEnterprise && (nova || dark) ? "dark" : undefined;
+  // `!isSpectacular` for the same reason as `!isEnterprise`: that theme is
+  // light-only (its block is scoped :not([data-mode="dark"])), and `dark`
+  // DEFAULTS TO TRUE for a browser with no stored preference -- so without
+  // this guard a workspace switching to Spectacular would land in plain
+  // nextgen dark and see none of it.
+  const mode = uiTheme === "nextgen" && !isEnterprise && !isSpectacular && (nova || dark) ? "dark" : undefined;
 
   if (mobile) {
     return (
@@ -354,7 +359,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           }}>
             {children}
           </main>
-          {uiTheme === "nextgen" && !isEnterprise && !nova && (
+          {uiTheme === "nextgen" && !isEnterprise && !isSpectacular && !nova && (
             <div style={{ position: "fixed", left: 16, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", zIndex: 90 }}>
               <DarkToggle dark={dark} onToggle={toggleDark} />
             </div>
@@ -387,7 +392,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {/* The bar stays clickable when the palette is on, but gives up
                 ⌘K to it -- otherwise both answer the same key. */}
             {!nova && <GlobalSearchBar hotkeyDisabled={commandPalette} />}
-            {uiTheme === "nextgen" && !isEnterprise && !nova && <DarkToggle dark={dark} onToggle={toggleDark} />}
+            {uiTheme === "nextgen" && !isEnterprise && !isSpectacular && !nova && <DarkToggle dark={dark} onToggle={toggleDark} />}
             {nova && <NovaInbox />}
             {topBarIdentity && <IdentityMenu />}
           </div>

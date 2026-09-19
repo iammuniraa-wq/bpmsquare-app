@@ -108,7 +108,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       <TabTitle title={sc.ref} />
 
       {/* Compact header */}
-      <div style={{ marginBottom: 18 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 18 }}>
         <Link href={ROUTES.cases} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none", display: "inline-block", marginBottom: 8 }}>
           ← All cases
         </Link>

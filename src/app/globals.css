@@ -374,94 +374,264 @@
   --sb-active-ink: #ffffff;
 }
 
-/* "Spectacular" (owner request 2026-09-19, from an Able Pro admin-dashboard
-   reference): nextgen's structure with a softer, bluer, airier palette --
-   rounder cards, lighter lines, a diffuse shadow and a single confident blue
-   instead of nextgen's neutral ink. Folds into useUiTheme()==="nextgen" for
-   behaviour exactly like "enterprise" does, so this is [data-theme="nextgen"]
-   plus its own data-spectacular stamp.
+/* "Spectacular" (owner request 2026-09-19, rebuilt the same day from a
+   Nifty-style admin reference the owner chose over the first attempt): a
+   NAVY chrome band across the top of every page, colour-filled KPI cards
+   that straddle its lower edge, and flat white cards on a cool grey ground.
+   Folds into useUiTheme()==="nextgen" for behaviour exactly like
+   "enterprise" does, so this is [data-theme="nextgen"] plus its own
+   data-spectacular stamp.
 
    Light only, via :not([data-mode="dark"]). The reference is a light design
-   and there is nothing to port; a workspace that toggles dark simply gets
-   nextgen's own dark mode, which is already built and contrast-checked.
-   Scoping it this way also settles the cascade -- this block and the dark
-   block would otherwise have identical specificity and fight on source order.
+   with nothing to port; a workspace that toggles dark gets nextgen's own
+   dark mode, already built and contrast-checked. That scoping also settles
+   the cascade -- this block and the dark block have identical specificity
+   and would otherwise fight on source order.
 
-   Every token nextgen defines is redefined here. Leaving any out would let a
-   nextgen value show through into a palette it was never measured against,
-   which is how half-themed screens happen. The four sidebar ink tiers keep
-   nextgen's hard-won AA contrast (text ~10.5:1 down to faint ~4.5:1 on
-   white) -- the hue moved, the readability did not. */
+   THE SPLIT THAT MATTERS: the --sb-* family is shared by the left rail AND
+   the top identity bar (Shell reads --sb-bar-bg/--sb-line for the bar,
+   Sidebar/GlobalSearchBar/IdentityMenu read the ink tiers). Here those two
+   surfaces have OPPOSITE grounds -- navy bar, white rail -- so the base
+   block below carries the light-on-navy set for the bar, and the
+   .bpm-sidebar-rail block after it flips them back to dark-on-white for the
+   rail only. Enterprise does the same trick in the other direction. */
 [data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) {
-  --panel2: #f5f7fb;
-  --card-radius: 12px;
-  --card-shadow: 0 2px 6px rgba(43, 58, 84, 0.06), 0 1px 2px rgba(43, 58, 84, 0.05);
-  --card-shadow-hover: 0 12px 28px rgba(43, 58, 84, 0.12), 0 3px 8px rgba(43, 58, 84, 0.07);
-  --shadow-raised: 0 16px 40px rgba(43, 58, 84, 0.18), 0 3px 10px rgba(43, 58, 84, 0.10);
+  --panel2: #f3f5f9;
+  --card-radius: 8px;
+  /* Flat, not floaty: the reference earns separation from the navy band and
+     the colour tiles, so cards themselves stay almost shadowless. */
+  --card-shadow: 0 1px 2px rgba(16, 28, 58, 0.05);
+  --card-shadow-hover: 0 8px 20px rgba(16, 28, 58, 0.12), 0 2px 6px rgba(16, 28, 58, 0.06);
+  --shadow-raised: 0 16px 40px rgba(16, 28, 58, 0.18), 0 3px 10px rgba(16, 28, 58, 0.10);
 
-  --surface-sunken:   #eaeef7;
-  --surface-subtle:   #f7f9fd;
+  --surface-sunken:   #edf0f6;
+  --surface-subtle:   #f7f8fc;
   --surface-raised:   #ffffff;
-  --surface-hover:    rgba(70, 128, 255, 0.07);
-  --surface-selected: #e4edff;
-  --line: #e6eaf2;
+  --surface-hover:    rgba(30, 58, 110, 0.05);
+  --surface-selected: #e7eefb;
+  --line: #e4e8f0;
+
+  /* The band. One value, read by the main-area rule further down and by the
+     top bar, so they can never drift apart into a visible seam. */
+  --spectacular-band: #1e3a6e;
 
   --sidebar-grad: #ffffff;
-  --sb-bar-bg: #ffffff;
+  --sb-bar-bg: #1e3a6e;
 
-  /* One blue carries the whole theme. nextgen splits accent and "gold" for
-     its two emphasis levels; here both are the same blue, because the
-     reference earns hierarchy from weight and fill, not from a second hue. */
-  --modern-accent: #4680ff;
-  --modern-accent-bg: #edf3ff;
-  --modern-gold: #4680ff;
-  --modern-gold-bg: #edf3ff;
+  --modern-accent: #1e63c8;
+  --modern-accent-bg: #e7eefb;
+  --modern-gold: #1e63c8;
+  --modern-gold-bg: #e7eefb;
 
-  --nextgen-ai: #7a5cff;
-  --nextgen-ai-soft: #f1eeff;
-  --nextgen-good: #2ca87f;
-  --nextgen-good-soft: #e6f6f0;
-  --nextgen-bad: #d64550;
-  --nextgen-bad-soft: #fdecec;
-  --nextgen-warn: #e58a00;
-  --nextgen-warn-soft: #fdf3e2;
+  --nextgen-ai: #6e3aa5;
+  --nextgen-ai-soft: #f0e9f8;
+  --nextgen-good: #0d8150;
+  --nextgen-good-soft: #e3f3eb;
+  --nextgen-bad: #c2283c;
+  --nextgen-bad-soft: #fbeaec;
+  --nextgen-warn: #a6600b;
+  --nextgen-warn-soft: #fbf1e2;
 
-  --sb-text: #2b3648;
-  --sb-text-dim: #52616f;
-  --sb-text-dimmer: #626f7d;
-  --sb-text-faint: #74808d;
-  --sb-strong: #131c2b;
-  --sb-icon-muted: #7b8794;
-  --sb-line: #e6eaf2;
-  --sb-hover: rgba(70, 128, 255, 0.07);
-  --sb-hover-strong: rgba(70, 128, 255, 0.11);
-  --sb-active-bg: #edf3ff;
-  --sb-active-ink: #4680ff;
-  --sb-tab-underline: #4680ff;
-  --sb-tab-sub-active: #4680ff;
+  /* KPI card fills (DashboardLayout's AnalyticsCard paints one of these when
+     a stat widget has a tone). Deliberately deeper than the reference's own
+     greens and cyans, which sit near 2.5:1 against the white text they carry
+     -- every value here clears 4.5:1 with white, measured, so a filled tile
+     is still AA at 11px label size. */
+  --spec-fill-blue:   #1b5ea8;
+  --spec-fill-teal:   #0c7a73;
+  --spec-fill-amber:  #b85c00;
+  --spec-fill-purple: #6e3aa5;
+  --spec-fill-green:  #0d8150;
+  --spec-fill-red:    #b3283c;
 
+  /* Chrome inks -- LIGHT, because the shared bar is navy. The rail flips
+     them back below. */
+  --sb-text: rgba(255, 255, 255, 0.84);
+  --sb-text-dim: rgba(255, 255, 255, 0.74);
+  --sb-text-dimmer: rgba(255, 255, 255, 0.68);
+  --sb-text-faint: rgba(255, 255, 255, 0.60);
+  --sb-strong: #ffffff;
+  --sb-icon-muted: rgba(255, 255, 255, 0.76);
+  --sb-line: rgba(255, 255, 255, 0.12);
+  --sb-hover: rgba(255, 255, 255, 0.10);
+  --sb-hover-strong: rgba(255, 255, 255, 0.16);
+  --sb-active-bg: rgba(255, 255, 255, 0.16);
+  --sb-active-ink: #ffffff;
+  --sb-tab-underline: #ffffff;
+  --sb-tab-sub-active: rgba(255, 255, 255, 0.86);
+
+  /* Dropdown panels hang off the navy bar but are light sheets themselves
+     (search results, identity menu) -- same as the reference. */
   --sb-panel-bg: #ffffff;
-  --sb-panel-border: #e6eaf2;
-  --sb-panel-text: #131c2b;
-  --sb-panel-text-dim: #626f7d;
-  --sb-panel-hover: rgba(70, 128, 255, 0.07);
+  --sb-panel-border: #e4e8f0;
+  --sb-panel-text: #16203a;
+  --sb-panel-text-dim: #6b7588;
+  --sb-panel-hover: rgba(30, 58, 110, 0.06);
 
-  --sb-search-bg: #f7f9fd;
-  --sb-search-border: #dfe5f0;
-  --sb-search-text: #131c2b;
-  --sb-search-icon: #626f7d;
+  --sb-search-bg: rgba(255, 255, 255, 0.14);
+  --sb-search-border: rgba(255, 255, 255, 0.22);
+  --sb-search-text: #ffffff;
+  --sb-search-icon: rgba(255, 255, 255, 0.76);
 
   --drawer-bg: #ffffff;
-  --drawer-card: #f7f9fd;
-  --drawer-card-alt: #edf3ff;
-  --drawer-line: #e6eaf2;
-  --drawer-line-strong: #d3dae6;
-  --drawer-text: #131c2b;
-  --drawer-text-dim: #626f7d;
-  --drawer-hint: #74808d;
-  --drawer-hint-faint: #9aa5b2;
-  --drawer-err-bg: #fdecec;
-  --drawer-err-border: #f4cfd0;
+  --drawer-card: #f7f8fc;
+  --drawer-card-alt: #e7eefb;
+  --drawer-line: #e4e8f0;
+  --drawer-line-strong: #d2d8e4;
+  --drawer-text: #16203a;
+  --drawer-text-dim: #4a5468;
+  --drawer-hint: #6b7588;
+  --drawer-hint-faint: #98a1b2;
+  --drawer-err-bg: #fbeaec;
+  --drawer-err-border: #f2cdd2;
+}
+
+/* The rail: white sheet, dark ink, navy pill on the active row. Scoped to
+   Sidebar's own root class so the navy top bar above keeps the light set. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-sidebar-rail {
+  --sb-text: #4a5468;
+  --sb-text-dim: #6b7588;
+  --sb-text-dimmer: #6b7588;
+  --sb-text-faint: #7a8395;
+  --sb-strong: #16203a;
+  --sb-icon-muted: #6b7588;
+  --sb-line: #e4e8f0;
+  --sb-hover: rgba(30, 58, 110, 0.05);
+  --sb-hover-strong: rgba(30, 58, 110, 0.09);
+  --sb-active-bg: #1e3a6e;
+  --sb-active-ink: #ffffff;
+  border-right: 1px solid #e4e8f0;
+}
+
+/* The band itself. Painted as a background on <main> rather than as an
+   element behind the header, so the first row of cards overlaps its lower
+   edge exactly the way the reference does -- a positioned band would paint
+   over those cards instead (they are non-positioned, so they lose).
+
+   :has() keeps it to pages that actually use the shared header. 31 of 102
+   pages still hand-roll their own <h1>; giving those a navy band would put
+   their dark title on navy, so they simply keep the plain header until they
+   are converted. A browser without :has() shows no band at all, which is
+   the same safe degradation. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main:has(.bpm-page-header, .bpm-page-band) {
+  background-image: linear-gradient(var(--spectacular-band) 0, var(--spectacular-band) 152px, rgba(0, 0, 0, 0) 152px);
+  background-repeat: no-repeat;
+}
+/* A phone header is shorter and its main has 12px of padding, so the desktop
+   band would run well past it into the content. */
+@media (max-width: 780px) {
+  [data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main:has(.bpm-page-header, .bpm-page-band) {
+    background-image: linear-gradient(var(--spectacular-band) 0, var(--spectacular-band) 116px, rgba(0, 0, 0, 0) 116px);
+  }
+}
+
+/* Header text sits ON the band. The title/subtitle carry no inline colour
+   (see PageHeader.tsx), and everything else in that block is inline-styled
+   from c.ink/c.muted/c.hint -- which are var() references, so re-pointing
+   the three variables here flips the whole header without touching a single
+   page. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header {
+  --ink: #ffffff;
+  --muted: rgba(255, 255, 255, 0.80);
+  --hint: rgba(255, 255, 255, 0.72);
+  /* Outline CTAs in a header (dashboard's "Adapt", and any page that copies
+     the pattern) read their hue from this, unset everywhere else. */
+  --page-head-cta: #ffffff;
+  --line: rgba(255, 255, 255, 0.34);
+  color: #ffffff;
+}
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header-title {
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  padding-left: 0;
+  border-left: none;
+}
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header-sub {
+  padding-left: 0;
+}
+
+/* Links inside a header sit on navy. Most are inline-styled (c.muted, c.accent
+   or a raw hex), and an inline colour beats a stylesheet rule -- hence the
+   !important, kept to this one context. `:not([style*="background"])` spares
+   anything that paints its own chip or button, which already carries its own
+   readable pairing. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header a:not([style*="background"]),
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header button:not([style*="background"]),
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header button[style*="background: transparent"] {
+  color: #ffffff !important;
+}
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header button[style*="background: transparent"] {
+  border-color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* A record header is a white card that floats ON the band (accounts,
+   contacts, assets, employees). It keeps its own ink -- only the marker
+   turns the band on -- so nothing inside needs a theme branch. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-band {
+  /* cardStyle sets box-shadow inline, so lifting this one card off the navy
+     needs the override to win -- the only reason for !important here. */
+  box-shadow: 0 2px 10px rgba(16, 28, 58, 0.18) !important;
+}
+
+/* Chrome polish. The rail's own search/filter fields and the top bar's pill
+   share --sb-search-*, already navy-ready above; these are the pieces that
+   read as "half-themed" without a rule of their own. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-sidebar-rail a[href],
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-sidebar-rail button {
+  border-radius: 7px;
+}
+
+/* Tables: the reference's header row is a tint of the page ground with no
+   rounded corners, sitting flush inside a squared-off card. nextgen rounds
+   them (8px) and tints them from --surface-sunken, which reads as a
+   different product next to a flat navy band. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main thead th:first-child,
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main thead th:last-child {
+  border-radius: 0;
+}
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main thead tr {
+  background: #f7f8fc;
+}
+
+/* Inputs keep a real edge here rather than nextgen's fill-only well: on a
+   flat white card with hairline borders, a borderless field disappears. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main select,
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main textarea {
+  background: #ffffff;
+  border: 1px solid var(--line);
+}
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main input:focus,
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main select:focus,
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main textarea:focus {
+  border-color: var(--modern-accent);
+  box-shadow: 0 0 0 3px rgba(30, 99, 200, 0.14);
+  outline: none;
+}
+
+
+/* Shared page header (PageHeader.tsx, and DashboardLayout's own greeting
+   block which opts in with the same class). These were inline styles until
+   2026-09-19 and the values are unchanged -- they moved here so a theme can
+   restyle them, which an inline style makes impossible: Spectacular paints a
+   navy band across the top of <main> and needs this text white and unbarred
+   on it. */
+.bpm-page-header-title {
+  font-size: 19px;
+  font-weight: 600;
+  padding-left: 12px;
+  /* --tenant-accent is server-rendered from tenant.accent_color in
+     (app)/layout.tsx -- the same source Sidebar uses, so this bar always
+     matches the sidebar highlight. */
+  border-left: 3px solid var(--tenant-accent, #378ADD);
+}
+.bpm-page-header-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+  padding-left: 12px;
 }
 
 /* Real interaction states -- the whole reason this can't just be inline

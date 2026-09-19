@@ -28,7 +28,7 @@ export default function QuoteTypePicker({ visibleTypeIds, accountId }: { visible
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
-      <div style={{ marginBottom: 24 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 12, color: c.muted, marginBottom: 12, cursor: "pointer" }}
           onClick={() => router.push(accountId ? ROUTES.account(accountId) : ROUTES.quotations)}>
           ← {accountId ? "Back to account" : "Quotations"}

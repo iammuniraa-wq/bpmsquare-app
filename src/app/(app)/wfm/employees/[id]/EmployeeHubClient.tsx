@@ -334,14 +334,14 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
 
   return (
     <>
-      <div style={{ marginBottom: 14 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 14 }}>
         <Link href={ROUTES.wfmEmployees} style={{ fontSize: 12.5, color: c.muted, textDecoration: "none" }}>← Employees</Link>
       </div>
 
       {actionError && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{actionError}</div>}
 
       {/* ── Identity header ──────────────────────────────────────────── */}
-      <section style={{ ...cardStyle, marginBottom: 14 }}>
+      <section className="bpm-page-band" style={{ ...cardStyle, marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

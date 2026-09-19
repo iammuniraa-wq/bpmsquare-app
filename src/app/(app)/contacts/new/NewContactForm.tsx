@@ -305,13 +305,13 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
 
   return (
     <>
-      <div style={{ marginBottom: 12 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 12 }}>
         <Link href={ROUTES.contacts} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           ← All contacts
         </Link>
       </div>
 
-      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Contact</h1>
           <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Add a person linked to an account</p>

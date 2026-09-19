@@ -298,12 +298,12 @@ export default function StandardQuoteForm({
           below renders for page 1 only. */}
       {step !== "lines" && (
         <>
-          <div style={{ marginBottom: 12 }}>
+          <div className="bpm-page-header" style={{ marginBottom: 12 }}>
             <Link href={editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
               ← {editQuote ? editQuote.ref : "All standard quotes"}
             </Link>
           </div>
-          <div style={{ marginBottom: 16 }}>
+          <div className="bpm-page-header" style={{ marginBottom: 16 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>{editQuote ? `Edit ${editQuote.ref}` : "New Standard Quote"}</h1>
             <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>A plain quote for an account — line items, discount, tax, shipping</p>
           </div>

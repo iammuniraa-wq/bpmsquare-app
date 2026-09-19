@@ -61,12 +61,12 @@ export default function NewProductPage() {
 
   return (
     <div style={{ maxWidth: 640 }}>
-      <div style={{ marginBottom: 8 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 8 }}>
         <Link href={ROUTES.products} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>
           ← All products
         </Link>
       </div>
-      <h1 style={{ fontSize: 19, fontWeight: 700, color: c.ink, margin: "0 0 16px" }}>New product</h1>
+      <h1 className="bpm-page-header" style={{ fontSize: 19, fontWeight: 700, color: c.ink, margin: "0 0 16px" }}>New product</h1>
 
       <form onSubmit={handleSubmit} style={{ ...cardStyle, padding: 20 }}>
         <div style={fw}>

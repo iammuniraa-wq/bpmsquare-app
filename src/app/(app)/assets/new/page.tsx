@@ -86,13 +86,13 @@ export default function NewAssetPage() {
 
   return (
     <>
-      <div style={{ marginBottom: 12 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 12 }}>
         <Link href={prefillAccountId ? ROUTES.account(prefillAccountId) : ROUTES.assets} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           {prefillAccountId ? "← Back to account" : "← All assets"}
         </Link>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Asset</h1>
         <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Register a customer asset or loaner unit</p>
       </div>

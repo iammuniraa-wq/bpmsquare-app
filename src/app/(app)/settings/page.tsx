@@ -119,7 +119,7 @@ export default async function SettingsHubPage() {
 
   return (
     <div style={{ maxWidth: 780 }}>
-      <div style={{ marginBottom: 22 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 22 }}>
         <h1 style={{ fontSize: 19, margin: 0, fontWeight: 600 }}>Settings</h1>
         <p style={{ margin: "4px 0 0", fontSize: 12.5, color: c.muted }}>
           Configure your workspace, sales &amp; service setup, and data.

@@ -1185,7 +1185,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
   // ── Main form ─────────────────────────────────────────────────────────────
   return (
     <>
-      <div style={{ marginBottom: 10 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 10 }}>
         <Link
           href={editQuote ? ROUTES.quotation(editQuote.quote.id) : defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.quotations}
           style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}
@@ -1194,7 +1194,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         </Link>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: hasDraft ? 10 : 20, justifyContent: "space-between" }}>
+      <div className="bpm-page-header" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: hasDraft ? 10 : 20, justifyContent: "space-between" }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>{editQuote ? "Edit" : "New"} {OFFER_TYPE_LABEL[offerType] ?? "Quotation"}</h1>
           <div style={{ fontSize: 12.5, color: c.muted, marginTop: 3, fontFamily: "monospace" }}>{editQuote ? editQuote.quote.ref : "New draft"}</div>

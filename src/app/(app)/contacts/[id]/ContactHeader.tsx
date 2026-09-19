@@ -7,7 +7,7 @@ import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 // not here.
 export default function ContactHeader({ isAdmin, children }: { isAdmin: boolean; children: React.ReactNode }) {
   return (
-    <div style={{ ...cardStyle, marginBottom: 14 }}>
+    <div className="bpm-page-band" style={{ ...cardStyle, marginBottom: 14 }}>
       {children}
       <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <AdaptObjectDrawer objectType="contact" objectLabel="Contact" isAdmin={isAdmin} />
