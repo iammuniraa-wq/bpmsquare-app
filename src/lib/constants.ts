@@ -504,6 +504,11 @@ export type TenantFeatures = {
   // the demo tenant first, missing key reads false so every existing tenant
   // is untouched.
   enterprise_theme: boolean;
+  // The "Spectacular" theme (owner request 2026-09-19, from an Able Pro
+  // dashboard reference): nextgen's structure with a softer, bluer, rounder
+  // palette. Same platform-admin-only shape as the two flags above -- proven
+  // on the demo tenant before any client sees it, missing key reads false.
+  spectacular_theme: boolean;
   // Coverage (owner decision 2026-08-26, from the "Orbit" proposal): the
   // rule-based Team/Segment/Coverage org model, replacing flat territory/
   // sales_org picklists with computed rules -- also drives auto-ownership,
@@ -941,8 +946,13 @@ export type TenantConfig = {
      * "enterprise" (owner request 2026-08-24) is nextgen's light content
      * with a dark navy sidebar -- also folds into "nextgen" for behaviour;
      * useIsEnterpriseSidebar() is its structural hook, same pattern. Unlike
-     * "nextgen2" it carries no feature-flag gate -- any tenant can pick it. */
-    ui_theme?: "classic" | "modern" | "nextgen" | "nextgen2" | "enterprise";
+     * "nextgen2" it carries no feature-flag gate -- any tenant can pick it.
+     * "spectacular" (owner request 2026-09-19) is nextgen's structure with a
+     * softer, bluer, rounder palette taken from an Able Pro dashboard
+     * reference -- folds into "nextgen" for behaviour like the two above,
+     * with useIsSpectacular() as its structural hook. Light only: a
+     * workspace that toggles dark gets nextgen's own dark mode. */
+    ui_theme?: "classic" | "modern" | "nextgen" | "nextgen2" | "enterprise" | "spectacular";
     /** Three pieces of Nova/Enterprise chrome a plain-nextgen workspace can
      * switch on for itself (owner decision 2026-09-06). Each was previously
      * reachable only by adopting a whole theme behind a platform-admin flag

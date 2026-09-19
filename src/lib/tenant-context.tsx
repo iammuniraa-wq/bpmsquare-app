@@ -95,7 +95,7 @@ export function useUiTheme(): "classic" | "modern" | "nextgen" {
   // via the separate data-enterprise attribute below, same precedent as
   // "nextgen2" (Nova) folding into nextgen while useIsNextgen3Layer() carries
   // its own structural difference.
-  if (t === "nextgen" || t === "nextgen2" || t === "enterprise") return "nextgen";
+  if (t === "nextgen" || t === "nextgen2" || t === "enterprise" || t === "spectacular") return "nextgen";
   if (t === "modern" || t === "modern2" || t === "modern3") return "modern";
   return "classic";
 }
@@ -119,6 +119,21 @@ export function useIsEnterpriseSidebar(): boolean {
   const { tenant } = useContext(TenantContext);
   return tenant?.config?.appearance?.ui_theme === "enterprise"
     && tenant?.features?.enterprise_theme === true;
+}
+
+/** True for the "Spectacular" direction (owner request 2026-09-19, from an
+ * Able Pro dashboard reference): nextgen's structure with a softer, bluer,
+ * rounder palette. Shell.tsx stamps data-spectacular="true" from this, and
+ * globals.css redefines the full nextgen token set behind that stamp.
+ *
+ * Same double gate as useIsEnterpriseSidebar() above -- the ui_theme value
+ * AND a platform-admin-only feature flag, so a stored choice can never
+ * render for a tenant the flag was later taken off (bpmsquarecore.md §10:
+ * nothing experimental reaches an existing client on its own). */
+export function useIsSpectacular(): boolean {
+  const { tenant } = useContext(TenantContext);
+  return tenant?.config?.appearance?.ui_theme === "spectacular"
+    && tenant?.features?.spectacular_theme === true;
 }
 
 /**

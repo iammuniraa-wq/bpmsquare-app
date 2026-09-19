@@ -374,6 +374,96 @@
   --sb-active-ink: #ffffff;
 }
 
+/* "Spectacular" (owner request 2026-09-19, from an Able Pro admin-dashboard
+   reference): nextgen's structure with a softer, bluer, airier palette --
+   rounder cards, lighter lines, a diffuse shadow and a single confident blue
+   instead of nextgen's neutral ink. Folds into useUiTheme()==="nextgen" for
+   behaviour exactly like "enterprise" does, so this is [data-theme="nextgen"]
+   plus its own data-spectacular stamp.
+
+   Light only, via :not([data-mode="dark"]). The reference is a light design
+   and there is nothing to port; a workspace that toggles dark simply gets
+   nextgen's own dark mode, which is already built and contrast-checked.
+   Scoping it this way also settles the cascade -- this block and the dark
+   block would otherwise have identical specificity and fight on source order.
+
+   Every token nextgen defines is redefined here. Leaving any out would let a
+   nextgen value show through into a palette it was never measured against,
+   which is how half-themed screens happen. The four sidebar ink tiers keep
+   nextgen's hard-won AA contrast (text ~10.5:1 down to faint ~4.5:1 on
+   white) -- the hue moved, the readability did not. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) {
+  --panel2: #f5f7fb;
+  --card-radius: 12px;
+  --card-shadow: 0 2px 6px rgba(43, 58, 84, 0.06), 0 1px 2px rgba(43, 58, 84, 0.05);
+  --card-shadow-hover: 0 12px 28px rgba(43, 58, 84, 0.12), 0 3px 8px rgba(43, 58, 84, 0.07);
+  --shadow-raised: 0 16px 40px rgba(43, 58, 84, 0.18), 0 3px 10px rgba(43, 58, 84, 0.10);
+
+  --surface-sunken:   #eaeef7;
+  --surface-subtle:   #f7f9fd;
+  --surface-raised:   #ffffff;
+  --surface-hover:    rgba(70, 128, 255, 0.07);
+  --surface-selected: #e4edff;
+  --line: #e6eaf2;
+
+  --sidebar-grad: #ffffff;
+  --sb-bar-bg: #ffffff;
+
+  /* One blue carries the whole theme. nextgen splits accent and "gold" for
+     its two emphasis levels; here both are the same blue, because the
+     reference earns hierarchy from weight and fill, not from a second hue. */
+  --modern-accent: #4680ff;
+  --modern-accent-bg: #edf3ff;
+  --modern-gold: #4680ff;
+  --modern-gold-bg: #edf3ff;
+
+  --nextgen-ai: #7a5cff;
+  --nextgen-ai-soft: #f1eeff;
+  --nextgen-good: #2ca87f;
+  --nextgen-good-soft: #e6f6f0;
+  --nextgen-bad: #d64550;
+  --nextgen-bad-soft: #fdecec;
+  --nextgen-warn: #e58a00;
+  --nextgen-warn-soft: #fdf3e2;
+
+  --sb-text: #2b3648;
+  --sb-text-dim: #52616f;
+  --sb-text-dimmer: #626f7d;
+  --sb-text-faint: #74808d;
+  --sb-strong: #131c2b;
+  --sb-icon-muted: #7b8794;
+  --sb-line: #e6eaf2;
+  --sb-hover: rgba(70, 128, 255, 0.07);
+  --sb-hover-strong: rgba(70, 128, 255, 0.11);
+  --sb-active-bg: #edf3ff;
+  --sb-active-ink: #4680ff;
+  --sb-tab-underline: #4680ff;
+  --sb-tab-sub-active: #4680ff;
+
+  --sb-panel-bg: #ffffff;
+  --sb-panel-border: #e6eaf2;
+  --sb-panel-text: #131c2b;
+  --sb-panel-text-dim: #626f7d;
+  --sb-panel-hover: rgba(70, 128, 255, 0.07);
+
+  --sb-search-bg: #f7f9fd;
+  --sb-search-border: #dfe5f0;
+  --sb-search-text: #131c2b;
+  --sb-search-icon: #626f7d;
+
+  --drawer-bg: #ffffff;
+  --drawer-card: #f7f9fd;
+  --drawer-card-alt: #edf3ff;
+  --drawer-line: #e6eaf2;
+  --drawer-line-strong: #d3dae6;
+  --drawer-text: #131c2b;
+  --drawer-text-dim: #626f7d;
+  --drawer-hint: #74808d;
+  --drawer-hint-faint: #9aa5b2;
+  --drawer-err-bg: #fdecec;
+  --drawer-err-border: #f4cfd0;
+}
+
 /* Real interaction states -- the whole reason this can't just be inline
    styles (React inline style objects can't express :hover/transition).
    Opt a card into this class (only in modern mode) for a genuine hover-lift
