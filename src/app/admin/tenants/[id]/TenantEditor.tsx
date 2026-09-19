@@ -54,6 +54,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "pricing_engine_quotes", label: "Pricing Engine → live on Quote lines", premium: true, group: "Platform & automation" },
   { key: "next_experience", label: "Nova — the Business OS experience", premium: true, group: "Programs" },
   { key: "enterprise_theme", label: "Enterprise theme (dark rail + light workspace)", premium: true, group: "Programs" },
+  { key: "spectacular_theme", label: "Spectacular theme (soft blue, rounded, airy)", premium: true, group: "Programs" },
 ];
 
 const FEATURE_GROUPS = [...new Set(FEATURE_LABELS.map((f) => f.group))];
