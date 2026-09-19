@@ -55,13 +55,13 @@ export default function NewSupplierPage() {
 
   return (
     <>
-      <div style={{ marginBottom: 12 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 12 }}>
         <Link href={ROUTES.suppliers} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           ← All suppliers
         </Link>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Supplier</h1>
         <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Add a vendor or subcontractor</p>
       </div>

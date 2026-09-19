@@ -160,7 +160,7 @@ export default function TeamPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <div style={{ marginBottom: 20 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 19, margin: 0, fontWeight: 600, paddingLeft: 12, borderLeft: `3px solid ${accent}` }}>
           Team
         </h1>

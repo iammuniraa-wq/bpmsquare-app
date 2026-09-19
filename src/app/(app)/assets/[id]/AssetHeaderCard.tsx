@@ -33,7 +33,7 @@ type Props = {
 // below (ObjectSections), not here — see AccountHeader for the same rule.
 export default function AssetHeaderCard({ asset, account, casesCount, openCasesCount, isAdmin }: Props) {
   return (
-    <div style={{ ...cardStyle, marginBottom: 14 }}>
+    <div className="bpm-page-band" style={{ ...cardStyle, marginBottom: 14 }}>
       <div style={{ marginBottom: 10 }}>
         <Link href={ROUTES.assets} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           ← All assets

@@ -120,13 +120,13 @@ export default function InvoiceForm({
 
   return (
     <>
-      <div style={{ marginBottom: 12 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 12 }}>
         <Link href={defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.invoices} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           ← {defaultAccountId ? "Back to account" : "All invoices"}
         </Link>
       </div>
 
-      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Invoice</h1>
           <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Bill an account, optionally from an approved quote</p>

@@ -214,11 +214,11 @@ export default function QuoteFormSupply({ accounts, contacts, defaultAccountId }
 
   return (
     <>
-      <div style={{ marginBottom: 10 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 10 }}>
         <Link href={ROUTES.quotationNew} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>← Choose type</Link>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: hasDraft ? 10 : 20 }}>
+      <div className="bpm-page-header" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: hasDraft ? 10 : 20 }}>
         <span style={{ fontSize: 22 }}>📦</span>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: c.ink, margin: 0 }}>Supply Quotation</h1>

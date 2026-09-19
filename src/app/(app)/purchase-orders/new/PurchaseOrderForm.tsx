@@ -111,13 +111,13 @@ export default function PurchaseOrderForm({
 
   return (
     <>
-      <div style={{ marginBottom: 12 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 12 }}>
         <Link href={ROUTES.purchaseOrders} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           ← All purchase orders
         </Link>
       </div>
 
-      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Purchase Order</h1>
           <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Order stock from a supplier</p>

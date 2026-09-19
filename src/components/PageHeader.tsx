@@ -1,6 +1,12 @@
-import { c } from "@/lib/theme";
-
 // Page-header convention: paddingLeft + accent left border. Pass `action` for a top-right CTA.
+//
+// The title/subtitle carry their look in `.bpm-page-header-title` /
+// `.bpm-page-header-sub` (globals.css) rather than inline, because a theme has
+// to be able to restyle them: Spectacular paints a navy band across the top of
+// <main> and needs this text white and unbarred on it, and an inline style
+// always beats a stylesheet rule. The class on the wrapper is also what that
+// band's `main:has(.bpm-page-header)` selector looks for -- a page without
+// this component deliberately gets no band.
 export default function PageHeader({
   title,
   subtitle,
@@ -12,6 +18,7 @@ export default function PageHeader({
 }) {
   return (
     <div
+      className="bpm-page-header"
       style={{
         display: "flex",
         justifyContent: "space-between",
@@ -27,24 +34,10 @@ export default function PageHeader({
       }}
     >
       <div>
-        <h1
-          style={{
-            fontSize: 19,
-            margin: 0,
-            paddingLeft: 12,
-            // --tenant-accent is server-rendered from tenant.accent_color in (app)/layout.tsx —
-            // the same source Sidebar uses, so this bar always matches the sidebar highlight.
-            borderLeft: "3px solid var(--tenant-accent, #378ADD)",
-            fontWeight: 600,
-          }}
-        >
+        <h1 className="bpm-page-header-title" style={{ margin: 0 }}>
           {title}
         </h1>
-        {subtitle && (
-          <div style={{ fontSize: 12, color: c.muted, marginTop: 3, paddingLeft: 12 }}>
-            {subtitle}
-          </div>
-        )}
+        {subtitle && <div className="bpm-page-header-sub">{subtitle}</div>}
       </div>
       {/* The decorative avatar that used to sit here hardcoded "VP" (a
           prototype-era Vikas Pioneers leftover, shown to every tenant) --

@@ -44,11 +44,11 @@ export default function NewOpportunityForm({ accounts, contacts, members, stages
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <div style={{ marginBottom: 8 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 8 }}>
         <Link href={ROUTES.pipeline} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← Pipeline</Link>
       </div>
-      <h1 style={{ fontSize: 19, fontWeight: 700, color: c.ink, margin: "0 0 4px" }}>New deal</h1>
-      <p style={{ fontSize: 12.5, color: c.muted, margin: "0 0 16px" }}>A pursuit with a customer. Lines, pricing and quotes come next, on the deal itself.</p>
+      <h1 className="bpm-page-header" style={{ fontSize: 19, fontWeight: 700, color: c.ink, margin: "0 0 4px" }}>New deal</h1>
+      <p className="bpm-page-header" style={{ fontSize: 12.5, color: c.muted, margin: "0 0 16px" }}>A pursuit with a customer. Lines, pricing and quotes come next, on the deal itself.</p>
 
       <form onSubmit={submit} style={{ ...cardStyle, padding: 20 }}>
         <div style={fw}>

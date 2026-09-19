@@ -270,7 +270,7 @@ export default async function AccountHubPage({
       <TabTitle title={account.name} />
 
       {/* ── Breadcrumb ── */}
-      <div style={{ marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div className="bpm-page-header" style={{ marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <Link href={ROUTES.accounts} style={{ fontSize: 12.5, color: c.muted, textDecoration: "none" }}>
           ← Accounts
         </Link>

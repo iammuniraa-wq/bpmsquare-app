@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import React, { useState, useTransition, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ServiceCase, Account, WorkOrder, Activity as ActivityRec } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useUiTheme, useIsNextgen3Layer, useCurrency } from "@/lib/tenant-context";
+import { useUiTheme, useIsNextgen3Layer, useIsSpectacular, useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter, type CurrencyDef } from "@/lib/currency";
 import SilenceDetector from "@/components/SilenceDetector";
 import LossIntelligence from "@/components/LossIntelligence";
@@ -558,48 +558,62 @@ function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: numb
   );
 }
 
-function StatTile({ value, label, icon, href, tone }: { value: number | string; label: string; icon: React.ReactNode; href: string; tone?: PillarKey }) {
+function StatTile({ value, label, icon, href, tone, onFill }: { value: number | string; label: string; icon: React.ReactNode; href: string; tone?: PillarKey; onFill?: boolean }) {
   const modern = useUiTheme() !== "classic";
+  // `onFill` says the CARD around this tile is painted in the tone's colour
+  // (Spectacular only -- see AnalyticsCard). Everything then has to invert:
+  // the icon's colour was baked in by renderWidget, which can't call a hook,
+  // so it's re-pointed here rather than at all thirteen call sites.
+  const filled = useIsSpectacular() && !!onFill;
+  const iconEl = filled && React.isValidElement<{ color?: string }>(icon)
+    ? React.cloneElement(icon, { color: "#ffffff" })
+    : icon;
   return (
     <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px", minWidth: 0 }}>
       <div style={{
         width: 28, height: 28, borderRadius: modern ? 8 : 7,
-        background: tone ? pillar[tone].bg : (modern ? "var(--modern-accent-bg)" : ledger.accentSoft),
+        background: filled ? "rgba(255, 255, 255, 0.22)" : tone ? pillar[tone].bg : (modern ? "var(--modern-accent-bg)" : ledger.accentSoft),
         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
       }}>
-        {icon}
+        {iconEl}
       </div>
       <div>
         <div style={{
           ...(modern ? {} : serifNum),
           fontSize: kpiNumFontSize(String(value)) + 2, fontWeight: modern ? 800 : 700,
-          color: tone ? pillar[tone].fg : (modern ? "var(--modern-accent)" : ledger.accent),
+          color: filled ? "#ffffff" : tone ? pillar[tone].fg : (modern ? "var(--modern-accent)" : ledger.accent),
           letterSpacing: modern ? "-0.01em" : undefined,
           lineHeight: 1.15, whiteSpace: "nowrap",
         }}>{value}</div>
-        <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>{label}</div>
+        <div style={{ fontSize: 11, color: filled ? "rgba(255, 255, 255, 0.82)" : c.hint, marginTop: 5 }}>{label}</div>
       </div>
     </Link>
   );
 }
 
-function AnalyticsCard({ title, href, children }: { title: string; href: string; children: React.ReactNode }) {
+function AnalyticsCard({ title, href, children, fill }: { title: string; href: string; children: React.ReactNode; fill?: PillarKey }) {
   const modern = useUiTheme() !== "classic";
+  // Spectacular fills a STAT card edge to edge in its pillar colour (the
+  // reference's four colour blocks); chart and list cards stay white, or the
+  // dashboard turns into a paint chart. `fill` is only passed by the
+  // stat-style widgets in renderWidget.
+  const filled = useIsSpectacular() && !!fill;
   return (
     <div
       className={modern ? "modern-lift-gold" : undefined}
       style={{
         ...cardStyle, padding: 0, overflow: "hidden",
+        ...(filled ? { background: `var(--spec-fill-${fill})`, border: "none" } : null),
         // box-shadow is owned by .modern-lift-gold in modern mode (base +
         // hover + the gold edge all live there) -- leaving it inline here
         // too would silently cancel the class's :hover rule, since an
         // inline style always beats a stylesheet rule for the same element.
-        boxShadow: modern ? undefined : "0 1px 2px rgba(16,24,40,.04), 0 1px 6px rgba(16,24,40,.03)",
+        boxShadow: filled ? "0 2px 8px rgba(16, 28, 58, 0.14)" : modern ? undefined : "0 1px 2px rgba(16,24,40,.04), 0 1px 6px rgba(16,24,40,.03)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${modern ? "var(--line)" : ledger.line}` }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: modern ? "var(--modern-accent)" : c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>
-        <Link href={href} style={{ fontSize: 10.5, color: modern ? "var(--modern-accent)" : ledger.accent, textDecoration: "none", fontWeight: 600 }}>Full view →</Link>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${filled ? "rgba(255, 255, 255, 0.20)" : modern ? "var(--line)" : ledger.line}` }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: filled ? "#ffffff" : modern ? "var(--modern-accent)" : c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>
+        <Link href={href} style={{ fontSize: 10.5, color: filled ? "rgba(255, 255, 255, 0.86)" : modern ? "var(--modern-accent)" : ledger.accent, textDecoration: "none", fontWeight: 600 }}>Full view →</Link>
       </div>
       <div style={{ padding: modern ? "14px 16px" : "12px 14px" }}>{children}</div>
     </div>
@@ -669,24 +683,34 @@ const WIDGET_TONE: Partial<Record<string, PillarKey>> = {
   wfm_project_hours: "blue", wfm_project_budget: "amber", wfm_project_billing: "green",
 };
 
+// Stat-style widgets whose id carries no WIDGET_TONE. The tone above also
+// drives icon/number colour in every theme, so adding them there would
+// restyle nextgen and modern for existing tenants -- these are read ONLY by
+// Spectacular's card fill, which is why they live apart.
+const STAT_FILL: Partial<Record<string, PillarKey>> = {
+  contracts: "green", pipeline_open_value: "blue", products: "teal",
+  loaner_availability: "purple",
+};
+
 const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
 export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full", cur: CurrencyDef): React.ReactNode {
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const COLORS = [pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.purple.base, pillar.green.base];
   const tone = WIDGET_TONE[id];
+  const fill = tone ?? STAT_FILL[id];
   const iconColor = tone ? pillar[tone].base : ledger.accent;
   const big = size !== "compact";
   switch (id) {
-    case "accounts":        return <AnalyticsCard title="Accounts" href={ROUTES.accounts}><StatTile tone={tone} value={a.totals.accounts} label="Total accounts" icon={<Globe size={14} color={iconColor} />} href={ROUTES.accounts} /></AnalyticsCard>;
-    case "contacts":        return <AnalyticsCard title="Contacts" href={ROUTES.contacts}><StatTile tone={tone} value={a.totals.contacts} label="Total contacts" icon={<Phone size={14} color={iconColor} />} href={ROUTES.contacts} /></AnalyticsCard>;
-    case "assets":          return <AnalyticsCard title="Assets" href={ROUTES.assets}><StatTile tone={tone} value={a.totals.customerAssets} label="Customer assets" icon={<Gear size={14} color={iconColor} />} href={ROUTES.assets} /></AnalyticsCard>;
-    case "open_cases":      return <AnalyticsCard title="Open cases" href={ROUTES.cases}><StatTile tone={tone} value={a.totals.openCases} label="Open cases" icon={<Activity size={14} color={iconColor} />} href={ROUTES.cases} /></AnalyticsCard>;
-    case "work_orders":     return <AnalyticsCard title="Work orders" href={ROUTES.workOrders}><StatTile tone={tone} value={a.totals.workOrders} label="Total work orders" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.workOrders} /></AnalyticsCard>;
-    case "contracts":       return <AnalyticsCard title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.contractStats.activeCount} label="Active" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /><StatTile tone={tone} value={inr(a.contractStats.totalValue)} label="Total value" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /></div></AnalyticsCard>;
-    case "leads":           return <AnalyticsCard title="Leads" href={ROUTES.leads}><StatTile tone={tone} value={a.totals.leads} label="Total leads" icon={<Zap size={14} color={iconColor} />} href={ROUTES.leads} /></AnalyticsCard>;
-    case "pipeline_open_value": return <AnalyticsCard title="Pipeline" href={ROUTES.pipeline}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.totals.openDeals} label="Open deals" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} value={inr(a.totals.openDealValue)} label="Open value" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} value={inr(a.totals.weightedDealValue)} label="Weighted" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /></div></AnalyticsCard>;
-    case "products":        return <AnalyticsCard title="Products" href={ROUTES.products}><StatTile tone={tone} value={a.totals.products} label="Active products" icon={<Package size={14} color={iconColor} />} href={ROUTES.products} /></AnalyticsCard>;
-    case "technicians":     return <AnalyticsCard title="Technicians" href={ROUTES.technicians}><StatTile tone={tone} value={a.totals.technicians} label="Total technicians" icon={<Clipboard size={14} color={iconColor} />} href={ROUTES.technicians} /></AnalyticsCard>;
+    case "accounts":        return <AnalyticsCard fill={fill} title="Accounts" href={ROUTES.accounts}><StatTile tone={tone} onFill={!!fill} value={a.totals.accounts} label="Total accounts" icon={<Globe size={14} color={iconColor} />} href={ROUTES.accounts} /></AnalyticsCard>;
+    case "contacts":        return <AnalyticsCard fill={fill} title="Contacts" href={ROUTES.contacts}><StatTile tone={tone} onFill={!!fill} value={a.totals.contacts} label="Total contacts" icon={<Phone size={14} color={iconColor} />} href={ROUTES.contacts} /></AnalyticsCard>;
+    case "assets":          return <AnalyticsCard fill={fill} title="Assets" href={ROUTES.assets}><StatTile tone={tone} onFill={!!fill} value={a.totals.customerAssets} label="Customer assets" icon={<Gear size={14} color={iconColor} />} href={ROUTES.assets} /></AnalyticsCard>;
+    case "open_cases":      return <AnalyticsCard fill={fill} title="Open cases" href={ROUTES.cases}><StatTile tone={tone} onFill={!!fill} value={a.totals.openCases} label="Open cases" icon={<Activity size={14} color={iconColor} />} href={ROUTES.cases} /></AnalyticsCard>;
+    case "work_orders":     return <AnalyticsCard fill={fill} title="Work orders" href={ROUTES.workOrders}><StatTile tone={tone} onFill={!!fill} value={a.totals.workOrders} label="Total work orders" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.workOrders} /></AnalyticsCard>;
+    case "contracts":       return <AnalyticsCard fill={fill} title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile tone={tone} onFill={!!fill} value={a.contractStats.activeCount} label="Active" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /><StatTile tone={tone} onFill={!!fill} value={inr(a.contractStats.totalValue)} label="Total value" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /></div></AnalyticsCard>;
+    case "leads":           return <AnalyticsCard fill={fill} title="Leads" href={ROUTES.leads}><StatTile tone={tone} onFill={!!fill} value={a.totals.leads} label="Total leads" icon={<Zap size={14} color={iconColor} />} href={ROUTES.leads} /></AnalyticsCard>;
+    case "pipeline_open_value": return <AnalyticsCard fill={fill} title="Pipeline" href={ROUTES.pipeline}><div style={{ display: "flex" }}><StatTile tone={tone} onFill={!!fill} value={a.totals.openDeals} label="Open deals" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} onFill={!!fill} value={inr(a.totals.openDealValue)} label="Open value" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} onFill={!!fill} value={inr(a.totals.weightedDealValue)} label="Weighted" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /></div></AnalyticsCard>;
+    case "products":        return <AnalyticsCard fill={fill} title="Products" href={ROUTES.products}><StatTile tone={tone} onFill={!!fill} value={a.totals.products} label="Active products" icon={<Package size={14} color={iconColor} />} href={ROUTES.products} /></AnalyticsCard>;
+    case "technicians":     return <AnalyticsCard fill={fill} title="Technicians" href={ROUTES.technicians}><StatTile tone={tone} onFill={!!fill} value={a.totals.technicians} label="Total technicians" icon={<Clipboard size={14} color={iconColor} />} href={ROUTES.technicians} /></AnalyticsCard>;
     case "accounts_by_type": {
       const segs = a.accountsByType.map((x, i) => ({ label: x.label, value: x.count, color: COLORS[i % COLORS.length], href: `${ROUTES.accounts}?type=${x.type}` }));
       return <AnalyticsCard title="Accounts by type" href={ROUTES.accounts}>{big
@@ -721,7 +745,7 @@ export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "com
       return <AnalyticsCard title="Revenue overview" href={ROUTES.invoices}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.blue.base, pillar.purple.base, pillar.teal.base][i % 4]} /></AnalyticsCard>;
     }
     case "invoices_by_status": return <AnalyticsCard title="Invoices by status" href={ROUTES.invoices}><MiniHBar rows={a.invoicesByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.invoices}?status=${x.status}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
-    case "loaner_availability": return <AnalyticsCard title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.loanerStock.available} label="Available" icon={<Battery size={14} color={iconColor} />} href={ROUTES.assets} /><StatTile tone={tone} value={a.loanerStock.onLoan} label="On loan" icon={<Package size={14} color={iconColor} />} href={ROUTES.assets} /></div></AnalyticsCard>;
+    case "loaner_availability": return <AnalyticsCard fill={fill} title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile tone={tone} onFill={!!fill} value={a.loanerStock.available} label="Available" icon={<Battery size={14} color={iconColor} />} href={ROUTES.assets} /><StatTile tone={tone} onFill={!!fill} value={a.loanerStock.onLoan} label="On loan" icon={<Package size={14} color={iconColor} />} href={ROUTES.assets} /></div></AnalyticsCard>;
     case "recent_activity":  return <AnalyticsCard title="Recent activity" href={ROUTES.accounts}><div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{a.recentActivity.slice(0, 4).map((act, i) => (<div key={i} style={{ fontSize: 11, color: c.muted, borderLeft: `2px solid ${ledger.accentSoft}`, paddingLeft: 9 }}><div style={{ color: c.ink }}>{act.text}</div><div style={{ fontSize: 10, color: c.hint, marginTop: 1 }}>{act.accountName} · {fmtDate(act.at)}</div></div>))}</div></AnalyticsCard>;
     case "account_news":     return <AnalyticsCard title="Client news" href={ROUTES.accounts}><AccountNewsList items={a.accountNews} /></AnalyticsCard>;
     case "quote_outcomes": {
@@ -734,8 +758,8 @@ export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "com
       ];
       return <AnalyticsCard title="Quote outcome value" href={ROUTES.quotations}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.amber.base, pillar.blue.base][i]} /></AnalyticsCard>;
     }
-    case "quote_overdue": return <AnalyticsCard title="Quote overdue" href={ROUTES.quotations}><StatTile tone={tone} value={a.quoteOverdueCount} label="Overdue quotes" icon={<AlertTriangle size={14} color={iconColor} />} href={ROUTES.quotations} /></AnalyticsCard>;
-    case "quote_source": return <AnalyticsCard title="Quote source" href={ROUTES.quotations}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.quoteSource.caseLinked.count} label="From cases" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.quotations} /><StatTile tone={tone} value={a.quoteSource.standalone.count} label="Standalone" icon={<FileText size={14} color={iconColor} />} href={ROUTES.quotations} /></div></AnalyticsCard>;
+    case "quote_overdue": return <AnalyticsCard fill={fill} title="Quote overdue" href={ROUTES.quotations}><StatTile tone={tone} onFill={!!fill} value={a.quoteOverdueCount} label="Overdue quotes" icon={<AlertTriangle size={14} color={iconColor} />} href={ROUTES.quotations} /></AnalyticsCard>;
+    case "quote_source": return <AnalyticsCard fill={fill} title="Quote source" href={ROUTES.quotations}><div style={{ display: "flex" }}><StatTile tone={tone} onFill={!!fill} value={a.quoteSource.caseLinked.count} label="From cases" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.quotations} /><StatTile tone={tone} onFill={!!fill} value={a.quoteSource.standalone.count} label="Standalone" icon={<FileText size={14} color={iconColor} />} href={ROUTES.quotations} /></div></AnalyticsCard>;
     case "wfm_attendance_today": {
       const onTime = a.wfmAttendanceBySite.reduce((s, x) => s + x.onTime, 0);
       const late = a.wfmAttendanceBySite.reduce((s, x) => s + x.late, 0);
@@ -1640,8 +1664,11 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+      {/* Header. Carries .bpm-page-header like PageHeader does even though it
+          builds its own greeting layout -- that class is what Spectacular's
+          navy band keys off (globals.css), and the ink inside re-points
+          through --ink/--hint there, so no theme branch is needed here. */}
+      <div className="bpm-page-header" style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 11, color: c.hint, fontWeight: 500, marginBottom: 3 }}>{todayStr()}</div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1.2 }}>{greet()}{userName ? `, ${userName}` : ""}</h1>
@@ -1654,8 +1681,11 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
             <button
               onClick={() => setAdaptOpen(true)}
               style={{
-                fontSize: 11.5, fontWeight: 600, color: c.accent,
-                background: "transparent", border: `1px solid ${c.accent}`,
+                // c.accent as a literal would read at 2.8:1 on Spectacular's
+                // navy header band; the variable is unset in every other
+                // theme, so they keep the exact hex they had.
+                fontSize: 11.5, fontWeight: 600, color: "var(--page-head-cta, #378add)",
+                background: "transparent", border: "1px solid var(--page-head-cta, #378add)",
                 borderRadius: 7, padding: "6px 14px", cursor: "pointer",
               }}
             >
