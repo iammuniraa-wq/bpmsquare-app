@@ -508,6 +508,10 @@ export type TenantFeatures = {
   // dashboard reference): nextgen's structure with a softer, bluer, rounder
   // palette. Same platform-admin-only shape as the two flags above -- proven
   // on the demo tenant before any client sees it, missing key reads false.
+  // Covers BOTH palettes ("spectacular" navy and "spectacular_purple" lilac,
+  // added 2026-09-20): they are one direction rendered in two hues, sharing
+  // every rule, so a second flag would gate nothing a tenant with this one
+  // cannot already reach.
   spectacular_theme: boolean;
   // Coverage (owner decision 2026-08-26, from the "Orbit" proposal): the
   // rule-based Team/Segment/Coverage org model, replacing flat territory/
@@ -951,8 +955,14 @@ export type TenantConfig = {
      * softer, bluer, rounder palette taken from an Able Pro dashboard
      * reference -- folds into "nextgen" for behaviour like the two above,
      * with useIsSpectacular() as its structural hook. Light only: a
-     * workspace that toggles dark gets nextgen's own dark mode. */
-    ui_theme?: "classic" | "modern" | "nextgen" | "nextgen2" | "enterprise" | "spectacular";
+     * workspace that toggles dark gets nextgen's own dark mode.
+     * "spectacular_purple" (owner request 2026-09-20) is the SAME direction
+     * in a lilac/violet palette taken from a second reference -- structure,
+     * band, filled tiles and every rule are shared; only the hue-carrying
+     * tokens differ, so it rides the same useIsSpectacular() hook and the
+     * same spectacular_theme flag, distinguished by useSpectacularVariant().
+     * Two palettes of one theme, not two themes. */
+    ui_theme?: "classic" | "modern" | "nextgen" | "nextgen2" | "enterprise" | "spectacular" | "spectacular_purple";
     /** Three pieces of Nova/Enterprise chrome a plain-nextgen workspace can
      * switch on for itself (owner decision 2026-09-06). Each was previously
      * reachable only by adopting a whole theme behind a platform-admin flag

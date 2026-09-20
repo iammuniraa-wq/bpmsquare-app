@@ -623,6 +623,119 @@
 }
 
 
+/* ---- SPECTACULAR, LILAC PALETTE (owner request 2026-09-20) ----------------
+   A second reference in violet rather than navy. It is the SAME direction --
+   the band, the filled KPI tiles, the white rail with a coloured active
+   pill, the squared table head, the bordered inputs -- so this is not a
+   second theme and not a second copy of the ~30 rules above. Shell stamps
+   data-spectacular="true" for both palettes (every rule above keeps
+   matching) and adds data-spectacular-variant; this block redefines only
+   the tokens that actually carry a hue. One extra attribute is one point of
+   specificity, which is what lets it win over the navy block without a
+   single !important.
+
+   Anything structural -- radius, shadow geometry, the band's height, the
+   header rules, the :has() gate -- deliberately is NOT repeated here. If a
+   future change needs different STRUCTURE per palette, that is the moment
+   to split them, not before.
+
+   CONTRAST: measured against the navy palette tier for tier, since those
+   values were the hard-won part. White-on-band 10.5:1 (navy 9.6), and every
+   rail ink tier meets or beats its navy counterpart on white -- strong
+   16.3 (vs 16.1), text 9.2 (7.6), dim 5.6 (4.6), faint 4.3 (3.8). The
+   reference's own vivid #8b5cf6 (4.2:1) and #0d9488 (3.7:1) do NOT clear
+   4.5:1 under the white text they carry, exactly as the Nifty reference's
+   greens didn't -- so every fill below keeps the reference's hue and takes
+   a deeper value of it. */
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) {
+  --panel2: #f4f2fb;
+  --card-shadow: 0 1px 2px rgba(45, 22, 90, 0.05);
+  --card-shadow-hover: 0 8px 20px rgba(45, 22, 90, 0.12), 0 2px 6px rgba(45, 22, 90, 0.06);
+  --shadow-raised: 0 16px 40px rgba(45, 22, 90, 0.18), 0 3px 10px rgba(45, 22, 90, 0.10);
+
+  --surface-sunken:   #eeeaf8;
+  --surface-subtle:   #faf9fe;
+  --surface-hover:    rgba(74, 37, 150, 0.05);
+  --surface-selected: #efe9fd;
+  --line: #e8e3f3;
+
+  --spectacular-band: #4a2596;
+  --sb-bar-bg: #4a2596;
+
+  /* The reference's interactive violet. Deeper than its own #8b5cf6 so it
+     is also legible as link/label text on a white card, which --modern-accent
+     is used for far more often than it is used as a fill. */
+  --modern-accent: #6d28d9;
+  --modern-accent-bg: #efe9fd;
+  --modern-gold: #6d28d9;
+  --modern-gold-bg: #efe9fd;
+
+  /* AI goes INDIGO here, not violet. In the navy palette violet was the
+     off-hue that marked AI apart from a blue product; in a violet product it
+     would read as more of the same, so it takes the indigo from the
+     reference's own swatch row and keeps the "this is the AI one" signal. */
+  --nextgen-ai: #4338ca;
+  --nextgen-ai-soft: #e9e7fb;
+  --nextgen-good: #0d8150;
+  --nextgen-good-soft: #e3f3eb;
+  --nextgen-bad: #be123c;
+  --nextgen-bad-soft: #fceaee;
+  --nextgen-warn: #a6600b;
+  --nextgen-warn-soft: #fbf1e2;
+
+  --spec-fill-blue:   #4338ca;
+  --spec-fill-teal:   #0d7d76;
+  --spec-fill-amber:  #b45309;
+  --spec-fill-purple: #6d28d9;
+  --spec-fill-green:  #0d8150;
+  --spec-fill-red:    #be123c;
+
+  --sb-panel-border: #e8e3f3;
+  --sb-panel-text: #231a3d;
+  --sb-panel-text-dim: #6b6485;
+  --sb-panel-hover: rgba(74, 37, 150, 0.06);
+
+  --drawer-card: #faf9fe;
+  --drawer-card-alt: #efe9fd;
+  --drawer-line: #e8e3f3;
+  --drawer-line-strong: #d9d2e9;
+  --drawer-text: #231a3d;
+  --drawer-text-dim: #4a4363;
+  --drawer-hint: #6b6485;
+  --drawer-hint-faint: #9a93ad;
+  --drawer-err-bg: #fceaee;
+  --drawer-err-border: #f4ccd5;
+}
+
+/* The rail, same white sheet. The active pill takes the VIVID violet rather
+   than the band colour -- that split is in the reference (deep chrome, bright
+   pill) and it is what stops the current row reading as a hole in the sheet. */
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-sidebar-rail {
+  --sb-text: #4a4363;
+  --sb-text-dim: #6b6485;
+  --sb-text-dimmer: #6b6485;
+  --sb-text-faint: #7d7694;
+  --sb-strong: #231a3d;
+  --sb-icon-muted: #6b6485;
+  --sb-line: #e8e3f3;
+  --sb-hover: rgba(74, 37, 150, 0.05);
+  --sb-hover-strong: rgba(74, 37, 150, 0.09);
+  --sb-active-bg: #6d28d9;
+  --sb-active-ink: #ffffff;
+  border-right: 1px solid #e8e3f3;
+}
+
+/* The three places the navy block states a hue literally instead of through
+   a token -- they cannot be reached by redefining a variable. */
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main thead tr {
+  background: #faf9fe;
+}
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main input:focus,
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main select:focus,
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main textarea:focus {
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.16);
+}
+
 /* Shared page header (PageHeader.tsx, and DashboardLayout's own greeting
    block which opts in with the same class). These were inline styles until
    2026-09-19 and the values are unchanged -- they moved here so a theme can

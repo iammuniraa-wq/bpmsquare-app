@@ -95,7 +95,7 @@ export function useUiTheme(): "classic" | "modern" | "nextgen" {
   // via the separate data-enterprise attribute below, same precedent as
   // "nextgen2" (Nova) folding into nextgen while useIsNextgen3Layer() carries
   // its own structural difference.
-  if (t === "nextgen" || t === "nextgen2" || t === "enterprise" || t === "spectacular") return "nextgen";
+  if (t === "nextgen" || t === "nextgen2" || t === "enterprise" || t === "spectacular" || t === "spectacular_purple") return "nextgen";
   if (t === "modern" || t === "modern2" || t === "modern3") return "modern";
   return "classic";
 }
@@ -121,19 +121,42 @@ export function useIsEnterpriseSidebar(): boolean {
     && tenant?.features?.enterprise_theme === true;
 }
 
-/** True for the "Spectacular" direction (owner request 2026-09-19, from an
- * Able Pro dashboard reference): nextgen's structure with a softer, bluer,
- * rounder palette. Shell.tsx stamps data-spectacular="true" from this, and
- * globals.css redefines the full nextgen token set behind that stamp.
+/** True for the "Spectacular" direction in EITHER palette (owner request
+ * 2026-09-19, from an Able Pro dashboard reference; the lilac palette added
+ * 2026-09-20): nextgen's structure with its own full token set. Shell.tsx
+ * stamps data-spectacular="true" from this, and globals.css redefines the
+ * full nextgen token set behind that stamp. Use useSpectacularVariant()
+ * below when the palette itself matters.
  *
  * Same double gate as useIsEnterpriseSidebar() above -- the ui_theme value
  * AND a platform-admin-only feature flag, so a stored choice can never
  * render for a tenant the flag was later taken off (bpmsquarecore.md §10:
  * nothing experimental reaches an existing client on its own). */
 export function useIsSpectacular(): boolean {
+  return useSpectacularVariant() !== null;
+}
+
+/** Which Spectacular PALETTE is in play, or null when the theme isn't on.
+ *
+ * Owner request 2026-09-20: a second, lilac/violet reference. It is the same
+ * direction -- same navy-band-shaped chrome, same filled KPI tiles, same
+ * 200-odd CSS rules -- with a different hue, so it is modelled as a variant
+ * rather than a theme. Shell stamps data-spectacular="true" (unchanged, so
+ * every existing rule still matches) PLUS data-spectacular-variant, and
+ * globals.css carries one small override block that redefines only the
+ * hue-carrying custom properties. Duplicating the whole block per palette is
+ * exactly how half-themed screens happen when one copy later gains a rule.
+ *
+ * Both palettes ride the single spectacular_theme flag -- see the note on it
+ * in TenantFeatures. The double gate is unchanged: the stored ui_theme value
+ * AND the platform-admin-only flag (bpmsquarecore.md section 10). */
+export function useSpectacularVariant(): "navy" | "purple" | null {
   const { tenant } = useContext(TenantContext);
-  return tenant?.config?.appearance?.ui_theme === "spectacular"
-    && tenant?.features?.spectacular_theme === true;
+  if (tenant?.features?.spectacular_theme !== true) return null;
+  const t = tenant?.config?.appearance?.ui_theme;
+  if (t === "spectacular") return "navy";
+  if (t === "spectacular_purple") return "purple";
+  return null;
 }
 
 /**
