@@ -144,7 +144,7 @@ function FragmentRow({ frag, onUpdate, onDelete }: { frag: TextFragment; onUpdat
   }
 
   return (
-    <div style={{ padding: "14px 0", borderTop: `1px solid ${c.line}`, display: "grid", gridTemplateColumns: "180px 1fr 80px", gap: 16, alignItems: "start" }}>
+    <div className="row-grid" style={{ padding: "14px 0", borderTop: `1px solid ${c.line}`, display: "grid", gridTemplateColumns: "180px 1fr 80px", gap: 16, alignItems: "start" }}>
       <div style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{frag.label}</div>
       <div style={{ fontSize: 12.5, color: c.muted, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{frag.text}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>

@@ -886,7 +886,7 @@ export default function DocumentLinesEditor({
             {!historyBusy && history && history.length > 0 && (
               <div style={{ border: `1px solid ${c.line}`, borderRadius: 6, overflow: "hidden" }}>
                 {history.map((h) => (
-                  <label key={h.line_id} style={{ display: "grid", gridTemplateColumns: "20px minmax(0,1fr) 150px 70px 90px 90px", gap: 8, alignItems: "center", padding: "5px 8px", borderBottom: `1px solid ${c.line}`, fontSize: 12, cursor: "pointer", background: chosenHistoryIds.has(h.line_id) ? c.accentbg : "transparent" }}>
+                  <label className="row-grid" key={h.line_id} style={{ display: "grid", gridTemplateColumns: "20px minmax(0,1fr) 150px 70px 90px 90px", gap: 8, alignItems: "center", padding: "5px 8px", borderBottom: `1px solid ${c.line}`, fontSize: 12, cursor: "pointer", background: chosenHistoryIds.has(h.line_id) ? c.accentbg : "transparent" }}>
                     <input type="checkbox" checked={chosenHistoryIds.has(h.line_id)} onChange={(e) => setChosenHistoryIds((s) => { const n = new Set(s); if (e.target.checked) n.add(h.line_id); else n.delete(h.line_id); return n; })} style={{ margin: 0 }} />
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.description}{h.was_chosen ? "" : <span style={{ color: c.hint }}> · was not the chosen option</span>}</span>
                     <span style={{ color: c.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.quote_ref} · {fmtDate(h.quoted_at)}{historyScope === "product" && h.account_name ? ` · ${h.account_name}` : ""}</span>

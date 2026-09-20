@@ -116,7 +116,7 @@ export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) 
         })}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "215px 1fr", gap: 18, alignItems: "start" }}>
+      <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "215px 1fr", gap: 18, alignItems: "start" }}>
         <nav style={{ display: "flex", flexDirection: "column", gap: 3, position: "sticky", top: 20 }}>
           <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, padding: "4px 10px 8px" }}>
             {mode === "import" ? "What to import" : mode === "export" ? "What to export" : "What to update"}

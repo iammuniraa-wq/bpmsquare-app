@@ -6,7 +6,7 @@ export default function AppLoading() {
     <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "4px 0" }}>
       <Bone h={28} w={220} />
       <Bone h={14} w={160} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginTop: 8 }}>
+      <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginTop: 8 }}>
         {[0,1,2,3].map((i) => <Bone key={i} h={72} />)}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>

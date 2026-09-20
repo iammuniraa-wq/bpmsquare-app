@@ -11,7 +11,7 @@ import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
-import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useIsEnterpriseSidebar, useIsSpectacular, useNavySidebar, useTopBarIdentity, useCommandPalette } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useIsEnterpriseSidebar, useIsSpectacular, useSpectacularVariant, useNavySidebar, useTopBarIdentity, useCommandPalette } from "@/lib/tenant-context";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
@@ -292,6 +292,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Spectacular redefines the nextgen token set rather than the structure, so
   // it needs no behaviour branch here -- only the stamp the CSS keys off.
   const isSpectacular = useIsSpectacular();
+  // Which palette. data-spectacular stays "true" for BOTH so none of the
+  // ~30 existing [data-spectacular="true"] rules need touching; the variant
+  // rides alongside it and only the purple override block reads it.
+  const spectacularVariant = useSpectacularVariant();
   // The navy rail as an opt-in, kept apart from the Enterprise theme above:
   // that one is light-only, this one must leave dark mode alone.
   const navyRail = useNavySidebar();
@@ -345,7 +349,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return (
       <FeelProvider>
       <TabsProvider trackTabs={false}>
-        <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
+        <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
           <MobileTopBar />
           <main style={{
             flex: 1, minWidth: 0, overflowX: "auto",
@@ -377,7 +381,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <FeelProvider>
     <TabsProvider>
-      <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
+      <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
         {nova ? <NovaSidebar /> : <Sidebar />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{

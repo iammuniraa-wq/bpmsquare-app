@@ -109,7 +109,7 @@ export default async function InvoicesPage({
         }
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: statusFilter ? 8 : 20 }}>
+      <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: statusFilter ? 8 : 20 }}>
         {summary.map(({ status, count, total }) => (
           <Link key={status} href={statusFilter === status ? ROUTES.invoices : `${ROUTES.invoices}?status=${status}`} style={{ textDecoration: "none" }}>
             <div style={{ ...cardStyle, textAlign: "center", borderColor: statusFilter === status ? pillar[STATUS_TONE[status]].base : undefined }}>

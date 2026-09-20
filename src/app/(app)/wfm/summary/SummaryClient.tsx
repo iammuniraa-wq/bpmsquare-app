@@ -264,70 +264,72 @@ function DailyEmployee({ emp, deductBreaks, dayFilter }: { emp: EmployeeSummary;
       </div>
 
       {expanded && (
-        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th>
-              <th style={th}>Breaks taken</th><th style={th}>Break total</th>
-              <th style={th}>Gross</th><th style={th}>Total worked</th><th style={th}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((d) => {
-              const st = dayStatus(d);
-              return (
-                <tr key={d.date}>
-                  <td style={{ ...td, color: c.ink, fontWeight: 600, verticalAlign: "top" }}>{fmtDay(d.date)}</td>
-                  <td style={{ ...td, verticalAlign: "top" }}>
-                    {d.sessions.length === 0 ? "—" : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        {d.sessions.map((s, i) => (
-                          <span key={s.in}>{d.sessions.length > 1 && <span style={{ color: c.hint }}>{i + 1}. </span>}{fmtTime(s.in)}</span>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ ...td, verticalAlign: "top" }}>
-                    {d.sessions.length === 0 ? "—" : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        {d.sessions.map((s) => (
-                          <span key={s.in}>{s.out ? fmtTime(s.out) : <span style={{ color: statusInk.bad }}>missing</span>}</span>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ ...td, whiteSpace: "normal", verticalAlign: "top" }}>
-                    {d.breaks.length === 0 ? <span style={{ color: c.hint }}>—</span> : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        {d.breaks.map((b, i) => (
-                          <span key={b.start} style={{ whiteSpace: "nowrap" }}>
-                            <span style={{ color: c.hint }}>{i + 1}.</span>{" "}
-                            {fmtTime(b.start)} – {b.end ? fmtTime(b.end) : <span style={{ color: statusInk.warn }}>running</span>}
-                            <span style={{ color: c.hint }}> ({b.minutes}m)</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ ...td, verticalAlign: "top" }}>{d.break_minutes > 0 ? fmtHM(d.break_minutes) : "—"}</td>
-                  <td style={{ ...td, color: c.muted, verticalAlign: "top" }}>{d.punches > 0 ? fmtHM(d.gross_minutes) : "—"}</td>
-                  <td style={{ ...td, fontWeight: 700, color: c.ink, verticalAlign: "top" }}>{d.punches > 0 ? fmtHM(deductBreaks ? d.net_minutes : d.gross_minutes) : "—"}</td>
-                  <td style={{ ...td, color: st.color, verticalAlign: "top" }}>{st.label}</td>
-                </tr>
-              );
-            })}
-            {rows.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={8}>{dayFilter ? "Not on the roster this day." : "No activity this month."}</td></tr>}
-          </tbody>
-          {!dayFilter && <tfoot>
-            <tr>
-              <td style={{ ...td, fontWeight: 700, color: c.ink }} colSpan={4}>Month total</td>
-              <td style={{ ...td, fontWeight: 700 }}>{fmtHM(emp.days.reduce((s, d) => s + d.break_minutes, 0))}</td>
-              <td style={{ ...td, fontWeight: 700, color: c.muted }}>{fmtHM(emp.days.reduce((s, d) => s + d.gross_minutes, 0))}</td>
-              <td style={{ ...td, fontWeight: 700, color: c.ink }}>{fmtHM(emp.totals.working_minutes)}</td>
-              <td style={td}></td>
-            </tr>
-          </tfoot>}
-        </table>
+        <div className="table-scroll">
+          <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th>
+                <th style={th}>Breaks taken</th><th style={th}>Break total</th>
+                <th style={th}>Gross</th><th style={th}>Total worked</th><th style={th}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((d) => {
+                const st = dayStatus(d);
+                return (
+                  <tr key={d.date}>
+                    <td style={{ ...td, color: c.ink, fontWeight: 600, verticalAlign: "top" }}>{fmtDay(d.date)}</td>
+                    <td style={{ ...td, verticalAlign: "top" }}>
+                      {d.sessions.length === 0 ? "—" : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          {d.sessions.map((s, i) => (
+                            <span key={s.in}>{d.sessions.length > 1 && <span style={{ color: c.hint }}>{i + 1}. </span>}{fmtTime(s.in)}</span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ ...td, verticalAlign: "top" }}>
+                      {d.sessions.length === 0 ? "—" : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          {d.sessions.map((s) => (
+                            <span key={s.in}>{s.out ? fmtTime(s.out) : <span style={{ color: statusInk.bad }}>missing</span>}</span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ ...td, whiteSpace: "normal", verticalAlign: "top" }}>
+                      {d.breaks.length === 0 ? <span style={{ color: c.hint }}>—</span> : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          {d.breaks.map((b, i) => (
+                            <span key={b.start} style={{ whiteSpace: "nowrap" }}>
+                              <span style={{ color: c.hint }}>{i + 1}.</span>{" "}
+                              {fmtTime(b.start)} – {b.end ? fmtTime(b.end) : <span style={{ color: statusInk.warn }}>running</span>}
+                              <span style={{ color: c.hint }}> ({b.minutes}m)</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ ...td, verticalAlign: "top" }}>{d.break_minutes > 0 ? fmtHM(d.break_minutes) : "—"}</td>
+                    <td style={{ ...td, color: c.muted, verticalAlign: "top" }}>{d.punches > 0 ? fmtHM(d.gross_minutes) : "—"}</td>
+                    <td style={{ ...td, fontWeight: 700, color: c.ink, verticalAlign: "top" }}>{d.punches > 0 ? fmtHM(deductBreaks ? d.net_minutes : d.gross_minutes) : "—"}</td>
+                    <td style={{ ...td, color: st.color, verticalAlign: "top" }}>{st.label}</td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={8}>{dayFilter ? "Not on the roster this day." : "No activity this month."}</td></tr>}
+            </tbody>
+            {!dayFilter && <tfoot>
+              <tr>
+                <td style={{ ...td, fontWeight: 700, color: c.ink }} colSpan={4}>Month total</td>
+                <td style={{ ...td, fontWeight: 700 }}>{fmtHM(emp.days.reduce((s, d) => s + d.break_minutes, 0))}</td>
+                <td style={{ ...td, fontWeight: 700, color: c.muted }}>{fmtHM(emp.days.reduce((s, d) => s + d.gross_minutes, 0))}</td>
+                <td style={{ ...td, fontWeight: 700, color: c.ink }}>{fmtHM(emp.totals.working_minutes)}</td>
+                <td style={td}></td>
+              </tr>
+            </tfoot>}
+          </table>
+        </div>
       )}
     </section>
   );

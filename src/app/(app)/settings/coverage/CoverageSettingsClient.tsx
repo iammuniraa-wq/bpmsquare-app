@@ -309,7 +309,7 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <section style={cardStyle}>
         <div style={{ ...lbl, marginBottom: 10 }}>{editingId ? "Edit segment" : "Add a segment"}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 12, marginBottom: 12 }}>
+        <div className="stack-grid" style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 12, marginBottom: 12 }}>
           <div>
             <label style={lbl}>Code</label>
             <input style={{ ...inp, width: "100%" }} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="SOUTH" />
@@ -320,7 +320,7 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 14, marginBottom: 14 }}>
           <div style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10 }}>
             <div style={{ ...lbl, marginBottom: 8 }}>Add a condition</div>
             {categories.map(([category, fields]) => (
@@ -519,7 +519,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <section style={cardStyle}>
         <div style={{ ...lbl, marginBottom: 10 }}>Wire a segment to a team</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 100px", gap: 12, marginBottom: 12 }}>
+        <div className="stack-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 100px", gap: 12, marginBottom: 12 }}>
           <div>
             <label style={lbl}>Segment</label>
             <select style={{ ...inp, width: "100%" }} value={segmentId} onChange={(e) => setSegmentId(e.target.value)}>
@@ -551,7 +551,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
           Priority only matters for OWNER — when two OWNER segments both match one account, the lower number wins. Overlay/service are additive: every match applies.
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 140px", gap: 12, marginBottom: 12 }}>
+        <div className="stack-grid" style={{ display: "grid", gridTemplateColumns: "1fr 140px 140px", gap: 12, marginBottom: 12 }}>
           <div>
             <label style={lbl}>Push this coverage's accounts to</label>
             <select style={{ ...inp, width: "100%" }} value={erpEndpointId} onChange={(e) => setErpEndpointId(e.target.value)}>

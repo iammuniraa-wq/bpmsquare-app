@@ -68,7 +68,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
         action={<AdaptObjectDrawer objectType="purchase_order" objectLabel="Purchase Order" isAdmin={role === "admin"} />}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, alignItems: "start", marginTop: 16 }}>
+      <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, alignItems: "start", marginTop: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
           <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>

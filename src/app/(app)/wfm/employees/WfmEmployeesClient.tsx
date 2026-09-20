@@ -411,109 +411,111 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
             {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
-        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Code</th>
-              <th style={th}>Name</th>
-              <th style={th}>Type</th>
-              <th style={th}>WFM role</th>
-              <th style={th}>Shift</th>
-              <th style={th}>Home site</th>
-              <th style={th}>Supervisor</th>
-              <th style={th}>Login</th>
-              <th style={th}>Consent</th>
-              {faceEnabled && <th style={th}>Face</th>}
-              <th style={th}>Status</th>
-              <th style={th}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginate(visible, clampPage(page, visible.length, DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE).map((r) => (
-              <tr key={r.id}>
-                <td style={{ ...td, fontFamily: "monospace" }}>{r.employee_code ?? "—"}</td>
-                <td style={{ ...td, fontWeight: 600 }}>
-                  <Link href={ROUTES.wfmEmployee(r.id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
-                    {[r.first_name, r.last_name].filter(Boolean).join(" ")}
-                  </Link>
-                </td>
-                <td style={td}>{typeLabel(r.employment_type)}</td>
-                <td style={td}>{r.wfm_role === "supervisor" ? <Pill label="Supervisor" tone="purple" /> : "Employee"}</td>
-                <td style={td}>{r.wfm_shifts?.name ?? "—"}</td>
-                <td style={td}>{r.wfm_sites?.name ?? "—"}</td>
-                <td style={{ ...td, color: c.muted }}>
-                  {r.supervisor_id
-                    ? [rows.find((s) => s.id === r.supervisor_id)?.first_name, rows.find((s) => s.id === r.supervisor_id)?.last_name].filter(Boolean).join(" ") || "—"
-                    : "—"}
-                </td>
-                <td style={td}>
-                  {r.has_login
-                    ? (loginMode === "code" && r.login_username
-                        ? <span style={{ fontFamily: "monospace", fontSize: 12 }}>{r.login_username}</span>
-                        : <Pill label="Linked" tone="green" />)
-                    : <Pill label="No login" tone="amber" />}
-                </td>
-                <td style={td}>{r.consent_recorded_at ? <Pill label="Given" tone="green" /> : "—"}</td>
-                {faceEnabled && (
-                  <td style={{ ...td, whiteSpace: "nowrap" }}>
-                    {faceMap[r.id] === "active" ? (
-                      <>
-                        <Pill label="Enrolled" tone="green" />{" "}
-                        <button style={{ ...btn, padding: "3px 8px", fontSize: 11 }} disabled={busy} onClick={() => revokeFace(r)}>Remove</button>
-                      </>
-                    ) : r.status === "active" ? (
-                      <button style={{ ...btn, padding: "3px 8px", fontSize: 11 }} disabled={busy} onClick={() => setEnrolling(r)}>Enroll</button>
-                    ) : "—"}
-                  </td>
-                )}
-                <td style={td}><Pill label={r.status === "active" ? "Active" : "Inactive"} tone={r.status === "active" ? "green" : "red"} /></td>
-                <td style={{ ...td, whiteSpace: "nowrap" }}>
-                  <button
-                    style={btn}
-                    disabled={busy}
-                    onClick={() => {
-                      setEditing(r.id);
-                      setDraft({
-                        employee_code: r.employee_code ?? "",
-                        first_name: r.first_name,
-                        last_name: r.last_name,
-                        phone: r.phone ?? "",
-                        employment_type: r.employment_type,
-                        wfm_role: r.wfm_role,
-                        shift_id: r.shift_id ?? "",
-                        site_id: r.site_id ?? "",
-                        supervisor_id: r.supervisor_id ?? "",
-                        invite_email: "",
-                        invite_password: "",
-                      });
-                      setError("");
-                    }}
-                  >
-                    Edit
-                  </button>{" "}
-                  <button style={btn} disabled={busy} onClick={() => toggleStatus(r)}>
-                    {r.status === "active" ? "Deactivate" : "Activate"}
-                  </button>
-                  {loginMode === "code" && r.status === "active" && (
-                    <>
-                      {" "}
-                      <button style={btn} disabled={busy} onClick={() => openLogin(r)}>
-                        {r.has_login ? "Reset password" : "Create login"}
-                      </button>
-                    </>
-                  )}
-                </td>
+        <div className="table-scroll">
+          <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Code</th>
+                <th style={th}>Name</th>
+                <th style={th}>Type</th>
+                <th style={th}>WFM role</th>
+                <th style={th}>Shift</th>
+                <th style={th}>Home site</th>
+                <th style={th}>Supervisor</th>
+                <th style={th}>Login</th>
+                <th style={th}>Consent</th>
+                {faceEnabled && <th style={th}>Face</th>}
+                <th style={th}>Status</th>
+                <th style={th}></th>
               </tr>
-            ))}
-            {visible.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={faceEnabled ? 12 : 11}>
-                {rows.length === 0
-                  ? "No employees yet — use + New employee above, or bulk-load via Data Workbench."
-                  : "No employees match these filters."}
-              </td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {paginate(visible, clampPage(page, visible.length, DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE).map((r) => (
+                <tr key={r.id}>
+                  <td style={{ ...td, fontFamily: "monospace" }}>{r.employee_code ?? "—"}</td>
+                  <td style={{ ...td, fontWeight: 600 }}>
+                    <Link href={ROUTES.wfmEmployee(r.id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
+                      {[r.first_name, r.last_name].filter(Boolean).join(" ")}
+                    </Link>
+                  </td>
+                  <td style={td}>{typeLabel(r.employment_type)}</td>
+                  <td style={td}>{r.wfm_role === "supervisor" ? <Pill label="Supervisor" tone="purple" /> : "Employee"}</td>
+                  <td style={td}>{r.wfm_shifts?.name ?? "—"}</td>
+                  <td style={td}>{r.wfm_sites?.name ?? "—"}</td>
+                  <td style={{ ...td, color: c.muted }}>
+                    {r.supervisor_id
+                      ? [rows.find((s) => s.id === r.supervisor_id)?.first_name, rows.find((s) => s.id === r.supervisor_id)?.last_name].filter(Boolean).join(" ") || "—"
+                      : "—"}
+                  </td>
+                  <td style={td}>
+                    {r.has_login
+                      ? (loginMode === "code" && r.login_username
+                          ? <span style={{ fontFamily: "monospace", fontSize: 12 }}>{r.login_username}</span>
+                          : <Pill label="Linked" tone="green" />)
+                      : <Pill label="No login" tone="amber" />}
+                  </td>
+                  <td style={td}>{r.consent_recorded_at ? <Pill label="Given" tone="green" /> : "—"}</td>
+                  {faceEnabled && (
+                    <td style={{ ...td, whiteSpace: "nowrap" }}>
+                      {faceMap[r.id] === "active" ? (
+                        <>
+                          <Pill label="Enrolled" tone="green" />{" "}
+                          <button style={{ ...btn, padding: "3px 8px", fontSize: 11 }} disabled={busy} onClick={() => revokeFace(r)}>Remove</button>
+                        </>
+                      ) : r.status === "active" ? (
+                        <button style={{ ...btn, padding: "3px 8px", fontSize: 11 }} disabled={busy} onClick={() => setEnrolling(r)}>Enroll</button>
+                      ) : "—"}
+                    </td>
+                  )}
+                  <td style={td}><Pill label={r.status === "active" ? "Active" : "Inactive"} tone={r.status === "active" ? "green" : "red"} /></td>
+                  <td style={{ ...td, whiteSpace: "nowrap" }}>
+                    <button
+                      style={btn}
+                      disabled={busy}
+                      onClick={() => {
+                        setEditing(r.id);
+                        setDraft({
+                          employee_code: r.employee_code ?? "",
+                          first_name: r.first_name,
+                          last_name: r.last_name,
+                          phone: r.phone ?? "",
+                          employment_type: r.employment_type,
+                          wfm_role: r.wfm_role,
+                          shift_id: r.shift_id ?? "",
+                          site_id: r.site_id ?? "",
+                          supervisor_id: r.supervisor_id ?? "",
+                          invite_email: "",
+                          invite_password: "",
+                        });
+                        setError("");
+                      }}
+                    >
+                      Edit
+                    </button>{" "}
+                    <button style={btn} disabled={busy} onClick={() => toggleStatus(r)}>
+                      {r.status === "active" ? "Deactivate" : "Activate"}
+                    </button>
+                    {loginMode === "code" && r.status === "active" && (
+                      <>
+                        {" "}
+                        <button style={btn} disabled={busy} onClick={() => openLogin(r)}>
+                          {r.has_login ? "Reset password" : "Create login"}
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {visible.length === 0 && (
+                <tr><td style={{ ...td, color: c.hint }} colSpan={faceEnabled ? 12 : 11}>
+                  {rows.length === 0
+                    ? "No employees yet — use + New employee above, or bulk-load via Data Workbench."
+                    : "No employees match these filters."}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
         <div style={{ padding: "0 12px 10px" }}>
           <Pager page={clampPage(page, visible.length, DEFAULT_PAGE_SIZE)} total={visible.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setPage} />
         </div>

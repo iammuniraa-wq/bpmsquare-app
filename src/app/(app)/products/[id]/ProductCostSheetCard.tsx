@@ -85,7 +85,7 @@ export default function ProductCostSheetCard({ productId, initial, initialAsOf, 
       ) : (
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
           {rows.map((r, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 64px 110px 20px", gap: 6, alignItems: "center" }}>
+            <div className="row-grid" key={i} style={{ display: "grid", gridTemplateColumns: "1fr 64px 110px 20px", gap: 6, alignItems: "center" }}>
               <input list={`paths-${productId}`} style={inp} placeholder="material.rate_per_unit" value={r.path} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, path: e.target.value } : x)))} />
               <input type="number" min="0" step="0.01" style={inp} value={r.qty} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} />
               <select style={inp} value={r.kind} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, kind: e.target.value } : x)))}>

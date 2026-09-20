@@ -61,7 +61,7 @@ function AddRow({ onAdd }: { onAdd: (item: PricingItem) => void }) {
   return (
     <form onSubmit={submit} style={{ background: "var(--panel2)", border: `1px solid ${c.line}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: c.ink }}>New pricing item</div>
-      <div style={{ display: "grid", gridTemplateColumns: "160px 1fr 110px 100px", gap: 10, marginBottom: 10 }}>
+      <div className="stack-grid" style={{ display: "grid", gridTemplateColumns: "160px 1fr 110px 100px", gap: 10, marginBottom: 10 }}>
         <div>
           <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 3 }}>Category</label>
           <select style={{ ...inputSt }} value={form.category} onChange={(e) => set("category", e.target.value)}>
@@ -129,7 +129,7 @@ function ItemRow({ item, onUpdate, onDelete }: { item: PricingItem; onUpdate: (i
 
   if (editing) {
     return (
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 80px", gap: 10, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "center" }}>
+      <div className="row-grid" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 80px", gap: 10, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "center" }}>
         <input style={inputSt} value={form.description} onChange={(e) => set("description", e.target.value)} />
         <input style={inputSt} value={form.unit} onChange={(e) => set("unit", e.target.value)} />
         <input style={{ ...inputSt }} type="number" value={form.rate} onChange={(e) => set("rate", e.target.value)} />
@@ -146,7 +146,7 @@ function ItemRow({ item, onUpdate, onDelete }: { item: PricingItem; onUpdate: (i
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 80px", gap: 12, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "start" }}>
+    <div className="row-grid" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 80px", gap: 12, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "start" }}>
       <div>
         <div style={{ fontSize: 13, color: c.ink }}>{item.description}</div>
         {item.notes && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>{item.notes}</div>}
@@ -182,7 +182,7 @@ export default function PricingClient({ initialItems }: { initialItems: PricingI
                 <Pill label={PRICING_CATEGORY_LABEL[cat]} tone={CAT_TONE[cat]} />
                 <span style={{ fontSize: 12, color: c.hint }}>{catItems.length} items</span>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 80px", gap: 12, padding: "0 0 6px", borderBottom: `1px solid ${c.line}` }}>
+              <div className="row-grid-head" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 80px", gap: 12, padding: "0 0 6px", borderBottom: `1px solid ${c.line}` }}>
                 {["Description", "Unit", moneyLabel("Rate", cur), ""].map((h, i) => (
                   <div key={i} style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
                 ))}

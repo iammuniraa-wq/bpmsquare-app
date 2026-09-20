@@ -154,6 +154,7 @@ function Section({
 const THEME_LABEL: Record<string, string> = {
   classic: "Classic", modern: "Modern", nextgen: "Next-gen",
   nextgen2: "Nova", enterprise: "Enterprise", spectacular: "Spectacular",
+  spectacular_purple: "Spectacular Purple",
 };
 
 /** Hex -> the preset's own name, so a collapsed Appearance header reads
@@ -336,15 +337,15 @@ export default function GeneralSettingsPage() {
   // retired "modern2"/"modern3" value to "modern" AND folds "nextgen2" into
   // "nextgen" (they share CSS) -- this picker needs the raw stored value so
   // a tenant on "nextgen2" sees that option selected, not plain "nextgen".
-  const [theme, setTheme] = useState<"classic" | "modern" | "nextgen" | "nextgen2" | "enterprise" | "spectacular">(() => {
+  const [theme, setTheme] = useState<"classic" | "modern" | "nextgen" | "nextgen2" | "enterprise" | "spectacular" | "spectacular_purple">(() => {
     const raw = tenant?.config?.appearance?.ui_theme as string | undefined;
-    if (raw === "nextgen" || raw === "nextgen2" || raw === "enterprise" || raw === "spectacular") return raw;
+    if (raw === "nextgen" || raw === "nextgen2" || raw === "enterprise" || raw === "spectacular" || raw === "spectacular_purple") return raw;
     if (raw === "modern" || raw === "modern2" || raw === "modern3") return "modern";
     return "classic";
   });
   const [themeSaving, startThemeSave] = useTransition();
 
-  const saveTheme = (v: "classic" | "modern" | "nextgen" | "nextgen2" | "enterprise" | "spectacular") => {
+  const saveTheme = (v: "classic" | "modern" | "nextgen" | "nextgen2" | "enterprise" | "spectacular" | "spectacular_purple") => {
     setTheme(v);
     startThemeSave(async () => {
       await fetch("/api/settings/entities", {
@@ -607,8 +608,14 @@ export default function GeneralSettingsPage() {
                 ? [{ value: "enterprise" as const, label: "Enterprise", desc: "Dark navy sidebar, clean white workspace.", swatch: "linear-gradient(135deg, #152233 0%, #152233 42%, #ffffff 42%, #ffffff 100%)" }]
                 : []),
               // Same platform-admin-only gate as the two above.
+              // One flag, two palettes -- same theme, same rules, different
+              // hue (see useSpectacularVariant()). Listed as two options
+              // because a palette is what a workspace actually picks.
               ...(tenant?.features?.spectacular_theme === true
-                ? [{ value: "spectacular" as const, label: "Spectacular", desc: "Soft blue, rounded cards, plenty of air. Light only.", swatch: "linear-gradient(135deg, #ffffff 0%, #edf3ff 55%, #4680ff 100%)" }]
+                ? [
+                    { value: "spectacular" as const, label: "Spectacular", desc: "Navy band, colour-filled KPI cards, white rail. Light only.", swatch: "linear-gradient(135deg, #ffffff 0%, #edf3ff 55%, #1e3a6e 100%)" },
+                    { value: "spectacular_purple" as const, label: "Spectacular Purple", desc: "The same, in violet and lilac. Light only.", swatch: "linear-gradient(135deg, #ffffff 0%, #efe9fd 55%, #4a2596 100%)" },
+                  ]
                 : []),
             ]).map((opt) => {
               const selected = theme === opt.value;
