@@ -80,7 +80,36 @@ export default function QuotePrint(props: Props) {
     apply();
     const observer = new ResizeObserver(apply);
     observer.observe(footer);
-    return () => observer.disconnect();
+
+    // Measure again once the webfont has actually settled, and only THEN say
+    // so. ResizeObserver already fires on a font-driven reflow, but nothing
+    // guarantees it has fired by the time a PDF route reads the value -- the
+    // routes used to wait merely for footerMarginMm to EXIST, which the very
+    // first (pre-font) apply() satisfies. footerMarginReady is the signal
+    // they wait for instead: set once, after fonts.ready and after two
+    // frames, so any pending ResizeObserver callback has been delivered.
+    //
+    // Still bounded: a font that never resolves must not leave the flag
+    // unset forever, or the routes would sit out their timeout on every
+    // request. fonts.ready is raced against the same 8s ceiling the routes
+    // already use for it.
+    let cancelled = false;
+    const settle = async () => {
+      await Promise.race([
+        document.fonts.ready,
+        new Promise((r) => setTimeout(r, 8000)),
+      ]);
+      if (cancelled) return;
+      apply();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (cancelled) return;
+        apply();
+        document.documentElement.dataset.footerMarginReady = "1";
+      }));
+    };
+    void settle();
+
+    return () => { cancelled = true; observer.disconnect(); };
   }, []);
 
   return (
@@ -92,8 +121,19 @@ export default function QuotePrint(props: Props) {
            font file over HTTP sidesteps whatever fonts happen to be installed on the render
            host, in dev or production alike. The PDF route awaits document.fonts.ready before
            snapshotting so this is guaranteed loaded by the time the page prints. */
-        @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans.ttf") format("truetype"); font-weight: 400; font-display: swap; }
-        @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+        /* "block", NOT "swap". swap lays the document out in a fallback font
+           first and re-flows when DejaVu arrives -- fine for a screen, wrong
+           here, because the footer's reserved height is MEASURED off that
+           layout (see the effect above). A cold load measured fallback
+           metrics, and the footer text wraps to a different number of lines
+           in DejaVu, so the reserved band came out a line short and the last
+           lines before each page break ran under the footer and were clipped.
+           That is the "takes a few refreshes" report: once the font is in the
+           HTTP cache it arrives before the first measurement and the same
+           page comes out right. block renders nothing until the real font is
+           there (3s, then fallback), so the first layout is the final one. */
+        @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans.ttf") format("truetype"); font-weight: 400; font-display: block; }
+        @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans-Bold.ttf") format("truetype"); font-weight: 700; font-display: block; }
         @media print {
           /* Extra bottom margin reserves a band on EVERY page for the running
              footer below, so flowing content never runs under it. 20mm here is

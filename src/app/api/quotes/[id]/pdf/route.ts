@@ -106,9 +106,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // already proved correct. Falls back to a direct measurement only if
     // the attribute never appears (JS error, timeout) -- never a silent
     // regression to the old flat constant.
+    // Wait for footerMarginReady, NOT for footerMarginMm to merely exist --
+    // client bug, Vikas, 2026-09-20. The attribute is written by the effect's
+    // very first apply(), which on a cold load runs before the self-hosted
+    // DejaVu webfont has arrived; the footer text wraps to a different number
+    // of lines in the fallback font, so that first value reserved a band a
+    // line too short and the last lines before each page break were clipped
+    // under the footer. Reloading fixed it only because the font was then
+    // cached -- hence "takes a few refreshes". QuotePrint.tsx now sets
+    // footerMarginReady only after fonts.ready and a re-measure, so waiting
+    // on that is waiting on the settled number rather than the first guess.
     await page.waitForFunction(
-      () => document.documentElement.dataset.footerMarginMm != null,
-      { timeout: 5000 }
+      () => document.documentElement.dataset.footerMarginReady != null,
+      { timeout: 8000 }
     ).catch(() => {});
     const publishedMarginMm = await page.evaluate(() => {
       const v = document.documentElement.dataset.footerMarginMm;

@@ -10,8 +10,13 @@ export default function StandardQuotePrint(props: Props) {
   return (
     <>
       <style>{`
-        @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans.ttf") format("truetype"); font-weight: 400; font-display: swap; }
-        @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+        /* block, not swap: the only reason this font is self-hosted is the
+           Rupee glyph the render host's own fonts lack. With swap, a Ctrl+P
+           fired during the fallback window prints the document in a font
+           that has no such glyph -- every currency figure silently blank.
+           Blocking until the real font is there makes that unreachable. */
+        @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans.ttf") format("truetype"); font-weight: 400; font-display: block; }
+        @font-face { font-family: "PrintSans"; src: url("/fonts/DejaVuSans-Bold.ttf") format("truetype"); font-weight: 700; font-display: block; }
         @media print {
           @page { size: A4 portrait; margin: 12mm 15mm; }
           body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background: #fff !important; }
