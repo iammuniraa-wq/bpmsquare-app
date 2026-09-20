@@ -156,6 +156,57 @@ the class additions carry no styling of their own above 780px. That is the
 property that made a 34-element sweep safe to do at once, and it is the thing
 to re-check first if anything looks off above 780px.
 
+## Reconfirmed: Workforce and Quotations (owner, 2026-09-20)
+
+These two carry the two live clients (WFM → BIM, Quotations → Vikas), so both
+were re-audited on their own rather than trusted to the generic sweep. The
+generic scan only looked at grid templates; this pass also checked fixed
+widths, `minWidth` without a scroll parent, and every `<table>`.
+
+**Quotations — already sound, one thing fixed.** `QuotationsList` was fine
+throughout (`auto-fit minmax(130px, 1fr)` tiles, and its table already sits in
+an `overflowX: auto` wrapper). `QuoteForm`'s body carries `hub-grid`, and its
+line-item rows are a `flexWrap: "wrap"` layout with a comment saying they wrap
+rather than force a sideways scroll — deliberate and correct.
+`QuoteFormSupply` already has a real `mob-hide` / `mob-show` pair for its
+8-column line grid. The only gap was the six right-side drawers, fixed in the
+main sweep.
+
+**WFM — five tables were being crushed.** The punch app (`MeClient`) is
+properly mobile-aware: it clubs 8 columns down to 4 behind `isMobile`, with a
+comment explaining why. `MonthlySection` in the summary has a full mobile
+branch. But five supervisor tables had neither:
+
+| Screen | Columns | What it had |
+|---|---|---|
+| `wfm/employees` employee list | 12 | `isMobile` on the **filter bar only** — the table was untouched |
+| `wfm/summary` daily sheet (`DailyEmployee`) | 8 | nothing — the mobile branch is in a *different* component in the same file |
+| `wfm/leave` requests queue | 7 | nothing |
+| `wfm/roster` standing matrix | 7 | nothing |
+| `wfm/roster` second table | 5 | nothing |
+
+All five are `width: 100%` with no `minWidth`, so they compressed instead of
+overflowing — eight columns in a 366px box is 45px each. Each is now wrapped
+in `<div className="table-scroll">`, which is **inert above 780px** and below
+it scrolls the table at a 620px floor.
+
+Deliberately left alone: `wfm/leave` holidays (4 columns) and the third roster
+table (4) fit; `MeClient` and `MonthlySection` already solve it better than a
+scroll bar would, by choosing which columns matter.
+
+**Why a wrapper and not `overflow-x` on the table.** `overflow-x` on a
+`<table>` means `display: block`, which drops it out of table layout; and a
+wrapper that scrolled on desktop too would break `.data-table`'s sticky
+header, since a sticky element scopes to its nearest scroll container rather
+than the page. Confining the whole rule to the media query leaves the desktop
+table, and its sticky header, exactly as they were.
+
+**No columns were dropped.** Choosing what a supervisor can stop seeing is a
+UX call, not a layout fix — scrolling keeps every value reachable without
+making that decision on their behalf. If the roster or leave queue would read
+better with columns clubbed the way `MeClient` does it, that is worth doing,
+but as a deliberate design pass.
+
 ### Still open, on purpose
 
 Finding 6 (tables with no scroll wrapper) is cosmetic — they compress rather

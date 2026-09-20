@@ -169,59 +169,61 @@ export default function LeaveClient({ initial = null }: {
             <button style={requestFilter === "all" ? { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" } : btn} onClick={() => setRequestFilter("all")}>All</button>
           </div>
         </div>
-        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Employee</th><th style={th}>Type</th><th style={th}>From</th><th style={th}>To</th>
-              <th style={th}>Reason</th><th style={th}>Status</th><th style={th}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageRequests.map((r) => (
-              <tr key={r.id}>
-                <td style={{ ...td, fontWeight: 600 }}>
-                  <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
-                    {r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}
-                  </Link>
-                  {r.employees?.employee_code && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>{r.employees.employee_code}</span>}
-                </td>
-                <td style={td}>{r.wfm_leave_types?.name ?? "—"}{r.half_day && <span style={{ color: c.hint }}> (half-day)</span>}</td>
-                <td style={td}>{fmtDate(r.date_from)}</td>
-                <td style={td}>{fmtDate(r.date_to)}</td>
-                <td style={{ ...td, maxWidth: 220, color: c.muted }}>{r.reason_text}</td>
-                <td style={td}>
-                  <Pill label={r.status} tone={REQUEST_STATUS_TONE[r.status]} />
-                  {r.supervisor_remark && <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>{r.supervisor_remark}</div>}
-                </td>
-                <td style={{ ...td, whiteSpace: "nowrap" }}>
-                  {r.status === "pending" && (
-                    rejecting === r.id ? (
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <input
-                          autoFocus
-                          value={remark}
-                          onChange={(e) => setRemark(e.target.value)}
-                          placeholder="Reason (required)"
-                          style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: `1px solid ${c.line}`, width: 130 }}
-                        />
-                        <button style={btnRed} disabled={busy || !remark.trim()} onClick={() => resolveRequest(r.id, "reject", remark)}>Confirm</button>
-                        <button style={btn} disabled={busy} onClick={() => { setRejecting(null); setRemark(""); }}>Cancel</button>
-                      </div>
-                    ) : (
-                      <>
-                        <button style={btnGreen} disabled={busy} onClick={() => resolveRequest(r.id, "approve")}>Approve</button>{" "}
-                        <button style={btnRed} disabled={busy} onClick={() => setRejecting(r.id)}>Reject</button>
-                      </>
-                    )
-                  )}
-                </td>
+        <div className="table-scroll">
+          <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Employee</th><th style={th}>Type</th><th style={th}>From</th><th style={th}>To</th>
+                <th style={th}>Reason</th><th style={th}>Status</th><th style={th}></th>
               </tr>
-            ))}
-            {visibleRequests.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No {requestFilter === "pending" ? "pending" : ""} requests.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {pageRequests.map((r) => (
+                <tr key={r.id}>
+                  <td style={{ ...td, fontWeight: 600 }}>
+                    <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
+                      {r.employees ? [r.employees.first_name, r.employees.last_name].filter(Boolean).join(" ") : "—"}
+                    </Link>
+                    {r.employees?.employee_code && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>{r.employees.employee_code}</span>}
+                  </td>
+                  <td style={td}>{r.wfm_leave_types?.name ?? "—"}{r.half_day && <span style={{ color: c.hint }}> (half-day)</span>}</td>
+                  <td style={td}>{fmtDate(r.date_from)}</td>
+                  <td style={td}>{fmtDate(r.date_to)}</td>
+                  <td style={{ ...td, maxWidth: 220, color: c.muted }}>{r.reason_text}</td>
+                  <td style={td}>
+                    <Pill label={r.status} tone={REQUEST_STATUS_TONE[r.status]} />
+                    {r.supervisor_remark && <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>{r.supervisor_remark}</div>}
+                  </td>
+                  <td style={{ ...td, whiteSpace: "nowrap" }}>
+                    {r.status === "pending" && (
+                      rejecting === r.id ? (
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                          <input
+                            autoFocus
+                            value={remark}
+                            onChange={(e) => setRemark(e.target.value)}
+                            placeholder="Reason (required)"
+                            style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: `1px solid ${c.line}`, width: 130 }}
+                          />
+                          <button style={btnRed} disabled={busy || !remark.trim()} onClick={() => resolveRequest(r.id, "reject", remark)}>Confirm</button>
+                          <button style={btn} disabled={busy} onClick={() => { setRejecting(null); setRemark(""); }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <>
+                          <button style={btnGreen} disabled={busy} onClick={() => resolveRequest(r.id, "approve")}>Approve</button>{" "}
+                          <button style={btnRed} disabled={busy} onClick={() => setRejecting(r.id)}>Reject</button>
+                        </>
+                      )
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {visibleRequests.length === 0 && (
+                <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No {requestFilter === "pending" ? "pending" : ""} requests.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
         <div style={{ padding: "0 12px 10px" }}>
           <Pager page={rqPage} total={visibleRequests.length} pageSize={DEFAULT_PAGE_SIZE} onPage={setRequestPage} />
         </div>

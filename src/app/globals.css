@@ -1105,6 +1105,23 @@ a { color: inherit; text-decoration: none; }
   /* A column-header row above .row-grid rows means nothing once the rows
      below it have stacked -- the headings no longer line up with anything. */
   .row-grid-head { display: none !important; }
+
+  /* Wide data tables (5+ columns). Squeezing eight columns into a 366px box
+     gives 45px each, which is unreadable; scrolling the table keeps every
+     column at its real width instead. Applied to WFM's supervisor tables
+     first -- rosters, leave queues, the daily sheet, the employee list --
+     because that module and Quotations are what the two live clients
+     actually use on a phone.
+
+     A SCROLL WRAPPER, NOT overflow ON THE TABLE. overflow-x on a <table>
+     means making it display:block, which drops it out of table layout; and
+     a wrapper that scrolled on DESKTOP too would break .data-table's sticky
+     header, since a sticky element scopes to its nearest scroll container
+     rather than the page. Scoping the whole thing to this media query means
+     .table-scroll is an inert <div> above 780px -- the desktop table, and
+     its sticky header, are untouched. */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-scroll > table { min-width: 620px; }
 }
 
 /* Settings pages. These surfaces gain a section per capability and never lose

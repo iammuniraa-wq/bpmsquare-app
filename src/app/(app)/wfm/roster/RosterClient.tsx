@@ -775,68 +775,70 @@ export default function RosterClient({ initial = null }: {
             No active sites or shifts yet — set them up in Settings → Workforce → Sites / Shifts first.
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th rowSpan={2} style={{ ...th, verticalAlign: "bottom" }}>Employee</th>
-                {activeSites.length > 0 && <th colSpan={activeSites.length + 1} style={thGroup}>Site</th>}
-                {activeShifts.length > 0 && <th colSpan={activeShifts.length + 1} style={{ ...thGroup, borderLeft: `1px solid ${c.line}` }}>Shift</th>}
-              </tr>
-              <tr>
-                {activeSites.map((s) => (
-                  <th key={s.id} style={thCenter}>
-                    <div>{s.name}</div>
-                    <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleSite(s.id)}>
-                      Assign all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
-                    </button>
-                  </th>
+          <div className="table-scroll">
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th rowSpan={2} style={{ ...th, verticalAlign: "bottom" }}>Employee</th>
+                  {activeSites.length > 0 && <th colSpan={activeSites.length + 1} style={thGroup}>Site</th>}
+                  {activeShifts.length > 0 && <th colSpan={activeShifts.length + 1} style={{ ...thGroup, borderLeft: `1px solid ${c.line}` }}>Shift</th>}
+                </tr>
+                <tr>
+                  {activeSites.map((s) => (
+                    <th key={s.id} style={thCenter}>
+                      <div>{s.name}</div>
+                      <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleSite(s.id)}>
+                        Assign all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
+                      </button>
+                    </th>
+                  ))}
+                  {activeSites.length > 0 && (
+                    <th style={thCenter}>
+                      <div>Unassigned</div>
+                      <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleSite(null)}>
+                        Clear all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
+                      </button>
+                    </th>
+                  )}
+                  {activeShifts.map((s, i) => (
+                    <th key={s.id} style={i === 0 ? { ...thCenter, borderLeft: `1px solid ${c.line}` } : thCenter}>
+                      <div>{s.name}</div>
+                      <div style={{ fontWeight: 400, color: c.hint, fontSize: 10.5 }}>{hhmm(s.start_time)}–{hhmm(s.end_time)}</div>
+                      <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleShift(s.id)}>
+                        Assign all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
+                      </button>
+                    </th>
+                  ))}
+                  {activeShifts.length > 0 && (
+                    <th style={activeSites.length === 0 ? thCenter : { ...thCenter, borderLeft: activeShifts.length === 0 ? `1px solid ${c.line}` : undefined }}>
+                      <div>Unassigned</div>
+                      <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleShift(null)}>
+                        Clear all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
+                      </button>
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {pageEmployeesA.map((e) => (
+                  <MatrixRow
+                    key={e.id}
+                    e={e}
+                    effSh={effectiveShift(e)}
+                    effSt={effectiveSite(e)}
+                    changed={pendingShift.has(e.id) || pendingSite.has(e.id)}
+                    activeSites={activeSites}
+                    activeShifts={activeShifts}
+                    onSetSite={setSiteCell}
+                    onSetShift={setShiftCell}
+                  />
                 ))}
-                {activeSites.length > 0 && (
-                  <th style={thCenter}>
-                    <div>Unassigned</div>
-                    <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleSite(null)}>
-                      Clear all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
-                    </button>
-                  </th>
+                {visibleEmployeesA.length === 0 && (
+                  <tr><td style={{ ...td, color: c.hint }} colSpan={2 + activeSites.length + activeShifts.length}>No employees match.</td></tr>
                 )}
-                {activeShifts.map((s, i) => (
-                  <th key={s.id} style={i === 0 ? { ...thCenter, borderLeft: `1px solid ${c.line}` } : thCenter}>
-                    <div>{s.name}</div>
-                    <div style={{ fontWeight: 400, color: c.hint, fontSize: 10.5 }}>{hhmm(s.start_time)}–{hhmm(s.end_time)}</div>
-                    <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleShift(s.id)}>
-                      Assign all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
-                    </button>
-                  </th>
-                ))}
-                {activeShifts.length > 0 && (
-                  <th style={activeSites.length === 0 ? thCenter : { ...thCenter, borderLeft: activeShifts.length === 0 ? `1px solid ${c.line}` : undefined }}>
-                    <div>Unassigned</div>
-                    <button style={{ ...btnTiny, marginTop: 5 }} onClick={() => assignAllVisibleShift(null)}>
-                      Clear all {visibleEmployeesA.length}{qA || siteFilterA ? " filtered" : ""}
-                    </button>
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {pageEmployeesA.map((e) => (
-                <MatrixRow
-                  key={e.id}
-                  e={e}
-                  effSh={effectiveShift(e)}
-                  effSt={effectiveSite(e)}
-                  changed={pendingShift.has(e.id) || pendingSite.has(e.id)}
-                  activeSites={activeSites}
-                  activeShifts={activeShifts}
-                  onSetSite={setSiteCell}
-                  onSetShift={setShiftCell}
-                />
-              ))}
-              {visibleEmployeesA.length === 0 && (
-                <tr><td style={{ ...td, color: c.hint }} colSpan={2 + activeSites.length + activeShifts.length}>No employees match.</td></tr>
-              )}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         )}
 
         {/* Paging is presentation only. "Assign all" and Save deliberately act
@@ -916,43 +918,45 @@ export default function RosterClient({ initial = null }: {
         <div style={{ padding: "10px 14px", fontSize: 12.5, fontWeight: 600, color: c.ink }}>
           Upcoming — next {UPCOMING_DAYS} days
         </div>
-        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Dates</th><th style={th}>Employee</th><th style={th}>Shift</th>
-              <th style={th}>Note</th><th style={th}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {shiftSpans.map((sp) => {
-              const r = sp.rows[0];
-              const shift = one(r.wfm_shifts);
-              const emp = one(r.employees);
-              return (
-                <tr key={r.id}>
-                  <td style={{ ...td, whiteSpace: "nowrap" }}>
-                    {fmtSpan(sp)}
-                    {sp.rows.length > 1 && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>{sp.rows.length} days</span>}
-                  </td>
-                  <td style={{ ...td, fontWeight: 600 }}>
-                    <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>{empName(emp)}</Link>
-                    {emp?.employee_code && <span style={{ color: c.hint, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>{emp.employee_code}</span>}
-                  </td>
-                  <td style={td}>
-                    {r.is_day_off
-                      ? <Pill label="Day off" tone="red" />
-                      : shift ? `${shift.name} (${hhmm(shift.start_time)}–${hhmm(shift.end_time)})` : "—"}
-                  </td>
-                  <td style={{ ...td, color: c.muted }}>{r.note ?? "—"}</td>
-                  <td style={td}><button style={btnTiny} disabled={busyB} onClick={() => removeSpan(sp)}>Remove</button></td>
-                </tr>
-              );
-            })}
-            {shiftSpans.length === 0 && (
-              <tr><td style={{ ...td, color: c.hint }} colSpan={5}>Nothing in this window — everyone follows their standing shift.</td></tr>
-            )}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Dates</th><th style={th}>Employee</th><th style={th}>Shift</th>
+                <th style={th}>Note</th><th style={th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shiftSpans.map((sp) => {
+                const r = sp.rows[0];
+                const shift = one(r.wfm_shifts);
+                const emp = one(r.employees);
+                return (
+                  <tr key={r.id}>
+                    <td style={{ ...td, whiteSpace: "nowrap" }}>
+                      {fmtSpan(sp)}
+                      {sp.rows.length > 1 && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>{sp.rows.length} days</span>}
+                    </td>
+                    <td style={{ ...td, fontWeight: 600 }}>
+                      <Link href={ROUTES.wfmEmployee(r.employee_id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>{empName(emp)}</Link>
+                      {emp?.employee_code && <span style={{ color: c.hint, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>{emp.employee_code}</span>}
+                    </td>
+                    <td style={td}>
+                      {r.is_day_off
+                        ? <Pill label="Day off" tone="red" />
+                        : shift ? `${shift.name} (${hhmm(shift.start_time)}–${hhmm(shift.end_time)})` : "—"}
+                    </td>
+                    <td style={{ ...td, color: c.muted }}>{r.note ?? "—"}</td>
+                    <td style={td}><button style={btnTiny} disabled={busyB} onClick={() => removeSpan(sp)}>Remove</button></td>
+                  </tr>
+                );
+              })}
+              {shiftSpans.length === 0 && (
+                <tr><td style={{ ...td, color: c.hint }} colSpan={5}>Nothing in this window — everyone follows their standing shift.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {/* ── Section C: project assignments ────────────────────────────── */}
