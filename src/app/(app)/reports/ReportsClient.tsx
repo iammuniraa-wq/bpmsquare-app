@@ -402,6 +402,10 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   loaner_availability:    { label: "Loaner availability",   feature: "assets", workcenter: "assets" },
   recent_activity:        { label: "Recent activity",      feature: "accounts", workcenter: "accounts" },
   account_news:           { label: "Client news",          feature: "accounts", workcenter: "accounts" },
+  // Present because METRIC_META is exhaustive over AnalyticsMetricId, not
+  // because it belongs on Reports -- it carries no tenant data to report on.
+  // `accounts` scopes it to someone who already has a reason to be here.
+  business_news:          { label: "Business news",        feature: "accounts", workcenter: "accounts" },
   quote_outcomes:         { label: "Quote won/lost value",  feature: "quotations", workcenter: "quotations" },
   quote_overdue:          { label: "Quote overdue",         feature: "quotations", workcenter: "quotations" },
   quote_source:           { label: "Quote source (cases vs standalone)", feature: "quotations", workcenter: "quotations" },

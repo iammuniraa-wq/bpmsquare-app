@@ -126,6 +126,8 @@ export const ROUTES = {
   settingsGeneral: "/settings/general",
   settingsTeam: "/settings/team",
   settingsEntities: "/settings/entities",
+  settingsCustomFields: "/settings/custom-fields",
+  settingsTemplates: "/settings/templates",
   settingsStatuses: "/settings/statuses",
   settingsEmailTemplates: "/settings/email-templates",
   settingsSales: "/settings/sales",
@@ -790,6 +792,14 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
 };
 
 // All metric IDs available in the Analytics page.
+/** Topics the dashboard's Business news block searches when a tenant has set
+ * none of its own. Lives here rather than in lib/data/news.ts because that
+ * module is "server-only" and the Settings screen that edits these is a client
+ * component -- both sides have to agree on the default or the placeholder
+ * lies about what blank means. */
+export const DEFAULT_NEWS_TOPICS = ["business news India", "industrial equipment industry"];
+export const DEFAULT_NEWS_TOPICS_LABEL = DEFAULT_NEWS_TOPICS.join(", ");
+
 export type AnalyticsMetricId =
   | "accounts" | "contacts" | "assets" | "open_cases" | "work_orders" | "products"
   | "contracts" | "leads" | "technicians"
@@ -797,7 +807,7 @@ export type AnalyticsMetricId =
   | "quote_trend" | "case_status" | "work_order_status"
   | "technician_availability" | "revenue_overview"
   | "invoices_by_status" | "loaner_availability" | "recent_activity"
-  | "account_news"
+  | "account_news" | "business_news"
   | "quote_outcomes" | "quote_overdue" | "quote_source"
   | "pipeline_open_value"
   | "wfm_attendance_today" | "wfm_night_shift_cost"
@@ -1019,6 +1029,26 @@ export type TenantConfig = {
   // tenant's own external source cards. Absent = every built-in card, default
   // order, no external sources.
   account_360?: Account360Config;
+  /** Dashboard blocks that carry their own content rather than the tenant's
+   * data (owner request 2026-09-20: "if the client is not using the system
+   * there is no data to represent"). Both default OFF and are set by a
+   * WORKSPACE ADMIN for everyone -- the owner's call over per-user blocks or
+   * blocks that vanish once real data arrives, so what the team sees on the
+   * dashboard stays one decision rather than drifting per person.
+   *
+   * When on, the block is forced visible in the resolved layout even if a
+   * saved layout has it hidden; that is what "always on" means here. It can
+   * still be reordered and resized like any other block. */
+  dashboard_extras?: {
+    /** Topic-based headlines. Has content on day one, unlike account_news,
+     * which needs accounts to search on. */
+    business_news?: boolean;
+    /** Rotating product tips (src/lib/dashboardTips.ts). */
+    product_tips?: boolean;
+    /** Search terms for business_news. Empty/absent uses
+     * DEFAULT_NEWS_TOPICS. Max 4 are fetched. */
+    news_topics?: string[];
+  };
   // Email output channel (owner requirement 2026-09-06, modelled on SAP C4C's
   // Email and Fax Settings). "partners" sends to the address on the account,
   // contact or employee record; "redirect" sends EVERY outbound email from

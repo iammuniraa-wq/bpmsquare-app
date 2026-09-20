@@ -2,7 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAdminSupabase, resolveViewerTenantId, getAuthUser } from "@/lib/supabase-server";
 import { decryptAccount, decryptContact, decrypt } from "@/lib/encryption";
-import { getAccountNews, type AccountNewsItem } from "@/lib/data/news";
+import { getAccountNews, getBusinessNews, DEFAULT_NEWS_TOPICS, type AccountNewsItem } from "@/lib/data/news";
 import { getTenant } from "@/lib/tenant";
 import { getWfmLiveBoardSnapshot, requireWfm } from "@/lib/wfm/server";
 import { projectHoursReport } from "@/lib/wfm/projectHoursServer";
@@ -1490,6 +1490,7 @@ export type AnalyticsData = {
   contractStats: { activeCount: number; totalValue: number };
   recentActivity: Array<{ text: string; at: string; pillar: Activity["pillar"]; accountName: string }>;
   accountNews: AccountNewsItem[];
+  businessNews: AccountNewsItem[];
   wfmAttendanceBySite: Array<{ site: string; onTime: number; late: number; absent: number }>;
   wfmNightShiftCost: { count: number; amount: number };
   wfmCorrectionsByStatus: Array<{ status: string; label: string; count: number }>;
@@ -1526,6 +1527,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       contractStats: { activeCount: 0, totalValue: 0 },
       recentActivity: [],
       accountNews: [],
+      businessNews: [],
       wfmAttendanceBySite: [],
       wfmNightShiftCost: { count: 0, amount: 0 },
       wfmCorrectionsByStatus: [],
@@ -1752,7 +1754,23 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     ...topAccountsByQuoteValue.map((a) => a.name),
   ])].filter((n) => n && n !== "—").slice(0, 8);
 
-  const accountNews = await getAccountNews(tenantId, newsAccountNames);
+  // Topic feed only runs when the admin switched the block on -- it is an
+  // outbound HTTP call, and a workspace that will never show the card should
+  // not be making it every half hour.
+  const extras = tenant?.config?.dashboard_extras;
+  const newsTopics = extras?.business_news === true
+    ? (extras.news_topics?.filter((t) => t.trim().length > 0) ?? []).slice(0, 4).length > 0
+      ? extras.news_topics!.filter((t) => t.trim().length > 0).slice(0, 4)
+      : DEFAULT_NEWS_TOPICS
+    : [];
+
+  // Both feeds are fetched together: each is independently cached for 30
+  // minutes and degrades to [] on failure, so the slower of the two is the
+  // only cost and neither can fail the dashboard.
+  const [accountNews, businessNews] = await Promise.all([
+    getAccountNews(tenantId, newsAccountNames),
+    newsTopics.length > 0 ? getBusinessNews(tenantId, newsTopics) : Promise.resolve([]),
+  ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recentActivity = (activities ?? []).map((act: any) => ({
@@ -1947,7 +1965,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOverdueCount, quoteSource,
     casesByStatus, workOrdersByStatus,
     techniciansByStatus, invoicesByStatus, invoiceTotals, topAccountsByRevenue,
-    contractStats, recentActivity, accountNews,
+    contractStats, recentActivity, accountNews, businessNews,
     wfmAttendanceBySite, wfmNightShiftCost,
     wfmCorrectionsByStatus, wfmLeaveRequestsByStatus, wfmRecheckByStatus,
     wfmHeadcountBySite, wfmWorkforceComposition, wfmLeaveTakenByType,

@@ -14,6 +14,7 @@ import CurrencySection from "./CurrencySection";
 import { useTenant, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone, FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
 import Pager from "@/components/Pager";
+import DashboardContentSection from "./DashboardContentSection";
 import ApiKeysPanel from "./ApiKeysPanel";
 import WebhooksPanel from "./WebhooksPanel";
 
@@ -736,6 +737,10 @@ export default function GeneralSettingsPage() {
 
       {/* ── Currency — the one setting every money figure formats through (admin only) ── */}
       {role === "admin" && <CurrencySection accent={accent} />}
+
+      {/* ── Dashboard content — blocks that have something to show before the
+          workspace has data of its own (admin only, owner request 2026-09-20) ── */}
+      {role === "admin" && <DashboardContentSection accent={accent} />}
 
       {/* ── 4. Integrations ── */}
       <Section

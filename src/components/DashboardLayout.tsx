@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import type { ServiceCase, Account, WorkOrder, Activity as ActivityRec } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useUiTheme, useIsNextgen3Layer, useIsSpectacular, useCurrency } from "@/lib/tenant-context";
+import { useUiTheme, useIsNextgen3Layer, useIsSpectacular, useCurrency, useTenant } from "@/lib/tenant-context";
+import { tipsFor, type DashboardTip } from "@/lib/dashboardTips";
 import { moneyFormatter, type CurrencyDef } from "@/lib/currency";
 import SilenceDetector from "@/components/SilenceDetector";
 import LossIntelligence from "@/components/LossIntelligence";
@@ -67,7 +68,37 @@ const NATIVE_META: Record<string, { label: string; sidebar?: boolean; features?:
   // reading the precomputed analytics payload, which is why it lives here
   // and renders through the native switch below.
   wfm_summary:     { label: "Attendance summary (day + month)", features: ["wfm"] },
+  // Carries its own content rather than the tenant's data, so no `features`
+  // gate -- whether it appears at all is config.dashboard_extras.product_tips,
+  // handled in resolveLayout. Individual tips are still module-filtered, in
+  // tipsFor().
+  product_tips:    { label: "Tips & shortcuts" },
 };
+
+/** Blocks whose presence is an ADMIN SETTING rather than a module flag or a
+ * user's own layout choice (owner decision 2026-09-20). Both are off by
+ * default; when on they are forced VISIBLE even if a saved layout hid them,
+ * which is what "always on, admin-controlled" means. Order and size stay the
+ * user's business. */
+const EXTRA_BLOCK_IDS = { business_news: "business_news", product_tips: "product_tips" } as const;
+type DashboardExtras = { business_news?: boolean; product_tips?: boolean } | undefined;
+
+function applyExtras(layout: DashLayoutItem[], extras: DashboardExtras): DashLayoutItem[] {
+  const out = layout.filter((b) => {
+    if (b.id === EXTRA_BLOCK_IDS.business_news) return extras?.business_news === true;
+    if (b.id === EXTRA_BLOCK_IDS.product_tips) return extras?.product_tips === true;
+    return true;
+  });
+  const present = new Set(out.map((b) => b.id));
+  for (const id of [EXTRA_BLOCK_IDS.business_news, EXTRA_BLOCK_IDS.product_tips]) {
+    if (extras?.[id] !== true) continue;
+    const at = out.findIndex((b) => b.id === id);
+    // Forced visible: an admin turning it on outranks a stale saved `hidden`.
+    if (at >= 0) out[at] = { ...out[at], hidden: false };
+    else if (!present.has(id)) out.push({ id });
+  }
+  return out;
+}
 
 const DEFAULT_LAYOUT: DashLayoutItem[] = [
   { id: "overview_strip" },
@@ -132,8 +163,8 @@ function blockAllowed(id: string, features: TenantFeatures): boolean {
   return true;
 }
 
-function resolveLayout(saved: DashLayoutItem[], features: TenantFeatures): DashLayoutItem[] {
-  if (!saved || saved.length === 0) return defaultLayoutFor(features);
+function resolveLayout(saved: DashLayoutItem[], features: TenantFeatures, extras: DashboardExtras): DashLayoutItem[] {
+  if (!saved || saved.length === 0) return applyExtras(defaultLayoutFor(features), extras);
   // Ensure native blocks that aren't in saved layout appear (as hidden) so user can un-hide them
   const savedIds = new Set(saved.map((b) => b.id));
   const missing = Object.keys(NATIVE_META).filter((id) => !savedIds.has(id));
@@ -156,8 +187,8 @@ function resolveLayout(saved: DashLayoutItem[], features: TenantFeatures): DashL
   // are feature-allowed -- which made this check always pass and the
   // rescue never fire, landing e.g. a WFM-only workspace with a stale
   // CRM-only saved layout on a blank dashboard instead of its defaults.
-  if (!saved.some((b) => blockAllowed(b.id, features))) return defaultLayoutFor(features);
-  return merged;
+  if (!saved.some((b) => blockAllowed(b.id, features))) return applyExtras(defaultLayoutFor(features), extras);
+  return applyExtras(merged, extras);
 }
 
 /** The default layout was written when every tenant had every module: all
@@ -558,79 +589,77 @@ function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: numb
   );
 }
 
-function StatTile({ value, label, icon, href, tone, onFill }: { value: number | string; label: string; icon: React.ReactNode; href: string; tone?: PillarKey; onFill?: boolean }) {
+function StatTile({ value, label, icon, href, tone }: { value: number | string; label: string; icon: React.ReactNode; href: string; tone?: PillarKey }) {
   const modern = useUiTheme() !== "classic";
-  // `onFill` says the CARD around this tile is painted in the tone's colour
-  // (Spectacular only -- see AnalyticsCard). Everything then has to invert:
-  // the icon's colour was baked in by renderWidget, which can't call a hook,
-  // so it's re-pointed here rather than at all thirteen call sites.
-  const filled = useIsSpectacular() && !!onFill;
-  const iconEl = filled && React.isValidElement<{ color?: string }>(icon)
-    ? React.cloneElement(icon, { color: "#ffffff" })
-    : icon;
   return (
-    <Link href={href} style={{
-      textDecoration: "none", display: "flex", flex: 1, minWidth: 0,
-      ...(filled
-        ? { flexDirection: "row", alignItems: "center", gap: 13, padding: "12px 16px" }
-        : { flexDirection: "column", gap: 12, padding: "14px 16px" }),
-    }}>
+    <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px", minWidth: 0 }}>
       <div style={{
-        width: filled ? 32 : 28, height: filled ? 32 : 28, borderRadius: modern ? 8 : 7,
-        background: filled ? "rgba(255, 255, 255, 0.22)" : tone ? pillar[tone].bg : (modern ? "var(--modern-accent-bg)" : ledger.accentSoft),
+        width: 28, height: 28, borderRadius: modern ? 8 : 7,
+        background: tone ? pillar[tone].bg : (modern ? "var(--modern-accent-bg)" : ledger.accentSoft),
         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
       }}>
-        {iconEl}
+        {icon}
       </div>
       <div>
         <div style={{
           ...(modern ? {} : serifNum),
           fontSize: kpiNumFontSize(String(value)) + 2, fontWeight: modern ? 800 : 700,
-          color: filled ? "#ffffff" : tone ? pillar[tone].fg : (modern ? "var(--modern-accent)" : ledger.accent),
+          color: tone ? pillar[tone].fg : (modern ? "var(--modern-accent)" : ledger.accent),
           letterSpacing: modern ? "-0.01em" : undefined,
           lineHeight: 1.15, whiteSpace: "nowrap",
         }}>{value}</div>
-        <div style={{ fontSize: 11, color: filled ? "rgba(255, 255, 255, 0.82)" : c.hint, marginTop: 5 }}>{label}</div>
+        <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>{label}</div>
       </div>
     </Link>
   );
 }
 
-function AnalyticsCard({ title, href, children, fill }: { title: string; href: string; children: React.ReactNode; fill?: PillarKey }) {
+function AnalyticsCard({ title, href, children, fill }: { title: string; href?: string; children: React.ReactNode; fill?: PillarKey }) {
   const modern = useUiTheme() !== "classic";
-  // Spectacular fills a STAT card edge to edge in its pillar colour (the
-  // reference's four colour blocks); chart and list cards stay white, or the
-  // dashboard turns into a paint chart. `fill` is only passed by the
+  // Spectacular marks a STAT card with a thick accent edge in its pillar
+  // colour; chart and list cards carry none. `fill` is only passed by the
   // stat-style widgets in renderWidget.
-  const filled = useIsSpectacular() && !!fill;
+  //
+  // This WAS an edge-to-edge colour fill with white text, straight off the
+  // Nifty reference. The owner's verdict on seeing it (2026-09-20) was that
+  // the tiles "look distorted" and the dashboard reads badly -- six saturated
+  // blocks side by side stop being data and become wallpaper, and a white
+  // number on a colour field is the weakest way to show the one thing the
+  // tile exists for. An edge bar keeps the colour coding (which is real
+  // information -- the pillar the metric belongs to) while the number stays
+  // dark on white, where it is most readable. Owner-chosen 2026-09-20.
+  const accent = useIsSpectacular() && fill ? `var(--spec-fill-${fill})` : null;
   return (
     <div
       className={modern ? "modern-lift-gold" : undefined}
       style={{
         ...cardStyle, padding: 0, overflow: "hidden",
-        ...(filled ? { background: `var(--spec-fill-${fill})`, border: "none" } : null),
+        ...(accent ? { borderLeft: `4px solid ${accent}` } : null),
         // box-shadow is owned by .modern-lift-gold in modern mode (base +
         // hover + the gold edge all live there) -- leaving it inline here
         // too would silently cancel the class's :hover rule, since an
         // inline style always beats a stylesheet rule for the same element.
-        boxShadow: filled ? "0 2px 8px rgba(16, 28, 58, 0.14)" : modern ? undefined : "0 1px 2px rgba(16,24,40,.04), 0 1px 6px rgba(16,24,40,.03)",
+        boxShadow: modern ? undefined : "0 1px 2px rgba(16,24,40,.04), 0 1px 6px rgba(16,24,40,.03)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: filled ? "10px 16px 9px" : modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${filled ? "rgba(255, 255, 255, 0.20)" : modern ? "var(--line)" : ledger.line}` }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: filled ? "#ffffff" : modern ? "var(--modern-accent)" : c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>
-        <Link href={href} style={{ fontSize: 10.5, color: filled ? "rgba(255, 255, 255, 0.86)" : modern ? "var(--modern-accent)" : ledger.accent, textDecoration: "none", fontWeight: 600 }}>Full view →</Link>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${modern ? "var(--line)" : ledger.line}` }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: accent ?? (modern ? "var(--modern-accent)" : c.hint), textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>
+        {/* Optional: a content block (business news, tips) has nowhere of its
+            own to go, and a "Full view" that lands back on the dashboard is
+            worse than no link. */}
+        {href && <Link href={href} style={{ fontSize: 10.5, color: accent ?? (modern ? "var(--modern-accent)" : ledger.accent), textDecoration: "none", fontWeight: 600 }}>Full view →</Link>}
       </div>
-      <div style={{ padding: filled ? 0 : modern ? "14px 16px" : "12px 14px" }}>{children}</div>
+      <div style={{ padding: modern ? "14px 16px" : "12px 14px" }}>{children}</div>
     </div>
   );
 }
 
 const NEWS_COLLAPSED_COUNT = 5;
 
-function AccountNewsList({ items }: { items: AnalyticsData["accountNews"] }) {
+function AccountNewsList({ items, emptyText = "No recent news for your top accounts" }: { items: AnalyticsData["accountNews"]; emptyText?: string }) {
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) {
-    return <div style={{ fontSize: 11.5, color: c.hint, textAlign: "center", padding: "10px 0" }}>No recent news for your top accounts</div>;
+    return <div style={{ fontSize: 11.5, color: c.hint, textAlign: "center", padding: "10px 0" }}>{emptyText}</div>;
   }
   const visible = expanded ? items : items.slice(0, NEWS_COLLAPSED_COUNT);
   return (
@@ -665,6 +694,64 @@ function AccountNewsList({ items }: { items: AnalyticsData["accountNews"] }) {
           }}
         >
           {expanded ? "Show less" : `Show ${items.length - NEWS_COLLAPSED_COUNT} more`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const TIPS_SHOWN = 3;
+
+/** Rotating product tips. Content, not data -- the point is that a workspace
+ * with no records still has something worth reading here (owner request
+ * 2026-09-20).
+ *
+ * Starts at index 0 rather than a random offset: this renders on the server
+ * too, and a random start is a hydration mismatch. The shuffle is a user
+ * action instead, which is also more useful than a tip that moves on its own
+ * while someone is reading it. */
+function TipsCard({ features }: { features: TenantFeatures }) {
+  const tips = tipsFor(features);
+  const [start, setStart] = useState(0);
+  if (tips.length === 0) return null;
+  const shown: DashboardTip[] = Array.from(
+    { length: Math.min(TIPS_SHOWN, tips.length) },
+    (_, i) => tips[(start + i) % tips.length]
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {shown.map((t) => (
+        <div key={t.id} style={{
+          display: "flex", gap: 11, alignItems: "flex-start",
+          padding: "10px 12px", borderRadius: 10,
+          background: pillar[t.tone].bg,
+        }}>
+          <div style={{
+            width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+            background: pillar[t.tone].base,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontSize: 13, fontWeight: 700, lineHeight: 1,
+          }}>?</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: pillar[t.tone].fg, lineHeight: 1.3 }}>{t.title}</div>
+            <div style={{ fontSize: 11.5, color: c.muted, marginTop: 3, lineHeight: 1.5 }}>{t.body}</div>
+            {t.href && t.cta && (
+              <Link href={t.href} style={{ fontSize: 11, fontWeight: 600, color: pillar[t.tone].fg, textDecoration: "none", display: "inline-block", marginTop: 5 }}>
+                {t.cta} →
+              </Link>
+            )}
+          </div>
+        </div>
+      ))}
+      {tips.length > TIPS_SHOWN && (
+        <button
+          onClick={() => setStart((v) => (v + TIPS_SHOWN) % tips.length)}
+          style={{
+            alignSelf: "flex-start", background: "transparent", border: "none", cursor: "pointer",
+            fontSize: 11, fontWeight: 600, color: ledger.accent, padding: 0, marginTop: 2,
+          }}
+        >
+          Show other tips
         </button>
       )}
     </div>
@@ -706,16 +793,16 @@ export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "com
   const iconColor = tone ? pillar[tone].base : ledger.accent;
   const big = size !== "compact";
   switch (id) {
-    case "accounts":        return <AnalyticsCard fill={fill} title="Accounts" href={ROUTES.accounts}><StatTile tone={tone} onFill={!!fill} value={a.totals.accounts} label="Total accounts" icon={<Globe size={14} color={iconColor} />} href={ROUTES.accounts} /></AnalyticsCard>;
-    case "contacts":        return <AnalyticsCard fill={fill} title="Contacts" href={ROUTES.contacts}><StatTile tone={tone} onFill={!!fill} value={a.totals.contacts} label="Total contacts" icon={<Phone size={14} color={iconColor} />} href={ROUTES.contacts} /></AnalyticsCard>;
-    case "assets":          return <AnalyticsCard fill={fill} title="Assets" href={ROUTES.assets}><StatTile tone={tone} onFill={!!fill} value={a.totals.customerAssets} label="Customer assets" icon={<Gear size={14} color={iconColor} />} href={ROUTES.assets} /></AnalyticsCard>;
-    case "open_cases":      return <AnalyticsCard fill={fill} title="Open cases" href={ROUTES.cases}><StatTile tone={tone} onFill={!!fill} value={a.totals.openCases} label="Open cases" icon={<Activity size={14} color={iconColor} />} href={ROUTES.cases} /></AnalyticsCard>;
-    case "work_orders":     return <AnalyticsCard fill={fill} title="Work orders" href={ROUTES.workOrders}><StatTile tone={tone} onFill={!!fill} value={a.totals.workOrders} label="Total work orders" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.workOrders} /></AnalyticsCard>;
-    case "contracts":       return <AnalyticsCard fill={fill} title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile tone={tone} onFill={!!fill} value={a.contractStats.activeCount} label="Active" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /><StatTile tone={tone} onFill={!!fill} value={inr(a.contractStats.totalValue)} label="Total value" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /></div></AnalyticsCard>;
-    case "leads":           return <AnalyticsCard fill={fill} title="Leads" href={ROUTES.leads}><StatTile tone={tone} onFill={!!fill} value={a.totals.leads} label="Total leads" icon={<Zap size={14} color={iconColor} />} href={ROUTES.leads} /></AnalyticsCard>;
-    case "pipeline_open_value": return <AnalyticsCard fill={fill} title="Pipeline" href={ROUTES.pipeline}><div style={{ display: "flex" }}><StatTile tone={tone} onFill={!!fill} value={a.totals.openDeals} label="Open deals" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} onFill={!!fill} value={inr(a.totals.openDealValue)} label="Open value" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} onFill={!!fill} value={inr(a.totals.weightedDealValue)} label="Weighted" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /></div></AnalyticsCard>;
-    case "products":        return <AnalyticsCard fill={fill} title="Products" href={ROUTES.products}><StatTile tone={tone} onFill={!!fill} value={a.totals.products} label="Active products" icon={<Package size={14} color={iconColor} />} href={ROUTES.products} /></AnalyticsCard>;
-    case "technicians":     return <AnalyticsCard fill={fill} title="Technicians" href={ROUTES.technicians}><StatTile tone={tone} onFill={!!fill} value={a.totals.technicians} label="Total technicians" icon={<Clipboard size={14} color={iconColor} />} href={ROUTES.technicians} /></AnalyticsCard>;
+    case "accounts":        return <AnalyticsCard fill={fill} title="Accounts" href={ROUTES.accounts}><StatTile tone={tone} value={a.totals.accounts} label="Total accounts" icon={<Globe size={14} color={iconColor} />} href={ROUTES.accounts} /></AnalyticsCard>;
+    case "contacts":        return <AnalyticsCard fill={fill} title="Contacts" href={ROUTES.contacts}><StatTile tone={tone} value={a.totals.contacts} label="Total contacts" icon={<Phone size={14} color={iconColor} />} href={ROUTES.contacts} /></AnalyticsCard>;
+    case "assets":          return <AnalyticsCard fill={fill} title="Assets" href={ROUTES.assets}><StatTile tone={tone} value={a.totals.customerAssets} label="Customer assets" icon={<Gear size={14} color={iconColor} />} href={ROUTES.assets} /></AnalyticsCard>;
+    case "open_cases":      return <AnalyticsCard fill={fill} title="Open cases" href={ROUTES.cases}><StatTile tone={tone} value={a.totals.openCases} label="Open cases" icon={<Activity size={14} color={iconColor} />} href={ROUTES.cases} /></AnalyticsCard>;
+    case "work_orders":     return <AnalyticsCard fill={fill} title="Work orders" href={ROUTES.workOrders}><StatTile tone={tone} value={a.totals.workOrders} label="Total work orders" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.workOrders} /></AnalyticsCard>;
+    case "contracts":       return <AnalyticsCard fill={fill} title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.contractStats.activeCount} label="Active" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /><StatTile tone={tone} value={inr(a.contractStats.totalValue)} label="Total value" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /></div></AnalyticsCard>;
+    case "leads":           return <AnalyticsCard fill={fill} title="Leads" href={ROUTES.leads}><StatTile tone={tone} value={a.totals.leads} label="Total leads" icon={<Zap size={14} color={iconColor} />} href={ROUTES.leads} /></AnalyticsCard>;
+    case "pipeline_open_value": return <AnalyticsCard fill={fill} title="Pipeline" href={ROUTES.pipeline}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.totals.openDeals} label="Open deals" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} value={inr(a.totals.openDealValue)} label="Open value" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} value={inr(a.totals.weightedDealValue)} label="Weighted" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /></div></AnalyticsCard>;
+    case "products":        return <AnalyticsCard fill={fill} title="Products" href={ROUTES.products}><StatTile tone={tone} value={a.totals.products} label="Active products" icon={<Package size={14} color={iconColor} />} href={ROUTES.products} /></AnalyticsCard>;
+    case "technicians":     return <AnalyticsCard fill={fill} title="Technicians" href={ROUTES.technicians}><StatTile tone={tone} value={a.totals.technicians} label="Total technicians" icon={<Clipboard size={14} color={iconColor} />} href={ROUTES.technicians} /></AnalyticsCard>;
     case "accounts_by_type": {
       const segs = a.accountsByType.map((x, i) => ({ label: x.label, value: x.count, color: COLORS[i % COLORS.length], href: `${ROUTES.accounts}?type=${x.type}` }));
       return <AnalyticsCard title="Accounts by type" href={ROUTES.accounts}>{big
@@ -750,9 +837,10 @@ export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "com
       return <AnalyticsCard title="Revenue overview" href={ROUTES.invoices}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.blue.base, pillar.purple.base, pillar.teal.base][i % 4]} /></AnalyticsCard>;
     }
     case "invoices_by_status": return <AnalyticsCard title="Invoices by status" href={ROUTES.invoices}><MiniHBar rows={a.invoicesByStatus.map((x) => ({ label: x.label, value: x.count, href: `${ROUTES.invoices}?status=${x.status}` }))} colorFn={(i) => COLORS[i % COLORS.length]} /></AnalyticsCard>;
-    case "loaner_availability": return <AnalyticsCard fill={fill} title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile tone={tone} onFill={!!fill} value={a.loanerStock.available} label="Available" icon={<Battery size={14} color={iconColor} />} href={ROUTES.assets} /><StatTile tone={tone} onFill={!!fill} value={a.loanerStock.onLoan} label="On loan" icon={<Package size={14} color={iconColor} />} href={ROUTES.assets} /></div></AnalyticsCard>;
+    case "loaner_availability": return <AnalyticsCard fill={fill} title="Loaner availability" href={ROUTES.assets}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.loanerStock.available} label="Available" icon={<Battery size={14} color={iconColor} />} href={ROUTES.assets} /><StatTile tone={tone} value={a.loanerStock.onLoan} label="On loan" icon={<Package size={14} color={iconColor} />} href={ROUTES.assets} /></div></AnalyticsCard>;
     case "recent_activity":  return <AnalyticsCard title="Recent activity" href={ROUTES.accounts}><div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{a.recentActivity.slice(0, 4).map((act, i) => (<div key={i} style={{ fontSize: 11, color: c.muted, borderLeft: `2px solid ${ledger.accentSoft}`, paddingLeft: 9 }}><div style={{ color: c.ink }}>{act.text}</div><div style={{ fontSize: 10, color: c.hint, marginTop: 1 }}>{act.accountName} · {fmtDate(act.at)}</div></div>))}</div></AnalyticsCard>;
     case "account_news":     return <AnalyticsCard title="Client news" href={ROUTES.accounts}><AccountNewsList items={a.accountNews} /></AnalyticsCard>;
+    case "business_news":    return <AnalyticsCard title="Business news"><AccountNewsList items={a.businessNews} emptyText="Headlines could not be loaded just now" /></AnalyticsCard>;
     case "quote_outcomes": {
       const { open, won, lost, dropped } = a.quoteOutcomeTotals;
       const rows = [
@@ -763,8 +851,8 @@ export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "com
       ];
       return <AnalyticsCard title="Quote outcome value" href={ROUTES.quotations}><MiniHBar rows={rows} colorFn={(i) => [pillar.green.base, pillar.red.base, pillar.amber.base, pillar.blue.base][i]} /></AnalyticsCard>;
     }
-    case "quote_overdue": return <AnalyticsCard fill={fill} title="Quote overdue" href={ROUTES.quotations}><StatTile tone={tone} onFill={!!fill} value={a.quoteOverdueCount} label="Overdue quotes" icon={<AlertTriangle size={14} color={iconColor} />} href={ROUTES.quotations} /></AnalyticsCard>;
-    case "quote_source": return <AnalyticsCard fill={fill} title="Quote source" href={ROUTES.quotations}><div style={{ display: "flex" }}><StatTile tone={tone} onFill={!!fill} value={a.quoteSource.caseLinked.count} label="From cases" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.quotations} /><StatTile tone={tone} onFill={!!fill} value={a.quoteSource.standalone.count} label="Standalone" icon={<FileText size={14} color={iconColor} />} href={ROUTES.quotations} /></div></AnalyticsCard>;
+    case "quote_overdue": return <AnalyticsCard fill={fill} title="Quote overdue" href={ROUTES.quotations}><StatTile tone={tone} value={a.quoteOverdueCount} label="Overdue quotes" icon={<AlertTriangle size={14} color={iconColor} />} href={ROUTES.quotations} /></AnalyticsCard>;
+    case "quote_source": return <AnalyticsCard fill={fill} title="Quote source" href={ROUTES.quotations}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.quoteSource.caseLinked.count} label="From cases" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.quotations} /><StatTile tone={tone} value={a.quoteSource.standalone.count} label="Standalone" icon={<FileText size={14} color={iconColor} />} href={ROUTES.quotations} /></div></AnalyticsCard>;
     case "wfm_attendance_today": {
       const onTime = a.wfmAttendanceBySite.reduce((s, x) => s + x.onTime, 0);
       const late = a.wfmAttendanceBySite.reduce((s, x) => s + x.late, 0);
@@ -1205,7 +1293,13 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   const modern = uiTheme !== "classic";
   const nextgen = uiTheme === "nextgen";
   const threeLayer = useIsNextgen3Layer();
-  const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout, features));
+  // Admin-controlled content blocks (business news, tips). Read from tenant
+  // config rather than passed as a prop: every other caller of DashboardLayout
+  // would otherwise have to thread it through, and the value is already in
+  // context for the whole app.
+  const tenant = useTenant();
+  const extras = tenant?.config?.dashboard_extras;
+  const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout, features, extras));
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [personalizeOpen, setPersonalizeOpen] = useState(false);
   const [saving, startSave] = useTransition();
@@ -1663,6 +1757,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   function renderSidebarBlock(block: DashLayoutItem) {
     switch (block.id) {
       case "quick_create": return <div key={block.id}>{renderQuickCreate()}</div>;
+      case "product_tips": return <div key={block.id}><AnalyticsCard title="Tips & shortcuts"><TipsCard features={features} /></AnalyticsCard></div>;
       default: return null;
     }
   }
