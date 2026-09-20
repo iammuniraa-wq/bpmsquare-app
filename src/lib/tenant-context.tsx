@@ -152,6 +152,14 @@ export function useIsSpectacular(): boolean {
  * AND the platform-admin-only flag (bpmsquarecore.md section 10). */
 export function useSpectacularVariant(): "navy" | "purple" | null {
   const { tenant } = useContext(TenantContext);
+  return spectacularVariantOf(tenant);
+}
+
+/** The same resolution as a plain function, for the hooks above that need it
+ * as one branch among several -- a hook cannot be called conditionally. */
+function spectacularVariantOf(
+  tenant: { config?: { appearance?: Record<string, unknown> }; features?: Record<string, unknown> } | null | undefined
+): "navy" | "purple" | null {
   if (tenant?.features?.spectacular_theme !== true) return null;
   const t = tenant?.config?.appearance?.ui_theme;
   if (t === "spectacular") return "navy";
@@ -208,6 +216,14 @@ function nextgenChromeOn(
 export function useTopBarIdentity(): boolean {
   const { tenant } = useContext(TenantContext);
   if (tenant?.config?.appearance?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true) return true;
+  // Spectacular, both palettes (owner request 2026-09-20: "move user details
+  // on the top right like in nova"). Not optional the way it is for plain
+  // nextgen: the rail's footer identity block is the widest thing in it, and
+  // with the lilac palette's light chrome the rail is meant to read as a thin
+  // navigation sheet rather than a panel with a profile card stuck to the
+  // bottom. Sidebar.tsx reads this same hook to drop its footer copy, so the
+  // identity never renders twice.
+  if (spectacularVariantOf(tenant) !== null) return true;
   return nextgenChromeOn(tenant, "top_bar_identity");
 }
 

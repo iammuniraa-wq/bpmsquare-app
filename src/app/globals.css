@@ -624,58 +624,63 @@
 
 
 /* ---- SPECTACULAR, LILAC PALETTE (owner request 2026-09-20) ----------------
-   A second reference in violet rather than navy. It is the SAME direction --
-   the band, the filled KPI tiles, the white rail with a coloured active
-   pill, the squared table head, the bordered inputs -- so this is not a
-   second theme and not a second copy of the ~30 rules above. Shell stamps
-   data-spectacular="true" for both palettes (every rule above keeps
-   matching) and adds data-spectacular-variant; this block redefines only
-   the tokens that actually carry a hue. One extra attribute is one point of
-   specificity, which is what lets it win over the navy block without a
-   single !important.
+   REWRITTEN 2026-09-20 after the owner saw the first attempt: "purple is too
+   dark", and "the top section and left side look ignored, there is no flow".
 
-   Anything structural -- radius, shadow geometry, the band's height, the
-   header rules, the :has() gate -- deliberately is NOT repeated here. If a
-   future change needs different STRUCTURE per palette, that is the moment
-   to split them, not before.
+   Both complaints had one cause. The lilac reference is a LIGHT design --
+   white rail, pale lilac page, violet only as an accent -- and the first
+   attempt inherited the navy palette's heavy coloured band anyway, because it
+   was built as "the navy theme, recoloured". That put a dark slab across the
+   top that nothing else on the page related to: the rail stayed white and so
+   read as a separate, untouched product, and the band's deep violet was the
+   "too dark".
 
-   CONTRAST: measured against the navy palette tier for tier, since those
-   values were the hard-won part. White-on-band 10.5:1 (navy 9.6), and every
-   rail ink tier meets or beats its navy counterpart on white -- strong
-   16.3 (vs 16.1), text 9.2 (7.6), dim 5.6 (4.6), faint 4.3 (3.8). The
-   reference's own vivid #8b5cf6 (4.2:1) and #0d9488 (3.7:1) do NOT clear
-   4.5:1 under the white text they carry, exactly as the Nifty reference's
-   greens didn't -- so every fill below keeps the reference's hue and takes
-   a deeper value of it. */
+   So this palette does NOT restate navy's tokens in another hue. It turns the
+   band OFF and runs light chrome throughout, which is both the reference and
+   the more enterprise of the two directions. Everything colour does here is
+   accent: the active nav row, focus rings, KPI edge bars, pills.
+
+   THE INK FLIP. The navy block sets LIGHT --sb-* inks (its bar is dark) and
+   flips them back to dark inside .bpm-sidebar-rail. Here both surfaces are
+   light, so this block carries DARK inks and the rail needs almost nothing --
+   the opposite arrangement, which is why this can't collapse into the navy
+   block with a few overrides. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) {
-  --panel2: #f4f2fb;
+  --panel2: #f6f4fd;
   --card-shadow: 0 1px 2px rgba(45, 22, 90, 0.05);
-  --card-shadow-hover: 0 8px 20px rgba(45, 22, 90, 0.12), 0 2px 6px rgba(45, 22, 90, 0.06);
-  --shadow-raised: 0 16px 40px rgba(45, 22, 90, 0.18), 0 3px 10px rgba(45, 22, 90, 0.10);
+  --card-shadow-hover: 0 8px 20px rgba(45, 22, 90, 0.10), 0 2px 6px rgba(45, 22, 90, 0.05);
+  --shadow-raised: 0 16px 40px rgba(45, 22, 90, 0.16), 0 3px 10px rgba(45, 22, 90, 0.09);
 
-  --surface-sunken:   #eeeaf8;
+  --surface-sunken:   #efecf9;
   --surface-subtle:   #faf9fe;
-  --surface-hover:    rgba(74, 37, 150, 0.05);
+  --surface-hover:    rgba(109, 40, 217, 0.05);
   --surface-selected: #efe9fd;
   --line: #e8e3f3;
 
-  --spectacular-band: #4a2596;
-  --sb-bar-bg: #4a2596;
+  /* Still defined because the shared rules reference the family; the band
+     rule itself is switched off further down. */
+  --spectacular-band: #6d28d9;
 
-  /* The reference's interactive violet. Deeper than its own #8b5cf6 so it
-     is also legible as link/label text on a white card, which --modern-accent
-     is used for far more often than it is used as a fill. */
+  --sidebar-grad: #ffffff;
+  /* A light sheet, not a slab -- it reads as the same surface as the rail
+     beside it, which is the "flow" that was missing. */
+  --sb-bar-bg: #ffffff;
+  /* MobileTopBar sets its own shadow inline (Shell.tsx) and the default is
+     tuned for a DARK bar -- a 45%-black drop under this white one reads as
+     grime. Plain nextgen light has the same white bar and the same heavy
+     shadow; left alone deliberately, since that is a live client theme and
+     this is a look change, not a defect worth making on their behalf. */
+  --sb-bar-shadow: 0 1px 3px rgba(45, 22, 90, 0.10);
+
   --modern-accent: #6d28d9;
   --modern-accent-bg: #efe9fd;
   --modern-gold: #6d28d9;
   --modern-gold-bg: #efe9fd;
 
-  /* AI goes INDIGO here, not violet. In the navy palette violet was the
-     off-hue that marked AI apart from a blue product; in a violet product it
-     would read as more of the same, so it takes the indigo from the
-     reference's own swatch row and keeps the "this is the AI one" signal. */
+  /* AI stays indigo rather than violet: in a violet product a violet AI
+     accent is no longer a signal. Taken from the reference's own swatches. */
   --nextgen-ai: #4338ca;
-  --nextgen-ai-soft: #e9e7fb;
+  --nextgen-ai-soft: #eeecfc;
   --nextgen-good: #0d8150;
   --nextgen-good-soft: #e3f3eb;
   --nextgen-bad: #be123c;
@@ -683,6 +688,9 @@
   --nextgen-warn: #a6600b;
   --nextgen-warn-soft: #fbf1e2;
 
+  /* KPI accent bars now, not fills (see StatTile). Each still clears 4.5:1 on
+     white, because the same value colours the tile's number and label too,
+     not only a 4px edge. */
   --spec-fill-blue:   #4338ca;
   --spec-fill-teal:   #0d7d76;
   --spec-fill-amber:  #b45309;
@@ -690,11 +698,37 @@
   --spec-fill-green:  #0d8150;
   --spec-fill-red:    #be123c;
 
+  /* DARK chrome inks -- the flip described above. Measured on white:
+     16.3 / 9.2 / 5.6 / 4.3, each meeting or beating the navy palette's own
+     tier (16.1 / 7.6 / 4.6 / 3.8). */
+  --sb-text: #4a4363;
+  --sb-text-dim: #6b6485;
+  --sb-text-dimmer: #6b6485;
+  --sb-text-faint: #7d7694;
+  --sb-strong: #231a3d;
+  --sb-icon-muted: #6b6485;
+  --sb-line: #e8e3f3;
+  --sb-hover: rgba(109, 40, 217, 0.05);
+  --sb-hover-strong: rgba(109, 40, 217, 0.09);
+  --sb-active-bg: #6d28d9;
+  --sb-active-ink: #ffffff;
+  --sb-tab-underline: #6d28d9;
+  --sb-tab-sub-active: #4a4363;
+
+  --sb-panel-bg: #ffffff;
   --sb-panel-border: #e8e3f3;
   --sb-panel-text: #231a3d;
   --sb-panel-text-dim: #6b6485;
-  --sb-panel-hover: rgba(74, 37, 150, 0.06);
+  --sb-panel-hover: rgba(109, 40, 217, 0.06);
 
+  /* The search pill sits on a WHITE bar here, so navy's translucent-white
+     treatment would leave it invisible. */
+  --sb-search-bg: #f4f2fb;
+  --sb-search-border: #e8e3f3;
+  --sb-search-text: #231a3d;
+  --sb-search-icon: #6b6485;
+
+  --drawer-bg: #ffffff;
   --drawer-card: #faf9fe;
   --drawer-card-alt: #efe9fd;
   --drawer-line: #e8e3f3;
@@ -707,26 +741,61 @@
   --drawer-err-border: #f4ccd5;
 }
 
-/* The rail, same white sheet. The active pill takes the VIVID violet rather
-   than the band colour -- that split is in the reference (deep chrome, bright
-   pill) and it is what stops the current row reading as a hole in the sheet. */
+/* The rail needs only its edge -- the inks above already reach it, because
+   both surfaces are light. The active row is the one place violet is filled. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-sidebar-rail {
-  --sb-text: #4a4363;
-  --sb-text-dim: #6b6485;
-  --sb-text-dimmer: #6b6485;
-  --sb-text-faint: #7d7694;
-  --sb-strong: #231a3d;
-  --sb-icon-muted: #6b6485;
-  --sb-line: #e8e3f3;
-  --sb-hover: rgba(74, 37, 150, 0.05);
-  --sb-hover-strong: rgba(74, 37, 150, 0.09);
-  --sb-active-bg: #6d28d9;
-  --sb-active-ink: #ffffff;
   border-right: 1px solid #e8e3f3;
 }
 
-/* The three places the navy block states a hue literally instead of through
-   a token -- they cannot be reached by redefining a variable. */
+/* NO BAND. These rules undo the navy palette's band and everything it drags
+   with it -- white header ink, white links, a record card lifted to float on
+   navy. Each has to be actively undone rather than simply not added, because
+   the navy rules match on [data-spectacular="true"], which this variant also
+   carries. Written as "switch off" rules rather than re-scoping the navy
+   selectors to exclude purple, so the navy block stays exactly as it shipped
+   and everything specific to this palette stays in one place. */
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main:has(.bpm-page-header, .bpm-page-band) {
+  background-image: none;
+}
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header {
+  --ink: #231a3d;
+  --muted: #4a4363;
+  --hint: #6b6485;
+  --page-head-cta: #6d28d9;
+  --line: #e8e3f3;
+  color: #231a3d;
+}
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header-title {
+  color: #231a3d;
+}
+/* The navy rule forces every unpainted link/button in a header to white with
+   !important, for legibility on the band. With no band that is white on
+   near-white, so it points back at the accent -- !important only because it
+   is undoing an !important. */
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header a:not([style*="background"]),
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header button:not([style*="background"]),
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header button[style*="background: transparent"] {
+  color: #6d28d9 !important;
+}
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header button[style*="background: transparent"] {
+  border-color: #d9d2e9 !important;
+}
+/* A record header is an ordinary card again -- it was only lifted to float it
+   off the navy. */
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-band {
+  box-shadow: var(--card-shadow) !important;
+}
+/* Same story for the AI brief: navy made it opaque because the band showed
+   through its faded right half. On a light page the original violet-to-clear
+   wash is right, and the opaque version's hard edge is what the owner called
+   out as "the right side gradient". */
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .nextgen-brief {
+  background: linear-gradient(120deg, var(--nextgen-ai-soft) 0%, rgba(255, 255, 255, 0) 70%) !important;
+  box-shadow: none;
+}
+
+/* The two places the navy block names a colour literally rather than through
+   a token, so a variable cannot reach them. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main thead tr {
   background: #faf9fe;
 }
