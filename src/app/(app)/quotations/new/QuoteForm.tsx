@@ -1802,7 +1802,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       {assetPickerOpen && (
         <>
           <div onClick={() => setAssetPickerOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
-          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, maxWidth: "100vw", background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Link assets</div>
@@ -1852,7 +1852,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       {catalogOpen && (
         <>
           <div onClick={() => setCatalogOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
-          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 400, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 400, maxWidth: "100vw", background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Catalog</div>
@@ -1930,7 +1930,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       {createAssetOpen && (
         <>
           <div onClick={() => setCreateAssetOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
-          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 440, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 440, maxWidth: "100vw", background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>New asset</div>
@@ -1988,7 +1988,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       {fragTarget && (
         <>
           <div onClick={() => setFragTarget(null)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
-          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 380, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 380, maxWidth: "100vw", background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>{fragTarget === "notes" ? "Note templates" : "Terms presets"}</div>
@@ -2012,7 +2012,7 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       {sowFragTarget && (
         <>
           <div onClick={() => setSowFragTarget(null)} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
-          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 400, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 400, maxWidth: "100vw", background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>SOW templates</div>
@@ -2074,7 +2074,7 @@ function AssetGlancePanel({ assetId, onClose }: { assetId: string; onClose: () =
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(14,26,40,.45)", zIndex: 998 }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 440, background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 440, maxWidth: "100vw", background: c.panel, zIndex: 999, display: "flex", flexDirection: "column", boxShadow: "-6px 0 32px rgba(0,0,0,.18)" }}>
         <div style={{ padding: "16px 20px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

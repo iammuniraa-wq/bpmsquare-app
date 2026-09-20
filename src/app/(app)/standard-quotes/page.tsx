@@ -107,7 +107,7 @@ export default async function StandardQuotesPage({
         }
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: statusFilter ? 8 : 20 }}>
+      <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: statusFilter ? 8 : 20 }}>
         {summary.map(({ status, count, total }) => (
           <Link key={status} href={statusFilter === status ? ROUTES.standardQuotes : `${ROUTES.standardQuotes}?status=${status}`} style={{ textDecoration: "none" }}>
             <div style={{ ...cardStyle, textAlign: "center", borderColor: statusFilter === status ? pillar[STATUS_TONE[status]].base : undefined }}>

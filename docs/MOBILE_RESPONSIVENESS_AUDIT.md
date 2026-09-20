@@ -1,5 +1,9 @@
 # Mobile responsiveness — audit, 2026-09-20
 
+> **Status: findings 1–5 fixed 2026-09-20.** See "What was done" at the
+> end. 6 and 7 are deliberately still open. The finding list below is kept as
+> written so the fix can be checked against it.
+
 Static audit of the whole app at phone width. Nothing here is fixed yet; this
 is the finding list and the proposed single fix.
 
@@ -117,21 +121,52 @@ a direction being shown to enterprises.
 
 ---
 
-## Proposed fix — one pattern, mechanical, desktop untouched
+## What was done
 
-1. Write the four missing rules (finding 1), inside `@media (max-width: 780px)`
-   with `!important` — matching how `.hub-grid` already beats an inline style.
-2. Add the existing `hub-grid` to the finding-2 elements and `kpi-grid` to the
-   finding-3 elements. No new CSS; they just opt in.
-3. Add one new `.row-grid` rule for finding 4 (stack to `1fr`, with the label
-   track becoming a heading row).
-4. Finding 5: `maxWidth: "100vw"` on the six drawers, `maxWidth: "calc(100vw - 32px)"`
-   on the two modals. A two-line change with no layout consequence on desktop.
+Applied 2026-09-20, in one pass, exactly as proposed. The scanner that found
+the 40 was re-run afterwards: **40 unguarded → 5**, and all 5 remaining are
+deliberate (three `repeat(7, 1fr)` calendar week grids, where 7 columns is the
+point and a ~50px cell is fine; `NovaSidebar`'s 5-up icon row inside a
+fixed-width drawer; and one scanner false positive — `technicians/[id]:245`
+already carried `hub-grid`, written *after* its `style` attribute, which the
+3-lines-back heuristic could not see).
 
-**Every rule lands inside `@media (max-width: 780px)`, so desktop renders
-byte-identical** — the same guarantee `343bceb` gave when it moved
-`PageHeader`'s values into a class. That is what makes this safe to batch
-across ~40 sites in one pass.
+1. **Six rules added to `globals.css`**, all inside `@media (max-width: 780px)`:
+   - `.hub-grid, .case-body, .prod-body, .cf-grid, .qf-grid, .stack-grid`
+     → `grid-template-columns: 1fr !important` (keeps each element's own gap)
+   - `.kpi-grid` → `1fr 1fr`
+   - `.row-grid` → `1fr` with a 6px gap (a stacked row wants a tighter rhythm)
+   - `.row-grid-head` → `display: none` (a column-header row means nothing
+     once the rows under it have stacked)
 
-Findings 6 and 7 are deliberately left out of the batch: 6 is cosmetic, and 7
-is a product call, not a bug.
+   The four that were already in the markup with no rule — `case-body`,
+   `prod-body`, `cf-grid`, `qf-grid` — are now simply part of the first rule.
+
+2. **34 elements opted in.** `hub-grid` on the 18 content-plus-fixed-rail
+   layouts, `kpi-grid` on the 4 KPI strips, `stack-grid` on the 4 settings
+   form grids, `row-grid` on the 4 data rows, `row-grid-head` on the one
+   column-header row. No element's own inline style was changed.
+
+3. **Finding 5 bounded to the viewport.** `maxWidth: "100vw"` on QuoteForm's
+   six right-side drawers, `maxWidth: "calc(100vw - 32px)"` on the two centred
+   confirm modals. Nothing else about them moved.
+
+**Desktop renders byte-identical** — every rule is inside the media query, and
+the class additions carry no styling of their own above 780px. That is the
+property that made a 34-element sweep safe to do at once, and it is the thing
+to re-check first if anything looks off above 780px.
+
+### Still open, on purpose
+
+Finding 6 (tables with no scroll wrapper) is cosmetic — they compress rather
+than overflow. Finding 7 (`MobileTabBar` is Nova-only, so every other theme
+including both Spectacular palettes is hamburger-only on a phone) is a product
+decision stated in `Shell.tsx`, not a bug, and wants an owner call rather than
+a patch.
+
+### Not verified in a browser
+
+This environment cannot reach a tenant login, so none of the above has been
+seen rendered. `tsc`, `next build` and the test suite are clean, and the
+reasoning is mechanical, but a phone-width look at one record page, one
+settings page and the quote drawers is what would actually confirm it.

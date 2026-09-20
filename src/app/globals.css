@@ -1067,6 +1067,46 @@ a { color: inherit; text-decoration: none; }
   .card-grid  { grid-template-columns: 1fr !important; }
 }
 
+/* ---- Mobile: grids that are written INLINE (audit 2026-09-20) -------------
+   docs/MOBILE_RESPONSIVENESS_AUDIT.md has the full finding list. Every rule
+   below exists for one reason: an inline `style={{ gridTemplateColumns }}`
+   beats a stylesheet rule, so a page that hard-codes its columns cannot be
+   made to stack from here without `!important`. That is the same trap
+   PageHeader hit (343bceb) -- there it was solved by moving the values into
+   a class, which is not available for ~40 one-off layouts, so they opt into
+   a class that overrides them instead.
+
+   All of it is inside this media query, so DESKTOP RENDERS BYTE-IDENTICAL.
+   That is what made it safe to apply across 40 sites in one pass. */
+@media (max-width: 780px) {
+  /* Record/form pages built as "content + fixed right rail". The rail is
+     260-340px of a 366px content box, and the 1fr track will not shrink
+     below its own min-content, so the page overflowed sideways instead of
+     stacking. .hub-grid already did exactly this and these never opted in.
+
+     case-body, prod-body, cf-grid and qf-grid were ALREADY on the elements
+     with no rule anywhere in this file -- the intent was recorded in the
+     markup and the CSS was never written. */
+  .hub-grid, .case-body, .prod-body, .cf-grid, .qf-grid, .stack-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* KPI strips that wrote repeat(4|5, 1fr) inline: five tiles in a 366px box
+     is 62px each. Two up, same as .kpi-grid has always done. */
+  .kpi-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* A row rendered as a grid of fixed tracks (settings rows, line editors).
+     Stacking the cells is the only option that keeps every value reachable;
+     the gap tightens because each cell is now its own line. */
+  .row-grid {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+  /* A column-header row above .row-grid rows means nothing once the rows
+     below it have stacked -- the headings no longer line up with anything. */
+  .row-grid-head { display: none !important; }
+}
+
 /* Settings pages. These surfaces gain a section per capability and never lose
    one, so they are built to stay usable as they grow: two columns where there
    is room, one where there isn't, and a save bar that follows the page instead

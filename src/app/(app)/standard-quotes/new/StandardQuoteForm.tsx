@@ -324,7 +324,7 @@ export default function StandardQuoteForm({
         onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault(); }}
       >
         {step === "details" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
+        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <section style={cardStyle}>
               <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 16px" }}>Quote for</h3>
@@ -482,7 +482,7 @@ export default function StandardQuoteForm({
         )}
 
         {step === "attachments" && editQuote && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
+        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
           <section style={cardStyle}>
             <StandardQuoteAttachments
               quoteId={editQuote.id}

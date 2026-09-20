@@ -188,7 +188,7 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
 
       {closing && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }} onClick={() => setClosing(null)}>
-          <div style={{ ...cardStyle, width: 380, padding: 18 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ ...cardStyle, width: 380, maxWidth: "calc(100vw - 32px)", padding: 18 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 10 }}>Close this deal as…</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               {(["won", "lost", "dropped"] as const).map((o) => (

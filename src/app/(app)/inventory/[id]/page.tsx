@@ -60,7 +60,7 @@ export default async function InventoryDetailPage({ params }: { params: Promise<
         action={<AdaptObjectDrawer objectType="inventory" objectLabel="Inventory Item" isAdmin={role === "admin"} />}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, alignItems: "start", marginTop: 16 }}>
+      <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, alignItems: "start", marginTop: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
           <section style={cardStyle}>

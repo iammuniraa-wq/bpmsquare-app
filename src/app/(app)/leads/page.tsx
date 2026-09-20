@@ -79,7 +79,7 @@ export default async function LeadsPage({
         action={<NewLeadButton accounts={accounts} />}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
+      <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
         {byStatus.map(({ status, count }) => (
           <Link key={status} href={statusFilter === status ? ROUTES.leads : `${ROUTES.leads}?status=${status}`} style={{ textDecoration: "none" }}>
             <div style={{

@@ -118,7 +118,7 @@ export default function SegmentBuilder({ accounts, initial }: { accounts: Accoun
         <input style={inp} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. OEM accounts, Mumbai" />
       </section>
 
-      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 14, alignItems: "start" }}>
+      <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 14, alignItems: "start" }}>
         <section style={cardStyle}>
           <div style={{ ...lbl, marginBottom: 10 }}>Attributes</div>
           <div style={{ fontSize: 11, color: c.hint, marginBottom: 12, lineHeight: 1.5 }}>Drag an attribute onto the canvas, or click it to add.</div>

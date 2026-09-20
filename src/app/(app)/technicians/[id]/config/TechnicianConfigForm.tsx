@@ -169,7 +169,7 @@ export default function TechnicianConfigForm({
 
   return (
     <>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 14, alignItems: "start" }}>
+      <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 14, alignItems: "start" }}>
 
         {/* ── LEFT — Personal + Skills + Certs ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

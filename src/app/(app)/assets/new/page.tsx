@@ -98,7 +98,7 @@ export default function NewAssetPage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16, alignItems: "start" }}>
+        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16, alignItems: "start" }}>
 
           {/* Left — asset details */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

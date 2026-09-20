@@ -68,7 +68,7 @@ export default function HistoryClient() {
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, alignItems: "start" }}>
+    <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, alignItems: "start" }}>
       <div>
         <div style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, border: `1px solid ${c.line}`, background: c.panel }}>
           <label style={{ fontSize: 11.5, color: c.muted, fontWeight: 600, display: "block", marginBottom: 6 }}>What was live on a date</label>
