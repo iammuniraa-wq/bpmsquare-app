@@ -3,6 +3,7 @@ import { getQuote } from "@/lib/data";
 import { getTenant } from "@/lib/tenant";
 import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
+import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import TabTitle from "@/components/TabTitle";
 import QuoteDetailLayout from "@/components/QuoteDetailLayout";
 import { signQuotePublicToken, buildAbsoluteUrl } from "@/lib/quotePublicLink";
@@ -46,6 +47,12 @@ export default async function QuotationDetailPage({
         assets={assets}
         publicPdfLink={publicPdfLink}
       />
+      {/* The quotation was the one object already wired for comments on every
+          other surface -- OBJECTS in api/nova/comments, LABEL/TABLE in
+          api/nova/inbox and ROUTE_FOR in NovaInbox all name it -- and never
+          mounted the timeline that produces them (bpmsquarecore.md section 3b
+          wants all four). */}
+      <NovaTimelineSlot objectType="quotes" objectId={quote.id} />
     </>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useIsNextgen3Layer, useTenantFeature, useCurrency } from "@/lib/tenant-context";
+import { useNovaSurfaces, useTenantFeature, useCurrency } from "@/lib/tenant-context";
 import { formatMoney } from "@/lib/currency";
 import FlowBoard from "@/components/FlowBoard";
 import QuoteLanes from "@/components/QuoteLanes";
@@ -123,7 +123,10 @@ export default function FlowBoardSlot({
   rows: QuoteSummary[];
   quoteStatuses: QuoteStatusDef[];
 }) {
-  const nova = useIsNextgen3Layer();
+  // useNovaSurfaces, not useIsNextgen3Layer: Spectacular mounts these four
+  // views too (2026-09-21). A tenant on neither still gets `list` and never
+  // sees the switcher, exactly as before.
+  const nova = useNovaSurfaces();
   const aiReportsEnabled = useTenantFeature("ai_reports");
   const cur = useCurrency();
   const [ask, setAsk] = useState<AskState | null>(null);

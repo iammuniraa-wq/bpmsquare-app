@@ -38,7 +38,7 @@ import { formatMoney } from "@/lib/currency";
 const DAY = 86_400_000;
 
 function ageChip(days: number) {
-  const color = days >= 14 ? "#E4634A" : days >= 7 ? "#F0A93B" : "var(--nova-ink-faint)";
+  const color = days >= 14 ? "var(--nova-alert-ink, #E4634A)" : days >= 7 ? "var(--nova-orange, #F0A93B)" : "var(--nova-ink-faint)";
   const bg = days >= 14 ? "rgba(228,99,74,.12)" : days >= 7 ? "rgba(240,169,59,.12)" : "var(--nova-glass-bg)";
   return (
     <span style={{
@@ -182,7 +182,7 @@ export default function QuoteListNova({ rows, quoteStatuses }: { rows: QuoteSumm
               fontSize: 12.5, fontWeight: 600, padding: "6px 13px", borderRadius: 7, border: "none",
               cursor: selected.size === 1 ? "pointer" : "not-allowed",
               background: selected.size === 1 ? "var(--nova-orange)" : "var(--nova-glass-bg)",
-              color: selected.size === 1 ? "#160F02" : "var(--nova-ink-faint)",
+              color: selected.size === 1 ? "var(--nova-on-orange, #160F02)" : "var(--nova-ink-faint)",
             }}
           >
             Copy
@@ -191,7 +191,7 @@ export default function QuoteListNova({ rows, quoteStatuses }: { rows: QuoteSumm
             type="button" disabled={busy} onClick={deleteSelected}
             style={{
               fontSize: 12.5, fontWeight: 600, padding: "6px 13px", borderRadius: 7, border: "1px solid #E4634A55",
-              cursor: busy ? "not-allowed" : "pointer", background: "rgba(228,99,74,.14)", color: "#E4634A",
+              cursor: busy ? "not-allowed" : "pointer", background: "rgba(228,99,74,.14)", color: "var(--nova-alert-ink, #E4634A)",
             }}
           >
             {busy ? "Deleting…" : "Delete"}

@@ -238,6 +238,32 @@ export function useCommandPalette(): boolean {
   return nextgenChromeOn(tenant, "command_palette");
 }
 
+/**
+ * Whether this workspace mounts the record/list surfaces that were BUILT for
+ * Nova -- the Quote/Case Field, Lanes and List, the record timeline and its
+ * inbox, Account 360, and the account constellation.
+ *
+ * True for Nova itself, and now for Spectacular (owner request 2026-09-21,
+ * from the "Inside the shell" proposal): the shell was the only thing
+ * Spectacular had that Nova didn't, and a violet shell wrapped around the
+ * plain list pages was a frame with nothing in it.
+ *
+ * Deliberately NOT useIsNextgen3Layer() widened. That hook means "this is
+ * Nova" and still governs Nova's own experience layer -- NovaSidebar, the
+ * draft/stream/story pieces, the account landing page. This one means "this
+ * workspace gets those surfaces", which is a smaller claim: a Spectacular
+ * tenant renders the same components inside the ordinary Shell, against the
+ * light --nova-* token set globals.css defines for [data-spectacular]. Both
+ * sides stay doubly gated (theme value AND platform-admin-only feature flag),
+ * so bpmsquarecore.md section 10 rule 1 holds -- no existing client reaches
+ * any of this.
+ */
+export function useNovaSurfaces(): boolean {
+  const { tenant } = useContext(TenantContext);
+  if (tenant?.config?.appearance?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true) return true;
+  return spectacularVariantOf(tenant) !== null;
+}
+
 /** True for the "nextgen2" 3-layer variant specifically -- identity lives in
  * the top bar instead of the sidebar footer, and the engagement layer
  * (celebrations, silence detector, loss intelligence, fog of war) hangs off

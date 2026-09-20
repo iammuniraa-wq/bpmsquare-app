@@ -696,6 +696,14 @@ export default async function AccountHubPage({
           )}
         </section>
       )}
+      {/* The constellation, for a theme that has no Nova landing view to put
+          it on -- Spectacular (the slot self-gates, so a tenant on neither
+          theme still renders nothing). Overview only: it is a summary of the
+          whole account, so repeating it under Quotes or Cases would just push
+          the tab's own content down. */}
+      {!isNova && activeTab === "overview" && (
+        <NovaAccountCanvasSlot accountName={account.name} accountMeta={canvasMeta} contactNodes={contactNodes} dealNodes={dealNodes} />
+      )}
       <NovaTimelineSlot objectType="accounts" objectId={id} />
     </>
   );

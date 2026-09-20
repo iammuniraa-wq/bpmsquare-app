@@ -125,8 +125,8 @@ export default function CaseField({ filterQuery }: { filterQuery?: string }) {
   const statBar = (
     <div className="cf-stats" style={{ display: "flex", gap: 28, marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid var(--nova-line-soft)" }}>
       <Stat label="Median age" value={<>{medianAge} <span style={{ fontSize: 13, fontWeight: 500, color: "var(--nova-ink-faint)" }}>days</span></>} />
-      <Stat label="Unassigned" value={<span style={{ color: unassignedCount > 0 ? "#E4634A" : "var(--nova-ink)" }}>{unassignedCount}</span>} />
-      <Stat label="Stuck corner" value={<span style={{ color: data.stuck.length > 0 ? "#E4634A" : "var(--nova-ink)" }}>{data.stuck.length}</span>} />
+      <Stat label="Unassigned" value={<span style={{ color: unassignedCount > 0 ? "var(--nova-alert-ink, #E4634A)" : "var(--nova-ink)" }}>{unassignedCount}</span>} />
+      <Stat label="Stuck corner" value={<span style={{ color: data.stuck.length > 0 ? "var(--nova-alert-ink, #E4634A)" : "var(--nova-ink)" }}>{data.stuck.length}</span>} />
     </div>
   );
 
@@ -228,7 +228,7 @@ export default function CaseField({ filterQuery }: { filterQuery?: string }) {
               width={X(maxAge) - X(data.stuck_age)} height={Y(0) - Y(data.stuck_progress_max)}
               fill="rgba(228,99,74,.08)" stroke="rgba(228,99,74,.32)" strokeDasharray="3 4"
             />
-            <text x={W - PAD_R - 8} y={Y(0) - 8} textAnchor="end" fill="#E4634A" fontFamily="var(--nova-font-body)" fontSize="10" letterSpacing="0.5">
+            <text x={W - PAD_R - 8} y={Y(0) - 8} textAnchor="end" fill="var(--nova-alert-ink, #E4634A)" fontFamily="var(--nova-font-body)" fontSize="10" letterSpacing="0.5">
               STUCK · {data.stuck.length} case{data.stuck.length === 1 ? "" : "s"}
             </text>
             {gridValues.map((v) => (
@@ -314,7 +314,7 @@ export default function CaseField({ filterQuery }: { filterQuery?: string }) {
             </>
           ) : (
             <>
-              <div style={{ fontFamily: "var(--nova-font-body)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: "#E4634A", marginBottom: 4 }}>
+              <div style={{ fontFamily: "var(--nova-font-body)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--nova-alert-ink, #E4634A)", marginBottom: 4 }}>
                 Stuck corner
               </div>
               <p style={{ fontSize: 12, color: "var(--nova-ink-faint)", margin: "0 0 12px", lineHeight: 1.5 }}>

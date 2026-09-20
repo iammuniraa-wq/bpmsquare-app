@@ -200,7 +200,7 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
             disabled={posting || !draft.trim()}
             style={{
               marginLeft: "auto", border: "none", cursor: "pointer", font: "inherit",
-              fontSize: 12, fontWeight: 650, color: "var(--nova-ink)", padding: "7px 14px", borderRadius: 8,
+              fontSize: 12, fontWeight: 650, color: "var(--nova-cta-ink, var(--nova-ink))", padding: "7px 14px", borderRadius: 8,
               background: ACCENT, opacity: posting || !draft.trim() ? .55 : 1,
             }}
           >

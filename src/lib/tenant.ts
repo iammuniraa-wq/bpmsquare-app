@@ -136,6 +136,33 @@ export async function tenantHasFeature(
 }
 
 /**
+ * The server-side mirror of useNovaSurfaces() (src/lib/tenant-context.tsx):
+ * whether this workspace may reach the record/list surfaces that were built
+ * for Nova -- the Field/Lanes views, the record timeline and its inbox, and
+ * Account 360.
+ *
+ * Spectacular mounts those components too (owner request 2026-09-21), and
+ * every one of them is fed by an /api/nova/* route that gated on
+ * next_experience alone. Un-gating only the components would have shipped
+ * the whole set as an empty panel behind a 403 -- the flag the UI is allowed
+ * by and the flag the data is allowed by have to be the same question, asked
+ * in one place.
+ *
+ * Still two closed flags, both platform-admin-only, so bpmsquarecore.md
+ * section 10 rule 1 is intact. The routes that back Nova STRUCTURE rather
+ * than a portable surface -- nav, draft, market-intel -- deliberately keep
+ * the narrower next_experience check.
+ */
+export async function tenantHasNovaSurfaces(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<boolean> {
+  const { data } = await supabase.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  const f = data?.features as TenantFeatures | undefined;
+  return !!(f?.next_experience || f?.spectacular_theme);
+}
+
+/**
  * Strips admin-only secrets (the v1 API key, and the ERP webhook-push
  * signing secret nested in `config`) from a tenant object before it's
  * handed to TenantProvider -- every authenticated member of a tenant was

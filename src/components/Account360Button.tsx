@@ -1,11 +1,11 @@
 "use client";
 
-import { useIsNextgen3Layer } from "@/lib/tenant-context";
+import { useNovaSurfaces } from "@/lib/tenant-context";
 
 /**
- * The way into Account 360. Self-gates on Nova (like NovaTimelineSlot), so a
- * server page mounts it unconditionally and a non-Nova tenant renders
- * nothing. Raising the event rather than importing the drawer keeps the
+ * The way into Account 360. Self-gates (Nova or Spectacular, like
+ * NovaTimelineSlot), so a server page mounts it unconditionally and a
+ * tenant on neither renders nothing. Raising the event rather than importing the drawer keeps the
  * drawer a single instance mounted once in Shell.
  */
 export function openAccount360(id: string) {
@@ -13,7 +13,7 @@ export function openAccount360(id: string) {
 }
 
 export default function Account360Button({ accountId, variant = "button" }: { accountId: string; variant?: "button" | "link" }) {
-  const nova = useIsNextgen3Layer();
+  const nova = useNovaSurfaces();
   if (!nova) return null;
 
   if (variant === "link") {
@@ -48,18 +48,18 @@ export default function Account360Button({ accountId, variant = "button" }: { ac
 }
 
 /**
- * List-table variant. Head and body cells gate on the SAME hook, so a
- * non-Nova tenant renders neither -- the table keeps exactly the columns it
+ * List-table variant. Head and body cells gate on the SAME hook, so an
+ * ungated tenant renders neither -- the table keeps exactly the columns it
  * has today rather than growing an empty one.
  */
 export function Account360HeadCell({ style }: { style?: React.CSSProperties }) {
-  const nova = useIsNextgen3Layer();
+  const nova = useNovaSurfaces();
   if (!nova) return null;
   return <th style={{ ...style, width: 30 }} aria-label="Account 360" />;
 }
 
 export function Account360Cell({ accountId, style }: { accountId: string; style?: React.CSSProperties }) {
-  const nova = useIsNextgen3Layer();
+  const nova = useNovaSurfaces();
   if (!nova) return null;
   return (
     <td style={{ ...style, width: 30, paddingLeft: 0, paddingRight: 0 }}>

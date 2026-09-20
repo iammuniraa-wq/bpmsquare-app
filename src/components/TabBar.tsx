@@ -53,7 +53,7 @@ export default function TabBar() {
   };
 
   return (
-    <div style={{
+    <div className="bpm-tabbar" style={{
       display: "flex", alignItems: "center",
       borderBottom: "1px solid var(--sb-line)",
       background: "var(--sb-bar-bg)",

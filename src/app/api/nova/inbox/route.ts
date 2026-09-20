@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
-import { tenantHasFeature } from "@/lib/tenant";
+import { tenantHasNovaSurfaces } from "@/lib/tenant";
 
 /**
  * Nova pillar 4 — the inbox. A notification IS a comment that mentions
@@ -45,8 +45,8 @@ export async function GET() {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
-    return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
+  if (!(await tenantHasNovaSurfaces(supabase, tenantId))) {
+    return NextResponse.json({ error: "This surface isn't enabled for your workspace" }, { status: 403 });
   }
 
   const user = await getAuthUser();
@@ -120,8 +120,8 @@ export async function POST(request: NextRequest) {
   }
   // Same gate as GET -- §10 rule 1, no Nova surface ungated. (Was the one
   // missing gate found by the 2026-08-22 readiness audit.)
-  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
-    return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
+  if (!(await tenantHasNovaSurfaces(supabase, tenantId))) {
+    return NextResponse.json({ error: "This surface isn't enabled for your workspace" }, { status: 403 });
   }
 
   const user = await getAuthUser();

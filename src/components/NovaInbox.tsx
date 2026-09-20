@@ -113,7 +113,7 @@ export default function NovaInbox() {
         {unread > 0 && (
           <span style={{
             position: "absolute", top: -4, right: -4, minWidth: 16, height: 16, padding: "0 4px",
-            borderRadius: 999, background: "var(--redink, #e5484d)", color: "var(--nova-ink)",
+            borderRadius: 999, background: "var(--redink, #e5484d)", color: "var(--nova-cta-ink, var(--nova-ink))",
             fontSize: 9.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center",
             fontVariantNumeric: "tabular-nums",
           }}>
@@ -147,7 +147,7 @@ export default function NovaInbox() {
             {!loaded ? (
               <div aria-hidden style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
                 {[78, 62, 70].map((w, i) => (
-                  <div key={i} style={{ height: 11, width: `${w}%`, borderRadius: 6, background: "var(--sb-hover, rgba(255,255,255,.08))" }} />
+                  <div key={i} style={{ height: 11, width: `${w}%`, borderRadius: 6, background: "var(--sb-panel-hover, var(--sb-hover, rgba(255,255,255,.08)))" }} />
                 ))}
               </div>
             ) : items.length === 0 ? (
