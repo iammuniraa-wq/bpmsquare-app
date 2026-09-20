@@ -623,186 +623,372 @@
 }
 
 
-/* ---- SPECTACULAR, LILAC PALETTE (owner request 2026-09-20) ----------------
-   REWRITTEN 2026-09-20 after the owner saw the first attempt: "purple is too
-   dark", and "the top section and left side look ignored, there is no flow".
+/* ---- SPECTACULAR PURPLE — SHELL & SHEET (owner approved 2026-09-21) -------
+   Third and final shape for this palette. Worth recording why it moved twice,
+   because the two dead ends are the argument for where it landed:
 
-   Both complaints had one cause. The lilac reference is a LIGHT design --
-   white rail, pale lilac page, violet only as an accent -- and the first
-   attempt inherited the navy palette's heavy coloured band anyway, because it
-   was built as "the navy theme, recoloured". That put a dark slab across the
-   top that nothing else on the page related to: the rail stayed white and so
-   read as a separate, untouched product, and the band's deep violet was the
-   "too dark".
+     v1  navy's structure recoloured — a deep violet BAND across the top of a
+         white page. Owner: "too dark", and "the top section and left side look
+         ignored, there is no flow". The band was a slab nothing else related
+         to; the white rail beside it read as a different product.
+     v2  the reference's own light chrome — white bar, white rail, pale lilac
+         page, violet only as a 4px accent. Owner: "purple looks almost white".
+         True: with the band gone there was nowhere left for the colour to be.
 
-   So this palette does NOT restate navy's tokens in another hue. It turns the
-   band OFF and runs light chrome throughout, which is both the reference and
-   the more enterprise of the two directions. Everything colour does here is
-   accent: the active nav row, focus rings, KPI edge bars, pills.
+   Both failed the same way. The screen was THREE PLANES — rail, bar, page —
+   each with its own ground and a seam between them, and colour had to be
+   either a slab on one of them or a token accent. So this version stops
+   treating them as three planes:
 
-   THE INK FLIP. The navy block sets LIGHT --sb-* inks (its bar is dark) and
-   flips them back to dark inside .bpm-sidebar-rail. Here both surfaces are
-   light, so this block carries DARK inks and the rail needs almost nothing --
-   the opposite arrangement, which is why this can't collapse into the navy
-   block with a few overrides. */
+     The whole app is ONE violet shell. The rail has no background and no
+     border; the top bar and tab bar have none either. They sit directly on
+     the shell, so there is no seam to notice. <main> becomes a white SHEET
+     that floats inside it with a margin on all four sides, so violet frames
+     every screen at every scroll position while everything anyone reads sits
+     on white.
+
+   THE INK RULE that follows from it: everything outside the sheet is on dark
+   violet, so the --sb-* family is LIGHT — for the bar AND the rail, with no
+   flip between them (the navy palette needs that flip because its two
+   surfaces have opposite grounds; here they are literally the same surface).
+   Everything inside the sheet is on white and keeps the normal light-mode
+   tokens.
+
+   Contrast, measured against #2A1259: white 15.8:1, and the four rail ink
+   tiers land at 13.4 / 11.4 / 9.8 / 7.6 — every one clear of the navy
+   palette's own tiers, because a deeper ground gives more room. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) {
-  --panel2: #f6f4fd;
+  /* The shell. Read by Shell.tsx's root element via --app-bg (it falls back
+     to --panel2, so every other theme is untouched). */
+  --app-bg: linear-gradient(158deg, #2A1259 0%, #1B0A3D 78%);
+  --spectacular-band: #2A1259;
+
+  /* Inside the sheet. --panel2 stays a pale lilac because it is the SUNKEN
+     surface within a white card, not the page ground any more. */
+  --panel2: #F5F3FB;
+  --card-radius: 11px;
   --card-shadow: 0 1px 2px rgba(45, 22, 90, 0.05);
-  --card-shadow-hover: 0 8px 20px rgba(45, 22, 90, 0.10), 0 2px 6px rgba(45, 22, 90, 0.05);
-  --shadow-raised: 0 16px 40px rgba(45, 22, 90, 0.16), 0 3px 10px rgba(45, 22, 90, 0.09);
+  --card-shadow-hover: 0 8px 20px rgba(45, 22, 90, 0.11), 0 2px 6px rgba(45, 22, 90, 0.06);
+  --shadow-raised: 0 16px 40px rgba(45, 22, 90, 0.20), 0 3px 10px rgba(45, 22, 90, 0.10);
 
-  --surface-sunken:   #efecf9;
-  --surface-subtle:   #faf9fe;
+  --surface-sunken:   #EFECF9;
+  --surface-subtle:   #FAF9FE;
   --surface-hover:    rgba(109, 40, 217, 0.05);
-  --surface-selected: #efe9fd;
-  --line: #e8e3f3;
+  --surface-selected: #EFE9FD;
+  --line: #E8E3F3;
 
-  /* Still defined because the shared rules reference the family; the band
-     rule itself is switched off further down. */
-  --spectacular-band: #6d28d9;
+  --modern-accent: #5B34D6;
+  --modern-accent-bg: #EFE9FD;
+  --modern-gold: #5B34D6;
+  --modern-gold-bg: #EFE9FD;
 
-  --sidebar-grad: #ffffff;
-  /* A light sheet, not a slab -- it reads as the same surface as the rail
-     beside it, which is the "flow" that was missing. */
-  --sb-bar-bg: #ffffff;
-  /* MobileTopBar sets its own shadow inline (Shell.tsx) and the default is
-     tuned for a DARK bar -- a 45%-black drop under this white one reads as
-     grime. Plain nextgen light has the same white bar and the same heavy
-     shadow; left alone deliberately, since that is a live client theme and
-     this is a look change, not a defect worth making on their behalf. */
-  --sb-bar-shadow: 0 1px 3px rgba(45, 22, 90, 0.10);
+  /* AI goes indigo: in a violet product a violet AI accent stops being a
+     signal. Taken from the reference's own swatch row. */
+  --nextgen-ai: #4338CA;
+  --nextgen-ai-soft: #EEECFC;
+  --nextgen-good: #0D8150;
+  --nextgen-good-soft: #E3F3EB;
+  --nextgen-bad: #BE123C;
+  --nextgen-bad-soft: #FCEAEE;
+  --nextgen-warn: #A65D00;
+  --nextgen-warn-soft: #FBF1E2;
 
-  --modern-accent: #6d28d9;
-  --modern-accent-bg: #efe9fd;
-  --modern-gold: #6d28d9;
-  --modern-gold-bg: #efe9fd;
+  /* KPI accent edges (DashboardLayout's AnalyticsCard). Each also colours the
+     card's own title, so it is measured on white, not just as a 4px rule. */
+  --spec-fill-blue:   #4338CA;
+  --spec-fill-teal:   #0D7D76;
+  --spec-fill-amber:  #B45309;
+  --spec-fill-purple: #6D28D9;
+  --spec-fill-green:  #0D8150;
+  --spec-fill-red:    #BE123C;
 
-  /* AI stays indigo rather than violet: in a violet product a violet AI
-     accent is no longer a signal. Taken from the reference's own swatches. */
-  --nextgen-ai: #4338ca;
-  --nextgen-ai-soft: #eeecfc;
-  --nextgen-good: #0d8150;
-  --nextgen-good-soft: #e3f3eb;
-  --nextgen-bad: #be123c;
-  --nextgen-bad-soft: #fceaee;
-  --nextgen-warn: #a6600b;
-  --nextgen-warn-soft: #fbf1e2;
+  /* CHROME — one surface, so one set of inks. No .bpm-sidebar-rail flip. */
+  --sidebar-grad: transparent;
+  --sb-bar-bg: transparent;
+  --sb-text: rgba(255, 255, 255, 0.80);
+  --sb-text-dim: rgba(255, 255, 255, 0.70);
+  --sb-text-dimmer: rgba(255, 255, 255, 0.66);
+  --sb-text-faint: rgba(255, 255, 255, 0.56);
+  --sb-strong: #FFFFFF;
+  --sb-icon-muted: rgba(255, 255, 255, 0.74);
+  --sb-line: rgba(255, 255, 255, 0.10);
+  --sb-hover: rgba(255, 255, 255, 0.09);
+  --sb-hover-strong: rgba(255, 255, 255, 0.15);
+  --sb-active-bg: rgba(255, 255, 255, 0.15);
+  --sb-active-ink: #FFFFFF;
+  --sb-tab-underline: #B7A5FF;
+  --sb-tab-sub-active: rgba(255, 255, 255, 0.86);
+  --sb-bar-shadow: none;
 
-  /* KPI accent bars now, not fills (see StatTile). Each still clears 4.5:1 on
-     white, because the same value colours the tile's number and label too,
-     not only a 4px edge. */
-  --spec-fill-blue:   #4338ca;
-  --spec-fill-teal:   #0d7d76;
-  --spec-fill-amber:  #b45309;
-  --spec-fill-purple: #6d28d9;
-  --spec-fill-green:  #0d8150;
-  --spec-fill-red:    #be123c;
-
-  /* DARK chrome inks -- the flip described above. Measured on white:
-     16.3 / 9.2 / 5.6 / 4.3, each meeting or beating the navy palette's own
-     tier (16.1 / 7.6 / 4.6 / 3.8). */
-  --sb-text: #4a4363;
-  --sb-text-dim: #6b6485;
-  --sb-text-dimmer: #6b6485;
-  --sb-text-faint: #7d7694;
-  --sb-strong: #231a3d;
-  --sb-icon-muted: #6b6485;
-  --sb-line: #e8e3f3;
-  --sb-hover: rgba(109, 40, 217, 0.05);
-  --sb-hover-strong: rgba(109, 40, 217, 0.09);
-  --sb-active-bg: #6d28d9;
-  --sb-active-ink: #ffffff;
-  --sb-tab-underline: #6d28d9;
-  --sb-tab-sub-active: #4a4363;
-
-  --sb-panel-bg: #ffffff;
-  --sb-panel-border: #e8e3f3;
-  --sb-panel-text: #231a3d;
-  --sb-panel-text-dim: #6b6485;
+  /* Dropdowns hang off the shell but are light sheets of their own, same as
+     the content sheet — so they keep dark ink. */
+  --sb-panel-bg: #FFFFFF;
+  --sb-panel-border: #E8E3F3;
+  --sb-panel-text: #231A3D;
+  --sb-panel-text-dim: #6B6485;
   --sb-panel-hover: rgba(109, 40, 217, 0.06);
 
-  /* The search pill sits on a WHITE bar here, so navy's translucent-white
-     treatment would leave it invisible. */
-  --sb-search-bg: #f4f2fb;
-  --sb-search-border: #e8e3f3;
-  --sb-search-text: #231a3d;
-  --sb-search-icon: #6b6485;
+  --sb-search-bg: rgba(255, 255, 255, 0.12);
+  --sb-search-border: rgba(255, 255, 255, 0.16);
+  --sb-search-text: #FFFFFF;
+  --sb-search-icon: rgba(255, 255, 255, 0.72);
 
-  --drawer-bg: #ffffff;
-  --drawer-card: #faf9fe;
-  --drawer-card-alt: #efe9fd;
-  --drawer-line: #e8e3f3;
-  --drawer-line-strong: #d9d2e9;
-  --drawer-text: #231a3d;
-  --drawer-text-dim: #4a4363;
-  --drawer-hint: #6b6485;
-  --drawer-hint-faint: #9a93ad;
-  --drawer-err-bg: #fceaee;
-  --drawer-err-border: #f4ccd5;
+  --drawer-bg: #FFFFFF;
+  --drawer-card: #FAF9FE;
+  --drawer-card-alt: #EFE9FD;
+  --drawer-line: #E8E3F3;
+  --drawer-line-strong: #D9D2E9;
+  --drawer-text: #231A3D;
+  --drawer-text-dim: #4A4363;
+  --drawer-hint: #6B6485;
+  --drawer-hint-faint: #9A93AD;
+  --drawer-err-bg: #FCEAEE;
+  --drawer-err-border: #F4CCD5;
 }
 
-/* The rail needs only its edge -- the inks above already reach it, because
-   both surfaces are light. The active row is the one place violet is filled. */
+/* THE SHEET. main carries its padding inline (unchanged for every theme);
+   everything added here is a property main does not set itself, so none of
+   this needs !important.
+
+   margin-left is 0: the rail already ends where the sheet begins, and a gap
+   there would read as a channel rather than a frame. The violet on the left
+   is the rail's own ground. */
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-main {
+  background: #FFFFFF;
+  border-radius: 13px;
+  margin: 0 12px 12px 0;
+  box-shadow: 0 1px 3px rgba(12, 4, 30, 0.22);
+}
+@media (max-width: 780px) {
+  /* The phone shell is padding, so it thins out of the way. Bottom margin is
+     dropped -- main already carries a tab-bar clearance in its own padding,
+     and doubling it leaves a dead band above the fold. */
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-main {
+    margin: 0 8px 8px;
+    border-radius: 14px;
+  }
+}
+
+/* The rail keeps no ground and no edge of its own -- that adjacency IS the
+   shell. Stated on .bpm-sidebar-rail rather than inherited, because
+   [data-enterprise] and [data-navy-rail] both declare --sidebar-grad directly
+   on this element, and a declaration on the element always beats an inherited
+   value however specific the rule that set it. (That was the navy-rail bug in
+   the owner's 2026-09-20 screenshot.) */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-sidebar-rail {
-  border-right: 1px solid #e8e3f3;
+  --sidebar-grad: transparent;
+  background: transparent;
+  border-right: none;
 }
 
-/* NO BAND. These rules undo the navy palette's band and everything it drags
-   with it -- white header ink, white links, a record card lifted to float on
-   navy. Each has to be actively undone rather than simply not added, because
-   the navy rules match on [data-spectacular="true"], which this variant also
-   carries. Written as "switch off" rules rather than re-scoping the navy
-   selectors to exclude purple, so the navy block stays exactly as it shipped
-   and everything specific to this palette stays in one place. */
+/* NO BAND. The navy palette's band and the white header ink that goes with it
+   both have to be actively switched off -- those rules match on
+   [data-spectacular="true"], which this variant also carries. The header now
+   lives INSIDE the white sheet, so it takes ordinary dark ink. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main:has(.bpm-page-header, .bpm-page-band) {
   background-image: none;
 }
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header {
-  --ink: #231a3d;
-  --muted: #4a4363;
-  --hint: #6b6485;
-  --page-head-cta: #6d28d9;
-  --line: #e8e3f3;
-  color: #231a3d;
+  --ink: #231A3D;
+  --muted: #4A4363;
+  --hint: #6B6485;
+  --page-head-cta: #5B34D6;
+  --line: #E8E3F3;
+  color: #231A3D;
 }
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header-title {
-  color: #231a3d;
+  color: #231A3D;
 }
-/* The navy rule forces every unpainted link/button in a header to white with
-   !important, for legibility on the band. With no band that is white on
-   near-white, so it points back at the accent -- !important only because it
-   is undoing an !important. */
+/* Undoing an !important takes an !important: the navy rule forces every
+   unpainted header link to white for legibility on the band, which here would
+   be white on white. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header a:not([style*="background"]),
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header button:not([style*="background"]),
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header button[style*="background: transparent"] {
-  color: #6d28d9 !important;
+  color: #5B34D6 !important;
 }
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header button[style*="background: transparent"] {
-  border-color: #d9d2e9 !important;
+  border-color: #D9D2E9 !important;
 }
 /* A record header is an ordinary card again -- it was only lifted to float it
-   off the navy. */
+   off the navy band. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-band {
   box-shadow: var(--card-shadow) !important;
 }
-/* Same story for the AI brief: navy made it opaque because the band showed
-   through its faded right half. On a light page the original violet-to-clear
-   wash is right, and the opaque version's hard edge is what the owner called
-   out as "the right side gradient". */
+/* The AI brief keeps nextgen's original violet-to-clear wash: it sits on the
+   white sheet, so the opaque version navy needed (its band showed through the
+   faded half) would only add a hard edge -- which the owner called out. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .nextgen-brief {
   background: linear-gradient(120deg, var(--nextgen-ai-soft) 0%, rgba(255, 255, 255, 0) 70%) !important;
   box-shadow: none;
 }
 
-/* The two places the navy block names a colour literally rather than through
-   a token, so a variable cannot reach them. */
+/* The two places the navy block names a colour literally rather than through a
+   token, so redefining a variable cannot reach them. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main thead tr {
-  background: #faf9fe;
+  background: #FAF9FE;
 }
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main input:focus,
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main select:focus,
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main textarea:focus {
-  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.16);
+  box-shadow: 0 0 0 3px rgba(91, 52, 214, 0.16);
+}
+
+/* ---- THE CHROME HAS NO SEAM (2026-09-21) ---------------------------------
+   The top bar and the tab bar both draw a 1px bottom edge from --sb-line, and
+   on every other theme that edge is what separates them from the page. Here
+   they have no ground of their own, so the edge is a hairline drawn ACROSS
+   the shell -- the one line that gives away that this is three planes wearing
+   one colour. Colour, not "none", so the 1px keeps its place in the layout
+   and nothing shifts up. !important because both are inline styles. */
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-topbar,
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-tabbar {
+  border-bottom-color: transparent !important;
+}
+
+/* ---- NOVA'S SURFACES, ON A LIGHT SHEET (owner request 2026-09-21) --------
+   The Field/Lanes/List views, the record timeline and its inbox, Account 360
+   and the account constellation were all built for Nova and paint themselves
+   from the --nova-* family. That family is declared on [data-nova="true"]
+   only, and it describes a DARK product: near-black ground, white ink,
+   translucent glass. Spectacular now mounts the same components
+   (useNovaSurfaces(), src/lib/tenant-context.tsx) on a white sheet.
+
+   Restating the family here IS the port. The alternative -- a light branch
+   inside each of the eleven components -- is what produces half-themed
+   screens the first time one copy gains a rule, and none of those components
+   should know a theme exists.
+
+   Note what an undefined token would have done: color: var(--nova-ink-dim)
+   with no fallback is invalid at computed-value time, so it does not fall
+   back to something sensible, it INHERITS. Every ink tier would have
+   collapsed into one flat colour and the page would still have "worked".
+   That is why this defines the family completely, including the tokens only
+   one component reads.
+
+   Scoped to [data-spectacular="true"], not to the purple variant: both
+   palettes run light content, and Shell never sets data-mode="dark" while
+   Spectacular is on (the mode ternary in Shell.tsx names !isSpectacular),
+   so there is no dark case to answer for. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) {
+  /* Ink, measured on white: 15.9 / 9.2 / 5.8 / 2.9. The faintest tier is
+     decorative only -- no component in the ported set reads it as body copy. */
+  --nova-bg:           #FFFFFF;
+  --nova-ink:          #171227;
+  --nova-ink-dim:      #4A4363;
+  --nova-ink-faint:    #6B6285;
+  --nova-ink-faintest: #9A93AD;
+  --nova-line:         #E9E5F2;
+  --nova-line-soft:    #F0EDF7;
+
+  /* "Glass" stops being glass. Translucent white over a dark ground reads as
+     depth; over a white sheet it reads as nothing. So these become a real
+     sunken surface and a real hairline, and the blur goes to zero -- a
+     backdrop filter over flat white costs a compositor layer to change
+     nothing. */
+  --nova-glass-bg:     #FAF9FE;
+  --nova-glass-border: #E9E5F2;
+  --nova-glass-shadow: 0 8px 20px rgba(45, 22, 90, 0.11);
+  --nova-glass-blur:   0px;
+
+  /* Hues re-picked for ink-on-white. The *-soft variants were lightened FOR
+     a dark ground, so they are the ones that fail hardest here -- each
+     becomes its darkened twin (4.5:1 or better on white), each *-bg a real
+     pale wash, and each *-line the mid-tone that still reads as an edge. */
+  --nova-orange:       #A65D00;
+  --nova-orange-soft:  #A65D00;
+  --nova-orange-bg:    #FEF5E7;
+  --nova-orange-line:  #F0A93B;
+  /* The one place --nova-orange is a FILL rather than ink (the lanes' primary
+     button, QuoteListNova's Copy). Nova puts near-black on bright amber; here
+     the amber is dark, so the label flips to white. */
+  --nova-on-orange:    #FFFFFF;
+
+  --nova-teal:         #0E7C6B;
+  --nova-teal-soft:    #0E7C6B;
+  --nova-teal-bg:      #EEF7F4;
+  --nova-teal-line:    #14C8B4;
+
+  --nova-purple:       #5B34D6;
+  --nova-purple-soft:  #5B34D6;
+  --nova-purple-softer:#5B34D6;
+  --nova-purple-bg:    #F3EEFE;
+  --nova-purple-line:  #7C5CFF;
+
+  --nova-blue:         #3F3AC7;
+
+  /* The two status hues the Field/Lanes/List views draw in TEXT as well as in
+     shapes. A bubble or a lane rule keeps the literal coral/amber -- a shape
+     has no contrast ratio to clear -- but the same value as a 10.5px uppercase
+     label is 3.4:1 on white, so the ink tiers are their own tokens. */
+  --nova-alert-ink:     #C2255C;
+  --nova-amber-ink:     #A65D00;
+  --nova-amber-ink-dim: #8A6A2E;
+
+  /* Nova's identity pink is its interactive accent: tab underline, timeline
+     rail, unread dot, and -- through --a360-accent -- every link in Account
+     360. In a violet product that hue is a stranger, so it resolves to the
+     palette's own accent. Spectacular never sets --nova-accent-color, so a
+     pink a tenant picked for Nova cannot leak in here either. */
+  --nova-pink:         var(--modern-accent, #5B34D6);
+  --nova-pink-soft:    var(--modern-accent, #5B34D6);
+  --nova-pink-bg:      #F3EEFE;
+  --nova-pink-line:    #7C5CFF;
+
+  /* A gradient CTA is Nova's own visual language. On this sheet the primary
+     action is the solid plum the page headers already use. */
+  --nova-gradient:     linear-gradient(135deg, #5B34D6 0%, #2A1259 100%);
+  --nova-gradient-cta: #2A1259;
+  --nova-cta-ink:      #FFFFFF;
+
+  /* Panels inside the sheet are cards, not floating slabs, so they take the
+     sheet's own radius instead of Nova's 16px. */
+  --nova-radius-card:  11px;
+
+  /* Spectacular keeps its own typography. inherit rather than naming a
+     stack: the Nova display/body faces are loaded by next/font for the Nova
+     layout, and a theme should not pull two more font files to render a
+     heading it already has a face for. */
+  --nova-font-display: inherit;
+  --nova-font-body:    inherit;
+}
+
+/* .nova-display is Nova's heading class and its font rule is scoped to
+   [data-nova], so without this a heading renders as plain body text. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .nova-display {
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--nova-ink);
+}
+
+/* THE CONSTELLATION. Nova's canvas is dark-ground by construction: a white
+   graph-paper grid, translucent nodes over a 12px backdrop blur, and a 22-40px
+   coloured glow doing the work of elevation. The glow is the one piece that
+   cannot be ported -- a 35%-alpha hue bloomed onto white is not luminous, it
+   is dirty. Each of those values is a var() in NovaAccountCanvas.tsx carrying
+   Nova's own value as its fallback, so Nova is untouched and elevation here
+   becomes what it should be on paper: a soft shadow tinted toward plum. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) {
+  --nova-canvas-grid:           rgba(42, 18, 89, 0.055);
+  --nova-canvas-node-bg:        #FFFFFF;
+  --nova-canvas-blur:           0px;
+  --nova-canvas-node-shadow:    0 2px 4px rgba(23, 10, 56, 0.06), 0 8px 18px rgba(23, 10, 56, 0.10);
+  --nova-canvas-node-hover:     brightness(1.02) drop-shadow(0 4px 12px rgba(42, 18, 89, 0.22));
+  --nova-canvas-panel-bg:       #FFFFFF;
+  --nova-canvas-panel-shadow:   0 16px 40px rgba(23, 10, 56, 0.20), 0 3px 10px rgba(23, 10, 56, 0.10);
+  --nova-canvas-control-bg:     #FFFFFF;
+  --nova-canvas-control-shadow: 0 2px 8px rgba(23, 10, 56, 0.14);
+
+  /* The account at the centre is the one deep-violet object inside the sheet
+     -- the shell's own colour reaching in exactly once, which is what makes
+     the graph read as a hierarchy with no legend. Its inks are stated because
+     the sheet's inks are dark and this single tile is not. */
+  --nova-canvas-center-bg:      #2A1259;
+  --nova-canvas-center-border:  #2A1259;
+  --nova-canvas-center-ink:     #FFFFFF;
+  --nova-canvas-center-eyebrow: #B7A5FF;
+  --nova-canvas-center-meta:    rgba(255, 255, 255, 0.72);
+  --nova-canvas-pulse:          rgba(42, 18, 89, 0.20);
 }
 
 /* Shared page header (PageHeader.tsx, and DashboardLayout's own greeting

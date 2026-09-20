@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
-import { tenantHasFeature } from "@/lib/tenant";
+import { tenantHasNovaSurfaces } from "@/lib/tenant";
 
 /**
  * Nova pillar 3 — record comments. GET returns a record's comments plus the
@@ -50,8 +50,8 @@ export async function GET(request: NextRequest) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
-    return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
+  if (!(await tenantHasNovaSurfaces(supabase, tenantId))) {
+    return NextResponse.json({ error: "This surface isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -101,8 +101,8 @@ export async function POST(request: NextRequest) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
-    return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
+  if (!(await tenantHasNovaSurfaces(supabase, tenantId))) {
+    return NextResponse.json({ error: "This surface isn't enabled for your workspace" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);

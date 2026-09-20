@@ -60,7 +60,7 @@ function Card({ card, onOpen }: { card: Card; onOpen: (id: string) => void }) {
           type="button"
           onClick={() => onOpen(card.id)}
           style={{
-            border: 0, borderRadius: 7, background: "var(--nova-orange)", color: "#160F02",
+            border: 0, borderRadius: 7, background: "var(--nova-orange)", color: "var(--nova-on-orange, #160F02)",
             fontSize: 12.5, fontWeight: 600, padding: "7px 13px", cursor: "pointer",
           }}
         >

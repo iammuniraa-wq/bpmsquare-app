@@ -82,7 +82,7 @@ export default function NovaQueryBar<Token extends { label: string }>({
             style={{
               display: "flex", alignItems: "center", gap: 6,
               fontFamily: "var(--nova-font-body)", fontSize: 11.5, fontWeight: 600,
-              color: draft.trim() && !aiBusy ? "#F6C87E" : "var(--nova-ink-faint)",
+              color: draft.trim() && !aiBusy ? "var(--nova-amber-ink, #F6C87E)" : "var(--nova-ink-faint)",
               background: "rgba(240,169,59,.10)", border: "1px solid rgba(240,169,59,.28)",
               borderRadius: 7, padding: "5px 10px", cursor: draft.trim() && !aiBusy ? "pointer" : "not-allowed",
               whiteSpace: "nowrap",
@@ -104,7 +104,7 @@ export default function NovaQueryBar<Token extends { label: string }>({
               style={{
                 display: "inline-flex", alignItems: "center", gap: 7,
                 background: "rgba(240,169,59,.12)", border: "1px solid rgba(240,169,59,.34)",
-                color: "#F6C87E", borderRadius: 7, padding: "4px 9px",
+                color: "var(--nova-amber-ink, #F6C87E)", borderRadius: 7, padding: "4px 9px",
                 fontFamily: "var(--nova-font-body)", fontSize: 11.5,
               }}
             >
@@ -113,7 +113,7 @@ export default function NovaQueryBar<Token extends { label: string }>({
                 type="button"
                 onClick={() => onRemoveToken(i)}
                 aria-label={`Remove ${t.label}`}
-                style={{ border: "none", background: "none", color: "rgba(240,169,59,.6)", cursor: "pointer", padding: 0, fontSize: 12, lineHeight: 1 }}
+                style={{ border: "none", background: "none", color: "var(--nova-amber-ink-dim, rgba(240,169,59,.6))", cursor: "pointer", padding: 0, fontSize: 12, lineHeight: 1 }}
               >
                 ✕
               </button>

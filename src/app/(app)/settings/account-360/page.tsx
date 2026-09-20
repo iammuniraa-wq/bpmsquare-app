@@ -5,9 +5,9 @@ import PageHeader from "@/components/PageHeader";
 import Account360Client from "./Account360Client";
 
 /**
- * Account 360 configuration. Nova-gated at the page level as well as in the
- * settings hub -- a tenant without the flag can't reach this by typing the
- * URL either.
+ * Account 360 configuration. Gated at the page level as well as in the
+ * settings hub -- a tenant on neither theme that mounts the drawer can't
+ * reach this by typing the URL either.
  */
 export default async function Account360SettingsPage() {
   let tenantId: string, role: string;
@@ -20,7 +20,10 @@ export default async function Account360SettingsPage() {
 
   const { data } = await createAdminSupabase()
     .from("tenants").select("features").eq("id", tenantId!).single();
-  if ((data?.features as TenantFeatures | undefined)?.next_experience !== true) redirect(ROUTES.settings);
+  // Both themes that mount the drawer can configure it -- mirrors
+  // tenantHasNovaSurfaces() (lib/tenant.ts) and the tile in the settings hub.
+  const feats = data?.features as TenantFeatures | undefined;
+  if (feats?.next_experience !== true && feats?.spectacular_theme !== true) redirect(ROUTES.settings);
 
   return (
     <>

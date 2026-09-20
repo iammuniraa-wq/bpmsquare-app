@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
-import { tenantHasFeature } from "@/lib/tenant";
+import { tenantHasNovaSurfaces } from "@/lib/tenant";
 import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 
 /**
@@ -34,8 +34,8 @@ export async function GET() {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
-    return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
+  if (!(await tenantHasNovaSurfaces(supabase, tenantId))) {
+    return NextResponse.json({ error: "This surface isn't enabled for your workspace" }, { status: 403 });
   }
 
   const admin = createAdminSupabase();

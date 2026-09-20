@@ -11,7 +11,7 @@ import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
-import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useIsEnterpriseSidebar, useIsSpectacular, useSpectacularVariant, useNavySidebar, useTopBarIdentity, useCommandPalette } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useNovaSurfaces, useIsEnterpriseSidebar, useIsSpectacular, useSpectacularVariant, useNavySidebar, useTopBarIdentity, useCommandPalette } from "@/lib/tenant-context";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
@@ -33,6 +33,7 @@ function MobileTopBar() {
   // and the drawer hosts NovaSidebar (Needs You Now / Flows / Spaces)
   // instead of the classic expandable Sidebar.
   const nova = useIsNextgen3Layer();
+  const novaSurfaces = useNovaSurfaces();
 
   // Close the drawer/search overlay whenever the route changes.
   useEffect(() => { setOpen(false); setSearchOpen(false); }, [pathname]);
@@ -91,8 +92,8 @@ function MobileTopBar() {
             they stay tappable regardless of how long the tenant name is. */}
         {/* Mention inbox on mobile too -- it only rendered in the desktop bar,
             leaving @mention notifications unreachable on a phone (2026-08-22
-            Nova audit). Self-gates on Nova like the desktop mount. */}
-        {nova && <NovaInbox />}
+            Nova audit). Self-gates like the desktop mount. */}
+        {novaSurfaces && <NovaInbox />}
         <button
           onClick={() => {
             if (nova) { window.dispatchEvent(new Event("nova:open-palette")); setOpen(false); return; }
@@ -289,6 +290,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // pieces of that chrome a plain nextgen workspace can switch on for itself
   // -- true for Nova as well, so the Nova layout is unchanged.
   const nova = useIsNextgen3Layer();
+  // The Nova-BUILT record surfaces (timeline + its inbox, Account 360) that
+  // Spectacular now mounts too -- see useNovaSurfaces(). Deliberately not
+  // folded into `nova` above, which still governs Nova's own structure: the
+  // sidebar, the draft composer and the bottom tab bar are the experiment
+  // itself, not a surface another theme can borrow.
+  const novaSurfaces = useNovaSurfaces();
   const topBarIdentity = useTopBarIdentity();
   const commandPalette = useCommandPalette();
   const isEnterprise = useIsEnterpriseSidebar();
@@ -352,9 +359,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return (
       <FeelProvider>
       <TabsProvider trackTabs={false}>
-        <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--panel2)" }}>
+        <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--app-bg, var(--panel2))" }}>
           <MobileTopBar />
-          <main style={{
+          <main className="bpm-main" style={{
             flex: 1, minWidth: 0, overflowX: "auto",
             padding: "12px",
             // Clears the fixed bottom tab bar (Nova) as well as the home
@@ -373,7 +380,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           )}
           {commandPalette && <NovaPalette />}
           {nova && <NovaDraft />}
-          {nova && <Account360Drawer />}
+          {novaSurfaces && <Account360Drawer />}
           {aiAllowed && <AIDock liftForTabBar={nova} />}
         </div>
       </TabsProvider>
@@ -384,10 +391,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <FeelProvider>
     <TabsProvider>
-      <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--panel2)" }}>
+      <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--app-bg, var(--panel2))" }}>
         {nova ? <NovaSidebar /> : <Sidebar />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <div style={{
+          <div className="bpm-topbar" style={{
             display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10,
             background: "var(--sb-bar-bg)", borderBottom: "1px solid var(--sb-line)",
             height: 48, minHeight: 48, flexShrink: 0, padding: "0 16px",
@@ -400,17 +407,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 ⌘K to it -- otherwise both answer the same key. */}
             {!nova && <GlobalSearchBar hotkeyDisabled={commandPalette} />}
             {uiTheme === "nextgen" && !isEnterprise && !isSpectacular && !nova && <DarkToggle dark={dark} onToggle={toggleDark} />}
-            {nova && <NovaInbox />}
+            {novaSurfaces && <NovaInbox />}
             {topBarIdentity && <IdentityMenu />}
           </div>
           {commandPalette && <NovaPalette />}
           {nova && <NovaDraft />}
-          {nova && <Account360Drawer />}
+          {novaSurfaces && <Account360Drawer />}
           <TabBar />
           {/* overflowX:auto, not hidden -- "hidden" silently clips any page whose content
               runs wider than the viewport with no way to reach it (short of zooming the
               browser out). "auto" degrades to a scrollbar instead. */}
-          <main style={{ flex: 1, padding: "20px 24px", overflowX: "auto" }}>
+          <main className="bpm-main" style={{ flex: 1, padding: "20px 24px", overflowX: "auto" }}>
             {children}
           </main>
         </div>

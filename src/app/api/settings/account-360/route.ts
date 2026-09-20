@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
-import { tenantHasFeature } from "@/lib/tenant";
+import { tenantHasNovaSurfaces } from "@/lib/tenant";
 import { assertSafeSourceUrl } from "@/lib/account360/externalSource";
 import type { Account360Config, Account360SourceDef } from "@/lib/constants";
 
@@ -28,7 +28,7 @@ export async function GET() {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
+  if (!(await tenantHasNovaSurfaces(supabase, tenantId))) {
     return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
   }
 
@@ -56,7 +56,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
+  if (!(await tenantHasNovaSurfaces(supabase, tenantId))) {
     return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
   }
 

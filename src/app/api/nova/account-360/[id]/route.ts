@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
-import { tenantHasFeature } from "@/lib/tenant";
+import { tenantHasNovaSurfaces } from "@/lib/tenant";
 import { buildAccount360 } from "@/lib/account360/server";
 import type { Account360Config, TenantConfig } from "@/lib/constants";
 import { resolveCurrency } from "@/lib/currency";
@@ -22,8 +22,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  if (!(await tenantHasFeature(supabase, tenantId, "next_experience"))) {
-    return NextResponse.json({ error: "Nova isn't enabled for your workspace" }, { status: 403 });
+  if (!(await tenantHasNovaSurfaces(supabase, tenantId))) {
+    return NextResponse.json({ error: "This surface isn't enabled for your workspace" }, { status: 403 });
   }
 
   const { id } = await params;

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useIsNextgen3Layer } from "@/lib/tenant-context";
+import { useNovaSurfaces } from "@/lib/tenant-context";
 import CaseLanes from "@/components/CaseLanes";
 import CaseField from "@/components/CaseField";
 import CaseListNova from "@/components/CaseListNova";
@@ -35,7 +35,7 @@ export default function CaseBoardSlot({
   list: React.ReactNode;
   rows: CaseSummary[];
 }) {
-  const nova = useIsNextgen3Layer();
+  const nova = useNovaSurfaces();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

@@ -5,11 +5,17 @@ import Link from "next/link";
 import type { CanvasNode, QuoteCanvasNode } from "@/lib/nova/accountCanvas";
 import { MOBILE_BREAKPOINT } from "@/lib/constants";
 
+// Every value a LIGHT ground needs differently is a var() with Nova's own
+// value as the fallback, so Nova renders byte-identical and globals.css's
+// [data-spectacular] block is the only thing that moves. The borders are
+// tokens because a 55%-alpha hue reads as a confident edge on near-black and
+// as a smudge on white; the glows are left alone because every box-shadow
+// that consumed one is itself a token below.
 const ACCENT: Record<CanvasNode["accent"], { color: string; bg: string; border: string; glow: string }> = {
-  orange: { color: "var(--nova-orange-soft)", bg: "var(--nova-orange-bg)", border: "rgba(255,107,53,0.55)", glow: "rgba(255,107,53,0.35)" },
-  pink:   { color: "var(--nova-pink-soft)",   bg: "var(--nova-pink-bg)",   border: "rgba(232,67,147,0.55)", glow: "rgba(232,67,147,0.35)" },
-  purple: { color: "var(--nova-purple-softer)", bg: "var(--nova-purple-bg)", border: "rgba(155,89,245,0.55)", glow: "rgba(155,89,245,0.35)" },
-  teal:   { color: "var(--nova-teal-soft)",   bg: "var(--nova-teal-bg)",   border: "rgba(20,200,180,0.55)", glow: "rgba(20,200,180,0.35)" },
+  orange: { color: "var(--nova-orange-soft)", bg: "var(--nova-orange-bg)", border: "var(--nova-orange-line, rgba(255,107,53,0.55))", glow: "rgba(255,107,53,0.35)" },
+  pink:   { color: "var(--nova-pink-soft)",   bg: "var(--nova-pink-bg)",   border: "var(--nova-pink-line, rgba(232,67,147,0.55))", glow: "rgba(232,67,147,0.35)" },
+  purple: { color: "var(--nova-purple-softer)", bg: "var(--nova-purple-bg)", border: "var(--nova-purple-line, rgba(155,89,245,0.55))", glow: "rgba(155,89,245,0.35)" },
+  teal:   { color: "var(--nova-teal-soft)",   bg: "var(--nova-teal-bg)",   border: "var(--nova-teal-line, rgba(20,200,180,0.55))", glow: "rgba(20,200,180,0.35)" },
 };
 
 // Cheap deterministic "jitter" -- same input always gives the same output,
@@ -126,7 +132,7 @@ export default function NovaAccountCanvas({
           animation: nova-canvas-float 7s ease-in-out infinite;
           transition: filter 0.2s ease;
         }
-        .nova-canvas-node:hover { filter: brightness(1.18); z-index: 5; }
+        .nova-canvas-node:hover { filter: var(--nova-canvas-node-hover, brightness(1.18)); z-index: 5; }
         .nova-canvas-center { animation: nova-canvas-pulse 4.5s ease-in-out infinite; }
         .nova-canvas-line { animation: nova-canvas-flow 2.4s linear infinite; }
         @media (prefers-reduced-motion: reduce) {
@@ -139,7 +145,7 @@ export default function NovaAccountCanvas({
         <span style={{ fontSize: 11.5, color: "var(--nova-ink-faint)" }}>Click a node to open it</span>
       </div>
 
-      <div style={{ position: "relative", height: isMobile ? 480 : 360, background: "linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)", backgroundSize: "36px 36px", borderRadius: "var(--nova-radius-card)", border: "1px solid var(--nova-line)", overflow: "hidden" }}>
+      <div style={{ position: "relative", height: isMobile ? 480 : 360, background: "linear-gradient(var(--nova-canvas-grid, rgba(255,255,255,0.035)) 1px, transparent 1px), linear-gradient(90deg, var(--nova-canvas-grid, rgba(255,255,255,0.035)) 1px, transparent 1px)", backgroundSize: "36px 36px", borderRadius: "var(--nova-radius-card)", border: "1px solid var(--nova-line)", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, transform: `scale(${zoom})`, transformOrigin: "50% 50%", transition: "transform 0.25s ease" }}>
           <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 100 100" preserveAspectRatio="none">
             {contactNodes.map((n, i) => {
@@ -179,15 +185,18 @@ export default function NovaAccountCanvas({
             className="nova-canvas-center"
             style={{
               position: "absolute", left: `${CENTER.x}%`, top: `${CENTER.y}%`, transform: "translate(-50%, -50%)",
-              zIndex: 3, background: "rgba(155,89,245,0.14)", backdropFilter: "blur(12px)",
-              border: "1.5px solid rgba(155,89,245,0.5)", borderRadius: "var(--nova-radius-card)", padding: "14px 20px",
+              zIndex: 3, background: "var(--nova-canvas-center-bg, rgba(155,89,245,0.14))",
+              backdropFilter: "blur(var(--nova-canvas-blur, 12px))",
+              border: "1.5px solid var(--nova-canvas-center-border, rgba(155,89,245,0.5))",
+              borderRadius: "var(--nova-radius-card)", padding: "14px 20px",
               textAlign: "center", maxWidth: isMobile ? 190 : 280,
-              ["--nova-pulse-color" as string]: "rgba(155,89,245,0.3)",
+              color: "var(--nova-canvas-center-ink, var(--nova-ink))",
+              ["--nova-pulse-color" as string]: "var(--nova-canvas-pulse, rgba(155,89,245,0.3))",
             }}
           >
-            <div style={{ fontSize: 11, color: "var(--nova-purple-softer)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>Account</div>
+            <div style={{ fontSize: 11, color: "var(--nova-canvas-center-eyebrow, var(--nova-purple-softer))", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>Account</div>
             <div className="nova-display" style={{ fontSize: 16, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountName}</div>
-            <div style={{ fontSize: 12, color: "var(--nova-ink-faint)", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountMeta}</div>
+            <div style={{ fontSize: 12, color: "var(--nova-canvas-center-meta, var(--nova-ink-faint))", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountMeta}</div>
           </div>
 
           {contactNodes.map((n, i) => {
@@ -200,7 +209,7 @@ export default function NovaAccountCanvas({
                   className="nova-canvas-node"
                   style={{
                     display: "flex", alignItems: "center", gap: 10,
-                    background: "var(--nova-glass-bg)", backdropFilter: "blur(12px)", border: `1px solid ${accent.border}`,
+                    background: "var(--nova-canvas-node-bg, var(--nova-glass-bg))", backdropFilter: "blur(var(--nova-canvas-blur, 12px))", border: `1px solid ${accent.border}`,
                     borderRadius: 100, padding: "8px 16px 8px 8px", textDecoration: "none", color: "inherit",
                     // Capped rather than nowrap-and-grow: a card with no
                     // width ceiling on a narrow phone container overlaps its
@@ -208,7 +217,7 @@ export default function NovaAccountCanvas({
                     // "distorted" mobile report) -- each line truncates
                     // instead of the card ballooning to fit it.
                     maxWidth: isMobile ? 132 : 190,
-                    boxShadow: `0 0 22px ${accent.glow}`,
+                    boxShadow: `var(--nova-canvas-node-shadow, 0 0 22px ${accent.glow})`,
                     animationDelay: `${i * 0.4}s`,
                   }}
                 >
@@ -239,7 +248,7 @@ export default function NovaAccountCanvas({
                   onClick={() => setOpenDeal(isOpen ? null : n.id)}
                 >
                 {isOpen ? (
-                  <div style={{ width: isMobile ? 200 : 240, background: "rgba(10,15,30,0.96)", backdropFilter: "blur(16px)", border: `1.5px solid ${accent.border}`, borderRadius: "var(--nova-radius-card)", boxShadow: `0 12px 60px rgba(0,0,0,0.5), 0 0 40px ${accent.glow}`, overflow: "hidden" }}>
+                  <div style={{ width: isMobile ? 200 : 240, background: "var(--nova-canvas-panel-bg, rgba(10,15,30,0.96))", backdropFilter: "blur(var(--nova-canvas-blur, 16px))", border: `1.5px solid ${accent.border}`, borderRadius: "var(--nova-radius-card)", boxShadow: `var(--nova-canvas-panel-shadow, 0 12px 60px rgba(0,0,0,0.5), 0 0 40px ${accent.glow})`, overflow: "hidden" }}>
                     <div style={{ padding: "12px 16px 10px", borderBottom: "1px solid var(--nova-line-soft)" }}>
                       <div style={{ fontSize: 11, color: accent.color, letterSpacing: "0.08em", textTransform: "uppercase" }}>Open quote</div>
                       <div className="nova-display" style={{ fontSize: 15, marginTop: 2 }}>{n.ref}</div>
@@ -247,13 +256,13 @@ export default function NovaAccountCanvas({
                     <div style={{ padding: "10px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={{ fontSize: 12.5, color: "var(--nova-ink-dim)" }}>Status: <span style={{ color: "var(--nova-ink)" }}>{n.status}</span></div>
                       <div style={{ fontSize: 12.5, color: "var(--nova-ink-dim)" }}>Value: <span style={{ color: "var(--nova-ink)" }}>{n.meta.split(" · ")[1] ?? ""}</span></div>
-                      <Link href={n.href} style={{ fontSize: 12, fontWeight: 500, color: "var(--nova-ink)", background: "var(--nova-gradient-cta)", borderRadius: 8, padding: "8px 14px", textAlign: "center", textDecoration: "none", marginTop: 4 }}>
+                      <Link href={n.href} style={{ fontSize: 12, fontWeight: 500, color: "var(--nova-cta-ink, var(--nova-ink))", background: "var(--nova-gradient-cta)", borderRadius: 8, padding: "8px 14px", textAlign: "center", textDecoration: "none", marginTop: 4 }}>
                         Open quote →
                       </Link>
                     </div>
                   </div>
                 ) : (
-                  <div style={{ background: accent.bg, backdropFilter: "blur(12px)", border: `1.5px solid ${accent.border}`, borderRadius: "var(--nova-radius-card)", padding: "12px 16px", maxWidth: isMobile ? 150 : 210, boxShadow: `0 0 24px ${accent.glow}` }}>
+                  <div style={{ background: accent.bg, backdropFilter: "blur(var(--nova-canvas-blur, 12px))", border: `1.5px solid ${accent.border}`, borderRadius: "var(--nova-radius-card)", padding: "12px 16px", maxWidth: isMobile ? 150 : 210, boxShadow: `var(--nova-canvas-node-shadow, 0 0 24px ${accent.glow})` }}>
                     <div style={{ fontSize: 11, color: accent.color, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 3 }}>Open quote</div>
                     <div className="nova-display" style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.label}</div>
                     <div style={{ fontSize: 11, color: "var(--nova-ink-faint)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.meta}</div>
@@ -266,7 +275,7 @@ export default function NovaAccountCanvas({
         </div>
 
         {/* ── Zoom controls ── */}
-        <div style={{ position: "absolute", left: 14, bottom: 14, zIndex: 7, display: "flex", alignItems: "center", gap: 2, background: "rgba(6,8,15,0.85)", border: "1px solid var(--nova-glass-border)", borderRadius: 10, padding: 4 }}>
+        <div style={{ position: "absolute", left: 14, bottom: 14, zIndex: 7, display: "flex", alignItems: "center", gap: 2, background: "var(--nova-canvas-control-bg, rgba(6,8,15,0.85))", border: "1px solid var(--nova-glass-border)", borderRadius: 10, padding: 4, boxShadow: "var(--nova-canvas-control-shadow, none)" }}>
           <button
             type="button"
             onClick={() => setZoom((z) => Math.max(0.7, Math.round((z - 0.15) * 100) / 100))}
