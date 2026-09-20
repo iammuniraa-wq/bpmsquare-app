@@ -569,9 +569,14 @@ function StatTile({ value, label, icon, href, tone, onFill }: { value: number | 
     ? React.cloneElement(icon, { color: "#ffffff" })
     : icon;
   return (
-    <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px", minWidth: 0 }}>
+    <Link href={href} style={{
+      textDecoration: "none", display: "flex", flex: 1, minWidth: 0,
+      ...(filled
+        ? { flexDirection: "row", alignItems: "center", gap: 13, padding: "12px 16px" }
+        : { flexDirection: "column", gap: 12, padding: "14px 16px" }),
+    }}>
       <div style={{
-        width: 28, height: 28, borderRadius: modern ? 8 : 7,
+        width: filled ? 32 : 28, height: filled ? 32 : 28, borderRadius: modern ? 8 : 7,
         background: filled ? "rgba(255, 255, 255, 0.22)" : tone ? pillar[tone].bg : (modern ? "var(--modern-accent-bg)" : ledger.accentSoft),
         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
       }}>
@@ -611,11 +616,11 @@ function AnalyticsCard({ title, href, children, fill }: { title: string; href: s
         boxShadow: filled ? "0 2px 8px rgba(16, 28, 58, 0.14)" : modern ? undefined : "0 1px 2px rgba(16,24,40,.04), 0 1px 6px rgba(16,24,40,.03)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${filled ? "rgba(255, 255, 255, 0.20)" : modern ? "var(--line)" : ledger.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: filled ? "10px 16px 9px" : modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${filled ? "rgba(255, 255, 255, 0.20)" : modern ? "var(--line)" : ledger.line}` }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, color: filled ? "#ffffff" : modern ? "var(--modern-accent)" : c.hint, textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>
         <Link href={href} style={{ fontSize: 10.5, color: filled ? "rgba(255, 255, 255, 0.86)" : modern ? "var(--modern-accent)" : ledger.accent, textDecoration: "none", fontWeight: 600 }}>Full view →</Link>
       </div>
-      <div style={{ padding: modern ? "14px 16px" : "12px 14px" }}>{children}</div>
+      <div style={{ padding: filled ? 0 : modern ? "14px 16px" : "12px 14px" }}>{children}</div>
     </div>
   );
 }
@@ -1369,7 +1374,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       : "You're all caught up — nothing needs attention right now.";
 
     return (
-      <div style={{
+      <div className="nextgen-brief" style={{
         display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 16,
         background: "linear-gradient(120deg, var(--nextgen-ai-soft, #f2efff), transparent 70%)",
         border: "1px solid color-mix(in srgb, var(--nextgen-ai, #7a5cff) 22%, transparent)",

@@ -514,14 +514,14 @@
    are converted. A browser without :has() shows no band at all, which is
    the same safe degradation. */
 [data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main:has(.bpm-page-header, .bpm-page-band) {
-  background-image: linear-gradient(var(--spectacular-band) 0, var(--spectacular-band) 152px, rgba(0, 0, 0, 0) 152px);
+  background-image: linear-gradient(var(--spectacular-band) 0, var(--spectacular-band) 104px, rgba(0, 0, 0, 0) 104px);
   background-repeat: no-repeat;
 }
 /* A phone header is shorter and its main has 12px of padding, so the desktop
    band would run well past it into the content. */
 @media (max-width: 780px) {
   [data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) main:has(.bpm-page-header, .bpm-page-band) {
-    background-image: linear-gradient(var(--spectacular-band) 0, var(--spectacular-band) 116px, rgba(0, 0, 0, 0) 116px);
+    background-image: linear-gradient(var(--spectacular-band) 0, var(--spectacular-band) 88px, rgba(0, 0, 0, 0) 88px);
   }
 }
 
@@ -574,6 +574,17 @@
      needs the override to win -- the only reason for !important here. */
   box-shadow: 0 2px 10px rgba(16, 28, 58, 0.18) !important;
 }
+
+/* The nextgen AI brief fades its own background to TRANSPARENT at 70%, which
+   was fine on a light page and showed raw navy through the card's right half
+   once the band went in behind it. Opaque here, with the violet kept as a
+   left-edge wash. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .nextgen-brief {
+  background: linear-gradient(112deg, var(--nextgen-ai-soft) 0%, #ffffff 62%) !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 2px 10px rgba(16, 28, 58, 0.16);
+}
+
 
 /* Chrome polish. The rail's own search/filter fields and the top bar's pill
    share --sb-search-*, already navy-ready above; these are the pieces that
