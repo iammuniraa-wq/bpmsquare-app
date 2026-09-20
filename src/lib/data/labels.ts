@@ -130,6 +130,9 @@ export type AnalyticsData = {
   contractStats: { activeCount: number; totalValue: number };
   recentActivity: Array<{ text: string; at: string; pillar: Activity["pillar"]; accountName: string }>;
   accountNews: Array<{ title: string; url: string; source: string; publishedAt: string; accountName: string }>;
+  // Same item shape as accountNews -- `accountName` carries the TOPIC here.
+  // Kept identical deliberately so both feeds render through one component.
+  businessNews: Array<{ title: string; url: string; source: string; publishedAt: string; accountName: string }>;
   // WFM (only populated when the tenant has features.wfm on) -- today's
   // snapshot, not a historical trend (see getWfmLiveBoardSnapshot).
   wfmAttendanceBySite: Array<{ site: string; onTime: number; late: number; absent: number }>;

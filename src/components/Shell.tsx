@@ -61,7 +61,10 @@ function MobileTopBar() {
         // Shorthand, so it must carry the top inset itself — a separate
         // paddingTop above would be silently overwritten by this line.
         padding: "env(safe-area-inset-top, 0px) 10px 0 14px",
-        boxShadow: "0 1px 6px rgba(0,0,0,.45)",
+        // Themeable: the default is tuned for a DARK bar, and a 45%-black
+        // drop shadow under Spectacular Purple's white bar reads as grime.
+        // The fallback keeps every existing theme byte-identical.
+        boxShadow: "var(--sb-bar-shadow, 0 1px 6px rgba(0,0,0,.45))",
       }}>
         {/* Brand -- minWidth:0 + truncated name so a long tenant name shrinks
             instead of pushing the search/menu buttons off screen (that overflow
@@ -125,7 +128,7 @@ function MobileTopBar() {
           position: "sticky", top: 48, zIndex: 99,
           background: "var(--sb-bar-bg)",
           padding: "8px 14px 10px",
-          boxShadow: "0 4px 14px rgba(0,0,0,.3)",
+          boxShadow: "var(--sb-bar-shadow, 0 4px 14px rgba(0,0,0,.3))",
         }}>
           <GlobalSearchBar autoFocus />
         </div>

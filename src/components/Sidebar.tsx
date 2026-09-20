@@ -475,7 +475,16 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   const nextgen = useUiTheme() === "nextgen";
   // 3-layer moves identity to the top bar (Shell.tsx) -- showing it here too
   // would just be the same email and sign-out button in two places.
-  const identityInTopBar = useTopBarIdentity();
+  //
+  // ...but only on DESKTOP. MobileTopBar has no IdentityMenu (it is brand +
+  // search + hamburger, and there is no room for more), so on a phone the top
+  // bar is not actually holding the identity and dropping it here leaves a
+  // user with no way to see who they are signed in as or to sign out. Nova
+  // never hit this because its mobile drawer hosts NovaSidebar, which carries
+  // its own; this file is the drawer for every other theme. `onNavigate` is
+  // the drawer's own existing marker -- see the `collapsed` note below, which
+  // uses it the same way.
+  const identityInTopBar = useTopBarIdentity() && !onNavigate;
   const pathname = usePathname();
   const { settings } = useSettings();
   const tenant = useTenant();

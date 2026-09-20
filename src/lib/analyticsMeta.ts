@@ -40,6 +40,9 @@ export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?
   loaner_availability:     { label: "Loaner availability", feature: "assets" },
   recent_activity:         { label: "Recent activity (analytics)" },
   account_news:            { label: "Client news",      feature: "accounts" },
+  // No `feature`: this one reads no tenant data at all, so there is no module
+  // to gate it on. Whether it appears is config.dashboard_extras.business_news.
+  business_news:           { label: "Business news" },
   quote_outcomes:          { label: "Quote won/lost value", feature: "quotations" },
   quote_overdue:           { label: "Quote overdue",    feature: "quotations" },
   quote_source:            { label: "Quote source (cases vs standalone)", feature: "quotations" },
