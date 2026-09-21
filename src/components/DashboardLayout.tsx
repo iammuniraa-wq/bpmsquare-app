@@ -1576,15 +1576,22 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
           </div>
         )}
         {shown.length >= 2 && (
+          // auto-fit, not repeat(N, 1fr): four fixed tracks divide whatever
+          // width there is, and at ~700px of sheet that left each column
+          // narrower than the money in it -- "₹65,81,000" printed straight
+          // over "50%" (owner screenshot, 2026-09-21). A floor of 215px lets
+          // the row fall to three, then two, then one instead. .kpi-grid
+          // still pins it at two-up on a phone.
           <div className="kpi-grid" style={{
-            display: "grid", gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))`, gap: 20,
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 20,
           }}>
             {shown.map((f) => (
               <Link key={f.key} href={f.href} style={{ display: "flex", gap: 12, textDecoration: "none", color: "inherit" }}>
                 <span style={{ width: 3, borderRadius: 3, background: f.fill, flexShrink: 0 }} />
                 <span style={{ minWidth: 0 }}>
                   <span style={{
-                    display: "block", fontSize: 26, fontWeight: 800, letterSpacing: "-0.04em",
+                    display: "block", fontSize: "clamp(20px, 1.7vw, 26px)", fontWeight: 800, letterSpacing: "-0.04em",
+                    whiteSpace: "nowrap",
                     lineHeight: 1.05, color: c.ink, fontVariantNumeric: "tabular-nums",
                   }}>
                     {f.value}

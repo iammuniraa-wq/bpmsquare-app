@@ -600,6 +600,24 @@ export type WfmConfig = {
   // it cannot reject at punch time, because the image is uploaded in a
   // second request once the event exists.
   selfie_mode: "off" | "shift" | "all";
+  /** Where a login whose account is linked to an ACTIVE employee record
+   *  lands after signing in: the KPI dashboard, or straight into My
+   *  Workforce for the punch.
+   *
+   *  Tenant config, not a product-wide rule (owner correction 2026-09-21:
+   *  "this is true for only BIM client not for any other tenant including
+   *  demo"). It shipped on 2026-09-10 as one answer for every WFM workspace,
+   *  which is wrong the moment a workspace has WFM alongside Sales -- an
+   *  admin who also happens to have an employee record was sent to the punch
+   *  screen instead of their own dashboard.
+   *
+   *  Applied at LOGIN ONLY, by api/auth/landing. It is deliberately not a
+   *  redirect on "/": that is the same key read in two places, and as a
+   *  redirect it fired on every single visit -- so an admin who pressed
+   *  Dashboard, or landed back on "/" after saving a setting, was bounced
+   *  out mid-task (owner, 2026-09-21). A landing page is a thing that
+   *  happens once. */
+  home_landing: "dashboard" | "my_workforce";
   // Per-event-type email notification toggles. Each fires synchronously
   // from the route that creates the underlying event -- see src/lib/wfm/notify.ts.
   notifications: {
@@ -766,6 +784,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   face_verification_mode: "off",
   face_punch: "off",
   week_off_days: [0],
+  home_landing: "dashboard",
   geofence_mode: "flag",
   require_location: false,
   selfie_mode: "shift",

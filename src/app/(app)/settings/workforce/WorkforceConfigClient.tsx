@@ -151,6 +151,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
       cfg.timezone,
       cfg.deduct_breaks ? "breaks deducted" : "breaks not deducted",
       `self-service ${cfg.employee_self_service === false ? "off" : "on"}`,
+      cfg.home_landing === "my_workforce" ? "lands on My Workforce" : "lands on Dashboard",
     ].join(" · "),
     verification: [
       `Face punch ${cfg.face_punch === "kiosk" ? "on" : "off"}`,
@@ -211,6 +212,20 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
             >
               <option value="on">On — employees punch from their own login</option>
               <option value="off">Off — supervisor-managed, kiosk only</option>
+            </select>
+          </SettingsField>
+
+          <SettingsField
+            label="Where a login lands"
+            help="My Workforce sends anyone with an employee record straight to the punch screen when they sign in — good for a workspace whose people open the app to punch and nothing else. It applies at sign-in only: pressing Dashboard afterwards always works, for every role."
+          >
+            <select
+              style={inp}
+              value={cfg.home_landing === "my_workforce" ? "my_workforce" : "dashboard"}
+              onChange={(e) => setCfg({ ...cfg, home_landing: e.target.value as WfmConfig["home_landing"] })}
+            >
+              <option value="dashboard">Dashboard — the usual home</option>
+              <option value="my_workforce">My Workforce — straight to the punch</option>
             </select>
           </SettingsField>
 

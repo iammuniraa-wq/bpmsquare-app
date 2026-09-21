@@ -592,7 +592,7 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
           identity in its own header (NovaHeader); showing it twice was the
           duplicate the owner flagged 2026-08-23. */}
       {!hideHeader && (
-      <div style={{
+      <div className="bpm-brand" style={{
         display: "flex", alignItems: "center", gap: 9,
         justifyContent: collapsed ? "center" : "space-between",
         padding: "4px 6px 14px",

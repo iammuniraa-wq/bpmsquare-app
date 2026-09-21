@@ -902,6 +902,125 @@
   box-shadow: 0 0 0 3px rgba(91, 52, 214, 0.16);
 }
 
+/* ---- THE SHELL IS A PANEL, NOT THE WINDOW (owner 2026-09-21) ------------
+   "Rounded corners are still missing" turned out to be about the OUTER edge:
+   the violet ran to all four sides of the browser window, so the app had no
+   outside. Now it is inset and rounded, floating on a backdrop, and the
+   white sheet is a second card inside it -- backdrop, shell, sheet.
+
+   Two things make this cost almost nothing:
+
+   1. The Shell root element IS this selector, so the inset is three
+      properties on it. Only min-height needs !important, because Shell.tsx
+      sets it inline as 100vh and the element now has 10px of margin above
+      and below -- left alone, every page would carry a 20px scrollbar with
+      nothing in it.
+
+   2. Nothing inside paints to the shell's edge, so no overflow clip is
+      needed -- and a clip would be actively wrong here, since this layout
+      scrolls the DOCUMENT: overflow:hidden on the root would cut off the
+      bottom of every long page with no way to reach it. The rail and both
+      bars are already transparent (they ARE the shell), and <main> keeps its
+      own margin, so the corners are pure gradient.
+
+   DESKTOP ONLY. On a phone an app filling the screen is the right answer,
+   and the inset would actively break there: MobileTopBar is sticky at
+   top: 0, which resolves against the viewport, so it would detach from the
+   shell and paint its solid plum over the backdrop the moment you scrolled. */
+@media (min-width: 781px) {
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) {
+    margin: 10px;
+    border-radius: 18px;
+    min-height: calc(100vh - 20px) !important;
+    box-shadow: 0 2px 8px rgba(8, 2, 20, 0.30), 0 20px 56px rgba(8, 2, 20, 0.40);
+  }
+  /* Sidebar.tsx sets min-height: 100vh inline, which is 20px taller than the
+     shell now contains -- the one thing that WOULD have forced that empty
+     scrollbar back. It is a floor, not a height: the rail is a stretched flex
+     item, so it still fills a longer page by itself. Desktop-only for the
+     same reason as the inset -- on a phone this element is the overlay
+     drawer, and there 100vh is exactly what it wants. */
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-sidebar-rail {
+    min-height: 100% !important;
+  }
+}
+
+/* The backdrop the panel floats on. body sits OUTSIDE the element carrying
+   data-theme (see the note on the html, body rule further down), so it cannot
+   inherit a theme token -- :has() reaches back up instead, which this file
+   already relies on for the navy band. A browser without :has() simply keeps
+   the default page colour around the shell: still deliberate-looking, just
+   not this violet-black. */
+body:has([data-spectacular-variant="purple"]:not([data-mode="dark"])) {
+  background: #0E0524;
+}
+
+/* ---- THE HEADER, STRAIGHTENED (owner 2026-09-21) ------------------------
+   "Company name, search, notification, user details, opened tabs are a bit
+   distorted, not in a good order up down."
+
+   Three separate faults, one look:
+
+   1. THE VOID. The bar is justify-content: flex-end, so the search pill and
+      the actions packed together against the right edge and left the whole
+      left half of a 1500px bar empty -- with the tenant name sitting alone
+      in the rail beside it. The search now anchors to the LEFT edge of the
+      content it searches and pushes the actions right, so the row has two
+      ends instead of one heavy one.
+
+   2. NO SHARED BASELINE. The rail's brand row is padded 4px/14px and the bar
+      is a 48px flex row, so the logo, the tenant name and the search pill
+      all sat at different heights -- the "up down". The brand row is now
+      exactly as tall as the bar and centres its contents, so the three line
+      up across the seam.
+
+   3. DIFFERENT RHYTHMS. The bar padded 0 16px while <main> is inset 24px, so
+      the search started left of everything under it. Both bars now begin on
+      the sheet's own left edge.
+
+   All of it keyed to the purple variant, and all of it on the classes rather
+   than the components, so no other theme's header moves by a pixel. */
+@media (min-width: 781px) {
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-topbar {
+    justify-content: flex-start;
+    gap: 8px;
+    padding-left: 24px;
+    padding-right: 18px;
+    height: 52px;
+    min-height: 52px;
+  }
+  /* The search is the first child whenever it renders (Shell.tsx), and this
+     is what splits the row: it takes the slack, everything after it is
+     pushed to the far end. A ceiling as well as a floor -- a search field
+     spanning 1200px of a wide monitor looks like a mistake, not a feature. */
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-topbar > :first-child {
+    margin-right: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 560px;
+  }
+
+  /* The brand row, matched to the bar beside it. The border and bottom
+     padding go with it: the rail has no ground of its own here, so a rule
+     under the tenant name was a line floating in the middle of the shell. */
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-brand {
+    height: 52px;
+    min-height: 52px;
+    padding: 0 6px;
+    margin-bottom: 8px;
+    border-bottom: none;
+  }
+
+  /* The tab strip starts where the sheet does, so an open tab lines up with
+     the page it belongs to rather than with the rail. */
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-tabbar {
+    padding-left: 12px;
+    padding-right: 12px;
+    height: 40px;
+    min-height: 40px;
+  }
+}
+
 /* ---- ON A PHONE THE CHROME IS NOT THE SHELL (owner 2026-09-21) ----------
    "The nav bar is unreadable on mobile" was not the ink, it was the ground.
    Both pieces of chrome give up their background on the desktop shell
