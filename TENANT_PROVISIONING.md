@@ -47,13 +47,54 @@
   (with an admin membership upserted on the fly), so a plain-email login
   "working" proves nothing about the invite.
 
-## 1. Create the tenant — `/admin/tenants/new`
+## 1. Create the tenant
+
+Two ways in, same result -- a studio tenant and a form tenant are
+indistinguishable afterwards.
+
+### 1a. Tenant Creation Studio — `/admin/tenant-studio` (preferred)
+
+Describe the client in plain words and the studio drafts the whole plan:
+identity, the module scoping, Business Roles with their workcenter grants,
+nav visibility, and any users or employees you asked for. Keep typing to
+change it ("make it workforce only", "add a Site Supervisor who can edit
+rosters", "hide Analytics"), then press **Create tenant**.
+
+Added 2026-09-21. It exists because this runbook's own step 1 is a form
+with eleven pre-ticked modules that a scoped tenant has to untick one by
+one -- the single most error-prone moment in the process -- and because
+steps 1, 4 and the nav/role half of 3 were four separate screens.
+
+What it does NOT change:
+- **The three steps in §2 are still yours.** Vercel domain, DNS CNAME and
+  the Supabase redirect allowlist cannot be done from inside the app; the
+  studio prints them as a checklist with the values filled in, before and
+  after creating, and the tenant is unreachable until they are done.
+- **Nothing is created until you press the button.** The model drafts; you
+  read; the server writes. Every module, workcenter, nav href and currency
+  it proposes is intersected with this codebase's real catalogs
+  (`normalisePlan()`, `src/lib/admin/tenantStudio.ts`) and anything
+  unrecognised is dropped and listed as a warning -- read those warnings,
+  they are the difference between a scoped tenant and a quietly wrong one.
+- **Experimental flags are never set from a description.**
+  `next_experience`, `enterprise_theme` and `spectacular_theme` stay
+  hand-set in `/admin/tenants/[id]` (bpmsquarecore.md §10 rule 1).
+- **Initial passwords are shown exactly once**, in the result, and stored
+  nowhere. Accounts that already existed keep their own password and are
+  not listed -- an invite never overwrites an existing credential (see the
+  plus-alias note in §0).
+- **It is not a transaction.** PostgREST has no cross-statement
+  transaction, so the tenant is created first and alone; if a later user or
+  role fails, the response says which, and the tenant is live and
+  finishable by hand. Nothing is half-created silently.
+
+### 1b. The form — `/admin/tenants/new`
 
 Name, slug (short, lowercase, permanent), **custom domain (required** — the
 address users sign in at, e.g. `<slug>.bpmsquare.com`), accent colour, currency, plan,
 admin alias email + initial password, feature flags per the package table.
-Real client tenants are created ONLY here — never via SQL (SQL-managed
-tenants are a dev-tenant-only convention).
+Real client tenants are created ONLY through 1a or 1b — never via SQL
+(SQL-managed tenants are a dev-tenant-only convention).
 
 ## 2. Domain — Vercel + DNS (the tenant is unreachable until this is done)
 
@@ -142,5 +183,8 @@ admins can always re-enter through the admin backdoor if support is needed.
 ---
 
 *Keep this file current: when provisioning surfaces a new gap or the flow
-changes (e.g. a wildcard domain, a provisioning wizard, dedicated-instance
-tooling), update the runbook in the same piece of work.*
+changes (e.g. a wildcard domain, dedicated-instance tooling), update the
+runbook in the same piece of work. The provisioning wizard this note used to
+anticipate arrived on 2026-09-21 as the Tenant Creation Studio (§1a) -- it
+automates steps 1, 4 and the role/nav half of 3, and deliberately automates
+none of §2.*
