@@ -1479,6 +1479,11 @@ export type AnalyticsData = {
   quotesByStatus: Array<{ status: string; label: string; count: number; value: number }>;
   quoteTrend: Array<{ dateLabel: string; value: number; cumulative: number }>;
   quoteOutcomeTotals: { open: number; won: number; lost: number; dropped: number };
+  // Counts, beside the VALUE totals above. quoteOutcomeTotals sums q.total --
+  // money -- which is what Reports wants; a sentence that says "38 open
+  // quotations" needs the other number, and deriving it from quotesByStatus
+  // is not the same question (a status can hold quotes of any outcome).
+  quoteOutcomeCounts: { open: number; won: number; lost: number; dropped: number };
   quoteOverdueCount: number;
   quoteSource: { caseLinked: { count: number; value: number }; standalone: { count: number; value: number } };
   casesByStatus: Array<{ status: string; label: string; count: number }>;
@@ -1519,6 +1524,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
       quoteOutcomeTotals: { open: 0, won: 0, lost: 0, dropped: 0 },
+      quoteOutcomeCounts: { open: 0, won: 0, lost: 0, dropped: 0 },
       quoteOverdueCount: 0,
       quoteSource: { caseLinked: { count: 0, value: 0 }, standalone: { count: 0, value: 0 } },
       techniciansByStatus: [], invoicesByStatus: [],
@@ -1646,7 +1652,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     .filter((x) => x.count > 0);
 
   const quoteOutcomeTotals = { open: 0, won: 0, lost: 0, dropped: 0 };
-  allQuotes.forEach((q) => { quoteOutcomeTotals[q.outcome] += q.total; });
+  const quoteOutcomeCounts = { open: 0, won: 0, lost: 0, dropped: 0 };
+  allQuotes.forEach((q) => { quoteOutcomeTotals[q.outcome] += q.total; quoteOutcomeCounts[q.outcome] += 1; });
 
   // A quote is overdue when its validity date has passed with no decision --
   // nobody followed up before it expired.
@@ -1962,7 +1969,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
 
   return {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
-    quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOverdueCount, quoteSource,
+    quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOutcomeCounts, quoteOverdueCount, quoteSource,
     casesByStatus, workOrdersByStatus,
     techniciansByStatus, invoicesByStatus, invoiceTotals, topAccountsByRevenue,
     contractStats, recentActivity, accountNews, businessNews,

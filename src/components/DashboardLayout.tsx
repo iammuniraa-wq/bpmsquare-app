@@ -1469,8 +1469,11 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       </span>
     );
 
-    const openQuotes = analytics.quoteOutcomeTotals.open;
-    const decided = analytics.quoteOutcomeTotals.won + analytics.quoteOutcomeTotals.lost;
+    // COUNTS here, not quoteOutcomeTotals -- that one sums q.total, so the
+    // first cut of this sentence read "355666789.76 open quotations".
+    const openQuotes = analytics.quoteOutcomeCounts.open;
+    const decided = analytics.quoteOutcomeCounts.won + analytics.quoteOutcomeCounts.lost;
+    const num = (n: number) => n.toLocaleString(cur.locale);
 
     // Clauses, most-consequential first. Two make a sentence; a third would
     // make a list, which is what the widget grid is for.
@@ -1478,7 +1481,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     if (features.quotations === true && openQuotes > 0) {
       clauses.push(
         <span key="quotes">
-          <Badge>{openQuotes}</Badge> open quotation{openQuotes > 1 ? "s" : ""} worth
+          <Badge>{num(openQuotes)}</Badge> open quotation{openQuotes > 1 ? "s" : ""} worth
           <Badge>{inr(kpis.openQuoteValue)}</Badge>
         </span>
       );
@@ -1486,7 +1489,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     if (features.cases === true && kpis.openCases > 0) {
       clauses.push(
         <span key="cases">
-          <Badge>{kpis.openCases}</Badge> case{kpis.openCases > 1 ? "s" : ""} open
+          <Badge>{num(kpis.openCases)}</Badge> case{kpis.openCases > 1 ? "s" : ""} open
           {overdueCases.length > 0 && <>, <span style={{ fontWeight: 700 }}>{overdueCases.length} past SLA</span></>}
         </span>
       );
@@ -1494,14 +1497,14 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     if (features.work_orders === true && kpis.activeWorkOrders > 0) {
       clauses.push(
         <span key="wo">
-          <Badge>{kpis.activeWorkOrders}</Badge> work order{kpis.activeWorkOrders > 1 ? "s" : ""} running
+          <Badge>{num(kpis.activeWorkOrders)}</Badge> work order{kpis.activeWorkOrders > 1 ? "s" : ""} running
         </span>
       );
     }
     if (features.wfm === true && analytics.wfmWorkforceComposition.totalActive > 0) {
       clauses.push(
         <span key="wfm">
-          <Badge>{analytics.wfmWorkforceComposition.totalActive}</Badge> people on the workforce
+          <Badge>{num(analytics.wfmWorkforceComposition.totalActive)}</Badge> people on the workforce
         </span>
       );
     }
@@ -1518,13 +1521,13 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     } else if (features.quotations === true) {
       figs.push({
         key: "openvalue", value: inr(kpis.openQuoteValue), label: "Open quotations",
-        foot: `${openQuotes} live`, fill: "var(--spec-fill-purple)", href: ROUTES.quotations,
+        foot: `${num(openQuotes)} live`, fill: "var(--spec-fill-purple)", href: ROUTES.quotations,
       });
     }
     if (features.quotations === true && decided > 0) {
       figs.push({
-        key: "winrate", value: `${Math.round((analytics.quoteOutcomeTotals.won / decided) * 100)}%`,
-        label: "Win rate", foot: `of ${decided} decided`, fill: "var(--spec-fill-green)", href: ROUTES.quotations,
+        key: "winrate", value: `${Math.round((analytics.quoteOutcomeCounts.won / decided) * 100)}%`,
+        label: "Win rate", foot: `of ${num(decided)} decided`, fill: "var(--spec-fill-green)", href: ROUTES.quotations,
       });
     }
     if (features.invoices === true && analytics.invoiceTotals.outstanding > 0) {
@@ -1536,7 +1539,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     }
     if (features.cases === true) {
       figs.push({
-        key: "cases", value: String(kpis.openCases), label: "Cases open",
+        key: "cases", value: num(kpis.openCases), label: "Cases open",
         foot: overdueCases.length > 0 ? `${overdueCases.length} past SLA` : "all inside SLA",
         fill: overdueCases.length > 0 ? "var(--spec-fill-red)" : "var(--spec-fill-teal)", href: ROUTES.cases,
       });
@@ -1546,7 +1549,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         rows.filter((r) => r.status === "pending").reduce((s, r) => s + r.count, 0);
       const waiting = pendingOf(analytics.wfmCorrectionsByStatus) + pendingOf(analytics.wfmRecheckByStatus) + pendingOf(analytics.wfmLeaveRequestsByStatus);
       figs.push({
-        key: "wfm", value: String(analytics.wfmWorkforceComposition.totalActive), label: "People active",
+        key: "wfm", value: num(analytics.wfmWorkforceComposition.totalActive), label: "People active",
         foot: waiting > 0 ? `${waiting} approval${waiting > 1 ? "s" : ""} waiting` : "nothing to approve",
         fill: "var(--spec-fill-blue)", href: ROUTES.wfmSummary,
       });
