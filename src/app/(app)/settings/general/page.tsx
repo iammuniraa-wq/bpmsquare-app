@@ -412,6 +412,23 @@ export default function GeneralSettingsPage() {
     });
   };
 
+  // Which dashboard the workspace opens on. Unset resolves the same way
+  // DashboardLayout resolves it -- curated on Spectacular, adaptive
+  // elsewhere -- so this control never shows a value the app isn't using.
+  const dashboardMode = tenant?.config?.appearance?.dashboard_mode
+    ?? (tenant?.config?.appearance?.ui_theme === "spectacular_purple" || tenant?.config?.appearance?.ui_theme === "spectacular" ? "curated" : "adaptive");
+  const saveDashboardMode = (m: "curated" | "adaptive") => {
+    startApSave(async () => {
+      await fetch("/api/settings/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appearance: { ...tenant?.config?.appearance, dashboard_mode: m } }),
+      });
+      flashSaved();
+      router.refresh();
+    });
+  };
+
   // Spectacular's own three. Stored partially on purpose: a workspace that
   // only wants a different accent sets one key, and globals.css's
   // var(--spec-accent, #5B34D6) fallbacks keep the rest as shipped. The
@@ -720,6 +737,39 @@ export default function GeneralSettingsPage() {
             </div>
           </div>
         )}
+        <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Dashboard</div>
+          <div style={{ fontSize: 11, color: c.hint, marginBottom: 10, lineHeight: 1.6 }}>
+            Which dashboard the workspace opens on. Everyone can switch between the two from the
+            dashboard itself — this only sets where they start, and neither choice touches anyone&apos;s
+            saved layout.
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {([
+              { value: "curated" as const, label: "Curated", desc: "A fixed set of cards, in a set order" },
+              { value: "adaptive" as const, label: "My layout", desc: "Whatever each person arranged" },
+            ]).map((opt) => {
+              const selected = dashboardMode === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => !apSaving && saveDashboardMode(opt.value)}
+                  style={{
+                    textAlign: "left", padding: "10px 14px", borderRadius: 9, cursor: "pointer",
+                    background: selected ? "var(--panel2)" : "var(--panel)",
+                    border: selected ? `2px solid ${c.accent}` : `2px solid ${c.line}`,
+                    minWidth: 210,
+                  }}
+                >
+                  <div style={{ fontSize: 12.5, fontWeight: selected ? 700 : 500, color: selected ? c.accent : c.ink }}>
+                    {opt.label}{selected ? " ✓" : ""}
+                  </div>
+                  <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{opt.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
         {theme === "spectacular_purple" && (
           <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Spectacular colours</div>

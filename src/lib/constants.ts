@@ -1036,6 +1036,21 @@ export type TenantConfig = {
      *  raw <style> tag by (app)/layout.tsx and is therefore validated as a
      *  strict #rrggbb hex on the way in, same as nova_accent_color above --
      *  an unvalidated string here is a stored-injection vector. */
+    /** Which dashboard a workspace opens on (owner request 2026-09-21: "2
+     *  versions of dashboard -- 1. with generic info like the artifact,
+     *  2. user can mix and match with adaptation").
+     *
+     *  "curated" renders a fixed, ordered set of blocks -- the composition
+     *  from the design board -- and ignores the saved layout entirely, so it
+     *  cannot come up empty or half-configured. "adaptive" is the existing
+     *  behaviour: the tenant/role/personal layout, Adapt and My layout.
+     *
+     *  This is the DEFAULT, not a lock: the dashboard header carries a switch
+     *  between the two, and switching does not touch anyone's saved layout --
+     *  it is still there when they switch back. Unset resolves to "curated"
+     *  on Spectacular (the theme the board was drawn for) and "adaptive"
+     *  everywhere else, so no existing workspace's dashboard changes. */
+    dashboard_mode?: "curated" | "adaptive";
     spectacular_colors?: {
       shell_from?: string;
       shell_to?: string;
