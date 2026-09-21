@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { ServiceCase, Account, WorkOrder, Activity as ActivityRec } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useUiTheme, useIsNextgen3Layer, useIsSpectacular, useCurrency, useTenant } from "@/lib/tenant-context";
+import { useUiTheme, useIsNextgen3Layer, useIsSpectacular, useSpectacularVariant, useCurrency, useTenant } from "@/lib/tenant-context";
 import { tipsFor, type DashboardTip } from "@/lib/dashboardTips";
 import { moneyFormatter, type CurrencyDef } from "@/lib/currency";
 import SilenceDetector from "@/components/SilenceDetector";
@@ -1293,6 +1293,10 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   const modern = uiTheme !== "classic";
   const nextgen = uiTheme === "nextgen";
   const threeLayer = useIsNextgen3Layer();
+  // The PURPLE palette only. The Lilac board is what this opening was drawn
+  // for, and the navy palette paints a 104px band across the top of <main>
+  // that the statement would run straight into with dark ink on it.
+  const spectacular = useSpectacularVariant() === "purple";
   // Admin-controlled content blocks (business news, tips). Read from tenant
   // config rather than passed as a prop: every other caller of DashboardLayout
   // would otherwise have to thread it through, and the value is already in
@@ -1432,6 +1436,170 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 6);
+
+  // ── Spectacular: the opening ───────────────────────────────────────────────
+  // The dashboard the owner approved on the Lilac board (design proposal v3,
+  // 2026-09-19) opens with two things the widget grid cannot say: one
+  // STATEMENT sentence carrying the numbers that matter as inline badges, and
+  // a RULE STRIP of four figures, each behind a 3px coloured rule with an
+  // italic label under it. The cards below are unchanged -- they are the
+  // tenant's own configured layout and not this block's business.
+  //
+  // Every number here is already on the page (kpis, analytics, the overdue
+  // lists computed above): nothing new is fetched, and nothing is invented.
+  // The board's own copy carried a "▲ 3.7 pts vs Q2" delta that is
+  // deliberately NOT reproduced -- the dashboard aggregate holds no prior
+  // period, so that arrow could only ever have been decoration. Each figure
+  // gets its real denominator instead, which is the more useful line anyway.
+  //
+  // Module-aware throughout, like renderNextgenBrief below it: a clause or a
+  // figure appears only for a module this tenant actually bought, so a
+  // Workforce-only workspace gets a sentence about its own people rather
+  // than a sentence about quotations it will never raise.
+  function renderSpectacularOpening() {
+    const Badge = ({ children }: { children: React.ReactNode }) => (
+      <span style={{
+        display: "inline-flex", alignItems: "baseline", gap: 5,
+        background: "var(--card-bg, #fff)", borderRadius: 11, padding: "1px 10px 3px",
+        boxShadow: "0 3px 12px rgba(46, 32, 92, 0.13)", margin: "0 3px",
+        position: "relative", top: 2, color: "var(--modern-accent)",
+        fontWeight: 800, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums",
+      }}>
+        {children}
+      </span>
+    );
+
+    const openQuotes = analytics.quoteOutcomeTotals.open;
+    const decided = analytics.quoteOutcomeTotals.won + analytics.quoteOutcomeTotals.lost;
+
+    // Clauses, most-consequential first. Two make a sentence; a third would
+    // make a list, which is what the widget grid is for.
+    const clauses: React.ReactNode[] = [];
+    if (features.quotations === true && openQuotes > 0) {
+      clauses.push(
+        <span key="quotes">
+          <Badge>{openQuotes}</Badge> open quotation{openQuotes > 1 ? "s" : ""} worth
+          <Badge>{inr(kpis.openQuoteValue)}</Badge>
+        </span>
+      );
+    }
+    if (features.cases === true && kpis.openCases > 0) {
+      clauses.push(
+        <span key="cases">
+          <Badge>{kpis.openCases}</Badge> case{kpis.openCases > 1 ? "s" : ""} open
+          {overdueCases.length > 0 && <>, <span style={{ fontWeight: 700 }}>{overdueCases.length} past SLA</span></>}
+        </span>
+      );
+    }
+    if (features.work_orders === true && kpis.activeWorkOrders > 0) {
+      clauses.push(
+        <span key="wo">
+          <Badge>{kpis.activeWorkOrders}</Badge> work order{kpis.activeWorkOrders > 1 ? "s" : ""} running
+        </span>
+      );
+    }
+    if (features.wfm === true && analytics.wfmWorkforceComposition.totalActive > 0) {
+      clauses.push(
+        <span key="wfm">
+          <Badge>{analytics.wfmWorkforceComposition.totalActive}</Badge> people on the workforce
+        </span>
+      );
+    }
+
+    // ── the rule strip ──
+    type Fig = { key: string; value: string; label: string; foot: string; fill: string; href: string };
+    const figs: Fig[] = [];
+    if (features.pipeline === true && analytics.totals.openDeals > 0) {
+      figs.push({
+        key: "pipeline", value: inr(analytics.totals.openDealValue), label: "Open pipeline",
+        foot: `across ${analytics.totals.openDeals} deal${analytics.totals.openDeals > 1 ? "s" : ""}`,
+        fill: "var(--spec-fill-purple)", href: ROUTES.pipeline,
+      });
+    } else if (features.quotations === true) {
+      figs.push({
+        key: "openvalue", value: inr(kpis.openQuoteValue), label: "Open quotations",
+        foot: `${openQuotes} live`, fill: "var(--spec-fill-purple)", href: ROUTES.quotations,
+      });
+    }
+    if (features.quotations === true && decided > 0) {
+      figs.push({
+        key: "winrate", value: `${Math.round((analytics.quoteOutcomeTotals.won / decided) * 100)}%`,
+        label: "Win rate", foot: `of ${decided} decided`, fill: "var(--spec-fill-green)", href: ROUTES.quotations,
+      });
+    }
+    if (features.invoices === true && analytics.invoiceTotals.outstanding > 0) {
+      figs.push({
+        key: "unpaid", value: inr(analytics.invoiceTotals.outstanding), label: "Invoiced and unpaid",
+        foot: overdueInvoiceItems.length > 0 ? `${overdueInvoiceItems.length} past due` : "all inside terms",
+        fill: "var(--spec-fill-amber)", href: ROUTES.invoices,
+      });
+    }
+    if (features.cases === true) {
+      figs.push({
+        key: "cases", value: String(kpis.openCases), label: "Cases open",
+        foot: overdueCases.length > 0 ? `${overdueCases.length} past SLA` : "all inside SLA",
+        fill: overdueCases.length > 0 ? "var(--spec-fill-red)" : "var(--spec-fill-teal)", href: ROUTES.cases,
+      });
+    }
+    if (features.wfm === true && figs.length < 4) {
+      const pendingOf = (rows: Array<{ status: string; count: number }>) =>
+        rows.filter((r) => r.status === "pending").reduce((s, r) => s + r.count, 0);
+      const waiting = pendingOf(analytics.wfmCorrectionsByStatus) + pendingOf(analytics.wfmRecheckByStatus) + pendingOf(analytics.wfmLeaveRequestsByStatus);
+      figs.push({
+        key: "wfm", value: String(analytics.wfmWorkforceComposition.totalActive), label: "People active",
+        foot: waiting > 0 ? `${waiting} approval${waiting > 1 ? "s" : ""} waiting` : "nothing to approve",
+        fill: "var(--spec-fill-blue)", href: ROUTES.wfmSummary,
+      });
+    }
+    const shown = figs.slice(0, 4);
+
+    // Both halves can be empty on a brand-new workspace, and an empty
+    // statement above a row of zeroes is worse than no statement -- the
+    // greeting and the brief below already handle "nothing here yet"
+    // (commit 1d20324).
+    if (clauses.length === 0 && shown.length < 2) return null;
+
+    return (
+      <div style={{ marginBottom: 20 }}>
+        {clauses.length > 0 && (
+          <div style={{
+            fontSize: "clamp(19px, 3.2vw, 25px)", lineHeight: 1.28, fontWeight: 800,
+            letterSpacing: "-0.035em", color: c.ink, maxWidth: 780, marginBottom: shown.length >= 2 ? 22 : 0,
+          }}>
+            {clauses[0]}
+            {clauses[1] && <span style={{ color: c.muted, fontWeight: 600 }}>, and </span>}
+            {clauses[1]}
+            <span style={{ color: c.muted, fontWeight: 600 }}>.</span>
+          </div>
+        )}
+        {shown.length >= 2 && (
+          <div className="kpi-grid" style={{
+            display: "grid", gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))`, gap: 20,
+          }}>
+            {shown.map((f) => (
+              <Link key={f.key} href={f.href} style={{ display: "flex", gap: 12, textDecoration: "none", color: "inherit" }}>
+                <span style={{ width: 3, borderRadius: 3, background: f.fill, flexShrink: 0 }} />
+                <span style={{ minWidth: 0 }}>
+                  <span style={{
+                    display: "block", fontSize: 26, fontWeight: 800, letterSpacing: "-0.04em",
+                    lineHeight: 1.05, color: c.ink, fontVariantNumeric: "tabular-nums",
+                  }}>
+                    {f.value}
+                  </span>
+                  <span style={{ display: "block", fontSize: 11.5, fontStyle: "italic", fontWeight: 500, color: c.muted, lineHeight: 1.32, marginTop: 3 }}>
+                    {f.label}
+                  </span>
+                  <span style={{ display: "block", fontSize: 10.5, fontWeight: 800, color: f.fill, marginTop: 5 }}>
+                    {f.foot}
+                  </span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // ── Next-gen AI brief ──────────────────────────────────────────────────────
   // Rule-based v1, computed from data already on the page -- honest and free.
@@ -1805,6 +1973,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         </div>
       </div>
 
+      {spectacular && renderSpectacularOpening()}
       {nextgen && renderNextgenBrief()}
 
       {/* Engagement layer (3-layer theme): accounts drifting past their own
