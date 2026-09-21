@@ -766,35 +766,87 @@
    everything added here is a property main does not set itself, so none of
    this needs !important.
 
-   margin-left is 0: the rail already ends where the sheet begins, and a gap
-   there would read as a channel rather than a frame. The violet on the left
-   is the rail's own ground. */
+   It has a margin on ALL FOUR sides (owner 2026-09-21: "the outer layout
+   doesnt have rounded corners its rectangle"). The first cut set margin-top
+   and margin-left to 0, reasoning that the chrome above and the rail beside
+   it are already violet so a gap would read as a channel. What that actually
+   did was hide half the shape: a radius with no gap above it has nothing to
+   round against, so the top two corners rendered as a square join with the
+   tab bar and only the bottom two ever showed. The proposal's own stage
+   carries 11px on three sides for exactly this reason.
+
+   margin-left stays 0 on the widest layouts and comes back below 1100px:
+   the rail has its own internal padding, so on a wide screen the sheet's
+   left edge already sits in open violet, while on a narrower one the rail
+   tightens and the two start to touch. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-main {
   background: #FFFFFF;
-  border-radius: 13px;
-  margin: 0 12px 12px 0;
-  box-shadow: 0 1px 3px rgba(12, 4, 30, 0.22);
+  border-radius: 14px;
+  margin: 12px 12px 12px 0;
+  box-shadow: 0 1px 3px rgba(12, 4, 30, 0.10), 0 10px 30px rgba(12, 4, 30, 0.16);
+}
+@media (max-width: 1100px) {
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-main {
+    margin-left: 10px;
+  }
+}
+/* Above ~1900px the frame stops reading as a frame and starts reading as a
+   hairline round the edge of a very wide sheet, so it widens with the
+   screen. Nothing is capped: the sheet still uses the whole width, which is
+   what someone on a 27in monitor opened it for. */
+@media (min-width: 1900px) {
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-main {
+    margin: 16px 18px 18px 0;
+    border-radius: 16px;
+  }
 }
 @media (max-width: 780px) {
-  /* The phone shell is padding, so it thins out of the way. Bottom margin is
-     dropped -- main already carries a tab-bar clearance in its own padding,
-     and doubling it leaves a dead band above the fold. */
+  /* The phone shell is padding, so it thins out of the way -- but it keeps a
+     gap on every side, because on a phone the frame is the only thing
+     telling you the violet is a shell and not just a coloured status area.
+     The bottom stays tighter than the sides: main already carries a tab-bar
+     clearance in its own padding, and doubling it leaves a dead band above
+     the fold. */
   [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-main {
-    margin: 0 8px 8px;
+    margin: 8px 8px 8px;
     border-radius: 14px;
   }
 }
 
 /* The rail keeps no ground and no edge of its own -- that adjacency IS the
-   shell. Stated on .bpm-sidebar-rail rather than inherited, because
-   [data-enterprise] and [data-navy-rail] both declare --sidebar-grad directly
-   on this element, and a declaration on the element always beats an inherited
-   value however specific the rule that set it. (That was the navy-rail bug in
-   the owner's 2026-09-20 screenshot.) */
+   shell.
+
+   EVERY chrome token is restated here, not just the ground. The navy palette
+   writes its whole dark-on-white ink family straight onto .bpm-sidebar-rail
+   (the block near the top of this file), and that block matches
+   [data-spectacular="true"], which the purple variant carries too. A custom
+   property declared ON an element always beats one INHERITED from an
+   ancestor, however specific the rule that set it -- so the root block above
+   was being ignored inside the rail and the nav has been rendering in navy's
+   #4a5468 grey on violet the whole time (owner, twice: "still grey").
+   [data-enterprise] and [data-navy-rail] do the same thing with
+   --sidebar-grad; that was the v3 bug, and the lesson only got applied to
+   the one token it happened to be about. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-sidebar-rail {
   --sidebar-grad: transparent;
   background: transparent;
   border-right: none;
+
+  --sb-text: #FFFFFF;
+  --sb-text-dim: #FFFFFF;
+  --sb-text-dimmer: #EDE8F8;
+  --sb-text-faint: #D7CEEE;
+  --sb-strong: #FFFFFF;
+  --sb-icon-muted: #FFFFFF;
+  --sb-line: rgba(255, 255, 255, 0.12);
+  --sb-hover: rgba(255, 255, 255, 0.10);
+  --sb-hover-strong: rgba(255, 255, 255, 0.17);
+  --sb-active-bg: rgba(255, 255, 255, 0.17);
+  --sb-active-ink: #FFFFFF;
+  --sb-search-bg: rgba(255, 255, 255, 0.12);
+  --sb-search-border: rgba(255, 255, 255, 0.16);
+  --sb-search-text: #FFFFFF;
+  --sb-search-icon: rgba(255, 255, 255, 0.72);
 }
 
 /* NO BAND. The navy palette's band and the white header ink that goes with it
