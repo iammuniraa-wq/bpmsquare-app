@@ -702,22 +702,30 @@
   --spec-fill-green:  #0D8150;
   --spec-fill-red:    #BE123C;
 
-  /* CHROME — one surface, so one set of inks. No .bpm-sidebar-rail flip. */
+  /* CHROME — one surface, so one set of inks. No .bpm-sidebar-rail flip.
+     OPAQUE inks, not white at an alpha (owner 2026-09-21: "too light and
+     mixed with purple"). Translucent white does not read as a grey-white on a
+     coloured ground — it composites INTO the hue, so every tier came back as
+     a wash of the violet behind it. And the rail's ground is a gradient, so
+     the same token drifted lighter at the top of the screen than at the
+     bottom; a flat hex can do neither. The tiers are a cool off-white ramp,
+     so they still belong to the palette; on #2A1259 they measure
+     15.9 / 12.4 / 9.8 / 7.1, each a real step from the next. */
   --sidebar-grad: transparent;
   --sb-bar-bg: transparent;
-  --sb-text: rgba(255, 255, 255, 0.80);
-  --sb-text-dim: rgba(255, 255, 255, 0.70);
-  --sb-text-dimmer: rgba(255, 255, 255, 0.66);
-  --sb-text-faint: rgba(255, 255, 255, 0.56);
+  --sb-text: #E6E0F5;
+  --sb-text-dim: #CFC6E8;
+  --sb-text-dimmer: #C2B8E0;
+  --sb-text-faint: #B4A9D0;
   --sb-strong: #FFFFFF;
-  --sb-icon-muted: rgba(255, 255, 255, 0.74);
-  --sb-line: rgba(255, 255, 255, 0.10);
-  --sb-hover: rgba(255, 255, 255, 0.09);
-  --sb-hover-strong: rgba(255, 255, 255, 0.15);
-  --sb-active-bg: rgba(255, 255, 255, 0.15);
+  --sb-icon-muted: #CFC6E8;
+  --sb-line: rgba(255, 255, 255, 0.12);
+  --sb-hover: rgba(255, 255, 255, 0.10);
+  --sb-hover-strong: rgba(255, 255, 255, 0.17);
+  --sb-active-bg: rgba(255, 255, 255, 0.17);
   --sb-active-ink: #FFFFFF;
   --sb-tab-underline: #B7A5FF;
-  --sb-tab-sub-active: rgba(255, 255, 255, 0.86);
+  --sb-tab-sub-active: #EDE8F8;
   --sb-bar-shadow: none;
 
   /* Dropdowns hang off the shell but are light sheets of their own, same as
@@ -832,6 +840,31 @@
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main select:focus,
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) main textarea:focus {
   box-shadow: 0 0 0 3px rgba(91, 52, 214, 0.16);
+}
+
+/* ---- ON A PHONE THE CHROME IS NOT THE SHELL (owner 2026-09-21) ----------
+   "The nav bar is unreadable on mobile" was not the ink, it was the ground.
+   Both pieces of chrome give up their background on the desktop shell
+   because they SIT on it. On a phone neither does:
+
+     the rail is a fixed overlay drawer (Shell.tsx's MobileTopBar) that
+     slides over the white content sheet, so no background means the light
+     ink ramp is drawn straight onto white -- the nav effectively vanished;
+
+     the top bar is sticky, and the sheet scrolls UP underneath it, so a
+     transparent bar shows white moving behind white-ish text the moment
+     the page moves at all.
+
+   Below the breakpoint both take a real surface. The shell is still visible
+   around the sheet, so this reads as the same material, not a new plane. */
+@media (max-width: 780px) {
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) {
+    --sb-bar-bg: #2A1259;
+  }
+  [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-sidebar-rail {
+    --sidebar-grad: linear-gradient(158deg, #2A1259 0%, #1B0A3D 100%);
+    background: linear-gradient(158deg, #2A1259 0%, #1B0A3D 100%);
+  }
 }
 
 /* ---- THE CHROME HAS NO SEAM (2026-09-21) ---------------------------------
