@@ -9,6 +9,30 @@ import { LinkIcon } from "@/components/Icons";
 import { ROUTES, PATHNAME_HEADER } from "@/lib/constants";
 import { HEX_COLOR_RE } from "@/lib/standardQuoteTemplateBlocks";
 
+/** Spectacular's three colour knobs, as :root overrides.
+ *
+ * globals.css declares the shipped violet as the default for each, so a key
+ * left unset here simply never emits a line and the default stands -- which
+ * is also why a workspace can change only the accent and keep the shell.
+ *
+ * HEX_COLOR_RE on every value, not for tidiness: this is interpolated into a
+ * raw <style> tag with no escaping, exactly like nova_accent_color above, so
+ * anything that is not a real #rrggbb is dropped rather than trusted. The
+ * settings route rejects it on the way in too; this is the second of the two
+ * places that has to hold. */
+function specColorVars(colors: { shell_from?: string; shell_to?: string; accent?: string } | undefined): string {
+  if (!colors) return "";
+  const pairs: [string, string | undefined][] = [
+    ["--spec-shell-from", colors.shell_from],
+    ["--spec-shell-to", colors.shell_to],
+    ["--spec-accent", colors.accent],
+  ];
+  return pairs
+    .filter(([, v]) => HEX_COLOR_RE.test(v ?? ""))
+    .map(([name, v]) => `${name}: ${v};`)
+    .join("\n        ");
+}
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getAuthUser();
 
@@ -153,6 +177,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <style>{`:root {
         --tenant-accent: ${tenant.accent_color};
         ${HEX_COLOR_RE.test(tenant.config?.appearance?.nova_accent_color ?? "") ? `--nova-accent-color: ${tenant.config!.appearance!.nova_accent_color};` : ""}
+        ${specColorVars(tenant.config?.appearance?.spectacular_colors)}
       }`}</style>
       <Shell>{children}</Shell>
     </TenantProvider>

@@ -31,6 +31,20 @@ const NOVA_ACCENT_PRESETS: { label: string; color: string | null }[] = [
   { label: "Blue", color: "#3C82FF" },
 ];
 
+/** Spectacular shell mixes. Each is a gradient PAIR plus the accent that
+ *  reads on white beside it -- offered as one click because the three have to
+ *  agree: a shell dark enough for white chrome, and an accent light enough to
+ *  be a link but dark enough to be text. Picking the three separately is
+ *  still there underneath for anyone who wants it. */
+const SPECTACULAR_MIXES: { label: string; from: string; to: string; accent: string }[] = [
+  { label: "Violet", from: "#2A1259", to: "#1B0A3D", accent: "#5B34D6" },
+  { label: "Midnight", from: "#132A5C", to: "#0A1733", accent: "#2563C9" },
+  { label: "Forest", from: "#0F3B2E", to: "#07211A", accent: "#0E7C55" },
+  { label: "Plum", from: "#4A1136", to: "#2B0820", accent: "#A6206A" },
+  { label: "Graphite", from: "#26262E", to: "#131318", accent: "#4B4B7A" },
+  { label: "Ember", from: "#4A1A12", to: "#2A0D08", accent: "#B4451F" },
+];
+
 const PILLAR_DOT: Record<string, string> = {
   blue: "#378ADD", purple: "var(--purple)", teal: "var(--teal)",
   amber: "#f6b23c", red: "var(--err-ink)", green: "#639922",
@@ -398,6 +412,29 @@ export default function GeneralSettingsPage() {
     });
   };
 
+  // Spectacular's own three. Stored partially on purpose: a workspace that
+  // only wants a different accent sets one key, and globals.css's
+  // var(--spec-accent, #5B34D6) fallbacks keep the rest as shipped. The
+  // defaults below mirror those fallbacks, or the pickers would open on a
+  // colour the app isn't actually using.
+  const specColors = tenant?.config?.appearance?.spectacular_colors;
+  const specFrom = specColors?.shell_from ?? "#2A1259";
+  const specTo = specColors?.shell_to ?? "#1B0A3D";
+  const specAccent = specColors?.accent ?? "#5B34D6";
+  // null clears the whole object -- back to the shipped violet.
+  const saveSpectacularColors = (patch: { shell_from?: string; shell_to?: string; accent?: string } | null) => {
+    const next = patch === null ? undefined : { ...(specColors ?? {}), ...patch };
+    startApSave(async () => {
+      await fetch("/api/settings/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appearance: { ...tenant?.config?.appearance, spectacular_colors: next } }),
+      });
+      flashSaved();
+      router.refresh();
+    });
+  };
+
   // Three pieces of chrome that used to require adopting a whole theme behind
   // a platform-admin flag. Each writes one boolean into config.appearance and
   // reloads, for the same reason saveTheme does: they change which components
@@ -680,6 +717,94 @@ export default function GeneralSettingsPage() {
                 />
                 <span style={{ fontSize: 12.5, color: c.muted }}>Custom</span>
               </label>
+            </div>
+          </div>
+        )}
+        {theme === "spectacular_purple" && (
+          <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Spectacular colours</div>
+            <div style={{ fontSize: 11, color: c.hint, marginBottom: 12, lineHeight: 1.6 }}>
+              The shell is a blend of two colours, so pick a mix — or set each end yourself.
+              The accent is the third: it colours links, buttons and the active nav row, and is
+              read as text on white, so it stays darker than the shell on purpose.
+            </div>
+
+            {/* The live shell, not a description of it. Everything below sets
+                the same three values this strip is drawn from, so what you see
+                here is what the workspace will look like. */}
+            <div style={{
+              borderRadius: 12, padding: "16px 16px 14px", marginBottom: 14,
+              background: `linear-gradient(158deg, ${specFrom} 0%, ${specTo} 78%)`,
+            }}>
+              <div style={{ background: "#fff", borderRadius: 9, padding: "12px 14px" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#171227" }}>Good morning</div>
+                <div style={{ fontSize: 11.5, color: "#6B6285", marginTop: 2 }}>
+                  The sheet stays white — only the shell and the accent move.
+                </div>
+                <div style={{ display: "flex", gap: 7, marginTop: 10, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: specAccent }}>A link</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: specAccent, borderRadius: 6, padding: "4px 10px" }}>A button</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: c.muted, marginBottom: 8 }}>Mixes</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              {SPECTACULAR_MIXES.map((mix) => {
+                const selected =
+                  specFrom.toLowerCase() === mix.from.toLowerCase() &&
+                  specTo.toLowerCase() === mix.to.toLowerCase() &&
+                  specAccent.toLowerCase() === mix.accent.toLowerCase();
+                return (
+                  <button
+                    key={mix.label}
+                    onClick={() => !apSaving && saveSpectacularColors({ shell_from: mix.from, shell_to: mix.to, accent: mix.accent })}
+                    title={mix.label}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "7px 12px 7px 8px",
+                      borderRadius: 9, cursor: "pointer", background: "var(--panel)",
+                      border: selected ? `2px solid ${mix.accent}` : `2px solid ${c.line}`,
+                    }}
+                  >
+                    <span style={{
+                      width: 30, height: 18, borderRadius: 5, flexShrink: 0,
+                      background: `linear-gradient(135deg, ${mix.from}, ${mix.to})`,
+                    }} />
+                    <span style={{ fontSize: 12.5, fontWeight: selected ? 600 : 400, color: selected ? mix.accent : c.muted }}>{mix.label}</span>
+                    {selected && <span style={{ fontSize: 12, color: mix.accent }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "flex-end" }}>
+              {([
+                { key: "shell_from" as const, label: "Shell, top", value: specFrom },
+                { key: "shell_to" as const, label: "Shell, bottom", value: specTo },
+                { key: "accent" as const, label: "Accent", value: specAccent },
+              ]).map(({ key, label, value }) => (
+                <label key={key} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  <span style={{ fontSize: 11, color: c.hint }}>{label}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 9px", borderRadius: 8, border: `1px solid ${c.line}` }}>
+                    <input
+                      type="color"
+                      value={value}
+                      onChange={(e) => !apSaving && saveSpectacularColors({ [key]: e.target.value })}
+                      style={{ width: 24, height: 24, border: "none", padding: 0, background: "none", cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 12, fontFamily: "ui-monospace, monospace", color: c.muted }}>{value.toUpperCase()}</span>
+                  </span>
+                </label>
+              ))}
+              <button
+                onClick={() => !apSaving && saveSpectacularColors(null)}
+                style={{
+                  fontSize: 12, fontWeight: 600, color: c.hint, background: "transparent",
+                  border: `1px solid ${c.line}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer",
+                }}
+              >
+                Reset to violet
+              </button>
             </div>
           </div>
         )}

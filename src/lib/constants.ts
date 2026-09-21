@@ -1024,6 +1024,23 @@ export type TenantConfig = {
      * (`var(--nova-accent-color, #E84393)` in globals.css), never hardcoded
      * in a component. */
     nova_accent_color?: string;
+    /** Spectacular's own colours, chosen by the workspace (owner request
+     *  2026-09-21: "option to change colors in spectacular theme including
+     *  mix colors"). The shell is a two-stop gradient, so `from` and `to`
+     *  ARE the mix -- a single hue would have made the shell flat, which is
+     *  the one thing the palette was never allowed to be.
+     *
+     *  Every value is consumed through a CSS custom-property fallback
+     *  (`var(--spec-shell-from, #2A1259)`), so an unset or partly-set
+     *  workspace renders the shipped violet exactly. Each is rendered into a
+     *  raw <style> tag by (app)/layout.tsx and is therefore validated as a
+     *  strict #rrggbb hex on the way in, same as nova_accent_color above --
+     *  an unvalidated string here is a stored-injection vector. */
+    spectacular_colors?: {
+      shell_from?: string;
+      shell_to?: string;
+      accent?: string;
+    };
   };
   // On-demand push to an external system (e.g. an ERP's webhook receiver) --
   // a rep clicks "Push to ERP" on a record; distinct from (and simpler than)

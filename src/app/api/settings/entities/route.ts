@@ -48,6 +48,24 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "appearance.nova_accent_color must be a hex colour like #E84393" }, { status: 400 });
   }
 
+  // Spectacular's three knobs go into the same raw <style> tag, so they get
+  // the same treatment -- validated here, and validated again at the render
+  // site (specColorVars in (app)/layout.tsx). Either one alone would do the
+  // job; both are cheap, and this is the field where being wrong is a stored
+  // injection rather than a bad colour.
+  const spec = body.appearance?.spectacular_colors;
+  if (spec) {
+    for (const key of ["shell_from", "shell_to", "accent"] as const) {
+      const v = spec[key];
+      if (v !== undefined && v !== null && v !== "" && !HEX_COLOR_RE.test(v)) {
+        return NextResponse.json(
+          { error: `appearance.spectacular_colors.${key} must be a hex colour like #2A1259` },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
   const admin = createAdminSupabase();
 
   // Merge patch — read current config first so we don't overwrite unrelated keys
