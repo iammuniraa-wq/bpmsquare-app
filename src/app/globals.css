@@ -709,16 +709,24 @@
      a wash of the violet behind it. And the rail's ground is a gradient, so
      the same token drifted lighter at the top of the screen than at the
      bottom; a flat hex can do neither. The tiers are a cool off-white ramp,
-     so they still belong to the palette; on #2A1259 they measure
-     15.9 / 12.4 / 9.8 / 7.1, each a real step from the next. */
+     so they still belong to the palette.
+
+     WHITE, not a tinted off-white (owner 2026-09-21: "why cant the nav items
+     text be white? why this grey?"). The first pass read the rail as a
+     hierarchy and gave each tier its own value, which is right on a light
+     sheet and wrong here: against a deep violet even a slight tint reads as
+     grey, and grey on colour reads as disabled. Nav labels and their icons
+     are plain #FFFFFF, and so are the rail's own captions; only the two
+     faintest tiers keep a tint, and neither is a nav label -- they are the
+     identity footer's role line and the "reset nav order" link. */
   --sidebar-grad: transparent;
   --sb-bar-bg: transparent;
-  --sb-text: #E6E0F5;
-  --sb-text-dim: #CFC6E8;
-  --sb-text-dimmer: #C2B8E0;
-  --sb-text-faint: #B4A9D0;
+  --sb-text: #FFFFFF;
+  --sb-text-dim: #FFFFFF;
+  --sb-text-dimmer: #EDE8F8;
+  --sb-text-faint: #D7CEEE;
   --sb-strong: #FFFFFF;
-  --sb-icon-muted: #CFC6E8;
+  --sb-icon-muted: #FFFFFF;
   --sb-line: rgba(255, 255, 255, 0.12);
   --sb-hover: rgba(255, 255, 255, 0.10);
   --sb-hover-strong: rgba(255, 255, 255, 0.17);
