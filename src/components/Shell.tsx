@@ -385,7 +385,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {commandPalette && <NovaPalette />}
-          {nova && <NovaDraft />}
+          {/* NovaDraft is the ONLY listener for "nova:open-draft", which
+              NovaPalette dispatches before closing itself. Spectacular gets
+              the palette (useCommandPalette) and its ⌘K menu offers "Draft an
+              account from this text" on a paste -- so without the listener
+              mounted the event went nowhere and the palette just shut: client
+              report 2026-09-22, "the popup closes on its own and does
+              nothing". Hence novaSurfaces here, alongside the inbox and
+              Account 360 drawer it already mounts; the composer is
+              self-contained (no Nova-only hooks) and Spectacular already
+              defines --nova-gradient-cta, so it needs no branch of its own. */
+          }
+          {(nova || novaSurfaces) && <NovaDraft />}
           {novaSurfaces && <Account360Drawer />}
           {aiAllowed && <AIDock liftForTabBar={nova} />}
         </div>
@@ -417,7 +428,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {topBarIdentity && <IdentityMenu />}
           </div>
           {commandPalette && <NovaPalette />}
-          {nova && <NovaDraft />}
+          {(nova || novaSurfaces) && <NovaDraft />}
           {novaSurfaces && <Account360Drawer />}
           <TabBar />
           {/* overflowX:auto, not hidden -- "hidden" silently clips any page whose content
