@@ -235,6 +235,17 @@ export function useTopBarIdentity(): boolean {
 export function useCommandPalette(): boolean {
   const { tenant } = useContext(TenantContext);
   if (tenant?.config?.appearance?.ui_theme === "nextgen2" && tenant?.features?.next_experience === true) return true;
+  // Spectacular, both palettes (owner request 2026-09-22: "can we bring
+  // ctrl+k from nova here"). Not optional the way it is for plain nextgen:
+  // this theme's top bar prints the ⌘K hint on the search pill, so the key
+  // has to do something. NovaPalette is self-contained -- it reads NAV and
+  // /api/search, nothing Nova-only -- and it paints from --sb-panel-* and
+  // --nova-pink, both of which this theme already defines, so it arrives as
+  // a white sheet with violet accents and needs no branch of its own.
+  //
+  // GlobalSearchBar gives up the hotkey whenever this is true, so the two
+  // never fight over the same key.
+  if (spectacularVariantOf(tenant) !== null) return true;
   return nextgenChromeOn(tenant, "command_palette");
 }
 

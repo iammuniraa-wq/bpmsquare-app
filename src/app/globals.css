@@ -933,6 +933,19 @@
   font-family: var(--font-spec-display), var(--font-spec-body), sans-serif;
   letter-spacing: -0.025em;
 }
+/* THE OBJECT-SCOPE DROPDOWN's options were invisible (owner, 2026-09-22:
+   "search text is hidden"). The <select> sits on the violet bar, so it takes
+   its colour from --sb-search-icon -- a translucent white, correct for the
+   closed control. But a native option list renders on the OS's own white
+   popup and inherits that colour, so every label was white on white; only
+   the highlighted row showed, because the highlight forces its own ink.
+   Chrome honours colour and background on <option>, so the popup is given
+   them explicitly rather than inheriting the bar's. */
+[data-theme="nextgen"][data-spectacular="true"] .bpm-search-scope option {
+  color: #231A3D;
+  background: #FFFFFF;
+}
+
 /* Figures line up in a column only if the face is told to use its tabular
    set -- Plex defaults to proportional, which makes a money column ripple. */
 [data-theme="nextgen"][data-spectacular="true"] td,

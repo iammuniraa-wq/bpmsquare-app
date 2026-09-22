@@ -2,11 +2,19 @@
 
 import { useRef, useState, useEffect, useLayoutEffect } from "react";
 import { useTabs } from "@/lib/tabs-context";
+import { useIsSpectacular } from "@/lib/tenant-context";
 import { c } from "@/lib/theme";
 import { AlertTriangle, XIcon, Dot } from "@/components/Icons";
 
 export default function TabBar() {
   const { tabs, activeHref, focusTab, closeTab, closeAllTabs, limitWarning, clearLimitWarning } = useTabs();
+  // PILL TABS for Spectacular (owner request 2026-09-22: "redo the tabs which
+  // are open in a rounded rectangle manner"). Branched in the component
+  // rather than overridden in CSS: every one of these values is an inline
+  // style, so a stylesheet would need an !important per property and the
+  // next person would have to read two files to know what a tab looks like.
+  // Every other theme takes the `false` path and renders byte-identically.
+  const pills = useIsSpectacular();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft]   = useState(false);
   const [canRight, setCanRight] = useState(false);
@@ -55,9 +63,12 @@ export default function TabBar() {
   return (
     <div className="bpm-tabbar" style={{
       display: "flex", alignItems: "center",
-      borderBottom: "1px solid var(--sb-line)",
+      // A pill carries its own shape, so the strip stops drawing a rule under
+      // it -- that line was the last hard edge in the chrome.
+      borderBottom: pills ? "none" : "1px solid var(--sb-line)",
       background: "var(--sb-bar-bg)",
-      height: 42, minHeight: 42, flexShrink: 0,
+      height: pills ? 44 : 42, minHeight: pills ? 44 : 42, flexShrink: 0,
+      gap: pills ? 4 : 0,
       position: "relative",
     }}>
       {/* Left arrow */}
@@ -73,7 +84,7 @@ export default function TabBar() {
         style={{
           flex: 1, display: "flex", alignItems: "stretch",
           overflowX: "auto", scrollbarWidth: "none",
-          gap: 1,
+          gap: pills ? 4 : 1,
         }}
       >
         {tabs.map((tab) => {
@@ -83,20 +94,34 @@ export default function TabBar() {
               key={tab.href}
               data-active={active}
               style={{
-                display: "flex", alignItems: "center", gap: 5,
-                padding: "0 10px 0 12px",
-                minWidth: 110, maxWidth: 180, flexShrink: 0,
-                height: 42,
-                background: active ? "var(--sb-hover-strong)" : "transparent",
-                borderBottom: active ? `2px solid var(--sb-tab-underline, ${c.accent})` : "2px solid transparent",
+                display: "flex", alignItems: "center", gap: 6,
+                padding: pills ? "0 8px 0 11px" : "0 10px 0 12px",
+                minWidth: pills ? 0 : 110, maxWidth: 190, flexShrink: 0,
+                height: pills ? 32 : 42,
+                borderRadius: pills ? 10 : 0,
+                // On the shell, a filled pill IS the indicator -- an
+                // underline as well would be saying it twice, and there is no
+                // longer an edge for it to sit on.
+                background: active
+                  ? (pills ? "var(--sb-active-bg, var(--sb-hover-strong))" : "var(--sb-hover-strong)")
+                  : (pills ? "var(--sb-hover)" : "transparent"),
+                borderBottom: pills
+                  ? "none"
+                  : (active ? `2px solid var(--sb-tab-underline, ${c.accent})` : "2px solid transparent"),
                 cursor: "pointer",
-                borderRight: "1px solid var(--sb-line)",
+                // Pills are separated by the gap between them, not by a rule
+                // through them.
+                borderRight: pills ? "none" : "1px solid var(--sb-line)",
+                border: pills ? `1px solid ${active ? "var(--sb-hover-strong)" : "var(--sb-line)"}` : undefined,
                 position: "relative",
-                transition: "background .12s",
+                transition: "background .12s, border-color .12s",
               }}
               onClick={() => focusTab(tab.href)}
-              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--sb-hover)"; }}
-              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+              // A pill's resting state is already --sb-hover, so leaving it
+              // must return THERE, not to transparent -- otherwise the first
+              // hover permanently erases the pill.
+              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = pills ? "var(--sb-hover-strong)" : "var(--sb-hover)"; }}
+              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = pills ? "var(--sb-hover)" : "transparent"; }}
             >
               <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>{tab.icon}</span>
               <span style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
