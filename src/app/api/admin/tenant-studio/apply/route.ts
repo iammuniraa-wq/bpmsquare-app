@@ -213,7 +213,23 @@ export async function POST(request: NextRequest) {
  *  Workbench user import (TENANT_PROVISIONING.md §4: "never put passwords in
  *  a spreadsheet"). Every login is forced to change it on first sign-in. */
 function randomPassword(): string {
+  // Ambiguous glyphs left out (no I/l/1, O/0) -- these get read off a screen
+  // and typed by someone else.
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("") + "!7";
+  // Rejection sampling, not `byte % length`. 256 is not a multiple of 56, so
+  // the modulo would make the first 32 characters of the alphabet slightly
+  // likelier than the rest. The entropy lost is small, but this is a
+  // credential, and "small enough not to matter" is not a claim worth making
+  // about one.
+  const limit = 256 - (256 % alphabet.length);
+  const out: string[] = [];
+  while (out.length < 16) {
+    const bytes = crypto.getRandomValues(new Uint8Array(24));
+    for (const b of bytes) {
+      if (b >= limit) continue;
+      out.push(alphabet[b % alphabet.length]);
+      if (out.length === 16) break;
+    }
+  }
+  return out.join("") + "!7";
 }

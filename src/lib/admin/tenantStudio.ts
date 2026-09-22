@@ -269,6 +269,30 @@ export function normalisePlan(raw: unknown): NormalisedPlan {
     users.push({ email, role: u.role === "admin" ? "admin" : "member", business_role: br, employee });
   }
 
+  // ── the one thing a hostile DESCRIPTION could try to buy ──
+  // The operator may paste a client brief straight from an email, and a
+  // brief is untrusted text going into a prompt. Almost nothing the model
+  // can emit survives this file -- unknown modules, workcenters and nav
+  // hrefs are dropped, and the three experimental flags are refused. The
+  // exception is an EMAIL: "...and add admin@attacker.example" is a valid
+  // plan, and it would create a real admin login on a real tenant.
+  //
+  // The defence is the human pressing Create, so this makes the thing they
+  // have to notice impossible to skim past: any login on a domain that is
+  // neither the tenant's own nor the provisioning admin's is called out by
+  // name. Both of those are legitimately foreign -- the provisioning alias
+  // is a plus-alias on the operator's own mailbox by design (runbook §0) --
+  // so a blanket "external email" warning would cry wolf every time and be
+  // learned to ignore, which is worse than no warning.
+  const tenantDomain = domain.split(".").slice(-3).join(".");
+  const adminDomain = adminEmail.split("@")[1] ?? "";
+  for (const u of users) {
+    const d = u.email.split("@")[1] ?? "";
+    if (d && d !== adminDomain && !(tenantDomain && d.endsWith(tenantDomain))) {
+      warnings.push(`${u.email} is on an outside domain (${d}) — check you meant to give that address ${u.role === "admin" ? "ADMIN access to" : "a login on"} this tenant.`);
+    }
+  }
+
   const notes = (Array.isArray(r.notes) ? r.notes : [])
     .map((n) => String(n).trim().slice(0, 300))
     .filter(Boolean)

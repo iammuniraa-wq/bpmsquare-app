@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTenant, useViewableWorkcenters, useIsWfmSupervisor, useIsSpectacular } from "@/lib/tenant-context";
 import { buildSpaceGroups, type SpaceGroup } from "@/lib/nova/spaces";
 import { MOBILE_BREAKPOINT } from "@/lib/constants";
@@ -41,6 +41,7 @@ export default function SpacesRow({ onNavigate }: { onNavigate?: () => void }) {
   const viewable = useViewableWorkcenters();
   const isWfmSupervisor = useIsWfmSupervisor();
   const pathname = usePathname() || "/";
+  const router = useRouter();
 
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
@@ -91,8 +92,11 @@ export default function SpacesRow({ onNavigate }: { onNavigate?: () => void }) {
   // instead of opening a one-row menu.
   const onClick = (g: SpaceGroup, e: React.MouseEvent<HTMLButtonElement>) => {
     if (g.items.length === 1) {
+      // router.push, not window.location: a full document reload would drop
+      // the whole client tree -- open tabs, drawer state, every fetched
+      // list -- to move one screen inside the same app.
       onNavigate?.();
-      window.location.href = g.items[0].href;
+      router.push(g.items[0].href);
       return;
     }
     if (openKey === g.key) { setOpenKey(null); return; }
