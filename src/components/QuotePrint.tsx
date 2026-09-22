@@ -21,6 +21,83 @@ export default function QuotePrint(props: Props) {
   const recipient = contact?.email || contact?.email2 || account?.email || account?.email2 || null;
   const [emailState, setEmailState] = useState<"idle" | "sent">("idle");
   const [composeOpen, setComposeOpen] = useState(false);
+  const [pdfState, setPdfState] = useState<"idle" | "working">("idle");
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
+  /**
+   * Send THIS page -- the one on screen, already hydrated, fonts loaded,
+   * footer measured -- to the server to be printed, and download what comes
+   * back. The server used to navigate its own headless browser to the print
+   * URL and print its own render; that never matched what the person was
+   * looking at (see the button comments below), which is what pushed this
+   * button onto window.print() and let Chrome stamp its timestamp and URL
+   * onto every quote. Posting the settled DOM removes the second render, so
+   * there is nothing left to disagree.
+   *
+   * footerMarginMm is the value the effect below already computed and
+   * published; sending it means the server does not re-derive its own copy,
+   * which is the drift that produced the signature/footer overlap.
+   */
+  async function downloadPdf() {
+    setPdfError(null);
+    setPdfState("working");
+    try {
+      const res = await fetch(`/api/quotes/${quote.id}/pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          html: document.documentElement.outerHTML,
+          footerMarginMm: Number(document.documentElement.dataset.footerMarginMm) || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const msg = await res.json().catch(() => null);
+        throw new Error(msg?.error ?? `Server returned ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${quote.ref}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      // Never leave them stuck: the browser print path still works, and says so.
+      setPdfError(e instanceof Error ? e.message : "Could not build the PDF.");
+    } finally {
+      setPdfState("idle");
+    }
+  }
+
+  /**
+   * Arriving from the quote's own menu (?download=1) starts the download
+   * itself, so "Download PDF" there is one click rather than one click and
+   * then another on a page that looks like a preview.
+   *
+   * Waits for footerMarginReady first -- the same flag the server waits for.
+   * That is set only after fonts.ready and a re-measure, so firing on it
+   * means the posted DOM carries the settled footer height rather than the
+   * first guess taken while the webfont was still in flight (the 2026-09-20
+   * Vikas bug, where the last lines before a page break hid under the footer
+   * until the font was cached and a refresh "fixed" it).
+   */
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("download")) return;
+    let fired = false;
+    const tryFire = () => {
+      if (fired || document.documentElement.dataset.footerMarginReady == null) return false;
+      fired = true;
+      void downloadPdf();
+      return true;
+    };
+    if (tryFire()) return;
+    const t = setInterval(() => { if (tryFire()) clearInterval(t); }, 150);
+    const giveUp = setTimeout(() => clearInterval(t), 10000);
+    return () => { clearInterval(t); clearTimeout(giveUp); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const emailVars = {
     customer_name: contact?.name ?? "Sir/Madam",
@@ -221,9 +298,47 @@ export default function QuotePrint(props: Props) {
             attachment (api/quotes/[id]/email) and the public WhatsApp link
             (pdf-public/[token]) -- so it keeps the single-source-of-truth
             margin fix even though it's no longer this button's path. */}
-        <button onClick={() => window.print()} style={{ background: "#378ADD", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-          ⬇ Download PDF
+        {/* Two paths, honestly labelled (client report, Vikas 2026-09-22:
+            "header shows a timestamp and the quotation name, footer shows the
+            print URL"). Those four artifacts are Chrome's own print header and
+            footer -- it draws them INSIDE the @page margin area, and that same
+            margin is what reserves space for our fixed .doc-footer. So they
+            cannot be suppressed from CSS without reintroducing the footer
+            overlap this file spent three rounds fixing: with window.print()
+            they are the price of the WYSIWYG guarantee.
+
+            The server route has no such price -- displayHeaderFooter:false,
+            nothing stamped -- and since 2026-09-20 it no longer re-derives its
+            own footer margin but waits for footerMarginReady and reuses the
+            very number computed above, which was the last known cause of it
+            disagreeing with this page. So it is offered again, alongside
+            rather than instead of Print: whoever wants a clean file for a
+            customer takes Download PDF, and anyone who needs exactly what is
+            on screen still has Print. */}
+        <button
+          onClick={downloadPdf}
+          disabled={pdfState === "working"}
+          style={{ background: "#378ADD", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: pdfState === "working" ? "default" : "pointer", opacity: pdfState === "working" ? 0.7 : 1 }}
+        >
+          {pdfState === "working" ? "Preparing…" : "⬇ Download PDF"}
         </button>
+        {/* One way to get a PDF, deliberately (owner, 2026-09-22) -- the
+            browser-print button that used to sit here produced a different
+            document, stamped by Chrome, and offering both only invited people
+            to pick the wrong one. window.print() survives ONLY as a recovery
+            link inside the error below, so a failed render never leaves
+            somebody with no way to get their quote out. */}
+        {pdfError && (
+          <span style={{ color: "#f0a1a1", fontSize: 12.5 }}>
+            {pdfError}{" "}
+            <button
+              onClick={() => window.print()}
+              style={{ background: "none", border: "none", color: "#aebccd", textDecoration: "underline", fontSize: 12.5, cursor: "pointer", padding: 0 }}
+            >
+              Print instead
+            </button>
+          </span>
+        )}
         <button
           onClick={() => setComposeOpen(true)}
           disabled={emailState === "sent"}

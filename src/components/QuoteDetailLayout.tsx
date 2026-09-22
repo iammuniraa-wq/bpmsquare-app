@@ -1016,8 +1016,14 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                   background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
                   boxShadow: "0 8px 24px rgba(0,0,0,.15)", minWidth: 200, overflow: "hidden",
                 }}>
+                  {/* ?download=1 makes the print view start the download on
+                      arrival, so this is one click and the label is true.
+                      It has to route through that view rather than straight to
+                      the API: the PDF is built FROM the rendered page, which
+                      only exists there -- that is the whole reason the output
+                      finally matches the screen. */}
                   <Link
-                    href={ROUTES.quotationPrint(quote.id)}
+                    href={`${ROUTES.quotationPrint(quote.id)}?download=1`}
                     target="_blank"
                     rel="noopener"
                     onClick={() => setMoreOpen(false)}
