@@ -654,9 +654,10 @@
    Everything inside the sheet is on white and keeps the normal light-mode
    tokens.
 
-   Contrast, measured against #2A1259: white 15.8:1, and the four rail ink
-   tiers land at 13.4 / 11.4 / 9.8 / 7.6 — every one clear of the navy
-   palette's own tiers, because a deeper ground gives more room. */
+   Contrast: white on the shell's top stop measures 17.1:1 (that stop was
+   deepened 2026-09-22 — see the note on --spec-shell-from), and every rail
+   ink tier clears the navy palette's own, because a deeper ground gives
+   more room. */
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) {
   /* The shell. Read by Shell.tsx's root element via --app-bg (it falls back
      to --panel2, so every other theme is untouched). */
@@ -973,9 +974,19 @@
    Every use is `var(--name, <shipped value>)`, so a workspace that sets
    none of them, or only one, renders exactly what shipped. */
 :root {
-  --spec-shell-from: #2A1259;
-  --spec-shell-to: #1B0A3D;
-  --spec-accent: #5B34D6;
+  /* Deepened on the owner's call, 2026-09-22 ("make purple a little bit
+     dark"). White on the new top stop measures 17.1:1 against 15.8 before,
+     and the four rail ink tiers gain with it -- a deeper ground gives more
+     room, which is the same reason the original block chose a dark violet
+     over a mid one. The accent comes down with the shell so the two still
+     read as one palette; on white it is 8.4:1, up from 7.3.
+
+     These are DEFAULTS. A workspace that has set its own colours in
+     Settings -> General -> Spectacular colours keeps them: layout.tsx
+     writes those over these, so nobody's chosen shell moves. */
+  --spec-shell-from: #211046;
+  --spec-shell-to: #14072E;
+  --spec-accent: #5129C4;
 }
 
 /* ---- THE SHELL IS A PANEL, NOT THE WINDOW (owner 2026-09-21) ------------
@@ -1221,8 +1232,8 @@ body:has([data-spectacular-variant="purple"]:not([data-mode="dark"])) {
      360. In a violet product that hue is a stranger, so it resolves to the
      palette's own accent. Spectacular never sets --nova-accent-color, so a
      pink a tenant picked for Nova cannot leak in here either. */
-  --nova-pink:         var(--modern-accent, #5B34D6);
-  --nova-pink-soft:    var(--modern-accent, #5B34D6);
+  --nova-pink:         var(--modern-accent, #5129C4);
+  --nova-pink-soft:    var(--modern-accent, #5129C4);
   --nova-pink-bg:      #F3EEFE;
   --nova-pink-line:    #7C5CFF;
 
@@ -1260,11 +1271,11 @@ body:has([data-spectacular-variant="purple"]:not([data-mode="dark"])) {
    Nova's own value as its fallback, so Nova is untouched and elevation here
    becomes what it should be on paper: a soft shadow tinted toward plum. */
 [data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) {
-  --nova-canvas-grid:           rgba(42, 18, 89, 0.055);
+  --nova-canvas-grid:           rgba(33, 16, 70, 0.055);
   --nova-canvas-node-bg:        #FFFFFF;
   --nova-canvas-blur:           0px;
   --nova-canvas-node-shadow:    0 2px 4px rgba(23, 10, 56, 0.06), 0 8px 18px rgba(23, 10, 56, 0.10);
-  --nova-canvas-node-hover:     brightness(1.02) drop-shadow(0 4px 12px rgba(42, 18, 89, 0.22));
+  --nova-canvas-node-hover:     brightness(1.02) drop-shadow(0 4px 12px rgba(33, 16, 70, 0.22));
   --nova-canvas-panel-bg:       #FFFFFF;
   --nova-canvas-panel-shadow:   0 16px 40px rgba(23, 10, 56, 0.20), 0 3px 10px rgba(23, 10, 56, 0.10);
   --nova-canvas-control-bg:     #FFFFFF;
@@ -1279,7 +1290,7 @@ body:has([data-spectacular-variant="purple"]:not([data-mode="dark"])) {
   --nova-canvas-center-ink:     #FFFFFF;
   --nova-canvas-center-eyebrow: #B7A5FF;
   --nova-canvas-center-meta:    rgba(255, 255, 255, 0.72);
-  --nova-canvas-pulse:          rgba(42, 18, 89, 0.20);
+  --nova-canvas-pulse:          rgba(33, 16, 70, 0.20);
 }
 
 /* Shared page header (PageHeader.tsx, and DashboardLayout's own greeting
