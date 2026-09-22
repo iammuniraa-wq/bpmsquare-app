@@ -52,7 +52,20 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
     items: [
       { label: "Entities & Tax", description: "Legal entities, print branding, and tax settings for quotations and PDFs", href: ROUTES.settingsEntities, icon: "⌂", pillarKey: "teal", adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
       { label: "Statuses & assets", description: "Configure pipeline stages and equipment print fields", href: ROUTES.settingsStatuses, icon: "▦", pillarKey: "teal", adminOnly: true, featureKey: "assets", relatedWorkcenter: "quotations" },
-      { label: "Sales config", description: "Manage territory and sales org picklist values", href: ROUTES.settingsSales, icon: "▤", pillarKey: "teal", adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
+      // Named for what is actually in it. The old text -- "territory and sales
+      // org picklist values" -- described contents that moved to Coverage,
+      // which now says so itself ("replaces flat territory/sales org
+      // assignment"); this page has only ever been the product category tree
+      // since, and its own PageHeader subtitle already said so. Owner
+      // 2026-09-22: the tile text was misleading against what is inside.
+      //
+      // featureAnyOf, not featureKey: "products" -- the tree feeds the
+      // products screens AND any field whose selectSource is
+      // product_category (FieldWidget), which can sit on an object a tenant
+      // without the Products module still uses. Narrowing the gate to
+      // Products would have taken the editor away from whoever has such a
+      // field, and it was reachable on "quotations" before this.
+      { label: "Product categories", description: "The category tree products are filed under, and that category fields pick from", href: ROUTES.settingsSales, icon: "▤", pillarKey: "teal", adminOnly: true, featureAnyOf: ["products", "quotations"], relatedWorkcenter: "quotations" },
       { label: "Workforce", description: "Attendance rules, timezone, break deduction, leave and retention — plus punch sites and shifts", href: ROUTES.settingsWorkforce, icon: "⧖", pillarKey: "amber", adminOnly: true, featureKey: "wfm", relatedWorkcenter: "wfm" },
       { label: "Coverage", description: "Teams, rule-based segments and the wiring that replaces flat territory/sales org assignment — also drives auto-ownership, product availability and ERP routing", href: ROUTES.settingsCoverage, icon: "◭", pillarKey: "teal", adminOnly: true, featureKey: "coverage_model" },
     ],

@@ -59,6 +59,22 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
 
 const FEATURE_GROUPS = [...new Set(FEATURE_LABELS.map((f) => f.group))];
 
+/** Every ui_theme the product renders, and the feature flag each experimental
+ *  one is ALSO gated on. Setting the theme alone does nothing for those four:
+ *  useIsSpectacular(), useIsEnterpriseSidebar() and useIsNextgen3Layer() each
+ *  require the value AND the flag, which is bpmsquarecore.md §10 rule 1 -- a
+ *  stored theme can never render on its own, so a stale value is harmless.
+ *  That double gate is also why this screen warns rather than quietly doing
+ *  half the job. */
+const THEME_VALUES = ["classic", "modern", "nextgen", "nextgen2", "enterprise", "spectacular", "spectacular_purple"] as const;
+type UiThemeValue = typeof THEME_VALUES[number];
+const THEME_FLAG: Partial<Record<UiThemeValue, keyof TenantFeatures>> = {
+  nextgen2: "next_experience",
+  enterprise: "enterprise_theme",
+  spectacular: "spectacular_theme",
+  spectacular_purple: "spectacular_theme",
+};
+
 const inputStyle: React.CSSProperties = {
   height: 38, border: "1px solid #d1d5db", borderRadius: 8,
   padding: "0 10px", fontSize: 13, width: "100%", boxSizing: "border-box",
@@ -83,10 +99,20 @@ export default function TenantEditor({ tenant, users }: Props) {
   // "modern" here rather than defaulting the radio group to a value it no
   // longer offers.
   const storedTheme = tenant.config?.appearance?.ui_theme as string | undefined;
-  const [uiTheme, setUiTheme]         = useState<"classic" | "modern" | "nextgen" | "nextgen2">(
-    storedTheme === "nextgen" || storedTheme === "nextgen2" ? storedTheme
-      : storedTheme === "modern" || storedTheme === "modern2" || storedTheme === "modern3"
-      ? "modern"
+  // Anything the product actually renders is kept as-is. Enterprise and both
+  // Spectacular palettes were missing from this list (owner, 2026-09-22:
+  // "why don't I see theme spectacular to make it default for some
+  // clients?"), and their absence was not only a gap: this editor writes
+  // ui_theme on EVERY save and the old initialiser fell through to
+  // "classic", so opening a tenant already on spectacular_purple and saving
+  // an unrelated change -- a feature flag, the currency -- silently reset
+  // their theme to Classic.
+  const [uiTheme, setUiTheme]         = useState<UiThemeValue>(
+    THEME_VALUES.includes(storedTheme as UiThemeValue) ? (storedTheme as UiThemeValue)
+      // The retired directions ("modern2" Lightning-blue, "modern3" Fluent)
+      // may still be stored on an older tenant; they degrade to modern
+      // rather than leaving the radio group on a value it cannot show.
+      : storedTheme === "modern2" || storedTheme === "modern3" ? "modern"
       : "classic"
   );
   const [currency, setCurrency]       = useState<CurrencyCode>(resolveCurrency(tenant.config).code);
@@ -322,7 +348,10 @@ export default function TenantEditor({ tenant, users }: Props) {
             { value: "classic" as const, label: "Classic", desc: "The original look — dark navy sidebar, no card shadows." },
             { value: "modern" as const, label: "Modern — default for new tenants", desc: "Structured-Enterprise direction: denser cards, sharper borders, navy sidebar, no card hairline, AI assistant dock." },
             { value: "nextgen" as const, label: "Next-gen", desc: "Attio/Linear-class direction: flat neutral canvas, hairline borders, real SVG nav icons, no tab bar, AI daily brief on the dashboard, sparkline KPIs, dark mode." },
-            { value: "nextgen2" as const, label: "Nova", desc: "BPMSquare Nova — the Business OS experience: command palette, engagement layer, identity in the top bar. Requires the Nova feature flag; opt-in only." },
+            { value: "nextgen2" as const, label: "Nova", desc: "BPMSquare Nova — the Business OS experience: command palette, engagement layer, identity in the top bar." },
+            { value: "enterprise" as const, label: "Enterprise", desc: "Next-gen's light content with a dark navy rail, styled after clean enterprise SaaS. Light only." },
+            { value: "spectacular" as const, label: "Spectacular — navy", desc: "Navy band across the top, colour-filled KPI cards, white rail. Light only." },
+            { value: "spectacular_purple" as const, label: "Spectacular — purple", desc: "One violet shell with the page as a white sheet inside it: labelled Spaces rail, pill tabs, ⌘K palette, curated dashboard, tenant-chosen colours. Light only." },
           ]).map((opt) => (
             <label key={opt.value} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -345,6 +374,27 @@ export default function TenantEditor({ tenant, users }: Props) {
             </label>
           ))}
         </div>
+        {(() => {
+          // The double gate, made visible. Picking Spectacular or Nova here
+          // and leaving its flag off renders plain nextgen -- correct
+          // behaviour (a stale theme value must never render on its own) and
+          // baffling if nobody says so. The flag is in the Features section
+          // of this same form, so both can be set in one save.
+          const flag = THEME_FLAG[uiTheme];
+          if (!flag || features[flag] === true) return null;
+          const flagLabel = FEATURE_LABELS.find((f) => f.key === flag)?.label ?? flag;
+          return (
+            <div style={{
+              marginTop: 12, padding: "10px 13px", borderRadius: 8,
+              background: "#fffbeb", border: "1px solid #f0a93b",
+              fontSize: 12, color: "#92400e", lineHeight: 1.6,
+            }}>
+              <b>This theme needs its feature flag too.</b> Tick <b>{flagLabel}</b> in
+              Features below, or the tenant falls back to Next-gen — the theme value alone
+              never renders. Both save together.
+            </div>
+          );
+        })()}
       </section>
 
       {/* External API key */}
