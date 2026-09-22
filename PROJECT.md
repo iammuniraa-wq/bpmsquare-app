@@ -507,6 +507,20 @@ deploy for an automatic schema change.
   every seeded product through both books; totals matched lineTotals.ts),
   then removed from dev entirely -- the owner wants Big Blue on production
   only. Needs 0120 for the deals (skipped cleanly if pending).
+- **0125_email_log_invoice_rfq_kinds.sql — PENDING on both DBs** (written
+  2026-09-21, from the owner's question "recheck if outbound emails are
+  logged"). They are -- for four of the six kinds. `email_log.kind` carries a
+  CHECK constraint that 0091 left at `('quote','campaign','wfm','auth')`,
+  while `EmailLogKind` in TypeScript has since grown `invoice` and `rfq`.
+  Because `logEmail()` deliberately never throws (a logging failure must not
+  fail a send that may already have gone out), every invoice and supplier-RFQ
+  email since those senders shipped has had its log row rejected and the
+  rejection swallowed. The SENDS were always fine; only the record is
+  missing, and it cannot be backfilled. This widens the constraint to the
+  application's own list. Until it runs, invoice/RFQ emails keep sending and
+  keep not appearing in Administration → Outbound Emails -- no crash, no
+  degradation beyond the missing rows. Shipped alongside the Outbound Emails
+  screen's own filter, which was missing the same two entries.
 - **0124_wfm_site_approvers_and_employee_alerts.sql — APPLIED to production**
   (written and applied 2026-09-10, BIM client list of the same day. Verified
   after the run: both tables present, RLS on, one policy each, 4 indexes on

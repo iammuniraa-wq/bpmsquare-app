@@ -9,6 +9,30 @@ import { LinkIcon } from "@/components/Icons";
 import { ROUTES, PATHNAME_HEADER } from "@/lib/constants";
 import { HEX_COLOR_RE } from "@/lib/standardQuoteTemplateBlocks";
 
+/** Spectacular's three colour knobs, as :root overrides.
+ *
+ * globals.css declares the shipped violet as the default for each, so a key
+ * left unset here simply never emits a line and the default stands -- which
+ * is also why a workspace can change only the accent and keep the shell.
+ *
+ * HEX_COLOR_RE on every value, not for tidiness: this is interpolated into a
+ * raw <style> tag with no escaping, exactly like nova_accent_color above, so
+ * anything that is not a real #rrggbb is dropped rather than trusted. The
+ * settings route rejects it on the way in too; this is the second of the two
+ * places that has to hold. */
+function specColorVars(colors: { shell_from?: string; shell_to?: string; accent?: string } | undefined): string {
+  if (!colors) return "";
+  const pairs: [string, string | undefined][] = [
+    ["--spec-shell-from", colors.shell_from],
+    ["--spec-shell-to", colors.shell_to],
+    ["--spec-accent", colors.accent],
+  ];
+  return pairs
+    .filter(([, v]) => HEX_COLOR_RE.test(v ?? ""))
+    .map(([name, v]) => `${name}: ${v};`)
+    .join("\n        ");
+}
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getAuthUser();
 
@@ -117,33 +141,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
   }
 
-  // My Workforce is THE home of a WFM workspace, for every role (owner
-  // decision 2026-09-10, BIM: "make it hard My Workforce"). Anyone with an
-  // active employee record who opens "/" goes there -- employee, supervisor
-  // and admin alike. Not a tenant setting: the product now has one answer to
-  // "where does a WFM workspace start", so there is nothing to configure.
+  // NOTE -- there is deliberately NO "/" redirect here any more.
   //
-  // Scoped to "/" ONLY. A supervisor who opens the Live board, Roster,
-  // Employees or Corrections must still get the page they asked for --
-  // bouncing them back from those was the old blanket behaviour, and it made
-  // the whole supervisor toolset unreachable. This replaces the previous
-  // per-user landing preference for "/" (tenant_users.wfm_default_landing),
-  // which no longer has an effect there.
+  // Landing a WFM workspace on My Workforce shipped 2026-09-10 as a redirect
+  // on "/" in this layout, which re-runs on every navigation. That made it a
+  // permanent rule rather than a landing page: an admin who pressed
+  // Dashboard, or who came back to "/" after saving a setting or adapting
+  // their layout, was thrown into the punch screen before finishing (owner,
+  // 2026-09-21). The rule now lives in api/auth/landing alone, where it runs
+  // once per sign-in, and is gated on config.wfm.home_landing so it applies
+  // only to a tenant that asked for it.
   //
-  // Requires an ACTIVE employee record, and that is a correctness floor
-  // rather than a preference: with no employee record My Workforce can only
-  // report "you aren't set up yet", so an unlinked admin keeps the dashboard
-  // instead of landing on a dead end.
-  //
-  // /wfm/me lives inside this same (app) route group, so this layout re-runs
-  // on every visit to it -- hence "/" only here, and the explicit wfmMe
-  // exclusion in the employee branch below. Without those it is an immediate
-  // redirect loop, not a hypothetical one. (`pathname` comes from
-  // PATHNAME_HEADER, set once by middleware.ts -- a Server Component layout
-  // has no other way to know the current path.)
-  if (wfmEmployeeActive && pathname === "/") {
-    redirect(ROUTES.wfmMe);
-  }
+  // (tenant_users.wfm_default_landing, the older per-user preference, is
+  // still unused -- it was superseded by that 2026-09-10 redirect and is not
+  // revived here.)
 
   // A WFM-restricted login (Business Role grants nothing beyond "wfm") has no
   // use for any other page: every other (app) route is a dead end for them,
@@ -166,6 +177,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <style>{`:root {
         --tenant-accent: ${tenant.accent_color};
         ${HEX_COLOR_RE.test(tenant.config?.appearance?.nova_accent_color ?? "") ? `--nova-accent-color: ${tenant.config!.appearance!.nova_accent_color};` : ""}
+        ${specColorVars(tenant.config?.appearance?.spectacular_colors)}
       }`}</style>
       <Shell>{children}</Shell>
     </TenantProvider>

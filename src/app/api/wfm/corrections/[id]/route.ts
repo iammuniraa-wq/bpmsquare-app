@@ -9,6 +9,13 @@ import type { PresenceKind } from "@/lib/wfm/types";
 // pending request. Approve never edits the original presence event (if
 // any) — it inserts a new source=correction event and stamps
 // superseded_by on the old one, per the append-only design (§2).
+//
+// That pairing is what actually moves the timesheet: every read that
+// computes hours filters `.is("superseded_by", null)` (lib/wfm/meState.ts,
+// monthlySummary.ts, projectHoursServer.ts, server.ts), so the corrected
+// event replaces the original everywhere the original counted -- the
+// timesheet, the monthly summary, the CA export and project hours alike.
+// Nothing recomputes or caches those figures, so there is no second step.
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let ctx;
   try {
@@ -68,7 +75,38 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // can only be approved as an administrative note (no event is written).
   const change = (req.requested_change ?? {}) as { issue?: string; proposed_ts?: string; kind?: PresenceKind };
 
-  if (change.kind && change.proposed_ts) {
+  // Every issue but "other" has to write a real event, or approving it moves
+  // nothing on the timesheet while telling the supervisor it worked.
+  const NEEDS_EVENT = new Set([
+    "missing_check_in", "missing_check_out",
+    "missing_break_start", "missing_break_end",
+    "wrong_time",
+  ]);
+
+  // A wrong_time request filed BEFORE the create route learned to stamp the
+  // kind (it only ever mapped the two missing_* issues) has proposed_ts and
+  // target_event_id but no kind -- and the write below needs both, so those
+  // requests approve to nothing. They are still sitting in queues, so the
+  // kind is recovered here the same way the create route now derives it: from
+  // the punch being corrected.
+  let kind = change.kind;
+  if (!kind && req.target_event_id) {
+    const { data: target } = await admin
+      .from("wfm_presence_events").select("kind")
+      .eq("id", req.target_event_id).eq("tenant_id", tenantId).maybeSingle();
+    kind = (target?.kind as PresenceKind | undefined) ?? undefined;
+  }
+
+  // Fail rather than approve a request that cannot be applied. Silence here
+  // is the worst outcome available: the employee sees "approved", the
+  // timesheet still shows the wrong time, and nobody has anything to chase.
+  if (NEEDS_EVENT.has(change.issue ?? "") && !(kind && change.proposed_ts)) {
+    return NextResponse.json({
+      error: "This request can't be applied -- it doesn't say which punch to correct. Ask the employee to file it again against the punch itself.",
+    }, { status: 409 });
+  }
+
+  if (kind && change.proposed_ts) {
     // Project costing (0104): a corrected punch must carry the same project a
     // real one would, or the hours it repairs land as unassigned. A session
     // takes its project from its OPENING punch (workSessions), so a corrected
@@ -101,7 +139,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       tenant_id: tenantId,
       employee_id: req.employee_id,
       ts: change.proposed_ts,
-      kind: change.kind,
+      kind,
       source: "correction",
       project_id: projectId,
       created_by: userId,

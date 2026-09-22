@@ -9,6 +9,7 @@ import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon, Database, Box, Shield, Tag, Truck, Filter, Coins } from "@/components/Icons";
 import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useTopBarIdentity } from "@/lib/tenant-context";
+import SpacesRow from "@/components/SpacesRow";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -592,7 +593,7 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
           identity in its own header (NovaHeader); showing it twice was the
           duplicate the owner flagged 2026-08-23. */}
       {!hideHeader && (
-      <div style={{
+      <div className="bpm-brand" style={{
         display: "flex", alignItems: "center", gap: 9,
         justifyContent: collapsed ? "center" : "space-between",
         padding: "4px 6px 14px",
@@ -663,6 +664,14 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
           desktop-only in this phase (Shell.tsx's MobileTopBar has no
           equivalent yet), so sign-out must stay reachable there. */}
       {(!identityInTopBar || onNavigate) && <UserFooter accent={accent} collapsed={collapsed} />}
+
+      {/* Spaces -- Nova's group-icon navigator, on this rail for Spectacular
+          (SpacesRow self-gates, so every other theme renders nothing). Above
+          the tree rather than below it: it is the shortcut to a whole area,
+          and the tree underneath is the place you go when the shortcut isn't
+          what you wanted. Hidden when the rail is collapsed -- five columns
+          do not fit in 56px, and the icon rail already IS a glyph list. */}
+      {!collapsed && <SpacesRow onNavigate={onNavigate} />}
 
       {collapsed ? (
         <nav style={{ overflowY: "auto" }}>

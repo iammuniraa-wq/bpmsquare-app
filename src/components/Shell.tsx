@@ -226,6 +226,12 @@ function IdentityMenu() {
 
   if (!email) return null;
   const initials = email.slice(0, 2).toUpperCase();
+  // The bar showed the whole address, which is the longest, least readable
+  // thing in the header and pushed everything else around as it truncated
+  // (owner 2026-09-21: the header is "a bit distorted"). The local part is
+  // short, stable and still unambiguous -- and the full address is right
+  // there in the menu, one click away, so nothing is hidden.
+  const label = email.split("@")[0] || email;
 
   return (
     <details style={{ position: "relative", marginLeft: 10 }}>
@@ -248,8 +254,8 @@ function IdentityMenu() {
         <span style={{
           fontSize: 12, fontWeight: 600, color: "var(--sb-search-icon)",
           maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>
-          {email}
+        }} title={email}>
+          {label}
         </span>
       </summary>
       <div style={{

@@ -8,11 +8,16 @@ import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 // Mirrors EmailLogKind (src/lib/emailLog.ts), redeclared here because that
 // module is server-only.
-type EmailKind = "quote" | "campaign" | "wfm" | "auth";
+type EmailKind = "quote" | "invoice" | "campaign" | "wfm" | "auth" | "rfq";
 
+// Invoice and RFQ were missing here as well as in the database's own CHECK
+// constraint (0125) -- so even once those rows start arriving, an admin could
+// only have found them under "All channels".
 const KINDS: { value: string; label: string }[] = [
   { value: "", label: "All channels" },
   { value: "quote", label: "Quote emails" },
+  { value: "invoice", label: "Invoice emails" },
+  { value: "rfq", label: "Supplier RFQs" },
   { value: "campaign", label: "Campaign sends" },
   { value: "wfm", label: "Workforce alerts" },
   { value: "auth", label: "Password resets" },
@@ -41,6 +46,8 @@ const STATUS_TONE: Record<EmailLogRow["status"], { bg: string; fg: string }> = {
 // written but had no entry here, so those rows rendered a blank channel.
 const KIND_LABEL: Record<EmailKind, string> = {
   quote: "Quote",
+  invoice: "Invoice",
+  rfq: "Supplier RFQ",
   campaign: "Campaign",
   wfm: "Workforce",
   auth: "Password reset",

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useRef } from "react";
+import React, { useEffect, useState, useTransition, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ServiceCase, Account, WorkOrder, Activity as ActivityRec } from "@/lib/types";
@@ -51,6 +51,9 @@ interface Props {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const SIDEBAR_IDS = new Set(["quick_create"]);
+
+// Per-browser, like bpm_nextgen_dark (Shell) and the nav tree (Sidebar).
+const DASH_MODE_KEY = "bpm_dash_mode";
 
 // `features` = show when ANY of these module flags is on (0067). Native
 // blocks predate the core-module flags and were rendered unconditionally --
@@ -107,6 +110,37 @@ const DEFAULT_LAYOUT: DashLayoutItem[] = [
   { id: "overdue_tasks" },
   { id: "tech_workload" },
   { id: "top_accounts" },
+  { id: "quick_create" },
+];
+
+/** THE CURATED DASHBOARD (owner request 2026-09-21).
+ *
+ * A fixed, ordered composition -- the design board's page -- rather than a
+ * layout. It exists because a layout can be wrong: this workspace had three
+ * analytics tiles saved from months ago, so the board's own panels ("the
+ * tiles which I wanted") simply were not on it, and no amount of theme work
+ * was going to put them there.
+ *
+ * These are all EXISTING blocks, which is the whole trick: curated mode is a
+ * different choice of blocks, not a second rendering engine, so every panel
+ * here is one the Adapt drawer already offers and one renderWidget already
+ * knows how to draw. Order is the composition -- the two board panels
+ * (Overdue tasks is its task list, Top accounts its rows-with-values) sit
+ * directly under the KPI row, where the board puts them.
+ *
+ * Still filtered by blockAllowed(), so a Workforce-only workspace gets its
+ * own subset rather than six empty CRM cards. business_news is added
+ * separately: it is an admin setting (config.dashboard_extras), and curated
+ * mode bypasses applyExtras, so including it unconditionally would start
+ * fetching news for a tenant that never asked for it. */
+const CURATED_LAYOUT: DashLayoutItem[] = [
+  { id: "overview_strip" },
+  { id: "overdue_tasks", size: "half" },
+  { id: "top_accounts", size: "half" },
+  { id: "revenue_card", size: "half" },
+  { id: "invoice_budget", size: "half" },
+  { id: "tech_workload", size: "half" },
+  { id: "wfm_summary" },
   { id: "quick_create" },
 ];
 
@@ -1304,6 +1338,28 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   const tenant = useTenant();
   const extras = tenant?.config?.dashboard_extras;
   const [layout, setLayout] = useState<DashLayoutItem[]>(() => resolveLayout(dashLayout, features, extras));
+  // Curated vs adaptive (see TenantConfig.appearance.dashboard_mode). The
+  // tenant's setting is the DEFAULT; the header switch is a per-browser
+  // preference on top of it, stored the same way the nav tree and dark mode
+  // already are. Deliberately not a per-user column: switching costs nothing
+  // and destroys nothing -- the saved layout is untouched either way -- so a
+  // round trip and a migration would buy only cross-device memory.
+  const configuredMode = tenant?.config?.appearance?.dashboard_mode
+    ?? (spectacular ? "curated" : "adaptive");
+  const [dashMode, setDashMode] = useState<"curated" | "adaptive">(configuredMode);
+  // Read after mount, never during render: localStorage would make the first
+  // server render and the first client render disagree.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(DASH_MODE_KEY);
+      if (saved === "curated" || saved === "adaptive") setDashMode(saved);
+    } catch { /* private mode, blocked storage -- the tenant default stands */ }
+  }, []);
+  const chooseMode = (m: "curated" | "adaptive") => {
+    setDashMode(m);
+    try { window.localStorage.setItem(DASH_MODE_KEY, m); } catch { /* nothing to do */ }
+  };
+
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [personalizeOpen, setPersonalizeOpen] = useState(false);
   const [saving, startSave] = useTransition();
@@ -1370,7 +1426,14 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   }
 
   // Split layout into main (left col) and sidebar (right col)
-  const visibleBlocks = layout.filter((b) => !b.hidden && blockAllowed(b.id, features));
+  // The single place the two dashboards diverge. Curated ignores `layout`
+  // outright -- it is a composition, not a saved arrangement -- while
+  // `layout` and both drawers stay exactly as they are, so switching back to
+  // My layout restores the arrangement untouched.
+  const effectiveBlocks: DashLayoutItem[] = dashMode === "curated"
+    ? CURATED_LAYOUT.filter((b) => b.id !== "business_news" || extras?.business_news === true)
+    : layout;
+  const visibleBlocks = effectiveBlocks.filter((b) => !b.hidden && blockAllowed(b.id, features));
   const mainBlocks = visibleBlocks.filter((b) => !SIDEBAR_IDS.has(b.id));
   const sidebarBlocks = visibleBlocks.filter((b) => SIDEBAR_IDS.has(b.id));
 
@@ -1576,15 +1639,22 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
           </div>
         )}
         {shown.length >= 2 && (
+          // auto-fit, not repeat(N, 1fr): four fixed tracks divide whatever
+          // width there is, and at ~700px of sheet that left each column
+          // narrower than the money in it -- "₹65,81,000" printed straight
+          // over "50%" (owner screenshot, 2026-09-21). A floor of 215px lets
+          // the row fall to three, then two, then one instead. .kpi-grid
+          // still pins it at two-up on a phone.
           <div className="kpi-grid" style={{
-            display: "grid", gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))`, gap: 20,
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 20,
           }}>
             {shown.map((f) => (
               <Link key={f.key} href={f.href} style={{ display: "flex", gap: 12, textDecoration: "none", color: "inherit" }}>
                 <span style={{ width: 3, borderRadius: 3, background: f.fill, flexShrink: 0 }} />
                 <span style={{ minWidth: 0 }}>
                   <span style={{
-                    display: "block", fontSize: 26, fontWeight: 800, letterSpacing: "-0.04em",
+                    display: "block", fontSize: "clamp(20px, 1.7vw, 26px)", fontWeight: 800, letterSpacing: "-0.04em",
+                    whiteSpace: "nowrap",
                     lineHeight: 1.05, color: c.ink, fontVariantNumeric: "tabular-nums",
                   }}>
                     {f.value}
@@ -1948,7 +2018,32 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
             to be the empty-state button -- so a mobile user could ADD their
             first card but never manage the layout again after that. */}
         <div style={{ display: "flex", gap: 8, flexShrink: 0, marginTop: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {isAdmin && (
+          {/* Two dashboards, one switch. Curated is a fixed composition;
+              My layout is the arrangement you built. Nothing is saved or lost
+              by moving between them, which is why this is a view toggle and
+              not a setting buried in Settings (there IS one there, for the
+              workspace default). */}
+          <div style={{ display: "flex", gap: 2, padding: 2, borderRadius: 9, border: `1px solid ${c.line}`, background: "var(--panel2, transparent)" }}>
+            {([["Curated", "curated"], ["My layout", "adaptive"]] as const).map(([label, m]) => (
+              <button
+                key={m}
+                onClick={() => chooseMode(m)}
+                title={m === "curated"
+                  ? "A fixed set of cards, in a set order — nothing to configure"
+                  : "The cards you chose, in your order — Adapt and My layout apply here"}
+                style={{
+                  padding: "5px 12px", borderRadius: 7, cursor: "pointer", font: "inherit",
+                  fontSize: 11.5, fontWeight: 650, border: "none",
+                  background: dashMode === m ? "var(--card-bg, #fff)" : "transparent",
+                  color: dashMode === m ? c.ink : c.hint,
+                  boxShadow: dashMode === m ? "0 1px 3px rgba(0,0,0,.10)" : "none",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {isAdmin && dashMode === "adaptive" && (
             <button
               onClick={() => setAdaptOpen(true)}
               style={{
@@ -1963,16 +2058,18 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
               ⚙ Adapt dashboard
             </button>
           )}
-          <button
-            onClick={() => setPersonalizeOpen(true)}
-            style={{
-              fontSize: 11.5, fontWeight: 600, color: c.hint,
-              background: "transparent", border: `1px solid ${c.line}`,
-              borderRadius: 7, padding: "6px 14px", cursor: "pointer",
-            }}
-          >
-            🧑 My layout
-          </button>
+          {dashMode === "adaptive" && (
+            <button
+              onClick={() => setPersonalizeOpen(true)}
+              style={{
+                fontSize: 11.5, fontWeight: 600, color: c.hint,
+                background: "transparent", border: `1px solid ${c.line}`,
+                borderRadius: 7, padding: "6px 14px", cursor: "pointer",
+              }}
+            >
+              🧑 My layout
+            </button>
+          )}
         </div>
       </div>
 
@@ -1996,9 +2093,19 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         <div style={{ ...cardStyle, textAlign: "center", padding: "34px 20px" }}>
           <div style={{ fontSize: 14.5, fontWeight: 700, color: c.ink }}>Your dashboard is empty</div>
           <div style={{ fontSize: 12.5, color: c.muted, marginTop: 6, lineHeight: 1.6, maxWidth: 420, margin: "6px auto 0" }}>
-            Every card is currently hidden. Use{" "}
-            <b>{isAdmin ? "Adapt dashboard" : "My layout"}</b> above to bring back the ones you want —
-            or reach the workcenters you use from the menu.
+            {dashMode === "curated" ? (
+              <>
+                None of the curated cards apply to the modules this workspace has. Switch to{" "}
+                <b>My layout</b> above to pick from what is available — or reach the workcenters you
+                use from the menu.
+              </>
+            ) : (
+              <>
+                Every card is currently hidden. Use{" "}
+                <b>{isAdmin ? "Adapt dashboard" : "My layout"}</b> above to bring back the ones you want —
+                or reach the workcenters you use from the menu.
+              </>
+            )}
           </div>
           <button
             onClick={() => (isAdmin ? setAdaptOpen(true) : setPersonalizeOpen(true))}

@@ -62,16 +62,31 @@ export default async function AdminPage() {
             {tenants.length} workspace{tenants.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Link
-          href="/admin/tenants/new"
-          style={{
-            background: c.accent, color: "#fff",
-            borderRadius: 9, padding: "9px 18px",
-            textDecoration: "none", fontSize: 13, fontWeight: 500,
-          }}
-        >
-          + Add tenant
-        </Link>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          {/* The studio is the front door now -- it covers scoping, roles, nav
+              and users in one pass. The form stays beside it, unchanged, for
+              when you already know every value and just want to type them. */}
+          <Link
+            href="/admin/tenant-studio"
+            style={{
+              background: c.accent, color: "#fff",
+              borderRadius: 9, padding: "9px 18px",
+              textDecoration: "none", fontSize: 13, fontWeight: 600,
+            }}
+          >
+            ✨ Tenant Creation Studio
+          </Link>
+          <Link
+            href="/admin/tenants/new"
+            style={{
+              background: "#fff", color: "#374151", border: "1px solid #d1d5db",
+              borderRadius: 9, padding: "9px 18px",
+              textDecoration: "none", fontSize: 13, fontWeight: 500,
+            }}
+          >
+            + Add tenant
+          </Link>
+        </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

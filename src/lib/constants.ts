@@ -600,6 +600,24 @@ export type WfmConfig = {
   // it cannot reject at punch time, because the image is uploaded in a
   // second request once the event exists.
   selfie_mode: "off" | "shift" | "all";
+  /** Where a login whose account is linked to an ACTIVE employee record
+   *  lands after signing in: the KPI dashboard, or straight into My
+   *  Workforce for the punch.
+   *
+   *  Tenant config, not a product-wide rule (owner correction 2026-09-21:
+   *  "this is true for only BIM client not for any other tenant including
+   *  demo"). It shipped on 2026-09-10 as one answer for every WFM workspace,
+   *  which is wrong the moment a workspace has WFM alongside Sales -- an
+   *  admin who also happens to have an employee record was sent to the punch
+   *  screen instead of their own dashboard.
+   *
+   *  Applied at LOGIN ONLY, by api/auth/landing. It is deliberately not a
+   *  redirect on "/": that is the same key read in two places, and as a
+   *  redirect it fired on every single visit -- so an admin who pressed
+   *  Dashboard, or landed back on "/" after saving a setting, was bounced
+   *  out mid-task (owner, 2026-09-21). A landing page is a thing that
+   *  happens once. */
+  home_landing: "dashboard" | "my_workforce";
   // Per-event-type email notification toggles. Each fires synchronously
   // from the route that creates the underlying event -- see src/lib/wfm/notify.ts.
   notifications: {
@@ -766,6 +784,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   face_verification_mode: "off",
   face_punch: "off",
   week_off_days: [0],
+  home_landing: "dashboard",
   geofence_mode: "flag",
   require_location: false,
   selfie_mode: "shift",
@@ -1005,6 +1024,38 @@ export type TenantConfig = {
      * (`var(--nova-accent-color, #E84393)` in globals.css), never hardcoded
      * in a component. */
     nova_accent_color?: string;
+    /** Spectacular's own colours, chosen by the workspace (owner request
+     *  2026-09-21: "option to change colors in spectacular theme including
+     *  mix colors"). The shell is a two-stop gradient, so `from` and `to`
+     *  ARE the mix -- a single hue would have made the shell flat, which is
+     *  the one thing the palette was never allowed to be.
+     *
+     *  Every value is consumed through a CSS custom-property fallback
+     *  (`var(--spec-shell-from, #2A1259)`), so an unset or partly-set
+     *  workspace renders the shipped violet exactly. Each is rendered into a
+     *  raw <style> tag by (app)/layout.tsx and is therefore validated as a
+     *  strict #rrggbb hex on the way in, same as nova_accent_color above --
+     *  an unvalidated string here is a stored-injection vector. */
+    /** Which dashboard a workspace opens on (owner request 2026-09-21: "2
+     *  versions of dashboard -- 1. with generic info like the artifact,
+     *  2. user can mix and match with adaptation").
+     *
+     *  "curated" renders a fixed, ordered set of blocks -- the composition
+     *  from the design board -- and ignores the saved layout entirely, so it
+     *  cannot come up empty or half-configured. "adaptive" is the existing
+     *  behaviour: the tenant/role/personal layout, Adapt and My layout.
+     *
+     *  This is the DEFAULT, not a lock: the dashboard header carries a switch
+     *  between the two, and switching does not touch anyone's saved layout --
+     *  it is still there when they switch back. Unset resolves to "curated"
+     *  on Spectacular (the theme the board was drawn for) and "adaptive"
+     *  everywhere else, so no existing workspace's dashboard changes. */
+    dashboard_mode?: "curated" | "adaptive";
+    spectacular_colors?: {
+      shell_from?: string;
+      shell_to?: string;
+      accent?: string;
+    };
   };
   // On-demand push to an external system (e.g. an ERP's webhook receiver) --
   // a rep clicks "Push to ERP" on a record; distinct from (and simpler than)

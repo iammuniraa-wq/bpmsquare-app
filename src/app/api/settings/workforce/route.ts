@@ -100,6 +100,9 @@ export async function PUT(request: NextRequest) {
   if (typeof body.employee_self_service === "boolean") {
     next.employee_self_service = body.employee_self_service;
   }
+  if (body.home_landing === "dashboard" || body.home_landing === "my_workforce") {
+    next.home_landing = body.home_landing;
+  }
   if (body.login_mode === "email" || body.login_mode === "code") {
     next.login_mode = body.login_mode;
   }
