@@ -1038,10 +1038,22 @@
    already relies on for the navy band. A browser without :has() simply keeps
    the default page colour around the shell: still deliberate-looking, just
    not this violet-black. */
+html:has([data-spectacular-variant="purple"]:not([data-mode="dark"])),
 body:has([data-spectacular-variant="purple"]:not([data-mode="dark"])) {
   /* Derived, not a fourth knob: a backdrop is only ever "further back than
      the shell", so it follows the shell's own dark end and needs nothing
-     chosen for it. */
+     chosen for it.
+
+     BOTH html and body, and html is the one that actually matters (owner,
+     2026-09-22: "there is a white bar at the top and bottom"). The shell's
+     10px margin COLLAPSES through body -- body has no padding or border to
+     stop it -- so body itself starts 10px down and its background never
+     reaches those strips. What shows there is the CANVAS, and the canvas
+     takes its colour from the ROOT element, which the `html, body` rule
+     further down this file was still painting --panel2 (a pale grey).
+     Measured before the fix: body #130744 starting at y=10, html
+     rgb(244,246,249). Colouring html covers the strips, the side gutters and
+     the overscroll area in one go. */
   background: color-mix(in srgb, var(--spec-shell-to) 68%, #000);
 }
 
