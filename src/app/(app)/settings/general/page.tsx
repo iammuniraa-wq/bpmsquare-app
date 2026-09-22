@@ -37,7 +37,7 @@ const NOVA_ACCENT_PRESETS: { label: string; color: string | null }[] = [
  *  be a link but dark enough to be text. Picking the three separately is
  *  still there underneath for anyone who wants it. */
 const SPECTACULAR_MIXES: { label: string; from: string; to: string; accent: string }[] = [
-  { label: "Violet", from: "#2A1259", to: "#1B0A3D", accent: "#5B34D6" },
+  { label: "Violet", from: "#211046", to: "#14072E", accent: "#5129C4" },
   { label: "Midnight", from: "#132A5C", to: "#0A1733", accent: "#2563C9" },
   { label: "Forest", from: "#0F3B2E", to: "#07211A", accent: "#0E7C55" },
   { label: "Plum", from: "#4A1136", to: "#2B0820", accent: "#A6206A" },
@@ -431,13 +431,13 @@ export default function GeneralSettingsPage() {
 
   // Spectacular's own three. Stored partially on purpose: a workspace that
   // only wants a different accent sets one key, and globals.css's
-  // var(--spec-accent, #5B34D6) fallbacks keep the rest as shipped. The
+  // var(--spec-accent, #5129C4) fallbacks keep the rest as shipped. The
   // defaults below mirror those fallbacks, or the pickers would open on a
   // colour the app isn't actually using.
   const specColors = tenant?.config?.appearance?.spectacular_colors;
-  const specFrom = specColors?.shell_from ?? "#2A1259";
-  const specTo = specColors?.shell_to ?? "#1B0A3D";
-  const specAccent = specColors?.accent ?? "#5B34D6";
+  const specFrom = specColors?.shell_from ?? "#211046";
+  const specTo = specColors?.shell_to ?? "#14072E";
+  const specAccent = specColors?.accent ?? "#5129C4";
   // null clears the whole object -- back to the shipped violet.
   const saveSpectacularColors = (patch: { shell_from?: string; shell_to?: string; accent?: string } | null) => {
     const next = patch === null ? undefined : { ...(specColors ?? {}), ...patch };

@@ -16,7 +16,7 @@ import { ROUTES } from "@/lib/constants";
 import { MessageSquare, CheckIcon } from "@/components/Icons";
 import QuoteEditPanel from "@/components/QuoteEditPanel";
 import EmailComposeModal from "@/components/EmailComposeModal";
-import { useTenant, useTenantFeature, useIsNextgen3Layer, useCurrency } from "@/lib/tenant-context";
+import { useTenant, useTenantFeature, useIsNextgen3Layer, useCurrency, useIsSpectacular, useNovaSurfaces } from "@/lib/tenant-context";
 import { moneyFormatter, moneyLabel } from "@/lib/currency";
 import { celebrate } from "@/lib/celebrate";
 import NovaTimeline from "@/components/NovaTimeline";
@@ -358,10 +358,19 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   useEffect(() => { setCurrentStatus(quote.status); }, [quote.status]);
   const [currentOutcome, setCurrentOutcome] = useState<QuoteOutcome>(quote.outcome);
   useEffect(() => { setCurrentOutcome(quote.outcome); }, [quote.outcome]);
-  // Engagement layer (3-layer theme only): marking a quote Won earns the
-  // full celebration. Wired at the moment of the USER'S action -- a quote
-  // that loads already-won stays quiet.
-  const celebrateWins = useIsNextgen3Layer();
+  // Marking a quote Won earns the full celebration (owner request
+  // 2026-09-22: "bring also confetti for won from nova"). Wired at the
+  // moment of the USER'S action -- a quote that loads already-won stays
+  // quiet, which is what keeps it a moment rather than a decoration.
+  // celebrate() itself skips the particle storm under
+  // prefers-reduced-motion and shows the banner alone.
+  const isSpectacular = useIsSpectacular();
+  const celebrateWins = useIsNextgen3Layer() || isSpectacular;
+  // SEPARATE from the celebration, though one variable used to carry both.
+  // They are different questions -- "does this theme celebrate?" and "does
+  // this workspace have the timeline?" -- and conflating them meant widening
+  // one silently widened the other.
+  const showTimeline = useNovaSurfaces();
   const handleOutcomeChanged = (o: QuoteOutcome) => {
     if (o === "won" && currentOutcome !== "won" && celebrateWins) {
       celebrate("Quotation won!", `${quote.ref} · ${inr(quote.total)}`);
@@ -1292,7 +1301,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
 
           {/* Nova pillar 3: the record's timeline -- comments + change
               stream. Quotations first; other surfaces follow the same mount. */}
-          {celebrateWins && <NovaTimeline objectType="quotes" objectId={quote.id} />}
+          {showTimeline && <NovaTimeline objectType="quotes" objectId={quote.id} />}
 
         </div>
       </div>
