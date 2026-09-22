@@ -142,6 +142,7 @@ export default function GlobalSearchBar({ autoFocus, hotkeyDisabled }: { autoFoc
           </button>
         )}
         <select
+          className="bpm-search-scope"
           value={objectType}
           onChange={(e) => setObjectType(e.target.value as SearchObjectType | "")}
           title="Limit search to one object"
