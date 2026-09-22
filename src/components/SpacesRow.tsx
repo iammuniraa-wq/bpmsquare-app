@@ -96,6 +96,19 @@ export default function SpacesRow({
 
   const open = groups.find((g) => g.key === openKey) ?? null;
 
+  // The space you are IN, listed under the grid. Spaces replacing the tree
+  // left the rail with nine glyphs and then nothing (owner, 2026-09-22: "the
+  // left side feels a bit blank"), and the honest fix is not filler -- it is
+  // that a rail showing only glyphs has thrown away the one list that is
+  // always relevant: the screens of the area you are already working in.
+  //
+  // Suppressed while a flyout is open, so the same list is never on screen
+  // twice, and on a phone, where the inline list below IS the flyout.
+  const currentGroup = groups.find((g) =>
+    g.items.some((it) => pathname === it.href || pathname.startsWith(it.href + "/"))
+  ) ?? null;
+  const showCurrent = !open && !isMobile && currentGroup !== null && currentGroup.items.length > 1;
+
   // A single-item group has nothing to choose between, so it navigates
   // instead of opening a one-row menu.
   const onClick = (g: SpaceGroup, e: React.MouseEvent<HTMLButtonElement>) => {
@@ -152,7 +165,13 @@ export default function SpacesRow({
             </button>
           )}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 5 }}>
+        {/* THREE LABELLED TILES PER ROW, not five bare glyphs. Nova's own
+            comment on this row says unlabelled leaf icons "stopped being
+            guessable past ~10" -- and nine anonymous 36px squares in a 236px
+            rail were both unguessable AND left the rail looking empty below
+            them (owner, 2026-09-22). A label per tile answers both: you can
+            read the rail, and it occupies the space it was given. */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5 }}>
           {groups.map((g) => {
             const Icon = g.icon;
             const active = g.items.some((it) => pathname === it.href || pathname.startsWith(it.href + "/"));
@@ -166,17 +185,29 @@ export default function SpacesRow({
                 aria-expanded={g.items.length > 1 ? isOpen : undefined}
                 onClick={(e) => onClick(g, e)}
                 style={{
-                  position: "relative", aspectRatio: "1", display: "flex",
-                  alignItems: "center", justifyContent: "center",
-                  borderRadius: 9, cursor: "pointer", minWidth: 0, padding: 0,
+                  position: "relative", display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", gap: 5,
+                  borderRadius: 10, cursor: "pointer", minWidth: 0,
+                  padding: "10px 4px 8px", font: "inherit",
                   background: active || isOpen ? "var(--sb-hover-strong)" : "var(--sb-hover)",
                   border: `1px solid ${isOpen ? "var(--sb-tab-underline, var(--sb-line))" : "var(--sb-line)"}`,
                 }}
               >
                 <Icon size={18} color={active || isOpen ? "var(--sb-strong)" : "var(--sb-icon-muted)"} />
+                <span style={{
+                  fontSize: 9.5, fontWeight: 600, lineHeight: 1.15, textAlign: "center",
+                  color: active || isOpen ? "var(--sb-strong)" : "var(--sb-text-dim)",
+                  // A long label wraps to a second line rather than being cut:
+                  // three tiles across is 68px each, and "Master data" does not
+                  // fit on one. Every tile in a row grows together, so the grid
+                  // stays even.
+                  overflowWrap: "anywhere", maxWidth: "100%",
+                }}>
+                  {g.label}
+                </span>
                 {active && (
                   <span style={{
-                    position: "absolute", left: 9, right: 9, bottom: 3, height: 2, borderRadius: 2,
+                    position: "absolute", left: 10, right: 10, bottom: 2, height: 2, borderRadius: 2,
                     background: "var(--sb-tab-underline, var(--sb-strong))",
                   }} />
                 )}
@@ -184,6 +215,20 @@ export default function SpacesRow({
             );
           })}
         </div>
+
+        {showCurrent && currentGroup && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{
+              fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+              color: "var(--sb-text-faint)", padding: "0 6px 4px",
+            }}>
+              {currentGroup.label}
+            </div>
+            {currentGroup.items.map((it) => (
+              <SpaceLink key={it.href} item={it} pathname={pathname} onDone={() => onNavigate?.()} />
+            ))}
+          </div>
+        )}
 
         {/* On a phone the rail IS an overlay drawer with nothing beside it, so
             the list opens inline underneath rather than flying out. A fixed
