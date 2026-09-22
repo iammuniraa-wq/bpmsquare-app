@@ -1501,12 +1501,18 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     .slice(0, 6);
 
   // ── Spectacular: the opening ───────────────────────────────────────────────
-  // The dashboard the owner approved on the Lilac board (design proposal v3,
-  // 2026-09-19) opens with two things the widget grid cannot say: one
-  // STATEMENT sentence carrying the numbers that matter as inline badges, and
-  // a RULE STRIP of four figures, each behind a 3px coloured rule with an
-  // italic label under it. The cards below are unchanged -- they are the
-  // tenant's own configured layout and not this block's business.
+  // The RULE STRIP from the Lilac board (design proposal v3, 2026-09-19):
+  // four figures, each behind a 3px coloured rule with an italic label and
+  // its own denominator under it. The cards below are unchanged.
+  //
+  // It opened with a STATEMENT sentence too -- "176 open quotations worth
+  // ₹35,49,82,990, and 16 cases open" with the numbers in inline badges.
+  // Removed on the owner's call, 2026-09-22, after two attempts at its
+  // typography. Worth knowing it is gone deliberately rather than never
+  // built: the strip directly below was already carrying the same figures
+  // with their denominators attached, so the sentence was restating them at
+  // 26px and earning its place on style alone. It is in git if it is ever
+  // wanted back.
   //
   // Every number here is already on the page (kpis, analytics, the overdue
   // lists computed above): nothing new is fetched, and nothing is invented.
@@ -1515,62 +1521,14 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   // period, so that arrow could only ever have been decoration. Each figure
   // gets its real denominator instead, which is the more useful line anyway.
   //
-  // Module-aware throughout, like renderNextgenBrief below it: a clause or a
-  // figure appears only for a module this tenant actually bought, so a
-  // Workforce-only workspace gets a sentence about its own people rather
-  // than a sentence about quotations it will never raise.
+  // Module-aware throughout, like renderNextgenBrief below it: a figure
+  // appears only for a module this tenant actually bought, so a
+  // Workforce-only workspace gets its own people and its own approvals
+  // rather than four empty CRM numbers.
   function renderSpectacularOpening() {
-    const Badge = ({ children }: { children: React.ReactNode }) => (
-      <span style={{
-        display: "inline-flex", alignItems: "baseline", gap: 5,
-        background: "var(--card-bg, #fff)", borderRadius: 11, padding: "1px 10px 3px",
-        boxShadow: "0 2px 8px rgba(46, 32, 92, 0.10)", margin: "0 3px",
-        position: "relative", top: 2, color: "var(--modern-accent)",
-        fontWeight: 700, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums",
-      }}>
-        {children}
-      </span>
-    );
-
-    // COUNTS here, not quoteOutcomeTotals -- that one sums q.total, so the
-    // first cut of this sentence read "355666789.76 open quotations".
     const openQuotes = analytics.quoteOutcomeCounts.open;
     const decided = analytics.quoteOutcomeCounts.won + analytics.quoteOutcomeCounts.lost;
     const num = (n: number) => n.toLocaleString(cur.locale);
-
-    // Clauses, most-consequential first. Two make a sentence; a third would
-    // make a list, which is what the widget grid is for.
-    const clauses: React.ReactNode[] = [];
-    if (features.quotations === true && openQuotes > 0) {
-      clauses.push(
-        <span key="quotes">
-          <Badge>{num(openQuotes)}</Badge> open quotation{openQuotes > 1 ? "s" : ""} worth
-          <Badge>{inr(kpis.openQuoteValue)}</Badge>
-        </span>
-      );
-    }
-    if (features.cases === true && kpis.openCases > 0) {
-      clauses.push(
-        <span key="cases">
-          <Badge>{num(kpis.openCases)}</Badge> case{kpis.openCases > 1 ? "s" : ""} open
-          {overdueCases.length > 0 && <>, <span style={{ fontWeight: 700 }}>{overdueCases.length} past SLA</span></>}
-        </span>
-      );
-    }
-    if (features.work_orders === true && kpis.activeWorkOrders > 0) {
-      clauses.push(
-        <span key="wo">
-          <Badge>{num(kpis.activeWorkOrders)}</Badge> work order{kpis.activeWorkOrders > 1 ? "s" : ""} running
-        </span>
-      );
-    }
-    if (features.wfm === true && analytics.wfmWorkforceComposition.totalActive > 0) {
-      clauses.push(
-        <span key="wfm">
-          <Badge>{num(analytics.wfmWorkforceComposition.totalActive)}</Badge> people on the workforce
-        </span>
-      );
-    }
 
     // ── the rule strip ──
     type Fig = { key: string; value: string; label: string; foot: string; fill: string; href: string };
@@ -1619,32 +1577,14 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     }
     const shown = figs.slice(0, 4);
 
-    // Both halves can be empty on a brand-new workspace, and an empty
-    // statement above a row of zeroes is worse than no statement -- the
+    // Fewer than two figures is not a strip, it is a stray number -- and the
     // greeting and the brief below already handle "nothing here yet"
     // (commit 1d20324).
-    if (clauses.length === 0 && shown.length < 2) return null;
+    if (shown.length < 2) return null;
 
     return (
       <div style={{ marginBottom: 20 }}>
-        {clauses.length > 0 && (
-          // The display face, and weight 700 -- not 800. The statement is the
-          // most heading-like thing on the page, and it was rendering in the
-          // BODY face at a weight that face does not have, so the browser
-          // synthesised the bold: smeared stems, wrong sidebearings, exactly
-          // the "font here is bad" the owner circled. A real 700 in Archivo
-          // is heavier-looking than a faked 800 in Plex anyway.
-          <div className="bpm-statement" style={{
-            fontSize: "clamp(19px, 3.2vw, 26px)", lineHeight: 1.3, fontWeight: 700,
-            letterSpacing: "-0.03em", color: c.ink, maxWidth: 820, marginBottom: shown.length >= 2 ? 22 : 0,
-          }}>
-            {clauses[0]}
-            {clauses[1] && <span style={{ color: c.muted, fontWeight: 600 }}>, and </span>}
-            {clauses[1]}
-            <span style={{ color: c.muted, fontWeight: 600 }}>.</span>
-          </div>
-        )}
-        {shown.length >= 2 && (
+        {(
           // auto-fit, not repeat(N, 1fr): four fixed tracks divide whatever
           // width there is, and at ~700px of sheet that left each column
           // narrower than the money in it -- "₹65,81,000" printed straight
