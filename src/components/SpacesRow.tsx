@@ -35,7 +35,15 @@ import { MOBILE_BREAKPOINT } from "@/lib/constants";
  * mounts it — light ink on Spectacular's navy palette, white on purple's
  * violet shell, with no branch here.
  */
-export default function SpacesRow({ onNavigate }: { onNavigate?: () => void }) {
+export default function SpacesRow({
+  onNavigate, treeExpanded, onToggleTree,
+}: {
+  onNavigate?: () => void;
+  /** Whether the full nav tree below is showing. Owned by Sidebar, because
+   *  the tree is Sidebar's; this component only draws the switch. */
+  treeExpanded?: boolean;
+  onToggleTree?: () => void;
+}) {
   const spectacular = useIsSpectacular();
   const tenant = useTenant();
   const viewable = useViewableWorkcenters();
@@ -114,11 +122,35 @@ export default function SpacesRow({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       <div ref={rowRef} data-spaces-row style={{ padding: "0 4px 10px" }}>
-        <div style={{
-          fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
-          color: "var(--sb-text-faint)", padding: "0 6px 6px",
-        }}>
-          Spaces
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 6px 6px" }}>
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
+            color: "var(--sb-text-faint)",
+          }}>
+            Spaces
+          </span>
+          {onToggleTree && (
+            // Nova's own arrangement: Spaces is the rail, and expanding it
+            // reveals the full tree rather than a bigger grid of the same
+            // icons. Before this, Spectacular showed BOTH at once -- every
+            // module twice, once as a glyph and once as a row (owner,
+            // 2026-09-22: "spaces and menu duplicated").
+            <button
+              type="button"
+              onClick={onToggleTree}
+              aria-expanded={treeExpanded === true}
+              title={treeExpanded ? "Hide the full menu" : "Show the full menu"}
+              style={{
+                marginLeft: "auto", border: "none", background: "transparent", cursor: "pointer",
+                color: "var(--sb-text-faint)", fontSize: 10, fontWeight: 700,
+                letterSpacing: "0.06em", textTransform: "uppercase", padding: 0, font: "inherit",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              {treeExpanded ? "Less" : "All"}
+              <span style={{ fontSize: 9, display: "inline-block", transform: treeExpanded ? "rotate(180deg)" : "none" }}>▾</span>
+            </button>
+          )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 5 }}>
           {groups.map((g) => {

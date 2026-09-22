@@ -8,7 +8,7 @@ import type { NavItem } from "@/lib/constants";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon, Database, Box, Shield, Tag, Truck, Filter, Coins } from "@/components/Icons";
-import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useTopBarIdentity } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useTopBarIdentity, useIsSpectacular } from "@/lib/tenant-context";
 import SpacesRow from "@/components/SpacesRow";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
@@ -53,6 +53,8 @@ function hasVisibleChild(item: NavItem, features?: Record<string, boolean>, view
   if (!item.children?.length) return true;
   return item.children.some((ch) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable));
 }
+
+const TREE_KEY = "bpm_spec_tree_open";
 
 export function flattenNav(features?: Record<string, boolean>, viewable: ViewableWorkcenters = "all"): FlatItem[] {
   return NAV.flatMap((grp) =>
@@ -486,6 +488,21 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   // the drawer's own existing marker -- see the `collapsed` note below, which
   // uses it the same way.
   const identityInTopBar = useTopBarIdentity() && !onNavigate;
+  const isSpectacular = useIsSpectacular();
+
+  const [treeExpanded, setTreeExpanded] = useState(false);
+  useEffect(() => {
+    try {
+      setTreeExpanded(window.localStorage.getItem(TREE_KEY) === "1");
+    } catch { /* blocked storage -- Spaces only, which is the default anyway */ }
+  }, []);
+  const toggleTree = () => {
+    setTreeExpanded((v) => {
+      const next = !v;
+      try { window.localStorage.setItem(TREE_KEY, next ? "1" : "0"); } catch { /* nothing to do */ }
+      return next;
+    });
+  };
   const pathname = usePathname();
   const { settings } = useSettings();
   const tenant = useTenant();
@@ -501,6 +518,19 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   // when explicitly opened, and an icon rail inside a drawer would be
   // useless -- it always opens with full labels.
   const [collapsed, setCollapsed] = useState(!onNavigate);
+
+  // Spectacular's rail leads with Spaces, and the full tree is opt-in
+  // underneath it -- Nova's own arrangement. Showing both at once meant
+  // every module appeared twice, once as a glyph and once as a row (owner,
+  // 2026-09-22: "spaces and menu duplicated"). Per-browser, like the nav
+  // order this file already stores; read after mount so the server and
+  // client first renders agree.
+  // SpacesRow self-gates on Spectacular and is hidden when the rail is
+  // collapsed, so those are exactly the conditions under which it is the
+  // thing leading the navigation and the tree can stand down. Mirrored
+  // rather than exported from SpacesRow, because a hook cannot be called
+  // conditionally and this file needs the answer before rendering either.
+  const spacesLeads = isSpectacular && !collapsed;
   const toggleCollapsed = () => setCollapsed((prev) => !prev);
 
   const features   = tenant?.features as Record<string, boolean> | undefined;
@@ -671,7 +701,7 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
           and the tree underneath is the place you go when the shortcut isn't
           what you wanted. Hidden when the rail is collapsed -- five columns
           do not fit in 56px, and the icon rail already IS a glyph list. */}
-      {!collapsed && <SpacesRow onNavigate={onNavigate} />}
+      {!collapsed && <SpacesRow onNavigate={onNavigate} treeExpanded={treeExpanded} onToggleTree={toggleTree} />}
 
       {collapsed ? (
         <nav style={{ overflowY: "auto" }}>
@@ -697,7 +727,7 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
             </>
           )}
         </nav>
-      ) : (
+      ) : spacesLeads && !treeExpanded ? null : (
       <nav>
         {/* Favourites */}
         <div style={{
@@ -750,44 +780,49 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
           isWfmSupervisor={isWfmSupervisor}
         />
 
-        {/* Settings link + reset -- Settings itself is hidden for a member
-            restricted to specific workcenters by a Business Role (nothing
-            in it is scoped to any workcenter, so it was previously shown
-            to everyone regardless of restriction); "Reset nav order" is
-            just a personal nav-layout preference, so it stays available
-            either way. */}
-        <div style={{ borderTop: "1px solid var(--sb-line)", marginTop: 10, paddingTop: 8 }}>
-          {viewable === "all" && (
-            <Link
-              href={ROUTES.settings}
-              onClick={onNavigate}
-              style={{
-                display: "flex", alignItems: "center", gap: 8, width: "100%",
-                padding: "7px 10px", borderRadius: 8, fontSize: 12.5,
-                color: isActive(ROUTES.settings) ? "#dce9f6" : "var(--sb-text)",
-                background: isActive(ROUTES.settings) ? `var(--sb-active-bg, ${accent})` : "transparent",
-                textDecoration: "none",
-                transition: "background 0.12s",
-              }}
-            >
-              <Gear size={14} color={isActive(ROUTES.settings) ? "var(--sb-active-ink, #fff)" : "var(--sb-icon-muted)"} />
-              <span>Settings</span>
-            </Link>
-          )}
-          <button
-            onClick={resetNav}
+      </nav>
+      )}
+      {/* Settings and the nav-order reset live OUTSIDE the tree: Settings is
+          not in NAV, so Spaces cannot carry it, and when Spaces leads and the
+          tree is collapsed this footer is the only way to reach it. Rendered
+          for the expanded rail only -- the collapsed icon rail has its own
+          Settings glyph above. */}
+      {/* Settings is hidden for a member restricted to specific workcenters by
+          a Business Role (nothing in it is scoped to any workcenter, so it was
+          previously shown to everyone regardless); "Reset nav order" is a
+          personal preference and stays available either way. */}
+      {!collapsed && (
+      <div style={{ borderTop: "1px solid var(--sb-line)", marginTop: 10, paddingTop: 8 }}>
+        {viewable === "all" && (
+          <Link
+            href={ROUTES.settings}
+            onClick={onNavigate}
             style={{
-              background: "transparent", border: "none",
-              color: "var(--sb-text-dim)", fontSize: 11, cursor: "pointer",
-              padding: "4px 10px", borderRadius: 5,
-              textAlign: "left", width: "100%",
-              marginTop: 2,
+              display: "flex", alignItems: "center", gap: 8, width: "100%",
+              padding: "7px 10px", borderRadius: 8, fontSize: 12.5,
+              color: isActive(ROUTES.settings) ? "#dce9f6" : "var(--sb-text)",
+              background: isActive(ROUTES.settings) ? `var(--sb-active-bg, ${accent})` : "transparent",
+              textDecoration: "none",
+              transition: "background 0.12s",
             }}
           >
-            ↺ Reset nav order
-          </button>
-        </div>
-      </nav>
+            <Gear size={14} color={isActive(ROUTES.settings) ? "var(--sb-active-ink, #fff)" : "var(--sb-icon-muted)"} />
+            <span>Settings</span>
+          </Link>
+        )}
+        <button
+          onClick={resetNav}
+          style={{
+            background: "transparent", border: "none",
+            color: "var(--sb-text-dim)", fontSize: 11, cursor: "pointer",
+            padding: "4px 10px", borderRadius: 5,
+            textAlign: "left", width: "100%",
+            marginTop: 2,
+          }}
+        >
+          ↺ Reset nav order
+        </button>
+      </div>
       )}
     </aside>
   );
