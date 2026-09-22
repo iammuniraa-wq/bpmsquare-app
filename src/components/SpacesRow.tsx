@@ -102,12 +102,17 @@ export default function SpacesRow({
   // that a rail showing only glyphs has thrown away the one list that is
   // always relevant: the screens of the area you are already working in.
   //
-  // Suppressed while a flyout is open, so the same list is never on screen
-  // twice, and on a phone, where the inline list below IS the flyout.
+  // Suppressed in three cases, each because the same links are already on
+  // screen: while a flyout is open; on a phone, where the inline list below
+  // IS the flyout; and -- the one this missed until 2026-09-22 -- while the
+  // full tree is expanded, which lists every space including this one. That
+  // last gap was real, not the stale build the owner first took it for: with
+  // "All" open you got the current space once here and again in the tree.
   const currentGroup = groups.find((g) =>
     g.items.some((it) => pathname === it.href || pathname.startsWith(it.href + "/"))
   ) ?? null;
-  const showCurrent = !open && !isMobile && currentGroup !== null && currentGroup.items.length > 1;
+  const showCurrent = !open && !isMobile && !treeExpanded
+    && currentGroup !== null && currentGroup.items.length > 1;
 
   // A single-item group has nothing to choose between, so it navigates
   // instead of opening a one-row menu.
