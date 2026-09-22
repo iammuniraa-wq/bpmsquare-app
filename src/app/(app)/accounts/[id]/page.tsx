@@ -73,10 +73,14 @@ type Tab = "overview" | "cases" | "contacts" | "assets" | "quotations" | "projec
 // used everywhere else in the app.
 const TABS: { id: Tab; label: string; featureKey?: keyof TenantFeatures }[] = [
   { id: "overview",   label: "Overview"   },
-  { id: "cases",      label: "Cases"      },
-  { id: "contacts",   label: "Contacts"   },
-  { id: "assets",     label: "Assets"     },
-  { id: "quotations", label: "Quotations" },
+  // Every object tab carries its own module's key. Four of these (cases,
+  // contacts, assets, quotations) had none until 2026-09-22, so they showed
+  // for every tenant regardless of what was sold -- reported on the snasquare
+  // workspace, which has none of those modules and saw all four tabs.
+  { id: "cases",      label: "Cases",      featureKey: "cases"      },
+  { id: "contacts",   label: "Contacts",   featureKey: "contacts"   },
+  { id: "assets",     label: "Assets",     featureKey: "assets"     },
+  { id: "quotations", label: "Quotations", featureKey: "quotations" },
   { id: "projects",   label: "Projects",  featureKey: "wfm_projects" },
   { id: "invoices",   label: "Invoices",  featureKey: "invoices" },
   { id: "activity",   label: "Activity"   },
@@ -362,10 +366,13 @@ export default async function AccountHubPage({
 
           {/* RIGHT: Quick create — jump straight into a related object */}
           <QuickCreateDeck items={[
-            { href: `${ROUTES.caseNew}?account_id=${id}`,      label: "New case",       icon: <ActivityIcon size={13} color={pillar.teal.base} />, bg: pillar.teal.bg },
-            { href: `${ROUTES.contactNew}?account_id=${id}`,   label: "New contact",    icon: <Phone size={13} color={pillar.blue.base} />,     bg: pillar.blue.bg },
-            { href: `${ROUTES.assetNew}?account_id=${id}`,     label: "New asset",      icon: <Gear size={13} color={pillar.green.base} />,     bg: pillar.green.bg },
-            { href: `${ROUTES.quotationNew}?account_id=${id}`,  label: "New quotation",  icon: <Package size={13} color={pillar.amber.base} />,  bg: pillar.amber.bg },
+            // Same gating as the tabs above and as invoices/projects below --
+            // offering "New case" to a tenant without the Cases module sends
+            // them to a route the nav doesn't even list (snasquare, 2026-09-22).
+            ...(features?.cases ? [{ href: `${ROUTES.caseNew}?account_id=${id}`, label: "New case", icon: <ActivityIcon size={13} color={pillar.teal.base} />, bg: pillar.teal.bg }] : []),
+            ...(features?.contacts ? [{ href: `${ROUTES.contactNew}?account_id=${id}`, label: "New contact", icon: <Phone size={13} color={pillar.blue.base} />, bg: pillar.blue.bg }] : []),
+            ...(features?.assets ? [{ href: `${ROUTES.assetNew}?account_id=${id}`, label: "New asset", icon: <Gear size={13} color={pillar.green.base} />, bg: pillar.green.bg }] : []),
+            ...(features?.quotations ? [{ href: `${ROUTES.quotationNew}?account_id=${id}`, label: "New quotation", icon: <Package size={13} color={pillar.amber.base} />, bg: pillar.amber.bg }] : []),
             ...(features?.invoices ? [{ href: `${ROUTES.invoiceNew}?account_id=${id}`, label: "New invoice", icon: <FileText size={13} color={pillar.purple.base} />, bg: pillar.purple.bg }] : []),
             ...(features?.wfm_projects ? [{ href: `${ROUTES.wfmProjectNew}?account=${id}`, label: "New project", icon: <Gear size={13} color={pillar.teal.base} />, bg: pillar.teal.bg }] : []),
           ]} />
