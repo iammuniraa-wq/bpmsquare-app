@@ -65,11 +65,39 @@ export default function QuotePrint(props: Props) {
       URL.revokeObjectURL(url);
     } catch (e) {
       // Never leave them stuck: the browser print path still works, and says so.
-      setPdfError(`${e instanceof Error ? e.message : "Could not build the PDF"} — use Print / Save PDF instead.`);
+      setPdfError(e instanceof Error ? e.message : "Could not build the PDF.");
     } finally {
       setPdfState("idle");
     }
   }
+
+  /**
+   * Arriving from the quote's own menu (?download=1) starts the download
+   * itself, so "Download PDF" there is one click rather than one click and
+   * then another on a page that looks like a preview.
+   *
+   * Waits for footerMarginReady first -- the same flag the server waits for.
+   * That is set only after fonts.ready and a re-measure, so firing on it
+   * means the posted DOM carries the settled footer height rather than the
+   * first guess taken while the webfont was still in flight (the 2026-09-20
+   * Vikas bug, where the last lines before a page break hid under the footer
+   * until the font was cached and a refresh "fixed" it).
+   */
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("download")) return;
+    let fired = false;
+    const tryFire = () => {
+      if (fired || document.documentElement.dataset.footerMarginReady == null) return false;
+      fired = true;
+      void downloadPdf();
+      return true;
+    };
+    if (tryFire()) return;
+    const t = setInterval(() => { if (tryFire()) clearInterval(t); }, 150);
+    const giveUp = setTimeout(() => clearInterval(t), 10000);
+    return () => { clearInterval(t); clearTimeout(giveUp); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const emailVars = {
     customer_name: contact?.name ?? "Sir/Madam",
@@ -294,10 +322,23 @@ export default function QuotePrint(props: Props) {
         >
           {pdfState === "working" ? "Preparing…" : "⬇ Download PDF"}
         </button>
-        <button onClick={() => window.print()} style={{ background: "transparent", color: "#aebccd", border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>
-          Print / Save PDF (browser)
-        </button>
-        {pdfError && <span style={{ color: "#f0a1a1", fontSize: 12.5 }}>{pdfError}</span>}
+        {/* One way to get a PDF, deliberately (owner, 2026-09-22) -- the
+            browser-print button that used to sit here produced a different
+            document, stamped by Chrome, and offering both only invited people
+            to pick the wrong one. window.print() survives ONLY as a recovery
+            link inside the error below, so a failed render never leaves
+            somebody with no way to get their quote out. */}
+        {pdfError && (
+          <span style={{ color: "#f0a1a1", fontSize: 12.5 }}>
+            {pdfError}{" "}
+            <button
+              onClick={() => window.print()}
+              style={{ background: "none", border: "none", color: "#aebccd", textDecoration: "underline", fontSize: 12.5, cursor: "pointer", padding: 0 }}
+            >
+              Print instead
+            </button>
+          </span>
+        )}
         <button
           onClick={() => setComposeOpen(true)}
           disabled={emailState === "sent"}
