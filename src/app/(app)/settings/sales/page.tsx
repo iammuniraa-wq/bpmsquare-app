@@ -25,8 +25,8 @@ export default async function SalesConfigPage() {
   return (
     <>
       <PageHeader
-        title="Sales config"
-        subtitle="Manage product category picklist values"
+        title="Product categories"
+        subtitle="The category tree products are filed under, and that category fields pick from"
       />
       <SalesConfigClient
         initialProductCategories={normalizeCategoryTree(cfg.product_categories)}
