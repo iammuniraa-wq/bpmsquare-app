@@ -67,7 +67,7 @@ export default function TabBar() {
       // it -- that line was the last hard edge in the chrome.
       borderBottom: pills ? "none" : "1px solid var(--sb-line)",
       background: "var(--sb-bar-bg)",
-      height: pills ? 44 : 42, minHeight: pills ? 44 : 42, flexShrink: 0,
+      height: pills ? 46 : 42, minHeight: pills ? 46 : 42, flexShrink: 0,
       gap: pills ? 4 : 0,
       position: "relative",
     }}>
@@ -96,8 +96,18 @@ export default function TabBar() {
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: pills ? "0 8px 0 11px" : "0 10px 0 12px",
-                minWidth: pills ? 0 : 110, maxWidth: 190, flexShrink: 0,
-                height: pills ? 32 : 42,
+                // A tab holds TWO lines -- the title at 12px and the section
+                // label at 9px, both at line-height 1.2 -- so it needs 25.2px
+                // of text in a border-box pill. 32px left 2.4px above and
+                // below, which fits but reads as cramped and would clip if a
+                // browser rounded a line-height up. 34 gives it room.
+                //
+                // minWidth is a floor, not the old 110px slab: with no floor
+                // at all a short title ("Leads", "AMC") makes a pill barely
+                // wider than its close button, and a row of wildly uneven
+                // pills reads as broken rather than as sized-to-fit.
+                minWidth: pills ? 96 : 110, maxWidth: 190, flexShrink: 0,
+                height: pills ? 34 : 42,
                 borderRadius: pills ? 10 : 0,
                 // On the shell, a filled pill IS the indicator -- an
                 // underline as well would be saying it twice, and there is no
