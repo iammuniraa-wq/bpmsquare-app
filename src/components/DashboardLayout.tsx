@@ -1524,9 +1524,9 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <span style={{
         display: "inline-flex", alignItems: "baseline", gap: 5,
         background: "var(--card-bg, #fff)", borderRadius: 11, padding: "1px 10px 3px",
-        boxShadow: "0 3px 12px rgba(46, 32, 92, 0.13)", margin: "0 3px",
+        boxShadow: "0 2px 8px rgba(46, 32, 92, 0.10)", margin: "0 3px",
         position: "relative", top: 2, color: "var(--modern-accent)",
-        fontWeight: 800, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums",
+        fontWeight: 700, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums",
       }}>
         {children}
       </span>
@@ -1628,9 +1628,15 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     return (
       <div style={{ marginBottom: 20 }}>
         {clauses.length > 0 && (
-          <div style={{
-            fontSize: "clamp(19px, 3.2vw, 25px)", lineHeight: 1.28, fontWeight: 800,
-            letterSpacing: "-0.035em", color: c.ink, maxWidth: 780, marginBottom: shown.length >= 2 ? 22 : 0,
+          // The display face, and weight 700 -- not 800. The statement is the
+          // most heading-like thing on the page, and it was rendering in the
+          // BODY face at a weight that face does not have, so the browser
+          // synthesised the bold: smeared stems, wrong sidebearings, exactly
+          // the "font here is bad" the owner circled. A real 700 in Archivo
+          // is heavier-looking than a faked 800 in Plex anyway.
+          <div className="bpm-statement" style={{
+            fontSize: "clamp(19px, 3.2vw, 26px)", lineHeight: 1.3, fontWeight: 700,
+            letterSpacing: "-0.03em", color: c.ink, maxWidth: 820, marginBottom: shown.length >= 2 ? 22 : 0,
           }}>
             {clauses[0]}
             {clauses[1] && <span style={{ color: c.muted, fontWeight: 600 }}>, and </span>}
@@ -1653,7 +1659,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
                 <span style={{ width: 3, borderRadius: 3, background: f.fill, flexShrink: 0 }} />
                 <span style={{ minWidth: 0 }}>
                   <span style={{
-                    display: "block", fontSize: "clamp(20px, 1.7vw, 26px)", fontWeight: 800, letterSpacing: "-0.04em",
+                    display: "block", fontSize: "clamp(20px, 1.7vw, 26px)", fontWeight: 700, letterSpacing: "-0.035em",
                     whiteSpace: "nowrap",
                     lineHeight: 1.05, color: c.ink, fontVariantNumeric: "tabular-nums",
                   }}>
@@ -1662,7 +1668,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
                   <span style={{ display: "block", fontSize: 11.5, fontStyle: "italic", fontWeight: 500, color: c.muted, lineHeight: 1.32, marginTop: 3 }}>
                     {f.label}
                   </span>
-                  <span style={{ display: "block", fontSize: 10.5, fontWeight: 800, color: f.fill, marginTop: 5 }}>
+                  <span style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: f.fill, marginTop: 5 }}>
                     {f.foot}
                   </span>
                 </span>

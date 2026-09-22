@@ -933,6 +933,14 @@
   font-family: var(--font-spec-display), var(--font-spec-body), sans-serif;
   letter-spacing: -0.025em;
 }
+/* The dashboard statement is a heading in everything but tag name, so it
+   takes the display face too. Its figures are inside badges beside words, so
+   they want the tabular set for the same reason a column does. */
+[data-theme="nextgen"][data-spectacular="true"] .bpm-statement {
+  font-family: var(--font-spec-display), var(--font-spec-body), sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Figures line up in a column only if the face is told to use its tabular
    set -- Plex defaults to proportional, which makes a money column ripple. */
 [data-theme="nextgen"][data-spectacular="true"] td,
