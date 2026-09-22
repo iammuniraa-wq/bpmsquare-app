@@ -902,6 +902,44 @@
   box-shadow: 0 0 0 3px rgba(91, 52, 214, 0.16);
 }
 
+/* ---- SPECTACULAR'S TYPE (owner request 2026-09-22) ----------------------
+   "The font doesn't look good. Look for the best enterprise grade font."
+
+   It was the system stack -- Segoe UI on Windows -- which is why every
+   screen read as generic. These are the two faces from the approved design
+   board (src/lib/spectacularFonts.ts has the reasoning): IBM Plex Sans for
+   body, commissioned for exactly this job and carrying real tabular
+   figures, and Archivo for display so a heading reads as one at the same
+   weight rather than by size alone.
+
+   The selector has to be this specific because [data-theme] sets the system
+   stack on the SAME element that carries data-spectacular-variant -- a
+   less specific rule would lose to it and silently do nothing.
+
+   Both variants, navy and purple: the type is the product's, not a
+   palette's. Every other theme keeps the system stack and pays no
+   download. */
+[data-theme="nextgen"][data-spectacular="true"] {
+  font-family: var(--font-spec-body), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+  /* Plex sits a touch wider than Segoe at the same size, and this app is
+     dense -- a hair of negative tracking keeps long nav labels and table
+     headers on one line. */
+  letter-spacing: -0.004em;
+}
+[data-theme="nextgen"][data-spectacular="true"] h1,
+[data-theme="nextgen"][data-spectacular="true"] h2,
+[data-theme="nextgen"][data-spectacular="true"] h3,
+[data-theme="nextgen"][data-spectacular="true"] .bpm-page-header-title {
+  font-family: var(--font-spec-display), var(--font-spec-body), sans-serif;
+  letter-spacing: -0.025em;
+}
+/* Figures line up in a column only if the face is told to use its tabular
+   set -- Plex defaults to proportional, which makes a money column ripple. */
+[data-theme="nextgen"][data-spectacular="true"] td,
+[data-theme="nextgen"][data-spectacular="true"] th {
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- SPECTACULAR'S THREE KNOBS (owner request 2026-09-21) ---------------
    "An option to change colours in Spectacular, including mix colours."
 

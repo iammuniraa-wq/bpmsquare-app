@@ -6,6 +6,7 @@ import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { isPrimaryOrDevHost } from "@/lib/constants";
 import { getTenantBrandingByHost } from "@/lib/tenant";
 import { novaDisplay, novaBody } from "@/lib/novaFonts";
+import { specDisplay, specBody } from "@/lib/spectacularFonts";
 
 // viewportFit: "cover" is what makes env(safe-area-inset-*) resolve to a
 // real value on notched iPhones instead of always 0 -- kept for any
@@ -34,7 +35,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${novaDisplay.variable} ${novaBody.variable}`}>
+    <html lang="en" className={`${novaDisplay.variable} ${novaBody.variable} ${specDisplay.variable} ${specBody.variable}`}>
       <head>
         <style>{`
           .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
