@@ -1016,6 +1016,12 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                   background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10,
                   boxShadow: "0 8px 24px rgba(0,0,0,.15)", minWidth: 200, overflow: "hidden",
                 }}>
+                  {/* Opens the print view, where the PDF is actually produced.
+                      Deliberately NOT a direct link to /api/quotes/[id]/pdf:
+                      that route re-renders the quote in a fresh headless
+                      browser and has never matched this page exactly. The
+                      print view carries the real Download PDF button, which
+                      sends the settled page itself to be printed. */}
                   <Link
                     href={ROUTES.quotationPrint(quote.id)}
                     target="_blank"
@@ -1023,7 +1029,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                     onClick={() => setMoreOpen(false)}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 16px", fontSize: 13, color: c.ink, textDecoration: "none", borderBottom: `1px solid ${c.line}` }}
                   >
-                    <span style={{ fontSize: 15 }}>↓</span> Download PDF
+                    <span style={{ fontSize: 15 }}>↓</span> Print / Download PDF
                   </Link>
                   <Link
                     href={`/api/quotes/${quote.id}/export`}
