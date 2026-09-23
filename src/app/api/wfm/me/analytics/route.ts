@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmEmployee, getWfmConfig } from "@/lib/wfm/server";
 import { getMonthlySummary } from "@/lib/wfm/monthlySummary";
+import { trace } from "@/lib/trace";
+
+// See api/wfm/summary/route.ts -- same 2026-09-23 incident, same reasoning.
+export const maxDuration = 60;
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 const TREND_MONTHS = 6;

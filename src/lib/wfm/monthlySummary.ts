@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminSupabase } from "@/lib/supabase-server";
+import { trace } from "@/lib/trace";
 import { getWfmConfig, dateKeyInTz } from "./server";
 import { makeShiftResolver, type RosterLike, type ShiftLike } from "./effectiveShift";
 import { computeDayHours, shiftDayKey, workSessions, overnightTail, type BreakSegment, type WorkSession } from "./hours";
@@ -125,6 +126,7 @@ async function fetchAllPresenceEvents(
     }
     const page = (data ?? []) as { employee_id: string; kind: string; ts: string }[];
     all.push(...page);
+    console.error(`[trace presenceEvents] page@${from} got=${page.length} total=${all.length}`);
     if (page.length < PRESENCE_EVENTS_PAGE_SIZE) break;
     from += PRESENCE_EVENTS_PAGE_SIZE;
   }
@@ -208,6 +210,8 @@ async function buildSummaries(
   employeeIds?: string[]
 ): Promise<EmployeeMonthSummary[]> {
   const admin = createAdminSupabase();
+  const tr = trace("getMonthlySummary");
+  tr.stage("getWfmConfig");
   const config = await getWfmConfig(admin, tenantId);
   const todayKey = dateKeyInTz(new Date(), config.timezone);
 
@@ -225,6 +229,7 @@ async function buildSummaries(
   // getWfmLiveBoardSnapshot's `if (employeeIds)` at server.ts.)
   if (employeeIds) employeeQuery = employeeQuery.in("id", employeeIds);
 
+  tr.stage("batchQueries");
   const [{ data: employees }, { data: sites }, { data: shifts }, { data: holidays }, { data: leaves }, { data: otRows }, { data: rosterRows }] = await Promise.all([
     employeeQuery,
     admin.from("wfm_sites").select("id, name").eq("tenant_id", tenantId),
@@ -279,6 +284,7 @@ async function buildSummaries(
   const windowEnd = new Date(`${dates[dates.length - 1]}T00:00:00Z`);
   windowEnd.setUTCDate(windowEnd.getUTCDate() + 2);
 
+  tr.stage(`fetchAllPresenceEvents(${employeeRows.length} employees, ${dates.length} dates)`);
   const events = await fetchAllPresenceEvents(admin, tenantId, employeeRows.map((e) => e.id as string), windowStart.toISOString(), windowEnd.toISOString());
 
   const eventsByEmp = new Map<string, { kind: PresenceKind; ts: string }[]>();
@@ -311,6 +317,7 @@ async function buildSummaries(
   // Sick paid for one day a month (BIM): beyond a type's paid allowance in a
   // month, a paid-category day counts as UNPAID in the totals and the
   // export. The day still shows the type's name, with the reason appended.
+  tr.stage(`paidAllowanceByType (leaveDays=${leaveDaysByEmpTypeMonth.size})`);
   const allowanceByType = await paidAllowanceByType(admin, tenantId);
   for (const [k, days] of leaveDaysByEmpTypeMonth) {
     const [empId, typeId] = k.split("|");
@@ -352,7 +359,8 @@ async function buildSummaries(
     return weekdayCache.get(d)!;
   };
 
-  return employeeRows.map((emp) => {
+  tr.stage("buildRows");
+  const built = employeeRows.map((emp) => {
     const allEvents = eventsByEmp.get(emp.id) ?? [];
     // Standing shift is still what buckets events into shift-days: a day's
     // events have to be assigned to a day BEFORE that day's roster can be
@@ -487,6 +495,8 @@ async function buildSummaries(
       },
     };
   });
+  tr.done(`${built.length} rows`);
+  return built;
 }
 
 /** paid_days_per_month per leave type (0109); empty until the migration is applied. */

@@ -7,6 +7,7 @@ import {
   TRUSTED_USER_ID_HEADER, TRUSTED_EMAIL_HEADER, TRUSTED_TENANT_ID_HEADER, TRUSTED_ROLE_HEADER,
   SUPABASE_COOKIE_OPTIONS, PATHNAME_HEADER,
 } from "./constants";
+import { trace } from "./trace";
 
 // The only API route a must-change-password login is allowed to call --
 // everything else is blocked by requireTenantUser() below until the flag
@@ -177,12 +178,15 @@ export const resolveHostTenant = cache(async (): Promise<HostTenantResult> => {
   const host = h.get("host")?.split(":")[0] ?? "";
   if (host === "localhost" || host === "127.0.0.1") return { kind: "dev" };
 
+  const tr = trace("resolveHostTenant");
+  tr.stage("getAuthUser");
   const user = await getAuthUser();
   if (!user) return { kind: "denied" };
 
   const admin = createAdminSupabase();
 
   // Which tenant does this host map to?
+  tr.stage("tenantByHost");
   let targetTenantId: string | null = null;
   if (host === PRIMARY_HOST) {
     const { data } = await admin.from("tenants").select("id").eq("is_demo", true).maybeSingle();
@@ -205,16 +209,20 @@ export const resolveHostTenant = cache(async (): Promise<HostTenantResult> => {
   // employees" on POST /api/employees. Omitting ignoreDuplicates makes this
   // an actual UPSERT: an existing row's role is promoted to admin too, so
   // the returned role always matches what's really in the database.
+  tr.stage("isPlatformAdmin");
   if (await isPlatformAdmin()) {
+    tr.stage("platformAdminUpsert");
     await admin
       .from("tenant_users")
       .upsert({ tenant_id: targetTenantId, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id" });
+    tr.done("platform-admin path");
     return { kind: "resolved", tenantId: targetTenantId, role: "admin" };
   }
 
   // Everyone else: must be a member of THIS host's tenant, and that
   // membership must be active (not admin-locked, inside its validity window
   // -- see 0057). No fallback.
+  tr.stage("membership");
   const { data: membership } = await admin
     .from("tenant_users")
     .select("role, is_locked, valid_from, valid_to")
@@ -223,6 +231,7 @@ export const resolveHostTenant = cache(async (): Promise<HostTenantResult> => {
     .maybeSingle();
   if (!membership || !isMembershipActive(membership)) return { kind: "denied" };
 
+  tr.done("member path");
   return { kind: "resolved", tenantId: targetTenantId, role: (membership.role as "admin" | "member") ?? "member" };
 });
 
@@ -265,11 +274,15 @@ export async function requireTenantUser(): Promise<{
   userId: string;
   role: "admin" | "member";
 }> {
+  const tr = trace("requireTenantUser");
+  tr.stage("createServerSupabase");
   const supabase = await createServerSupabase();
+  tr.stage("getAuthUser");
   const user = await getAuthUser();
   if (!user) throw { status: 401, message: "Unauthorized" };
 
   // Host decides the tenant; the user only decides access.
+  tr.stage("resolveHostTenant");
   const host = await resolveHostTenant();
   let result: { supabase: SupabaseClient; tenantId: string; userId: string; role: "admin" | "member" };
   if (host.kind === "resolved") {
@@ -285,12 +298,14 @@ export async function requireTenantUser(): Promise<{
     result = { supabase, tenantId: membership.tenant_id, userId: user.id, role: membership.role };
   }
 
+  tr.stage("passwordGate");
   const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
   const gate = await getTenantMembership(result.tenantId, result.userId);
   if (shouldBlockForPasswordChange(Boolean(gate?.must_change_password), pathname)) {
     throw { status: 403, message: "Password change required — set a new password before continuing" };
   }
 
+  tr.done();
   return result;
 }
 

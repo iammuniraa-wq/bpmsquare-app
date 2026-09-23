@@ -3,6 +3,13 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getMonthlySummary, getSummaryForRange, MAX_RANGE_DAYS } from "@/lib/wfm/monthlySummary";
+import { trace } from "@/lib/trace";
+
+// Capped deliberately (2026-09-23): this route was observed running 300-546s
+// on bim.bpmsquare.com before the instance was killed, burning compute and
+// holding memory that took neighbouring requests down with it. Failing at 60s
+// is worse for one caller and far better for everyone sharing the instance.
+export const maxDuration = 60;
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -14,8 +21,10 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // same payload (the dataset is small -- a few hundred rows at most for the
 // ~100-employee scale this module targets).
 export async function GET(request: NextRequest) {
+  const tr = trace("wfm/summary");
   let ctx;
   try {
+    tr.stage("requireWfmSupervisor");
     ctx = await requireWfmSupervisor();
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
@@ -30,8 +39,10 @@ export async function GET(request: NextRequest) {
   // The month/range view is scoped to the caller's subtree, so a site
   // supervisor's export contains their own site only -- previously every
   // supervisor received every employee's hours and filtered them in the browser.
+  tr.stage("resolveWfmScope");
   const scope = await resolveWfmScope(ctx);
   const employeeIds = scope.unrestricted ? undefined : (scope.employeeIds ?? []);
+  tr.stage("getWfmConfig");
   const config = await getWfmConfig(createAdminSupabase(), tenantId);
 
   if (from || to) {
@@ -53,7 +64,9 @@ export async function GET(request: NextRequest) {
   if (!month || !MONTH_RE.test(month)) {
     return NextResponse.json({ error: "month (YYYY-MM), or from/to (YYYY-MM-DD), is required" }, { status: 400 });
   }
+  tr.stage(`getMonthlySummary(${employeeIds ? employeeIds.length + " employees" : "unrestricted"})`);
   const summaries = await getMonthlySummary(tenantId, month, employeeIds);
+  tr.done(`${summaries.length} rows`);
   return NextResponse.json({
     month,
     employees: summaries,
