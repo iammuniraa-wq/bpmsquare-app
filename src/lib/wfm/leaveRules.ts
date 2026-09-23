@@ -15,7 +15,11 @@ function nextDay(d: string): string {
 export function leaveDaysByMonth(span: LeaveSpan): Record<string, number> {
   const out: Record<string, number> = {};
   const weight = span.half_day ? 0.5 : 1;
+  let guard = 0;
   for (let d = span.date_from; d <= span.date_to; d = nextDay(d)) {
+    if (++guard > 400) {
+      throw new Error(`leave span ${span.date_from}..${span.date_to} exceeds 400 days -- refusing to expand`);
+    }
     const m = d.slice(0, 7);
     out[m] = (out[m] ?? 0) + weight;
   }

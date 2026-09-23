@@ -65,7 +65,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "month (YYYY-MM), or from/to (YYYY-MM-DD), is required" }, { status: 400 });
   }
   tr.stage(`getMonthlySummary(${employeeIds ? employeeIds.length + " employees" : "unrestricted"})`);
-  const summaries = await getMonthlySummary(tenantId, month, employeeIds);
+  let summaries;
+  try {
+    summaries = await getMonthlySummary(tenantId, month, employeeIds);
+  } catch (e) {
+    // Surfaced rather than swallowed: the caps and the memory guard exist to
+    // turn a silent instance kill into a message, so it has to reach both the
+    // log and the caller.
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[wfm/summary] ${msg}`);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
   tr.done(`${summaries.length} rows`);
   return NextResponse.json({
     month,
