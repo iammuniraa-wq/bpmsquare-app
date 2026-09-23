@@ -99,6 +99,7 @@ export type EmployeeMonthSummary = {
 // queries a rolling 36h window, nowhere near the cap) was unaffected. Fixed
 // by paginating instead of trusting one .select() to return everything.
 const PRESENCE_EVENTS_PAGE_SIZE = 1000;
+const PRESENCE_EVENTS_MAX = 200_000;
 
 async function fetchAllPresenceEvents(
   admin: ReturnType<typeof createAdminSupabase>,
@@ -126,7 +127,16 @@ async function fetchAllPresenceEvents(
     }
     const page = (data ?? []) as { employee_id: string; kind: string; ts: string }[];
     all.push(...page);
-    console.error(`[trace presenceEvents] page@${from} got=${page.length} total=${all.length}`);
+    // A hard stop, not a tuning knob. The whole table was 5,305 rows on
+    // 2026-09-23, so anything approaching this bound means the loop is not
+    // advancing -- and a THROW is diagnosable where an OOM kill is not:
+    // Vercel ships logs asynchronously, so a SIGKILL'd instance loses its
+    // whole log buffer and tells us nothing.
+    if (all.length > PRESENCE_EVENTS_MAX) {
+      throw new Error(
+        `presence events exceeded ${PRESENCE_EVENTS_MAX} rows (tenant ${tenantId}, ${gteIso}..${ltIso}, ${employeeIds.length} employees) -- pagination is not terminating`
+      );
+    }
     if (page.length < PRESENCE_EVENTS_PAGE_SIZE) break;
     from += PRESENCE_EVENTS_PAGE_SIZE;
   }
@@ -301,7 +311,17 @@ async function buildSummaries(
   for (const l of leaves ?? []) {
     const type = Array.isArray(l.wfm_leave_types) ? l.wfm_leave_types[0] : l.wfm_leave_types;
     let d = l.date_from;
+    let guard = 0;
     while (d <= l.date_to) {
+      // Same reasoning as the presence cap: bound it and throw, so a bad
+      // span names itself instead of silently filling the heap. 400 is well
+      // past any real leave record (the longest in the table is under 90
+      // days) and far short of anything that costs memory.
+      if (++guard > 400) {
+        throw new Error(
+          `leave record for employee ${l.employee_id} spans more than 400 days (${l.date_from}..${l.date_to}) -- refusing to expand`
+        );
+      }
       leaveByEmpDay.set(`${l.employee_id}|${d}`, {
         name: (type?.name as string) ?? "Leave",
         category: (type?.category as string) ?? "paid",
