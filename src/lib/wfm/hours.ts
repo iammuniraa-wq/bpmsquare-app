@@ -243,16 +243,43 @@ export function otMinutes(events: Ev[], endRef: Date): number {
 // 06:00 the next calendar day) across two different "days," which is
 // wrong for both attendance totals and the late/absent computation.
 
+/**
+ * Formatters are memoised per IANA timezone, and this is not optional.
+ *
+ * Constructing an Intl.DateTimeFormat builds an ICU formatter: on the order
+ * of 100us and several KB each. shiftDayKey() calls both of these, and the
+ * monthly summary called shiftDayKey once per event PER DATE -- 84 employees
+ * x 30 dates x ~55 events was ~139,000 constructions per request. That is
+ * what exhausted the 2048MB Fluid instance on 2026-09-23 while every
+ * database query in the same request finished in under 400ms.
+ *
+ * A module-level Map is safe here specifically because the key is an IANA
+ * timezone and the value is a pure function of it -- no tenant-scoped data
+ * crosses requests (MULTI_TENANT_GUARDRAILS.md, "For any caching you add").
+ */
+const dayKeyFormatters = new Map<string, Intl.DateTimeFormat>();
+const hhmmFormatters = new Map<string, Intl.DateTimeFormat>();
+
 function calendarDateKey(ts: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(ts);
+  let f = dayKeyFormatters.get(timezone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
+    });
+    dayKeyFormatters.set(timezone, f);
+  }
+  return f.format(ts);
 }
 
 function localHHMM(ts: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false,
-  }).format(ts);
+  let f = hhmmFormatters.get(timezone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false,
+    });
+    hhmmFormatters.set(timezone, f);
+  }
+  return f.format(ts);
 }
 
 function addDays(dateKey: string, delta: number): string {

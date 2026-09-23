@@ -176,9 +176,28 @@ function monthBounds(dateKey: string): [string, string] {
   return [`${dateKey.slice(0, 7)}-01`, `${dateKey.slice(0, 7)}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`];
 }
 
+// Same memoisation as hours.ts: these ran once per employee-day inside
+// buildRows. Keyed by IANA timezone, so nothing tenant-scoped is retained
+// across requests (MULTI_TENANT_GUARDRAILS.md, "For any caching you add").
+const lateFormatters = new Map<string, Intl.DateTimeFormat>();
+function hhmmIn(timezone: string): Intl.DateTimeFormat {
+  let f = lateFormatters.get(timezone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false });
+    lateFormatters.set(timezone, f);
+  }
+  return f;
+}
+
+const weekdayFormatters = new Map<string, Intl.DateTimeFormat>();
 function weekdayIndex(dateKey: string, timezone: string): number {
   const noon = new Date(`${dateKey}T12:00:00Z`); // safely mid-day, no DST/offset edge case
-  const name = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(noon);
+  let wf = weekdayFormatters.get(timezone);
+  if (!wf) {
+    wf = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" });
+    weekdayFormatters.set(timezone, wf);
+  }
+  const name = wf.format(noon);
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(name);
 }
 
@@ -387,10 +406,23 @@ async function buildSummaries(
     // looked up, so using the rostered shift here would be circular.
     const shift = emp.shift_id ? shiftById.get(emp.shift_id) : null;
 
+    // Bucket this employee's events by shift-day ONCE. The previous form
+    // re-filtered every event for every date, so shiftDayKey ran
+    // employees x dates x events times -- ~139,000 calls for BIM's 84
+    // employees over 30 days, each one building two ICU formatters. That,
+    // not any query, is what killed the instance on 2026-09-23.
+    const eventsByDay = new Map<string, typeof allEvents>();
+    for (const e of allEvents) {
+      const key = shiftDayKey(new Date(e.ts), config.timezone, shift);
+      const bucket = eventsByDay.get(key);
+      if (bucket) bucket.push(e);
+      else eventsByDay.set(key, [e]);
+    }
+
     const days: EmployeeDayRecord[] = dates.map((date) => {
       const effective = resolveShift(emp.id as string, date);
       const dayShift = effective.shift;
-      const dayEvents = allEvents.filter((e) => shiftDayKey(new Date(e.ts), config.timezone, shift) === date);
+      const dayEvents = eventsByDay.get(date) ?? [];
       // Work that runs past midnight closes in the NEXT day's bucket, so the
       // closing punch is pulled back here -- otherwise both days total zero
       // and the hours are simply lost (see overnightCloser).
@@ -438,7 +470,7 @@ async function buildSummaries(
         // rather than doing UTC offset arithmetic -- avoids DST/offset
         // edge cases entirely.
         if (firstIn) {
-          const inLocal = new Intl.DateTimeFormat("en-GB", { timeZone: config.timezone, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(firstIn.ts));
+          const inLocal = hhmmIn(config.timezone).format(new Date(firstIn.ts));
           const [gh, gm] = dayShift.start_time.slice(0, 5).split(":").map(Number);
           const graceMinutesOfDay = gh * 60 + gm + dayShift.grace_minutes;
           const [ih, im] = inLocal.split(":").map(Number);
@@ -446,7 +478,7 @@ async function buildSummaries(
         } else if (date < todayKey) {
           absent = true;
         } else if (date === todayKey) {
-          const nowLocal = new Intl.DateTimeFormat("en-GB", { timeZone: config.timezone, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+          const nowLocal = hhmmIn(config.timezone).format(new Date());
           const [gh, gm] = dayShift.start_time.slice(0, 5).split(":").map(Number);
           const graceMinutesOfDay = gh * 60 + gm + dayShift.grace_minutes;
           const [nh, nm] = nowLocal.split(":").map(Number);
