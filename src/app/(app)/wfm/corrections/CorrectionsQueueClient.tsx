@@ -17,8 +17,8 @@ type Row = WfmCorrectionRequest & {
 const ISSUE_LABEL: Record<CorrectionIssue, string> = {
   missing_check_in: "Missing check-in",
   missing_check_out: "Missing check-out",
-  missing_break_start: "Missing break in",
-  missing_break_end: "Missing break out",
+  missing_break_start: "Missing break start",
+  missing_break_end: "Missing break end",
   wrong_time: "Wrong time",
   other: "Other",
 };

@@ -142,7 +142,7 @@ const KIND_LABEL: Record<PresenceKind, string> = {
 };
 const ISSUE_LABEL: Record<string, string> = {
   missing_check_in: "Missing check-in", missing_check_out: "Missing check-out",
-  missing_break_start: "Missing break in", missing_break_end: "Missing break out",
+  missing_break_start: "Missing break start", missing_break_end: "Missing break end",
   wrong_time: "Wrong time", other: "Other",
 };
 const STATUS_TONE: Record<string, "amber" | "green" | "red"> = { pending: "amber", approved: "green", rejected: "red" };
@@ -998,8 +998,8 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   // appears and disappears with the state machine makes people hunt for the
   // one they need, so instead the shape of the tile never changes and only
   // the ENABLED ones are lit. The state machine still decides what is legal
-  // (types.ts TRANSITIONS): out -> check in; in -> break in or check out;
-  // break -> break out or check out. A dimmed button is not merely styled
+  // (types.ts TRANSITIONS): out -> check in; in -> break start or check out;
+  // break -> break end or check out. A dimmed button is not merely styled
   // off -- it is `disabled`, so the illegal punch cannot be fired.
   //
   // Everything rarer -- OT, work from home, site visit -- stays in the small
@@ -1011,8 +1011,8 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const BIG_PUNCHES: { kind: PresenceKind; label: string; tone: string; can: boolean }[] = [
     { kind: "check_in", label: "Check in", tone: "#10b981", can: canCheckIn },
     { kind: "check_out", label: "Check out", tone: "#ef4444", can: canCheckOut },
-    { kind: "break_start", label: "Break in", tone: "#f59e0b", can: canBreakStart },
-    { kind: "break_end", label: "Break out", tone: "#3b82f6", can: canBreakEnd },
+    { kind: "break_start", label: "Break start", tone: "#f59e0b", can: canBreakStart },
+    { kind: "break_end", label: "Break end", tone: "#3b82f6", can: canBreakEnd },
   ];
   const otherOptions: PresenceKind[] = punchOptions.filter(
     (k) => !BIG_PUNCHES.some((b) => b.kind === k)
