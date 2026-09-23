@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { assertObjectFeature } from "@/lib/objectFeatures";
 import { nextMasterRefSeq, formatMasterRef } from "@/lib/masterRef";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { buildObjectSpec } from "@/lib/import/registrySchema";
@@ -21,6 +22,11 @@ export async function POST(request: NextRequest) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+
+  // A tenant without the module cannot read or write its data in bulk
+  // either -- the gate is the same question the nav and the v1 API ask.
+  const gate = await assertObjectFeature(tenantId, "suppliers");
+  if (gate) return gate;
 
   const rows = readImportBody(await request.json());
   if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });

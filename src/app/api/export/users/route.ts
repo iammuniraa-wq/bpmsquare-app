@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { assertObjectFeature } from "@/lib/objectFeatures";
 import { applyFilters } from "@/lib/import/exportServer";
 import type { ExportFilter, ExportResponse } from "@/lib/import/types";
 
@@ -31,6 +32,11 @@ export async function POST(request: NextRequest) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+
+  // A tenant without the module cannot read or write its data in bulk
+  // either -- the gate is the same question the nav and the v1 API ask.
+  const gate = await assertObjectFeature(tenantId, "users");
+  if (gate) return gate;
 
   const { filters = [] } = (await request.json()) as { filters?: ExportFilter[] };
 
