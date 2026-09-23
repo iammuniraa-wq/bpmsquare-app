@@ -120,9 +120,21 @@ export default function WfmSummaryWidget() {
     setError(null);
     try {
       const res = await fetch(`/api/wfm/summary?month=${m}`);
-      const json = await res.json();
       if (res.status === 403) { setForbidden(true); return; }
-      if (!res.ok) { setError(json.error ?? "Could not load the summary"); return; }
+      // Status first, body second. A 500/504 from the platform returns an HTML
+      // error page, so parsing before checking made res.json() throw and every
+      // failure -- timeout, crash, dropped connection -- surfaced as the catch
+      // branch's "Could not reach the server". That is why the 2026-09-23 BIM
+      // outage reports carried no usable detail.
+      if (!res.ok) {
+        const body = await res.text();
+        console.error(`wfm summary ${res.status}: ${body.slice(0, 300)}`);
+        let msg = `Could not load the summary (${res.status})`;
+        try { msg = (JSON.parse(body).error as string) ?? msg; } catch { /* not JSON */ }
+        setError(msg);
+        return;
+      }
+      const json = await res.json();
       setRows(json.employees ?? []);
     } catch {
       setError("Could not reach the server");
