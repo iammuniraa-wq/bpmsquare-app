@@ -4,6 +4,9 @@
     "src/app/api/quotes/**": {
       "memory": 1600,
       "maxDuration": 60
+    },
+    "src/app/api/wfm/**": {
+      "maxDuration": 60
     }
   },
   "crons": [

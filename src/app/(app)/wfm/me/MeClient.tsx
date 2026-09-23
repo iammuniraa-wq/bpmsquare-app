@@ -116,18 +116,9 @@ type LeaveRequest = {
   wfm_leave_types: { name: string; category: string } | null;
   created_at: string;
 };
-type TrendPoint = {
-  month: string; working_minutes: number; days_present: number;
-  late_marks: number; paid_leave_days: number; unpaid_leave_days: number; incomplete_days: number;
-};
-type Analytics = {
-  month: string; is_supervisor: boolean; trend: TrendPoint[];
-  current: TrendPoint; previous: TrendPoint | null; on_time_rate: number | null;
-  team: { employee_count: number; avg_working_minutes: number; avg_days_present: number; avg_late_marks: number; total_incomplete_days: number } | null;
-};
 
 type Geo = { lat: number; lng: number; accuracy_m: number } | null;
-type Tab = "profile" | "home" | "time" | "timeline" | "requests" | "calendar" | "analytics";
+type Tab = "profile" | "home" | "time" | "timeline" | "requests" | "calendar";
 type TimeView = "daily" | "monthly";
 
 const LEAVE_INSIGHTS_LS_KEY = "bms_wfm_leave_insights";
@@ -141,7 +132,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "profile", label: "Profile" },
   { key: "timeline", label: "Timeline" },
   { key: "calendar", label: "Calendar" },
-  { key: "analytics", label: "Analytics" },
 ];
 
 const KIND_LABEL: Record<PresenceKind, string> = {
@@ -336,30 +326,6 @@ function Stat({ value, label, tone }: { value: string; label: string; tone?: str
   );
 }
 
-function Bars({ points, valueOf, format }: { points: TrendPoint[]; valueOf: (p: TrendPoint) => number; format: (n: number) => string }) {
-  const max = Math.max(1, ...points.map(valueOf));
-  return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110, marginTop: 6 }}>
-      {points.map((p) => {
-        const v = valueOf(p);
-        return (
-          <div key={p.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-            <div style={{ fontSize: 10, color: c.hint, whiteSpace: "nowrap" }}>{format(v)}</div>
-            <div
-              title={`${fmtMonth(p.month)}: ${format(v)}`}
-              style={{
-                width: "100%", maxWidth: 46, borderRadius: "5px 5px 0 0",
-                height: `${Math.max(3, (v / max) * 100)}%`,
-                background: "var(--tenant-accent, #378ADD)", opacity: v === 0 ? 0.25 : 1,
-              }}
-            />
-            <div style={{ fontSize: 10.5, color: c.muted, whiteSpace: "nowrap" }}>{fmtMonth(p.month)}</div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function MeClient({ initialState = null }: { initialState?: MeState | null }) {
   const cur = useCurrency();
@@ -458,7 +424,6 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [corrections, setCorrections] = useState<CorrectionRequest[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-  const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
@@ -507,12 +472,11 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
 
   const loadSecondary = useCallback(async () => {
     try {
-      const [tsRes, holRes, corrRes, leaveRes, anRes, advRes, clarRes] = await Promise.all([
+      const [tsRes, holRes, corrRes, leaveRes, advRes, clarRes] = await Promise.all([
         fetch(`/api/wfm/me/timesheet?month=${month}`),
         fetch("/api/wfm/holidays"),
         fetch("/api/wfm/corrections"),
         fetch("/api/wfm/leave-requests"),
-        fetch("/api/wfm/me/analytics"),
         fetch("/api/wfm/advance-requests"),
         fetch("/api/wfm/clarifications"),
       ]);
@@ -526,7 +490,6 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       if (holRes.ok) setHolidays(await holRes.json());
       if (corrRes.ok) setCorrections(await corrRes.json());
       if (leaveRes.ok) setLeaveRequests(await leaveRes.json());
-      if (anRes.ok) setAnalytics(await anRes.json());
       if (advRes.ok) setAdvanceRequests(await advRes.json());
       if (clarRes.ok) setClarificationThreads(await clarRes.json());
     } catch {
@@ -1369,19 +1332,18 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         })}
         {isMobile && (
           <select
-            value={["timeline", "calendar", "analytics"].includes(tab) ? tab : ""}
+            value={["timeline", "calendar"].includes(tab) ? tab : ""}
             onChange={(e) => { if (e.target.value) setTab(e.target.value as Tab); }}
             style={{
               padding: "7px 8px", fontSize: 12, fontWeight: 600, borderRadius: 8,
               border: `1px solid ${c.line}`, cursor: "pointer", outline: "none",
-              background: ["timeline", "calendar", "analytics"].includes(tab) ? "var(--tenant-accent, #378ADD)" : c.panel,
-              color: ["timeline", "calendar", "analytics"].includes(tab) ? "#fff" : c.ink,
+              background: ["timeline", "calendar"].includes(tab) ? "var(--tenant-accent, #378ADD)" : c.panel,
+              color: ["timeline", "calendar"].includes(tab) ? "#fff" : c.ink,
             }}
           >
             <option value="" disabled>More…</option>
             <option value="timeline">Timeline</option>
             <option value="calendar">Calendar</option>
-            <option value="analytics">Analytics</option>
           </select>
         )}
       </div>
@@ -2667,132 +2629,6 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         </div>
       )}
 
-      {tab === "analytics" && (
-        analytics ? (
-          <>
-            {/* At-a-glance overview (moved off the Home tab, which is now just
-                punch + the day column). Each still links to its own tab. */}
-            <div style={{ ...grid(240), marginBottom: 14 }}>
-              <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("time")}>
-                <div style={capStyle}>This month</div>
-                {monthTotals ? (
-                  <>
-                    <Stat value={fmtHM(monthTotals.working_minutes)} label={`working hours · ${monthTotals.days_present} days present`} />
-                    <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 11.5, color: c.muted, flexWrap: "wrap" }}>
-                      <span style={{ color: monthTotals.late_marks > 0 ? statusInk.warn : undefined }}>{monthTotals.late_marks} late</span>
-                      <span>{monthTotals.paid_leave_days + monthTotals.unpaid_leave_days} leave</span>
-                      <span>{monthTotals.holiday_days} holidays</span>
-                    </div>
-                  </>
-                ) : <div style={{ fontSize: 12, color: c.hint }}>—</div>}
-                <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("time")}>View timesheet</button>
-              </section>
-
-              <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("requests")}>
-                <div style={capStyle}>Leave</div>
-                {leaveBalance.length === 0 ? (
-                  <div style={{ fontSize: 12, color: c.hint }}>No leave types configured.</div>
-                ) : (
-                  leaveBalance.slice(0, 3).map((lb) => (
-                    <div key={lb.leave_type_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "3px 0" }}>
-                      <span style={{ color: c.ink }}>{lb.name}</span>
-                      <span style={{ color: lb.balance <= 0 ? statusInk.bad : c.muted }}>{lb.balance} / {lb.quota}</span>
-                    </div>
-                  ))
-                )}
-                {pendingLeave > 0 && <div style={{ fontSize: 11.5, color: statusInk.warn, marginTop: 8 }}>{pendingLeave} request(s) awaiting approval</div>}
-                <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("requests")}>Request leave</button>
-              </section>
-
-              <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("calendar")}>
-                <div style={capStyle}>Next holiday</div>
-                {nextHoliday ? (
-                  <>
-                    <Stat value={fmtDate(nextHoliday.date)} label={nextHoliday.name} />
-                    <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8 }}>
-                      in {Math.max(0, Math.round((new Date(nextHoliday.date + "T00:00:00").getTime() - new Date(todayKey() + "T00:00:00").getTime()) / 86_400_000))} day(s)
-                    </div>
-                  </>
-                ) : <div style={{ fontSize: 12, color: c.hint }}>None scheduled.</div>}
-                <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View calendar</button>
-              </section>
-
-              <section className="stat-tile is-clickable" style={cardStyle} onClick={() => setTab("calendar")}>
-                <div style={capStyle}>My shift — next few days</div>
-                {me.upcoming.length === 0 ? (
-                  <div style={{ fontSize: 12, color: c.hint }}>No shift assigned.</div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {me.upcoming.slice(0, 3).map((u) => (
-                      <div key={u.date} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "2px 0" }}>
-                        <span style={{ color: c.ink }}>
-                          {new Date(u.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}
-                        </span>
-                        <span style={{ color: u.is_day_off ? statusInk.bad : c.muted }}>
-                          {u.is_day_off ? "Day off" : u.shift_name ? `${u.shift_name} ${u.start_time?.slice(0, 5)}–${u.end_time?.slice(0, 5)}` : "— none —"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <button style={{ ...btn, marginTop: 14 }} onClick={() => setTab("calendar")}>View full calendar</button>
-              </section>
-            </div>
-
-            <div style={{ ...grid(isMobile ? 140 : 200), marginBottom: 14 }}>
-              <section style={cardStyle}>
-                <div style={capStyle}>On-time rate</div>
-                <Stat
-                  value={analytics.on_time_rate === null ? "—" : `${analytics.on_time_rate}%`}
-                  label="of attended days this month"
-                  tone={analytics.on_time_rate !== null && analytics.on_time_rate < 80 ? statusInk.warn : statusInk.good}
-                />
-              </section>
-              <section style={cardStyle}>
-                <div style={capStyle}>Hours vs last month</div>
-                {analytics.previous ? (() => {
-                  const diff = analytics.current.working_minutes - analytics.previous.working_minutes;
-                  return <Stat value={`${diff >= 0 ? "+" : "−"}${fmtHM(Math.abs(diff))}`} label={`vs ${fmtMonth(analytics.previous.month)}`} tone={diff >= 0 ? statusInk.good : statusInk.warn} />;
-                })() : <Stat value="—" label="no prior month" />}
-              </section>
-              <section style={cardStyle}>
-                <div style={capStyle}>Days present</div>
-                <Stat value={String(analytics.current.days_present)} label="this month" />
-              </section>
-              <section style={cardStyle}>
-                <div style={capStyle}>Leave taken</div>
-                <Stat value={String(analytics.current.paid_leave_days + analytics.current.unpaid_leave_days)} label={`${analytics.current.paid_leave_days} paid · ${analytics.current.unpaid_leave_days} unpaid`} />
-              </section>
-            </div>
-
-            <section style={{ ...cardStyle, marginBottom: 14 }}>
-              <div style={capStyle}>Working hours — last 6 months</div>
-              <Bars points={analytics.trend} valueOf={(p) => p.working_minutes} format={(n) => (n > 0 ? `${Math.round(n / 60)}h` : "0")} />
-            </section>
-
-            <section style={{ ...cardStyle, marginBottom: 14 }}>
-              <div style={capStyle}>Late marks — last 6 months</div>
-              <Bars points={analytics.trend} valueOf={(p) => p.late_marks} format={(n) => String(n)} />
-            </section>
-
-            {analytics.team && (
-              <section style={cardStyle}>
-                <div style={capStyle}>Team this month · supervisor view</div>
-                <div style={grid(150)}>
-                  <Stat value={String(analytics.team.employee_count)} label="active employees" />
-                  <Stat value={fmtHM(analytics.team.avg_working_minutes)} label="avg hours per employee" />
-                  <Stat value={String(analytics.team.avg_days_present)} label="avg days present" />
-                  <Stat value={String(analytics.team.avg_late_marks)} label="avg late marks" tone={analytics.team.avg_late_marks > 0 ? pillar.amber.fg : undefined} />
-                  <Stat value={String(analytics.team.total_incomplete_days)} label="incomplete days (team)" tone={analytics.team.total_incomplete_days > 0 ? "#ef4444" : undefined} />
-                </div>
-                <div style={{ fontSize: 11.5, color: c.hint, marginTop: 12 }}>
-                  Your own hours this month: {fmtHM(analytics.current.working_minutes)} · team average {fmtHM(analytics.team.avg_working_minutes)}.
-                </div>
-              </section>
-            )}
-          </>
-        ) : <div style={{ ...cardStyle, color: c.hint, fontSize: 13 }}>Loading analytics…</div>
-      )}
     </>
   );
 }
