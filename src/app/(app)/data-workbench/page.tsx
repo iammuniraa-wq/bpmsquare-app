@@ -9,6 +9,7 @@ import { USERS_SPEC } from "@/lib/import/usersSchema";
 import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
 import { EMPLOYEES_SPEC, buildEmployeesSpec } from "@/lib/import/employeesSchema";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { featureForObject } from "@/lib/objectFeatures";
 import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 
 // Display order is alphabetical by label (sorted after specs are built,
@@ -34,13 +35,14 @@ export default async function DataWorkbenchPage() {
   const { supabase, tenantId } = await requireTenantUser();
 
   const [salesConfig, tenant] = await Promise.all([getSalesConfig(supabase, tenantId), getTenant()]);
+  // Which objects this tenant may bulk-load at all. This used to name five
+  // objects and let the other eleven through unconditionally, so a tenant
+  // who had bought neither Cases nor Assets could still import, export and
+  // update them here. One map now answers for all sixteen, and the routes
+  // behind them enforce the same answer.
   const objectOrder = OBJECT_ORDER.filter((id) => {
-    if (id === "quote_lines") return tenant?.features?.quote_lines_dw === true;
-    if (id === "employees") return tenant?.features?.business_roles === true;
-    if (id === "products") return tenant?.features?.products === true;
-    if (id === "wfm_projects") return tenant?.features?.wfm_projects === true;
-    if (id === "opportunities") return tenant?.features?.pipeline === true;
-    return true;
+    const key = featureForObject(id);
+    return key === null || tenant?.features?.[key] === true;
   });
 
   const specs: ObjectSpec[] = (

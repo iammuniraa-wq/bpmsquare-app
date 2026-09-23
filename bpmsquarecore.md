@@ -224,6 +224,17 @@ bump its `version`.
 **7 — Cross-cutting app surfaces**
 - [ ] Feature flag in `TenantFeatures` + the nav/workcenter gate (a tenant
       that didn't buy the module must not see the object anywhere).
+- [ ] **An entry in `OBJECT_FEATURE` (`src/lib/objectFeatures.ts`)** — the one
+      map that says which module owns which object. `authorizeApi()` reads it
+      for every v1 endpoint and every Data Workbench route calls
+      `assertObjectFeature()`, so this single line is what makes "must not see
+      it anywhere" true on the API and bulk surfaces instead of only in the
+      nav. `src/lib/objectFeatures.test.ts` fails the build if a new
+      import/export/update route or v1 endpoint appears without one, and if a
+      v1 route resolves its tenant any way other than `authorizeApi()`. Written
+      2026-09-22 after snasquare — a tenant owning none of Cases, Contacts,
+      Assets or Quotations — saw all four on its Account page, and the audit
+      found the same hole on eleven v1 endpoints and forty-seven DW routes.
 - [ ] Change history (`logChange` on create/update/delete) **and** the
       object's entry in the filter dropdown in
       `administration/change-history/ChangeHistoryClient.tsx`.

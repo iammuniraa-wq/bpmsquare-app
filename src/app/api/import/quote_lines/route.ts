@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { assertObjectFeature } from "@/lib/objectFeatures";
 import { tenantHasFeature } from "@/lib/tenant";
 import { describeDbError, fetchAllRows, insertRows, nameKey, readImportBody, type PreparedRow } from "@/lib/import/server";
 import { logChangeBatch, type ChangeLogEntryParams } from "@/lib/changeLog";
@@ -25,6 +26,11 @@ export async function POST(request: NextRequest) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+
+  // A tenant without the module cannot read or write its data in bulk
+  // either -- the gate is the same question the nav and the v1 API ask.
+  const gate = await assertObjectFeature(tenantId, "quote_lines");
+  if (gate) return gate;
   if (!(await tenantHasFeature(supabase, tenantId, "quote_lines_dw"))) {
     return NextResponse.json({ error: "Quote Lines isn't enabled for your workspace" }, { status: 403 });
   }

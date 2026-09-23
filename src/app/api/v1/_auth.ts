@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { tenantOwnsObject } from "@/lib/objectFeatures";
 
 /**
  * A v1 credential resolves to a tenant AND a scope. Two kinds of key exist:
@@ -99,11 +100,18 @@ export const ERR_403_SCOPE = (object: string, write: boolean) =>
 
 /**
  * One-call route guard. Resolves the key, enforces read/write + object scope,
- * and returns either the tenantId to use or a ready-to-return error Response.
+ * checks the tenant actually owns the module, and returns either the tenantId
+ * to use or a ready-to-return error Response.
  *
  *   const a = await authorizeApi(req, "quotations", true);
  *   if ("error" in a) return a.error;
  *   const { tenantId } = a;
+ *
+ * The module check lives HERE rather than in each route (where it was
+ * hand-written on three of eleven endpoints and missing from the rest --
+ * see src/lib/objectFeatures.ts). A v1 route cannot obtain a tenantId
+ * without passing through this function, so a route added later is gated
+ * whether or not its author remembered to be.
  */
 export async function authorizeApi(
   req: Request,
@@ -113,6 +121,18 @@ export async function authorizeApi(
   const auth = await resolveApiAuth(req);
   if (!auth) return { error: ERR_401_TENANT() };
   if (!scopeAllows(auth.scopes, object, write)) return { error: ERR_403_SCOPE(object, write) };
+
+  // An object name with no mapping is one no caller should be reaching --
+  // /ask takes its object from the request body, so this is also the path a
+  // made-up name arrives on. Both answer 404, never a 500.
+  let owned: boolean;
+  try {
+    owned = await tenantOwnsObject(auth.tenantId, object);
+  } catch {
+    owned = false;
+  }
+  if (!owned) return { error: jsonError(404, "Not found") };
+
   return { tenantId: auth.tenantId, scopes: auth.scopes, keyId: auth.keyId };
 }
 

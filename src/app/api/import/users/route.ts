@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { randomBytes } from "crypto";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { assertObjectFeature } from "@/lib/objectFeatures";
 import { USERS_SPEC, ROLE_LIST_SEPARATOR } from "@/lib/import/usersSchema";
 import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
 import { describeDbError, readImportBody, summarise } from "@/lib/import/server";
@@ -50,6 +51,11 @@ export async function POST(request: NextRequest) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+
+  // A tenant without the module cannot read or write its data in bulk
+  // either -- the gate is the same question the nav and the v1 API ask.
+  const gate = await assertObjectFeature(tenantId, "users");
+  if (gate) return gate;
   if (role !== "admin") {
     return NextResponse.json({ error: "Only admins can add users" }, { status: 403 });
   }
