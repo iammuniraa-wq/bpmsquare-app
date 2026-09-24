@@ -625,6 +625,7 @@ export type WfmConfig = {
     correction_pending: boolean;       // employee files a correction -> supervisor
     correction_resolved: boolean;      // supervisor approves/rejects it -> employee
     leave_pending: boolean;            // employee files a leave request -> supervisor
+    leave_resolved: boolean;           // supervisor approves/rejects it -> employee
     recheck_flagged: boolean;          // supervisor flags a punch/day -> employee
     advance_request_pending: boolean;  // employee files an OT/WFH advance request -> supervisor
     clarification_message: boolean;    // either side posts in a clarification thread -> the other
@@ -794,6 +795,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
     correction_pending: true,
     correction_resolved: true,
     leave_pending: true,
+    leave_resolved: true,
     recheck_flagged: true,
     advance_request_pending: true,
     clarification_message: true,

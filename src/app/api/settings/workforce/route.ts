@@ -42,7 +42,7 @@ const GEOFENCE_MODES = ["block", "flag", "off"];
 const SELFIE_MODES = ["off", "shift", "all"];
 const FACE_PUNCH_MODES = ["off", "kiosk"];
 const NOTIFICATION_KEYS = [
-  "late_arrival", "correction_pending", "correction_resolved", "leave_pending", "recheck_flagged",
+  "late_arrival", "correction_pending", "correction_resolved", "leave_pending", "leave_resolved", "recheck_flagged",
   "advance_request_pending", "clarification_message",
 ] as const;
 const PUNCH_TYPE_KEYS = ["ot", "mobile_work", "business_trip"] as const;
