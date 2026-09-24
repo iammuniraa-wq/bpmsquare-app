@@ -623,6 +623,7 @@ export type WfmConfig = {
   notifications: {
     late_arrival: boolean;             // check-in past shift start+grace -> supervisor
     correction_pending: boolean;       // employee files a correction -> supervisor
+    correction_resolved: boolean;      // supervisor approves/rejects it -> employee
     leave_pending: boolean;            // employee files a leave request -> supervisor
     recheck_flagged: boolean;          // supervisor flags a punch/day -> employee
     advance_request_pending: boolean;  // employee files an OT/WFH advance request -> supervisor
@@ -791,6 +792,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   notifications: {
     late_arrival: false,
     correction_pending: true,
+    correction_resolved: true,
     leave_pending: true,
     recheck_flagged: true,
     advance_request_pending: true,

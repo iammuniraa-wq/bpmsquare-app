@@ -33,6 +33,7 @@ const PUNCH_TYPE_ITEMS = [
 const NOTIFICATION_ITEMS = [
   { key: "late_arrival", label: "Late arrival", hint: "Notify the supervisor when someone checks in past shift start + grace." },
   { key: "correction_pending", label: "Correction request submitted", hint: "Notify the supervisor when an employee files one." },
+  { key: "correction_resolved", label: "Correction decided", hint: "Notify the employee when their correction is approved or rejected." },
   { key: "leave_pending", label: "Leave request submitted", hint: "Notify the supervisor when an employee files one." },
   { key: "recheck_flagged", label: "Flagged for review", hint: "Notify the employee when a supervisor flags their punch." },
   { key: "advance_request_pending", label: "OT/WFH request submitted", hint: "Notify the supervisor when an employee files an advance OT or work-from-home request." },

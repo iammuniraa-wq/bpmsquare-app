@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
+import { getEmployeeLoginEmail, sendWfmNotification } from "@/lib/wfm/notify";
+import { ROUTES } from "@/lib/constants";
 import { canApproveFor } from "@/lib/wfm/scope";
 import { resolveProjectForPunch } from "@/lib/wfm/projectServer";
 import type { PresenceKind } from "@/lib/wfm/types";
@@ -37,6 +39,40 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const admin = createAdminSupabase();
+
+  // Telling the employee is the whole point of the decision. Until now only
+  // the filing was notified (correction_pending, employee -> supervisor);
+  // the outcome travelled nowhere, so someone whose pay depended on a
+  // mis-punch had to keep opening the app to find out. Fire-and-forget on
+  // purpose -- a mail failure must never fail an approval that already
+  // wrote its event.
+  const notifyEmployee = async (
+    employeeId: string,
+    targetDate: string,
+    outcome: "approved" | "rejected",
+    remark: string | null
+  ) => {
+    const config = await getWfmConfig(admin, tenantId);
+    if (!config.notifications.correction_resolved) return;
+    const email = await getEmployeeLoginEmail(admin, tenantId, employeeId);
+    if (!email) return; // not every employee has a login
+    await sendWfmNotification({
+      sessionSupabase: ctx.supabase,
+      tenantId,
+      toEmails: [email],
+      subject: `Your correction for ${targetDate} was ${outcome}`,
+      text: outcome === "approved"
+        ? `Your supervisor approved your attendance correction for ${targetDate}. Your timesheet has been updated.`
+          + (remark ? `\n\nNote: "${remark}"` : "")
+        : `Your supervisor could not approve your attendance correction for ${targetDate}.`
+          + `\n\nReason: "${remark ?? ""}"`,
+      link: { path: ROUTES.wfmMe, label: "View your timesheet" },
+      relatedObjectType: "wfm_correction_requests",
+      relatedObjectId: id,
+      relatedObjectLabel: targetDate,
+    });
+  };
+
   const { data: req } = await admin
     .from("wfm_correction_requests")
     .select("*")
@@ -67,6 +103,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .select("*")
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    notifyEmployee(req.employee_id as string, req.target_date as string, "rejected", supervisor_remark!.trim()).catch(() => {});
     return NextResponse.json(data);
   }
 
@@ -169,5 +206,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .select("*")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  notifyEmployee(req.employee_id as string, req.target_date as string, "approved", supervisor_remark?.trim() || null).catch(() => {});
   return NextResponse.json(data);
 }
