@@ -96,6 +96,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const rawMargin = typeof body?.footerMarginMm === "number" ? body.footerMarginMm : 30;
   const bottomMarginMm = Math.min(60, Math.max(20, Math.round(rawMargin)));
 
+  // The tenant's logos are uploaded to Supabase Storage, so they are NOT
+  // same-origin -- the blanket abort below rendered every one of them as a
+  // broken image in the PDF (reported by Vikas, 2026-09-29). Allowing "any
+  // remote image" would hand back exactly the SSRF the interception exists
+  // to prevent, so the allowlist is built server-side from the URLs THIS
+  // tenant has actually stored. A crafted <img src> in the posted markup
+  // matches nothing and is still aborted.
+  const { data: tenantRow } = await supabase
+    .from("tenants")
+    .select("logo_url, company_info")
+    .eq("id", tenantId)
+    .maybeSingle();
+  const companyInfo = (tenantRow?.company_info ?? {}) as {
+    logo_url?: string;
+    certifications?: { logo_url?: string }[];
+    partners?: { logo_url?: string }[];
+  };
+  // https only: a stored http:// URL is the shape an internal address takes,
+  // and every real logo host (Supabase Storage included) is https.
+  const allowedImages = new Set(
+    [
+      tenantRow?.logo_url as string | null | undefined,
+      companyInfo.logo_url,
+      ...(companyInfo.certifications ?? []).map((c) => c.logo_url),
+      ...(companyInfo.partners ?? []).map((p) => p.logo_url),
+    ].filter((u): u is string => typeof u === "string" && /^https:\/\//i.test(u))
+  );
+
   const origin = request.nextUrl.origin;
   // Scripts stripped, <base> injected so the relative font/image URLs the
   // live page used still resolve once the markup is set directly.
@@ -112,8 +140,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await page.setRequestInterception(true);
     page.on("request", (req) => {
       const url = req.url();
-      if (url.startsWith("data:") || url.startsWith("blob:") || url.startsWith(origin)) req.continue();
-      else req.abort();
+      if (
+        url.startsWith("data:") || url.startsWith("blob:") ||
+        url.startsWith(origin) || allowedImages.has(url)
+      ) req.continue();
+      else {
+        // Worth a line: a logo silently vanishing from a customer-facing
+        // quotation is how this went unnoticed until Vikas reported it.
+        console.error(`quote pdf: blocked ${url.slice(0, 120)}`);
+        req.abort();
+      }
     });
 
     const cookieHeader = request.headers.get("cookie") ?? "";
