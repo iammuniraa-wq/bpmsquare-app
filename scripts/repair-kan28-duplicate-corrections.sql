@@ -1,19 +1,27 @@
--- ⚠️  DO NOT RUN. SUPERSEDED BY scripts/rollback-kan28-repair.sql.
+-- ⚠️  DO NOT RUN. This script's logic is WRONG. Kept as the record only.
 --
--- This was run on production on 2026-10-03 and was WRONG. It grouped live
--- corrections by employee + day + kind, which assumes every correction in a
--- group corrects the same punch. An employee can work two shifts, or take two
--- breaks, in a day, and each can carry its own correction -- this collapsed
--- those into one. It superseded a genuine second check-in twelve hours from
--- the one it kept, and paired a morning break-start with an evening
--- break-end. Rolled back the same day; nothing was lost, because the repair
--- only set `superseded_by` and the rollback restores NULL on exactly the ids
--- its own dry-run printed.
+-- Status: NEVER APPLIED. Its section 2 was commented out, so when it was run
+-- on production on 2026-10-03 only the SELECTs executed. Verified afterwards:
+-- all 22 candidate rows still had superseded_by = NULL, and no correction in
+-- the tenant is superseded by another correction. BIM's data was not changed.
+--
+-- Why it is wrong: it groups live corrections by employee + day + kind, which
+-- assumes every correction in a group corrects the SAME punch. It does not.
+-- An employee can work two shifts, or take two breaks, in one day, and each
+-- can carry its own correction. Its own dry-run output showed this plainly:
+--
+--   68db944d  12 Sep  check_in  16:20 would be superseded by 04:10 -- twelve
+--                               hours apart, a second shift
+--   bb24ce03  23 Sep  break_start keeps 08:30, break_end keeps 16:10 -- a
+--                               morning start paired with an evening end
 --
 -- The correct test for an orphaned correction is "a live correction that no
--- other event points at", and the mapping of orphan to replacement has to
--- come from wfm_correction_requests (target_event_id + resolved_at), not be
--- inferred from the events. Kept here as the record of what was run.
+-- other event points at". The mapping from orphan to replacement must come
+-- from wfm_correction_requests (target_event_id + resolved_at), which still
+-- holds the link the overwritten superseded_by destroyed -- it cannot be
+-- inferred from the events' timestamps, which is what this tried to do.
+--
+-- The duplicates this was meant to repair are therefore STILL PRESENT.
 --
 -- KAN-28 repair: collapse duplicate live corrections onto the newest one.
 --
