@@ -5,10 +5,20 @@
 // (saturdayRosterServer.ts) alike. See WfmConfig.saturday_rule's own header
 // comment (lib/constants.ts) for the full design.
 
+// Memoised per IANA timezone (docs/performance-and-scale.md R2): this is
+// reached once per DATE from the roster and summary loops, and building an
+// Intl.DateTimeFormat each time is the same waste that took the app down on
+// 2026-09-23. The key is a timezone, so nothing tenant-scoped is retained.
+const weekdayFormatters = new Map<string, Intl.DateTimeFormat>();
+
 function weekdayIndex(dateKey: string, timezone: string): number {
   const noon = new Date(`${dateKey}T12:00:00Z`); // safely mid-day, no DST/offset edge case
-  const name = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(noon);
-  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(name);
+  let f = weekdayFormatters.get(timezone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" });
+    weekdayFormatters.set(timezone, f);
+  }
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(f.format(noon));
 }
 
 /** Which Saturday of its month `dateKey` is (1-5), or null if it isn't one. */

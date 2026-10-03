@@ -426,6 +426,11 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Which punch is in flight, so that button alone can show it. Cleared off
+  // `busy` rather than at each call site, because startPunch can finish in
+  // several places (camera flow, location refusal, error).
+  const [pendingKind, setPendingKind] = useState<PresenceKind | null>(null);
+  useEffect(() => { if (!busy) setPendingKind(null); }, [busy]);
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
   // The punch that was refused for location, so "Try again" resumes it.
   const [locationBlocked, setLocationBlocked] = useState<PresenceKind | null>(null);
@@ -1184,6 +1189,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   }
 
   async function startPunch(kind: PresenceKind, opts?: { ask?: boolean }) {
+    setPendingKind(kind);
     // Location is checked BEFORE the camera opens. Doing it the other way
     // round means taking a selfie and only then being told the punch can't
     // happen -- and the punch route rejects it anyway, so the camera step
@@ -1255,25 +1261,39 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
         ) : (
           <>
             {/* Always four, always in the same places -- see BIG_PUNCHES. */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {BIG_PUNCHES.map((b) => (
-                <button
-                  key={b.kind}
-                  style={{
-                    padding: "18px 12px", fontSize: 16, fontWeight: 700, borderRadius: 12, border: "none",
-                    background: b.can ? b.tone : c.panel2, color: b.can ? "#fff" : c.hint,
-                    cursor: b.can && !busy ? "pointer" : "not-allowed", opacity: b.can ? 1 : 0.55,
-                    transition: "background .15s, opacity .15s",
-                  }}
-                  disabled={!b.can || busy}
-                  onClick={() => startPunch(b.kind)}
-                  aria-disabled={!b.can}
-                >
-                  {b.label}
-                </button>
-              ))}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {BIG_PUNCHES.map((b) => {
+                // The one being submitted says so on its own face. Previously
+                // `opacity` keyed off `can` and never off `busy`, so a tapped
+                // button looked completely unchanged -- the only signal was an
+                // 11.5px "Working…" underneath. BIM's people pressed again,
+                // and again (client report 2026-10-03).
+                const pressed = busy && pendingKind === b.kind;
+                const dimmed = !b.can || (busy && !pressed);
+                return (
+                  <button
+                    key={b.kind}
+                    style={{
+                      // ~72px tall: a gloved thumb on a phone, not a mouse.
+                      minHeight: 72, padding: "20px 12px", fontSize: 17, fontWeight: 700,
+                      borderRadius: 14, border: "none",
+                      background: b.can ? b.tone : c.panel2, color: b.can ? "#fff" : c.hint,
+                      cursor: b.can && !busy ? "pointer" : "not-allowed",
+                      opacity: dimmed ? 0.45 : 1,
+                      transform: pressed ? "scale(0.97)" : "none",
+                      boxShadow: pressed ? "inset 0 0 0 3px rgba(255,255,255,.65)" : "none",
+                      transition: "opacity .15s, transform .12s, box-shadow .12s",
+                    }}
+                    disabled={!b.can || busy}
+                    onClick={() => startPunch(b.kind)}
+                    aria-disabled={!b.can}
+                    aria-busy={pressed}
+                  >
+                    {pressed ? "Recording…" : b.label}
+                  </button>
+                );
+              })}
             </div>
-            {busy && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 6 }}>Working…</div>}
 
             {/* Everything that isn't the common case: breaks, OT, business
                 trip, work from home -- one small dropdown, not four extra
