@@ -161,17 +161,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   //
   // Bounded rather than `while`: a cycle here would hang the request, and
   // this file's own history is why that matters.
-  let supersedeId: string | null = (req.target_event_id as string | null) ?? null;
-  for (let hop = 0; hop < 20 && supersedeId; hop++) {
-    const { data: node } = await admin
-      .from("wfm_presence_events").select("superseded_by")
-      .eq("id", supersedeId).eq("tenant_id", tenantId).maybeSingle();
-    const next = (node?.superseded_by as string | null) ?? null;
-    if (!next) break;
-    supersedeId = next;
+  async function liveHeadOf(eventId: string | null): Promise<string | null> {
+    let at = eventId;
+    for (let hop = 0; hop < 20 && at; hop++) {
+      const { data: node } = await admin
+        .from("wfm_presence_events").select("superseded_by")
+        .eq("id", at).eq("tenant_id", tenantId).maybeSingle();
+      const next = (node?.superseded_by as string | null) ?? null;
+      if (!next) return at;
+      at = next;
+    }
+    return at;
   }
 
   if (kind && change.proposed_ts) {
+    // Resolved here rather than above so an "other" correction -- which
+    // writes no event -- does not walk the chain for nothing.
+    const supersedeId = await liveHeadOf((req.target_event_id as string | null) ?? null);
+
     // Project costing (0104): a corrected punch must carry the same project a
     // real one would, or the hours it repairs land as unassigned. A session
     // takes its project from its OPENING punch (workSessions), so a corrected
