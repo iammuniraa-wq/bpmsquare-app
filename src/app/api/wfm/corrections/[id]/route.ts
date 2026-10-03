@@ -100,9 +100,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       })
       .eq("id", id)
       .eq("tenant_id", tenantId)
+      .eq("status", "pending")
       .select("*")
-      .single();
+      .maybeSingle();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data) return NextResponse.json({ error: "Request has already been resolved" }, { status: 409 });
     notifyEmployee(req.employee_id as string, req.target_date as string, "rejected", supervisor_remark!.trim()).catch(() => {});
     return NextResponse.json(data);
   }
@@ -141,6 +143,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({
       error: "This request can't be applied -- it doesn't say which punch to correct. Ask the employee to file it again against the punch itself.",
     }, { status: 409 });
+  }
+
+  // KAN-28. Correcting the same punch twice left BOTH corrections live.
+  //
+  // A request names the punch that was on screen when it was filed, so a
+  // second request filed before the first was approved still names the
+  // ORIGINAL. Superseding that original again overwrote its link to the first
+  // correction, which was then orphaned -- unsuperseded, and therefore still
+  // counted by every reader (they all filter `.is("superseded_by", null)`).
+  // The day ended up with two live check-ins and whichever won was ordering
+  // dependent, which is why QA saw it work sometimes. Four live corrections
+  // were found on one employee-day in production.
+  //
+  // So supersede the HEAD of the chain, not the name on the request:
+  //   A -> B -> C   (only C live)   instead of   A -> C, B orphaned
+  //
+  // Bounded rather than `while`: a cycle here would hang the request, and
+  // this file's own history is why that matters.
+  let supersedeId: string | null = (req.target_event_id as string | null) ?? null;
+  for (let hop = 0; hop < 20 && supersedeId; hop++) {
+    const { data: node } = await admin
+      .from("wfm_presence_events").select("superseded_by")
+      .eq("id", supersedeId).eq("tenant_id", tenantId).maybeSingle();
+    const next = (node?.superseded_by as string | null) ?? null;
+    if (!next) break;
+    supersedeId = next;
   }
 
   if (kind && change.proposed_ts) {
@@ -183,16 +211,34 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
     if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
-    if (req.target_event_id) {
-      const { error: supersedeErr } = await admin
+    if (supersedeId) {
+      // The head of the chain, not req.target_event_id -- see KAN-28 above.
+      // Guarded on superseded_by being null so a concurrent approval that got
+      // there first cannot have its link overwritten; zero rows means the
+      // head moved under us, and the event just written is the orphan.
+      const { data: superseded, error: supersedeErr } = await admin
         .from("wfm_presence_events")
         .update({ superseded_by: newEventId })
-        .eq("id", req.target_event_id)
-        .eq("tenant_id", tenantId);
+        .eq("id", supersedeId)
+        .eq("tenant_id", tenantId)
+        .is("superseded_by", null)
+        .select("id");
       if (supersedeErr) return NextResponse.json({ error: supersedeErr.message }, { status: 500 });
+      if (!superseded || superseded.length === 0) {
+        // Undo our own insert rather than leave a second live punch behind.
+        await admin.from("wfm_presence_events").delete().eq("id", newEventId).eq("tenant_id", tenantId);
+        return NextResponse.json({
+          error: "This punch was corrected by someone else a moment ago. Reload the queue and check it before approving again.",
+        }, { status: 409 });
+      }
     }
   }
 
+  // `.eq("status", "pending")` is the gate, not the read at the top of this
+  // function. That read-then-write let two approvals of the same request both
+  // pass -- a double click, or a retry after the 60s timeout BIM was hitting
+  // all through 2026-09-23, when the server had in fact completed the work.
+  // Zero rows back means someone else resolved it first.
   const { data, error } = await admin
     .from("wfm_correction_requests")
     .update({
@@ -203,9 +249,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     })
     .eq("id", id)
     .eq("tenant_id", tenantId)
+    .eq("status", "pending")
     .select("*")
-    .single();
+    .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) {
+    return NextResponse.json({ error: "Request has already been resolved" }, { status: 409 });
+  }
   notifyEmployee(req.employee_id as string, req.target_date as string, "approved", supervisor_remark?.trim() || null).catch(() => {});
   return NextResponse.json(data);
 }
