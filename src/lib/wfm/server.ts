@@ -180,13 +180,28 @@ export async function getWfmConfig(_supabase: SupabaseClient, tenantId: string):
 // working unchanged.
 export { haversineMeters, matchSite } from "./geofence";
 
+/**
+ * Formatters memoised per IANA timezone -- see hours.ts for the full reasoning
+ * and docs/performance-and-scale.md R2. Building an Intl.DateTimeFormat is an
+ * ICU construction costing order 100us and several KB; these three run inside
+ * per-employee and per-day loops on the live board, the punch-state check and
+ * the Saturday rule. Keyed by timezone and a pure function of it, so nothing
+ * tenant-scoped is retained across requests.
+ */
+const offsetFormatters = new Map<string, Intl.DateTimeFormat>();
+const dateKeyFormatters = new Map<string, Intl.DateTimeFormat>();
+
 function tzOffsetMs(timezone: string, utcDate: Date): number {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-    hour12: false,
-  });
+  let dtf = offsetFormatters.get(timezone);
+  if (!dtf) {
+    dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false,
+    });
+    offsetFormatters.set(timezone, dtf);
+  }
   const parts = Object.fromEntries(dtf.formatToParts(utcDate).map((p) => [p.type, p.value]));
   const asUtc = Date.UTC(
     +parts.year, +parts.month - 1, +parts.day,
@@ -204,12 +219,17 @@ export function zonedTimestamp(dateKey: string, time: string, timezone: string):
 
 /** Today's date key (YYYY-MM-DD) in the tenant's timezone. */
 export function dateKeyInTz(ts: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(ts);
+  let f = dateKeyFormatters.get(timezone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    dateKeyFormatters.set(timezone, f);
+  }
+  return f.format(ts);
 }
 
 // ── FSM bridge ───────────────────────────────────────────────────────────

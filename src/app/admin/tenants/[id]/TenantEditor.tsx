@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Pager from "@/components/Pager";
+import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { CURRENCIES, resolveCurrency, type CurrencyCode } from "@/lib/currency";
 import { useRouter } from "next/navigation";
 import type { Tenant, TenantFeatures } from "@/lib/tenant";
@@ -125,6 +127,15 @@ export default function TenantEditor({ tenant, users }: Props) {
   const [invitePassword, setInvitePassword] = useState("");
   const [inviteRole, setInviteRole]         = useState<"admin" | "member">("admin");
   const [inviting, setInviting]             = useState(false);
+  // A WFM tenant's members are its whole workforce -- BIM has 96, and every
+  // one of them rendered at once with no way to find a particular person.
+  const [userQuery, setUserQuery] = useState("");
+  const [userPage, setUserPage]   = useState(1);
+  const uq = userQuery.trim().toLowerCase();
+  const visibleUsers = uq
+    ? users.filter((u) => (u.email ?? "").toLowerCase().includes(uq) || u.role.toLowerCase().includes(uq))
+    : users;
+  const pagedUsers = paginate(visibleUsers, clampPage(userPage, visibleUsers.length, DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE);
   const [inviteMsg, setInviteMsg]           = useState("");
   const [importing, setImporting]           = useState(false);
   const [importMsg, setImportMsg]           = useState("");
@@ -482,9 +493,21 @@ export default function TenantEditor({ tenant, users }: Props) {
           </div>
         )}
 
-        {users.length > 0 && (
+        {users.length > DEFAULT_PAGE_SIZE && (
+          <input
+            value={userQuery}
+            onChange={(e) => { setUserQuery(e.target.value); setUserPage(1); }}
+            placeholder="Search by email or role…"
+            style={{
+              width: "100%", padding: "8px 12px", marginBottom: 8, fontSize: 12,
+              border: "1px solid #e5e7eb", borderRadius: 8, outline: "none",
+            }}
+          />
+        )}
+
+        {visibleUsers.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {users.map((u) => (
+            {pagedUsers.map((u) => (
               <div key={u.id} style={{
                 display: "flex", flexDirection: "column", gap: 4,
                 padding: "8px 12px", background: "#f9fafb", borderRadius: 8,
@@ -534,6 +557,17 @@ export default function TenantEditor({ tenant, users }: Props) {
             ))}
           </div>
         )}
+
+        {uq && visibleUsers.length === 0 && (
+          <div style={{ fontSize: 12, color: "#6b7280", padding: "8px 2px" }}>No user matches “{userQuery}”.</div>
+        )}
+
+        <Pager
+          page={clampPage(userPage, visibleUsers.length, DEFAULT_PAGE_SIZE)}
+          total={visibleUsers.length}
+          pageSize={DEFAULT_PAGE_SIZE}
+          onPage={setUserPage}
+        />
       </section>
 
       {/* Export */}

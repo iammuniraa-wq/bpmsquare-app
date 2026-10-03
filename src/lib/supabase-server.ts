@@ -209,12 +209,29 @@ export const resolveHostTenant = cache(async (): Promise<HostTenantResult> => {
   // employees" on POST /api/employees. Omitting ignoreDuplicates makes this
   // an actual UPSERT: an existing row's role is promoted to admin too, so
   // the returned role always matches what's really in the database.
+  //
+  // Read before writing (2026-10-03). This upsert used to run on EVERY
+  // authenticated request a platform admin made -- a database write per page
+  // load, with every concurrent request contending on the same row, which is
+  // a large part of why the app felt slower to a platform admin than to an
+  // ordinary member. The invariant above is unchanged: what the function
+  // returns must match what the row says. It just no longer rewrites a row
+  // that already says it.
   tr.stage("isPlatformAdmin");
   if (await isPlatformAdmin()) {
-    tr.stage("platformAdminUpsert");
-    await admin
+    tr.stage("platformAdminRow");
+    const { data: existing } = await admin
       .from("tenant_users")
-      .upsert({ tenant_id: targetTenantId, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id" });
+      .select("role")
+      .eq("tenant_id", targetTenantId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (existing?.role !== "admin") {
+      tr.stage("platformAdminUpsert");
+      await admin
+        .from("tenant_users")
+        .upsert({ tenant_id: targetTenantId, user_id: user.id, role: "admin" }, { onConflict: "tenant_id,user_id" });
+    }
     tr.done("platform-admin path");
     return { kind: "resolved", tenantId: targetTenantId, role: "admin" };
   }
