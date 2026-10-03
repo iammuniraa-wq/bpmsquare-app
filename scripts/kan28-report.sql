@@ -35,21 +35,20 @@
 --    Catches a request matching several events, or an event matching several
 --    requests -- either of which would make the mapping a guess.
 -- ─────────────────────────────────────────────────────────────────────────
-with t as (select id from tenants where slug = 'bim'),
-approved as (
+with approved as (
   select r.id as request_id, r.employee_id, r.target_event_id, r.resolved_at,
          (r.requested_change->>'proposed_ts')::timestamptz as proposed_ts
-  from wfm_correction_requests r, t
-  where r.tenant_id = t.id
+  from wfm_correction_requests r
+  where r.tenant_id = (select id from tenants where slug = 'bim')
     and r.status = 'approved'
     and r.target_event_id is not null
     and r.requested_change->>'proposed_ts' is not null
 ),
 pairs as (
   select a.request_id, e.id as event_id
-  from approved a, t
+  from approved a
   join wfm_presence_events e
-    on e.tenant_id = t.id
+    on e.tenant_id = (select id from tenants where slug = 'bim')
    and e.employee_id = a.employee_id
    and e.ts = a.proposed_ts
    and e.source = 'correction'
@@ -64,10 +63,9 @@ from pairs group by event_id having count(*) > 1;
 -- B. HOW MANY PUNCHES WERE CORRECTED MORE THAN ONCE.
 --    Sanity scale check. Expect a handful.
 -- ─────────────────────────────────────────────────────────────────────────
-with t as (select id from tenants where slug = 'bim')
 select r.target_event_id, count(*) as approved_corrections
-from wfm_correction_requests r, t
-where r.tenant_id = t.id and r.status = 'approved' and r.target_event_id is not null
+from wfm_correction_requests r
+where r.tenant_id = (select id from tenants where slug = 'bim') and r.status = 'approved' and r.target_event_id is not null
 group by r.target_event_id
 having count(*) > 1
 order by 2 desc;
@@ -80,21 +78,20 @@ order by 2 desc;
 --    CHECK A FEW OF THESE AGAINST WHAT THE PERSON ACTUALLY WORKED before
 --    running D. "verdict" tells you what D would do to that row.
 -- ─────────────────────────────────────────────────────────────────────────
-with t as (select id from tenants where slug = 'bim'),
-approved as (
+with approved as (
   select r.id as request_id, r.employee_id, r.target_event_id, r.target_date, r.resolved_at,
          (r.requested_change->>'proposed_ts')::timestamptz as proposed_ts
-  from wfm_correction_requests r, t
-  where r.tenant_id = t.id
+  from wfm_correction_requests r
+  where r.tenant_id = (select id from tenants where slug = 'bim')
     and r.status = 'approved'
     and r.target_event_id is not null
     and r.requested_change->>'proposed_ts' is not null
 ),
 linked as (
   select a.*, e.id as event_id, e.kind, e.superseded_by
-  from approved a, t
+  from approved a
   join wfm_presence_events e
-    on e.tenant_id = t.id
+    on e.tenant_id = (select id from tenants where slug = 'bim')
    and e.employee_id = a.employee_id
    and e.ts = a.proposed_ts
    and e.source = 'correction'
@@ -132,21 +129,20 @@ order by emp.employee_code, r.target_date, r.kind, r.resolved_at;
 -- ─────────────────────────────────────────────────────────────────────────
 -- begin;
 --
--- with t as (select id from tenants where slug = 'bim'),
--- approved as (
+-- with -- approved as (
 --   select r.id as request_id, r.employee_id, r.target_event_id, r.resolved_at,
 --          (r.requested_change->>'proposed_ts')::timestamptz as proposed_ts
---   from wfm_correction_requests r, t
---   where r.tenant_id = t.id
+--   from wfm_correction_requests r
+--   where r.tenant_id = (select id from tenants where slug = 'bim')
 --     and r.status = 'approved'
 --     and r.target_event_id is not null
 --     and r.requested_change->>'proposed_ts' is not null
 -- ),
 -- linked as (
 --   select a.*, e.id as event_id
---   from approved a, t
+--   from approved a
 --   join wfm_presence_events e
---     on e.tenant_id = t.id
+--     on e.tenant_id = (select id from tenants where slug = 'bim')
 --    and e.employee_id = a.employee_id
 --    and e.ts = a.proposed_ts
 --    and e.source = 'correction'
@@ -163,9 +159,9 @@ order by emp.employee_code, r.target_date, r.kind, r.resolved_at;
 -- )
 -- update wfm_presence_events e
 -- set superseded_by = r.winner_event_id
--- from ranked r, t
+-- from ranked r
 -- where e.id = r.event_id
---   and e.tenant_id = t.id
+--   and e.tenant_id = (select id from tenants where slug = 'bim')
 --   and r.rn > 1
 --   and e.superseded_by is null
 --   and e.id <> r.winner_event_id;
