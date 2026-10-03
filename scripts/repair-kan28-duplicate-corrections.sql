@@ -1,3 +1,20 @@
+-- ⚠️  DO NOT RUN. SUPERSEDED BY scripts/rollback-kan28-repair.sql.
+--
+-- This was run on production on 2026-10-03 and was WRONG. It grouped live
+-- corrections by employee + day + kind, which assumes every correction in a
+-- group corrects the same punch. An employee can work two shifts, or take two
+-- breaks, in a day, and each can carry its own correction -- this collapsed
+-- those into one. It superseded a genuine second check-in twelve hours from
+-- the one it kept, and paired a morning break-start with an evening
+-- break-end. Rolled back the same day; nothing was lost, because the repair
+-- only set `superseded_by` and the rollback restores NULL on exactly the ids
+-- its own dry-run printed.
+--
+-- The correct test for an orphaned correction is "a live correction that no
+-- other event points at", and the mapping of orphan to replacement has to
+-- come from wfm_correction_requests (target_event_id + resolved_at), not be
+-- inferred from the events. Kept here as the record of what was run.
+--
 -- KAN-28 repair: collapse duplicate live corrections onto the newest one.
 --
 -- RUN SECTION 1 FIRST AND READ IT. Section 2 writes to attendance data that
