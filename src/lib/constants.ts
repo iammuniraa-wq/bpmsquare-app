@@ -156,6 +156,10 @@ export const ROUTES = {
   purchaseOrder: (id: string) => `/purchase-orders/${id}`,
   dataWorkbench: "/data-workbench",
   wfmMe: "/wfm/me",
+  // Nested under wfmMe on purpose -- the WFM-only confinement in
+  // (app)/layout.tsx allows that prefix, so a sibling route would bounce a
+  // plain employee out of their own timesheet.
+  wfmMyDetails: "/wfm/me/details",
   wfmLiveBoard: "/wfm/live-board",
   wfmEmployees: "/wfm/employees",
   wfmEmployee: (id: string) => `/wfm/employees/${id}`,
