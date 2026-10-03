@@ -9,6 +9,7 @@ import DayColumn from "@/components/wfm/DayColumn";
 import { computeDayHours } from "@/lib/wfm/hours";
 import { geoPermissionState, describeCameraError } from "@/lib/wfm/devicePermissions";
 import { useIsMobile } from "@/lib/useIsMobile";
+import { ROUTES } from "@/lib/constants";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { useCurrency } from "@/lib/tenant-context";
 import { formatMoney } from "@/lib/currency";
@@ -327,7 +328,27 @@ function Stat({ value, label, tone }: { value: string; label: string; tone?: str
 }
 
 
-export default function MeClient({ initialState = null }: { initialState?: MeState | null }) {
+/**
+ * Two screens, one component (owner decision 2026-10-03).
+ *
+ * `punch` is the landing page for every role in a WFM workspace, and it is
+ * now ONLY the punch: four buttons and today's shape. It needs nothing but
+ * /api/wfm/me/state, which the server already renders into `initialState`.
+ *
+ * `details` ("My Details") carries everything else -- Time, Requests,
+ * Calendar, Timeline, Profile -- and each tab fetches when it is opened.
+ * Both used to live on one screen that eagerly fetched SEVEN endpoints on
+ * arrival, for a page most people use to press one button and leave.
+ *
+ * One component rather than two because the punch flow (camera, geolocation,
+ * consent, the offline queue) is the delicate part, and duplicating it to
+ * split the screens would be the risk this change is trying to avoid.
+ */
+export default function MeClient({
+  initialState = null,
+  view = "punch",
+}: { initialState?: MeState | null; view?: "punch" | "details" }) {
+  const isDetails = view === "details";
   const cur = useCurrency();
   const [faceEnrollOpen, setFaceEnrollOpen] = useState(false);
   // Profile hub (portal Home): which tile is expanded, plus the change-password
@@ -363,7 +384,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
   // shift's end earns a full-shift celebration. Judged on wall-clock in
   // the tenant's timezone against the assigned shift, never on pay math.
   const celebrateShift = useIsNextgen3Layer();
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>(view === "details" ? "time" : "home");
   const isMobile = useIsMobile();
   // Mobile-only: the Time tab's two charts, collapsed until asked for.
   const [showCharts, setShowCharts] = useState(false);
@@ -514,7 +535,9 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       setOffline(false);
       cacheMeState(json);
       if (!json.employee?.consent_recorded_at) return;
-      await loadSecondary();
+      // Punch screen never loads the other tabs' data -- that is the whole
+      // point of the split.
+      if (isDetails) await loadSecondary();
     } catch {
       // No network: fall back to the last state cached while online so the
       // punch UI still renders and punches queue. Only hard-fail if this
@@ -541,7 +564,7 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       // Later re-runs (month change regenerates load()) refetch fully.
       serverSeeded.current = false;
       if (initialState) cacheMeState(initialState);
-      if (initialState?.employee?.consent_recorded_at) loadSecondary();
+      if (isDetails && initialState?.employee?.consent_recorded_at) loadSecondary();
     } else {
       load();
     }
@@ -1334,8 +1357,27 @@ export default function MeClient({ initialState = null }: { initialState?: MeSta
       {/* On a phone, 7 tab buttons wrap into a two-row wall. Show the four
           everyday tabs and club the rest (Timeline / Calendar / Analytics)
           into one native "More" dropdown -- one row, no wrapping. */}
+      {/* The one link off the punch screen. Everything else about this person
+          lives on My Details, which loads nothing until a tab is opened. */}
+      <div style={{ display: "flex", justifyContent: isDetails ? "flex-start" : "flex-end", marginBottom: 12 }}>
+        <a
+          href={isDetails ? ROUTES.wfmMe : ROUTES.wfmMyDetails}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "9px 14px", borderRadius: 10, border: `1px solid ${c.line}`,
+            background: c.panel, color: c.ink, fontSize: 13, fontWeight: 600, textDecoration: "none",
+          }}
+        >
+          {isDetails ? "← Back to punch" : "My Details →"}
+        </a>
+      </div>
+
       <div style={{ display: "flex", gap: isMobile ? 5 : 7, marginBottom: 14, flexWrap: isMobile ? "nowrap" : "wrap", alignItems: "center", overflowX: isMobile ? "auto" : undefined }}>
-        {(isMobile ? TABS.filter((t) => ["home", "time", "requests", "profile"].includes(t.key)) : TABS).map((t) => {
+        {(isDetails
+          // "home" is the punch screen's own route now, so it is not a tab here.
+          ? (isMobile ? TABS.filter((t) => ["time", "requests", "profile"].includes(t.key)) : TABS.filter((t) => t.key !== "home"))
+          : []
+        ).map((t) => {
           const compact = isMobile ? { padding: "7px 10px", fontSize: 12, whiteSpace: "nowrap" as const } : {};
           return (
             <button

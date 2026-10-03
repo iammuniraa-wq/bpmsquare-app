@@ -162,8 +162,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // just "/". Supervisors are deliberately left alone here -- they
   // legitimately use the Live board, Roster, Employees, Corrections, Leave
   // and Summary, all gated by this same "wfm" workcenter key.
+  // Matched as a PREFIX, not one exact path: the self-service area is now two
+  // screens (punch at /wfm/me, My Details beneath it), and an exact match
+  // would bounce a plain employee out of their own timesheet the moment they
+  // opened it. The confinement is unchanged in strength -- everything outside
+  // this prefix is still a dead end for them -- and the next self-service
+  // screen we add needs no change here.
   const restrictedToWfmOnly = Array.isArray(viewable) && viewable.every((wc) => wc === "wfm");
-  if (wfmEmployeeActive && restrictedToWfmOnly && !isWfmSupervisor && pathname !== ROUTES.wfmMe) {
+  const inSelfService = pathname === ROUTES.wfmMe || pathname.startsWith(`${ROUTES.wfmMe}/`);
+  if (wfmEmployeeActive && restrictedToWfmOnly && !isWfmSupervisor && !inSelfService) {
     redirect(ROUTES.wfmMe);
   }
 
