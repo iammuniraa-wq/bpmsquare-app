@@ -106,17 +106,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .maybeSingle();
   if (!employee) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // KAN-29: granting remote punching is the one field here a supervisor must
-  // not touch -- a supervisor opening phone punching for their own team
-  // defeats the control. Refused outright rather than silently dropped, so
-  // the caller learns it did not take effect. (Tenant role, not wfm_role:
-  // KAN-17 promotes a supervisor's login to admin, see the block below.)
+  // KAN-29: supervisors grant remote punching, not only tenant admins (owner
+  // decision 2026-10-07 -- "it's the supervisor who should be able to allow or
+  // not allow any user for remote work"). requireWfmSupervisor() above is
+  // therefore the whole gate, and this field carries exactly the same access
+  // as shift, site and wfm_role on this route.
+  //
+  // Stated explicitly because it previously read `ctx.role !== "admin"` and
+  // only worked because KAN-17 promotes a supervisor's login to tenant admin.
+  // That is an accident, not a permission: the day KAN-17's "proper role
+  // distinctions come later" arrives, an admin-only check here would silently
+  // take this away from every supervisor, with no test to catch it.
   const touchesSelfService = "self_service_override" in body;
   let selfServiceBefore: boolean | null = null;
   if (touchesSelfService) {
-    if (ctx.role !== "admin") {
-      return NextResponse.json({ error: "Only an admin can change who may punch from their phone" }, { status: 403 });
-    }
     const v = body.self_service_override;
     if (v !== null && typeof v !== "boolean") {
       return NextResponse.json({ error: "self_service_override must be true, false or null" }, { status: 400 });

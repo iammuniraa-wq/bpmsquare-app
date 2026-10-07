@@ -13,7 +13,13 @@ export default async function WfmEmployeesPage() {
   await requireWfmSupervisorPage();
 
   // Server-prefetch of the client's bootstrap; falls back to client fetch.
-  const { supabase, tenantId, role } = await requireTenantUser();
+  // Supervisors grant remote punching too, not only tenant admins (owner
+  // decision 2026-10-07), so the control below is not role-gated here --
+  // requireWfmSupervisorPage() above is the gate, matching what the PATCH
+  // route enforces. A `role === "admin"` check here would have hidden the
+  // control from the very people meant to use it while the API still
+  // accepted the field.
+  const { supabase, tenantId } = await requireTenantUser();
   const config = await getWfmConfig(createAdminSupabase(), tenantId);
   let initial = null;
   try {
@@ -34,7 +40,7 @@ export default async function WfmEmployeesPage() {
       />
       <WfmEmployeesClient initial={initial} employmentTypes={config.employment_types} loginMode={config.login_mode}
         workspaceSelfService={config.employee_self_service}
-        canGrantRemotePunch={role === "admin"}
+        canGrantRemotePunch={true}
       />
     </>
   );
