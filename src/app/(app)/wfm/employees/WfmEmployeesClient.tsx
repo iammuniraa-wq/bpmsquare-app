@@ -23,6 +23,8 @@ type Row = {
   status: "active" | "inactive";
   employment_type: string;
   wfm_role: "employee" | "supervisor";
+  /** KAN-29. null = follow the workspace setting. */
+  self_service_override: boolean | null;
   shift_id: string | null;
   site_id: string | null;
   supervisor_id: string | null;
@@ -57,26 +59,37 @@ const btnPrimary: React.CSSProperties = {
   ...btn, background: "var(--tenant-accent, #378ADD)", borderColor: "transparent", color: "#fff",
 };
 
+// The <select> value for Row.self_service_override, which is boolean | null.
+type PunchAccess = "" | "allow" | "deny";
+const toAccess = (v: boolean | null | undefined): PunchAccess => (v === true ? "allow" : v === false ? "deny" : "");
+const fromAccess = (v: PunchAccess): boolean | null => (v === "allow" ? true : v === "deny" ? false : null);
+
 type Draft = {
   /** Read-only in the form: system-generated at create, immutable after. */
   employee_code: string;
   first_name: string; last_name: string; phone: string;
   employment_type: string; wfm_role: "employee" | "supervisor";
   shift_id: string; site_id: string; supervisor_id: string; invite_email: string; invite_password: string;
+  punch_access: PunchAccess;
 };
 const emptyDraft = (): Draft => ({
   employee_code: "", first_name: "", last_name: "", phone: "",
   employment_type: "full_time", wfm_role: "employee", shift_id: "", site_id: "", supervisor_id: "",
-  invite_email: "", invite_password: "",
+  invite_email: "", invite_password: "", punch_access: "",
 });
 
-export default function WfmEmployeesClient({ initial = null, employmentTypes = [], loginMode = "email" }: {
+export default function WfmEmployeesClient({ initial = null, employmentTypes = [], loginMode = "email", workspaceSelfService = true, canGrantRemotePunch = false }: {
   initial?: { rows: Row[]; shifts: WfmShift[]; sites: WfmSite[] } | null;
   /** The tenant's configured employment types (Settings -> Workforce). */
   employmentTypes?: { code: string; label: string }[];
   /** How employees sign in (Settings -> Workforce). In "code" mode the screen
    *  offers a Create/Reset login action that sets a code+password login. */
   loginMode?: "email" | "code";
+  /** The workspace-wide phone-punch switch (Settings -> Workforce), so
+   *  "Workspace default" can say what it currently means. */
+  workspaceSelfService?: boolean;
+  /** Admin only: the server refuses this field from anyone else. */
+  canGrantRemotePunch?: boolean;
 }) {
   const typeLabel = (code: string) => employmentTypes.find((t) => t.code === code)?.label ?? code;
   const isMobile = useIsMobile();
@@ -93,6 +106,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   const [statusFilter, setStatusFilter] = useState("active");
   const [roleFilter, setRoleFilter] = useState("");
   const [siteFilter, setSiteFilter] = useState("");
+  const [punchFilter, setPunchFilter] = useState("");
   const [page, setPage] = useState(1);
   // Face-punch enrollment status (self-gating: the route says enabled:false
   // when the tenant hasn't switched face_punch on, and the column hides).
@@ -202,6 +216,11 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
         site_id: draft.site_id || null,
       };
       if (!isNew) payload.supervisor_id = draft.supervisor_id || null;
+      // Sent only when it actually changed: an unchanged value would otherwise
+      // make every ordinary edit depend on migration 0126 being applied.
+      if (!isNew && canGrantRemotePunch && draft.punch_access !== toAccess(rows.find((r) => r.id === editing)?.self_service_override)) {
+        payload.self_service_override = fromAccess(draft.punch_access);
+      }
       if (!isNew && draft.invite_email.trim()) {
         payload.invite_email = draft.invite_email.trim();
         payload.invite_password = draft.invite_password;
@@ -291,6 +310,16 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
           {sites.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
+      {editing !== "new" && canGrantRemotePunch && (
+        <div style={{ flex: "0 1 230px" }}>
+          <label style={lbl}>Punching</label>
+          <select style={inp} value={draft.punch_access} onChange={(e) => setDraft({ ...draft, punch_access: e.target.value as PunchAccess })}>
+            <option value="">Workspace default — {workspaceSelfService ? "phone allowed" : "kiosk only"}</option>
+            <option value="allow">Allow from phone</option>
+            <option value="deny">Kiosk only</option>
+          </select>
+        </div>
+      )}
       {editing !== "new" && (
         <div style={{ flex: "0 1 170px" }}>
           <label style={lbl}>Supervisor</label>
@@ -363,6 +392,8 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
     if (statusFilter && r.status !== statusFilter) return false;
     if (roleFilter && r.wfm_role !== roleFilter) return false;
     if (siteFilter && r.site_id !== siteFilter) return false;
+    if (punchFilter === "exception" && r.self_service_override == null) return false;
+    if (punchFilter === "phone" && !(r.self_service_override ?? workspaceSelfService)) return false;
     if (!q) return true;
     return (
       [r.first_name, r.last_name].filter(Boolean).join(" ").toLowerCase().includes(q) ||
@@ -410,6 +441,11 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
             <option value="">All sites</option>
             {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
+          <select style={{ ...inp, ...(isMobile ? { flex: "1 1 100%", minWidth: 0, fontSize: 12, padding: "8px 6px" } : { width: "auto" }) }} value={punchFilter} onChange={(e) => setPunchFilter(e.target.value)}>
+            <option value="">Any punch access</option>
+            <option value="phone">Can punch from phone</option>
+            <option value="exception">Has a punching exception</option>
+          </select>
         </div>
         <div className="table-scroll">
           <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -437,6 +473,12 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                     <Link href={ROUTES.wfmEmployee(r.id)} style={{ color: "var(--tenant-accent, #378ADD)", textDecoration: "none" }}>
                       {[r.first_name, r.last_name].filter(Boolean).join(" ")}
                     </Link>
+                    {r.self_service_override != null && (
+                      <>
+                        {" "}
+                        <Pill label={r.self_service_override ? "Phone punch" : "Kiosk only"} tone={r.self_service_override ? "green" : "amber"} />
+                      </>
+                    )}
                   </td>
                   <td style={td}>{typeLabel(r.employment_type)}</td>
                   <td style={td}>{r.wfm_role === "supervisor" ? <Pill label="Supervisor" tone="purple" /> : "Employee"}</td>
@@ -486,6 +528,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                           supervisor_id: r.supervisor_id ?? "",
                           invite_email: "",
                           invite_password: "",
+                          punch_access: toAccess(r.self_service_override),
                         });
                         setError("");
                       }}

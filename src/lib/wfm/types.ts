@@ -106,6 +106,12 @@ export type WfmEmployee = {
   shift_id: string | null;
   site_id: string | null;
   wfm_role: WfmRole;
+  /**
+   * KAN-29. null = follow the workspace setting. Optional because the column
+   * arrives with migration 0126 -- until then the row simply lacks it, which
+   * must read as null (inherit).
+   */
+  self_service_override?: boolean | null;
   technician_id: string | null;
   enrolled_photo_path: string | null;
   consent_recorded_at: string | null;

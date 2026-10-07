@@ -58,13 +58,22 @@ export const requireWfm = cache(async function requireWfm(): Promise<WfmContext>
 
   let employee: WfmEmployee | null = null;
   if (membership?.employee_id) {
-    const { data } = await supabase
-      .from("employees")
-      .select(EMPLOYEE_COLS)
-      .eq("tenant_id", tenantId)
-      .eq("id", membership.employee_id)
-      .maybeSingle();
-    employee = (data as WfmEmployee | null) ?? null;
+    const fetchEmployee = (cols: string) =>
+      supabase
+        .from("employees")
+        .select(cols)
+        .eq("tenant_id", tenantId)
+        .eq("id", membership.employee_id as string)
+        .maybeSingle();
+    let res = await fetchEmployee(`${EMPLOYEE_COLS}, self_service_override`);
+    // 42703 = undefined column: migration 0126 is applied by hand and may be
+    // pending. This select backs every WFM route, so failing here would take
+    // punching down with it -- retry without the column and let the missing
+    // override read as null (inherit the workspace setting).
+    if (res.error && (res.error as { code?: string }).code === "42703") {
+      res = await fetchEmployee(EMPLOYEE_COLS);
+    }
+    employee = (res.data as unknown as WfmEmployee | null) ?? null;
   }
 
   // A Business Role that explicitly grants edit access on "wfm" counts as

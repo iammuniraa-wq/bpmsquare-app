@@ -5,6 +5,7 @@ import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/l
 import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
 import { isWfhApprovedForDate } from "@/lib/wfm/advanceRequests";
 import { isSecondSaturday } from "@/lib/wfm/saturdayRule";
+import { effectiveSelfService } from "@/lib/wfm/selfService";
 import { ROUTES } from "@/lib/constants";
 import {
   applyPunch, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
@@ -121,7 +122,15 @@ export async function POST(request: NextRequest) {
   // a direct POST can't punch from a phone either. Offline replays of a punch
   // made while self-service was still on stay accepted via the idempotency
   // short-circuit above (they never reach here).
-  if (!config.employee_self_service) {
+  //
+  // KAN-29: the workspace switch can be overridden per employee -- an admin
+  // may let one named person punch from their phone (true) or pin one person
+  // to the kiosk whatever the workspace says (false). Still enforced here, on
+  // the server, from the employee row requireWfmEmployee() loaded for THIS
+  // session -- nothing the request body says can raise it. A missing column
+  // (migration 0126 pending) reads as null and falls back to the workspace
+  // setting, i.e. exactly the pre-KAN-29 behaviour.
+  if (!effectiveSelfService(employee.self_service_override, config.employee_self_service)) {
     return NextResponse.json(
       { error: "Punching from your phone is turned off — punch in and out at the office kiosk." },
       { status: 403 }

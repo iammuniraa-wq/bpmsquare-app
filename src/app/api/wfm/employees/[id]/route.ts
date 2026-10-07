@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-server";
+import { createAdminSupabase, findOrCreateUserForInvite, getAuthUser } from "@/lib/supabase-server";
+import { logChange } from "@/lib/changeLog";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { buildEmployeeHubProfile } from "@/lib/wfm/employeeHub";
 import { tenantOrigin } from "@/lib/constants";
@@ -105,6 +106,38 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .maybeSingle();
   if (!employee) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // KAN-29: granting remote punching is the one field here a supervisor must
+  // not touch -- a supervisor opening phone punching for their own team
+  // defeats the control. Refused outright rather than silently dropped, so
+  // the caller learns it did not take effect. (Tenant role, not wfm_role:
+  // KAN-17 promotes a supervisor's login to admin, see the block below.)
+  const touchesSelfService = "self_service_override" in body;
+  let selfServiceBefore: boolean | null = null;
+  if (touchesSelfService) {
+    if (ctx.role !== "admin") {
+      return NextResponse.json({ error: "Only an admin can change who may punch from their phone" }, { status: 403 });
+    }
+    const v = body.self_service_override;
+    if (v !== null && typeof v !== "boolean") {
+      return NextResponse.json({ error: "self_service_override must be true, false or null" }, { status: 400 });
+    }
+    // Read separately: selecting the column in the main read above would 404
+    // every PATCH while migration 0126 is pending.
+    const { data: beforeRow, error: beforeErr } = await admin
+      .from("employees")
+      .select("self_service_override")
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (beforeErr) {
+      if ((beforeErr as { code?: string }).code === "42703") {
+        return NextResponse.json({ error: "Per-employee punch access needs migration 0126 applied to this database." }, { status: 503 });
+      }
+      return NextResponse.json({ error: beforeErr.message }, { status: 500 });
+    }
+    selfServiceBefore = (beforeRow as { self_service_override?: boolean | null } | null)?.self_service_override ?? null;
+  }
+
   // Employment types are tenant-configured (Settings -> Workforce), so the
   // accepted values come from config rather than a hardcoded enum.
   const validEmploymentTypes = (await getWfmConfig(admin, tenantId)).employment_types.map((t) => t.code);
@@ -120,6 +153,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if (["employee", "supervisor"].includes(body.wfm_role)) patch.wfm_role = body.wfm_role;
   if (["active", "inactive"].includes(body.status)) patch.status = body.status;
+  // null is accepted explicitly: typeof null is "object", so a bare boolean
+  // check would silently drop "reset to the workspace default".
+  if (body.self_service_override === null || typeof body.self_service_override === "boolean") {
+    patch.self_service_override = body.self_service_override;
+  }
   // Custom-field values (cf_* keys only — the shape CustomFields/
   // ObjectSections write; anything else in the object is dropped).
   if (typeof body.custom_data === "object" && body.custom_data !== null && !Array.isArray(body.custom_data)) {
@@ -273,6 +311,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Employee code already exists" }, { status: 409 });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Who gave this person remote access, and when, is the question asked after
+  // an incident -- so this field is always recorded.
+  if (touchesSelfService && "self_service_override" in patch && selfServiceBefore !== (patch.self_service_override as boolean | null)) {
+    const user = await getAuthUser();
+    await logChange(ctx.supabase, {
+      tenantId,
+      objectType: "employees",
+      objectId: id,
+      objectLabel: [employee.first_name, employee.last_name].filter(Boolean).join(" "),
+      action: "update",
+      actorId: ctx.userId,
+      actorEmail: user?.email ?? null,
+      changes: [{ field: "self_service_override", from: selfServiceBefore, to: patch.self_service_override as boolean | null }],
+    });
   }
 
   // Deactivated must also mean un-enrolled: the face templates and photo

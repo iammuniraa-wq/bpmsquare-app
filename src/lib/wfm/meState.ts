@@ -13,6 +13,7 @@ import { computeDayHours, shiftDayKey, punchStateAt } from "@/lib/wfm/hours";
 import { attributePunch } from "@/lib/wfm/projectServer";
 import { isWfhApprovedForDate } from "@/lib/wfm/advanceRequests";
 import { isSecondSaturday } from "@/lib/wfm/saturdayRule";
+import { effectiveSelfService } from "@/lib/wfm/selfService";
 import { tenantHasFeature } from "@/lib/tenant";
 
 /**
@@ -216,7 +217,10 @@ export async function buildWfmMeState(ctx: WfmContext) {
     // Supervisor-managed workforce (client decision 2026-08-21): when off,
     // the Me page withdraws self-punch and self-enrollment -- attendance is
     // captured at the kiosk by face. Defaults on for every existing tenant.
-    employee_self_service: config.employee_self_service,
+    //
+    // KAN-29: the RESOLVED value for this person (their override, else the
+    // workspace switch), so the screen agrees with the punch route's gate.
+    employee_self_service: effectiveSelfService(employee.self_service_override, config.employee_self_service),
     // Account Settings offers "add a passkey" only when the tenant runs it.
     passkey_login: config.passkey_login,
     // So the client can tick the running total live (net vs gross) the same

@@ -13,7 +13,7 @@ export default async function WfmEmployeesPage() {
   await requireWfmSupervisorPage();
 
   // Server-prefetch of the client's bootstrap; falls back to client fetch.
-  const { supabase, tenantId } = await requireTenantUser();
+  const { supabase, tenantId, role } = await requireTenantUser();
   const config = await getWfmConfig(createAdminSupabase(), tenantId);
   let initial = null;
   try {
@@ -32,7 +32,10 @@ export default async function WfmEmployeesPage() {
         title="Employees"
         subtitle="Shift and site assignment, punch access and roles. Shares the Employees master data — HR fields live in Master data → Employees."
       />
-      <WfmEmployeesClient initial={initial} employmentTypes={config.employment_types} loginMode={config.login_mode} />
+      <WfmEmployeesClient initial={initial} employmentTypes={config.employment_types} loginMode={config.login_mode}
+        workspaceSelfService={config.employee_self_service}
+        canGrantRemotePunch={role === "admin"}
+      />
     </>
   );
 }

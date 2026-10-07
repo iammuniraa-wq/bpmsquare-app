@@ -381,6 +381,8 @@ export type Employee = {
   shift_id: string | null;
   site_id: string | null;
   wfm_role: "employee" | "supervisor";
+  /** KAN-29. null = follow the workspace setting. */
+  self_service_override: boolean | null;
   technician_id: string | null;
   enrolled_photo_path: string | null;
   consent_recorded_at: string | null;

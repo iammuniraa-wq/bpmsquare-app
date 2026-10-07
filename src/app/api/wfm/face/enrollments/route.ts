@@ -4,6 +4,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, getWfmConfig } from "@/lib/wfm/server";
 import { faceConfigured, indexFace, deleteFaces } from "@/lib/wfm/face";
 import { revokeFaceEnrollment } from "@/lib/wfm/faceEnrollment";
+import { effectiveSelfService } from "@/lib/wfm/selfService";
 
 
 // Capped per route, not via vercel.json. That config carried
@@ -36,7 +37,10 @@ async function guard() {
     err.status = 404;
     throw err;
   }
-  return { ...ctx, admin, selfService: config.employee_self_service };
+  // KAN-29: resolved for the caller's own employee row (their override, else
+  // the workspace switch) so the Me page's enrollment prompt -- which keys off
+  // the same resolved value -- is never offered something this route refuses.
+  return { ...ctx, admin, selfService: effectiveSelfService(ctx.employee?.self_service_override, config.employee_self_service) };
 }
 
 /** Self on their own record, or any supervisor. But on a supervisor-managed
