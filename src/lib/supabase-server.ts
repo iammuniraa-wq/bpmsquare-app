@@ -219,13 +219,14 @@ export const resolveHostTenant = cache(async (): Promise<HostTenantResult> => {
   // that already says it.
   tr.stage("isPlatformAdmin");
   if (await isPlatformAdmin()) {
+    // NOTE for anyone adding a `role` consumer to getTenantMembership: the
+    // upsert below does NOT refresh its cache(), so a later call in this same
+    // request still reports the pre-promotion role. Harmless today -- nothing
+    // outside this function reads `role` from it, and the password gate reads
+    // must_change_password, which the upsert does not touch. Stop and think
+    // if that stops being true.
     tr.stage("platformAdminRow");
-    const { data: existing } = await admin
-      .from("tenant_users")
-      .select("role")
-      .eq("tenant_id", targetTenantId)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const existing = await getTenantMembership(targetTenantId, user.id);
     if (existing?.role !== "admin") {
       tr.stage("platformAdminUpsert");
       await admin
@@ -239,13 +240,10 @@ export const resolveHostTenant = cache(async (): Promise<HostTenantResult> => {
   // Everyone else: must be a member of THIS host's tenant, and that
   // membership must be active (not admin-locked, inside its validity window
   // -- see 0057). No fallback.
+  // Same row the password gate reads moments later, so it goes through the
+  // cache()-wrapped reader -- one round trip for the request, not two.
   tr.stage("membership");
-  const { data: membership } = await admin
-    .from("tenant_users")
-    .select("role, is_locked, valid_from, valid_to")
-    .eq("user_id", user.id)
-    .eq("tenant_id", targetTenantId)
-    .maybeSingle();
+  const membership = await getTenantMembership(targetTenantId, user.id);
   if (!membership || !isMembershipActive(membership)) return { kind: "denied" };
 
   tr.done("member path");
@@ -386,15 +384,30 @@ export const createServerSupabase = cache(async () => {
  * explicit tenant+user filters (MULTI_TENANT_GUARDRAILS: every admin-client
  * query names its tenant filter).
  */
+/**
+ * The caller's tenant_users row, fetched ONCE per request.
+ *
+ * Widened 2026-10-07 to carry the access columns too. resolveHostTenant()
+ * read the same row for (role, is_locked, valid_from, valid_to), and the
+ * platform-admin branch read it again for `role` -- so a single request made
+ * two or three HTTPS round trips for one row. The SQL is 0.129ms (measured on
+ * production); the cost is entirely the round trip, and under the Fluid
+ * event-loop contention we see on bim.bpmsquare.com every await is a place to
+ * queue. cache() makes the later calls free.
+ */
 export const getTenantMembership = cache(
   async (tenantId: string, userId: string): Promise<{
     must_change_password: boolean | null;
     employee_id: string | null;
     wfm_default_landing: string | null;
+    role: string | null;
+    is_locked: boolean | null;
+    valid_from: string | null;
+    valid_to: string | null;
   } | null> => {
     const { data } = await createAdminSupabase()
       .from("tenant_users")
-      .select("must_change_password, employee_id, wfm_default_landing")
+      .select("must_change_password, employee_id, wfm_default_landing, role, is_locked, valid_from, valid_to")
       .eq("tenant_id", tenantId)
       .eq("user_id", userId)
       .maybeSingle();
