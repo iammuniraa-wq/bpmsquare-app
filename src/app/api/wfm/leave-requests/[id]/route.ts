@@ -5,6 +5,16 @@ import { getEmployeeLoginEmail, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 import { canApproveFor } from "@/lib/wfm/scope";
 
+
+// Capped per route, not via vercel.json. That config carried
+// "src/app/api/wfm/**": { maxDuration: 60 } from 2026-10-03 and it never
+// took effect -- on 2026-10-07 these routes still ran the full 300s during a
+// Supabase connectivity blip, while /api/wfm/summary, the one route with this
+// export, stopped at 60. The glob matches directories, not source files. A
+// hung request holds a Fluid instance other requests are sharing, so this
+// bounds the blast radius as much as the bill.
+export const maxDuration = 60;
+
 // PATCH /api/wfm/leave-requests/[id] — supervisor approves or rejects a
 // pending request. Approve inserts a real wfm_leave_records row (the only
 // thing that actually affects leave balance / monthly summary) rather than

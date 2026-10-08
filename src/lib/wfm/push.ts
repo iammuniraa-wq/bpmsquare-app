@@ -91,7 +91,13 @@ export async function sendToEmployee(
             keys: { p256dh: s.p256dh as string, auth: s.auth as string },
           },
           payload,
-          { TTL: 60 * 60 }
+          // Bounded, because this is a third party we do not control reached
+          // from inside a request. Without it, undici's 10s connect timeout
+          // applied -- which is what the ConnectTimeoutErrors on /api/wfm/push
+          // on 2026-10-07 and 2026-10-08 actually were. A push that cannot be
+          // delivered in five seconds is not worth holding an instance for;
+          // the catch below already treats a failure as non-fatal.
+          { TTL: 60 * 60, timeout: 5000 }
         );
         sent += 1;
       } catch (e: unknown) {

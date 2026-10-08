@@ -5,6 +5,16 @@ import { wfmEmployeesPayload } from "@/lib/wfm/bootstrap";
 import { generateNextEmployeeCode, isEmployeeCodeCollision } from "@/lib/employeeRef";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 
+
+// Capped per route, not via vercel.json. That config carried
+// "src/app/api/wfm/**": { maxDuration: 60 } from 2026-10-03 and it never
+// took effect -- on 2026-10-07 these routes still ran the full 300s during a
+// Supabase connectivity blip, while /api/wfm/summary, the one route with this
+// export, stopped at 60. The glob matches directories, not source files. A
+// hung request holds a Fluid instance other requests are sharing, so this
+// bounds the blast radius as much as the bill.
+export const maxDuration = 60;
+
 // The WFM view over the shared `employees` master-data table (see
 // 0062_wfm_module.sql — WFM extends it rather than owning a parallel one).
 

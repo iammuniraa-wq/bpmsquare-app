@@ -5,6 +5,16 @@ import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getEmployeeLoginEmail, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 
+
+// Capped per route, not via vercel.json. That config carried
+// "src/app/api/wfm/**": { maxDuration: 60 } from 2026-10-03 and it never
+// took effect -- on 2026-10-07 these routes still ran the full 300s during a
+// Supabase connectivity blip, while /api/wfm/summary, the one route with this
+// export, stopped at 60. The glob matches directories, not source files. A
+// hung request holds a Fluid instance other requests are sharing, so this
+// bounds the blast radius as much as the bill.
+export const maxDuration = 60;
+
 const TYPES = ["time", "selfie", "both"] as const;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 

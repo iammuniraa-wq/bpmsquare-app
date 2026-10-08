@@ -2,6 +2,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm } from "@/lib/wfm/server";
 
+
+// Capped per route, not via vercel.json. That config carried
+// "src/app/api/wfm/**": { maxDuration: 60 } from 2026-10-03 and it never
+// took effect -- on 2026-10-07 these routes still ran the full 300s during a
+// Supabase connectivity blip, while /api/wfm/summary, the one route with this
+// export, stopped at 60. The glob matches directories, not source files. A
+// hung request holds a Fluid instance other requests are sharing, so this
+// bounds the blast radius as much as the bill.
+export const maxDuration = 60;
+
 // POST /api/wfm/broadcasts/[id] — mark read for the CALLER (any member).
 // DELETE — deactivate (supervisor/admin); rows are kept, not destroyed, so
 // read history and the change trail survive.

@@ -7,6 +7,16 @@ import { punchStateAt, shiftDayKey } from "@/lib/wfm/hours";
 import { resolveProjectForPunch } from "@/lib/wfm/projectServer";
 import { applyPunch, PUNCH_KIND_LABEL, type PresenceKind } from "@/lib/wfm/types";
 
+
+// Capped per route, not via vercel.json. That config carried
+// "src/app/api/wfm/**": { maxDuration: 60 } from 2026-10-03 and it never
+// took effect -- on 2026-10-07 these routes still ran the full 300s during a
+// Supabase connectivity blip, while /api/wfm/summary, the one route with this
+// export, stopped at 60. The glob matches directories, not source files. A
+// hung request holds a Fluid instance other requests are sharing, so this
+// bounds the blast radius as much as the bill.
+export const maxDuration = 60;
+
 const KIOSK_KINDS: PresenceKind[] = ["check_in", "check_out", "break_start", "break_end"];
 const MAX_BYTES = 2 * 1024 * 1024;
 const KIOSK_SELFIE_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
