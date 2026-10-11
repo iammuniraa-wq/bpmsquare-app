@@ -193,12 +193,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const restrictedToWfmOnly = Array.isArray(viewable) && viewable.every((wc) => wc === "wfm");
 
   // Kiosk-only means no sign-in, not "sign in and be shown nothing" (BIM,
-  // 2026-10-11). A plain WFM-only employee with no phone access is sent to the
-  // login page with the reason, which also signs them out. Supervisors, admins
-  // and anyone with phone access are never caught here -- see blocksLogin().
+  // 2026-10-11). Anyone with an employee record and no phone access is sent to
+  // the login page with the reason, which also signs them out. Only tenant
+  // admins and platform admins (userRole "admin") are exempt -- supervisors are
+  // not; see blocksLogin().
   // Runs on every page render, so an employee already signed in is cut off on
   // their next navigation rather than only at the next login.
-  if (wfmEmployeeActive && phone && blocksLogin({ policy: phone, isSupervisor: isWfmSupervisor, wfmOnly: restrictedToWfmOnly })) {
+  if (wfmEmployeeActive && phone && blocksLogin({ policy: phone, isAdmin: userRole === "admin" })) {
     redirect("/login?error=kiosk_only");
   }
 

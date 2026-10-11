@@ -113,29 +113,25 @@ describe("blocksLogin", () => {
   const remote = phonePolicy(true, false, "wfh");               // allowed, work from home
   const legacyAllowed = phonePolicy(true, false, null);         // allowed with no mode (the 0126 behaviour)
 
-  it("blocks a plain WFM-only employee on a kiosk-only workspace", () => {
-    expect(blocksLogin({ policy: kiosk, isSupervisor: false, wfmOnly: true })).toBe(true);
+  it("blocks anyone who is not an admin on a kiosk-only workspace", () => {
+    expect(blocksLogin({ policy: kiosk, isAdmin: false })).toBe(true);
   });
 
   it("blocks someone pinned to the kiosk even when the workspace allows phones", () => {
-    expect(blocksLogin({ policy: kioskByOverride, isSupervisor: false, wfmOnly: true })).toBe(true);
+    expect(blocksLogin({ policy: kioskByOverride, isAdmin: false })).toBe(true);
   });
 
   it("never blocks anyone who has phone access, however it was granted", () => {
     for (const policy of [phoneEverything, remote, legacyAllowed]) {
-      expect(blocksLogin({ policy, isSupervisor: false, wfmOnly: true })).toBe(false);
+      expect(blocksLogin({ policy, isAdmin: false })).toBe(false);
     }
-    expect(blocksLogin({ policy: phonePolicy(true, false, "site"), isSupervisor: false, wfmOnly: true })).toBe(false);
-    expect(blocksLogin({ policy: phonePolicy(true, false, "both"), isSupervisor: false, wfmOnly: true })).toBe(false);
+    expect(blocksLogin({ policy: phonePolicy(true, false, "site"), isAdmin: false })).toBe(false);
+    expect(blocksLogin({ policy: phonePolicy(true, false, "both"), isAdmin: false })).toBe(false);
   });
 
-  it("never blocks a supervisor, or nobody could grant anyone access again", () => {
-    expect(blocksLogin({ policy: kiosk, isSupervisor: true, wfmOnly: true })).toBe(false);
-    expect(blocksLogin({ policy: kioskByOverride, isSupervisor: true, wfmOnly: true })).toBe(false);
-  });
-
-  it("fails open for a login that is not WFM-only (it also uses the CRM)", () => {
-    expect(blocksLogin({ policy: kiosk, isSupervisor: false, wfmOnly: false })).toBe(false);
+  it("never blocks an admin, or nobody could grant anyone access again", () => {
+    expect(blocksLogin({ policy: kiosk, isAdmin: true })).toBe(false);
+    expect(blocksLogin({ policy: kioskByOverride, isAdmin: true })).toBe(false);
   });
 
   it("carries the exact wording the client asked for", () => {

@@ -231,10 +231,16 @@ are sent to the login page with "Your attendance is recorded at the office
 kiosk. Please speak to your supervisor.", and are signed out. Hiding the punch
 buttons was the first version and was explicitly rejected.
 
-**Never blocked:** tenant admins, platform admins, supervisors (by employee
-role OR by a Business Role granting edit on WFM), and anyone with phone access
-(Work from home, Site visit, both, or the older "Allow from phone"). Supervisors
-must stay in or nobody could grant access again.
+**Never blocked:** tenant admins, platform admins, and anyone with phone access
+(Work from home, Site visit, both, or the older "Allow from phone"). Updated
+2026-10-11: supervisors are NO LONGER exempt -- a supervisor without "Phone punch
++ kiosk" is refused like anyone else, and so is a login with a Business Role
+that grants WFM edit. The exemption is on the login's tenant role only.
+
+**Watch out (KAN-17):** a supervisor employee's LOGIN is promoted to tenant
+admin when they are saved as a supervisor, so they ARE admins here and still get
+in. Only supervisors whose login is not an admin are blocked. Set "Phone punch +
+kiosk" on every supervisor who must use the app before the workspace goes to Off.
 
 **What a blocked employee loses**, and supervisors now do for them:
 their own hours view, leave requests, correction requests, push opt-in, and the
@@ -253,11 +259,8 @@ stays empty. Tell BIM; whether that matters for DPDP is theirs to decide.
   session calling the WFM APIs directly is not separately refused (punching is
   still refused by the punch route). If that matters, the next step is a check
   in `requireWfm()`, which costs a small extra query per employee API call.
-- **It fails open for a login that is not WFM-only.** A person whose login has
-  no Business Role is treated as unrestricted -- the app's "no role = full
-  access" default -- and is NOT blocked. If an employee can still get in after
-  the workspace was set to Off, that is the likely reason: check they have the
-  default WFM Business Role.
+- **A member with no employee record is not blocked** (there is no phone
+  setting to refuse), e.g. a QA or back-office login.
 - An installed phone app that is offline may show a cached page until it is
   next online.
 
@@ -265,5 +268,5 @@ stays empty. Tell BIM; whether that matters for DPDP is theirs to decide.
 every unflagged employee is locked out until the list is worked through.
 
 **To test:** sign in as a plain employee with no exception. Expect to land on
-the login page with the message and no session. Then as one with Work from home
-set: expect the app. Then as a supervisor: expect the app.
+the login page with the message and no session. Then as one with Phone punch + kiosk
+set: expect the app. Then as a tenant admin: expect the app.
