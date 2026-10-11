@@ -383,6 +383,8 @@ export type Employee = {
   wfm_role: "employee" | "supervisor";
   /** KAN-29. null = follow the workspace setting. */
   self_service_override: boolean | null;
+  /** KAN-29 part 2. Which remote punches the phone offers; only meaningful with self_service_override = true. */
+  remote_mode?: "wfh" | "site" | "both" | null;
   technician_id: string | null;
   enrolled_photo_path: string | null;
   consent_recorded_at: string | null;

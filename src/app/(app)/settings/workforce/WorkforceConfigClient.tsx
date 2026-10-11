@@ -26,7 +26,7 @@ const TIMEZONES = [
 
 const PUNCH_TYPE_ITEMS = [
   { key: "ot", label: "Overtime", hint: "Employees punch overtime as its own session after checking out; each one needs supervisor approval before it counts toward pay." },
-  { key: "mobile_work", label: "Work from home", hint: "Working from home — ordinary working time, just labelled differently. Employees must have an approved work-from-home request for the day before they can punch it." },
+  { key: "mobile_work", label: "Work from home", hint: "Working from home — ordinary working time, just labelled differently. Employees need an approved work-from-home request for the day before they can punch it — unless a supervisor has given them standing Work from home on their Employees record." },
   { key: "business_trip", label: "Site visit", hint: "Time at a customer or project site, recorded as ordinary working time. Needs no advance approval — the employee just picks it when they punch in." },
 ] as const;
 

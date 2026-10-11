@@ -25,6 +25,8 @@ type Row = {
   wfm_role: "employee" | "supervisor";
   /** KAN-29. null = follow the workspace setting. */
   self_service_override: boolean | null;
+  /** KAN-29 part 2. Only meaningful with self_service_override = true. */
+  remote_mode?: "wfh" | "site" | "both" | null;
   shift_id: string | null;
   site_id: string | null;
   supervisor_id: string | null;
@@ -60,9 +62,24 @@ const btnPrimary: React.CSSProperties = {
 };
 
 // The <select> value for Row.self_service_override, which is boolean | null.
-type PunchAccess = "" | "allow" | "deny";
-const toAccess = (v: boolean | null | undefined): PunchAccess => (v === true ? "allow" : v === false ? "deny" : "");
-const fromAccess = (v: PunchAccess): boolean | null => (v === "allow" ? true : v === "deny" ? false : null);
+//
+// KAN-29 part 2: the choice is now a PAIR -- allowed or not, and if allowed,
+// which remote working. Six values, one per outcome a supervisor can mean:
+//   ""    follow the workspace          deny  kiosk only
+//   wfh   work from home                site  site visit      both  either
+//   any   allowed with no mode set -- the 0126 behaviour, kept so that editing
+//         someone already set that way does not silently narrow their access.
+//         It is only OFFERED while it is the current value.
+type PunchAccess = "" | "deny" | "wfh" | "site" | "both" | "any";
+type RemoteMode = "wfh" | "site" | "both";
+const toAccess = (override: boolean | null | undefined, mode?: RemoteMode | null): PunchAccess =>
+  override === true ? (mode ?? "any") : override === false ? "deny" : "";
+const fromAccess = (v: PunchAccess): { override: boolean | null; mode: RemoteMode | null } =>
+  v === "" ? { override: null, mode: null }
+  : v === "deny" ? { override: false, mode: null }
+  : v === "any" ? { override: true, mode: null }
+  : { override: true, mode: v };
+const ACCESS_LABEL: Record<RemoteMode, string> = { wfh: "Work from home", site: "Site visit", both: "Home + Site" };
 
 type Draft = {
   /** Read-only in the form: system-generated at create, immutable after. */
@@ -218,8 +235,13 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
       if (!isNew) payload.supervisor_id = draft.supervisor_id || null;
       // Sent only when it actually changed: an unchanged value would otherwise
       // make every ordinary edit depend on migration 0126 being applied.
-      if (!isNew && canGrantRemotePunch && draft.punch_access !== toAccess(rows.find((r) => r.id === editing)?.self_service_override)) {
-        payload.self_service_override = fromAccess(draft.punch_access);
+      const editedRow = rows.find((r) => r.id === editing);
+      if (!isNew && canGrantRemotePunch && draft.punch_access !== toAccess(editedRow?.self_service_override, editedRow?.remote_mode)) {
+        // Sent as a pair: the server refuses a mode without an explicit allow,
+        // and a lone override would leave a stale mode behind.
+        const { override, mode } = fromAccess(draft.punch_access);
+        payload.self_service_override = override;
+        payload.remote_mode = mode;
       }
       if (!isNew && draft.invite_email.trim()) {
         payload.invite_email = draft.invite_email.trim();
@@ -315,9 +337,17 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
           <label style={lbl}>Punching</label>
           <select style={inp} value={draft.punch_access} onChange={(e) => setDraft({ ...draft, punch_access: e.target.value as PunchAccess })}>
             <option value="">Workspace default — {workspaceSelfService ? "phone allowed" : "kiosk only"}</option>
-            <option value="allow">Allow from phone</option>
             <option value="deny">Kiosk only</option>
+            <option value="wfh">Work from home</option>
+            <option value="site">Site visit</option>
+            <option value="both">Work from home + Site visit</option>
+            {draft.punch_access === "any" && <option value="any">Phone — any punch (existing)</option>}
           </select>
+          {(draft.punch_access === "wfh" || draft.punch_access === "site" || draft.punch_access === "both") && (
+            <div style={{ fontSize: 11, color: c.hint, marginTop: 4, lineHeight: 1.4 }}>
+              Their phone offers {draft.punch_access === "wfh" ? "Work from home" : draft.punch_access === "site" ? "Site visit" : "Work from home and Site visit"} punches, breaks and overtime. Plain check in / out stays at the kiosk.
+            </div>
+          )}
         </div>
       )}
       {editing !== "new" && (
@@ -394,6 +424,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
     if (siteFilter && r.site_id !== siteFilter) return false;
     if (punchFilter === "exception" && r.self_service_override == null) return false;
     if (punchFilter === "phone" && !(r.self_service_override ?? workspaceSelfService)) return false;
+    if (punchFilter === "remote" && !(r.self_service_override === true && r.remote_mode)) return false;
     if (!q) return true;
     return (
       [r.first_name, r.last_name].filter(Boolean).join(" ").toLowerCase().includes(q) ||
@@ -445,6 +476,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
             <option value="">Any punch access</option>
             <option value="phone">Can punch from phone</option>
             <option value="exception">Has a punching exception</option>
+            <option value="remote">Remote — home or site</option>
           </select>
         </div>
         <div className="table-scroll">
@@ -476,7 +508,10 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                     {r.self_service_override != null && (
                       <>
                         {" "}
-                        <Pill label={r.self_service_override ? "Phone punch" : "Kiosk only"} tone={r.self_service_override ? "green" : "amber"} />
+                        <Pill
+                          label={r.self_service_override ? (r.remote_mode ? ACCESS_LABEL[r.remote_mode] : "Phone punch") : "Kiosk only"}
+                          tone={r.self_service_override ? "green" : "amber"}
+                        />
                       </>
                     )}
                   </td>
@@ -528,7 +563,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                           supervisor_id: r.supervisor_id ?? "",
                           invite_email: "",
                           invite_password: "",
-                          punch_access: toAccess(r.self_service_override),
+                          punch_access: toAccess(r.self_service_override, r.remote_mode),
                         });
                         setError("");
                       }}

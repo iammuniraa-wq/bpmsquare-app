@@ -69,6 +69,10 @@ type MeState = {
   require_location?: boolean;
   selfie_mode?: "off" | "shift" | "all";
   employee_self_service?: boolean;
+  /** KAN-29 part 2. Which remote working a supervisor gave this person; null = none set. */
+  remote_mode?: "wfh" | "site" | "both" | null;
+  /** The exact punches this phone may use, or null for no restriction. The punch route enforces the same list. */
+  phone_kinds?: PresenceKind[] | null;
   passkey_login?: boolean;
   face_punch?: "off" | "kiosk";
   deduct_breaks?: boolean;
@@ -1015,6 +1019,9 @@ export default function MeClient({
     // decision 2026-09-09) -- the punch route enforces this too; this just
     // stops the dropdown from offering something it would reject.
     if (k === "mobile_work_start" && !me.wfh_approved_today) return false;
+    // A supervisor limited this phone to certain punches (Work from home /
+    // Site visit). The punch route refuses the rest, so do not offer them.
+    if (me.phone_kinds && !me.phone_kinds.includes(k)) return false;
     // 2nd Saturday is a full holiday under the Saturday rule -- starting a
     // normal session is blocked, only OT (not a "session start" in this
     // sense) stays offered.
@@ -1036,12 +1043,34 @@ export default function MeClient({
   const canCheckOut = punchOptions.includes("check_out");
   const canBreakStart = punchOptions.includes("break_start");
   const canBreakEnd = punchOptions.includes("break_end");
-  const BIG_PUNCHES: { kind: PresenceKind; label: string; tone: string; can: boolean }[] = [
-    { kind: "check_in", label: "Check in", tone: "#10b981", can: canCheckIn },
-    { kind: "check_out", label: "Check out", tone: "#ef4444", can: canCheckOut },
+  type BigPunch = { kind: PresenceKind; label: string; tone: string; can: boolean };
+  const breakButtons: BigPunch[] = [
     { kind: "break_start", label: "Break start", tone: "#f59e0b", can: canBreakStart },
     { kind: "break_end", label: "Break end", tone: "#3b82f6", can: canBreakEnd },
   ];
+  // Someone a supervisor allowed to work from home or on a site visit gets
+  // THEIR punches on the big buttons instead of a plain check in / out, so a
+  // remote day is labelled as one (BIM, 2026-10-11). "Both" is six buttons in
+  // the same two columns; the tile still never changes shape with the state,
+  // only which buttons are lit -- the 2026-09-10 rule above still holds.
+  const remoteButtons = (): BigPunch[] => [
+    ...(me.remote_mode === "wfh" || me.remote_mode === "both" ? [
+      { kind: "mobile_work_start" as PresenceKind, label: "Work from home start", tone: "#10b981", can: punchOptions.includes("mobile_work_start") },
+      { kind: "mobile_work_end" as PresenceKind, label: "Work from home end", tone: "#ef4444", can: punchOptions.includes("mobile_work_end") },
+    ] : []),
+    ...(me.remote_mode === "site" || me.remote_mode === "both" ? [
+      { kind: "business_trip_start" as PresenceKind, label: "Site visit start", tone: "#10b981", can: punchOptions.includes("business_trip_start") },
+      { kind: "business_trip_end" as PresenceKind, label: "Site visit end", tone: "#ef4444", can: punchOptions.includes("business_trip_end") },
+    ] : []),
+    ...breakButtons,
+  ];
+  const BIG_PUNCHES: BigPunch[] = me.remote_mode
+    ? remoteButtons()
+    : [
+        { kind: "check_in", label: "Check in", tone: "#10b981", can: canCheckIn },
+        { kind: "check_out", label: "Check out", tone: "#ef4444", can: canCheckOut },
+        ...breakButtons,
+      ];
   const otherOptions: PresenceKind[] = punchOptions.filter(
     (k) => !BIG_PUNCHES.some((b) => b.kind === k)
   );

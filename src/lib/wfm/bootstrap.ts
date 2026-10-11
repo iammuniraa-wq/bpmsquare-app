@@ -22,7 +22,7 @@ function orThrow<T>({ data, error }: { data: T | null; error: { message: string 
 }
 
 export async function wfmEmployeesPayload(supabase: SupabaseClient, tenantId: string) {
-  const [empRes, { data: memberships }, overrideRes] = await Promise.all([
+  const [empRes, { data: memberships }, overrideRes, modeRes] = await Promise.all([
     supabase
       .from("employees")
       .select(
@@ -39,6 +39,10 @@ export async function wfmEmployeesPayload(supabase: SupabaseClient, tenantId: st
     // (42703) and is ignored, so the screen -- and every other consumer of
     // this payload -- keeps working with every row reading as "inherit".
     supabase.from("employees").select("id, self_service_override").eq("tenant_id", tenantId),
+    // KAN-29 part 2 (migration 0127), its OWN read for the same reason -- and
+    // separate from the override read above, so a pending 0127 cannot also
+    // blank the override column and make everyone read as "inherit".
+    supabase.from("employees").select("id, remote_mode").eq("tenant_id", tenantId),
   ]);
   const employees = orThrow(empRes);
   const overrideById = new Map<string, boolean | null>(
@@ -46,12 +50,18 @@ export async function wfmEmployeesPayload(supabase: SupabaseClient, tenantId: st
       ? []
       : ((overrideRes.data ?? []) as { id: string; self_service_override: boolean | null }[]).map((r) => [r.id, r.self_service_override])
   );
+  const modeById = new Map<string, string | null>(
+    modeRes.error
+      ? []
+      : ((modeRes.data ?? []) as { id: string; remote_mode: string | null }[]).map((r) => [r.id, r.remote_mode])
+  );
   const linked = new Set((memberships ?? []).map((m) => m.employee_id));
   // Surface only the login User ID from custom_data (the rest of custom_data
   // isn't needed by this screen and needn't be shipped to the client).
   return employees.map(({ custom_data, ...e }) => ({
     ...e,
     self_service_override: overrideById.get(e.id) ?? null,
+    remote_mode: (modeById.get(e.id) ?? null) as "wfh" | "site" | "both" | null,
     has_login: linked.has(e.id),
     login_username: ((custom_data ?? {}) as { login_username?: string }).login_username ?? null,
   }));

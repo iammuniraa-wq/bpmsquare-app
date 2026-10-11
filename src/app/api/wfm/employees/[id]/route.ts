@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase, findOrCreateUserForInvite, getAuthUser } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
+import { normalizeRemoteMode, modeIncludesWfh, modeIncludesSite } from "@/lib/wfm/selfService";
 import { buildEmployeeHubProfile } from "@/lib/wfm/employeeHub";
 import { tenantOrigin } from "@/lib/constants";
 import { revokeFaceEnrollment } from "@/lib/wfm/faceEnrollment";
@@ -117,8 +118,60 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // That is an accident, not a permission: the day KAN-17's "proper role
   // distinctions come later" arrives, an admin-only check here would silently
   // take this away from every supervisor, with no test to catch it.
+  const wfmConfig = await getWfmConfig(admin, tenantId);
+
   const touchesSelfService = "self_service_override" in body;
   let selfServiceBefore: boolean | null = null;
+
+  // KAN-29 part 2: which remote working the allowed person does. Sent together
+  // with self_service_override by the Employees screen, and validated as a
+  // pair so the two columns cannot be saved in a state that means nothing.
+  const touchesRemoteMode = "remote_mode" in body;
+  let remoteModeBefore: string | null = null;
+  // False while migration 0127 is pending: the column does not exist yet.
+  let remoteModeColumn = true;
+  if (touchesRemoteMode) {
+    const rm = body.remote_mode;
+    if (rm !== null && normalizeRemoteMode(rm) === null) {
+      return NextResponse.json({ error: "remote_mode must be wfh, site, both or null" }, { status: 400 });
+    }
+    if (rm !== null) {
+      // A mode is only meaningful when phone punching is explicitly allowed,
+      // and the supervisor chose both in the same breath -- refuse a mode that
+      // arrives without it rather than guess what was meant.
+      if (body.self_service_override !== true) {
+        return NextResponse.json({ error: "Choose 'allowed' together with a remote mode." }, { status: 400 });
+      }
+      // The workspace switches default OFF. A mode the workspace has not
+      // switched on would save cleanly and then fail on the employee's phone
+      // with no explanation, so refuse it here, where the supervisor can act.
+      const mode = normalizeRemoteMode(rm);
+      const missing: string[] = [];
+      if (modeIncludesWfh(mode) && !wfmConfig.punch_types.mobile_work) missing.push("Work from home");
+      if (modeIncludesSite(mode) && !wfmConfig.punch_types.business_trip) missing.push("Site visit");
+      if (missing.length > 0) {
+        return NextResponse.json({
+          error: `${missing.join(" and ")} ${missing.length > 1 ? "aren't" : "isn't"} switched on for this workspace. Turn ${missing.length > 1 ? "them" : "it"} on in Settings → Workforce first.`,
+        }, { status: 400 });
+      }
+    }
+  }
+  if (touchesRemoteMode || touchesSelfService) {
+    // Read separately, like self_service_override: selecting it in the main
+    // read would 404 every PATCH while migration 0127 is pending.
+    const { data: rmRow, error: rmErr } = await admin
+      .from("employees").select("remote_mode").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+    if (rmErr) {
+      if ((rmErr as { code?: string }).code === "42703") remoteModeColumn = false;
+      else return NextResponse.json({ error: rmErr.message }, { status: 500 });
+    } else {
+      remoteModeBefore = normalizeRemoteMode((rmRow as { remote_mode?: unknown } | null)?.remote_mode);
+    }
+    if (!remoteModeColumn && body.remote_mode != null) {
+      return NextResponse.json({ error: "Choosing Work from home or Site visit needs migration 0127 applied to this database." }, { status: 503 });
+    }
+  }
+
   if (touchesSelfService) {
     const v = body.self_service_override;
     if (v !== null && typeof v !== "boolean") {
@@ -143,7 +196,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   // Employment types are tenant-configured (Settings -> Workforce), so the
   // accepted values come from config rather than a hardcoded enum.
-  const validEmploymentTypes = (await getWfmConfig(admin, tenantId)).employment_types.map((t) => t.code);
+  const validEmploymentTypes = wfmConfig.employment_types.map((t) => t.code);
 
   const patch: Record<string, unknown> = {};
   // employee_code is deliberately absent: system-generated at create,
@@ -160,6 +213,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // check would silently drop "reset to the workspace default".
   if (body.self_service_override === null || typeof body.self_service_override === "boolean") {
     patch.self_service_override = body.self_service_override;
+  }
+  if (remoteModeColumn) {
+    if (touchesRemoteMode) {
+      patch.remote_mode = normalizeRemoteMode(body.remote_mode);
+    } else if ("self_service_override" in patch && patch.self_service_override !== true) {
+      // Moving someone off "allowed" must not leave a mode behind. It would be
+      // inert (the policy ignores a mode without an explicit allow) but it
+      // would reappear the moment they were allowed again, which nobody chose.
+      patch.remote_mode = null;
+    }
   }
   // Custom-field values (cf_* keys only — the shape CustomFields/
   // ObjectSections write; anything else in the object is dropped).
@@ -318,7 +381,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   // Who gave this person remote access, and when, is the question asked after
   // an incident -- so this field is always recorded.
+  const logChanges: { field: string; from: unknown; to: unknown }[] = [];
   if (touchesSelfService && "self_service_override" in patch && selfServiceBefore !== (patch.self_service_override as boolean | null)) {
+    logChanges.push({ field: "self_service_override", from: selfServiceBefore, to: patch.self_service_override as boolean | null });
+  }
+  if ("remote_mode" in patch && remoteModeBefore !== (patch.remote_mode as string | null)) {
+    logChanges.push({ field: "remote_mode", from: remoteModeBefore, to: patch.remote_mode as string | null });
+  }
+  if (logChanges.length > 0) {
     const user = await getAuthUser();
     await logChange(ctx.supabase, {
       tenantId,
@@ -328,7 +398,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       action: "update",
       actorId: ctx.userId,
       actorEmail: user?.email ?? null,
-      changes: [{ field: "self_service_override", from: selfServiceBefore, to: patch.self_service_override as boolean | null }],
+      changes: logChanges,
     });
   }
 

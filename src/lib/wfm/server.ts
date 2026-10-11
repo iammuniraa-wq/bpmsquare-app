@@ -65,14 +65,16 @@ export const requireWfm = cache(async function requireWfm(): Promise<WfmContext>
         .eq("tenant_id", tenantId)
         .eq("id", membership.employee_id as string)
         .maybeSingle();
-    let res = await fetchEmployee(`${EMPLOYEE_COLS}, self_service_override`);
-    // 42703 = undefined column: migration 0126 is applied by hand and may be
-    // pending. This select backs every WFM route, so failing here would take
-    // punching down with it -- retry without the column and let the missing
-    // override read as null (inherit the workspace setting).
-    if (res.error && (res.error as { code?: string }).code === "42703") {
-      res = await fetchEmployee(EMPLOYEE_COLS);
-    }
+    // 42703 = undefined column: migrations 0126 and 0127 are applied by hand and
+    // either may be pending. This select backs every WFM route, so failing here
+    // would take punching down with it. Try the full set, then fall back one
+    // step at a time -- a missing remote_mode alone (0126 applied, 0127 not)
+    // must NOT also lose the override, or everyone allowed from their phone
+    // would silently fall back to the workspace setting.
+    const undefinedColumn = (r: { error?: unknown }) => (r.error as { code?: string } | null | undefined)?.code === "42703";
+    let res = await fetchEmployee(`${EMPLOYEE_COLS}, self_service_override, remote_mode`);
+    if (res.error && undefinedColumn(res)) res = await fetchEmployee(`${EMPLOYEE_COLS}, self_service_override`);
+    if (res.error && undefinedColumn(res)) res = await fetchEmployee(EMPLOYEE_COLS);
     employee = (res.data as unknown as WfmEmployee | null) ?? null;
   }
 

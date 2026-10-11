@@ -5,7 +5,7 @@ import { requireWfmEmployee, getWfmConfig, matchSite, zonedTimestamp } from "@/l
 import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
 import { isWfhApprovedForDate } from "@/lib/wfm/advanceRequests";
 import { isSecondSaturday } from "@/lib/wfm/saturdayRule";
-import { effectiveSelfService } from "@/lib/wfm/selfService";
+import { phonePolicy, phoneAllows, hasStandingWfh, type RemoteMode } from "@/lib/wfm/selfService";
 import { ROUTES } from "@/lib/constants";
 import {
   applyPunch, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
@@ -130,9 +130,26 @@ export async function POST(request: NextRequest) {
   // session -- nothing the request body says can raise it. A missing column
   // (migration 0126 pending) reads as null and falls back to the workspace
   // setting, i.e. exactly the pre-KAN-29 behaviour.
-  if (!effectiveSelfService(employee.self_service_override, config.employee_self_service)) {
+  //
+  // KAN-29 part 2 (BIM, 2026-10-11): an allowed person can be limited to WHICH
+  // remote working they do -- Work from home, a Site visit, or both. Then the
+  // phone takes only those punches (plus breaks and overtime), never a plain
+  // check in or out. Same function the punch screen is built from, so the
+  // screen cannot offer a button this refuses.
+  const policy = phonePolicy(employee.self_service_override, config.employee_self_service, employee.remote_mode);
+  if (policy.kind === "kiosk_only") {
     return NextResponse.json(
       { error: "Punching from your phone is turned off — punch in and out at the office kiosk." },
+      { status: 403 }
+    );
+  }
+  if (!phoneAllows(policy, kind)) {
+    const MODE_WORDS: Record<RemoteMode, string> = {
+      wfh: "Work from home", site: "Site visit", both: "Work from home or Site visit",
+    };
+    const mode = policy.kind === "remote" ? policy.mode : "both";
+    return NextResponse.json(
+      { error: `Your phone is set up for ${MODE_WORDS[mode]}. Use that punch, or punch in and out at the office kiosk.` },
       { status: 403 }
     );
   }
@@ -165,7 +182,10 @@ export async function POST(request: NextRequest) {
   // the tenant switch above (owner decision 2026-09-09) -- OT stays punch-
   // first-approve-after as it always has (wfm_ot_sessions, below).
   const dayKey = shiftDayKey(tsDate, config.timezone, shift);
-  if (kind === "mobile_work_start" && !(await isWfhApprovedForDate(admin, tenantId, employee.id, dayKey))) {
+  // A standing Work from home permission from a supervisor REPLACES the daily
+  // request (owner decision 2026-10-11) -- otherwise the supervisor would
+  // approve the same person twice. Someone with no mode set still needs it.
+  if (kind === "mobile_work_start" && !hasStandingWfh(policy) && !(await isWfhApprovedForDate(admin, tenantId, employee.id, dayKey))) {
     return NextResponse.json(
       { error: "Work from home isn't approved for today — request it from the Requests tab first." },
       { status: 403 }

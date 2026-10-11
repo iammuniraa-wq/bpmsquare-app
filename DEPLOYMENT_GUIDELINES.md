@@ -141,3 +141,70 @@ phone.
 
 **To reverse:** turn employee self-service back on. The per-employee flags
 stay as they are and take effect again when it is next turned off.
+
+---
+
+## Runbook addendum — Work from home / Site visit (KAN-29 part 2)
+
+Written 2026-10-11. Extends the runbook above; do that one first.
+
+Migration: `supabase/migrations/0127_wfm_employee_remote_mode.sql`, run AFTER
+0126. Same safety property as 0126: until it runs the code reads the new
+column as "no mode" and behaves exactly as before, so deploying first is safe.
+
+What it changes for a person a supervisor has allowed to punch from their
+phone: instead of "allowed, any punch" the supervisor now picks **Work from
+home**, **Site visit** or **Work from home + Site visit**. Their phone then
+offers only those punches, plus breaks and overtime, and **no plain check in
+or check out** -- so every remote day is labelled as one. A standing Work from
+home choice also **replaces the per-day work-from-home request**, so the
+supervisor does not approve the same person twice.
+
+**Do these in this order:**
+
+1. Push and promote (verify the Production badge, as always).
+2. Run migration 0127.
+3. **Switch on the workspace types.** Settings → Workforce → Work from home
+   and Site visit. They default OFF and are NOT on for BIM unless someone
+   switched them. Saving a remote mode whose switch is off is refused with a
+   message naming the switch -- but only after the supervisor has tried.
+4. Then, on each remote person: WFM → Employees → Edit → **Punching**.
+
+**What to check:**
+
+- A person set to Work from home sees `Work from home start / end` and the
+  break buttons, and no `Check in`. Set to Both, they see six buttons.
+- **A direct `POST /api/wfm/punch` with `kind: "check_in"` for that person
+  returns 403** and a message saying their phone is set up for Work from home.
+  The missing button is not the test.
+- With Work from home set, `mobile_work_start` works with NO request filed for
+  the day. Without a mode it still needs one.
+- Someone already allowed from their phone under 0126 keeps every punch until a
+  supervisor changes them; the list shows them as "Phone punch".
+
+**Known limits, deliberate:**
+
+- A remote person cannot close a session opened at the kiosk from their phone:
+  plain check out is withheld. They check out at the kiosk or ask a supervisor
+  to correct it. If that bites in practice, allowing check out for remote
+  modes is a one-line change in `lib/wfm/selfService.ts`.
+- Overtime stays available from the phone for remote people (it is approved
+  afterwards, and says nothing about where they are).
+- The mode is permanent until a supervisor changes it, like the override.
+
+---
+
+## Runbook addendum — supervisor time correction
+
+Written 2026-10-11. No migration. A supervisor opens an employee, Attendance
+tab, **Correct** on a day, and changes a punch or adds a missing one with a
+mandatory reason. The employee is emailed (the existing "Correction decided"
+switch) and sees what changed and why in their own Corrections list.
+
+- Limit: this month and the previous one, in the workspace's timezone
+  (`SUPERVISOR_EDIT_MONTHS` in `lib/wfm/timeCorrection.ts`).
+- Nobody changes their own time.
+- First real use is the test -- the endpoint has no automated test because it
+  needs a database. Change one punch for a test employee and check three
+  places: the employee's Corrections tab, Administration → Change history, and
+  the email.

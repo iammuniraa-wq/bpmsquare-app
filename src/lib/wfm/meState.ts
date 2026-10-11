@@ -13,7 +13,7 @@ import { computeDayHours, shiftDayKey, punchStateAt } from "@/lib/wfm/hours";
 import { attributePunch } from "@/lib/wfm/projectServer";
 import { isWfhApprovedForDate } from "@/lib/wfm/advanceRequests";
 import { isSecondSaturday } from "@/lib/wfm/saturdayRule";
-import { effectiveSelfService } from "@/lib/wfm/selfService";
+import { phonePolicy, hasStandingWfh } from "@/lib/wfm/selfService";
 import { tenantHasFeature } from "@/lib/tenant";
 
 /**
@@ -159,8 +159,14 @@ export async function buildWfmMeState(ctx: WfmContext) {
   // Whether mobile_work_start (WFH) is legal today -- so the punch dropdown
   // never offers an option the punch route would reject. OT is deliberately
   // NOT gated the same way (see wfm_advance_requests' own header comment).
+  //
+  // KAN-29 part 2: what this person's phone may do at all. A standing Work from
+  // home permission counts as approved for every day (it replaces the daily
+  // request), but only while the workspace switch for it is on -- the punch
+  // route checks that switch separately and would refuse otherwise.
+  const policy = phonePolicy(employee.self_service_override, config.employee_self_service, employee.remote_mode);
   const wfhApprovedToday = config.punch_types.mobile_work
-    ? await isWfhApprovedForDate(admin, tenantId, employee.id, todayKey)
+    ? hasStandingWfh(policy) || await isWfhApprovedForDate(admin, tenantId, employee.id, todayKey)
     : false;
 
   // 2nd Saturday: a live date check (see lib/wfm/saturdayRule.ts), same one
@@ -220,7 +226,13 @@ export async function buildWfmMeState(ctx: WfmContext) {
     //
     // KAN-29: the RESOLVED value for this person (their override, else the
     // workspace switch), so the screen agrees with the punch route's gate.
-    employee_self_service: effectiveSelfService(employee.self_service_override, config.employee_self_service),
+    employee_self_service: policy.kind !== "kiosk_only",
+    // Which remote working this person was given, and the exact punches their
+    // phone may use. null = no restriction (everyone the workspace lets punch,
+    // and people allowed with no mode). The screen filters its buttons by this
+    // list and the punch route enforces the same one, from the same function.
+    remote_mode: policy.kind === "remote" ? policy.mode : null,
+    phone_kinds: policy.kind === "remote" ? policy.allowed : null,
     // Account Settings offers "add a passkey" only when the tenant runs it.
     passkey_login: config.passkey_login,
     // So the client can tick the running total live (net vs gross) the same

@@ -507,7 +507,7 @@ deploy for an automatic schema change.
   every seeded product through both books; totals matched lineTotals.ts),
   then removed from dev entirely -- the owner wants Big Blue on production
   only. Needs 0120 for the deals (skipped cleanly if pending).
-- **0126_wfm_employee_self_service_override.sql — PENDING on both DBs**
+- **0126_wfm_employee_self_service_override.sql — owner reported running it 2026-10-11 (production; dev not confirmed)**
   (written 2026-10-07, KAN-29, BIM: "everyone punches at the kiosk; by
   exception an admin activates remote working for a named person"). Adds
   nullable `employees.self_service_override` (null = follow
@@ -520,6 +520,21 @@ deploy for an automatic schema change.
   Until it runs, every path degrades to pre-KAN-29 behaviour: reads retry
   without the column (42703) and every employee reads as "inherit"; punching
   is unaffected; setting the flag returns a clear 503 naming this migration.
+- **0127_wfm_employee_remote_mode.sql — PENDING on both DBs**
+  (written 2026-10-11, KAN-29 part 2, BIM: "two remote options -- work from
+  home and site; while allowing mobile punching the supervisor selects which").
+  Adds nullable `employees.remote_mode` (`wfh` | `site` | `both`), meaningful
+  only with `self_service_override = true`. A person with the override and no
+  mode keeps today's behaviour (any punch). With a mode, the phone offers only
+  that mode's punches plus breaks and OT, never a plain check in/out, and a
+  standing Work from home mode replaces the per-day WFH request. Enforced in
+  `api/wfm/punch/route.ts` through `lib/wfm/selfService.ts`; set via
+  `PATCH /api/wfm/employees/[id]`, change-logged. Needs the Work from home
+  and Site visit workspace switches (`config.wfm.punch_types`) on, which
+  default OFF -- saving a mode whose switch is off is refused with a message.
+  Until it runs, every path degrades to the 0126 behaviour: reads retry
+  without the column, and the PATCH route answers 503 naming this migration.
+  Run AFTER 0126. `scripts/` has no seed for it (no demo data needed).
 - **0125_email_log_invoice_rfq_kinds.sql — PENDING on both DBs** (written
   2026-09-21, from the owner's question "recheck if outbound emails are
   logged"). They are -- for four of the six kinds. `email_log.kind` carries a

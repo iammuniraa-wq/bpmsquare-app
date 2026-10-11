@@ -112,6 +112,11 @@ export type WfmEmployee = {
    * must read as null (inherit).
    */
   self_service_override?: boolean | null;
+  /**
+   * KAN-29 part 2 (migration 0127): which remote punches the phone offers.
+   * Only meaningful with self_service_override = true; absent until 0127 runs.
+   */
+  remote_mode?: "wfh" | "site" | "both" | null;
   technician_id: string | null;
   enrolled_photo_path: string | null;
   consent_recorded_at: string | null;
