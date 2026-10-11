@@ -110,7 +110,7 @@ proves nothing.
 Written 2026-10-07 for the BIM change. The ORDER matters; steps 3 and 4 are
 not interchangeable.
 
-Code: `b7d149f` + `ceccc9c`. Migration:
+Code: `b0180eb` + `e61411c`. Migration:
 `supabase/migrations/0126_wfm_employee_self_service_override.sql`.
 
 1. **Push and promote.** Verify the Production badge per the section above.
