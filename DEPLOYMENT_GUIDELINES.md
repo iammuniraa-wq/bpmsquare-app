@@ -208,3 +208,50 @@ switch) and sees what changed and why in their own Corrections list.
   needs a database. Change one punch for a test employee and check three
   places: the employee's Corrections tab, Administration → Change history, and
   the email.
+
+---
+
+## Runbook addendum — kiosk-only means no sign-in
+
+Written 2026-10-11. No migration. With the workspace on kiosk-only, an
+employee who has not been given phone access is refused the app: they sign in,
+are sent to the login page with "Your attendance is recorded at the office
+kiosk. Please speak to your supervisor.", and are signed out. Hiding the punch
+buttons was the first version and was explicitly rejected.
+
+**Never blocked:** tenant admins, platform admins, supervisors (by employee
+role OR by a Business Role granting edit on WFM), and anyone with phone access
+(Work from home, Site visit, both, or the older "Allow from phone"). Supervisors
+must stay in or nobody could grant access again.
+
+**What a blocked employee loses**, and supervisors now do for them:
+their own hours view, leave requests, correction requests, push opt-in, and the
+links in notification emails (they land on the refusal). Corrections: the
+supervisor time correction. Leave: supervisors enter it on their behalf.
+
+**Consent.** Employees record their consent for selfie and location capture
+inside the app. A blocked employee can never do that. The kiosk does not check
+for it, so punching still works -- but BIM's consent record for these people
+stays empty. Tell BIM; whether that matters for DPDP is theirs to decide.
+
+**Limits, stated so nobody is surprised:**
+
+- **It applies when they open the app.** Every page render checks, so someone
+  already signed in is cut off on their next navigation, not instantly. A saved
+  session calling the WFM APIs directly is not separately refused (punching is
+  still refused by the punch route). If that matters, the next step is a check
+  in `requireWfm()`, which costs a small extra query per employee API call.
+- **It fails open for a login that is not WFM-only.** A person whose login has
+  no Business Role is treated as unrestricted -- the app's "no role = full
+  access" default -- and is NOT blocked. If an employee can still get in after
+  the workspace was set to Off, that is the likely reason: check they have the
+  default WFM Business Role.
+- An installed phone app that is offline may show a cached page until it is
+  next online.
+
+**Order:** set everyone's exceptions BEFORE the workspace goes to Off. Reversed,
+every unflagged employee is locked out until the list is worked through.
+
+**To test:** sign in as a plain employee with no exception. Expect to land on
+the login page with the message and no session. Then as one with Work from home
+set: expect the app. Then as a supervisor: expect the app.

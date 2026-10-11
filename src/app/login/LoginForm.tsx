@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { c, g, sh } from "@/lib/theme";
 import Logo from "@/components/Logo";
 import { safeInternalPath } from "@/lib/safeRedirect";
 import { employeeSyntheticEmail } from "@/lib/wfm/employeeLogin";
+import { KIOSK_ONLY_LOGIN_MESSAGE } from "@/lib/wfm/selfService";
 import FaceLoginButton from "@/components/FaceLoginButton";
 import PasskeyLoginButton from "@/components/PasskeyLoginButton";
 import type { TenantBranding } from "@/lib/tenant";
@@ -60,8 +61,20 @@ function LoginFormInner({ branding }: { branding: Branding }) {
     if (err === "account_locked") {
       return "Your account is locked or outside its validity period. Contact your workspace administrator.";
     }
+    if (err === "kiosk_only") return KIOSK_ONLY_LOGIN_MESSAGE;
     return "";
   });
+
+  // The layout sent this person here because their attendance is kiosk-only
+  // (BIM, 2026-10-11), and it cannot clear a session from a server render. So
+  // do it here, the same way the force-password screen does -- otherwise the
+  // refusal would leave them signed in behind it. Best-effort: the layout
+  // refuses them again on every page regardless.
+  useEffect(() => {
+    if (searchParams.get("error") === "kiosk_only") {
+      createBrowserSupabase().auth.signOut().catch(() => {});
+    }
+  }, [searchParams]);
   const [resetSent, setResetSent] = useState(false);
   const [mode, setMode]         = useState<"login" | "forgot">("login");
 

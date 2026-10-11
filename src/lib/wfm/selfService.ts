@@ -83,3 +83,38 @@ export function phoneAllows(policy: PhonePolicy, kind: PresenceKind): boolean {
 export function hasStandingWfh(policy: PhonePolicy): boolean {
   return policy.kind === "remote" && modeIncludesWfh(policy.mode);
 }
+
+/**
+ * The words a blocked employee sees on the login page. Exact wording from BIM
+ * (2026-10-11): "Your attendance is recorded at the office kiosk. Please speak
+ * to your supervisor." Kept in one place so the layout and the login page
+ * cannot drift.
+ */
+export const KIOSK_ONLY_LOGIN_MESSAGE =
+  "Your attendance is recorded at the office kiosk. Please speak to your supervisor.";
+
+/**
+ * Should this person be refused the app altogether?
+ *
+ * Owner request 2026-10-11: with the workspace on kiosk-only, an employee who
+ * has not been given phone access should not be able to sign in at all --
+ * not "sign in and be shown nothing". Hiding the buttons was what shipped
+ * first and was explicitly rejected.
+ *
+ * Deliberately narrow, because the cost of a wrong answer is a locked-out
+ * workforce, and because the same rule has to be true on every page:
+ *
+ *  - only someone with an ACTIVE employee record (the caller checks this);
+ *  - never a supervisor. That is tenant admins, employees with wfm_role =
+ *    supervisor, and anyone whose Business Role grants edit on "wfm" -- the
+ *    people who must be able to sign in to GRANT access. Locking them out
+ *    would leave nobody able to undo it;
+ *  - only a login that exists purely for WFM (`wfmOnly`). A person who also
+ *    uses the CRM happens to have an employee record too, and kiosk-only
+ *    punching says nothing about their access to quotes and accounts. When
+ *    unsure this fails OPEN: a user with no Business Role at all counts as
+ *    unrestricted, so is not blocked.
+ */
+export function blocksLogin(p: { policy: PhonePolicy; isSupervisor: boolean; wfmOnly: boolean }): boolean {
+  return p.policy.kind === "kiosk_only" && !p.isSupervisor && p.wfmOnly;
+}
