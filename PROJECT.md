@@ -520,7 +520,7 @@ deploy for an automatic schema change.
   Until it runs, every path degrades to pre-KAN-29 behaviour: reads retry
   without the column (42703) and every employee reads as "inherit"; punching
   is unaffected; setting the flag returns a clear 503 naming this migration.
-- **0127_wfm_employee_remote_mode.sql — PENDING on both DBs**
+- **0127_wfm_employee_remote_mode.sql — owner reported running it 2026-10-11 (production; dev not confirmed). DORMANT: the Punching dropdown no longer offers Work from home / Site visit (owner, same day), so nothing sets `remote_mode`**
   (written 2026-10-11, KAN-29 part 2, BIM: "two remote options -- work from
   home and site; while allowing mobile punching the supervisor selects which").
   Adds nullable `employees.remote_mode` (`wfh` | `site` | `both`), meaningful

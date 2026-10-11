@@ -338,10 +338,16 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
           <select style={inp} value={draft.punch_access} onChange={(e) => setDraft({ ...draft, punch_access: e.target.value as PunchAccess })}>
             <option value="">Workspace default — {workspaceSelfService ? "phone allowed" : "kiosk only"}</option>
             <option value="deny">Kiosk only</option>
-            <option value="wfh">Work from home</option>
-            <option value="site">Site visit</option>
-            <option value="both">Work from home + Site visit</option>
-            {draft.punch_access === "any" && <option value="any">Phone — any punch (existing)</option>}
+            <option value="any">Phone punch + kiosk</option>
+            {/* Work from home / Site visit were offered here for a few hours on
+                2026-10-11 and withdrawn by the owner ("instead of these 3 I
+                need one: phone punch + kiosk"). The capability stays in the
+                server, dormant. Anyone already SAVED with one of them keeps
+                their option so editing them does not silently widen their
+                access to every punch -- shown only while it is their value. */}
+            {(draft.punch_access === "wfh" || draft.punch_access === "site" || draft.punch_access === "both") && (
+              <option value={draft.punch_access}>{ACCESS_LABEL[draft.punch_access]} (existing)</option>
+            )}
           </select>
           {(draft.punch_access === "wfh" || draft.punch_access === "site" || draft.punch_access === "both") && (
             <div style={{ fontSize: 11, color: c.hint, marginTop: 4, lineHeight: 1.4 }}>
@@ -424,7 +430,6 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
     if (siteFilter && r.site_id !== siteFilter) return false;
     if (punchFilter === "exception" && r.self_service_override == null) return false;
     if (punchFilter === "phone" && !(r.self_service_override ?? workspaceSelfService)) return false;
-    if (punchFilter === "remote" && !(r.self_service_override === true && r.remote_mode)) return false;
     if (!q) return true;
     return (
       [r.first_name, r.last_name].filter(Boolean).join(" ").toLowerCase().includes(q) ||
@@ -476,7 +481,6 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
             <option value="">Any punch access</option>
             <option value="phone">Can punch from phone</option>
             <option value="exception">Has a punching exception</option>
-            <option value="remote">Remote — home or site</option>
           </select>
         </div>
         <div className="table-scroll">
@@ -509,7 +513,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                       <>
                         {" "}
                         <Pill
-                          label={r.self_service_override ? (r.remote_mode ? ACCESS_LABEL[r.remote_mode] : "Phone punch") : "Kiosk only"}
+                          label={r.self_service_override ? (r.remote_mode ? ACCESS_LABEL[r.remote_mode] : "Phone + kiosk") : "Kiosk only"}
                           tone={r.self_service_override ? "green" : "amber"}
                         />
                       </>

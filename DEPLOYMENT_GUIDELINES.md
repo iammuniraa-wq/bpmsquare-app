@@ -146,6 +146,18 @@ stay as they are and take effect again when it is next turned off.
 
 ## Runbook addendum — Work from home / Site visit (KAN-29 part 2)
 
+> **WITHDRAWN FROM THE SCREEN, 2026-10-11 (same day).** The owner asked for one
+> phone choice instead of three: "instead of these 3 I need one, phone punch +
+> kiosk." The Punching dropdown now reads **Workspace default / Kiosk only /
+> Phone punch + kiosk**. The rest of this section describes what the server
+> still supports -- `employees.remote_mode`, migration 0127 (run), the narrowed
+> punch gate and the six-button punch screen -- all dormant, because nothing in
+> the UI sets a mode any more. Someone already saved with a mode keeps it, and
+> keeps an "(existing)" entry in the dropdown so editing them does not widen
+> their access. Re-exposing it is a few lines in `WfmEmployeesClient.tsx`.
+> "Phone punch + kiosk" is the old "Allow from phone": every punch, from the
+> phone or the kiosk.
+
 Written 2026-10-11. Extends the runbook above; do that one first.
 
 Migration: `supabase/migrations/0127_wfm_employee_remote_mode.sql`, run AFTER
