@@ -4,7 +4,7 @@ import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { getEmployeeLoginEmail, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
 import { canApproveFor } from "@/lib/wfm/scope";
-import { resolveProjectForPunch } from "@/lib/wfm/projectServer";
+import { applyCorrectionEvent } from "@/lib/wfm/applyCorrection";
 import type { PresenceKind } from "@/lib/wfm/types";
 
 
@@ -155,100 +155,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }, { status: 409 });
   }
 
-  // KAN-28. Correcting the same punch twice left BOTH corrections live.
-  //
-  // A request names the punch that was on screen when it was filed, so a
-  // second request filed before the first was approved still names the
-  // ORIGINAL. Superseding that original again overwrote its link to the first
-  // correction, which was then orphaned -- unsuperseded, and therefore still
-  // counted by every reader (they all filter `.is("superseded_by", null)`).
-  // The day ended up with two live check-ins and whichever won was ordering
-  // dependent, which is why QA saw it work sometimes. Four live corrections
-  // were found on one employee-day in production.
-  //
-  // So supersede the HEAD of the chain, not the name on the request:
-  //   A -> B -> C   (only C live)   instead of   A -> C, B orphaned
-  //
-  // Bounded rather than `while`: a cycle here would hang the request, and
-  // this file's own history is why that matters.
-  async function liveHeadOf(eventId: string | null): Promise<string | null> {
-    let at = eventId;
-    for (let hop = 0; hop < 20 && at; hop++) {
-      const { data: node } = await admin
-        .from("wfm_presence_events").select("superseded_by")
-        .eq("id", at).eq("tenant_id", tenantId).maybeSingle();
-      const next = (node?.superseded_by as string | null) ?? null;
-      if (!next) return at;
-      at = next;
-    }
-    return at;
-  }
-
   if (kind && change.proposed_ts) {
-    // Resolved here rather than above so an "other" correction -- which
-    // writes no event -- does not walk the chain for nothing.
-    const supersedeId = await liveHeadOf((req.target_event_id as string | null) ?? null);
-
-    // Project costing (0104): a corrected punch must carry the same project a
-    // real one would, or the hours it repairs land as unassigned. A session
-    // takes its project from its OPENING punch (workSessions), so a corrected
-    // check-in with no stamp silently unassigned the whole day (wiring audit,
-    // 2026-09-06). If the punch being replaced was stamped, that stamp is
-    // the truth at punch time and is kept; otherwise resolve for the day the
-    // correction is about, from the employee's standing site and shift --
-    // there is no geofence to consult for a punch nobody physically made.
-    let projectId: string | null = null;
-    if (req.target_event_id) {
-      const { data: original } = await admin
-        .from("wfm_presence_events").select("project_id")
-        .eq("id", req.target_event_id).eq("tenant_id", tenantId).maybeSingle();
-      projectId = (original?.project_id as string | null) ?? null;
-    }
-    if (!projectId) {
-      const { data: emp } = await admin
-        .from("employees").select("site_id, shift_id")
-        .eq("id", req.employee_id).eq("tenant_id", tenantId).maybeSingle();
-      projectId = await resolveProjectForPunch(
-        admin, tenantId, req.employee_id as string, req.target_date as string,
-        (emp?.site_id as string | null) ?? null,
-        (emp?.shift_id as string | null) ?? null
-      );
-    }
-
-    const newEventId = crypto.randomUUID();
-    const { error: insertErr } = await admin.from("wfm_presence_events").insert({
-      id: newEventId,
-      tenant_id: tenantId,
-      employee_id: req.employee_id,
-      ts: change.proposed_ts,
+    // Writing the corrected punch and retiring the old one lives in
+    // lib/wfm/applyCorrection.ts, shared with a supervisor's own direct
+    // correction -- including the KAN-28 chain handling, so there is one copy.
+    const applied = await applyCorrectionEvent(admin, {
+      tenantId,
+      employeeId: req.employee_id as string,
       kind,
+      ts: change.proposed_ts,
+      targetEventId: (req.target_event_id as string | null) ?? null,
+      targetDate: req.target_date as string,
+      actorUserId: userId,
       source: "correction",
-      project_id: projectId,
-      created_by: userId,
+      conflictMessage: "This punch was corrected by someone else a moment ago. Reload the queue and check it before approving again.",
     });
-    if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
-
-    if (supersedeId) {
-      // The head of the chain, not req.target_event_id -- see KAN-28 above.
-      // Guarded on superseded_by being null so a concurrent approval that got
-      // there first cannot have its link overwritten; zero rows means the
-      // head moved under us, and the event just written is the orphan.
-      const { data: superseded, error: supersedeErr } = await admin
-        .from("wfm_presence_events")
-        .update({ superseded_by: newEventId })
-        .eq("id", supersedeId)
-        .eq("tenant_id", tenantId)
-        .is("superseded_by", null)
-        .select("id");
-      if (supersedeErr) return NextResponse.json({ error: supersedeErr.message }, { status: 500 });
-      if (!superseded || superseded.length === 0) {
-        // Undo our own insert rather than leave a second live punch behind.
-        await admin.from("wfm_presence_events").delete().eq("id", newEventId).eq("tenant_id", tenantId);
-        return NextResponse.json({
-          error: "This punch was corrected by someone else a moment ago. Reload the queue and check it before approving again.",
-        }, { status: 409 });
-      }
-    }
+    if (!applied.ok) return NextResponse.json({ error: applied.error }, { status: applied.status });
   }
 
   // `.eq("status", "pending")` is the gate, not the read at the top of this

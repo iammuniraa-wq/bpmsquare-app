@@ -109,7 +109,7 @@ type LeaveBalance = { leave_type_id: string; name: string; category: string; quo
 type Holiday = { id: string; date: string; name: string; applies_to: string };
 type CorrectionRequest = {
   id: string; target_date: string; status: "pending" | "approved" | "rejected";
-  requested_change: { issue: string }; reason_text: string; supervisor_remark: string | null;
+  requested_change: { issue: string; by?: string; proposed_ts?: string }; reason_text: string; supervisor_remark: string | null;
 };
 type LeaveRequest = {
   id: string; date_from: string; date_to: string; half_day: boolean;
@@ -2221,7 +2221,15 @@ export default function MeClient({
                 <div>
                   <span style={{ color: c.ink, fontWeight: 600 }}>{fmtDate(r.target_date)}</span>
                   <span style={{ color: c.muted, marginLeft: 8 }}>{ISSUE_LABEL[r.requested_change.issue] ?? r.requested_change.issue}</span>
-                  {r.supervisor_remark && <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{r.supervisor_remark}</div>}
+                  {/* A change the supervisor made themselves, not one this person
+                      filed: say so, show the time it now reads, and label the
+                      reason, so it is not mistaken for a remark on a request. */}
+                  {r.requested_change.by === "supervisor" && (
+                    <div style={{ fontSize: 11, color: c.muted, marginTop: 2 }}>
+                      Changed by your supervisor{r.requested_change.proposed_ts ? ` · now ${new Date(r.requested_change.proposed_ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                    </div>
+                  )}
+                  {r.supervisor_remark && <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{r.requested_change.by === "supervisor" ? "Reason: " : ""}{r.supervisor_remark}</div>}
                 </div>
                 <Pill label={r.status} tone={STATUS_TONE[r.status]} />
               </div>

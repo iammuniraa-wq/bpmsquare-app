@@ -240,7 +240,13 @@ export type WfmCorrectionRequest = {
   employee_id: string;
   target_date: string; // YYYY-MM-DD
   target_event_id: string | null;
-  requested_change: { issue: CorrectionIssue; proposed_ts?: string; kind?: PresenceKind };
+  requested_change: {
+    issue: CorrectionIssue; proposed_ts?: string; kind?: PresenceKind;
+    /** Set when a supervisor changed the time directly rather than an employee filing it. */
+    by?: "supervisor";
+    /** The punch this request produced. Only written for supervisor changes; an employee's request never records it. */
+    event_id?: string;
+  };
   reason_text: string;
   status: CorrectionStatus;
   supervisor_remark: string | null;

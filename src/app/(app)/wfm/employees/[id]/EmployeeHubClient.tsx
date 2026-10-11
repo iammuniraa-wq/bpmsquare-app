@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import SupervisorTimeCorrection from "@/components/wfm/SupervisorTimeCorrection";
+import { isWithinEditWindow } from "@/lib/wfm/timeCorrection";
 import ObjectSections from "@/components/fields/ObjectSections";
 import { ROUTES } from "@/lib/constants";
 import { groupSpans, type Span } from "@/lib/wfm/rosterSpans";
@@ -145,6 +147,8 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
   // updated by loadCore -- this is what stops the month-change effect from
   // firing a duplicate loadCore the instant `loading` flips to false.
   const loadedMonth = useRef<string | null>(initialProfile?.month ?? null);
+  // The day a supervisor is correcting, or null. Opens the time-correction dialog.
+  const [correctingDate, setCorrectingDate] = useState<string | null>(null);
 
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(initialProfile == null);
@@ -585,7 +589,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
           <div style={{ overflowX: "auto" }}>
             <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr><th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th><th style={th}>Gross</th><th style={th}>Breaks</th><th style={th}>Worked</th><th style={th}>Status</th></tr>
+                <tr><th style={th}>Date</th><th style={th}>In</th><th style={th}>Out</th><th style={th}>Gross</th><th style={th}>Breaks</th><th style={th}>Worked</th><th style={th}>Status</th><th style={th}></th></tr>
               </thead>
               <tbody>
                 {(profile.month_summary?.days ?? []).filter((d) => d.date <= todayKey()).slice().reverse().map((d) => (
@@ -610,15 +614,32 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
                         : d.punches > 0 ? <Pill label="Present" tone="green" />
                         : <span style={{ color: c.hint }}>—</span>}
                     </td>
+                    <td style={{ ...td, whiteSpace: "nowrap", textAlign: "right" }}>
+                      {/* Only inside the window the server will accept, so the
+                          button is not offered where it can only be refused. */}
+                      {isWithinEditWindow(d.date, todayKey()) && (
+                        <button style={btn} onClick={() => setCorrectingDate(d.date)}>Correct</button>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {(profile.month_summary?.days ?? []).length === 0 && (
-                  <tr><td style={{ ...td, color: c.hint }} colSpan={7}>No records this month.</td></tr>
+                  <tr><td style={{ ...td, color: c.hint }} colSpan={8}>No records this month.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </section>
+      )}
+
+      {correctingDate && profile && (
+        <SupervisorTimeCorrection
+          employeeId={employeeId}
+          employeeName={[profile.first_name, profile.last_name].filter(Boolean).join(" ")}
+          date={correctingDate}
+          onClose={() => setCorrectingDate(null)}
+          onDone={() => { setCorrectingDate(null); void loadAll(); }}
+        />
       )}
 
       {tab === "corrections" && (
@@ -631,7 +652,10 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
               {corrections.map((r) => (
                 <tr key={r.id}>
                   <td style={td}>{fmtDate(r.target_date)}</td>
-                  <td style={td}>{ISSUE_LABEL[r.requested_change.issue]}</td>
+                  <td style={td}>
+                    {ISSUE_LABEL[r.requested_change.issue]}
+                    {r.requested_change.by === "supervisor" && <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Changed by supervisor</div>}
+                  </td>
                   <td style={{ ...td, maxWidth: 220 }}>{r.reason_text}</td>
                   <td style={td}>{fmtTs(r.requested_change.proposed_ts)}</td>
                   <td style={td}>
