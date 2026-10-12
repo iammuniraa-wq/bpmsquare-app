@@ -92,34 +92,3 @@ export function hasStandingWfh(policy: PhonePolicy): boolean {
  */
 export const KIOSK_ONLY_LOGIN_MESSAGE =
   "Your attendance is recorded at the office kiosk. Please speak to your supervisor.";
-
-/**
- * Should this person be refused the app altogether?
- *
- * Owner request 2026-10-11: with the workspace on kiosk-only, anyone who has
- * not been given "Phone punch + kiosk" is refused the app -- not "sign in and
- * be shown nothing", which shipped first and was rejected. The only people
- * never caught are tenant admins and platform admins ("let us allow only admin
- * and platform admin to see everything ... from supervisor till employee let
- * us block everyone without phone punch + kiosk").
- *
- * That is deliberately WIDER than the first version, which also spared
- * supervisors (by employee role or Business Role) and any login that was not
- * WFM-only. Both exemptions are gone, so:
- *  - a supervisor with no phone access is refused like anyone else, and
- *    cannot reach Live board / Corrections / the employee screens from the app;
- *  - a login with no Business Role, or one that also uses the CRM, is refused
- *    too. The old fail-open there is what let some employees still in.
- *
- * What stops this locking the workforce out is that admins are exempt and an
- * admin can set "Phone punch + kiosk" on anyone, supervisors included. KAN-17
- * (owner decision 2026-08-18) promotes a supervisor's LOGIN to tenant admin, so
- * a supervisor set up that way is an admin here and still gets in -- the
- * exemption is on the login's role, not on wfm_role.
- *
- * Callers must only ask about someone with an ACTIVE employee record: a login
- * with no employee has no phone setting to refuse.
- */
-export function blocksLogin(p: { policy: PhonePolicy; isAdmin: boolean }): boolean {
-  return p.policy.kind === "kiosk_only" && !p.isAdmin;
-}

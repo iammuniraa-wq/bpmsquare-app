@@ -223,50 +223,24 @@ switch) and sees what changed and why in their own Corrections list.
 
 ---
 
-## Runbook addendum — kiosk-only means no sign-in
+## Runbook addendum — kiosk-only blocks PUNCHING, not sign-in
 
-Written 2026-10-11. No migration. With the workspace on kiosk-only, an
-employee who has not been given phone access is refused the app: they sign in,
-are sent to the login page with "Your attendance is recorded at the office
-kiosk. Please speak to your supervisor.", and are signed out. Hiding the punch
-buttons was the first version and was explicitly rejected.
+Rewritten 2026-10-12. No migration. The sign-in block shipped 2026-10-11 was
+reverted the next morning: BIM meant "no punching from the phone", not "no
+access". With the workspace on kiosk-only, an employee without "Phone punch +
+kiosk" signs in normally and sees their hours, timesheet, leave and correction
+requests. On the Punch tile they see "Punch in and out at the office kiosk" in
+place of the buttons.
 
-**Never blocked:** tenant admins, platform admins, and anyone with phone access
-(Work from home, Site visit, both, or the older "Allow from phone"). Updated
-2026-10-11: supervisors are NO LONGER exempt -- a supervisor without "Phone punch
-+ kiosk" is refused like anyone else, and so is a login with a Business Role
-that grants WFM edit. The exemption is on the login's tenant role only.
+**The real gate is the server:** `POST /api/wfm/punch` returns 403 for a
+kiosk-only employee, so no tampered client can punch. The kiosk is unaffected.
+The per-employee "Punching" dropdown on the Employees page still decides who has
+phone access; "Workspace default" follows Settings → Workforce.
 
-**Watch out (KAN-17):** a supervisor employee's LOGIN is promoted to tenant
-admin when they are saved as a supervisor, so they ARE admins here and still get
-in. Only supervisors whose login is not an admin are blocked. Set "Phone punch +
-kiosk" on every supervisor who must use the app before the workspace goes to Off.
+The earlier `blocksLogin` rule, the layout redirect and the `error=kiosk_only`
+login handling were removed from the layout and rule file; the login page still
+recognises the old `?error=kiosk_only` link and just shows the message.
 
-**What a blocked employee loses**, and supervisors now do for them:
-their own hours view, leave requests, correction requests, push opt-in, and the
-links in notification emails (they land on the refusal). Corrections: the
-supervisor time correction. Leave: supervisors enter it on their behalf.
-
-**Consent.** Employees record their consent for selfie and location capture
-inside the app. A blocked employee can never do that. The kiosk does not check
-for it, so punching still works -- but BIM's consent record for these people
-stays empty. Tell BIM; whether that matters for DPDP is theirs to decide.
-
-**Limits, stated so nobody is surprised:**
-
-- **It applies when they open the app.** Every page render checks, so someone
-  already signed in is cut off on their next navigation, not instantly. A saved
-  session calling the WFM APIs directly is not separately refused (punching is
-  still refused by the punch route). If that matters, the next step is a check
-  in `requireWfm()`, which costs a small extra query per employee API call.
-- **A member with no employee record is not blocked** (there is no phone
-  setting to refuse), e.g. a QA or back-office login.
-- An installed phone app that is offline may show a cached page until it is
-  next online.
-
-**Order:** set everyone's exceptions BEFORE the workspace goes to Off. Reversed,
-every unflagged employee is locked out until the list is worked through.
-
-**To test:** sign in as a plain employee with no exception. Expect to land on
-the login page with the message and no session. Then as one with Phone punch + kiosk
-set: expect the app. Then as a tenant admin: expect the app.
+**To test:** sign in as a plain employee with no exception: expect the app, the
+kiosk message where the punch buttons were, and a 403 if you try to punch. Then
+one with Phone punch + kiosk: expect the buttons.

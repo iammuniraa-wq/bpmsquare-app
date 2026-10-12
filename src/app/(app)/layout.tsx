@@ -6,8 +6,7 @@ import { TenantProvider } from "@/lib/tenant-context";
 import { getAuthUser, createServerSupabase, getTenantMembership } from "@/lib/supabase-server";
 import { resolvePermissions, toViewableWorkcenters } from "@/lib/permissions";
 import { LinkIcon } from "@/components/Icons";
-import { ROUTES, PATHNAME_HEADER, DEFAULT_WFM_CONFIG } from "@/lib/constants";
-import { phonePolicy, blocksLogin, type PhonePolicy } from "@/lib/wfm/selfService";
+import { ROUTES, PATHNAME_HEADER } from "@/lib/constants";
 import { HEX_COLOR_RE } from "@/lib/standardQuoteTemplateBlocks";
 
 /** Spectacular's three colour knobs, as :root overrides.
@@ -107,9 +106,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   let isWfmSupervisor = false;
   let wfmEmployeeActive = false;
-  // What this person's phone may do (KAN-29). Only filled in when they have an
-  // active employee record; used below to refuse a kiosk-only login outright.
-  let phone: PhonePolicy | null = null;
   if (tenant.features?.wfm) {
     // A tenant admin is a full unrestricted superuser everywhere else in the
     // app (resolvePermissions() returns UNRESTRICTED for role === "admin"
@@ -131,34 +127,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // "no role = full access" default) and must never auto-promote them.
     isWfmSupervisor = userRole === "admin" || perms.grants.get("wfm")?.canEdit === true;
     if (membership?.employee_id) {
-      // The phone-access columns ride on the read this layout already makes, so
-      // refusing a kiosk-only login costs no extra round trip. Migrations 0126
-      // and 0127 are applied by hand and either may still be pending (42703 =
-      // undefined column), so fall back one column at a time -- losing the mode
-      // alone must not also lose the override.
-      const readEmployee = (cols: string) =>
-        supabase
-          .from("employees")
-          .select(cols)
-          .eq("tenant_id", tenant.id)
-          .eq("id", membership.employee_id as string)
-          .eq("status", "active")
-          .maybeSingle();
-      const undefinedColumn = (r: { error?: unknown }) => (r.error as { code?: string } | null | undefined)?.code === "42703";
-      let res = await readEmployee("id, wfm_role, self_service_override, remote_mode");
-      if (res.error && undefinedColumn(res)) res = await readEmployee("id, wfm_role, self_service_override");
-      if (res.error && undefinedColumn(res)) res = await readEmployee("id, wfm_role");
-      const employee = res.data as unknown as {
-        id: string; wfm_role: string; self_service_override?: boolean | null; remote_mode?: string | null;
-      } | null;
+      const { data: employee } = await supabase
+        .from("employees")
+        .select("id, wfm_role")
+        .eq("tenant_id", tenant.id)
+        .eq("id", membership.employee_id as string)
+        .eq("status", "active")
+        .maybeSingle();
       if (employee) {
         wfmEmployeeActive = true;
         isWfmSupervisor = isWfmSupervisor || employee.wfm_role === "supervisor";
-        phone = phonePolicy(
-          employee.self_service_override,
-          tenant.config?.wfm?.employee_self_service ?? DEFAULT_WFM_CONFIG.employee_self_service,
-          employee.remote_mode
-        );
       }
     }
   }
@@ -191,17 +169,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // this prefix is still a dead end for them -- and the next self-service
   // screen we add needs no change here.
   const restrictedToWfmOnly = Array.isArray(viewable) && viewable.every((wc) => wc === "wfm");
-
-  // Kiosk-only means no sign-in, not "sign in and be shown nothing" (BIM,
-  // 2026-10-11). Anyone with an employee record and no phone access is sent to
-  // the login page with the reason, which also signs them out. Only tenant
-  // admins and platform admins (userRole "admin") are exempt -- supervisors are
-  // not; see blocksLogin().
-  // Runs on every page render, so an employee already signed in is cut off on
-  // their next navigation rather than only at the next login.
-  if (wfmEmployeeActive && phone && blocksLogin({ policy: phone, isAdmin: userRole === "admin" })) {
-    redirect("/login?error=kiosk_only");
-  }
 
   const inSelfService = pathname === ROUTES.wfmMe || pathname.startsWith(`${ROUTES.wfmMe}/`);
   if (wfmEmployeeActive && restrictedToWfmOnly && !isWfmSupervisor && !inSelfService) {
