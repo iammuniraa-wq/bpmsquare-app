@@ -16,6 +16,7 @@ import type { StandardQuoteStatus } from "@/lib/types";
 import StandardQuoteActionsPanel from "./StandardQuoteActionsPanel";
 import StandardQuoteAttachments from "./StandardQuoteAttachments";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
+import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
 import { selectedLines } from "@/lib/sales/lineTotals";
 import { pricingOnStandardQuotes } from "../formData";
 
@@ -219,6 +220,7 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
           <StandardQuoteActionsPanel quote={quote} />
         </div>
       </div>
+      <RecordRfqsCard origin={{ type: "standard_quote", id }} />
       <NovaTimelineSlot objectType="standard_quotes" objectId={id} />
     </>
   );

@@ -19,6 +19,7 @@ import CaseAssetsPanel from "./CaseAssetsPanel";
 import { MessageSquare } from "@/components/Icons";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildCaseWhatsAppMessage } from "@/lib/whatsapp";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
+import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
 
 // ── Stage groups ──────────────────────────────────────────────────────────────
 
@@ -453,6 +454,8 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           .case-body { grid-template-columns: 1fr !important; }
         }
       `}</style>
+      <RecordRfqsCard origin={{ type: "case", id }} originLabel={sc.ref} title={sc.equipment_label} />
+      {inspectionReport && <RecordRfqsCard origin={{ type: "inspection_report", id: inspectionReport.id }} originLabel={`Inspection · ${sc.ref}`} heading="Supplier quotations for the inspection findings" title={`Repair parts — ${sc.equipment_label}`} />}
       <NovaTimelineSlot objectType="cases" objectId={id} />
     </>
   );
