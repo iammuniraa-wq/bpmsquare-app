@@ -43,5 +43,7 @@ describe("no outbound link is built from PRIMARY_HOST", () => {
       if (FORBIDDEN.some((re) => re.test(text))) offenders.push(rel);
     }
     expect(offenders).toEqual([]);
-  });
+    // Reads every source file: under a full parallel run on a slow machine it
+    // crosses vitest's 5 s default, which is a timeout, not a finding.
+  }, 60_000);
 });

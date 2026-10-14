@@ -43,7 +43,7 @@ export default async function EditStandardQuotePage({ params }: { params: Promis
         lines: lines.map((l) => ({
           id: l.id,
           sl_no: l.sl_no, description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct,
-          product_id: l.product_id ?? null, pricing_document_id: l.pricing_document_id ?? null,
+          product_id: l.product_id ?? null, pricing_document_id: l.pricing_document_id ?? null, rfq_line_id: (l as { rfq_line_id?: string | null }).rfq_line_id ?? null,
           group_id: l.group_id ?? null, group_label: l.group_label ?? null, group_type: l.group_type ?? null,
           break_of: l.break_of ?? null, break_qty: l.break_qty ?? null,
           is_selected: l.is_selected ?? true,

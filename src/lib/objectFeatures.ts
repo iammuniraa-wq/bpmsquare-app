@@ -49,6 +49,7 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // The DW quote-lines object has its own narrower opt-in (a tenant can
   // own Quotations without being allowed to bulk-edit lines).
   quote_lines: "quote_lines_dw",
+  rfqs: "rfq",
   suppliers: "suppliers",
   work_orders: "work_orders",
   "work-orders": "work_orders",

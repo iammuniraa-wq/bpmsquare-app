@@ -7,7 +7,7 @@ import { refreshOpportunityDerived } from "@/lib/sales/opportunityServer";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
-import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, resolveLineIdsAndSelection, writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
+import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, verifiedRfqLineIds, resolveLineIdsAndSelection, writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
 import { parsePrintOptions, isDefaultPrintOptions } from "@/lib/sales/printOptions";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
@@ -130,6 +130,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     qty: number; rate: number; discount_pct: number; amount: number; product_id: string | null; pricing_document_id: string | null;
     group_id: string | null; group_label: string | null; group_type: string | null;
     break_of: string | null; break_qty: number | null; is_selected: boolean; show_on_pdf: boolean;
+    rfq_line_id: string | null;
   };
   let cleanLines: CleanLine[] | null = null;
   if (Array.isArray(body.lines)) {
@@ -138,11 +139,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       product_id?: string | null; pricing_document_id?: string | null;
       group_id?: string | null; group_label?: string | null; group_type?: string | null;
       break_of?: string | null; break_qty?: number | null; is_selected?: boolean; show_on_pdf?: boolean;
+      rfq_line_id?: string | null;
     };
     const raw: RawLine[] = body.lines.filter((l: { description?: string }) => l?.description?.trim()).slice(0, 200);
     // Foreign ids from the body (0114): products verified against the
     // tenant, pricing flags derived from the verified document below.
     const knownProducts = await verifiedProductIds(supabase, tenantId, raw);
+    const knownRfqLines = await verifiedRfqLineIds(supabase, tenantId, raw);
     const withAmounts = raw.map((l, i) => {
         const qty = Math.max(0, parseFloat(l.qty ?? "") || 1);
         const rate = Math.max(0, parseFloat(l.rate ?? "") || 0);
@@ -165,6 +168,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           break_qty: typeof l.break_qty === "number" && Number.isFinite(l.break_qty) ? l.break_qty : null,
           is_selected: l.is_selected !== false,
           show_on_pdf: l.show_on_pdf !== false,
+          rfq_line_id: l.rfq_line_id && knownRfqLines.has(l.rfq_line_id) ? l.rfq_line_id : null,
         };
       });
     // local_id/break_of/group_id/is_selected decide real money -- resolved

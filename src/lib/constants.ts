@@ -135,6 +135,7 @@ export const ROUTES = {
   settingsConnectors: "/settings/connectors",
   settingsAccount360: "/settings/account-360",
   settingsCoverage: "/settings/coverage",
+  settingsRfq: "/settings/rfq",
   reports: "/reports",
   reportsTalk: "/reports/talk",
   admin: "/admin",
@@ -177,6 +178,9 @@ export const ROUTES = {
   pricingHistory: "/pricing/history",
   pricingAdvanced: "/pricing/advanced",
   pricingRfqs: "/pricing/rfqs",
+  rfqs: "/rfqs",
+  rfqNew: "/rfqs/new",
+  rfq: (id: string) => `/rfqs/${id}`,
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
@@ -233,6 +237,9 @@ export const NAV: NavGroup[] = [
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
+          // RFQ (0128): supplier quotations asked for when no cost/price is
+          // found. Procurement, so it sits beside Purchase Orders.
+          { label: "RFQs", href: ROUTES.rfqs, icon: "⇄", pillar: "blue", featureKey: "rfq", workcenterKey: "rfqs" },
           // Fence Configurator (0122): a Standard Quotes source, not its own
           // pillar -- lives beside the object it feeds, docs/fence-configurator-architecture.md.
           { label: "Fence Projects", href: ROUTES.fenceProjects, icon: "⌗", pillar: "blue", featureKey: "fence_projects", workcenterKey: "fence_projects" },
@@ -541,6 +548,13 @@ export type TenantFeatures = {
   // until the §3b checklist is walked in full; default OFF, missing key
   // reads false, same shape as pricing_engine.
   fence_projects: boolean;
+  // RFQ (0128, docs/rfq-architecture.md): request for quotation to suppliers
+  // when no cost or price can be found -- a standard object raised from
+  // quotes, deals, cases, inspections, work orders and fence projects, with
+  // the supplier conversation (send AND receive) inside the tenant. A sold
+  // module: default OFF, missing key reads false. Tenants without it keep
+  // the older single-supplier pricing RFQ under Pricing.
+  rfq: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1123,6 +1137,28 @@ export type TenantConfig = {
   // BPMSquare Pricing (docs/pricing-engine-architecture.md §17). Absent keys
   // read as the defaults in src/lib/pricing/documents.ts.
   pricing?: PricingConfig;
+  // RFQ (0128, docs/rfq-architecture.md). Absent keys read as RFQ_DEFAULTS
+  // in src/lib/rfq/types.ts.
+  rfq?: RfqConfig;
+};
+
+export type RfqMailMode = "platform" | "mailbox";
+export type RfqConfig = {
+  /** How RFQ email travels. "platform": BPMSquare's own sender, and replies
+   *  come back to a signed reply-to address on the inbound domain.
+   *  "mailbox": the tenant's own mailbox (the Gmail or Mail server connector)
+   *  -- sent over SMTP, replies read from its inbox by the poller. */
+  mail_mode?: RfqMailMode;
+  /** Which connected mailbox "mailbox" mode uses: "gmail" or "mail_server". */
+  mailbox_connector?: "gmail" | "mail_server";
+  /** Days a supplier gets to reply; sets respond_by on a new RFQ. */
+  default_response_days?: number;
+  /** Reminders before/after respond_by, at most this many per supplier. */
+  max_reminders?: number;
+  /** Days the reply link keeps working after respond_by. */
+  link_grace_days?: number;
+  /** Text printed under the line table on every RFQ to suppliers. */
+  terms?: string;
 };
 
 export type PricingConfig = {

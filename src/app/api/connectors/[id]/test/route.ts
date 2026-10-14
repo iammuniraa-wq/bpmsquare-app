@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { getDecryptedCredentials } from "@/lib/connectors/server";
 import { parseIcsEvents } from "@/lib/connectors/ics";
+import { loadMailbox, testMailbox } from "@/lib/mail/mailbox";
 
 /**
  * Sends a real test notification through the connector, not a canned
@@ -70,6 +71,14 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: `Gmail rejected the send: ${err.message ?? "unknown error"} — double check the address and app password` }, { status: 400 });
     }
     return NextResponse.json({ ok: true, message: `Sent a test email to ${creds.email}` });
+  }
+
+  if (id === "mail_server") {
+    const mb = await loadMailbox(supabase, tenantId, "mail_server");
+    if (!mb) return NextResponse.json({ error: "Not fully configured — re-enter the mail server settings" }, { status: 400 });
+    const res = await testMailbox(mb);
+    if (!res.ok) return NextResponse.json({ error: `Could not log in: ${res.error}` }, { status: 400 });
+    return NextResponse.json({ ok: true, message: `Logged in to ${mb.smtp.host} (send) and ${mb.imap.host} (receive) as ${mb.user}` });
   }
 
   return NextResponse.json({ error: "This connector has no test action" }, { status: 400 });

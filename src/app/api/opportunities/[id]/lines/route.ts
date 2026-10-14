@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { logChange, diffLineItems, type LineSnapshot } from "@/lib/changeLog";
-import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, resolveLineIdsAndSelection } from "@/lib/pricing/quoteLineFlags";
+import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, verifiedRfqLineIds, resolveLineIdsAndSelection } from "@/lib/pricing/quoteLineFlags";
 import { opportunityStages } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, refreshOpportunityDerived } from "@/lib/sales/opportunityServer";
 
@@ -33,9 +33,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     product_id?: string | null; pricing_document_id?: string | null;
     group_id?: string | null; group_label?: string | null; group_type?: string | null;
     break_of?: string | null; break_qty?: number | null; is_selected?: boolean; show_on_pdf?: boolean;
+    rfq_line_id?: string | null;
   };
   const raw: RawLine[] = Array.isArray(body.lines) ? body.lines.filter((l: RawLine) => l?.description?.trim()).slice(0, 200) : [];
   const knownProducts = await verifiedProductIds(admin, tenantId, raw);
+  const knownRfqLines = await verifiedRfqLineIds(admin, tenantId, raw);
   const withAmounts = raw.map((l, i) => {
     const qty = Math.max(0, parseFloat(l.qty ?? "") || 1);
     const rate = Math.max(0, parseFloat(l.rate ?? "") || 0);
@@ -54,6 +56,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       break_qty: typeof l.break_qty === "number" && Number.isFinite(l.break_qty) ? l.break_qty : null,
       is_selected: l.is_selected !== false,
       show_on_pdf: l.show_on_pdf !== false,
+      rfq_line_id: l.rfq_line_id && knownRfqLines.has(l.rfq_line_id) ? l.rfq_line_id : null,
     };
   });
   const cleanLines = resolveLineIdsAndSelection(withAmounts);

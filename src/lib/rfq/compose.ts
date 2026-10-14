@@ -1,0 +1,154 @@
+// What a supplier receives -- pure, so the exact wording and escaping are
+// tested (rfq.compose.test.ts). Everything a supplier sees is built from the
+// SupplierView projection only: no customer, no quote ref, no sell price, no
+// other supplier (docs/rfq-architecture.md §4.2).
+
+import { subjectTag } from "./token";
+
+export type SupplierViewLine = {
+  id: string;
+  sl_no: number;
+  description: string;
+  spec: string | null;
+  uom: string | null;
+  qty: number | null;
+  required_by: string | null;
+};
+
+export type SupplierView = {
+  tenantName: string;
+  ref: string;
+  title: string;
+  respondBy: string | null;
+  requiredBy: string | null;
+  deliveryTerms: string | null;
+  notesToSupplier: string | null;
+  terms: string | null;
+  supplierName: string;
+  buyerName: string | null;
+  buyerEmail: string | null;
+  lines: SupplierViewLine[];
+};
+
+export function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function fmtQty(q: number | null, uom: string | null): string {
+  if (q === null || q === undefined) return uom ?? "";
+  const n = Number.isInteger(Number(q)) ? String(Number(q)) : String(Number(q));
+  return uom ? `${n} ${uom}` : n;
+}
+
+export function rfqSubject(v: Pick<SupplierView, "ref" | "title" | "tenantName">, code: string | null, kind: "request" | "reminder" | "message" = "request"): string {
+  const lead = kind === "reminder" ? "Reminder: request for quotation" : kind === "message" ? "Request for quotation" : "Request for quotation";
+  return `${subjectTag(v.ref, code)} ${lead} — ${v.title} (${v.tenantName})`.slice(0, 240);
+}
+
+/** The request email. `link` is the signed reply page; null when the secret
+ *  isn't configured (then the supplier replies by email or the buyer keys it). */
+export function buildRequestEmail(v: SupplierView, opts: { link: string | null; code: string | null; reminder?: boolean; message?: string | null }): { subject: string; text: string; html: string } {
+  const subject = rfqSubject(v, opts.code, opts.reminder ? "reminder" : "request");
+  const intro = opts.reminder
+    ? `This is a reminder of our request for quotation ${v.ref}. We haven't received your prices yet.`
+    : `${v.tenantName} requests your best price and lead time for the items below.`;
+  const dueLine = v.respondBy ? `Please reply by ${v.respondBy}.` : "Please reply at your earliest convenience.";
+  const how = opts.link
+    ? `Enter your prices online (no login needed): ${opts.link}\nOr reply to this email with your quotation attached — keep the reference ${v.ref} in the subject.`
+    : `Reply to this email with your quotation attached — keep the reference ${v.ref} in the subject.`;
+
+  const textLines = v.lines.map((l) => {
+    const bits = [`${l.sl_no}. ${l.description}`, fmtQty(l.qty, l.uom)];
+    if (l.spec) bits.push(`Spec: ${l.spec}`);
+    if (l.required_by) bits.push(`Needed by ${l.required_by}`);
+    return bits.filter(Boolean).join(" — ");
+  });
+
+  const extra: string[] = [];
+  if (v.deliveryTerms) extra.push(`Delivery: ${v.deliveryTerms}`);
+  if (v.requiredBy) extra.push(`Required by: ${v.requiredBy}`);
+
+  const text = [
+    `Dear ${v.supplierName},`,
+    "",
+    intro,
+    "",
+    `Reference: ${v.ref} — ${v.title}`,
+    ...extra,
+    "",
+    ...textLines,
+    "",
+    ...(opts.message?.trim() ? [opts.message.trim(), ""] : []),
+    ...(v.notesToSupplier ? [v.notesToSupplier, ""] : []),
+    dueLine,
+    how,
+    "",
+    "Please include unit price, currency, lead time, minimum order quantity and how long your price is valid.",
+    ...(v.terms ? ["", v.terms] : []),
+    "",
+    "Regards,",
+    v.buyerName ?? v.tenantName,
+    v.tenantName,
+    ...(v.buyerEmail ? [v.buyerEmail] : []),
+  ].join("\n");
+
+  const row = (l: SupplierViewLine) => `
+      <tr>
+        <td style="padding:8px;border-bottom:1px solid #e5e7eb;color:#6b7280;vertical-align:top;">${l.sl_no}</td>
+        <td style="padding:8px;border-bottom:1px solid #e5e7eb;vertical-align:top;">
+          <div style="font-weight:600;color:#111827;">${escapeHtml(l.description)}</div>
+          ${l.spec ? `<div style="color:#4b5563;font-size:12px;margin-top:2px;">${escapeHtml(l.spec)}</div>` : ""}
+          ${l.required_by ? `<div style="color:#6b7280;font-size:12px;margin-top:2px;">Needed by ${escapeHtml(l.required_by)}</div>` : ""}
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap;vertical-align:top;">${escapeHtml(fmtQty(l.qty, l.uom))}</td>
+      </tr>`;
+
+  const html = `<div style="font:14px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1f2937;max-width:640px;">
+  <p>Dear ${escapeHtml(v.supplierName)},</p>
+  <p>${escapeHtml(intro)}</p>
+  <p style="margin:0 0 4px;"><strong>${escapeHtml(v.ref)}</strong> — ${escapeHtml(v.title)}</p>
+  ${extra.map((e) => `<div style="color:#4b5563;font-size:13px;">${escapeHtml(e)}</div>`).join("")}
+  <table style="border-collapse:collapse;width:100%;margin:14px 0;font-size:13px;">
+    <thead><tr>
+      <th style="text-align:left;padding:8px;border-bottom:2px solid #d1d5db;color:#6b7280;font-weight:600;">#</th>
+      <th style="text-align:left;padding:8px;border-bottom:2px solid #d1d5db;color:#6b7280;font-weight:600;">Item</th>
+      <th style="text-align:right;padding:8px;border-bottom:2px solid #d1d5db;color:#6b7280;font-weight:600;">Quantity</th>
+    </tr></thead>
+    <tbody>${v.lines.map(row).join("")}</tbody>
+  </table>
+  ${opts.message?.trim() ? `<p style="white-space:pre-wrap;">${escapeHtml(opts.message.trim())}</p>` : ""}
+  ${v.notesToSupplier ? `<p style="white-space:pre-wrap;">${escapeHtml(v.notesToSupplier)}</p>` : ""}
+  <p>${escapeHtml(dueLine)}</p>
+  ${opts.link ? `<p style="margin:18px 0;"><a href="${escapeHtml(opts.link)}" style="display:inline-block;padding:10px 18px;background:#1f4e8c;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Enter your prices</a></p>
+  <p style="color:#6b7280;font-size:12px;">No login needed. You can also reply to this email with your quotation attached — keep <strong>${escapeHtml(v.ref)}</strong> in the subject.</p>`
+    : `<p style="color:#6b7280;font-size:12px;">Reply to this email with your quotation attached — keep <strong>${escapeHtml(v.ref)}</strong> in the subject.</p>`}
+  <p style="color:#4b5563;font-size:13px;">Please include unit price, currency, lead time, minimum order quantity and how long your price is valid.</p>
+  ${v.terms ? `<p style="color:#6b7280;font-size:12px;white-space:pre-wrap;">${escapeHtml(v.terms)}</p>` : ""}
+  <p>Regards,<br>${escapeHtml(v.buyerName ?? v.tenantName)}<br>${escapeHtml(v.tenantName)}${v.buyerEmail ? `<br>${escapeHtml(v.buyerEmail)}` : ""}</p>
+</div>`;
+
+  return { subject, text, html };
+}
+
+/** A free-form message in an existing RFQ conversation. */
+export function buildMessageEmail(v: Pick<SupplierView, "ref" | "title" | "tenantName" | "supplierName" | "buyerName">, code: string | null, body: string, link: string | null): { subject: string; text: string; html: string } {
+  const subject = `Re: ${rfqSubject(v, code, "message")}`.slice(0, 240);
+  const sig = `${v.buyerName ?? v.tenantName}\n${v.tenantName}`;
+  const text = [`Dear ${v.supplierName},`, "", body.trim(), "", ...(link ? [`Your reply page: ${link}`, ""] : []), "Regards,", sig].join("\n");
+  const html = `<div style="font:14px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1f2937;max-width:640px;">
+  <p>Dear ${escapeHtml(v.supplierName)},</p>
+  <p style="white-space:pre-wrap;">${escapeHtml(body.trim())}</p>
+  ${link ? `<p><a href="${escapeHtml(link)}">Open your reply page</a></p>` : ""}
+  <p>Regards,<br>${escapeHtml(v.buyerName ?? v.tenantName)}<br>${escapeHtml(v.tenantName)}</p>
+</div>`;
+  return { subject, text, html };
+}
+
+/** The WhatsApp share text -- the same link, nothing the email wouldn't say. */
+export function whatsappText(v: Pick<SupplierView, "ref" | "title" | "tenantName" | "respondBy">, link: string | null): string {
+  return [
+    `${v.tenantName}: request for quotation ${v.ref} — ${v.title}.`,
+    v.respondBy ? `Please reply by ${v.respondBy}.` : "",
+    link ? `Enter your prices here (no login): ${link}` : "",
+  ].filter(Boolean).join(" ");
+}

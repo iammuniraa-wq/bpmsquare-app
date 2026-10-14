@@ -1,6 +1,5 @@
 import "server-only";
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { assertSafeHttpsUrl, BLOCKED_HOST_MESSAGE } from "@/lib/net/safeHost";
 import type { Account360SourceDef } from "@/lib/constants";
 import type { Account360Card } from "./types";
 
@@ -17,58 +16,17 @@ import type { Account360Card } from "./types";
  * than re-validated (a 302 to 169.254.169.254 is the classic bypass).
  */
 
-const BLOCKED_MESSAGE = "That URL points at a private or internal address";
-
-function isPrivateAddress(ip: string): boolean {
-  if (isIP(ip) === 6) {
-    const v6 = ip.toLowerCase();
-    if (v6 === "::1" || v6 === "::") return true;
-    if (v6.startsWith("fc") || v6.startsWith("fd")) return true;   // unique-local
-    if (v6.startsWith("fe80")) return true;                        // link-local
-    // IPv4-mapped (::ffff:10.0.0.1) — check the embedded v4 instead.
-    const mapped = v6.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    if (mapped) return isPrivateAddress(mapped[1]);
-    return false;
-  }
-  const p = ip.split(".").map(Number);
-  if (p.length !== 4 || p.some((n) => Number.isNaN(n))) return true;
-  const [a, b] = p;
-  if (a === 10 || a === 127 || a === 0) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 169 && b === 254) return true;                          // link-local + metadata
-  if (a === 100 && b >= 64 && b <= 127) return true;                // carrier-grade NAT
-  if (a >= 224) return true;                                        // multicast / reserved
-  return false;
-}
-
 /** Throws with a user-facing message if the URL isn't safe to fetch server-side. */
 export async function assertSafeSourceUrl(raw: string): Promise<URL> {
-  let url: URL;
   try {
-    url = new URL(raw);
-  } catch {
-    return Promise.reject(new Error("That isn't a valid URL"));
+    return await assertSafeHttpsUrl(raw);
+  } catch (e) {
+    const msg = (e as Error).message;
+    // Keep the wording this screen always used.
+    if (msg === BLOCKED_HOST_MESSAGE) throw new Error("That URL points at a private or internal address");
+    if (msg === "The URL must use https") throw new Error("Source URLs must use https");
+    throw e;
   }
-  if (url.protocol !== "https:") throw new Error("Source URLs must use https");
-  const host = url.hostname.replace(/^\[|\]$/g, "");
-  if (isIP(host)) {
-    if (isPrivateAddress(host)) throw new Error(BLOCKED_MESSAGE);
-    return url;
-  }
-  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) {
-    throw new Error(BLOCKED_MESSAGE);
-  }
-  let resolved: { address: string }[];
-  try {
-    resolved = await lookup(host, { all: true });
-  } catch {
-    throw new Error("That host could not be resolved");
-  }
-  if (resolved.length === 0 || resolved.some((r) => isPrivateAddress(r.address))) {
-    throw new Error(BLOCKED_MESSAGE);
-  }
-  return url;
 }
 
 export type SourceTokens = Record<string, string | null>;

@@ -58,6 +58,23 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
     ],
     testable: true,
   },
+  {
+    id: "mail_server",
+    name: "Mail server (SMTP / IMAP)",
+    description: "Your own business mailbox on any mail server — Zoho, Microsoft 365 with IMAP enabled, cPanel or your hosting provider. Used to send RFQs to suppliers from your own address and read their replies back into BPMSquare (Settings → RFQ → Mail channel: your mailbox).",
+    icon: "⇄",
+    authType: "api_key",
+    fields: [
+      { key: "email", label: "Email address", placeholder: "purchasing@yourcompany.com" },
+      { key: "username", label: "Username (usually the email address)", placeholder: "purchasing@yourcompany.com" },
+      { key: "password", label: "Password or app password", placeholder: "Mailbox password", secret: true },
+      { key: "smtp_host", label: "SMTP server", placeholder: "smtp.yourcompany.com" },
+      { key: "smtp_port", label: "SMTP port", placeholder: "587 (or 465)" },
+      { key: "imap_host", label: "IMAP server", placeholder: "imap.yourcompany.com" },
+      { key: "imap_port", label: "IMAP port", placeholder: "993" },
+    ],
+    testable: true,
+  },
 ];
 
 export function getConnectorDef(id: string): ConnectorDef | undefined {

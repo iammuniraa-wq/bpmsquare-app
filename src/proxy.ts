@@ -106,7 +106,17 @@ export async function proxy(request: NextRequest) {
     // scheduled job authenticated by CRON_SECRET inside the route itself, and
     // listing them one by one is how the hours-alert job came to be silently
     // 307'd to /login on its very first run (2026-09-04).
-    pathname.startsWith("/api/wfm/cron/")
+    pathname.startsWith("/api/wfm/cron/") ||
+    pathname.startsWith("/api/rfqs/cron/") ||
+    // RFQ supplier reply link (lib/rfq/token.ts + lib/rfq/publicReply.ts):
+    // the signed token IS the credential, checked inside the page and route
+    // against the recipient's current nonce and the tenant's own host.
+    // $-anchored so nothing deeper rides along.
+    /^\/rfq-reply\/[^/]+\/[^/]+$/.test(pathname) ||
+    /^\/api\/rfq-reply\/[^/]+\/[^/]+(\/upload)?$/.test(pathname) ||
+    // Inbound email webhooks: the provider's signature is the credential,
+    // verified before anything is read (lib/mail/webhookSignature.ts).
+    /^\/api\/inbound\/email\/(resend|generic)$/.test(pathname)
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }

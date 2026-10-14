@@ -124,6 +124,21 @@ export async function verifiedProductIds(
   return new Set((data ?? []).map((r) => r.id as string));
 }
 
+/** RFQ line ids a document line may point at (0128 line contract): only
+ *  this tenant's rfq_lines rows. A foreign or unknown id is dropped, never
+ *  stored; a missing table (0128 pending) reads as "none". */
+export async function verifiedRfqLineIds(
+  supabase: SupabaseClient,
+  tenantId: string,
+  lines: { rfq_line_id?: string | null }[]
+): Promise<Set<string>> {
+  const ids = [...new Set(lines.map((l) => l.rfq_line_id).filter((x): x is string => typeof x === "string" && /^[0-9a-f-]{36}$/i.test(x)))];
+  if (ids.length === 0) return new Set();
+  const { data, error } = await supabase.from("rfq_lines").select("id").in("id", ids).eq("tenant_id", tenantId);
+  if (error) return new Set();
+  return new Set((data ?? []).map((r) => r.id as string));
+}
+
 /** The flagged lines of one document that actually COUNT -- a flag on an
  *  alternative option the customer isn't offered, or on a quantity break
  *  that isn't the chosen one, must not hold the quote (it isn't being

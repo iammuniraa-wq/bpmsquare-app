@@ -67,6 +67,7 @@ const SECTIONS: { group: string; items: SettingsCard[] }[] = [
       // field, and it was reachable on "quotations" before this.
       { label: "Product categories", description: "The category tree products are filed under, and that category fields pick from", href: ROUTES.settingsSales, icon: "▤", pillarKey: "teal", adminOnly: true, featureAnyOf: ["products", "quotations"], relatedWorkcenter: "quotations" },
       { label: "Workforce", description: "Attendance rules, timezone, break deduction, leave and retention — plus punch sites and shifts", href: ROUTES.settingsWorkforce, icon: "⧖", pillarKey: "amber", adminOnly: true, featureKey: "wfm", relatedWorkcenter: "wfm" },
+      { label: "RFQ", description: "How requests for quotation reach suppliers and how their replies come back — your own mailbox or BPMSquare's, reply window, reminders and terms", href: ROUTES.settingsRfq, icon: "⇄", pillarKey: "blue", adminOnly: true, featureKey: "rfq", relatedWorkcenter: "rfqs" },
       { label: "Coverage", description: "Teams, rule-based segments and the wiring that replaces flat territory/sales org assignment — also drives auto-ownership, product availability and ERP routing", href: ROUTES.settingsCoverage, icon: "◭", pillarKey: "teal", adminOnly: true, featureKey: "coverage_model" },
     ],
   },

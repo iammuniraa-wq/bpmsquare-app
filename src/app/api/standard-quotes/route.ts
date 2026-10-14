@@ -7,7 +7,7 @@ import { refreshOpportunityDerived } from "@/lib/sales/opportunityServer";
 import { generateNextStandardQuoteRef } from "@/lib/standardQuoteRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
-import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, resolveLineIdsAndSelection, writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
+import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, verifiedRfqLineIds, resolveLineIdsAndSelection, writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
 import { parsePrintOptions, isDefaultPrintOptions } from "@/lib/sales/printOptions";
 
 export async function GET(request: NextRequest) {
@@ -83,9 +83,10 @@ export async function POST(request: NextRequest) {
   // break_of are resolved to this insert's real row ids, and is_selected
   // is recomputed, by resolveLineIdsAndSelection rather than trusted from
   // the client, since together they decide real money.
-  const rawLines: { local_id?: string; description?: string; sl_no?: string; uom?: string; qty?: string; rate?: string; discount_pct?: string; product_id?: string | null; pricing_document_id?: string | null; group_id?: string | null; group_label?: string | null; group_type?: string | null; break_of?: string | null; break_qty?: number | null; is_selected?: boolean; show_on_pdf?: boolean }[] =
+  const rawLines: { local_id?: string; description?: string; sl_no?: string; uom?: string; qty?: string; rate?: string; discount_pct?: string; product_id?: string | null; pricing_document_id?: string | null; group_id?: string | null; group_label?: string | null; group_type?: string | null; break_of?: string | null; break_qty?: number | null; is_selected?: boolean; show_on_pdf?: boolean; rfq_line_id?: string | null }[] =
     Array.isArray(lines) ? lines.filter((l) => l?.description?.trim()).slice(0, 200) : [];
   const knownProducts = await verifiedProductIds(supabase, tenantId, rawLines);
+  const knownRfqLines = await verifiedRfqLineIds(supabase, tenantId, rawLines);
   const withAmounts = rawLines.map((l, i) => {
     const qty = Math.max(0, parseFloat(l.qty ?? "") || 1);
     const rate = Math.max(0, parseFloat(l.rate ?? "") || 0);
@@ -109,6 +110,7 @@ export async function POST(request: NextRequest) {
       break_qty: typeof l.break_qty === "number" && Number.isFinite(l.break_qty) ? l.break_qty : null,
       is_selected: l.is_selected !== false,
       show_on_pdf: l.show_on_pdf !== false,
+      rfq_line_id: l.rfq_line_id && knownRfqLines.has(l.rfq_line_id) ? l.rfq_line_id : null,
     };
   });
   const cleanLines = resolveLineIdsAndSelection(withAmounts);

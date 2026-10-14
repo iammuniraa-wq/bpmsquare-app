@@ -35,7 +35,7 @@ const btn = (kind: "primary" | "ghost" | "danger"): React.CSSProperties => ({
 function toEditorLines(rows: OpportunityLine[]): Line[] {
   return rows.map((l) => ({
     id: l.id, description: l.description, uom: l.uom ?? "Nos", qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct),
-    product_id: l.product_id ?? "", pricing_document_id: l.pricing_document_id ?? "",
+    product_id: l.product_id ?? "", pricing_document_id: l.pricing_document_id ?? "", rfq_line_id: (l as { rfq_line_id?: string | null }).rfq_line_id ?? "",
     group_id: l.group_id ?? "", group_label: l.group_label ?? "", group_type: l.group_type === "alternative" ? "alternative" : "",
     break_of: l.break_of ?? "", break_qty: l.break_qty != null ? String(l.break_qty) : "",
     is_selected: l.is_selected !== false, show_on_pdf: l.show_on_pdf !== false,
@@ -124,7 +124,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lines: clean.map((l) => ({
           local_id: l.id, description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct,
-          product_id: l.product_id || null, pricing_document_id: l.pricing_document_id || null,
+          product_id: l.product_id || null, pricing_document_id: l.pricing_document_id || null, rfq_line_id: l.rfq_line_id || null,
           group_id: l.group_id || null, group_label: l.group_label || null, group_type: l.group_type || null,
           break_of: l.break_of || null, break_qty: l.break_qty ? parseFloat(l.break_qty) || null : null,
           is_selected: l.is_selected, show_on_pdf: l.show_on_pdf,

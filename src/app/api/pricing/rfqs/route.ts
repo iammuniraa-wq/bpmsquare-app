@@ -6,6 +6,8 @@ import { insertWithMasterRef } from "@/lib/masterRef";
 import { logChange } from "@/lib/changeLog";
 import { sendRfqEmail } from "@/lib/pricing/rfqServer";
 import { PURCHASE_PATH } from "@/lib/pricing/costSheet";
+import { tenantHasRfq, createRfq, loadRfqBundle, sendToSupplier, isMissingRelation } from "@/lib/rfq/server";
+import { rfqConfig } from "@/lib/rfq/types";
 
 // RFQs (cost-based step 2): the "no cost on file -- ask the supplier"
 // outcome as a record. pricing_rfqs is select-only under RLS; these
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
 
   const body = (await request.json().catch(() => null)) as {
     product_id?: string; supplier_id?: string | null; quantity?: number; uom?: string | null; quote_id?: string | null;
-    standard_quote_id?: string | null;
+    standard_quote_id?: string | null; opportunity_id?: string | null;
     cost_model_code?: string; path?: string; message?: string | null; send?: boolean;
   } | null;
   if (!body?.product_id) return NextResponse.json({ error: "product_id is required" }, { status: 422 });
@@ -85,16 +87,60 @@ export async function POST(request: NextRequest) {
     const { data: q } = await admin.from("standard_quotes").select("id").eq("id", body.standard_quote_id).eq("tenant_id", tenantId).maybeSingle();
     standardQuoteId = q ? (q.id as string) : null;
   }
+  // The editor sends a deal's id for a deal line; it used to be dropped here,
+  // so deal-line RFQs lost their back-reference (docs/rfq-architecture.md §1.3).
+  let opportunityId: string | null = null;
+  if (body.opportunity_id) {
+    const { data: o } = await admin.from("opportunities").select("id").eq("id", body.opportunity_id).eq("tenant_id", tenantId).maybeSingle();
+    opportunityId = o ? (o.id as string) : null;
+  }
   const quantity = Number(body.quantity);
   const modelCode = (body.cost_model_code || "STANDARD_COST").toUpperCase();
   const path = body.path?.trim() || PURCHASE_PATH;
   if (/__|constructor|prototype/.test(path)) return NextResponse.json({ error: "Illegal path" }, { status: 422 });
+
+  // RFQ module (0128): the same request becomes a full RFQ -- its own
+  // record, the reply link and sheet, replies back into the tenant -- and the
+  // caller gets the RFQ line id to remember on the quote line. Falls through
+  // to the legacy single-supplier record when the module is off or 0128 isn't
+  // applied yet.
+  if (await tenantHasRfq(admin, tenantId)) {
+    try {
+      const user = await getAuthUser();
+      const tenant = await getTenant();
+      if (tenant && tenant.id === tenantId) {
+        const originType = standardQuoteId ? "standard_quote" : quoteId ? "quote" : opportunityId ? "opportunity" : "pricing";
+        const rfq = await createRfq({ admin, tenantId, userId, email: user?.email ?? null }, {
+          origin_type: originType,
+          origin_id: standardQuoteId ?? quoteId ?? opportunityId ?? null,
+          notes_to_supplier: typeof body.message === "string" ? body.message : null,
+          lines: [{ product_id: product.id, description: product.name, uom: body.uom ?? product.uom ?? null, qty: Number.isFinite(quantity) && quantity > 0 ? quantity : null, cost_model_code: modelCode, path }],
+          supplier_ids: supplier ? [supplier.id] : [],
+        }, rfqConfig(tenant.config?.rfq));
+        const bundle = await loadRfqBundle(admin, tenantId, rfq.id, { messages: false });
+        let sent: { ok: true; to: string[]; redirected: boolean } | { ok: false; reason: string } = { ok: false, reason: supplier ? "not sent" : "No supplier chosen." };
+        const rs = bundle?.suppliers[0];
+        if (body.send !== false && bundle && rs) {
+          const r = await sendToSupplier(admin, { tenant, bundle, rs, kind: "request", actor: { id: userId, email: user?.email ?? null } });
+          sent = r.ok ? { ok: true, to: r.to, redirected: r.redirected } : { ok: false, reason: r.reason };
+        }
+        return NextResponse.json({ id: rfq.id, ref: rfq.ref, status: sent.ok ? "sent" : "draft", sent, v2: true, rfq_line_id: bundle?.lines[0]?.id ?? null }, { status: 201 });
+      }
+    } catch (e) {
+      const err = e as { status?: number; message?: string; code?: string };
+      if (!(err.status === 503 || isMissingRelation(err))) {
+        return NextResponse.json({ error: err.message ?? "Could not create the RFQ" }, { status: err.status ?? 500 });
+      }
+      // 0128 pending: fall through to the legacy record.
+    }
+  }
 
   const record: Record<string, unknown> = {
     tenant_id: tenantId, product_id: product.id, supplier_id: supplier?.id ?? null,
     cost_model_code: modelCode, path,
     quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : null, uom: body.uom ?? product.uom ?? null,
     status: "draft", requested_by: userId, quote_id: quoteId,
+    ...(opportunityId ? { opportunity_id: opportunityId } : {}),
     message: typeof body.message === "string" ? body.message.slice(0, 4000) : null,
   };
   // standard_quote_id arrives with 0114; while that is pending the RFQ is

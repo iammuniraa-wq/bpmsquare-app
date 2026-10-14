@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { c } from "@/lib/theme";
 import { UOM_OPTIONS } from "@/lib/constants";
 import PriceTrace, { type PriceTraceStep } from "@/components/pricing/PriceTrace";
-import { useTraceDetail, useCurrency } from "@/lib/tenant-context";
+import { useTraceDetail, useCurrency, useTenantFeature } from "@/lib/tenant-context";
+import CreateRfqButton from "@/components/rfq/CreateRfqButton";
 import { moneyFormatter, moneyLabel } from "@/lib/currency";
 
 // The ONE document-line editor (docs/sales-engine-architecture.md §4.5):
@@ -36,7 +37,13 @@ export type Line = {
   is_selected: boolean;
   /** Rep's PDF override (0118): false hides the row from the PDF only. */
   show_on_pdf: boolean;
+  /** The RFQ line this line asked suppliers about (0128 line contract) --
+   *  carried across saves like product_id, verified server-side. */
+  rfq_line_id?: string;
 };
+
+/** Where an RFQ line stands (GET /api/rfqs/lookup) -- status and counts only. */
+type RfqTrack = { rfq_id: string; ref: string | null; rfq_status: string | null; line_status: string; asked: number; replied: number; awarded: boolean };
 
 export type StandardQuoteProduct = {
   id: string; ref: string | null; name: string; uom: string | null; list_price: number | null;
@@ -62,8 +69,8 @@ type HistoryItem = {
 type LinePricing =
   | { kind: "priced"; document_id: string | null; area: string; flags: LineFlag[]; trace: PriceTraceStep[]; open: boolean }
   | { kind: "needs_rfq"; product: { id: string; name: string }; missing: { path: string; considered: { source: string; status: string; reason?: string }[] }[]; message: string; cost_model: string | null }
-  | { kind: "rfq_sent"; ref: string; supplier: string; redirected: boolean }
-  | { kind: "rfq_draft"; ref: string; reason: string };
+  | { kind: "rfq_sent"; ref: string; supplier: string; redirected: boolean; rfq_id?: string }
+  | { kind: "rfq_draft"; ref: string; reason: string; rfq_id?: string };
 
 type LineFlag = { code: string; policy: string; floor_pct?: number; actual_pct?: number };
 
@@ -205,6 +212,21 @@ export default function DocumentLinesEditor({
   const [rfqSupplierId, setRfqSupplierId] = useState("");
   const [rfqMessage, setRfqMessage] = useState("");
   const [rfqBusy, setRfqBusy] = useState(false);
+  // RFQ module (0128): RFQs become a full object -- many lines, many
+  // suppliers, replies back into the tenant -- and a line remembers its RFQ
+  // across saves. Without the module the single-supplier flow below is
+  // unchanged.
+  const rfqModule = useTenantFeature("rfq");
+  const [rfqTrack, setRfqTrack] = useState<Record<string, RfqTrack>>({});
+  const trackedKey = lines.map((l) => l.rfq_line_id ?? "").filter(Boolean).sort().join(",");
+  useEffect(() => {
+    if (!rfqModule || !trackedKey) { setRfqTrack({}); return; }
+    let cancelled = false;
+    fetch(`/api/rfqs/lookup?line_ids=${trackedKey}`).then((r) => (r.ok ? r.json() : { lines: {} })).then((j) => {
+      if (!cancelled) setRfqTrack(j.lines ?? {});
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [rfqModule, trackedKey]);
 
   // Price all lines + auto re-price (Sales Engine Piece A). A line that a
   // rep has manually re-rated after the engine priced it is "overridden" --
@@ -414,11 +436,13 @@ export default function DocumentLinesEditor({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setPricingErrors((p) => ({ ...p, [lineId]: json.error ?? "Could not create the RFQ" })); return; }
       const supplierName = rfqSuppliers?.find((s) => s.id === rfqSupplierId)?.name ?? "supplier";
+      if (json.rfq_line_id) updateLine(lineId, { rfq_line_id: json.rfq_line_id });
+      const rfqId = json.v2 ? (json.id as string) : undefined;
       setLinePricing((p) => ({
         ...p,
         [lineId]: json.sent?.ok
-          ? { kind: "rfq_sent", ref: json.ref, supplier: supplierName, redirected: Boolean(json.sent.redirected) }
-          : { kind: "rfq_draft", ref: json.ref, reason: json.sent?.reason ?? "not sent" },
+          ? { kind: "rfq_sent", ref: json.ref, supplier: supplierName, redirected: Boolean(json.sent.redirected), rfq_id: rfqId }
+          : { kind: "rfq_draft", ref: json.ref, reason: json.sent?.reason ?? "not sent", rfq_id: rfqId },
       }));
       setRfqOpenId(null);
     } catch {
@@ -471,6 +495,11 @@ export default function DocumentLinesEditor({
     else if (info?.kind === "needs_rfq") { label = "Needs RFQ"; bg = "var(--amberbg)"; ink = "var(--amberink)"; title = info.message; }
     else if (info?.kind === "rfq_sent") { label = "RFQ sent"; bg = "var(--tealbg)"; ink = "var(--tealink)"; title = `${info.ref} sent to ${info.supplier}`; }
     else if (info?.kind === "rfq_draft") { label = "RFQ draft"; bg = "var(--amberbg)"; ink = "var(--amberink)"; title = `${info.ref} saved but not sent`; }
+    else if (line.rfq_line_id && rfqTrack[line.rfq_line_id]) {
+      const t = rfqTrack[line.rfq_line_id];
+      if (t.awarded) { label = "Awarded — re-price"; bg = "var(--greenbg)"; ink = "var(--greenink)"; title = `${t.ref}: supplier cost awarded — price the line again to use it`; }
+      else { label = `${t.ref ?? "RFQ"} · ${t.replied}/${t.asked || "?"}`; bg = "var(--tealbg)"; ink = "var(--tealink)"; title = `${t.replied} of ${t.asked} suppliers replied`; }
+    }
     else if (overriddenIds.has(line.id)) { label = "Manual"; bg = c.panel2; ink = c.hint; title = "Rate overridden — no longer tracked by the engine"; }
     else if (line.pricing_document_id) {
       // Priced by the engine on an earlier save: the working isn't in this
@@ -549,11 +578,27 @@ export default function DocumentLinesEditor({
           </>
         )}
         {info?.kind === "rfq_sent" && (
-          <div style={{ color: "var(--tealink)" }}>{info.ref} sent to {info.supplier}{info.redirected ? " (redirected to the internal inbox)" : ""}. Price again once the reply is entered under Pricing → RFQs.</div>
+          <div style={{ color: "var(--tealink)" }}>
+            {info.ref} sent to {info.supplier}{info.redirected ? " (redirected to the internal inbox)" : ""}.{" "}
+            {info.rfq_id ? <>Replies come back to <a href={`/rfqs/${info.rfq_id}`} style={{ color: c.accent, fontWeight: 600 }}>the RFQ</a>; award there, then price again.</> : "Price again once the reply is entered under Pricing → RFQs."}
+          </div>
         )}
         {info?.kind === "rfq_draft" && (
-          <div style={{ color: "var(--amberink)" }}>{info.ref} saved but not sent: {info.reason}. Send it from Pricing → RFQs.</div>
+          <div style={{ color: "var(--amberink)" }}>
+            {info.ref} saved but not sent: {info.reason}.{" "}
+            {info.rfq_id ? <a href={`/rfqs/${info.rfq_id}`} style={{ color: c.accent, fontWeight: 600 }}>Open the RFQ</a> : "Send it from Pricing → RFQs."}
+          </div>
         )}
+        {!info && line.rfq_line_id && rfqTrack[line.rfq_line_id] && (() => {
+          const t = rfqTrack[line.rfq_line_id];
+          return (
+            <div style={{ color: t.awarded ? "var(--greenink)" : "var(--tealink)" }}>
+              {t.awarded
+                ? <>A supplier cost was awarded on <a href={`/rfqs/${t.rfq_id}`} style={{ color: c.accent, fontWeight: 600 }}>{t.ref}</a>. {line.product_id && pricingEnabled ? "Price the line again to use it." : "Type the rate from the awarded cost plus your margin."}</>
+                : <>Waiting on suppliers: {t.replied} of {t.asked} replied on <a href={`/rfqs/${t.rfq_id}`} style={{ color: c.accent, fontWeight: 600 }}>{t.ref}</a>.</>}
+            </div>
+          );
+        })()}
         <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap" }}>
           {pricingEnabled && line.product_id && (
             <button type="button" disabled={pricingBusyIds.has(line.id)} onClick={() => priceWithEngine(line.id, line.product_id, line.qty)} style={linkBtn}>⚡ Price with engine</button>
@@ -968,6 +1013,30 @@ export default function DocumentLinesEditor({
           {priceAllSummary.failed > 0 ? ` · ${priceAllSummary.failed} failed` : ""}
         </span>
       )}
+      {rfqModule && (() => {
+        // Every line the engine couldn't find a cost for, plus any line with
+        // no rate yet, can go to suppliers in ONE RFQ.
+        const asks = lines.filter((l) => !l.break_of && !l.rfq_line_id && l.description.trim() && (linePricing[l.id]?.kind === "needs_rfq" || !(parseFloat(l.rate) > 0)));
+        if (!asks.length) return null;
+        return (
+          <CreateRfqButton
+            origin={{ type: documentType, id: documentId ?? null }}
+            originLabel={accountName ? `${documentType === "opportunity" ? "Deal" : "Quote"} for ${accountName}` : null}
+            label={`Request quotation (${asks.length})`}
+            buttonStyle={{ fontSize: 12, padding: "4px 10px" }}
+            lines={asks.map((l) => ({ product_id: l.product_id || null, description: l.description, uom: l.uom, qty: l.qty }))}
+            onCreated={(r) => {
+              const ids = new Map(asks.map((l, i) => [l.id, r.line_ids[i]]));
+              setLines((ls) => ls.map((l) => (ids.get(l.id) ? { ...l, rfq_line_id: ids.get(l.id) } : l)));
+              setLinePricing((p) => {
+                const next = { ...p };
+                for (const l of asks) if (next[l.id]?.kind === "needs_rfq") delete next[l.id];
+                return next;
+              });
+            }}
+          />
+        );
+      })()}
       {blockedCount > 0 && (
         <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--err-ink)" }}>{blockedCount} below the margin floor — can&apos;t be sent until approved</span>
       )}
