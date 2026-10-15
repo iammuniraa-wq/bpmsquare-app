@@ -108,6 +108,7 @@ export async function proxy(request: NextRequest) {
     // 307'd to /login on its very first run (2026-09-04).
     pathname.startsWith("/api/wfm/cron/") ||
     pathname.startsWith("/api/rfqs/cron/") ||
+    pathname.startsWith("/api/connectors/cron/") ||
     // RFQ supplier reply link (lib/rfq/token.ts + lib/rfq/publicReply.ts):
     // the signed token IS the credential, checked inside the page and route
     // against the recipient's current nonce and the tenant's own host.

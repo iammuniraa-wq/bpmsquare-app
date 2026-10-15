@@ -224,17 +224,23 @@ function ConnectorTile({
                 </div>
               )}
 
-              {!connected && def.authType === "oauth2" && (
+              {def.configureHref && (
+                <a href={def.configureHref} style={{ ...actionBtn(c.accent), textDecoration: "none", display: "inline-flex" }}>
+                  {connected ? "Open settings" : "Set up"}
+                </a>
+              )}
+
+              {!def.configureHref && !connected && def.authType === "oauth2" && (
                 <a href={`/api/connectors/${def.id}/oauth/start`} style={{ ...actionBtn(c.accent), textDecoration: "none", display: "inline-flex" }}>
                   Connect
                 </a>
               )}
 
-              {!connected && def.authType === "api_key" && !editing && (
+              {!def.configureHref && !connected && def.authType === "api_key" && !editing && (
                 <button onClick={() => setEditing(true)} style={actionBtn(c.accent)}>Connect</button>
               )}
 
-              {!connected && def.authType === "api_key" && editing && (
+              {!def.configureHref && !connected && def.authType === "api_key" && editing && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 420 }}>
                   {def.fields.map((f) => (
                     <div key={f.key}>
@@ -256,7 +262,7 @@ function ConnectorTile({
                 </div>
               )}
 
-              {connected && (
+              {connected && !def.configureHref && (
                 <div style={{ display: "flex", gap: 8 }}>
                   {def.testable && (
                     <button onClick={test} disabled={testing} style={actionBtn(c.panel2, c.ink)}>

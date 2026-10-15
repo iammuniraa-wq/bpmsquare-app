@@ -535,6 +535,17 @@ deploy for an automatic schema change.
   Until it runs, every path degrades to the 0126 behaviour: reads retry
   without the column, and the PATCH route answers 503 naming this migration.
   Run AFTER 0126. `scripts/` has no seed for it (no demo data needed).
+- **0129_connector_sync.sql — PENDING on both DBs** (written 2026-10-15,
+  Dynamics 365 connector, `docs/d365-connector.md`). Creates
+  `connector_links` (BPMSquare record <-> external id, unique per tenant +
+  connector + entity + external id) and `connector_sync_runs` (run history,
+  counts, incremental watermark); select-only RLS, writes via service-role
+  sync code. No seed. Until it runs, the Dynamics 365 screen can save and
+  test a connection but every Sync fails with a clear error and the run
+  history reads empty. Independent of 0128 (any order). Environment: none
+  new for client-secret/certificate/basic logins; "sign in as a user" needs
+  `CONNECTOR_OAUTH_STATE_SECRET`. New cron `/api/connectors/cron/dynamics365`
+  (hourly, only acts for tenants whose connector schedule is on).
 - **0128_rfq.sql — PENDING on both DBs** (written 2026-10-15, owner request
   2026-10-14: "RFQ becomes a standard object scopable with a flag ... the whole
   email communication sending and receiving in the tenant itself"; spec

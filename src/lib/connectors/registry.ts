@@ -75,6 +75,16 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
     ],
     testable: true,
   },
+  {
+    id: "dynamics365",
+    name: "Microsoft Dynamics 365",
+    description: "Bring customers, contacts, vendors, products and projects in from Dynamics 365 Finance & Operations, Dataverse (Sales, Field Service, Project Operations) or Business Central — and send won fence projects back as projects. Sign in with an app secret, a certificate, a user account, or (Business Central on-premises) a username and password.",
+    icon: "⇄",
+    authType: "api_key",
+    fields: [],
+    testable: false,
+    configureHref: "/settings/connectors/dynamics365",
+  },
 ];
 
 export function getConnectorDef(id: string): ConnectorDef | undefined {

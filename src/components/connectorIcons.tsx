@@ -34,8 +34,18 @@ function SlackGlyph({ size }: { size: number }) {
   return <span style={{ fontWeight: 800, fontSize: size, lineHeight: 1, fontFamily: "system-ui, sans-serif" }}>#</span>;
 }
 
+// Monogram badges, same honesty rule as Slack above: no reconstructed
+// trademark glyphs, just the name's initial on a colour that identifies it.
+function MonogramGlyph(letter: string) {
+  return function Glyph({ size }: { size: number }) {
+    return <span style={{ fontWeight: 800, fontSize: size, lineHeight: 1, fontFamily: "system-ui, sans-serif" }}>{letter}</span>;
+  };
+}
+
 export const CONNECTOR_ICONS: Record<string, { Glyph: (props: { size: number }) => React.ReactNode; bg: string; fg: string }> = {
   slack:           { Glyph: SlackGlyph,           bg: "#4A154B", fg: "#fff" },
   gmail:           { Glyph: GmailGlyph,           bg: "#FCE8E6", fg: "#EA4335" },
   google_calendar: { Glyph: GoogleCalendarGlyph,  bg: "#E8F0FE", fg: "#4285F4" },
+  dynamics365:     { Glyph: MonogramGlyph("D"),   bg: "#002050", fg: "#fff" },
+  mail_server:     { Glyph: MonogramGlyph("@"),   bg: "#EEF2F7", fg: "#334155" },
 };

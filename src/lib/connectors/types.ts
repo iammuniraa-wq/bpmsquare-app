@@ -56,6 +56,9 @@ export type ConnectorDef = {
   /** Shown after connecting -- a lightweight way to confirm it actually
    * works, not just that credentials were saved. */
   testable: boolean;
+  /** A connector too rich for the tile's inline form (several login types,
+   * entity maps, sync runs) has its own settings page; the tile links there. */
+  configureHref?: string;
 };
 
 export type TenantConnectorRow = {
