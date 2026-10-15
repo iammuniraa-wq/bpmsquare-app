@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { rfqAccess, errorResponse, loadRfqBundle, originHref, refreshRfqStatus, replyLink } from "@/lib/rfq/server";
+import { rfqAccess, errorResponse, loadRfqBundle, originHref, refreshRfqStatus, replyLink, documentLinesFor } from "@/lib/rfq/server";
 import { logChange, diffForLog } from "@/lib/changeLog";
 import { RFQ_LIMITS, rfqConfig } from "@/lib/rfq/types";
 import { linkExpiry } from "@/lib/rfq/rules";
@@ -53,6 +53,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       unread_marked: unread.length,
       products: products ?? [],
       origin_href: originHref(b.rfq.origin_type, b.rfq.origin_id, { caseId }),
+      used_on: await documentLinesFor(admin, tenantId, b.rfq.origin_type, b.rfq.origin_id, b.lines.map((l) => l.id)),
       mail_mode: cfg.mail_mode,
       tenant_currency: tenant?.config?.currency ?? "INR",
     });

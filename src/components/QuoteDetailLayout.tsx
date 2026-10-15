@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import RfqLineChip, { type RfqLineChipData } from "@/components/rfq/RfqLineChip";
 import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -331,6 +332,8 @@ interface Props {
   /** Signed, no-login link to this quote's PDF, for the WhatsApp message. Null when
    * QUOTE_PUBLIC_LINK_SECRET isn't configured (see lib/quotePublicLink.ts). */
   publicPdfLink?: string | null;
+  /** RFQ status per rfq_line_id (0128) -- only passed when the tenant has the RFQ module. */
+  rfqStatus?: Record<string, RfqLineChipData>;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -349,7 +352,7 @@ const td: React.CSSProperties = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES, existingInvoice = null, assets = [], publicPdfLink = null }: Props) {
+export default function QuoteDetailLayout({ quote, account, contact, lines, workOrders, tenantTax, quoteStatuses = DEFAULT_QUOTE_STATUSES, existingInvoice = null, assets = [], publicPdfLink = null, rfqStatus }: Props) {
   const router = useRouter();
   const cur = useCurrency();
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
@@ -706,6 +709,14 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   // Line rows, grouped exactly the way the create/edit form and the print document
   // present them: a header row per group, the group's own subtotal after its last
   // line, and alternative groups marked selected / not selected.
+  // A line's supplier RFQ, when the tenant has the module (absent otherwise,
+  // so the screen is unchanged for everyone else).
+  const rfqChip = (line: QuoteLine) => {
+    const rl = (line as QuoteLine & { rfq_line_id?: string | null }).rfq_line_id;
+    const st = rl && rfqStatus ? rfqStatus[rl] : undefined;
+    return st ? <div><RfqLineChip s={st} /></div> : null;
+  };
+
   const renderLineRows = (): React.ReactNode[] => {
     const out: React.ReactNode[] = [];
     const seenGroups = new Set<string>();
@@ -726,7 +737,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
         out.push(
           <tr key={line.id}>
             <td style={{ ...td, color: c.hint, fontSize: 11 }}>{line.sl_no || standaloneNum}</td>
-            <td style={td}>{line.description}</td>
+            <td style={td}>{line.description}{rfqChip(line)}</td>
             <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.qty}</td>
             <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.rate.toLocaleString(cur.locale)}</td>
             <td style={{ ...td, textAlign: "right", fontWeight: 500 }}>{inr(line.amount)}</td>
@@ -766,7 +777,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           <td style={{ ...td, color: c.hint, fontSize: 11, paddingLeft: 22 }}>
             {line.sl_no || `${standaloneNum}.${groupItemCount[line.group_id]}`}
           </td>
-          <td style={td}>{line.description}</td>
+          <td style={td}>{line.description}{rfqChip(line)}</td>
           <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.qty}</td>
           <td style={{ ...td, textAlign: "right", color: c.muted }}>{line.rate.toLocaleString(cur.locale)}</td>
           <td style={{ ...td, textAlign: "right", fontWeight: 500 }}>{inr(line.amount)}</td>

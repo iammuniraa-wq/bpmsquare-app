@@ -20,7 +20,7 @@ export default function CreateRfqButton({
   lines?: ComposerLine[];
   title?: string;
   label?: string;
-  onCreated?: (r: { id: string; ref: string; line_ids: string[] }) => void;
+  onCreated?: (r: { id: string; ref: string; line_ids: string[]; line_keys: (string | null)[] }) => void;
   buttonStyle?: React.CSSProperties;
 }) {
   const [open, setOpen] = useState(false);

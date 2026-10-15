@@ -6,6 +6,10 @@ import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import QuoteDetailLayout from "@/components/QuoteDetailLayout";
 import { signQuotePublicToken, buildAbsoluteUrl } from "@/lib/quotePublicLink";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { rfqLineStatuses } from "@/lib/rfq/server";
+import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
+import { rfqPrefill } from "@/components/rfq/prefill";
 
 export default async function QuotationDetailPage({
   params,
@@ -27,6 +31,12 @@ export default async function QuotationDetailPage({
     ? await buildAbsoluteUrl(`/api/quotes/${quote.id}/pdf-public/${publicToken}`)
     : null;
 
+  // RFQ (0128) -- only for a tenant that bought the module; for everyone
+  // else nothing below renders and the page is exactly as before.
+  const rfqOn = tenant?.features?.rfq === true;
+  const lineRfqIds = (lines as { rfq_line_id?: string | null }[]).map((l) => l.rfq_line_id ?? "").filter(Boolean);
+  const rfqStatus = rfqOn ? await rfqLineStatuses(createAdminSupabase(), tenant!.id, lineRfqIds) : undefined;
+
   return (
     <>
       <TabTitle title={quote.ref} />
@@ -45,7 +55,16 @@ export default async function QuotationDetailPage({
         existingInvoice={existingInvoice}
         assets={assets}
         publicPdfLink={publicPdfLink}
+        rfqStatus={rfqStatus}
       />
+      {rfqOn && (
+        <RecordRfqsCard
+          origin={{ type: "quote", id: quote.id }}
+          originLabel={`Quotation ${quote.ref}${account?.name ? ` for ${account.name}` : ""}`}
+          title={`Prices for ${quote.ref}${account?.name ? ` (${account.name})` : ""}`}
+          lines={rfqPrefill(lines.map((l) => ({ ...l, uom: l.uom ?? null })) as Parameters<typeof rfqPrefill>[0], (rl) => rfqStatus?.[rl]?.ref ?? null)}
+        />
+      )}
     </>
   );
 }

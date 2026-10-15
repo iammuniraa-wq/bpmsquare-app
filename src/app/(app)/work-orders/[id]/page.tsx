@@ -293,7 +293,8 @@ export default async function WorkOrderDetailPage({
           )}
         </div>
       </div>
-      <RecordRfqsCard origin={{ type: "work_order", id }} />
+      <RecordRfqsCard origin={{ type: "work_order", id }} originLabel={`Work order ${wo.ref}`} title={`Materials for ${wo.ref}`}
+        lines={(wo as { description?: string | null }).description ? [{ description: `Materials for: ${String((wo as { description?: string | null }).description).slice(0, 200)}`, qty: 1, uom: "Lot" }] : undefined} />
       <NovaTimelineSlot objectType="work_orders" objectId={id} />
     </>
   );

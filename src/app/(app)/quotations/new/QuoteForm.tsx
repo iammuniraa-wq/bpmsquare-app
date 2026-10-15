@@ -96,6 +96,9 @@ type LineItem = {
    *  produced it (cost-based step 2). Saved with the line; the API derives
    *  the guardrail flags from it server-side. */
   pricing_document_id?: string | null;
+  /** The supplier RFQ line this line asked about (0128). Never shown here --
+   *  only carried, so saving the quotation keeps the link. */
+  rfq_line_id?: string | null;
 };
 
 /** What the engine said about one line, kept only while the form is open. */
@@ -156,6 +159,7 @@ function editLinesToRows(lines: QuoteLine[]): Row[] {
       inventory_item_id: l.inventory_item_id ?? null,
       product_id: l.product_id ?? null,
       pricing_document_id: l.pricing_document_id ?? null,
+      rfq_line_id: (l as QuoteLine & { rfq_line_id?: string | null }).rfq_line_id ?? null,
     };
     if (l.group_id) {
       let idx = groupIndex.get(l.group_id);
@@ -909,6 +913,9 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setPricingErrors((p) => ({ ...p, [lineId]: json.error ?? "Could not create the RFQ" })); return; }
       const supplierName = rfqSuppliers?.find((s) => s.id === rfqSupplierId)?.name ?? "supplier";
+      // With the RFQ module the line remembers its RFQ line, saved with the
+      // quotation like any other field (nothing changes on screen here).
+      if (json.rfq_line_id) updateLine(lineId, "rfq_line_id", json.rfq_line_id);
       setLinePricing((p) => ({
         ...p,
         [lineId]: json.sent?.ok
@@ -1111,11 +1118,11 @@ export default function QuoteForm({ accounts, contacts, assets: initialAssets, p
         discount_pct: number; group_id: string | null; group_label: string | null;
         group_type: string | null; group_description: string | null;
         category: PricingCategory | null; deduction: number; inventory_item_id: string | null; product_id: string | null;
-        pricing_document_id: string | null;
+        pricing_document_id: string | null; rfq_line_id: string | null;
       }[] =>
         r.kind === "line"
-          ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null, category: r.category || null, deduction: r.category === "material" ? Math.max(0, parseFloat(r.deduction) || 0) : 0, inventory_item_id: r.inventory_item_id ?? null, product_id: r.product_id ?? null, pricing_document_id: r.pricing_document_id || null }]
-          : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null, category: i.category || null, deduction: i.category === "material" ? Math.max(0, parseFloat(i.deduction) || 0) : 0, inventory_item_id: i.inventory_item_id ?? null, product_id: i.product_id ?? null, pricing_document_id: i.pricing_document_id || null }))
+          ? [{ sl_no: r.sl_no || null, description: r.description, uom: r.uom ?? "", qty: r.qty, rate: r.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(r.discount) || 0)), group_id: null, group_label: null, group_type: null, group_description: null, category: r.category || null, deduction: r.category === "material" ? Math.max(0, parseFloat(r.deduction) || 0) : 0, inventory_item_id: r.inventory_item_id ?? null, product_id: r.product_id ?? null, pricing_document_id: r.pricing_document_id || null, rfq_line_id: r.rfq_line_id || null }]
+          : r.items.map((i) => ({ sl_no: i.sl_no || null, description: i.description, uom: i.uom ?? "", qty: i.qty, rate: i.rate, discount_pct: Math.max(0, Math.min(100, parseFloat(i.discount) || 0)), group_id: r.id, group_label: r.label, group_type: r.group_type, group_description: r.group_description || null, category: i.category || null, deduction: i.category === "material" ? Math.max(0, parseFloat(i.deduction) || 0) : 0, inventory_item_id: i.inventory_item_id ?? null, product_id: i.product_id ?? null, pricing_document_id: i.pricing_document_id || null, rfq_line_id: i.rfq_line_id || null }))
       );
 
       const url = editQuote ? `/api/quotes/${editQuote.quote.id}/edit` : "/api/quotes";

@@ -6,7 +6,7 @@ import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { getTenant } from "@/lib/tenant";
 import { accountMatchesAnySegment } from "@/lib/coverage/resolve";
-import { derivePricingFlags, withPricingColumns, insertQuoteLinesTolerant } from "@/lib/pricing/quoteLineFlags";
+import { derivePricingFlags, withPricingColumns, insertQuoteLinesTolerant, verifiedRfqLineIds } from "@/lib/pricing/quoteLineFlags";
 import type { Account } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -146,6 +146,7 @@ export async function POST(request: NextRequest) {
           deduction:         l.category === "material" ? Math.max(0, parseFloat(l.deduction) || 0) : 0,
           inventory_item_id: l.inventory_item_id  ?? null,
           product_id:        l.product_id         ?? null,
+          rfq_line_id: typeof l.rfq_line_id === "string" && l.rfq_line_id ? l.rfq_line_id : null,
           pricing_document_id: typeof l.pricing_document_id === "string" && l.pricing_document_id ? l.pricing_document_id : null,
         };
       });
@@ -188,6 +189,10 @@ export async function POST(request: NextRequest) {
       // verified against the tenant, and its guardrail flags derived here.
       const derived = await derivePricingFlags(supabase, tenantId, lineRows);
       const rowsToInsert = derived.ok ? withPricingColumns(lineRows, derived.flagsByDocument) : lineRows;
+      // rfq_line_id (0128) is a foreign id from the body: only this tenant's
+      // RFQ lines may be linked; anything else is dropped, never stored.
+      const knownRfqLines = await verifiedRfqLineIds(supabase, tenantId, lineRows);
+      for (const l of rowsToInsert) if (l.rfq_line_id && !knownRfqLines.has(l.rfq_line_id)) l.rfq_line_id = null;
       const { error: lErr } = await insertQuoteLinesTolerant(supabase, rowsToInsert);
       if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 });
     }

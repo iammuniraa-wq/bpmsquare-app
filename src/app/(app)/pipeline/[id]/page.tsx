@@ -12,6 +12,9 @@ import { opportunityStages } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, loadLinkedQuotes, stageSinceMap, listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { standardQuoteProducts, pricingOnStandardQuotes } from "../../standard-quotes/formData";
 import OpportunityDetailClient from "./OpportunityDetailClient";
+import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
+import { rfqPrefill } from "@/components/rfq/prefill";
+import { rfqLineStatuses } from "@/lib/rfq/server";
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkcenterView("pipeline");
@@ -34,6 +37,12 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
     admin.from("contacts").select("id, name").eq("account_id", opp.account_id).eq("tenant_id", tenantId).order("name"),
   ]);
 
+  // RFQ (0128): ask suppliers about this deal's lines; only with the module.
+  const rfqOn = tenant?.features?.rfq === true;
+  const rfqStatus = rfqOn
+    ? await rfqLineStatuses(admin, tenantId, lines.map((l) => (l as { rfq_line_id?: string | null }).rfq_line_id ?? "").filter(Boolean))
+    : {};
+
   return (
     <>
       <TabTitle title={opp.title} />
@@ -54,6 +63,14 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         todayKey={todayKey}
         currentUserId={userId}
       />
+      {rfqOn && (
+        <RecordRfqsCard
+          origin={{ type: "opportunity", id }}
+          originLabel={`Deal ${opp.ref ?? opp.title}${account?.name ? ` for ${account.name}` : ""}`}
+          title={`Prices for ${opp.title}`}
+          lines={rfqPrefill(lines as unknown as Parameters<typeof rfqPrefill>[0], (rl) => rfqStatus[rl]?.ref ?? null)}
+        />
+      )}
       <NovaTimelineSlot objectType="opportunities" objectId={id} />
     </>
   );

@@ -16,6 +16,18 @@ export type ComposerLine = {
   spec?: string | null;
   uom?: string | null;
   qty?: number | string | null;
+  /** The quote/deal line this came from -- linked to the new RFQ line on save. */
+  source_line_id?: string | null;
+  /** Whether this line goes on the RFQ (lines prefilled from a record start
+   *  ticked when they have no price yet). Absent = included. */
+  include?: boolean;
+  /** Already asked about on another RFQ -- shown, unticked by default. */
+  linked_ref?: string | null;
+  /** Context for the buyer, e.g. "rate 0" or "Needs a cost". Not sent. */
+  hint?: string | null;
+  /** The caller's own handle for this line (an editor's local line id),
+   *  handed back in onCreated's line_keys next to the new RFQ line id. */
+  key?: string;
 };
 
 type Supplier = { id: string; name: string; email: string | null; city: string | null; status: string; ref?: string | null };
@@ -28,7 +40,7 @@ export default function RfqComposer({
   originLabel?: string | null;
   initialLines?: ComposerLine[];
   initialTitle?: string;
-  onCreated: (r: { id: string; ref: string; line_ids: string[]; sent?: { supplier: string; ok: boolean; reason?: string }[] }) => void;
+  onCreated: (r: { id: string; ref: string; line_ids: string[]; line_keys: (string | null)[]; sent?: { supplier: string; ok: boolean; reason?: string }[] }) => void;
   onCancel?: () => void;
   compact?: boolean;
 }) {
@@ -80,6 +92,7 @@ export default function RfqComposer({
     setBusy(send ? "send" : "draft");
     setError(null);
     try {
+      const chosenLines = lines.filter((l) => l.include !== false && (l.description.trim() || l.product_id));
       const body = {
         title: title.trim() || null,
         origin_type: origin?.type ?? "manual",
@@ -89,7 +102,7 @@ export default function RfqComposer({
         delivery_terms: delivery || null,
         notes_to_supplier: notes || null,
         notes_internal: internal || null,
-        lines: lines.filter((l) => l.description.trim() || l.product_id).map((l) => ({ ...l, qty: l.qty === "" ? null : l.qty })),
+        lines: chosenLines.map(({ include: _i, linked_ref: _l, hint: _h, key: _k, ...l }) => ({ ...l, qty: l.qty === "" ? null : l.qty })),
         supplier_ids: chosen,
         send,
       };
@@ -98,7 +111,7 @@ export default function RfqComposer({
       const res = await fetch("/api/rfqs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error ?? "Could not create the RFQ.");
-      onCreated(j);
+      onCreated({ ...j, line_keys: chosenLines.map((l) => l.key ?? null) });
     } catch (e) {
       setError((e as Error).message);
       setBusy(null);
@@ -119,13 +132,29 @@ export default function RfqComposer({
 
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-          <span style={lbl}>Items to price</span>
-          <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} onClick={() => setLines((ls) => [...ls, { description: "", qty: 1, uom: "Nos" }])}>+ Line</button>
+          <span style={lbl}>Items to price {lines.some((l) => l.include === false) ? `(${lines.filter((l) => l.include !== false).length} of ${lines.length} chosen)` : ""}</span>
+          <span style={{ display: "flex", gap: 6 }}>
+            {lines.some((l) => l.source_line_id || l.include !== undefined) && (
+              <>
+                <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} onClick={() => setLines((ls) => ls.map((l) => ({ ...l, include: true })))}>All</button>
+                <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} onClick={() => setLines((ls) => ls.map((l) => ({ ...l, include: false })))}>None</button>
+              </>
+            )}
+            <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} onClick={() => setLines((ls) => [...ls, { description: "", qty: 1, uom: "Nos" }])}>+ Line</button>
+          </span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {lines.map((l, i) => (
-            <div key={i} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10, display: "grid", gap: 8, gridTemplateColumns: compact ? "1fr" : "minmax(0,3fr) minmax(0,1fr) minmax(0,1fr) auto" }}>
+            <div key={i} style={{ border: `1px solid ${l.include === false ? c.line : l.source_line_id ? c.accent + "55" : c.line}`, borderRadius: 8, padding: 10, display: "grid", gap: 8, opacity: l.include === false ? 0.55 : 1, gridTemplateColumns: compact ? "1fr" : "minmax(0,3fr) minmax(0,1fr) minmax(0,1fr) auto" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(l.source_line_id || l.include !== undefined) && (
+                  <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5, color: c.ink, cursor: "pointer" }}>
+                    <input type="checkbox" checked={l.include !== false} onChange={(e) => setLine(i, { include: e.target.checked })} />
+                    <span>Ask suppliers about this line</span>
+                    {l.hint && <span style={{ fontSize: 11.5, color: "var(--amberink)" }}>· {l.hint}</span>}
+                    {l.linked_ref && <span style={{ fontSize: 11.5, color: c.hint }}>· already on {l.linked_ref}</span>}
+                  </label>
+                )}
                 {products && products.length > 0 && (
                   <select aria-label={`Line ${i + 1} product`} style={inp} value={l.product_id ?? ""} onChange={(e) => {
                     const p = products.find((x) => x.id === e.target.value);

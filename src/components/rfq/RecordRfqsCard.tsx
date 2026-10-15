@@ -19,13 +19,15 @@ import type { ComposerLine } from "./RfqComposer";
 type Row = { id: string; ref: string | null; title: string; status: RfqStatus; respond_by: string | null; created_at: string };
 
 export default function RecordRfqsCard({
-  origin, originLabel, lines, title, heading = "Supplier quotations (RFQ)",
+  origin, originLabel, lines, title, heading = "Supplier quotations (RFQ)", compactTop,
 }: {
   origin: { type: RfqOriginType; id: string };
   originLabel?: string | null;
   lines?: ComposerLine[];
   title?: string;
   heading?: string;
+  /** Inside a gapped column already -- no extra top margin. */
+  compactTop?: boolean;
 }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [hidden, setHidden] = useState(false);
@@ -43,11 +45,12 @@ export default function RecordRfqsCard({
 
   if (hidden || rows === null) return null;
   return (
-    <section style={{ ...cardStyle, marginTop: 16 }}>
+    <section style={{ ...cardStyle, marginTop: compactTop ? 0 : 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: rows.length ? 10 : 0 }}>
         <div>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{heading}</div>
           {!rows.length && <div style={{ fontSize: 12.5, color: c.hint, marginTop: 2 }}>No price on file for something here? Ask your suppliers — replies come back into this record.</div>}
+          {!!rows.length && lines && lines.some((l) => l.include !== false) && <div style={{ fontSize: 12.5, color: c.hint, marginTop: 2 }}>{lines.filter((l) => l.include !== false).length} line{lines.filter((l) => l.include !== false).length === 1 ? "" : "s"} not on an RFQ yet.</div>}
         </div>
         <CreateRfqButton origin={origin} originLabel={originLabel} lines={lines} title={title} />
       </div>

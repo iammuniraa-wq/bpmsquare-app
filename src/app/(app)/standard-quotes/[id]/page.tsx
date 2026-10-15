@@ -17,6 +17,9 @@ import StandardQuoteActionsPanel from "./StandardQuoteActionsPanel";
 import StandardQuoteAttachments from "./StandardQuoteAttachments";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
+import RfqLineChip from "@/components/rfq/RfqLineChip";
+import { rfqPrefill } from "@/components/rfq/prefill";
+import { rfqLineStatuses } from "@/lib/rfq/server";
 import { selectedLines } from "@/lib/sales/lineTotals";
 import { pricingOnStandardQuotes } from "../formData";
 
@@ -62,6 +65,12 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
     : null;
   // Which alternative options are chosen (0118: a break family inside an
   // option labels the option and the quantity separately).
+  // RFQ (0128): where each line's supplier request stands, for the chip on
+  // the line and for prefilling "Request quotation" with this quote's lines.
+  const rfqOn = tenant?.features?.rfq === true;
+  const rfqStatus = rfqOn
+    ? await rfqLineStatuses(createAdminSupabase(), quote.tenant_id, lines.map((l) => (l as { rfq_line_id?: string | null }).rfq_line_id ?? "").filter(Boolean))
+    : {};
   const chosenGroupIds = new Set(selectedLines(lines).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string));
 
   return (
@@ -155,6 +164,11 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
                         </span>
                       )}
                       {l.description}
+                      {(() => {
+                        const rl = (l as { rfq_line_id?: string | null }).rfq_line_id;
+                        const st = rl ? rfqStatus[rl] : undefined;
+                        return st ? <div><RfqLineChip s={st} /></div> : null;
+                      })()}
                       {(l.pricing_flags ?? []).map((f, i) => (
                         <div key={i} style={{ fontSize: 11, fontWeight: 600, marginTop: 2, color: f.policy === "block" ? "var(--err-ink)" : "var(--amberink)" }}>
                           {f.code === "MARGIN_FLOOR" ? `Margin ${f.actual_pct}% is below the ${f.floor_pct}% floor` : f.code}
@@ -173,6 +187,16 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
               </tbody>
             </table>
           </section>
+
+          {rfqOn && (
+            <RecordRfqsCard
+              origin={{ type: "standard_quote", id }}
+              originLabel={`Quote ${quote.ref}${account?.name ? ` for ${account.name}` : ""}`}
+              title={account?.name ? `Prices for ${quote.ref} (${account.name})` : `Prices for ${quote.ref}`}
+              lines={rfqPrefill(lines as Parameters<typeof rfqPrefill>[0], (rl) => rfqStatus[rl]?.ref ?? null)}
+              compactTop
+            />
+          )}
 
           <section style={cardStyle}>
             <StandardQuoteAttachments quoteId={quote.id} canCreateLines={quote.status === "draft"} />
@@ -220,7 +244,6 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
           <StandardQuoteActionsPanel quote={quote} />
         </div>
       </div>
-      <RecordRfqsCard origin={{ type: "standard_quote", id }} />
       <NovaTimelineSlot objectType="standard_quotes" objectId={id} />
     </>
   );

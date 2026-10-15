@@ -1014,19 +1014,30 @@ export default function DocumentLinesEditor({
         </span>
       )}
       {rfqModule && (() => {
-        // Every line the engine couldn't find a cost for, plus any line with
-        // no rate yet, can go to suppliers in ONE RFQ.
-        const asks = lines.filter((l) => !l.break_of && !l.rfq_line_id && l.description.trim() && (linePricing[l.id]?.kind === "needs_rfq" || !(parseFloat(l.rate) > 0)));
-        if (!asks.length) return null;
+        // Any line not already on an RFQ can go to suppliers in ONE RFQ.
+        // Lines the engine couldn't cost, or with no rate yet, start ticked;
+        // when every line is priced, all start ticked (a price check).
+        const eligible = lines.filter((l) => !l.break_of && !l.rfq_line_id && l.description.trim());
+        if (!eligible.length) return null;
+        const unpriced = (l: Line) => linePricing[l.id]?.kind === "needs_rfq" || !(parseFloat(l.rate) > 0);
+        const anyUnpriced = eligible.some(unpriced);
+        const n = anyUnpriced ? eligible.filter(unpriced).length : 0;
         return (
           <CreateRfqButton
             origin={{ type: documentType, id: documentId ?? null }}
             originLabel={accountName ? `${documentType === "opportunity" ? "Deal" : "Quote"} for ${accountName}` : null}
-            label={`Request quotation (${asks.length})`}
+            label={n ? `Request quotation (${n})` : "Request quotation"}
             buttonStyle={{ fontSize: 12, padding: "4px 10px" }}
-            lines={asks.map((l) => ({ product_id: l.product_id || null, description: l.description, uom: l.uom, qty: l.qty }))}
+            lines={eligible.map((l) => ({
+              key: l.id, product_id: l.product_id || null, description: l.description, uom: l.uom, qty: l.qty,
+              // A line already saved on this document is linked server-side at
+              // once, so the link survives even if the form is left unsaved.
+              source_line_id: documentId && /^[0-9a-f-]{36}$/i.test(l.id) ? l.id : null,
+              include: !anyUnpriced || unpriced(l), hint: unpriced(l) ? (linePricing[l.id]?.kind === "needs_rfq" ? "no cost found" : "no price yet") : null,
+            }))}
             onCreated={(r) => {
-              const ids = new Map(asks.map((l, i) => [l.id, r.line_ids[i]]));
+              const ids = new Map(r.line_keys.map((k, i) => [k, r.line_ids[i]] as const).filter((x): x is [string, string] => !!x[0]));
+              const asks = eligible.filter((l) => ids.has(l.id));
               setLines((ls) => ls.map((l) => (ids.get(l.id) ? { ...l, rfq_line_id: ids.get(l.id) } : l)));
               setLinePricing((p) => {
                 const next = { ...p };

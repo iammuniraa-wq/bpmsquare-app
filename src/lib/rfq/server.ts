@@ -148,6 +148,10 @@ export type NewRfqLine = {
   required_by?: string | null;
   cost_model_code?: string | null;
   path?: string | null;
+  /** The document line this RFQ line asks about (a quote, standard quote or
+   *  deal line). After create, that line is stamped with the new
+   *  rfq_line_id -- verified to belong to the origin document first. */
+  source_line_id?: string | null;
 };
 
 export type NewRfq = {
@@ -248,11 +252,19 @@ export async function createRfq(ctx: Pick<RfqCtx, "admin" | "tenantId" | "userId
   }
   if (!rfq) throw { status: 500, message: "Could not allocate an RFQ number" };
 
-  const { error: lineErr } = await admin.from("rfq_lines").insert(lines.map((l) => ({ ...l, tenant_id: tenantId, rfq_id: rfq!.id })));
+  const { data: insertedLines, error: lineErr } = await admin.from("rfq_lines")
+    .insert(lines.map((l) => ({ ...l, tenant_id: tenantId, rfq_id: rfq!.id }))).select("id, sl_no");
   if (lineErr) {
     await admin.from("rfqs").delete().eq("id", rfq.id).eq("tenant_id", tenantId);
     throw { status: 500, message: lineErr.message };
   }
+  // Stamp each source document line with the RFQ line that asks about it,
+  // so the quote/deal shows "RFQ-0012 · 1/3" on that line from now on.
+  const bySl = new Map(((insertedLines ?? []) as { id: string; sl_no: number }[]).map((r) => [r.sl_no, r.id]));
+  const pairs = input.lines
+    .map((l, i) => ({ source: typeof l.source_line_id === "string" ? l.source_line_id : null, rfqLine: bySl.get(i + 1) }))
+    .filter((x): x is { source: string; rfqLine: string } => !!x.source && !!x.rfqLine);
+  if (pairs.length && input.origin_id) await linkDocumentLines(admin, tenantId, originType, input.origin_id, pairs);
   if (suppliers.length) {
     await admin.from("rfq_suppliers").insert(suppliers.map((s) => ({ tenant_id: tenantId, rfq_id: rfq!.id, supplier_id: s.id, email_to: s.email })));
   }
@@ -267,6 +279,73 @@ export async function createRfq(ctx: Pick<RfqCtx, "admin" | "tenantId" | "userId
     ],
   });
   return rfq;
+}
+
+// ── Document lines <-> RFQ lines ────────────────────────────────────────────
+
+const LINE_TABLE: Partial<Record<RfqOriginType, { table: string; parent: string }>> = {
+  standard_quote: { table: "standard_quote_lines", parent: "standard_quote_id" },
+  quote: { table: "quote_lines", parent: "quote_id" },
+  opportunity: { table: "opportunity_lines", parent: "opportunity_id" },
+};
+
+/** Stamp document lines with their RFQ line. Each update is held to the
+ *  tenant AND the origin document, so a line id from another quote (or
+ *  another tenant) simply matches nothing. */
+export async function linkDocumentLines(admin: SupabaseClient, tenantId: string, originType: RfqOriginType, originId: string, pairs: { source: string; rfqLine: string }[]): Promise<number> {
+  const def = LINE_TABLE[originType];
+  if (!def) return 0;
+  let linked = 0;
+  for (const p of pairs.slice(0, RFQ_LIMITS.maxLines)) {
+    const { data, error } = await admin.from(def.table).update({ rfq_line_id: p.rfqLine })
+      .eq("id", p.source).eq("tenant_id", tenantId).eq(def.parent, originId).select("id");
+    if (error) return linked; // 0128 pending on the line table: nothing to stamp
+    linked += (data ?? []).length;
+  }
+  return linked;
+}
+
+export type RfqLineStatus = { rfq_id: string; ref: string | null; rfq_status: string | null; line_status: string; asked: number; replied: number; awarded: boolean; awarded_unit_cost: number | null };
+
+/** Where each RFQ line stands -- status and counts only, never a supplier's
+ *  price except the awarded cost (which is the tenant's own cost figure). */
+export async function rfqLineStatuses(admin: SupabaseClient, tenantId: string, rfqLineIds: string[]): Promise<Record<string, RfqLineStatus>> {
+  const ids = [...new Set(rfqLineIds.filter((x) => /^[0-9a-f-]{36}$/i.test(x)))].slice(0, 500);
+  if (!ids.length) return {};
+  const { data: lines, error } = await admin.from("rfq_lines").select("id, rfq_id, status, awarded_unit_cost, rfqs(ref, status)").eq("tenant_id", tenantId).in("id", ids);
+  if (error) return {};
+  const rows = (lines ?? []) as unknown as { id: string; rfq_id: string; status: string; awarded_unit_cost: number | null; rfqs: { ref: string; status: string } | null }[];
+  const rfqIds = [...new Set(rows.map((r) => r.rfq_id))];
+  const { data: sups } = rfqIds.length ? await admin.from("rfq_suppliers").select("rfq_id, status").eq("tenant_id", tenantId).in("rfq_id", rfqIds) : { data: [] };
+  const counts = new Map<string, { asked: number; replied: number }>();
+  for (const s of (sups ?? []) as { rfq_id: string; status: string }[]) {
+    if (s.status === "cancelled" || s.status === "pending") continue;
+    const c = counts.get(s.rfq_id) ?? { asked: 0, replied: 0 };
+    c.asked++;
+    if (s.status === "replied" || s.status === "declined") c.replied++;
+    counts.set(s.rfq_id, c);
+  }
+  const out: Record<string, RfqLineStatus> = {};
+  for (const r of rows) {
+    const c = counts.get(r.rfq_id) ?? { asked: 0, replied: 0 };
+    out[r.id] = { rfq_id: r.rfq_id, ref: r.rfqs?.ref ?? null, rfq_status: r.rfqs?.status ?? null, line_status: r.status, asked: c.asked, replied: c.replied, awarded: r.status === "awarded", awarded_unit_cost: r.awarded_unit_cost === null ? null : Number(r.awarded_unit_cost) };
+  }
+  return out;
+}
+
+/** For an RFQ raised from a document: which document line each RFQ line is
+ *  on, for the "Used on" note on the RFQ screen. */
+export async function documentLinesFor(admin: SupabaseClient, tenantId: string, originType: RfqOriginType, originId: string | null, rfqLineIds: string[]): Promise<Record<string, { sl_no: string | null; description: string }>> {
+  const def = LINE_TABLE[originType];
+  if (!def || !originId || !rfqLineIds.length) return {};
+  const { data, error } = await admin.from(def.table).select("rfq_line_id, sl_no, description")
+    .eq("tenant_id", tenantId).eq(def.parent, originId).in("rfq_line_id", rfqLineIds);
+  if (error) return {};
+  const out: Record<string, { sl_no: string | null; description: string }> = {};
+  for (const r of (data ?? []) as { rfq_line_id: string; sl_no: string | number | null; description: string }[]) {
+    out[r.rfq_line_id] = { sl_no: r.sl_no === null ? null : String(r.sl_no), description: r.description };
+  }
+  return out;
 }
 
 // ── Load ────────────────────────────────────────────────────────────────────

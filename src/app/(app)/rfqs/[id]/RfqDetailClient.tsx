@@ -31,6 +31,8 @@ type Bundle = {
   origin_href: string | null;
   mail_mode: "platform" | "mailbox";
   tenant_currency: string;
+  /** rfq line id -> the source document line it asks about. */
+  used_on?: Record<string, { sl_no: string | null; description: string }>;
 };
 
 type Tab = "compare" | "suppliers" | "conversation" | "details";
@@ -262,6 +264,11 @@ function CompareTab({ b, canEdit, onKeyIn, onAward, run, id, onAddSupplier }: {
                     <div style={{ fontSize: 12, color: c.hint, marginTop: 2 }}>
                       {l.qty ?? ""} {l.uom ?? ""}{prod ? ` · ${prod.ref ?? "catalog"}` : " · free text"}
                     </div>
+                    {b.used_on?.[l.id] && b.origin_href && (
+                      <div style={{ fontSize: 11.5, marginTop: 2 }}>
+                        <Link href={b.origin_href} style={{ color: c.accent, textDecoration: "none" }}>On {b.rfq.origin_label ?? "the document"}, line {b.used_on[l.id].sl_no ?? "—"}</Link>
+                      </div>
+                    )}
                     {l.status === "awarded" && <div style={{ marginTop: 4 }}><Pill label={`Awarded · ${fmtMoney(l.awarded_unit_cost, b.tenant_currency)}`} tone="green" /></div>}
                     {l.status === "no_award" && <div style={{ marginTop: 4 }}><Pill label="No award" tone="amber" /></div>}
                     {canEdit && l.status !== "cancelled" && b.rfq.status !== "draft" && (

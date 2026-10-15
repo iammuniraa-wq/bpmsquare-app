@@ -5,7 +5,7 @@ import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/c
 import { parseDateOverride } from "@/lib/dateProfile";
 import { getTenant } from "@/lib/tenant";
 import { accountMatchesAnySegment } from "@/lib/coverage/resolve";
-import { derivePricingFlags, withPricingColumns, insertQuoteLinesTolerant } from "@/lib/pricing/quoteLineFlags";
+import { derivePricingFlags, withPricingColumns, insertQuoteLinesTolerant, verifiedRfqLineIds } from "@/lib/pricing/quoteLineFlags";
 import type { Account } from "@/lib/types";
 
 // Full edit of a DRAFT quote: header fields + line items (replaced wholesale).
@@ -105,7 +105,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             deduction,
             inventory_item_id: l.inventory_item_id ?? null,
             product_id:        l.product_id        ?? null,
-            pricing_document_id: typeof l.pricing_document_id === "string" && l.pricing_document_id ? l.pricing_document_id : null,
+            rfq_line_id: typeof l.rfq_line_id === "string" && l.rfq_line_id ? l.rfq_line_id : null,
+          pricing_document_id: typeof l.pricing_document_id === "string" && l.pricing_document_id ? l.pricing_document_id : null,
           };
         })
     : [];
@@ -222,6 +223,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // the tenant, flags derived server-side (never trusted from the client).
     const derived = await derivePricingFlags(admin, tenantId, cleanLines);
     const rowsToInsert = derived.ok ? withPricingColumns(cleanLines, derived.flagsByDocument) : cleanLines;
+    // rfq_line_id (0128) is a foreign id from the body: only this tenant's
+    // RFQ lines may be linked; anything else is dropped, never stored.
+    const knownRfqLines = await verifiedRfqLineIds(supabase, tenantId, cleanLines);
+    for (const l of rowsToInsert) if (l.rfq_line_id && !knownRfqLines.has(l.rfq_line_id)) l.rfq_line_id = null;
     const { error: iErr } = await insertQuoteLinesTolerant(admin, rowsToInsert);
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
   }

@@ -454,8 +454,12 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           .case-body { grid-template-columns: 1fr !important; }
         }
       `}</style>
-      <RecordRfqsCard origin={{ type: "case", id }} originLabel={sc.ref} title={sc.equipment_label} />
-      {inspectionReport && <RecordRfqsCard origin={{ type: "inspection_report", id: inspectionReport.id }} originLabel={`Inspection · ${sc.ref}`} heading="Supplier quotations for the inspection findings" title={`Repair parts — ${sc.equipment_label}`} />}
+      {/* Pre-filled from what the record knows; the buyer edits the item
+          wording before sending -- a complaint is not a part number. */}
+      <RecordRfqsCard origin={{ type: "case", id }} originLabel={`Case ${sc.ref}`} title={`Parts for ${sc.equipment_label}`}
+        lines={[{ description: `Parts / repair for ${sc.equipment_label}`, spec: sc.complaint ? sc.complaint.slice(0, 300) : null, qty: 1, uom: "Nos" }]} />
+      {inspectionReport && <RecordRfqsCard origin={{ type: "inspection_report", id: inspectionReport.id }} originLabel={`Inspection · ${sc.ref}`} heading="Supplier quotations for the inspection findings" title={`Repair parts — ${sc.equipment_label}`}
+        lines={(inspectionReport.recommendations ?? "").split(/\r?\n|;/).map((t: string) => t.replace(/^[\s\-*•\d.)]+/, "").trim()).filter(Boolean).slice(0, 20).map((t: string) => ({ description: t.slice(0, 300), qty: 1, uom: "Nos" }))} />}
       <NovaTimelineSlot objectType="cases" objectId={id} />
     </>
   );
