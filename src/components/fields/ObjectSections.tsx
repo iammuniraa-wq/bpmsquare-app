@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
@@ -8,6 +8,7 @@ import { applyRules } from "@/lib/fieldRegistry";
 import { useEffectiveFieldConfig } from "./useEffectiveFieldConfig";
 import FieldWidget from "./FieldWidget";
 import { Pencil, CheckIcon } from "@/components/Icons";
+import { useRecordEdit } from "@/components/page/RecordEditContext";
 
 export type FormHelpers = {
   setValue: (key: string, value: unknown) => void;
@@ -64,6 +65,16 @@ export default function ObjectSections({ objectType, record, patchUrl, onSaved, 
     setEditing(false);
     setError("");
   }
+
+  // On a template record page the Edit control lives in the header's "⋯"
+  // menu; this picks up its request once the field config has loaded.
+  const recordEdit = useRecordEdit();
+  useEffect(() => {
+    if (!recordEdit?.pending || loading) return;
+    if (sections.length > 0 && !editing) startEdit();
+    recordEdit.consume();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordEdit?.pending, loading]);
 
   function fieldState(f: { field_key: string; hidden: boolean; required: boolean }) {
     return applyRules(rules, f.field_key, f.hidden, f.required, displayValues);
@@ -138,7 +149,13 @@ export default function ObjectSections({ objectType, record, patchUrl, onSaved, 
         <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5 }}>
           Details
         </div>
-        {!editing ? (
+        {!editing && recordEdit ? (
+          saved ? (
+            <span style={{ fontSize: 12, color: c.muted, display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <CheckIcon size={12} color={c.muted} /> Saved
+            </span>
+          ) : null
+        ) : !editing ? (
           <button
             type="button"
             onClick={startEdit}

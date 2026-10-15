@@ -1784,3 +1784,131 @@ main textarea::placeholder { color: var(--hint); opacity: 1; }
 [data-theme="nextgen"] main textarea:focus {
   background: var(--card-bg);
 }
+
+/* ── UI kit (src/components/ui) and page templates (src/components/page) ────
+   Every rule here is keyed to a bpm-* class that only the kit renders, so it
+   cannot restyle an existing screen. Colours come from the theme variables, so
+   light/dark and every theme follow; the hex values below are the two
+   contrast pairings a variable cannot express (text on the accent fill). The
+   hover/focus/disabled states live here because inline styles cannot carry
+   pseudo-classes. */
+.bpm-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  box-sizing: border-box; font-family: inherit; font-weight: 600; line-height: 1;
+  white-space: nowrap; text-decoration: none; cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: min(var(--card-radius), 9px);
+  transition: background .12s, border-color .12s, filter .12s;
+}
+.bpm-btn-sm { height: 30px; padding: 0 12px; font-size: 12.5px; }
+.bpm-btn-md { height: 36px; padding: 0 16px; font-size: 13px; }
+.bpm-btn-icon.bpm-btn-sm { width: 30px; padding: 0; }
+.bpm-btn-icon.bpm-btn-md { width: 36px; padding: 0; }
+.bpm-btn-primary { background: var(--modern-accent, var(--accent)); color: #fff; }
+.bpm-btn-primary:hover:not(:disabled):not([aria-disabled="true"]) { filter: brightness(0.93); }
+.bpm-btn-secondary { background: var(--panel); color: var(--ink); border-color: var(--line); }
+.bpm-btn-secondary:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--panel2); }
+.bpm-btn-danger { background: var(--panel); color: var(--redink); border-color: var(--red); }
+.bpm-btn-danger:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--redbg); }
+.bpm-btn-quiet { background: transparent; color: var(--muted); }
+.bpm-btn-quiet:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--panel2); color: var(--ink); }
+.bpm-btn:disabled, .bpm-btn[aria-disabled="true"] { opacity: 0.55; cursor: default; pointer-events: none; }
+.bpm-btn:focus-visible, .bpm-tab:focus-visible, .bpm-menu-item:focus-visible, .bpm-input:focus-visible {
+  outline: 2px solid var(--modern-accent, var(--accent)); outline-offset: 2px;
+}
+.bpm-spin {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent;
+  animation: bpm-spin .7s linear infinite;
+}
+@keyframes bpm-spin { to { transform: rotate(360deg); } }
+
+.bpm-input {
+  width: 100%; box-sizing: border-box; padding: 8px 11px; font-size: 13px; font-family: inherit;
+  color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: min(var(--card-radius), 9px);
+}
+textarea.bpm-input { min-height: 72px; resize: vertical; }
+.bpm-input[aria-invalid="true"] { border-color: var(--err-ink); }
+.bpm-input:disabled { opacity: 0.6; }
+
+.bpm-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.bpm-tab {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; font-size: 13px; font-family: inherit;
+  white-space: nowrap; cursor: pointer; text-decoration: none; background: none; border: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--muted); font-weight: 500;
+}
+.bpm-tab:hover { color: var(--ink); }
+.bpm-tab[aria-selected="true"] { color: var(--ink); font-weight: 700; border-bottom-color: var(--modern-accent, var(--accent)); }
+.bpm-tab-count {
+  font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 9px;
+  background: var(--panel2); color: var(--muted);
+}
+
+.bpm-menu-wrap { position: relative; display: inline-block; }
+.bpm-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 60;
+  min-width: 190px; max-width: calc(100vw - 32px); padding: 5px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: min(var(--card-radius), 10px);
+  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.18);
+}
+.bpm-menu-item {
+  display: flex; align-items: center; width: 100%; box-sizing: border-box; padding: 8px 10px;
+  font-size: 13px; font-family: inherit; text-align: left; text-decoration: none;
+  color: var(--ink); background: none; border: none; border-radius: 6px; cursor: pointer;
+}
+.bpm-menu-item:hover, .bpm-menu-item:focus-visible { background: var(--panel2); }
+.bpm-menu-item[data-danger="true"] { color: var(--redink); }
+.bpm-menu-item[data-danger="true"]:hover { background: var(--redbg); }
+.bpm-menu-sep { height: 1px; margin: 5px 4px; background: var(--line); }
+
+.bpm-form-footer {
+  position: sticky; bottom: 0; z-index: 5; margin-top: 18px;
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
+  padding: 12px 14px; background: var(--card-bg); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow);
+}
+.bpm-form-footer-left { margin-right: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+/* Lists: the table is the desktop view, the card stack the phone view. Both
+   are rendered by ObjectListPage; the breakpoint is MOBILE_BREAKPOINT (780). */
+.bpm-list-cards { display: none; flex-direction: column; gap: 10px; }
+.bpm-list-card {
+  display: block; padding: 12px 14px; text-decoration: none; color: inherit;
+  background: var(--card-bg); border: 1px solid var(--line);
+  border-radius: var(--card-radius); box-shadow: var(--card-shadow);
+}
+
+@media (max-width: 780px) {
+  .bpm-list-cards { display: flex; }
+  .bpm-list-table { display: none !important; }
+  /* Clear the fixed bottom tab bar, or Save lands underneath it (same
+     arithmetic as .sticky-actions above). */
+  .bpm-form-footer { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+  .bpm-form-page { padding-bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
+  .bpm-menu { right: 0; left: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bpm-spin { animation: none; }
+  .bpm-btn { transition: none; }
+}
+
+/* Spectacular paints a navy band behind every page header and re-points
+   --ink/--line to white inside it (see .bpm-page-header above). The kit's
+   buttons and menu would inherit that and turn white-on-white, so they take
+   the same outline-on-navy treatment the band already gives its own CTAs. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header .bpm-btn-secondary,
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header .bpm-btn-quiet {
+  background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.45);
+}
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header .bpm-menu {
+  --ink: #1c2733; --muted: #505b6a; --hint: #66707e; --line: #e2e7ee;
+}
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header .bpm-menu .bpm-menu-item {
+  color: #1c2733 !important;
+}
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header .bpm-menu .bpm-menu-item[data-danger="true"] {
+  color: var(--redink) !important;
+}

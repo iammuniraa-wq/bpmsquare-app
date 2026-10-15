@@ -13,6 +13,11 @@ import {
 } from "@/lib/rfq/types";
 import { bestByLine, landedUnit } from "@/lib/rfq/rules";
 import ObjectSections from "@/components/fields/ObjectSections";
+import Button from "@/components/ui/Button";
+import MoreMenu from "@/components/ui/MoreMenu";
+import StatusPill from "@/components/ui/StatusPill";
+import Tabs from "@/components/ui/Tabs";
+import { RecordEditProvider, useRecordEdit } from "@/components/page/RecordEditContext";
 import { RFQ_STATUS_TONE, SUPPLIER_STATUS_TONE, inp, lbl, btnPrimary, btnGhost, fmtDate, fmtDateTime, fmtMoney } from "@/components/rfq/rfqUi";
 
 type SupplierRow = RfqSupplier & {
@@ -66,8 +71,17 @@ function Modal({ title, onClose, children, width = 640 }: { title: string; onClo
   );
 }
 
-export default function RfqDetailClient({ id, canEdit, isAdmin }: { id: string; canEdit: boolean; isAdmin: boolean }) {
+export default function RfqDetailClient(props: { id: string; canEdit: boolean; isAdmin: boolean }) {
+  return (
+    <RecordEditProvider>
+      <RfqDetail {...props} />
+    </RecordEditProvider>
+  );
+}
+
+function RfqDetail({ id, canEdit, isAdmin }: { id: string; canEdit: boolean; isAdmin: boolean }) {
   const router = useRouter();
+  const recordEdit = useRecordEdit();
   const [b, setB] = useState<Bundle | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("compare");
@@ -148,14 +162,21 @@ export default function RfqDetailClient({ id, canEdit, isAdmin }: { id: string; 
         subtitle={`${rfq.ref ?? "RFQ"} · ${RFQ_ORIGIN_LABEL[rfq.origin_type]}${rfq.origin_label ? ` ${rfq.origin_label}` : ""}${rfq.respond_by ? ` · reply by ${fmtDate(rfq.respond_by)}` : ""}`}
         action={
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <Pill label={RFQ_STATUS_LABEL[rfq.status]} tone={RFQ_STATUS_TONE[rfq.status]} />
-            <a href={`/api/rfqs/${id}/pdf`} target="_blank" rel="noopener noreferrer" style={{ ...btnGhost, textDecoration: "none", display: "inline-block" }}>PDF</a>
-            {canEdit && !closed && pendingCount > 0 && <button type="button" style={btnPrimary} disabled={busy} onClick={() => sendAll("request")}>Send to {pendingCount} supplier{pendingCount === 1 ? "" : "s"}</button>}
-            {canEdit && !closed && waiting > 0 && <button type="button" style={btnGhost} disabled={busy} onClick={() => sendAll("reminder")}>Remind {waiting}</button>}
-            {canEdit && rfq.status === "awarded" && <button type="button" style={btnGhost} disabled={busy} onClick={() => action("close")}>Close</button>}
-            {canEdit && !closed && rfq.status !== "draft" && <button type="button" style={btnGhost} disabled={busy} onClick={() => action("cancel")}>Cancel RFQ</button>}
-            {canEdit && closed && <button type="button" style={btnGhost} disabled={busy} onClick={() => action("reopen")}>Reopen</button>}
-            {canEdit && rfq.status === "draft" && <button type="button" style={{ ...btnGhost, color: "var(--redink)" }} disabled={busy} onClick={del}>Delete</button>}
+            <StatusPill label={RFQ_STATUS_LABEL[rfq.status]} tone={RFQ_STATUS_TONE[rfq.status]} />
+            {canEdit && !closed && pendingCount > 0 && (
+              <Button variant="primary" disabled={busy} onClick={() => sendAll("request")}>
+                Send to {pendingCount} supplier{pendingCount === 1 ? "" : "s"}
+              </Button>
+            )}
+            <MoreMenu items={[
+              { label: "Edit", hidden: !canEdit || closed, onSelect: () => { setTab("details"); recordEdit?.request(); } },
+              { label: "Print / PDF", href: `/api/rfqs/${id}/pdf`, newTab: true },
+              { label: `Remind ${waiting}`, hidden: !canEdit || closed || waiting === 0, onSelect: () => { if (!busy) sendAll("reminder"); } },
+              { label: "Close", hidden: !canEdit || rfq.status !== "awarded", onSelect: () => { if (!busy) action("close"); } },
+              { label: "Reopen", hidden: !canEdit || !closed, onSelect: () => { if (!busy) action("reopen"); } },
+              { label: "Cancel RFQ", danger: true, hidden: !canEdit || closed || rfq.status === "draft", onSelect: () => { if (!busy) action("cancel"); } },
+              { label: "Delete", danger: true, hidden: !canEdit || rfq.status !== "draft", onSelect: () => { if (!busy) del(); } },
+            ]} />
           </div>
         }
       />
@@ -171,13 +192,8 @@ export default function RfqDetailClient({ id, canEdit, isAdmin }: { id: string; 
         <div role={flash.tone === "bad" ? "alert" : "status"} style={{ marginBottom: 12, fontSize: 13, padding: "9px 12px", borderRadius: 8, color: flash.tone === "bad" ? "var(--redink)" : "var(--greenink)", background: flash.tone === "bad" ? "var(--redbg)" : "var(--greenbg)" }}>{flash.text}</div>
       )}
 
-      <div role="tablist" style={{ display: "flex", gap: 4, borderBottom: `1px solid ${c.line}`, marginBottom: 14, overflowX: "auto" }}>
-        {tabs.map((t) => (
-          <button key={t.id} role="tab" aria-selected={tab === t.id} type="button" onClick={() => setTab(t.id)} style={{
-            padding: "9px 14px", fontSize: 13, fontWeight: tab === t.id ? 700 : 500, background: "none", border: "none", whiteSpace: "nowrap",
-            borderBottom: `2px solid ${tab === t.id ? c.accent : "transparent"}`, color: tab === t.id ? c.ink : c.muted, cursor: "pointer",
-          }}>{t.label}</button>
-        ))}
+      <div style={{ marginBottom: 14 }}>
+        <Tabs tabs={tabs} value={tab} onChange={(t) => setTab(t as Tab)} label="RFQ sections" />
       </div>
 
       {tab === "compare" && <CompareTab b={b} canEdit={canEdit && !closed} onKeyIn={setKeyIn} onAward={setAward} run={run} id={id} onAddSupplier={() => setAddSup(true)} />}

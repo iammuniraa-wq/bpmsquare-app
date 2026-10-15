@@ -11,10 +11,13 @@ export default function PageHeader({
   title,
   subtitle,
   action,
+  badge,
 }: {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
+  /** Status chip(s) shown beside the title (record pages). Absent, the markup is exactly as before. */
+  badge?: React.ReactNode;
 }) {
   return (
     <div
@@ -34,9 +37,18 @@ export default function PageHeader({
       }}
     >
       <div>
-        <h1 className="bpm-page-header-title" style={{ margin: 0 }}>
-          {title}
-        </h1>
+        {badge ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <h1 className="bpm-page-header-title" style={{ margin: 0 }}>
+              {title}
+            </h1>
+            {badge}
+          </div>
+        ) : (
+          <h1 className="bpm-page-header-title" style={{ margin: 0 }}>
+            {title}
+          </h1>
+        )}
         {subtitle && <div className="bpm-page-header-sub">{subtitle}</div>}
       </div>
       {/* The decorative avatar that used to sit here hardcoded "VP" (a
