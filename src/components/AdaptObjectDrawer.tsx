@@ -90,10 +90,20 @@ interface Props {
   objectType: string;
   objectLabel: string;
   isAdmin: boolean;
+  /** Controlled mode, for a host that opens the drawer from its own menu
+   * (the record-page "⋯"). Leave all three unset for the stock self-contained button. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
-export default function AdaptObjectDrawer({ objectType, objectLabel, isAdmin }: Props) {
-  const [open, setOpen] = useState(false);
+export default function AdaptObjectDrawer({ objectType, objectLabel, isAdmin, open: openProp, onOpenChange, hideTrigger }: Props) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [tab, setTab] = useState<"fields" | "rules">("fields");
   const supportsRules = isPilotObjectType(objectType);
 
@@ -132,18 +142,20 @@ export default function AdaptObjectDrawer({ objectType, objectLabel, isAdmin }: 
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        style={{
-          fontSize: 12, fontWeight: 600, color: c.muted,
-          background: "none", border: `1px solid ${c.line}`,
-          borderRadius: 6, padding: "5px 12px", cursor: "pointer",
-          display: "inline-flex", alignItems: "center", gap: 5,
-        }}
-      >
-        ⚙ Adapt
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          style={{
+            fontSize: 12, fontWeight: 600, color: c.muted,
+            background: "none", border: `1px solid ${c.line}`,
+            borderRadius: 6, padding: "5px 12px", cursor: "pointer",
+            display: "inline-flex", alignItems: "center", gap: 5,
+          }}
+        >
+          ⚙ Adapt
+        </button>
+      )}
 
       {open && (
         <>
