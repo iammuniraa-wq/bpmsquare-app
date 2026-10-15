@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { verifiedInventoryItemIds } from "@/lib/inventoryRefs";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
 
@@ -26,7 +27,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const patch: Record<string, unknown> = {};
   if ("description" in body) patch.description = body.description;
   if ("uom" in body) patch.uom = body.uom;
-  if ("inventory_item_id" in body) patch.inventory_item_id = body.inventory_item_id || null;
+  if ("inventory_item_id" in body) {
+    const itemId = body.inventory_item_id || null;
+    if (itemId && !(await verifiedInventoryItemIds(supabase, tenantId, [itemId])).has(itemId)) {
+      return NextResponse.json({ error: "Inventory item not found" }, { status: 404 });
+    }
+    patch.inventory_item_id = itemId;
+  }
   if ("qty_ordered" in body) patch.qty_ordered = Math.max(0, parseFloat(body.qty_ordered) || 0);
   if ("rate" in body) patch.rate = Math.max(0, parseFloat(body.rate) || 0);
 

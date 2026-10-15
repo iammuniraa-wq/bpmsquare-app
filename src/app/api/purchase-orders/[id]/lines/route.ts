@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { verifiedInventoryItemIds } from "@/lib/inventoryRefs";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
 
@@ -25,6 +26,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const body = await request.json();
   const { description, uom, qty_ordered, rate, inventory_item_id } = body;
   if (!description?.trim()) return NextResponse.json({ error: "description is required" }, { status: 400 });
+  if (inventory_item_id && !(await verifiedInventoryItemIds(supabase, tenantId, [inventory_item_id])).has(inventory_item_id)) {
+    return NextResponse.json({ error: "Inventory item not found" }, { status: 404 });
+  }
 
   const { count } = await supabase.from("purchase_order_lines").select("id", { count: "exact", head: true }).eq("po_id", id);
   const qty = Math.max(0, parseFloat(qty_ordered) || 1);

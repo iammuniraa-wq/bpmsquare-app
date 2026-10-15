@@ -169,6 +169,7 @@ export default function RfqDetailClient({ id, canEdit, isAdmin }: { id: string; 
       </div>
 
       {tab === "compare" && <CompareTab b={b} canEdit={canEdit && !closed} onKeyIn={setKeyIn} onAward={setAward} run={run} id={id} onAddSupplier={() => setAddSup(true)} />}
+      {tab === "compare" && <PurchaseOrdersPanel id={id} canEdit={canEdit} version={b.responses.filter((r) => r.is_awarded).length} run={run} />}
       {tab === "suppliers" && <SuppliersTab b={b} canEdit={canEdit && !closed} onKeyIn={setKeyIn} run={run} id={id} onAddSupplier={() => setAddSup(true)} />}
       {tab === "conversation" && <ConversationTab b={b} canEdit={canEdit} id={id} run={run} />}
       {tab === "details" && <DetailsTab b={b} canEdit={canEdit && !closed} id={id} run={run} isAdmin={isAdmin} onReload={load} />}
@@ -708,6 +709,50 @@ function DetailsTab({ b, canEdit, id, run, isAdmin, onReload }: { b: Bundle; can
         exclude={["ref", "title", "status", "origin_label", "delivery_terms", "currency", "respond_by", "required_by", "notes_to_supplier", "notes_internal"]}
       />
       {isAdmin && <div style={{ fontSize: 12, color: c.hint }}>Mail channel, reply window and supplier terms are set in Settings → RFQ.</div>}
+    </div>
+  );
+}
+
+// ── Awards -> purchase orders ───────────────────────────────────────────────
+
+type PoRow = { id: string; ref: string; status: string; total: number; suppliers: { name: string } | null };
+
+function PurchaseOrdersPanel({ id, canEdit, version, run }: { id: string; canEdit: boolean; version: number; run: (fn: () => Promise<string | void>) => void }) {
+  const [info, setInfo] = useState<{ purchasing: boolean; pending_migration: boolean; purchase_orders: PoRow[]; to_order: number } | null>(null);
+  const reload = useCallback(() => {
+    fetch(`/api/rfqs/${id}/purchase-orders`).then((r) => (r.ok ? r.json() : null)).then(setInfo).catch(() => {});
+  }, [id]);
+  useEffect(() => { reload(); }, [reload, version]);
+  if (!info || !info.purchasing || (!info.purchase_orders.length && !info.to_order && !info.pending_migration)) return null;
+  return (
+    <div style={{ ...cardStyle, marginTop: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>Purchase orders</div>
+          <div style={{ fontSize: 12.5, color: c.hint, marginTop: 2 }}>
+            {info.pending_migration ? "Raising purchase orders from an RFQ needs the database update (migration 0130)." : info.to_order ? `${info.to_order} awarded line${info.to_order === 1 ? "" : "s"} not on a purchase order yet — one draft PO per supplier, at the awarded cost.` : "Every awarded line is on a purchase order."}
+          </div>
+        </div>
+        {canEdit && info.to_order > 0 && !info.pending_migration && (
+          <button type="button" style={btnPrimary} onClick={() => run(async () => {
+            const j = await call(`/api/rfqs/${id}/purchase-orders`, json("POST", {}));
+            reload();
+            return `Draft purchase order${j.created.length === 1 ? "" : "s"} ${j.created.map((x: { ref: string; supplier: string }) => `${x.ref} (${x.supplier})`).join(", ")} created — check and send from Purchase Orders.`;
+          })}>Create purchase orders</button>
+        )}
+      </div>
+      {info.purchase_orders.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          {info.purchase_orders.map((po) => (
+            <Link key={po.id} href={`/purchase-orders/${po.id}`} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 2px", borderTop: `1px solid ${c.line}`, textDecoration: "none", color: c.ink, fontSize: 13 }}>
+              <span style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11.5, color: c.hint, minWidth: 90 }}>{po.ref}</span>
+              <span style={{ flex: 1 }}>{po.suppliers?.name ?? ""}</span>
+              <span style={{ color: c.muted, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(Number(po.total))}</span>
+              <Pill label={po.status} tone={po.status === "received" ? "green" : po.status === "cancelled" ? "red" : "blue"} />
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { generateNextPoRef } from "@/lib/poRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { verifiedInventoryItemIds } from "@/lib/inventoryRefs";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -57,6 +58,13 @@ export async function POST(request: NextRequest) {
     const { data: c } = await supabase.from("service_cases").select("id").eq("id", case_id).eq("tenant_id", tenantId).maybeSingle();
     if (!c) return NextResponse.json({ error: "Case not found" }, { status: 404 });
   }
+
+  // Inventory links are foreign ids from the body: only this tenant's items
+  // may be linked (found in the 2026-10-14 RFQ analysis -- receiving was
+  // already tenant-filtered, the link itself was not).
+  const rawItemIds = Array.isArray(lines) ? lines.map((l) => l?.inventory_item_id as string | null | undefined) : [];
+  const knownItems = await verifiedInventoryItemIds(supabase, tenantId, rawItemIds);
+  if (rawItemIds.some((x) => x && !knownItems.has(x))) return NextResponse.json({ error: "Inventory item not found" }, { status: 404 });
 
   const cleanLines = Array.isArray(lines)
     ? lines

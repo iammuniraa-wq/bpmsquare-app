@@ -535,6 +535,13 @@ deploy for an automatic schema change.
   Until it runs, every path degrades to the 0126 behaviour: reads retry
   without the column, and the PATCH route answers 503 naming this migration.
   Run AFTER 0126. `scripts/` has no seed for it (no demo data needed).
+- **0130_rfq_purchase_orders.sql — PENDING on both DBs** (written
+  2026-10-15, RFQ awards -> purchase orders). Adds nullable `rfq_id` and
+  `standard_quote_id` to `purchase_orders`, `product_id` and
+  `rfq_response_id` to `purchase_order_lines` (all `on delete set null`).
+  Run AFTER 0128. Until it runs the RFQ page says the update is needed and
+  "Create purchase orders" refuses (503) rather than risk ordering a line
+  twice. Needs the `purchasing` flag on the tenant to show at all.
 - **0129_connector_sync.sql — PENDING on both DBs** (written 2026-10-15,
   Dynamics 365 connector, `docs/d365-connector.md`). Creates
   `connector_links` (BPMSquare record <-> external id, unique per tenant +

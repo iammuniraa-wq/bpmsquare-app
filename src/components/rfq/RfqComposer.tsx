@@ -44,12 +44,28 @@ export default function RfqComposer({
   const [notes, setNotes] = useState("");
   const [internal, setInternal] = useState("");
   const [busy, setBusy] = useState<null | "draft" | "send">(null);
+  const [suggested, setSuggested] = useState<{ supplier_id: string; name: string; awarded: number; quoted: number; last_awarded_at: string | null }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/suppliers").then((r) => (r.ok ? r.json() : [])).then((d) => setSuppliers(Array.isArray(d) ? d.filter((s: Supplier) => s.status !== "inactive") : [])).catch(() => {});
     fetch("/api/products").then((r) => (r.ok ? r.json() : null)).then((d) => setProducts(Array.isArray(d) ? d : null)).catch(() => {});
   }, []);
+
+  // Suppliers this tenant has asked, heard from or awarded for these products
+  // before -- pre-ticks the ones that actually won, once, as a starting point.
+  const productKey = [...new Set(lines.map((l) => l.product_id).filter(Boolean))].sort().join(",");
+  useEffect(() => {
+    if (!productKey) { setSuggested([]); return; }
+    let cancelled = false;
+    fetch(`/api/rfqs/suggest-suppliers?product_ids=${productKey}`).then((r) => (r.ok ? r.json() : { suppliers: [] })).then((j) => {
+      if (cancelled) return;
+      const list = (j.suppliers ?? []) as typeof suggested;
+      setSuggested(list);
+      setChosen((cs) => (cs.length ? cs : list.filter((s) => s.awarded > 0).slice(0, 3).map((s) => s.supplier_id)));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [productKey]);
 
   const shown = useMemo(() => {
     const t = filter.trim().toLowerCase();
@@ -142,6 +158,20 @@ export default function RfqComposer({
 
       <div>
         <span style={lbl}>Suppliers to ask {chosen.length ? `(${chosen.length})` : ""}</span>
+        {suggested.length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "2px 0 8px", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: c.hint }}>From your history:</span>
+            {suggested.map((s) => {
+              const on = chosen.includes(s.supplier_id);
+              return (
+                <button key={s.supplier_id} type="button" onClick={() => toggle(s.supplier_id)} title={s.awarded ? `Won ${s.awarded} time${s.awarded === 1 ? "" : "s"}${s.last_awarded_at ? `, last ${new Date(s.last_awarded_at).toLocaleDateString("en-GB")}` : ""}` : `Quoted ${s.quoted} time${s.quoted === 1 ? "" : "s"}`}
+                  style={{ fontSize: 12, padding: "3px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? c.accent : c.line}`, background: on ? c.accentbg : c.panel, color: on ? c.accent : c.ink }}>
+                  {on ? "✓ " : ""}{s.name}{s.awarded ? ` · won ${s.awarded}` : s.quoted ? ` · quoted ${s.quoted}` : ""}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <input style={{ ...inp, marginBottom: 8 }} value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={suppliers.length ? "Search suppliers…" : "No suppliers yet — add them under Master data → Suppliers"} />
         <div style={{ maxHeight: 200, overflowY: "auto", border: `1px solid ${c.line}`, borderRadius: 8 }}>
           {shown.map((s) => (
