@@ -35,6 +35,12 @@ type Bundle = {
 
 type Tab = "compare" | "suppliers" | "conversation" | "details";
 
+type Prefill = {
+  rows: { rfq_line_id: string; status?: string; unit_price?: string; lead_time_days?: string; moq?: string; note?: string }[];
+  header: { supplier_quote_ref: string | null; currency: string | null; valid_until: string | null; incoterm: string | null; payment_terms: string | null; freight_amount: string | null };
+  notes: string[];
+};
+
 async function call(url: string, init?: RequestInit) {
   const res = await fetch(url, init);
   const j = await res.json().catch(() => ({}));
@@ -66,6 +72,9 @@ export default function RfqDetailClient({ id, canEdit, isAdmin }: { id: string; 
   const [flash, setFlash] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [keyIn, setKeyIn] = useState<SupplierRow | null>(null);
+  // An AI reading of a supplier's reply, opened in the same form for the
+  // buyer to check -- nothing is saved until they press Save reply.
+  const [prefill, setPrefill] = useState<Prefill | null>(null);
   const [award, setAward] = useState<{ line: RfqLine; resp: RfqResponse; supplier: SupplierRow } | null>(null);
   const [addSup, setAddSup] = useState(false);
 
@@ -138,6 +147,7 @@ export default function RfqDetailClient({ id, canEdit, isAdmin }: { id: string; 
         action={
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <Pill label={RFQ_STATUS_LABEL[rfq.status]} tone={RFQ_STATUS_TONE[rfq.status]} />
+            <a href={`/api/rfqs/${id}/pdf`} target="_blank" rel="noopener noreferrer" style={{ ...btnGhost, textDecoration: "none", display: "inline-block" }}>PDF</a>
             {canEdit && !closed && pendingCount > 0 && <button type="button" style={btnPrimary} disabled={busy} onClick={() => sendAll("request")}>Send to {pendingCount} supplier{pendingCount === 1 ? "" : "s"}</button>}
             {canEdit && !closed && waiting > 0 && <button type="button" style={btnGhost} disabled={busy} onClick={() => sendAll("reminder")}>Remind {waiting}</button>}
             {canEdit && rfq.status === "awarded" && <button type="button" style={btnGhost} disabled={busy} onClick={() => action("close")}>Close</button>}
@@ -171,10 +181,10 @@ export default function RfqDetailClient({ id, canEdit, isAdmin }: { id: string; 
       {tab === "compare" && <CompareTab b={b} canEdit={canEdit && !closed} onKeyIn={setKeyIn} onAward={setAward} run={run} id={id} onAddSupplier={() => setAddSup(true)} />}
       {tab === "compare" && <PurchaseOrdersPanel id={id} canEdit={canEdit} version={b.responses.filter((r) => r.is_awarded).length} run={run} />}
       {tab === "suppliers" && <SuppliersTab b={b} canEdit={canEdit && !closed} onKeyIn={setKeyIn} run={run} id={id} onAddSupplier={() => setAddSup(true)} />}
-      {tab === "conversation" && <ConversationTab b={b} canEdit={canEdit} id={id} run={run} />}
+      {tab === "conversation" && <ConversationTab b={b} canEdit={canEdit} id={id} run={run} onProposal={(rs, p) => { setPrefill(p); setKeyIn(rs); }} />}
       {tab === "details" && <DetailsTab b={b} canEdit={canEdit && !closed} id={id} run={run} isAdmin={isAdmin} onReload={load} />}
 
-      {keyIn && <KeyInModal b={b} rs={keyIn} id={id} onClose={() => setKeyIn(null)} onSaved={async (m) => { setKeyIn(null); setFlash({ tone: "good", text: m }); await load(); }} />}
+      {keyIn && <KeyInModal b={b} rs={keyIn} id={id} prefill={prefill} onClose={() => { setKeyIn(null); setPrefill(null); }} onSaved={async (m) => { setKeyIn(null); setPrefill(null); setFlash({ tone: "good", text: m }); await load(); }} />}
       {award && <AwardModal b={b} {...award} id={id} onClose={() => setAward(null)} onDone={async (m, warn) => { setAward(null); setFlash({ tone: warn ? "bad" : "good", text: warn ?? m }); await load(); }} />}
       {addSup && <AddSupplierModal b={b} id={id} onClose={() => setAddSup(false)} onDone={async (m) => { setAddSup(false); setFlash({ tone: "good", text: m }); await load(); }} />}
     </>
@@ -481,14 +491,22 @@ function AddSupplierModal({ b, id, onClose, onDone }: { b: Bundle; id: string; o
   );
 }
 
-function KeyInModal({ b, rs, id, onClose, onSaved }: { b: Bundle; rs: SupplierRow; id: string; onClose: () => void; onSaved: (m: string) => void }) {
+function KeyInModal({ b, rs, id, prefill, onClose, onSaved }: { b: Bundle; rs: SupplierRow; id: string; prefill?: Prefill | null; onClose: () => void; onSaved: (m: string) => void }) {
   const lines = b.lines.filter((l) => l.status !== "cancelled");
   const existing = (lineId: string) => b.responses.find((r) => r.rfq_supplier_id === rs.id && r.rfq_line_id === lineId);
   const [rows, setRows] = useState(lines.map((l) => {
+    const p = prefill?.rows.find((x) => x.rfq_line_id === l.id);
+    if (p) return { rfq_line_id: l.id, status: p.status ?? "quoted", unit_price: p.unit_price ?? "", lead_time_days: p.lead_time_days ?? "", moq: p.moq ?? "", note: p.note ?? "" };
     const r = existing(l.id);
     return { rfq_line_id: l.id, status: r?.status ?? "quoted", unit_price: r?.unit_price != null ? String(r.unit_price) : "", lead_time_days: r?.lead_time_days != null ? String(r.lead_time_days) : "", moq: r?.moq != null ? String(r.moq) : "", note: r?.note ?? "" };
   }));
-  const [header, setHeader] = useState({ currency: rs.currency ?? b.rfq.currency ?? "", supplier_quote_ref: rs.supplier_quote_ref ?? "", valid_until: rs.valid_until ?? "", incoterm: rs.incoterm ?? "", payment_terms: rs.payment_terms ?? "", freight_amount: rs.freight_amount != null ? String(rs.freight_amount) : "" });
+  const ph = prefill?.header;
+  const [header, setHeader] = useState({
+    currency: ph?.currency ?? rs.currency ?? b.rfq.currency ?? "", supplier_quote_ref: ph?.supplier_quote_ref ?? rs.supplier_quote_ref ?? "",
+    valid_until: ph?.valid_until && /^\d{4}-\d{2}-\d{2}$/.test(ph.valid_until) ? ph.valid_until : rs.valid_until ?? "",
+    incoterm: ph?.incoterm ?? rs.incoterm ?? "", payment_terms: ph?.payment_terms ?? rs.payment_terms ?? "",
+    freight_amount: ph?.freight_amount ?? (rs.freight_amount != null ? String(rs.freight_amount) : ""),
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async (declined: boolean) => {
@@ -504,6 +522,12 @@ function KeyInModal({ b, rs, id, onClose, onSaved }: { b: Bundle; rs: SupplierRo
   };
   return (
     <Modal title={`Reply from ${rs.suppliers?.name ?? "supplier"}`} onClose={onClose} width={760}>
+      {prefill && (
+        <div style={{ marginBottom: 14, fontSize: 12.5, padding: "10px 12px", borderRadius: 8, background: "var(--purplebg)", color: "var(--purpleink)" }}>
+          <strong>Read by AI from the supplier&apos;s reply — check every figure before saving.</strong> {prefill.rows.length} of {lines.length} line{lines.length === 1 ? "" : "s"} matched.
+          {prefill.notes.length > 0 && <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>{prefill.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>}
+        </div>
+      )}
       <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginBottom: 14 }}>
         <div><label style={lbl}>Currency</label><input style={inp} maxLength={3} value={header.currency} onChange={(e) => setHeader({ ...header, currency: e.target.value.toUpperCase() })} placeholder={b.tenant_currency} /></div>
         <div><label style={lbl}>Their quote ref</label><input style={inp} value={header.supplier_quote_ref} onChange={(e) => setHeader({ ...header, supplier_quote_ref: e.target.value })} /></div>
@@ -545,7 +569,8 @@ function KeyInModal({ b, rs, id, onClose, onSaved }: { b: Bundle; rs: SupplierRo
 
 // ── Conversation ────────────────────────────────────────────────────────────
 
-function ConversationTab({ b, canEdit, id, run }: { b: Bundle; canEdit: boolean; id: string; run: (fn: () => Promise<string | void>) => void }) {
+function ConversationTab({ b, canEdit, id, run, onProposal }: { b: Bundle; canEdit: boolean; id: string; run: (fn: () => Promise<string | void>) => void; onProposal: (rs: SupplierRow, p: Prefill) => void }) {
+  const [reading, setReading] = useState<string | null>(null);
   const [who, setWho] = useState<string>("all");
   const [kind, setKind] = useState<"email" | "note">("email");
   const [to, setTo] = useState<string>(b.suppliers.find((s) => s.status !== "cancelled")?.id ?? "");
@@ -600,6 +625,20 @@ function ConversationTab({ b, canEdit, id, run }: { b: Bundle; canEdit: boolean;
               {m.subject && !note && <div style={{ fontSize: 12.5, color: c.muted, marginTop: 4 }}>{m.subject}</div>}
               {m.body_text && <div style={{ fontSize: 13, color: c.ink, marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflowY: "auto" }}>{m.body_text}</div>}
               {m.error && <div style={{ fontSize: 12, color: "var(--redink)", marginTop: 4 }}>{m.error}</div>}
+              {canEdit && m.rfq_supplier_id && (incoming || (note && m.attachments?.some((a) => a.path))) && (
+                <button type="button" disabled={reading !== null} style={{ ...btnGhost, padding: "3px 10px", fontSize: 11.5, marginTop: 8 }} onClick={() => run(async () => {
+                  setReading(m.id);
+                  try {
+                    const p = await call(`/api/rfqs/${id}/messages/${m.id}/extract`, { method: "POST" });
+                    const rs = b.suppliers.find((s) => s.id === p.rfq_supplier_id);
+                    if (!rs) throw new Error("This message isn't tied to a supplier on the RFQ.");
+                    if (!p.rows.length && !p.header?.supplier_quote_ref) throw new Error(`No prices found in this message.${p.notes?.length ? " " + p.notes.join(" ") : ""}`);
+                    onProposal(rs, { rows: p.rows, header: p.header, notes: p.notes ?? [] });
+                  } finally {
+                    setReading(null);
+                  }
+                })}>{reading === m.id ? "Reading…" : "Read prices with AI"}</button>
+              )}
               {m.attachments?.length > 0 && (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                   {m.attachments.map((a, i) => a.path ? (

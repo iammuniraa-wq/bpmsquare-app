@@ -6,7 +6,7 @@ import { insertWithMasterRef } from "@/lib/masterRef";
 import { logChange } from "@/lib/changeLog";
 import { sendRfqEmail } from "@/lib/pricing/rfqServer";
 import { PURCHASE_PATH } from "@/lib/pricing/costSheet";
-import { tenantHasRfq, createRfq, loadRfqBundle, sendToSupplier, isMissingRelation } from "@/lib/rfq/server";
+import { tenantHasRfq, createRfq, loadRfqBundle, sendToSupplier, renderRfqPdf, isMissingRelation } from "@/lib/rfq/server";
 import { rfqConfig } from "@/lib/rfq/types";
 
 // RFQs (cost-based step 2): the "no cost on file -- ask the supplier"
@@ -121,7 +121,8 @@ export async function POST(request: NextRequest) {
         let sent: { ok: true; to: string[]; redirected: boolean } | { ok: false; reason: string } = { ok: false, reason: supplier ? "not sent" : "No supplier chosen." };
         const rs = bundle?.suppliers[0];
         if (body.send !== false && bundle && rs) {
-          const r = await sendToSupplier(admin, { tenant, bundle, rs, kind: "request", actor: { id: userId, email: user?.email ?? null } });
+          const pdf = rfqConfig(tenant.config?.rfq).attach_pdf ? await renderRfqPdf(admin, tenant, bundle) : null;
+          const r = await sendToSupplier(admin, { tenant, bundle, rs, kind: "request", pdf, actor: { id: userId, email: user?.email ?? null } });
           sent = r.ok ? { ok: true, to: r.to, redirected: r.redirected } : { ok: false, reason: r.reason };
         }
         return NextResponse.json({ id: rfq.id, ref: rfq.ref, status: sent.ok ? "sent" : "draft", sent, v2: true, rfq_line_id: bundle?.lines[0]?.id ?? null }, { status: 201 });

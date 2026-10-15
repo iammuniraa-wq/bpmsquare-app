@@ -57,10 +57,24 @@ excluded); v1 `GET /api/v1/rfqs[/id]` (explicit scope only); MCP
 `list_rfqs`/`get_rfq` (1.8.0); dashboard + reports metric `rfq_open`; demo
 seed `scripts/seed-rfq-demo.sql`.
 
-**Not built yet (phase 2/3 of section 6):** awards -> purchase orders,
-supplier-per-product suggestions (Piece G), AI extraction of supplier PDFs,
-an RFQ PDF (the Excel sheet + HTML email stand in), Microsoft 365 mailbox
-(needs OAuth; IMAP with basic auth works where the tenant enables it).
+**Added the same day (2026-10-15, "go further"):**
+- **Awards -> purchase orders** (0130): one draft PO per awarded supplier,
+  at the awarded cost, each PO line remembering its response so nothing is
+  ordered twice. Needs `purchasing` + Purchase Orders edit.
+- **Supplier suggestions** from the tenant's own RFQ history (won / quoted /
+  asked for these products), pre-ticking past winners.
+- **"Read prices with AI"** on any supplier reply (PDF, Excel/CSV, JPG/PNG
+  or email text): Claude Opus 5.5 with a JSON-schema-constrained answer
+  proposes prices per known line id; the buyer's Enter-reply form opens
+  prefilled with the AI's notes, nothing is saved until they confirm.
+  Supplier content is treated as data, never instructions.
+- **RFQ PDF**: rendered once per send (no customer, prices or supplier
+  names) and attached to every request email (Settings -> RFQ toggle), plus
+  a PDF button for the buyer. The headless browser may load only data: URIs
+  and the storage host.
+
+**Still not built:** supplier-per-product master data (Piece G), a
+Microsoft 365 mailbox (OAuth), supplier performance analytics.
 
 ## 0. The answer in five lines
 

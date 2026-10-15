@@ -156,6 +156,7 @@ export const RFQ_DEFAULTS: Required<Omit<RfqConfig, "terms">> & { terms: string 
   max_reminders: 2,
   link_grace_days: 14,
   terms: "",
+  attach_pdf: true,
 };
 
 export function rfqConfig(cfg: RfqConfig | null | undefined): typeof RFQ_DEFAULTS {
@@ -171,6 +172,7 @@ export function rfqConfig(cfg: RfqConfig | null | undefined): typeof RFQ_DEFAULT
     max_reminders: clampInt(c.max_reminders, 0, 5, RFQ_DEFAULTS.max_reminders),
     link_grace_days: clampInt(c.link_grace_days, 0, 90, RFQ_DEFAULTS.link_grace_days),
     terms: typeof c.terms === "string" ? c.terms.slice(0, 4000) : "",
+    attach_pdf: c.attach_pdf !== false,
   };
 }
 

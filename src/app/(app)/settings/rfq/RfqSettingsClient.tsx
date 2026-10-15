@@ -7,7 +7,7 @@ import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { inp, lbl, btnPrimary, fmtDateTime } from "@/components/rfq/rfqUi";
 
-type Cfg = { mail_mode: "platform" | "mailbox"; mailbox_connector: "gmail" | "mail_server"; default_response_days: number; max_reminders: number; link_grace_days: number; terms: string };
+type Cfg = { mail_mode: "platform" | "mailbox"; mailbox_connector: "gmail" | "mail_server"; default_response_days: number; max_reminders: number; link_grace_days: number; terms: string; attach_pdf: boolean };
 type Ready = {
   reply_link: boolean; platform_send: boolean; platform_receive: boolean; inbound_domain: string | null;
   mailboxes_connected: string[]; mailbox_last_polled_at: string | null; mailbox_last_error: string | null;
@@ -103,6 +103,10 @@ export default function RfqSettingsClient() {
           <label style={lbl} htmlFor="grace">Link works for (days after deadline)</label>
           <input id="grace" type="number" min={0} max={90} style={inp} value={cfg.link_grace_days} onChange={(e) => setCfg({ ...cfg, link_grace_days: Number(e.target.value) })} />
         </div>
+        <label style={{ gridColumn: "1 / -1", display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: c.ink, cursor: "pointer" }}>
+          <input type="checkbox" checked={cfg.attach_pdf} onChange={(e) => setCfg({ ...cfg, attach_pdf: e.target.checked })} />
+          Attach the RFQ as a PDF to each request email (the Excel reply sheet is always attached)
+        </label>
         <div style={{ gridColumn: "1 / -1" }}>
           <label style={lbl} htmlFor="terms">Terms printed on every RFQ</label>
           <textarea id="terms" rows={4} style={{ ...inp, resize: "vertical" }} value={cfg.terms} onChange={(e) => setCfg({ ...cfg, terms: e.target.value })} placeholder="e.g. Prices to include packing. Quote valid for at least 30 days. We are not bound to accept the lowest offer." />

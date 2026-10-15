@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { rfqAccess, errorResponse, loadRfqBundle, sendToSupplier } from "@/lib/rfq/server";
+import { rfqAccess, errorResponse, loadRfqBundle, sendToSupplier, renderRfqPdf } from "@/lib/rfq/server";
+import { rfqConfig } from "@/lib/rfq/types";
 import { getTenant } from "@/lib/tenant";
 import { logChange } from "@/lib/changeLog";
 
@@ -33,8 +34,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!targets.length) return NextResponse.json({ error: kind === "request" ? "Everyone on this RFQ has already been sent it — add a supplier, or send a reminder." : "Nobody is waiting on a reply." }, { status: 422 });
 
     const results: { rfq_supplier_id: string; supplier: string; ok: boolean; reason?: string; redirected?: boolean }[] = [];
+    const pdf = kind === "request" && rfqConfig(tenant.config?.rfq).attach_pdf ? await renderRfqPdf(ctx.admin, tenant, bundle) : null;
     for (const rs of targets) {
-      const r = await sendToSupplier(ctx.admin, { tenant, bundle, rs, kind, message: typeof body.message === "string" ? body.message.slice(0, 4000) : null, actor: { id: ctx.userId, email: ctx.email } });
+      const r = await sendToSupplier(ctx.admin, { tenant, bundle, rs, kind, pdf, message: typeof body.message === "string" ? body.message.slice(0, 4000) : null, actor: { id: ctx.userId, email: ctx.email } });
       results.push({ rfq_supplier_id: rs.id, supplier: rs.suppliers?.name ?? "", ok: r.ok, ...(r.ok ? { redirected: r.redirected } : { reason: r.reason }) });
     }
     const okCount = results.filter((r) => r.ok).length;

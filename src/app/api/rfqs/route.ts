@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { rfqAccess, errorResponse, createRfq, isMissingRelation, loadRfqBundle, sendToSupplier, type NewRfq } from "@/lib/rfq/server";
+import { rfqAccess, errorResponse, createRfq, isMissingRelation, loadRfqBundle, sendToSupplier, renderRfqPdf, type NewRfq } from "@/lib/rfq/server";
 import { getTenant } from "@/lib/tenant";
 import { rfqConfig, RFQ_ORIGIN_TYPES, RFQ_STATUSES, type RfqOriginType } from "@/lib/rfq/types";
 
@@ -58,8 +58,9 @@ export async function POST(req: NextRequest) {
     let sent: { supplier: string; ok: boolean; reason?: string; redirected?: boolean }[] | undefined;
     if (body.send && bundle) {
       sent = [];
+      const pdf = bundle.suppliers.length && cfg.attach_pdf ? await renderRfqPdf(ctx.admin, tenant, bundle) : null;
       for (const rs of bundle.suppliers) {
-        const r = await sendToSupplier(ctx.admin, { tenant, bundle, rs, kind: "request", message: body.message ?? null, actor: { id: ctx.userId, email: ctx.email } });
+        const r = await sendToSupplier(ctx.admin, { tenant, bundle, rs, kind: "request", pdf, message: body.message ?? null, actor: { id: ctx.userId, email: ctx.email } });
         sent.push({ supplier: rs.suppliers?.name ?? "", ok: r.ok, ...(r.ok ? { redirected: r.redirected } : { reason: r.reason }) });
       }
     }

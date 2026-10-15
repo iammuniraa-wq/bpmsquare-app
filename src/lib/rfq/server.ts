@@ -17,7 +17,8 @@ import {
 } from "./types";
 import { deriveRfqStatus, addDays, linkExpiry, type CleanResponse } from "./rules";
 import { signReplyToken, mailCode, replyToAddress } from "./token";
-import { buildRequestEmail, buildMessageEmail, type SupplierView } from "./compose";
+import { buildRequestEmail, buildMessageEmail, buildRfqDocumentHtml, type SupplierView } from "./compose";
+import { htmlToPdf } from "@/lib/pdf/htmlToPdf";
 import { buildReplySheet } from "./sheet";
 
 // RFQ server core (0128, docs/rfq-architecture.md). Every query here runs on
@@ -371,6 +372,24 @@ export function replyLink(tenant: Pick<Tenant, "custom_domain">, rsId: string, n
   return `${tenantOrigin(tenant.custom_domain)}/rfq-reply/${rsId}/${encodeURIComponent(token)}`;
 }
 
+// ── The printable RFQ ───────────────────────────────────────────────────────
+
+/** The RFQ as a PDF, supplier-agnostic so one render serves a whole send.
+ *  Never throws: a PDF that fails to render must not stop the email. */
+export async function renderRfqPdf(admin: SupabaseClient, tenant: Tenant, bundle: Pick<RfqBundle, "rfq" | "lines">): Promise<Buffer | null> {
+  try {
+    const view = await supplierViewFor(admin, tenant, bundle, { suppliers: null, contact_name: null });
+    const today = await tenantToday(tenant.id);
+    const storageHost = (() => { try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname; } catch { return ""; } })();
+    const info = tenant.company_info as unknown as Record<string, unknown> | null;
+    const address = typeof info?.address === "string" ? info.address : null;
+    return await htmlToPdf(buildRfqDocumentHtml(view, { logoUrl: tenant.logo_url, issuedOn: today, companyAddress: address }), { allowHosts: storageHost ? [storageHost] : [] });
+  } catch (e) {
+    console.error("[rfq] PDF render failed", e);
+    return null;
+  }
+}
+
 // ── Sending ─────────────────────────────────────────────────────────────────
 
 export type SendKind = "request" | "reminder" | "message";
@@ -387,6 +406,8 @@ export async function sendToSupplier(admin: SupabaseClient, args: {
   kind: SendKind;
   message?: string | null;
   attachments?: { filename: string; content: Buffer; contentType: string }[];
+  /** The printable RFQ, rendered once by the caller for the whole send. */
+  pdf?: Buffer | null;
   actor: { id: string | null; email: string | null };
 }): Promise<SendResult> {
   const { tenant, bundle, rs, kind } = args;
@@ -408,6 +429,9 @@ export async function sendToSupplier(admin: SupabaseClient, args: {
   const mail = routed.email;
 
   const files: { filename: string; content: Buffer; contentType: string }[] = [...(args.attachments ?? [])];
+  if (kind === "request" && args.pdf) {
+    files.push({ filename: `${view.ref}.pdf`, content: args.pdf, contentType: "application/pdf" });
+  }
   if (kind !== "message") {
     try {
       files.push({ filename: `${view.ref}-reply-sheet.xlsx`, content: await buildReplySheet(view), contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });

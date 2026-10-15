@@ -1160,6 +1160,8 @@ export type RfqConfig = {
   link_grace_days?: number;
   /** Text printed under the line table on every RFQ to suppliers. */
   terms?: string;
+  /** Attach the printable RFQ (PDF) to each request email. Default on. */
+  attach_pdf?: boolean;
 };
 
 export type PricingConfig = {
