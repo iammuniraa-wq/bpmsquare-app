@@ -535,6 +535,27 @@ deploy for an automatic schema change.
   Until it runs, every path degrades to the 0126 behaviour: reads retry
   without the column, and the PATCH route answers 503 naming this migration.
   Run AFTER 0126. `scripts/` has no seed for it (no demo data needed).
+- **0128_rfq.sql — PENDING on both DBs** (written 2026-10-15, owner request
+  2026-10-14: "RFQ becomes a standard object scopable with a flag ... the whole
+  email communication sending and receiving in the tenant itself"; spec
+  `docs/rfq-architecture.md`). Creates `rfqs`, `rfq_lines`, `rfq_suppliers`,
+  `rfq_responses`, `rfq_messages` (select-only RLS, writes via service-role
+  routes) and `rfq_mailbox_state` (no policy, service-role only); adds
+  `rfq_line_id` to `standard_quote_lines`, `opportunity_lines`, `quote_lines`;
+  backfills every `pricing_rfqs` row into the new tables keeping its ref;
+  widens the `custom_fields.object_type` check (NOT VALID) to the objects the
+  app offers custom fields on, plus `rfq`. Run AFTER 0125 (so RFQ email sends
+  are logged). Then `scripts/seed-rfq-demo.sql` (demo tenant only: two sample
+  RFQs, flips `features.rfq` on). Until it runs: the RFQ module shows "waiting
+  for the database update", quote saves strip `rfq_line_id` (tolerant insert),
+  and the Needs-RFQ button falls back to the legacy `pricing_rfqs` record.
+  Environment for the mail channels: `RFQ_LINK_SECRET` (reply links; falls
+  back to `QUOTE_PUBLIC_LINK_SECRET`); platform receiving needs
+  `INBOUND_EMAIL_DOMAIN` + `RESEND_INBOUND_WEBHOOK_SECRET` (Resend receiving
+  webhook -> `/api/inbound/email/resend`), or `INBOUND_EMAIL_SECRET` for the
+  generic signed JSON relay; mailbox mode needs the Gmail or Mail server
+  connector. Two new crons in `vercel.json` (`/api/rfqs/cron/mailbox` every
+  5 min, `/api/rfqs/cron/reminders` daily).
 - **0125_email_log_invoice_rfq_kinds.sql — PENDING on both DBs** (written
   2026-09-21, from the owner's question "recheck if outbound emails are
   logged"). They are -- for four of the six kinds. `email_log.kind` carries a

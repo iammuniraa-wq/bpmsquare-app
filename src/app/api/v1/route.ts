@@ -45,6 +45,8 @@ export async function GET(req: Request) {
       "GET /api/v1/products/:id":         "Product detail",
       "GET /api/v1/opportunities":        "List deals (pipeline) · filters: ?stage=, ?outcome=, ?account_id=, ?owner_id=",
       "GET /api/v1/opportunities/:id":    "Deal detail with its lines and linked quotes",
+      "GET /api/v1/rfqs":                 "List RFQs (needs a key scoped to \"rfqs\") · filters: ?status=, ?origin_type=, ?origin_id=",
+      "GET /api/v1/rfqs/:id":             "RFQ with lines, suppliers and their quoted prices, and awards",
       "GET /api/v1/projects":             "List workforce projects and sub-projects (project costing) · filters: ?status=, ?level=, ?parent_id=, ?account_id=",
       "GET /api/v1/projects/:id":         "Project detail — parent, level, sub-projects, linked sites/employees/shifts",
       "GET /api/v1/projects/:id/hours":   "Worked hours for a project and everything beneath it, for a period (?from=&to=) — the feed to invoice from",

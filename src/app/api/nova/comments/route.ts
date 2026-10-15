@@ -32,6 +32,7 @@ const OBJECTS: Record<string, string> = {
   purchase_orders: "purchase_orders",
   employees: "employees",
   wfm_projects: "wfm_projects",
+  rfqs: "rfqs",
 };
 
 async function verifyRecord(tenantId: string, objectType: string, objectId: string): Promise<boolean> {

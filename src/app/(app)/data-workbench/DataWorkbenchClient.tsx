@@ -90,6 +90,11 @@ export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) 
 
   const visibleSpecs = specs.filter((s) => {
     if (mode === "update") return s.id !== "users"; // users are invite-only
+    // RFQs are Export + Update only: an RFQ is born from a record (quote,
+    // case, work order...) or the RFQ screen together with its lines and
+    // suppliers, and a flat file can't carry that -- there is deliberately
+    // no /api/import/rfqs.
+    if (mode === "import") return s.id !== "rfqs";
     return true;
   });
   const spec = visibleSpecs.find((s) => s.id === activeId) ?? visibleSpecs[0];

@@ -1471,6 +1471,9 @@ export type AnalyticsData = {
     openDeals: number;
     openDealValue: number;
     weightedDealValue: number;
+    /** RFQs still waiting on suppliers, and those with replies to award (0128). */
+    openRfqs: number;
+    rfqsToAward: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;
@@ -1519,7 +1522,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
-      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0 },
+      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0 },
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
@@ -1554,7 +1557,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     { data: accounts }, { data: contacts }, { data: assets },
     { data: cases }, { data: workOrders }, { data: contracts },
     { data: leads }, { data: technicians }, { data: quotes },
-    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw },
+    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw },
   ] = await Promise.all([
     getTenant(),
     supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
@@ -1571,7 +1574,10 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("status", "active"),
     // 0120 may be pending on an environment: an error reads as no deals.
     supabase.from("opportunities").select("amount, probability").eq("tenant_id", tenantId).eq("outcome", "open"),
+    // 0128 may be pending: an error reads as no RFQs.
+    supabase.from("rfqs").select("status").eq("tenant_id", tenantId).in("status", ["sent", "partially_replied", "replied"]),
   ]);
+  const openRfqRows = (rfqRaw ?? []) as Array<{ status: string }>;
   const openDeals = (openDealsRaw ?? []) as Array<{ amount: number | null; probability: number | null }>;
 
   const allAccounts    = (accounts    ?? []) as Array<{ id: string; type: string }>;
@@ -1601,6 +1607,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     openDeals:       openDeals.length,
     openDealValue:   openDeals.reduce((s, d) => s + Number(d.amount ?? 0), 0),
     weightedDealValue: openDeals.reduce((s, d) => s + Number(d.amount ?? 0) * (Number(d.probability ?? 0) / 100), 0),
+    openRfqs:        openRfqRows.length,
+    rfqsToAward:     openRfqRows.filter((r) => r.status !== "sent").length,
   };
 
   const accountTypeCounts = new Map<string, number>();
@@ -2219,6 +2227,12 @@ const SEARCH_SPECS: SearchSpec[] = [
     textCols: ["title", "ref"],
     toResult: (r) => ({ id: r.id, title: r.title, subtitle: [r.ref, r.stage, r.outcome].filter(Boolean).join(" · ") || "Deal", href: ROUTES.pipelineDetail(r.id), matched: "title" }),
     featureKeys: ["pipeline"],
+  },
+  {
+    type: "rfq", table: "rfqs", columns: "id, ref, title, status, origin_label",
+    textCols: ["title", "ref", "origin_label"],
+    toResult: (r) => ({ id: r.id, title: r.title, subtitle: [r.ref, r.origin_label, r.status].filter(Boolean).join(" · ") || "RFQ", href: ROUTES.rfq(r.id), matched: "title" }),
+    featureKeys: ["rfq"],
   },
   {
     type: "project", table: "wfm_projects", columns: "id, ref, name, code, status",

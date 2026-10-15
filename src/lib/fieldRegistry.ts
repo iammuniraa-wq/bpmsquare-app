@@ -82,7 +82,7 @@ export type EffectiveField = {
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
-  | "employee" | "product" | "project" | "opportunity";
+  | "employee" | "product" | "project" | "opportunity" | "rfq";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -304,6 +304,28 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       ] },
       { key: "loss_note", defaultLabel: "Loss note", widget: "textarea", defaultSection: "Forecast" },
       { key: "currency", defaultLabel: "Currency", widget: "text", defaultSection: "Ownership" },
+    ],
+  },
+
+  // RFQ (0128). Lines, suppliers and replies are structure managed on the
+  // RFQ screen -- only the header is a form. Status and origin are set by
+  // the flow, never typed.
+  rfq: {
+    sections: ["Request", "Timing", "Notes"],
+    fields: [
+      { key: "ref",    defaultLabel: "RFQ ID", widget: "text", defaultSection: "Request", locked: true, editable: false, exportOnly: true },
+      { key: "title",  defaultLabel: "Title",  widget: "text", defaultSection: "Request", locked: true },
+      { key: "status", defaultLabel: "Status", widget: "enum", defaultSection: "Request", locked: true, editable: false, exportOnly: true, enumOptions: [
+        { value: "draft", label: "Draft" }, { value: "sent", label: "Sent" }, { value: "partially_replied", label: "Partly replied" },
+        { value: "replied", label: "All replied" }, { value: "awarded", label: "Awarded" }, { value: "closed", label: "Closed" }, { value: "cancelled", label: "Cancelled" },
+      ] },
+      { key: "origin_label", defaultLabel: "Raised from", widget: "text", defaultSection: "Request", locked: true, editable: false, exportOnly: true },
+      { key: "delivery_terms", defaultLabel: "Delivery terms", widget: "text", defaultSection: "Request" },
+      { key: "currency", defaultLabel: "Preferred currency", widget: "text", defaultSection: "Request" },
+      { key: "respond_by", defaultLabel: "Reply by", widget: "date", defaultSection: "Timing" },
+      { key: "required_by", defaultLabel: "Needed by", widget: "date", defaultSection: "Timing" },
+      { key: "notes_to_supplier", defaultLabel: "Note to suppliers", widget: "textarea", defaultSection: "Notes" },
+      { key: "notes_internal", defaultLabel: "Internal note", widget: "textarea", defaultSection: "Notes" },
     ],
   },
 
@@ -536,7 +558,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
-  "employee", "product", "project", "opportunity",
+  "employee", "product", "project", "opportunity", "rfq",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

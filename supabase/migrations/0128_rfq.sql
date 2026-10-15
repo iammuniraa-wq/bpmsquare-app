@@ -280,3 +280,15 @@ create table if not exists rfq_mailbox_state (
 );
 
 alter table rfq_mailbox_state enable row level security;
+
+-- ── Custom fields on RFQs ──────────────────────────────────────────────────
+-- The tracked check on custom_fields.object_type (0000_baseline) still lists
+-- only the first ten objects; employee/product/project/opportunity fields
+-- were added later without widening it in a file. Widened here to every
+-- object the app offers custom fields on, plus rfq.
+alter table custom_fields drop constraint if exists custom_fields_object_type_check;
+alter table custom_fields add constraint custom_fields_object_type_check
+  check (object_type in ('account','contact','case','quote','work_order','asset','supplier','inventory','purchase_order','invoice',
+                         'employee','product','project','opportunity','rfq')) not valid;
+-- NOT VALID: checked for new rows only, so an existing row of some object
+-- this list doesn't know can never make the migration fail half-way.

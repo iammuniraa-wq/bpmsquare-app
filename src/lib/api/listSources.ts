@@ -123,6 +123,20 @@ const OPPORTUNITY_FIELDS: QueryableField[] = [
   { path: "closed_at", type: "date" },
 ];
 
+const RFQ_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "title", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "origin_type", type: "string" },
+  { path: "origin_id", type: "string" },
+  { path: "origin_label", type: "string", searchable: true },
+  { path: "respond_by", type: "date" },
+  { path: "required_by", type: "date" },
+  { path: "created_at", type: "date" },
+  { path: "updated_at", type: "date" },
+];
+
 const PROJECT_FIELDS: QueryableField[] = [
   { path: "id", type: "string" },
   { path: "ref", type: "string", searchable: true },
@@ -372,6 +386,22 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         const { accounts: _a, ...rest } = o as Record<string, unknown> & { accounts?: unknown };
         return { ...rest, account_name: (acc as { name?: string } | null)?.name ?? null, _links: { self: `/api/v1/opportunities/${o.id}`, account: `/api/v1/accounts/${o.account_id}` } };
       });
+    },
+  },
+  rfqs: {
+    label: "RFQs (supplier requests for quotation)",
+    description: "Requests for quotation sent to suppliers when no cost or price could be found -- status, what they were raised from, reply deadline. Supplier prices are on /api/v1/rfqs/:id only.",
+    relatedWorkcenter: "rfqs",
+    fields: RFQ_FIELDS,
+    load: async (tenantId) => {
+      // Header only. notes_internal is the buyer's and never selected;
+      // supplier prices live on the detail endpoint.
+      const { data } = await createAdminSupabase()
+        .from("rfqs")
+        .select("id, ref, title, status, origin_type, origin_id, origin_label, respond_by, required_by, delivery_terms, currency, custom_data, created_at, updated_at")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false });
+      return (data ?? []).map((r) => ({ ...r, _links: { self: `/api/v1/rfqs/${r.id}` } }));
     },
   },
   projects: {

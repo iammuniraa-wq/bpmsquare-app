@@ -95,6 +95,8 @@ const API_ENDPOINTS = [
   { method: "GET", path: "/api/v1/products/:id",        desc: "Product detail" },
   { method: "GET", path: "/api/v1/opportunities",       desc: "List deals · filters: ?stage=, ?outcome=, ?account_id=" },
   { method: "GET", path: "/api/v1/opportunities/:id",   desc: "Deal detail with lines and linked quotes" },
+  { method: "GET", path: "/api/v1/rfqs",                desc: "List RFQs · key must be scoped to rfqs · filters: ?status=, ?origin_type=" },
+  { method: "GET", path: "/api/v1/rfqs/:id",            desc: "RFQ with lines, suppliers, quoted prices and awards" },
   { method: "GET", path: "/api/v1/projects",            desc: "Workforce projects + sub-projects · filters: ?status=, ?level=, ?parent_id=" },
   { method: "GET", path: "/api/v1/projects/:id",        desc: "Project detail — parent, level, sub-projects, links" },
   { method: "GET", path: "/api/v1/projects/:id/hours",  desc: "Hours for a project and its sub-projects, for a period (?from=&to=)" },

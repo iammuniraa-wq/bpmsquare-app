@@ -84,7 +84,9 @@ export async function resolveApiAuth(req: Request): Promise<ApiAuth | null> {
 // LIST_SOURCES (bpmsquarecore §3b). employees: staff PII; contacts: named
 // people at customer accounts (their phone/email are excluded from the
 // query surface entirely, but even the name/role/account graph is personal).
-const EXPLICIT_SCOPE_ONLY = new Set(["employees", "contacts"]);
+// rfqs: supplier prices are commercially sensitive (0128) -- a key reaches
+// them only by naming "rfqs", never through a pre-existing "*" key.
+const EXPLICIT_SCOPE_ONLY = new Set(["employees", "contacts", "rfqs"]);
 
 /** Does this scope permit read (write=false) or write (write=true) on `object`? */
 export function scopeAllows(scopes: ApiScopes, object: string, write: boolean): boolean {

@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -372,6 +372,47 @@
           "id": {
             "type": "string",
             "description": "Deal UUID"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "list_rfqs",
+      "description": "List the tenant's RFQs (requests for quotation sent to suppliers when no cost or price was found): ref, title, status, what each was raised from, reply deadline. Needs an API key explicitly scoped to \"rfqs\".",
+      "method": "GET",
+      "path": "/api/v1/rfqs",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "draft, sent, partially_replied, replied, awarded, closed or cancelled"
+          },
+          "origin_type": {
+            "type": "string",
+            "description": "What it was raised from: standard_quote, quote, opportunity, case, inspection_report, work_order, fence_project, pricing or manual"
+          },
+          "origin_id": {
+            "type": "string",
+            "description": "Only RFQs raised from this record"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_rfq",
+      "description": "Fetch one RFQ by id with its lines, the suppliers asked, each supplier's quoted prices and which line was awarded to whom. Needs an API key explicitly scoped to \"rfqs\".",
+      "method": "GET",
+      "path": "/api/v1/rfqs/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "RFQ UUID"
           }
         },
         "required": [

@@ -12,6 +12,7 @@ import {
   type Rfq, type RfqLine, type RfqResponse, type RfqMessage, type RfqSupplier,
 } from "@/lib/rfq/types";
 import { bestByLine, landedUnit } from "@/lib/rfq/rules";
+import ObjectSections from "@/components/fields/ObjectSections";
 import { RFQ_STATUS_TONE, SUPPLIER_STATUS_TONE, inp, lbl, btnPrimary, btnGhost, fmtDate, fmtDateTime, fmtMoney } from "@/components/rfq/rfqUi";
 
 type SupplierRow = RfqSupplier & {
@@ -170,7 +171,7 @@ export default function RfqDetailClient({ id, canEdit, isAdmin }: { id: string; 
       {tab === "compare" && <CompareTab b={b} canEdit={canEdit && !closed} onKeyIn={setKeyIn} onAward={setAward} run={run} id={id} onAddSupplier={() => setAddSup(true)} />}
       {tab === "suppliers" && <SuppliersTab b={b} canEdit={canEdit && !closed} onKeyIn={setKeyIn} run={run} id={id} onAddSupplier={() => setAddSup(true)} />}
       {tab === "conversation" && <ConversationTab b={b} canEdit={canEdit} id={id} run={run} />}
-      {tab === "details" && <DetailsTab b={b} canEdit={canEdit && !closed} id={id} run={run} isAdmin={isAdmin} />}
+      {tab === "details" && <DetailsTab b={b} canEdit={canEdit && !closed} id={id} run={run} isAdmin={isAdmin} onReload={load} />}
 
       {keyIn && <KeyInModal b={b} rs={keyIn} id={id} onClose={() => setKeyIn(null)} onSaved={async (m) => { setKeyIn(null); setFlash({ tone: "good", text: m }); await load(); }} />}
       {award && <AwardModal b={b} {...award} id={id} onClose={() => setAward(null)} onDone={async (m, warn) => { setAward(null); setFlash({ tone: warn ? "bad" : "good", text: warn ?? m }); await load(); }} />}
@@ -638,7 +639,7 @@ function ConversationTab({ b, canEdit, id, run }: { b: Bundle; canEdit: boolean;
 
 // ── Details ─────────────────────────────────────────────────────────────────
 
-function DetailsTab({ b, canEdit, id, run, isAdmin }: { b: Bundle; canEdit: boolean; id: string; run: (fn: () => Promise<string | void>) => void; isAdmin: boolean }) {
+function DetailsTab({ b, canEdit, id, run, isAdmin, onReload }: { b: Bundle; canEdit: boolean; id: string; run: (fn: () => Promise<string | void>) => void; isAdmin: boolean; onReload: () => void }) {
   const { rfq } = b;
   const [f, setF] = useState({
     title: rfq.title, respond_by: rfq.respond_by ?? "", required_by: rfq.required_by ?? "", delivery_terms: rfq.delivery_terms ?? "",
@@ -697,6 +698,15 @@ function DetailsTab({ b, canEdit, id, run, isAdmin }: { b: Bundle; canEdit: bool
         )}
         <style>{`@media (max-width: 760px) { .rfq-addline { grid-template-columns: 1fr !important; } }`}</style>
       </div>
+      {/* The tenant's own custom fields on the RFQ header -- the standard
+          ones are the form above, so only cf_ fields render here. */}
+      <ObjectSections
+        objectType="rfq"
+        record={b.rfq as unknown as Record<string, unknown>}
+        patchUrl={`/api/rfqs/${id}`}
+        onSaved={onReload}
+        exclude={["ref", "title", "status", "origin_label", "delivery_terms", "currency", "respond_by", "required_by", "notes_to_supplier", "notes_internal"]}
+      />
       {isAdmin && <div style={{ fontSize: 12, color: c.hint }}>Mail channel, reply window and supplier terms are set in Settings → RFQ.</div>}
     </div>
   );
