@@ -11,6 +11,7 @@ import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import DeleteSupplierButton from "./DeleteSupplierButton";
+import SupplierRfqCard from "@/components/rfq/SupplierRfqCard";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 const TYPE_LABEL: Record<Supplier["type"], string> = {
@@ -90,6 +91,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             <CtxRow label="Date" value={fmtDate(supplier.created_at)} />
           </section>
 
+          <SupplierRfqCard supplierId={supplier.id} />
           <DeleteSupplierButton supplier={supplier} />
         </div>
       </div>
