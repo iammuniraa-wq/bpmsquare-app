@@ -542,7 +542,7 @@ deploy for an automatic schema change.
   Run AFTER 0128. Until it runs the RFQ page says the update is needed and
   "Create purchase orders" refuses (503) rather than risk ordering a line
   twice. Needs the `purchasing` flag on the tenant to show at all.
-- **0129_connector_sync.sql — PENDING on both DBs** (written 2026-10-15,
+- **0129_connector_sync.sql — applied to the dev DB (owner reported 2026-10-15); PENDING on production** (written 2026-10-15,
   Dynamics 365 connector, `docs/d365-connector.md`). Creates
   `connector_links` (BPMSquare record <-> external id, unique per tenant +
   connector + entity + external id) and `connector_sync_runs` (run history,
@@ -553,7 +553,7 @@ deploy for an automatic schema change.
   new for client-secret/certificate/basic logins; "sign in as a user" needs
   `CONNECTOR_OAUTH_STATE_SECRET`. New cron `/api/connectors/cron/dynamics365`
   (hourly, only acts for tenants whose connector schedule is on).
-- **0128_rfq.sql — PENDING on both DBs** (written 2026-10-15, owner request
+- **0128_rfq.sql — applied to the dev DB (owner reported 2026-10-15, with scripts/seed-rfq-demo.sql); PENDING on production** (written 2026-10-15, owner request
   2026-10-14: "RFQ becomes a standard object scopable with a flag ... the whole
   email communication sending and receiving in the tenant itself"; spec
   `docs/rfq-architecture.md`). Creates `rfqs`, `rfq_lines`, `rfq_suppliers`,
