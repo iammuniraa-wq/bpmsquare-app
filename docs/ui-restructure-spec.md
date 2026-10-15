@@ -5,6 +5,11 @@
 > Sonnet, phase by phase, from this document alone. Read
 > `bpmsquarecore.md` first; nothing here relaxes it.
 >
+> **Build status (2026-10-15): phases 1, 2 and 3 are built on `develop`
+> (kit, templates, Suppliers pilot) and await the owner's pilot approval.
+> Phases 4-7 are not started — do not begin them until the owner approves
+> the Suppliers look on the demo tenant.**
+>
 > **Out of scope, untouched:** Quotations — list (`/quotations`), detail
 > (`QuoteDetailLayout.tsx`), form (`quotations/new/QuoteForm.tsx`), print.
 > Do not edit those files except where a shared component they already

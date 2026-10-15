@@ -2,16 +2,11 @@ import { requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { requireTenantUser } from "@/lib/supabase-server";
 import type { Supplier } from "@/lib/types";
-import { c, pillar } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import PageHeader from "@/components/PageHeader";
-import Pill from "@/components/Pill";
-import ListFilterBar from "@/components/ListFilterBar";
-import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { c } from "@/lib/theme";
+import StatusPill from "@/components/ui/StatusPill";
+import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
 import { applyAdvancedFilter } from "@/lib/advancedFilter";
-import SortableTh from "@/components/SortableTh";
-import PagerLink from "@/components/PagerLink";
-import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { paginate } from "@/lib/paginate";
 import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
@@ -20,15 +15,7 @@ const TYPE_LABEL: Record<Supplier["type"], string> = {
   vendor: "Vendor", subcontractor: "Subcontractor", both: "Vendor & Sub",
 };
 
-const fmtDate = (s: string) =>
-  new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-const th: React.CSSProperties = {
-  textAlign: "left", color: c.hint, fontWeight: 600,
-  padding: "9px 14px", fontSize: 11, letterSpacing: 0.4,
-  textTransform: "uppercase", whiteSpace: "nowrap", background: c.panel2,
-};
-const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, verticalAlign: "middle" };
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const SORT_EXTRACTORS: Record<string, SortExtractor<Supplier>> = {
   ref: (s) => s.ref,
@@ -40,6 +27,40 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<Supplier>> = {
   status: (s) => s.status,
   created_at: (s) => s.created_at,
 };
+
+const COLUMNS: ListColumn<Supplier>[] = [
+  {
+    id: "ref", label: "ID", sortKey: "ref", width: 88, card: "hidden",
+    cellStyle: { fontFamily: MONO, fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" },
+    render: (s) => s.ref ?? "—",
+  },
+  {
+    id: "name", label: "Name", sortKey: "name", card: "title",
+    render: (s) => (
+      <>
+        <Link href={ROUTES.supplier(s.id)} style={{ fontWeight: 600, color: c.ink, textDecoration: "none", fontSize: 13.5 }}>
+          {s.name}
+        </Link>
+        {s.email && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2, fontWeight: 400 }}>{s.email}</div>}
+      </>
+    ),
+  },
+  {
+    id: "type", label: "Type", sortKey: "type",
+    render: (s) => <StatusPill label={TYPE_LABEL[s.type]} tone={s.type === "vendor" ? "blue" : s.type === "subcontractor" ? "amber" : "teal"} />,
+  },
+  { id: "city", label: "City", sortKey: "city", cellStyle: { color: c.muted, fontSize: 13 }, render: (s) => s.city ?? "—" },
+  { id: "phone", label: "Phone", sortKey: "phone", cellStyle: { color: c.muted, fontSize: 13 }, render: (s) => s.phone ?? "—" },
+  {
+    id: "gstin", label: "GSTIN", sortKey: "gstin",
+    cellStyle: { color: c.muted, fontSize: 12, fontFamily: "monospace" },
+    render: (s) => s.gstin ?? "—",
+  },
+  {
+    id: "status", label: "Status", sortKey: "status",
+    render: (s) => <StatusPill label={s.status === "active" ? "Active" : "Inactive"} tone={s.status === "active" ? "green" : "red"} />,
+  },
+];
 
 export default async function SuppliersPage({
   searchParams,
@@ -83,145 +104,47 @@ export default async function SuppliersPage({
   const filterHref = (t: string) =>
     `${ROUTES.suppliers}?type=${t}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
 
+  const chips = [
+    { id: "all",           label: `All (${suppliers.length})` },
+    { id: "vendor",        label: `Vendors` },
+    { id: "subcontractor", label: `Subcontractors` },
+    { id: "both",          label: `Both` },
+  ].map(({ id, label }) => ({ id, label, href: filterHref(id), active: (typeFilter ?? "all") === id }));
+  if (inactive > 0) {
+    chips.push({ id: "inactive", label: `Inactive (${inactive})`, href: `${ROUTES.suppliers}?type=inactive`, active: false });
+  }
+
+  const hasFilter = !!(q || af || (typeFilter && typeFilter !== "all") || Object.keys(cfParams).length > 0);
+
   return (
-    <>
-      <PageHeader
-        title="Suppliers"
-        subtitle={`${suppliers.length} total · ${active} active`}
-        action={
-          <Link
-            href={ROUTES.supplierNew}
-            style={{
-              padding: "8px 16px", borderRadius: 7, fontSize: 13, fontWeight: 600,
-              background: c.accent, color: "#fff", textDecoration: "none",
-            }}
-          >
-            + Add Supplier
-          </Link>
-        }
-      />
-
-      {/* Filter chips */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-        {[
-          { id: "all",           label: `All (${suppliers.length})` },
-          { id: "vendor",        label: `Vendors` },
-          { id: "subcontractor", label: `Subcontractors` },
-          { id: "both",          label: `Both` },
-        ].map(({ id, label }) => {
-          const active2 = (typeFilter ?? "all") === id;
-          return (
-            <Link key={id} href={filterHref(id)} style={{
-              fontSize: 12.5, fontWeight: active2 ? 700 : 500,
-              color: active2 ? c.accent : c.muted,
-              background: active2 ? c.accentbg : c.panel2,
-              border: `1px solid ${active2 ? c.accent + "60" : c.line}`,
-              borderRadius: 6, padding: "5px 12px", textDecoration: "none",
-            }}>
-              {label}
-            </Link>
-          );
-        })}
-        {inactive > 0 && (
-          <Link href={`${ROUTES.suppliers}?type=inactive`} style={{
-            fontSize: 12.5, color: c.hint, background: c.panel2,
-            border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 12px", textDecoration: "none",
-          }}>
-            Inactive ({inactive})
-          </Link>
-        )}
-      </div>
-
-      <ListFilterBar
-        searchValue={q}
-        searchPlaceholder="Search by name, city, email or GSTIN…"
-        hiddenParams={{ type: typeFilter && typeFilter !== "all" ? typeFilter : undefined, af, ...cfParams }}
-        clearHref={ROUTES.suppliers}
-      />
-      <AdvancedFilterPanel object="supplier" />
-
-      {/* Table */}
-      <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 24px", color: c.hint, fontSize: 14 }}>
-            {q ? `No suppliers match "${q}".` : "No suppliers yet."}
-            {!q && (
-              <div style={{ marginTop: 12 }}>
-                <Link href={ROUTES.supplierNew} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-                  + Add your first supplier
-                </Link>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-                  {(() => {
-                    const hp = { q, type: typeFilter, af, ...cfParams };
-                    return (
-                      <>
-                        <SortableTh label="ID" sortKey="ref" searchId="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={{ ...th, width: 88 }} />
-                        <SortableTh label="Name" sortKey="name" searchId="name" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="Type" sortKey="type" searchId="type" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="City" sortKey="city" searchId="city" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="Phone" sortKey="phone" searchId="phone" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="GSTIN" sortKey="gstin" searchId="gstin" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="Status" sortKey="status" searchId="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                        <SortableTh label="Added" sortKey="created_at" searchId="created_at" currentSort={sort} currentDir={dir} baseHref={ROUTES.suppliers} hiddenParams={hp} style={th} />
-                      </>
-                    );
-                  })()}
-                  <th style={{ ...th, width: 60 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.map((s) => (
-                  <tr key={s.id} style={{ borderBottom: `1px solid ${c.line}` }}>
-                    <td style={{ ...td, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>{s.ref ?? "—"}</td>
-                    <td style={td}>
-                      <Link href={ROUTES.supplier(s.id)} style={{ fontWeight: 600, color: c.ink, textDecoration: "none", fontSize: 13.5 }}>
-                        {s.name}
-                      </Link>
-                      {s.email && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>{s.email}</div>}
-                    </td>
-                    <td style={td}>
-                      <Pill
-                        label={TYPE_LABEL[s.type]}
-                        tone={s.type === "vendor" ? "blue" : s.type === "subcontractor" ? "amber" : "teal"}
-                      />
-                    </td>
-                    <td style={{ ...td, color: c.muted, fontSize: 13 }}>{s.city ?? "—"}</td>
-                    <td style={{ ...td, color: c.muted, fontSize: 13 }}>{s.phone ?? "—"}</td>
-                    <td style={{ ...td, color: c.muted, fontSize: 12, fontFamily: "monospace" }}>{s.gstin ?? "—"}</td>
-                    <td style={td}>
-                      <Pill label={s.status === "active" ? "Active" : "Inactive"} tone={s.status === "active" ? "green" : "red"} />
-                    </td>
-                    <td style={{ ...td, color: c.hint, fontSize: 12, whiteSpace: "nowrap" }}>{fmtDate(s.created_at)}</td>
-                    <td style={{ ...td, textAlign: "right" }}>
-                      <Link href={ROUTES.supplier(s.id)} style={{
-                        fontSize: 11.5, fontWeight: 600, color: c.accent,
-                        background: c.accentbg, borderRadius: 6, padding: "4px 10px",
-                        textDecoration: "none", whiteSpace: "nowrap",
-                      }}>
-                        Open →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <PagerLink
-              page={page}
-              total={filtered.length}
-              pageSize={DEFAULT_PAGE_SIZE}
-              baseHref={ROUTES.suppliers}
-              hiddenParams={{ q, type: typeFilter, sort, dir, af, ...cfParams }}
-            />
-          </div>
-        )}
-      </div>
-    </>
+    <ObjectListPage
+      title="Suppliers"
+      subtitle={`${suppliers.length} total · ${active} active`}
+      newLabel="Supplier"
+      newHref={ROUTES.supplierNew}
+      chips={chips}
+      search={{
+        value: q,
+        placeholder: "Search by name, city, email or GSTIN…",
+        hiddenParams: { type: typeFilter && typeFilter !== "all" ? typeFilter : undefined, af, ...cfParams },
+      }}
+      advancedFilterObject="supplier"
+      columns={COLUMNS}
+      rows={pageRows}
+      rowKey={(s) => s.id}
+      rowHref={(s) => ROUTES.supplier(s.id)}
+      total={filtered.length}
+      page={page}
+      baseHref={ROUTES.suppliers}
+      sort={sort}
+      dir={dir}
+      linkParams={{ q, type: typeFilter, af, ...cfParams }}
+      filtered={hasFilter}
+      empty={{
+        title: "No suppliers yet",
+        text: "Add the vendors and subcontractors you buy from, then request quotes from them.",
+        filteredTitle: q ? `No suppliers match "${q}".` : "No suppliers match these filters.",
+      }}
+    />
   );
 }
