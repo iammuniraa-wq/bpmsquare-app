@@ -9,16 +9,19 @@ import { getAccountHubLive } from "@/lib/data/live";
 import { getUserRole, getTenant } from "@/lib/tenant";
 import type { Activity, Account, InvoiceStatus } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import Pill from "@/components/Pill";
+import StatusPill from "@/components/ui/StatusPill";
+import Card from "@/components/ui/Card";
+import EmptyState from "@/components/ui/EmptyState";
 import QuoteStatusPill from "@/components/QuoteStatusPill";
 import { ROUTES, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef, type TenantFeatures } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
 import QuickCreateDeck from "@/components/QuickCreateDeck";
-import { MapPin, Phone, Mail, Gear, Activity as ActivityIcon, Package, FileText } from "@/components/Icons";
-import AccountHeader from "./AccountHeader";
-import NovaTimelineSlot from "@/components/NovaTimelineSlot";
+import { Gear, Activity as ActivityIcon, Package, FileText, Phone } from "@/components/Icons";
+import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import RecordMoreMenu from "@/components/page/RecordMoreMenu";
+import RecordActivity from "@/components/page/RecordActivity";
+import RelatedList from "@/components/page/RelatedList";
 import { projectHoursReport } from "@/lib/wfm/projectHoursServer";
 import { getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
@@ -41,12 +44,6 @@ const CASE_TONE: Record<string, PillarKey> = {
   ready: "green", closed: "green",
   buyback: "purple", scrapped: "red",
 };
-const WO_TONE: Record<string, PillarKey> = {
-  scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
-};
-const CONTRACT_TONE: Record<string, PillarKey> = {
-  active: "teal", expired: "purple", draft: "blue",
-};
 const INVOICE_TONE: Record<InvoiceStatus, PillarKey> = {
   draft: "blue", sent: "amber", partial: "purple", paid: "green", overdue: "red", cancelled: "red",
 };
@@ -59,6 +56,8 @@ const ACT_TONE: Record<Activity["pillar"], PillarKey> = {
 const TYPE_TONE: Record<Account["type"], PillarKey> = {
   prospect: "amber", oem: "purple", direct: "blue", end_customer: "teal",
 };
+
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
 
@@ -86,65 +85,9 @@ const TABS: { id: Tab; label: string; featureKey?: keyof TenantFeatures }[] = [
   { id: "activity",   label: "Activity"   },
 ];
 
-// ── Shared sub-components ──────────────────────────────────────────────────────
-
-function SectionHead({ label, count, action }: {
-  label: string; count?: number; action?: React.ReactNode;
-}) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5 }}>
-          {label}
-        </span>
-        {count !== undefined && count > 0 && (
-          <span style={{ fontSize: 11, background: c.accentbg, color: c.accent, borderRadius: 4, padding: "1px 6px", fontWeight: 700 }}>
-            {count}
-          </span>
-        )}
-      </div>
-      {action}
-    </div>
-  );
-}
-
-function AddLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link href={href} style={{
-      fontSize: 12, fontWeight: 600, color: c.accent,
-      background: c.accentbg, border: `1px solid ${c.accent}25`,
-      borderRadius: 6, padding: "4px 10px", textDecoration: "none",
-    }}>
-      + {label}
-    </Link>
-  );
-}
-
-function OpenLink({ href }: { href: string }) {
-  return (
-    <Link href={href} style={{
-      fontSize: 11.5, fontWeight: 600, color: c.accent,
-      background: c.accentbg, borderRadius: 6, padding: "4px 10px",
-      textDecoration: "none", flexShrink: 0, whiteSpace: "nowrap",
-    }}>
-      Open →
-    </Link>
-  );
-}
-
-function EmptyRow({ label, href, linkLabel }: { label: string; href: string; linkLabel: string }) {
-  return (
-    <div style={{ textAlign: "center", padding: "32px 16px" }}>
-      <div style={{ fontSize: 13, color: c.hint, marginBottom: 12 }}>{label}</div>
-      <Link href={href} style={{
-        fontSize: 13, fontWeight: 600, color: c.accent,
-        background: c.accentbg, borderRadius: 7, padding: "7px 16px", textDecoration: "none",
-      }}>
-        + {linkLabel}
-      </Link>
-    </div>
-  );
-}
+const refCell = (ref: string | null | undefined) => (
+  <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 12.5, color: c.ink }}>{ref ?? "—"}</span>
+);
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
@@ -204,12 +147,12 @@ export default async function AccountHubPage({
     }
   }
   const projectMinutes = projectRows.reduce((s, r) => s + (r.level === 0 ? r.minutes : 0), 0);
-  const activeTab: Tab = (visibleTabs.find((t) => t.id === rawTab)?.id) ?? "overview";
 
   const quotationTotal = hub.quotes.reduce((s, q) => s + q.total, 0);
   const invoiceBalance  = hub.invoices.reduce((s, inv) => s + Math.max(0, inv.total - inv.paid_amount), 0);
 
-  const tabHref = (t: Tab) => `${ROUTES.account(id)}?tab=${t}`;
+  const basePath = ROUTES.account(id);
+  const tabHref = (t: Tab) => `${basePath}?tab=${t}`;
 
   // Cheap in-memory derivation from data the hub already fetched -- no
   // extra queries. NovaAccountStorySlot self-gates, so this runs harmlessly
@@ -269,417 +212,171 @@ export default async function AccountHubPage({
     );
   }
 
-  return (
-    <>
-      <TabTitle title={account.name} />
+  const quickCreate = [
+    // Same gating as the tabs above and as invoices/projects below --
+    // offering "New case" to a tenant without the Cases module sends
+    // them to a route the nav doesn't even list (snasquare, 2026-09-22).
+    ...(features?.cases ? [{ href: `${ROUTES.caseNew}?account_id=${id}`, label: "New case", icon: <ActivityIcon size={13} color={pillar.teal.base} />, bg: pillar.teal.bg }] : []),
+    ...(features?.contacts ? [{ href: `${ROUTES.contactNew}?account_id=${id}`, label: "New contact", icon: <Phone size={13} color={pillar.blue.base} />, bg: pillar.blue.bg }] : []),
+    ...(features?.assets ? [{ href: `${ROUTES.assetNew}?account_id=${id}`, label: "New asset", icon: <Gear size={13} color={pillar.green.base} />, bg: pillar.green.bg }] : []),
+    ...(features?.quotations ? [{ href: `${ROUTES.quotationNew}?account_id=${id}`, label: "New quotation", icon: <Package size={13} color={pillar.amber.base} />, bg: pillar.amber.bg }] : []),
+    ...(features?.invoices ? [{ href: `${ROUTES.invoiceNew}?account_id=${id}`, label: "New invoice", icon: <FileText size={13} color={pillar.purple.base} />, bg: pillar.purple.bg }] : []),
+    ...(features?.wfm_projects ? [{ href: `${ROUTES.wfmProjectNew}?account=${id}`, label: "New project", icon: <Gear size={13} color={pillar.teal.base} />, bg: pillar.teal.bg }] : []),
+  ];
 
-      {/* ── Breadcrumb ── */}
-      <div className="bpm-page-header" style={{ marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <Link href={ROUTES.accounts} style={{ fontSize: 12.5, color: c.muted, textDecoration: "none" }}>
-          ← Accounts
-        </Link>
-        {isNova && (
-          <Link href={ROUTES.account(id)} style={{ fontSize: 12.5, fontWeight: 600, color: c.accent, textDecoration: "none" }}>
-            ← Back to story
-          </Link>
-        )}
-      </div>
-
-      {/* ── Account header ────────────────────────────────────────────────── */}
-      <AccountHeader
-        isAdmin={role === "admin"}
-        actions={<Account360Button accountId={account.id} />}
-      >
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: c.ink }}>{account.name}</h1>
-            {account.ref && <span style={{ fontSize: 11.5, color: c.hint, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", border: `1px solid ${c.line}`, borderRadius: 6, padding: "2px 8px" }}>{account.ref}</span>}
-            <Pill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", fontSize: 13, color: c.muted }}>
-            {account.city && (
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <MapPin size={12} color={c.hint} /> {account.city}
-              </span>
-            )}
-            {account.phone && (
-              <a href={`tel:${account.phone}`} style={{ display: "flex", alignItems: "center", gap: 4, color: c.muted, textDecoration: "none" }}>
-                <Phone size={12} color={c.hint} /> {account.phone}
-              </a>
-            )}
-            {account.email && (
-              <a href={`mailto:${account.email}`} style={{ display: "flex", alignItems: "center", gap: 4, color: c.muted, textDecoration: "none" }}>
-                <Mail size={12} color={c.hint} /> {account.email}
-              </a>
-            )}
-            {referredBy && (
-              <span>via <Link href={ROUTES.account(referredBy.id)} style={{ color: c.accent, textDecoration: "none" }}>{referredBy.name}</Link></span>
-            )}
-            <span style={{ color: c.hint }}>Since {fmtDate(account.created_at)}</span>
-          </div>
-        </div>
-      </AccountHeader>
-
-      {/* ── Tab bar ───────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 0, marginBottom: 14, borderBottom: `1px solid ${c.line}`, overflowX: "auto" }}>
-        {visibleTabs.map((t) => {
-          const active = t.id === activeTab;
-          const badge  = t.id === "cases"      ? hub.cases.length
-                       : t.id === "contacts"   ? hub.contacts.length
-                       : t.id === "assets"     ? hub.assets.length
-                       : t.id === "quotations" ? hub.quotes.length
-                       : t.id === "invoices"   ? hub.invoices.length
-                       : undefined;
-          return (
-            <Link key={t.id} href={tabHref(t.id)} style={{
-              display: "flex", alignItems: "center", gap: 5,
-              padding: "10px 16px", fontSize: 13.5, fontWeight: active ? 700 : 500,
-              color: active ? c.accent : c.muted, textDecoration: "none",
-              borderBottom: active ? `2.5px solid ${c.accent}` : "2.5px solid transparent",
-              whiteSpace: "nowrap", flexShrink: 0, transition: ".12s",
-            }}>
-              {t.label}
-              {badge !== undefined && badge > 0 && (
-                <span style={{
-                  fontSize: 10.5, background: active ? c.accentbg : c.panel2,
-                  color: active ? c.accent : c.muted,
-                  borderRadius: 4, padding: "1px 6px", fontWeight: 600,
-                }}>
-                  {badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* OVERVIEW                                                            */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-
-      {activeTab === "overview" && (
-        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 14, alignItems: "start" }}>
-
-          {/* LEFT: Account details only — everything else (cases, contacts,
-              assets, quotations, invoices) already has its own tab above. */}
-          <ObjectSections objectType="account" record={account as unknown as Record<string, unknown>} patchUrl={`/api/accounts/${account.id}`} exclude={["name", "type", "city", "phone", "email"]} />
-
-          {/* RIGHT: Quick create — jump straight into a related object */}
-          <QuickCreateDeck items={[
-            // Same gating as the tabs above and as invoices/projects below --
-            // offering "New case" to a tenant without the Cases module sends
-            // them to a route the nav doesn't even list (snasquare, 2026-09-22).
-            ...(features?.cases ? [{ href: `${ROUTES.caseNew}?account_id=${id}`, label: "New case", icon: <ActivityIcon size={13} color={pillar.teal.base} />, bg: pillar.teal.bg }] : []),
-            ...(features?.contacts ? [{ href: `${ROUTES.contactNew}?account_id=${id}`, label: "New contact", icon: <Phone size={13} color={pillar.blue.base} />, bg: pillar.blue.bg }] : []),
-            ...(features?.assets ? [{ href: `${ROUTES.assetNew}?account_id=${id}`, label: "New asset", icon: <Gear size={13} color={pillar.green.base} />, bg: pillar.green.bg }] : []),
-            ...(features?.quotations ? [{ href: `${ROUTES.quotationNew}?account_id=${id}`, label: "New quotation", icon: <Package size={13} color={pillar.amber.base} />, bg: pillar.amber.bg }] : []),
-            ...(features?.invoices ? [{ href: `${ROUTES.invoiceNew}?account_id=${id}`, label: "New invoice", icon: <FileText size={13} color={pillar.purple.base} />, bg: pillar.purple.bg }] : []),
-            ...(features?.wfm_projects ? [{ href: `${ROUTES.wfmProjectNew}?account=${id}`, label: "New project", icon: <Gear size={13} color={pillar.teal.base} />, bg: pillar.teal.bg }] : []),
-          ]} />
-        </div>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* CASES TAB                                                           */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-
-      {activeTab === "cases" && (
-        <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <SectionHead label="Cases" count={hub.cases.length} action={<AddLink href={`${ROUTES.caseNew}?account_id=${id}`} label="New case" />} />
-          </div>
-          {hub.cases.length === 0 ? (
-            <EmptyRow label="No cases for this account yet." href={`${ROUTES.caseNew}?account_id=${id}`} linkLabel="Create first case" />
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: c.panel2 }}>
-                  <th style={th2}>Ref</th>
-                  <th style={th2}>Equipment</th>
-                  <th style={th2}>Complaint</th>
-                  <th style={th2}>Stage</th>
-                  <th style={th2}>Type</th>
-                  <th style={th2}>Intake</th>
-                  <th style={th2}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {hub.cases.map((sc, i) => (
-                  <tr key={sc.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
-                    <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{sc.ref}</span></td>
-                    <td style={td2}><span style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{sc.equipment_label || "—"}</span></td>
-                    <td style={{ ...td2, maxWidth: 220 }}>
-                      <span style={{ fontSize: 12.5, color: c.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>
-                        {sc.complaint || "—"}
-                      </span>
-                    </td>
-                    <td style={td2}><Pill label={CASE_STATUS_LABEL[sc.status]} tone={CASE_TONE[sc.status] ?? "blue"} /></td>
-                    <td style={td2}><Pill label={CASE_TYPE_LABEL[sc.type]} tone="blue" /></td>
-                    <td style={{ ...td2, color: c.hint, fontSize: 12, whiteSpace: "nowrap" }}>{fmtDate(sc.intake_at)}</td>
-                    <td style={td2}><OpenLink href={ROUTES.case(sc.id)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* CONTACTS TAB                                                        */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-
-      {activeTab === "contacts" && (
-        <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <SectionHead label="Contacts" count={hub.contacts.length} action={<AddLink href={`${ROUTES.contactNew}?account_id=${id}`} label="New contact" />} />
-          </div>
-          {hub.contacts.length === 0 ? (
-            <EmptyRow label="No contacts yet." href={`${ROUTES.contactNew}?account_id=${id}`} linkLabel="Add first contact" />
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: c.panel2 }}>
-                  <th style={th2}>Name</th>
-                  <th style={th2}>Role</th>
-                  <th style={th2}>Phone</th>
-                  <th style={th2}>Email</th>
-                  <th style={th2}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {hub.contacts.map((ct, i) => (
-                  <tr key={ct.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
-                    <td style={td2}><span style={{ fontWeight: 600, fontSize: 13.5, color: c.ink }}>{ct.name}</span></td>
-                    <td style={{ ...td2, color: c.muted }}>{ct.role || "—"}</td>
-                    <td style={td2}>
-                      {ct.phone
-                        ? <a href={`tel:${ct.phone}`} style={{ color: c.accent, textDecoration: "none", fontSize: 13 }}>{ct.phone}</a>
-                        : <span style={{ color: c.hint }}>—</span>}
-                    </td>
-                    <td style={td2}>
-                      {ct.email
-                        ? <a href={`mailto:${ct.email}`} style={{ color: c.muted, textDecoration: "none", fontSize: 12.5 }}>{ct.email}</a>
-                        : <span style={{ color: c.hint }}>—</span>}
-                    </td>
-                    <td style={td2}><OpenLink href={ROUTES.contact(ct.id)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* ASSETS TAB                                                          */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-
-      {activeTab === "assets" && (
-        <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <SectionHead label="Assets" count={hub.assets.length} action={<AddLink href={`${ROUTES.assetNew}?account_id=${id}`} label="New asset" />} />
-          </div>
-          {hub.assets.length === 0 ? (
-            <EmptyRow label="No assets registered yet." href={`${ROUTES.assetNew}?account_id=${id}`} linkLabel="Register first asset" />
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: c.panel2 }}>
-                  <th style={th2}>Asset</th>
-                  <th style={th2}>Kind</th>
-                  <th style={th2}>Make / Model</th>
-                  <th style={th2}>Serial</th>
-                  <th style={th2}>Rating</th>
-                  <th style={th2}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {hub.assets.map((a, i) => (
-                  <tr key={a.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
-                    <td style={td2}><span style={{ fontWeight: 600, fontSize: 13.5, color: c.ink }}>{a.name}</span></td>
-                    <td style={{ ...td2, color: c.muted, textTransform: "capitalize" }}>{a.kind}</td>
-                    <td style={{ ...td2, color: c.muted }}>{[a.make, a.model].filter(Boolean).join(" · ") || "—"}</td>
-                    <td style={td2}><span style={{ fontFamily: "monospace", fontSize: 12, color: c.hint }}>{a.serial || "—"}</span></td>
-                    <td style={{ ...td2, color: c.muted }}>{a.rating || "—"}</td>
-                    <td style={td2}><OpenLink href={ROUTES.asset(a.id)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* QUOTATIONS TAB                                                      */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-
-      {activeTab === "quotations" && (
-        <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <SectionHead
-              label="Quotations"
-              count={hub.quotes.length}
-              action={<AddLink href={`${ROUTES.quotationNew}?account_id=${id}`} label="New quotation" />}
-            />
-            {quotationTotal > 0 && (
-              <div style={{ fontSize: 13, color: c.muted }}>
-                Total pipeline: <strong style={{ color: c.ink }}>{fmtMoney(quotationTotal)}</strong>
-              </div>
-            )}
-          </div>
-          {hub.quotes.length === 0 ? (
-            <EmptyRow label="No quotations yet." href={`${ROUTES.quotationNew}?account_id=${id}`} linkLabel="Create first quotation" />
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: c.panel2 }}>
-                  <th style={th2}>Ref</th>
-                  <th style={th2}>Status</th>
-                  <th style={th2}>Amount</th>
-                  <th style={th2}>Valid until</th>
-                  <th style={th2}>Revision</th>
-                  <th style={th2}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {hub.quotes.map((q, i) => (
-                  <tr key={q.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
-                    <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{q.ref}</span></td>
-                    <td style={td2}><QuoteStatusPill status={q.status} statuses={quoteStatuses} /></td>
-                    <td style={td2}><span style={{ fontWeight: 600, color: c.ink }}>{fmtMoney(q.total)}</span></td>
-                    <td style={{ ...td2, color: c.hint, fontSize: 12 }}>{q.valid_until ? fmtDate(q.valid_until) : "—"}</td>
-                    <td style={td2}>
-                      {q.revision > 1
-                        ? <span style={{ fontSize: 11.5, background: "var(--amberbg)", color: "var(--amberink)", borderRadius: 4, padding: "2px 7px", fontWeight: 600 }}>Rev.{q.revision}</span>
-                        : <span style={{ color: c.hint }}>—</span>}
-                    </td>
-                    <td style={td2}><OpenLink href={ROUTES.quotation(q.id)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* INVOICES TAB                                                        */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-
-      {activeTab === "projects" && (
-        <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-            <SectionHead
-              label="Projects"
-              count={projectRows.filter((r) => r.level === 0).length}
-              action={<AddLink href={`${ROUTES.wfmProjectNew}?account=${id}`} label="New project" />}
-            />
-            {projectMinutes > 0 && (
-              <div style={{ fontSize: 13, color: c.muted }}>
-                This month: <strong style={{ color: c.ink }}>{Math.floor(projectMinutes / 60)}h {String(Math.round(projectMinutes % 60)).padStart(2, "0")}m</strong>
-              </div>
-            )}
-          </div>
-          {projectRows.length === 0 ? (
-            <EmptyRow label="No projects for this account yet." href={`${ROUTES.wfmProjectNew}?account=${id}`} linkLabel="Create the first project" />
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: c.panel2 }}>
-                  <th style={th2}>ID</th>
-                  <th style={th2}>Project</th>
-                  <th style={th2}>Status</th>
-                  <th style={{ ...th2, textAlign: "right" }}>Hours this month</th>
-                  <th style={th2}>Invoiced to</th>
-                  <th style={th2}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {projectRows.map((pr, i) => (
-                  <tr key={pr.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
-                    <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{pr.ref ?? "—"}</span></td>
-                    <td style={td2}>
-                      <span style={{ paddingLeft: pr.level * 14, fontWeight: 600, color: c.ink }}>
-                        {pr.level > 0 && <span aria-hidden style={{ color: c.hint, marginRight: 6 }}>└</span>}
-                        {pr.name}
-                      </span>
-                    </td>
-                    <td style={{ ...td2, color: c.muted, textTransform: "capitalize" }}>{pr.status.replace("_", " ")}</td>
-                    <td style={{ ...td2, textAlign: "right", fontVariantNumeric: "tabular-nums", color: pr.minutes > 0 ? c.ink : c.hint }}>
-                      {pr.minutes > 0 ? `${Math.floor(pr.minutes / 60)}h ${String(Math.round(pr.minutes % 60)).padStart(2, "0")}m` : "—"}
-                    </td>
-                    <td style={{ ...td2, color: pr.billed_to ? c.muted : c.hint, whiteSpace: "nowrap" }}>
-                      {pr.billed_to ? new Date(`${pr.billed_to}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "not yet"}
-                    </td>
-                    <td style={td2}><OpenLink href={ROUTES.wfmProject(pr.id)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      )}
-
-      {activeTab === "invoices" && (
-        <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <SectionHead
-              label="Invoices"
-              count={hub.invoices.length}
-              action={<AddLink href={`${ROUTES.invoiceNew}?account_id=${id}`} label="New invoice" />}
-            />
-            {invoiceBalance > 0 && (
-              <div style={{ fontSize: 13, color: c.muted }}>
-                Outstanding: <strong style={{ color: "var(--red)" }}>{fmtMoney(invoiceBalance)}</strong>
-              </div>
-            )}
-          </div>
-          {hub.invoices.length === 0 ? (
-            <EmptyRow label="No invoices yet." href={`${ROUTES.invoiceNew}?account_id=${id}`} linkLabel="Create first invoice" />
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: c.panel2 }}>
-                  <th style={th2}>Ref</th>
-                  <th style={th2}>Status</th>
-                  <th style={th2}>Total</th>
-                  <th style={th2}>Balance due</th>
-                  <th style={th2}>Issued</th>
-                  <th style={th2}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {hub.invoices.map((inv, i) => (
-                  <tr key={inv.id} style={{ borderTop: `1px solid ${c.line}`, background: i % 2 === 1 ? c.panel2 : c.panel }}>
-                    <td style={td2}><span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12.5, color: c.ink }}>{inv.ref}</span></td>
-                    <td style={td2}><Pill label={INVOICE_LABEL[inv.status]} tone={INVOICE_TONE[inv.status]} /></td>
-                    <td style={td2}><span style={{ fontWeight: 600, color: c.ink }}>{fmtMoney(inv.total)}</span></td>
-                    <td style={td2}>
-                      <span style={{ fontWeight: 600, color: inv.total - inv.paid_amount > 0 ? "var(--red)" : c.hint }}>
-                        {fmtMoney(Math.max(0, inv.total - inv.paid_amount))}
-                      </span>
-                    </td>
-                    <td style={{ ...td2, color: c.hint, fontSize: 12 }}>{inv.issued_at ? fmtDate(inv.issued_at) : "—"}</td>
-                    <td style={td2}><OpenLink href={ROUTES.invoice(inv.id)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* ACTIVITY TAB                                                        */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-
-      {activeTab === "activity" && (
-        <section style={cardStyle}>
-          <SectionHead label="Activity timeline" count={hub.activities.length} />
+  const tabContent: Record<Tab, React.ReactNode> = {
+    overview: (
+      <>
+        <ObjectSections objectType="account" record={account as unknown as Record<string, unknown>} patchUrl={`/api/accounts/${account.id}`} exclude={["name", "type", "city", "phone", "email"]} />
+        {/* The constellation, for a theme that has no Nova landing view to put
+            it on -- Spectacular (the slot self-gates, so a tenant on neither
+            theme still renders nothing). Overview only: it is a summary of the
+            whole account, so repeating it under Quotes or Cases would just push
+            the tab's own content down. */}
+        {!isNova && <NovaAccountCanvasSlot accountName={account.name} accountMeta={canvasMeta} contactNodes={contactNodes} dealNodes={dealNodes} />}
+      </>
+    ),
+    cases: (
+      <RelatedList
+        title="Cases"
+        newHref={`${ROUTES.caseNew}?account_id=${id}`}
+        newLabel="Case"
+        emptyText="No cases for this account yet."
+        rows={hub.cases}
+        rowKey={(sc) => sc.id}
+        rowHref={(sc) => ROUTES.case(sc.id)}
+        columns={[
+          { label: "Ref", render: (sc) => refCell(sc.ref) },
+          { label: "Equipment", render: (sc) => <span style={{ fontWeight: 500, color: c.ink }}>{sc.equipment_label || "—"}</span> },
+          { label: "Complaint", cellStyle: { maxWidth: 220 }, render: (sc) => (
+            <span style={{ fontSize: 12.5, color: c.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{sc.complaint || "—"}</span>
+          ) },
+          { label: "Stage", render: (sc) => <StatusPill label={CASE_STATUS_LABEL[sc.status]} tone={CASE_TONE[sc.status] ?? "blue"} /> },
+          { label: "Type", render: (sc) => <StatusPill label={CASE_TYPE_LABEL[sc.type]} tone="blue" /> },
+          { label: "Intake", cellStyle: { color: c.hint, fontSize: 12, whiteSpace: "nowrap" }, render: (sc) => fmtDate(sc.intake_at) },
+        ]}
+      />
+    ),
+    contacts: (
+      <RelatedList
+        title="Contacts"
+        newHref={`${ROUTES.contactNew}?account_id=${id}`}
+        newLabel="Contact"
+        emptyText="No contacts yet."
+        rows={hub.contacts}
+        rowKey={(ct) => ct.id}
+        rowHref={(ct) => ROUTES.contact(ct.id)}
+        columns={[
+          { label: "Name", render: (ct) => <span style={{ fontWeight: 600, color: c.ink }}>{ct.name}</span> },
+          { label: "Role", cellStyle: { color: c.muted }, render: (ct) => ct.role || "—" },
+          { label: "Phone", render: (ct) => ct.phone
+            ? <a href={`tel:${ct.phone}`} style={{ color: c.accent, textDecoration: "none", fontSize: 13 }}>{ct.phone}</a>
+            : <span style={{ color: c.hint }}>—</span> },
+          { label: "Email", render: (ct) => ct.email
+            ? <a href={`mailto:${ct.email}`} style={{ color: c.muted, textDecoration: "none", fontSize: 12.5 }}>{ct.email}</a>
+            : <span style={{ color: c.hint }}>—</span> },
+        ]}
+      />
+    ),
+    assets: (
+      <RelatedList
+        title="Assets"
+        newHref={`${ROUTES.assetNew}?account_id=${id}`}
+        newLabel="Asset"
+        emptyText="No assets registered yet."
+        rows={hub.assets}
+        rowKey={(a) => a.id}
+        rowHref={(a) => ROUTES.asset(a.id)}
+        columns={[
+          { label: "Asset", render: (a) => <span style={{ fontWeight: 600, color: c.ink }}>{a.name}</span> },
+          { label: "Kind", cellStyle: { color: c.muted, textTransform: "capitalize" }, render: (a) => a.kind },
+          { label: "Make / Model", cellStyle: { color: c.muted }, render: (a) => [a.make, a.model].filter(Boolean).join(" · ") || "—" },
+          { label: "Serial", render: (a) => <span style={{ fontFamily: "monospace", fontSize: 12, color: c.hint }}>{a.serial || "—"}</span> },
+          { label: "Rating", cellStyle: { color: c.muted }, render: (a) => a.rating || "—" },
+        ]}
+      />
+    ),
+    quotations: (
+      <RelatedList
+        title="Quotations"
+        newHref={`${ROUTES.quotationNew}?account_id=${id}`}
+        newLabel="Quotation"
+        emptyText="No quotations yet."
+        summary={quotationTotal > 0 ? <>Total pipeline: <strong style={{ color: c.ink }}>{fmtMoney(quotationTotal)}</strong></> : undefined}
+        rows={hub.quotes}
+        rowKey={(q) => q.id}
+        rowHref={(q) => ROUTES.quotation(q.id)}
+        columns={[
+          { label: "Ref", render: (q) => refCell(q.ref) },
+          { label: "Status", render: (q) => <QuoteStatusPill status={q.status} statuses={quoteStatuses} /> },
+          { label: "Amount", render: (q) => <span style={{ fontWeight: 600, color: c.ink }}>{fmtMoney(q.total)}</span> },
+          { label: "Valid until", cellStyle: { color: c.hint, fontSize: 12 }, render: (q) => (q.valid_until ? fmtDate(q.valid_until) : "—") },
+          { label: "Revision", render: (q) => q.revision > 1
+            ? <span style={{ fontSize: 11.5, background: "var(--amberbg)", color: "var(--amberink)", borderRadius: 4, padding: "2px 7px", fontWeight: 600 }}>Rev.{q.revision}</span>
+            : <span style={{ color: c.hint }}>—</span> },
+        ]}
+      />
+    ),
+    projects: (
+      <RelatedList
+        title="Projects"
+        newHref={`${ROUTES.wfmProjectNew}?account=${id}`}
+        newLabel="Project"
+        emptyText="No projects for this account yet."
+        summary={projectMinutes > 0 ? <>This month: <strong style={{ color: c.ink }}>{Math.floor(projectMinutes / 60)}h {String(Math.round(projectMinutes % 60)).padStart(2, "0")}m</strong></> : undefined}
+        rows={projectRows}
+        rowKey={(pr) => pr.id}
+        rowHref={(pr) => ROUTES.wfmProject(pr.id)}
+        columns={[
+          { label: "ID", render: (pr) => refCell(pr.ref) },
+          { label: "Project", render: (pr) => (
+            <span style={{ paddingLeft: pr.level * 14, fontWeight: 600, color: c.ink }}>
+              {pr.level > 0 && <span aria-hidden style={{ color: c.hint, marginRight: 6 }}>└</span>}
+              {pr.name}
+            </span>
+          ) },
+          { label: "Status", cellStyle: { color: c.muted, textTransform: "capitalize" }, render: (pr) => pr.status.replace("_", " ") },
+          { label: "Hours this month", align: "right", cellStyle: { fontVariantNumeric: "tabular-nums" }, render: (pr) => (
+            <span style={{ color: pr.minutes > 0 ? c.ink : c.hint }}>
+              {pr.minutes > 0 ? `${Math.floor(pr.minutes / 60)}h ${String(Math.round(pr.minutes % 60)).padStart(2, "0")}m` : "—"}
+            </span>
+          ) },
+          { label: "Invoiced to", cellStyle: { whiteSpace: "nowrap" }, render: (pr) => (
+            <span style={{ color: pr.billed_to ? c.muted : c.hint }}>
+              {pr.billed_to ? new Date(`${pr.billed_to}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "not yet"}
+            </span>
+          ) },
+        ]}
+      />
+    ),
+    invoices: (
+      <RelatedList
+        title="Invoices"
+        newHref={`${ROUTES.invoiceNew}?account_id=${id}`}
+        newLabel="Invoice"
+        emptyText="No invoices yet."
+        summary={invoiceBalance > 0 ? <>Outstanding: <strong style={{ color: "var(--red)" }}>{fmtMoney(invoiceBalance)}</strong></> : undefined}
+        rows={hub.invoices}
+        rowKey={(inv) => inv.id}
+        rowHref={(inv) => ROUTES.invoice(inv.id)}
+        columns={[
+          { label: "Ref", render: (inv) => refCell(inv.ref) },
+          { label: "Status", render: (inv) => <StatusPill label={INVOICE_LABEL[inv.status]} tone={INVOICE_TONE[inv.status]} /> },
+          { label: "Total", render: (inv) => <span style={{ fontWeight: 600, color: c.ink }}>{fmtMoney(inv.total)}</span> },
+          { label: "Balance due", render: (inv) => (
+            <span style={{ fontWeight: 600, color: inv.total - inv.paid_amount > 0 ? "var(--red)" : c.hint }}>
+              {fmtMoney(Math.max(0, inv.total - inv.paid_amount))}
+            </span>
+          ) },
+          { label: "Issued", cellStyle: { color: c.hint, fontSize: 12 }, render: (inv) => (inv.issued_at ? fmtDate(inv.issued_at) : "—") },
+        ]}
+      />
+    ),
+    activity: (
+      <>
+        <Card title={`Activity timeline${hub.activities.length ? ` (${hub.activities.length})` : ""}`}>
           {hub.activities.length === 0 ? (
-            <div style={{ fontSize: 13, color: c.hint, textAlign: "center", padding: "32px 0" }}>No activity recorded yet</div>
+            <EmptyState title="No activity recorded yet" />
           ) : (
             hub.activities.map((act, i) => {
               const tone = pillar[ACT_TONE[act.pillar]];
@@ -692,7 +389,7 @@ export default async function AccountHubPage({
                   </div>
                   <div style={{ paddingBottom: last ? 0 : 16, fontSize: 13, flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <Pill label={act.pillar} tone={ACT_TONE[act.pillar]} />
+                      <StatusPill label={act.pillar} tone={ACT_TONE[act.pillar]} />
                       <span style={{ color: c.hint, fontSize: 12 }}>{fmtDate(act.at)}</span>
                     </div>
                     <div style={{ marginTop: 5, color: c.ink, lineHeight: 1.5 }}>{act.text}</div>
@@ -701,29 +398,52 @@ export default async function AccountHubPage({
               );
             })
           )}
-        </section>
-      )}
-      {/* The constellation, for a theme that has no Nova landing view to put
-          it on -- Spectacular (the slot self-gates, so a tenant on neither
-          theme still renders nothing). Overview only: it is a summary of the
-          whole account, so repeating it under Quotes or Cases would just push
-          the tab's own content down. */}
-      {!isNova && activeTab === "overview" && (
-        <NovaAccountCanvasSlot accountName={account.name} accountMeta={canvasMeta} contactNodes={contactNodes} dealNodes={dealNodes} />
-      )}
-      <NovaTimelineSlot objectType="accounts" objectId={id} />
-    </>
+        </Card>
+        <RecordActivity objectType="accounts" objectId={id} isAdmin={role === "admin"} />
+      </>
+    ),
+  };
+
+  const counts: Partial<Record<Tab, number>> = {
+    cases: hub.cases.length, contacts: hub.contacts.length, assets: hub.assets.length,
+    quotations: hub.quotes.length, invoices: hub.invoices.length,
+  };
+
+  return (
+    <ObjectRecordPage
+      backHref={ROUTES.accounts}
+      backLabel="All accounts"
+      title={account.name}
+      reference={account.ref}
+      status={<StatusPill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />}
+      primaryAction={<Account360Button accountId={account.id} />}
+      menu={
+        <RecordMoreMenu
+          inlineEdit={{ overviewHref: tabHref("overview") }}
+          extraItems={isNova ? [{ label: "Back to story", href: basePath }] : []}
+          adapt={{ objectType: "account", objectLabel: "Account", isAdmin: role === "admin" }}
+        />
+      }
+      facts={[
+        { label: "City", value: account.city ?? "—" },
+        { label: "Phone", value: account.phone ? <a href={`tel:${account.phone}`} style={{ color: "inherit", textDecoration: "none" }}>{account.phone}</a> : "—" },
+        { label: "Email", value: account.email ? <a href={`mailto:${account.email}`} style={{ color: "inherit", textDecoration: "none" }}>{account.email}</a> : "—" },
+        { label: "Customer since", value: fmtDate(account.created_at) },
+      ]}
+      basePath={basePath}
+      explicitFirstTab
+      activeTab={rawTab}
+      tabs={visibleTabs.map((t) => ({ id: t.id, label: t.label, count: counts[t.id], content: tabContent[t.id] }))}
+      rail={(quickCreate.length > 0 || referredBy) ? (
+        <>
+          {referredBy && (
+            <Card title="Referred by" padding={14}>
+              <Link href={ROUTES.account(referredBy.id)} style={{ color: c.accent, textDecoration: "none", fontSize: 13.5, fontWeight: 600 }}>{referredBy.name}</Link>
+            </Card>
+          )}
+          {quickCreate.length > 0 && <QuickCreateDeck items={quickCreate} />}
+        </>
+      ) : undefined}
+    />
   );
 }
-
-// ── Shared styles ──────────────────────────────────────────────────────────────
-
-// Full-width tab tables
-const th2: React.CSSProperties = {
-  textAlign: "left", fontSize: 11.5, fontWeight: 700, color: c.hint,
-  textTransform: "uppercase", letterSpacing: 0.3, padding: "10px 16px",
-  borderBottom: `1px solid ${c.line}`,
-};
-const td2: React.CSSProperties = {
-  padding: "12px 16px", fontSize: 13.5, verticalAlign: "middle",
-};

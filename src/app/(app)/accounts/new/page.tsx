@@ -3,13 +3,14 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import MobileSection from "@/components/MobileSection";
 import { ROUTES } from "@/lib/constants";
-import Link from "next/link";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { useCurrency } from "@/lib/tenant-context";
 import { formatMoneyCompact } from "@/lib/currency";
+import ObjectFormPage from "@/components/page/ObjectFormPage";
+import Card from "@/components/ui/Card";
+import Field from "@/components/ui/Field";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 
 interface CFDef {
   id: string; field_key: string; field_label: string;
@@ -24,19 +25,6 @@ const ACCOUNT_TYPES = [
   { value: "oem",          label: "OEM / Dealer" },
   { value: "end_customer", label: "End Customer" },
 ];
-
-const label: React.CSSProperties = {
-  display: "block", fontSize: 11.5, fontWeight: 600,
-  color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,
-};
-const input: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", fontSize: 13,
-  border: `1px solid ${c.line}`, borderRadius: 8,
-  background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
-};
-const fw: React.CSSProperties = { marginBottom: 14 };
-const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
-const sectionHead: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 14px" };
 
 export default function NewAccountPage() {
   const cur = useCurrency();
@@ -86,24 +74,23 @@ export default function NewAccountPage() {
     return (
       <>
         {sfs.map((f) => (
-          <div key={f.id} style={fw}>
-            <label style={label}>{f.field_label}{f.is_required ? " *" : ""}</label>
+          <Field key={f.id} label={f.field_label} required={f.is_required}>
             {f.field_type === "select" && f.options ? (
-              <select style={input} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
+              <Select value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
                 <option value="">— select —</option>
                 {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
+              </Select>
             ) : f.field_type === "checkbox" ? (
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, marginTop: 4 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, marginTop: 4, textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
                 <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
                 {cfValues[f.field_key] ? "Yes" : "No"}
-              </label>
+              </span>
             ) : f.field_type === "textarea" ? (
-              <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+              <Textarea value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
             ) : (
-              <input style={input} type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
+              <Input type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
             )}
-          </div>
+          </Field>
         ))}
       </>
     );
@@ -127,223 +114,102 @@ export default function NewAccountPage() {
     });
   }
 
-  const identitySection = (
-    <>
-      <div style={fw}>
-        <label style={label}>Company name *</label>
-        <input style={input} value={form.name} onChange={set("name")} required placeholder="e.g. Tata Steel Ltd" />
-      </div>
-      <div style={fw}>
-        <label style={label}>Account type *</label>
-        <select style={input} value={form.type} onChange={set("type")}>
-          {ACCOUNT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-      </div>
-      {cfInputs("Identity")}
-    </>
-  );
-
-  const addressSection = (
-    <>
-      <div style={fw}>
-        <label style={label}>Address line 1</label>
-        <input style={input} value={form.address_line1} onChange={set("address_line1")} placeholder="Street / building / plot" />
-      </div>
-      <div style={fw}>
-        <label style={label}>Address line 2</label>
-        <input style={input} value={form.address_line2} onChange={set("address_line2")} placeholder="Area / landmark" />
-      </div>
-      <div style={{ ...grid2, ...fw }}>
-        <div>
-          <label style={label}>City</label>
-          <input style={input} value={form.city} onChange={set("city")} placeholder="e.g. Bengaluru" />
-        </div>
-        <div>
-          <label style={label}>State</label>
-          <input style={input} value={form.state} onChange={set("state")} placeholder="e.g. Karnataka" />
-        </div>
-      </div>
-      <div style={{ ...grid2, ...fw }}>
-        <div>
-          <label style={label}>Postal code</label>
-          <input style={input} value={form.postal_code} onChange={set("postal_code")} placeholder="560001" />
-        </div>
-        <div>
-          <label style={label}>Country</label>
-          <input style={input} value={form.country} onChange={set("country")} placeholder="India" />
-        </div>
-      </div>
-      {cfInputs("Address")}
-    </>
-  );
-
-  const communicationSection = (
-    <>
-      <div style={{ ...grid2, ...fw }}>
-        <div>
-          <label style={label}>Primary phone</label>
-          <input style={input} value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
-        </div>
-        <div>
-          <label style={label}>Secondary phone</label>
-          <input style={input} value={form.phone2} onChange={set("phone2")} placeholder="+91 98765 43211" />
-        </div>
-      </div>
-      <div style={{ ...grid2, ...fw }}>
-        <div>
-          <label style={label}>Primary email</label>
-          <input style={input} type="email" value={form.email} onChange={set("email")} placeholder="accounts@company.com" />
-        </div>
-        <div>
-          <label style={label}>Secondary email</label>
-          <input style={input} type="email" value={form.email2} onChange={set("email2")} placeholder="info@company.com" />
-        </div>
-      </div>
-      <div style={fw}>
-        <label style={label}>Website</label>
-        <input style={input} value={form.website} onChange={set("website")} placeholder="https://company.com" />
-      </div>
-      {cfInputs("Communication")}
-    </>
-  );
-
-  const businessSection = (
-    <>
-      <div style={fw}>
-        <label style={label}>Industry</label>
-        <input style={input} value={form.industry} onChange={set("industry")} placeholder="e.g. Textile Manufacturing" />
-      </div>
-      <div style={{ ...grid2, ...fw }}>
-        <div>
-          <label style={label}>Employees</label>
-          <input style={input} value={form.employee_count} onChange={set("employee_count")} placeholder="e.g. 250" />
-        </div>
-        <div>
-          <label style={label}>Annual revenue</label>
-          <input style={input} value={form.annual_revenue} onChange={set("annual_revenue")} placeholder={`e.g. ${formatMoneyCompact(50_000_000, cur, 0)}`} />
-        </div>
-      </div>
-      <div style={fw}>
-        <label style={label}>GSTIN</label>
-        <input style={input} value={form.gstin} onChange={set("gstin")} placeholder="27AABCV1234F1Z5" />
-      </div>
-      {cfInputs("Business")}
-    </>
-  );
-
-  const notesSection = (
-    <>
-      <div style={fw}>
-        <label style={label}>Notes</label>
-        <textarea
-          style={{ ...input, minHeight: 80, resize: "vertical" }}
-          value={form.notes}
-          onChange={set("notes")}
-          placeholder="Any notes about this account…"
-        />
-      </div>
-      <div style={fw}>
-        <label style={label}>Referred by account ID</label>
-        <input style={input} value={form.referred_by_account_id} onChange={set("referred_by_account_id")} placeholder="UUID of OEM account" />
-        <p style={{ fontSize: 11, color: c.hint, margin: "5px 0 0" }}>Set when type is End Customer and an OEM referred them</p>
-      </div>
-      {cfInputs("Notes")}
-    </>
-  );
-
   return (
-    <>
-      <div className="bpm-page-header" style={{ marginBottom: 12 }}>
-        <Link href={ROUTES.accounts} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          ← All accounts
-        </Link>
-      </div>
+    <ObjectFormPage
+      backHref={ROUTES.accounts}
+      backLabel="All accounts"
+      title="New Account"
+      subtitle="Add a customer, prospect, OEM or end customer"
+      headerAction={<AdaptObjectDrawer objectType="account" objectLabel="Account" isAdmin={true} />}
+      onSubmit={handleSubmit}
+      saving={pending}
+      saveLabel="Save"
+      error={error}
+    >
+      <Card title="Identity" padding={18}>
+        <Field label="Company name" required>
+          <Input value={form.name} onChange={set("name")} required placeholder="e.g. Tata Steel Ltd" />
+        </Field>
+        <Field label="Account type" required>
+          <Select value={form.type} onChange={set("type")}>
+            {ACCOUNT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </Select>
+        </Field>
+        {cfInputs("Identity")}
+      </Card>
 
-      <div className="bpm-page-header" style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Account</h1>
-          <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Add a customer, prospect, OEM or end customer</p>
+      <Card title="Address" padding={18}>
+        <Field label="Address line 1">
+          <Input value={form.address_line1} onChange={set("address_line1")} placeholder="Street / building / plot" />
+        </Field>
+        <Field label="Address line 2">
+          <Input value={form.address_line2} onChange={set("address_line2")} placeholder="Area / landmark" />
+        </Field>
+        <div className="fg2">
+          <Field label="City">
+            <Input value={form.city} onChange={set("city")} placeholder="e.g. Bengaluru" />
+          </Field>
+          <Field label="State">
+            <Input value={form.state} onChange={set("state")} placeholder="e.g. Karnataka" />
+          </Field>
+          <Field label="Postal code">
+            <Input value={form.postal_code} onChange={set("postal_code")} placeholder="560001" />
+          </Field>
+          <Field label="Country">
+            <Input value={form.country} onChange={set("country")} placeholder="India" />
+          </Field>
         </div>
-        <AdaptObjectDrawer objectType="account" objectLabel="Account" isAdmin={true} />
-      </div>
+        {cfInputs("Address")}
+      </Card>
 
-      <form onSubmit={handleSubmit}>
-        {/* ── Desktop ── */}
-        <div className="mob-hide" style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={cardStyle}>
-              <h3 style={sectionHead}>Identity</h3>
-              {identitySection}
-            </div>
-            <div style={cardStyle}>
-              <h3 style={sectionHead}>Address</h3>
-              {addressSection}
-            </div>
-            <div style={cardStyle}>
-              <h3 style={sectionHead}>Communication</h3>
-              {communicationSection}
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={cardStyle}>
-              <h3 style={sectionHead}>Business</h3>
-              {businessSection}
-            </div>
-            <div style={cardStyle}>
-              <h3 style={sectionHead}>Notes &amp; Referral</h3>
-              {notesSection}
-            </div>
-            {error && <ErrorBox msg={error} />}
-            <Actions pending={pending} cancelHref={ROUTES.accounts} label="Create Account" />
-          </div>
+      <Card title="Communication" padding={18}>
+        <div className="fg2">
+          <Field label="Primary phone">
+            <Input value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
+          </Field>
+          <Field label="Secondary phone">
+            <Input value={form.phone2} onChange={set("phone2")} placeholder="+91 98765 43211" />
+          </Field>
+          <Field label="Primary email">
+            <Input type="email" value={form.email} onChange={set("email")} placeholder="accounts@company.com" />
+          </Field>
+          <Field label="Secondary email">
+            <Input type="email" value={form.email2} onChange={set("email2")} placeholder="info@company.com" />
+          </Field>
         </div>
+        <Field label="Website">
+          <Input value={form.website} onChange={set("website")} placeholder="https://company.com" />
+        </Field>
+        {cfInputs("Communication")}
+      </Card>
 
-        {/* ── Mobile ── */}
-        <div className="mob-show" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <MobileSection title="Identity" defaultOpen>{identitySection}</MobileSection>
-          <MobileSection title="Address">{addressSection}</MobileSection>
-          <MobileSection title="Communication">{communicationSection}</MobileSection>
-          <MobileSection title="Business">{businessSection}</MobileSection>
-          <MobileSection title="Notes & Referral">{notesSection}</MobileSection>
-          {error && <ErrorBox msg={error} />}
-          <Actions pending={pending} cancelHref={ROUTES.accounts} label="Create Account" />
+      <Card title="Business" padding={18}>
+        <Field label="Industry">
+          <Input value={form.industry} onChange={set("industry")} placeholder="e.g. Textile Manufacturing" />
+        </Field>
+        <div className="fg2">
+          <Field label="Employees">
+            <Input value={form.employee_count} onChange={set("employee_count")} placeholder="e.g. 250" />
+          </Field>
+          <Field label="Annual revenue">
+            <Input value={form.annual_revenue} onChange={set("annual_revenue")} placeholder={`e.g. ${formatMoneyCompact(50_000_000, cur, 0)}`} />
+          </Field>
         </div>
-      </form>
-    </>
-  );
-}
+        <Field label="GSTIN">
+          <Input value={form.gstin} onChange={set("gstin")} placeholder="27AABCV1234F1Z5" />
+        </Field>
+        {cfInputs("Business")}
+      </Card>
 
-function ErrorBox({ msg }: { msg: string }) {
-  return (
-    <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "var(--err-ink)" }}>
-      {msg}
-    </div>
-  );
-}
-
-function Actions({ pending, cancelHref, label }: { pending: boolean; cancelHref: string; label: string }) {
-  return (
-    <div style={{ display: "flex", gap: 8 }}>
-      <button
-        type="submit"
-        disabled={pending}
-        style={{
-          flex: 1, padding: "12px 0", borderRadius: 8, border: "none",
-          background: `var(--modern-accent, ${c.accent})`, color: "#fff", fontWeight: 700, fontSize: 14,
-          cursor: pending ? "wait" : "pointer",
-        }}
-      >
-        {pending ? "Creating…" : label}
-      </button>
-      <Link
-        href={cancelHref}
-        style={{
-          padding: "12px 18px", borderRadius: 8, border: `1px solid ${c.line}`,
-          color: c.muted, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center",
-        }}
-      >
-        Cancel
-      </Link>
-    </div>
+      <Card title="Notes & Referral" padding={18}>
+        <Field label="Notes">
+          <Textarea value={form.notes} onChange={set("notes")} placeholder="Any notes about this account…" />
+        </Field>
+        <Field label="Referred by account ID" hint="Set when type is End Customer and an OEM referred them">
+          <Input value={form.referred_by_account_id} onChange={set("referred_by_account_id")} placeholder="UUID of OEM account" />
+        </Field>
+        {cfInputs("Notes")}
+      </Card>
+    </ObjectFormPage>
   );
 }

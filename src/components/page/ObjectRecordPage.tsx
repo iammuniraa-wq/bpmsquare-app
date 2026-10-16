@@ -32,7 +32,7 @@ export type RecordFact = { label: string; value: React.ReactNode };
  */
 export default function ObjectRecordPage({
   backHref, backLabel, title, tabTitle, reference, meta, status,
-  primaryAction, menu, facts = [], tabs, activeTab, basePath, rail,
+  primaryAction, menu, facts = [], tabs, activeTab, basePath, explicitFirstTab = false, rail,
 }: {
   backHref: string;
   /** "All suppliers" -- the arrow is added here. */
@@ -51,12 +51,14 @@ export default function ObjectRecordPage({
   activeTab?: string;
   /** This page's own path, for the tab links. */
   basePath: string;
+  /** Link the first tab as `?tab=<id>` too -- for a page where the bare URL means something else (the Nova account landing). */
+  explicitFirstTab?: boolean;
   rail?: React.ReactNode;
 }) {
   const active = tabs.find((t) => t.id === activeTab) ?? tabs[0];
   const subtitle = [reference, meta].filter(Boolean).join(" · ");
   const shownFacts = facts.slice(0, 4);
-  const hrefFor = (id: string) => (id === tabs[0].id ? basePath : `${basePath}?tab=${id}`);
+  const hrefFor = (id: string) => (id === tabs[0].id && !explicitFirstTab ? basePath : `${basePath}?tab=${id}`);
 
   return (
     <RecordEditProvider>

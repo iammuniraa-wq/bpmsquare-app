@@ -14,7 +14,7 @@ import FormFooter from "@/components/ui/FormFooter";
  * that form validates or saves.
  */
 export default function ObjectFormPage({
-  backHref, backLabel, title, subtitle, onSubmit, saving = false, saveLabel, error, cancelHref, footerLeft, maxWidth = 820, children,
+  backHref, backLabel, title, subtitle, onSubmit, saving = false, saveLabel, error, cancelHref, footerLeft, headerAction, maxWidth = 820, children,
 }: {
   backHref: string;
   /** "All suppliers" -- the arrow is added here. */
@@ -28,6 +28,8 @@ export default function ObjectFormPage({
   /** Defaults to `backHref`. */
   cancelHref?: string;
   footerLeft?: React.ReactNode;
+  /** Top-right of the header, for the rare form with its own control (the Adapt-fields drawer). */
+  headerAction?: React.ReactNode;
   maxWidth?: number;
   children: React.ReactNode;
 }) {
@@ -39,7 +41,7 @@ export default function ObjectFormPage({
         </Link>
       </div>
 
-      <PageHeader title={title} subtitle={subtitle} />
+      <PageHeader title={title} subtitle={subtitle} action={headerAction} />
 
       <form onSubmit={onSubmit} className="bpm-form-page" style={{ maxWidth }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{children}</div>

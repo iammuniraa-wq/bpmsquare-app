@@ -1,6 +1,7 @@
 "use client";
 
 import { useNovaSurfaces } from "@/lib/tenant-context";
+import Button from "@/components/ui/Button";
 
 /**
  * The way into Account 360. Self-gates (Nova or Spectacular, like
@@ -33,17 +34,9 @@ export default function Account360Button({ accountId, variant = "button" }: { ac
   }
 
   return (
-    <button
-      onClick={() => openAccount360(accountId)}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", font: "inherit",
-        padding: "6px 11px", borderRadius: 8, fontSize: 12.5, fontWeight: 650,
-        border: "1px solid var(--line, #e5e7eb)", background: "transparent", color: "var(--ink, #111827)",
-      }}
-    >
-      <Glyph />
+    <Button variant="secondary" icon={<Glyph />} onClick={() => openAccount360(accountId)}>
       Account 360
-    </button>
+    </Button>
   );
 }
 
