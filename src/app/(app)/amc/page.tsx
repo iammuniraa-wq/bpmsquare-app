@@ -4,15 +4,14 @@ import { moneyFormatter } from "@/lib/currency";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { listContracts } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import PageHeader from "@/components/PageHeader";
-import Pill from "@/components/Pill";
-import ListFilterBar from "@/components/ListFilterBar";
-import PagerLink from "@/components/PagerLink";
-import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { CARD_SURFACE } from "@/components/ui/Card";
+import StatusPill from "@/components/ui/StatusPill";
+import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
+import { paginate } from "@/lib/paginate";
 import { ROUTES } from "@/lib/constants";
 
 type ContractStatus = "active" | "expired" | "pending" | "cancelled";
+type ContractRow = Awaited<ReturnType<typeof listContracts>>[number];
 
 const STATUS_TONE: Record<ContractStatus, PillarKey> = {
   active: "green", expired: "red", pending: "amber", cancelled: "red",
@@ -28,15 +27,6 @@ function daysLeft(endDate: string | null): number {
   if (!endDate) return 0;
   return Math.ceil((new Date(endDate).getTime() - Date.now()) / 86_400_000);
 }
-
-const th: React.CSSProperties = {
-  textAlign: "left", color: c.hint, fontWeight: 500,
-  padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 11.5,
-};
-const td: React.CSSProperties = {
-  padding: "10px 12px", borderBottom: `1px solid ${c.line}`,
-  fontSize: 12.5, verticalAlign: "middle",
-};
 
 export default async function AmcPage({
   searchParams,
@@ -67,98 +57,76 @@ export default async function AmcPage({
   });
   const pageRows = paginate(visible, page);
 
-  return (
-    <>
-      <PageHeader title="AMC Contracts" subtitle={`${contracts.length} total · Annual Maintenance Contracts`} />
+  const columns: ListColumn<ContractRow>[] = [
+    {
+      id: "ref", label: "Ref", card: "title",
+      render: (con) => <span style={{ fontFamily: "monospace", fontSize: 12.5, color: c.accent, fontWeight: 600 }}>{con.ref}</span>,
+    },
+    { id: "account", label: "Account", render: (con) => con.account_name },
+    {
+      id: "status", label: "Status",
+      render: (con) => <StatusPill label={STATUS_LABEL[con.status as ContractStatus] ?? con.status} tone={STATUS_TONE[con.status as ContractStatus] ?? "blue"} />,
+    },
+    { id: "period", label: "Period", cellStyle: { color: c.muted, fontSize: 12 }, render: (con) => `${fmtDate(con.start_date)} – ${fmtDate(con.end_date)}` },
+    {
+      id: "left", label: "Days left",
+      render: (con) => {
+        const left = daysLeft(con.end_date);
+        const isExpiringSoon = con.status === "active" && left <= 60;
+        return <span style={{ fontWeight: 600, color: isExpiringSoon ? pillar.amber.base : c.ink }}>{con.status === "active" ? (left > 0 ? `${left}d` : "Expired") : "—"}</span>;
+      },
+    },
+    { id: "value", label: "Value", cellStyle: { fontWeight: 700 }, render: (con) => (con.value ? inr(con.value) : "—") },
+  ];
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-        <div style={{ ...cardStyle, textAlign: "center" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Active</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: pillar.green.base }}>{active.length}</div>
-        </div>
-        <Link
-          href={expiring === "1" ? ROUTES.amc : `${ROUTES.amc}?expiring=1`}
-          className={`stat-tile is-clickable${expiring === "1" ? " is-active" : ""}`}
-          style={{ ...cardStyle, textAlign: "center", textDecoration: "none", display: "block" }}
-        >
-          <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Expiring ≤60 days</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: expiringSoon.length > 0 ? pillar.amber.base : pillar.green.base }}>{expiringSoon.length}</div>
-        </Link>
-        <div style={{ ...cardStyle, textAlign: "center" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Active Value</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: pillar.teal.base }}>{inr(totalValue)}</div>
-        </div>
+  const tiles = (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 14 }}>
+      <div style={{ ...CARD_SURFACE, padding: 14, textAlign: "center" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Active</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: pillar.green.base }}>{active.length}</div>
       </div>
+      <Link
+        href={expiring === "1" ? ROUTES.amc : `${ROUTES.amc}?expiring=1`}
+        className={`stat-tile is-clickable${expiring === "1" ? " is-active" : ""}`}
+        style={{ ...CARD_SURFACE, padding: 14, textAlign: "center", textDecoration: "none", display: "block" }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Expiring ≤60 days</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: expiringSoon.length > 0 ? pillar.amber.base : pillar.green.base }}>{expiringSoon.length}</div>
+      </Link>
+      <div style={{ ...CARD_SURFACE, padding: 14, textAlign: "center" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Active Value</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: pillar.teal.base }}>{inr(totalValue)}</div>
+      </div>
+    </div>
+  );
 
-      <ListFilterBar
-        searchValue={q}
-        searchPlaceholder="Search contract ref or account…"
-        selects={[{
-          name: "status",
-          value: status,
-          placeholder: "All statuses",
+  return (
+    <ObjectListPage
+      title="AMC Contracts"
+      subtitle={`${contracts.length} total · Annual Maintenance Contracts`}
+      search={{
+        value: q,
+        placeholder: "Search contract ref or account…",
+        selects: [{
+          name: "status", value: status, placeholder: "All statuses",
           options: (Object.keys(STATUS_LABEL) as ContractStatus[]).map((k) => ({ value: k, label: STATUS_LABEL[k] })),
-        }]}
-        hiddenParams={{ expiring }}
-        clearHref={ROUTES.amc}
-      />
-
-      {visible.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>
-          {contracts.length > 0 ? "No contracts match these filters." : "No AMC contracts yet."}
-        </div>
-      ) : (
-        <div style={{ ...cardStyle, overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={th}>Ref</th>
-                <th style={th}>Account</th>
-                <th style={th}>Status</th>
-                <th style={th}>Period</th>
-                <th style={th}>Days left</th>
-                <th style={th}>Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.map((con) => {
-                const left = daysLeft(con.end_date);
-                const isExpiringSoon = con.status === "active" && left <= 60;
-                return (
-                  <tr key={con.id}>
-                    <td style={td}>
-                      <span style={{ fontFamily: "monospace", fontSize: 12, color: c.accent, fontWeight: 600 }}>
-                        {con.ref}
-                      </span>
-                    </td>
-                    <td style={td}>{con.account_name}</td>
-                    <td style={td}>
-                      <Pill
-                        label={STATUS_LABEL[con.status as ContractStatus] ?? con.status}
-                        tone={STATUS_TONE[con.status as ContractStatus] ?? "blue"}
-                      />
-                    </td>
-                    <td style={{ ...td, color: c.muted, fontSize: 11.5 }}>
-                      {fmtDate(con.start_date)} – {fmtDate(con.end_date)}
-                    </td>
-                    <td style={{ ...td, fontWeight: 600, color: isExpiringSoon ? pillar.amber.base : c.ink }}>
-                      {con.status === "active" ? (left > 0 ? `${left}d` : "Expired") : "—"}
-                    </td>
-                    <td style={{ ...td, fontWeight: 700 }}>{con.value ? inr(con.value) : "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <PagerLink
-            page={page}
-            total={visible.length}
-            pageSize={DEFAULT_PAGE_SIZE}
-            baseHref={ROUTES.amc}
-            hiddenParams={{ q, status, expiring }}
-          />
-        </div>
-      )}
-    </>
+        }],
+        hiddenParams: { expiring },
+      }}
+      beforeTable={tiles}
+      columns={columns}
+      rows={pageRows}
+      rowKey={(con) => con.id}
+      total={visible.length}
+      page={page}
+      baseHref={ROUTES.amc}
+      linkParams={{ q, status, expiring }}
+      filtered={!!(needle || status || expiring)}
+      empty={{
+        title: "No AMC contracts yet",
+        text: "Annual maintenance contracts appear here once they are imported or created by an integration.",
+        filteredTitle: "No contracts match these filters.",
+      }}
+    />
   );
 }
