@@ -4,7 +4,9 @@ import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
-import Pill from "@/components/Pill";
+import StatusPill from "@/components/ui/StatusPill";
+import Button from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { ROUTES } from "@/lib/constants";
 import type { WfmProject, WfmProjectStatus } from "@/lib/wfm/types";
 import { canNest, depthOf } from "@/lib/wfm/projectTree";
@@ -114,19 +116,13 @@ export default function ProjectTreeRows({
     router.refresh();
   }
 
-  const iconBtn: React.CSSProperties = {
-    width: 26, height: 26, borderRadius: 7, cursor: "pointer", flexShrink: 0,
-    border: `1px solid ${c.line}`, background: "transparent", color: c.muted,
-    fontSize: 15, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center",
-  };
-
   function addRow(parentId: string, depth: number) {
     const parent = byId.get(parentId);
     return (
       <tr key={`add-${parentId}`} style={{ background: c.accentbg, borderBottom: `1px solid ${c.line}` }}>
         <td colSpan={10} style={{ ...td, paddingLeft: 14 + (depth + 1) * 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <input
+            <Input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -135,30 +131,13 @@ export default function ProjectTreeRows({
                 if (e.key === "Escape") setAdding(null);
               }}
               placeholder="Name of the new sub-project"
-              style={{
-                flex: "1 1 220px", maxWidth: 360, padding: "7px 10px", borderRadius: 7, fontSize: 13,
-                border: `1px solid ${c.line}`, background: c.panel, color: c.ink,
-              }}
+              aria-label="Name of the new sub-project"
+              style={{ flex: "1 1 220px", maxWidth: 360, width: "auto" }}
             />
-            <button
-              type="button"
-              onClick={() => create(parentId)}
-              disabled={saving || !name.trim()}
-              style={{
-                padding: "7px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, border: "none",
-                background: name.trim() ? c.accent : c.line, color: name.trim() ? "#fff" : c.hint,
-                cursor: name.trim() && !saving ? "pointer" : "default", whiteSpace: "nowrap",
-              }}
-            >
+            <Button variant="primary" size="sm" onClick={() => create(parentId)} disabled={!name.trim()} loading={saving}>
               {saving ? "Creating…" : `Create Level ${depth + 1} under ${parent?.name ?? "this"}`}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAdding(null)}
-              style={{ padding: "7px 10px", borderRadius: 7, fontSize: 12.5, background: "none", border: "none", color: c.muted, cursor: "pointer" }}
-            >
-              Cancel
-            </button>
+            </Button>
+            <Button variant="quiet" size="sm" onClick={() => setAdding(null)}>Cancel</Button>
             {error && <span style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</span>}
           </div>
         </td>
@@ -178,17 +157,16 @@ export default function ProjectTreeRows({
           <td className="mob-hide" style={{ ...td, color: c.hint, fontSize: 12.5, whiteSpace: "nowrap" }}>{p.ref ?? "—"}</td>
           <td style={td}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, rowGap: 4, flexWrap: "wrap", paddingLeft: depth * 18 }}>
-              <button
-                type="button"
+              <Button
+                variant="quiet" size="sm" iconOnly
                 onClick={() => setOpen((o) => ({ ...o, [p.id]: !isOpen }))}
                 aria-label={isOpen ? "Collapse" : "Expand"}
                 style={{
-                  width: 16, flexShrink: 0, background: "none", border: "none", padding: 0,
-                  color: c.hint, fontSize: 10, cursor: kids.length ? "pointer" : "default",
+                  width: 22, height: 22, flexShrink: 0, fontSize: 10,
                   visibility: kids.length ? "visible" : "hidden",
                   transform: isOpen ? "rotate(90deg)" : "none", transition: "transform .12s",
                 }}
-              >▸</button>
+              >▸</Button>
               <Link href={ROUTES.wfmProject(p.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
                 {p.name}
               </Link>
@@ -217,7 +195,7 @@ export default function ProjectTreeRows({
           {/* The four detail columns give way on a phone, so ID, name,
               status and the + stay reachable without a sideways scroll. */}
           <td className="mob-hide" style={{ ...td, color: c.muted }}>{p.code ?? "—"}</td>
-          <td style={td}><Pill label={STATUS_LABEL[p.status]} tone={STATUS_TONE[p.status]} /></td>
+          <td style={td}><StatusPill label={STATUS_LABEL[p.status]} tone={STATUS_TONE[p.status]} /></td>
           <td className="mob-hide" style={{ ...td, color: c.muted, whiteSpace: "nowrap" }}>{fmtDate(p.start_date)}</td>
           <td className="mob-hide" style={{ ...td, color: c.muted, whiteSpace: "nowrap" }}>{fmtDate(p.end_date)}</td>
           <td className="mob-hide" style={{ ...td, color: c.muted }}>{p.budget_hours ?? "—"}</td>
@@ -226,20 +204,14 @@ export default function ProjectTreeRows({
           </td>
           <td style={{ ...td, textAlign: "right", width: 40 }}>
             {tree && isAdmin && canNest(depth) && (
-              <button
-                type="button"
+              <Button
+                variant={adding === p.id ? "primary" : "secondary"} size="sm" iconOnly
                 onClick={() => (adding === p.id ? setAdding(null) : startAdd(p.id))}
                 title={`Add a sub-project under ${p.name}`}
                 aria-label={`Add a sub-project under ${p.name}`}
-                style={{
-                  ...iconBtn,
-                  border: `1px solid ${adding === p.id ? c.accent : c.line}`,
-                  background: adding === p.id ? c.accentbg : "transparent",
-                  color: adding === p.id ? c.accent : c.muted,
-                }}
               >
                 {adding === p.id ? "×" : "+"}
-              </button>
+              </Button>
             )}
           </td>
         </tr>

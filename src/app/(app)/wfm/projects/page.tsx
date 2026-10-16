@@ -1,10 +1,11 @@
-import Link from "next/link";
 import { requireFeature } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisorPage, getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
 import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import ListFilterBar from "@/components/ListFilterBar";
@@ -115,26 +116,16 @@ export default async function WfmProjectsPage({
             ? "Project costing isn't set up on this database yet."
             : `${projects.length} total · ${activeCount} active · hours attributed from punches`
         }
-        action={
-          <Link
-            href={ROUTES.wfmProjectNew}
-            style={{
-              padding: "8px 16px", borderRadius: 7, fontSize: 13, fontWeight: 600,
-              background: c.accent, color: "#fff", textDecoration: "none",
-            }}
-          >
-            + Add Project
-          </Link>
-        }
+        action={<Button href={ROUTES.wfmProjectNew} variant="primary">+ New Project</Button>}
       />
 
       {pendingMigration ? (
-        <div style={{ ...cardStyle, padding: "40px 24px", textAlign: "center", color: c.hint, fontSize: 14 }}>
-          Migration <code>0104_wfm_projects.sql</code> hasn&apos;t been run on this database yet.
-          <div style={{ marginTop: 8, fontSize: 13 }}>
-            Everything else in Workforce keeps working — this screen fills in once it does.
-          </div>
-        </div>
+        <Card>
+          <EmptyState
+            title="Project costing isn't set up on this database yet."
+            text="Migration 0104_wfm_projects.sql hasn't been run. Everything else in Workforce keeps working — this screen fills in once it does."
+          />
+        </Card>
       ) : (
         <>
           {/* Insights are collapsed by default (owner: "hide insights") -- the
@@ -159,18 +150,13 @@ export default async function WfmProjectsPage({
             clearHref={ROUTES.wfmProjects}
           />
 
-          <div style={{ ...cardStyle, overflow: "hidden" }}>
+          <Card padding={0} style={{ overflow: "hidden" }}>
             {filtered.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "48px 24px", color: c.hint, fontSize: 14 }}>
-                {q || statusFilter ? "No projects match that filter." : "No projects yet."}
-                {!q && !statusFilter && (
-                  <div style={{ marginTop: 12 }}>
-                    <Link href={ROUTES.wfmProjectNew} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-                      + Add your first project
-                    </Link>
-                  </div>
-                )}
-              </div>
+              <EmptyState
+                title={q || statusFilter ? "No projects match that filter." : "No projects yet"}
+                text={q || statusFilter ? undefined : "A project is what worked hours get attributed to."}
+                action={!q && !statusFilter ? <Button href={ROUTES.wfmProjectNew} variant="primary">+ New Project</Button> : undefined}
+              />
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -200,7 +186,7 @@ export default async function WfmProjectsPage({
                 </table>
               </div>
             )}
-          </div>
+          </Card>
 
           <PagerLink
             page={page}
