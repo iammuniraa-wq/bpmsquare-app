@@ -3,8 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
 import type { PurchaseOrderLine } from "@/lib/types";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 export default function ReceivePanel({ poId, lines }: { poId: string; lines: PurchaseOrderLine[] }) {
   const router = useRouter();
@@ -36,46 +38,38 @@ export default function ReceivePanel({ poId, lines }: { poId: string; lines: Pur
   if (pendingLines.length === 0) return null;
 
   return (
-    <section style={cardStyle}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: c.accent, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>
-        Receive stock
-      </div>
+    <Card title="Receive stock">
       <form onSubmit={submit}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
           {pendingLines.map((l) => {
             const remaining = l.qty_ordered - l.qty_received;
             return (
-              <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ flex: 1, fontSize: 13, color: c.ink }}>
+              <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 180px", fontSize: 13, color: c.ink }}>
                   {l.description}
                   <span style={{ color: c.hint, fontSize: 11.5 }}> ({remaining} {l.uom ?? ""} remaining)</span>
                 </div>
-                <input
+                <Input
                   type="number" min="0" max={remaining} step="any"
                   value={qty[l.id] ?? ""}
                   onChange={(e) => setQty((q) => ({ ...q, [l.id]: e.target.value }))}
                   placeholder="0"
-                  style={{ width: 90, padding: "6px 8px", borderRadius: 6, border: `1px solid ${c.line}`, fontSize: 13, boxSizing: "border-box" }}
+                  aria-label={`Quantity received for ${l.description}`}
+                  style={{ width: 100 }}
                 />
               </div>
             );
           })}
         </div>
         <div style={{ marginBottom: 10 }}>
-          <input
+          <Input
             value={note} onChange={(e) => setNote(e.target.value)}
             placeholder="Note (optional) — e.g. delivery reference"
-            style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${c.line}`, fontSize: 13, boxSizing: "border-box" }}
           />
         </div>
-        {error && <div style={{ marginBottom: 8, fontSize: 12, color: "var(--err-ink)" }}>{error}</div>}
-        <button
-          type="submit" disabled={pending}
-          style={{ padding: "8px 18px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: pending ? "wait" : "pointer" }}
-        >
-          {pending ? "Recording…" : "Record receipt"}
-        </button>
+        {error && <div role="alert" style={{ marginBottom: 8, fontSize: 12, color: "var(--err-ink)" }}>{error}</div>}
+        <Button type="submit" variant="primary" loading={pending}>Record receipt</Button>
       </form>
-    </section>
+    </Card>
   );
 }

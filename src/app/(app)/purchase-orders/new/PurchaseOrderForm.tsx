@@ -2,13 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { c } from "@/lib/theme";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter, moneyLabel } from "@/lib/currency";
-import { cardStyle } from "@/components/Shell";
 import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
+import ObjectFormPage from "@/components/page/ObjectFormPage";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import Field from "@/components/ui/Field";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 
 type InventoryOption = { id: string; sku: string | null; name: string; uom: string; unit_cost: number | null };
 
@@ -20,17 +23,6 @@ type Line = {
   qty_ordered: string;
   rate: string;
 };
-
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11.5, fontWeight: 600,
-  color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,
-};
-const inp: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", fontSize: 13,
-  border: `1px solid ${c.line}`, borderRadius: 8,
-  background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
-};
-const fw: React.CSSProperties = { marginBottom: 16 };
 
 function newLine(): Line {
   return { id: Math.random().toString(36).slice(2), inventory_item_id: null, description: "", uom: "Nos", qty_ordered: "1", rate: "0" };
@@ -110,163 +102,102 @@ export default function PurchaseOrderForm({
   }
 
   return (
-    <>
-      <div className="bpm-page-header" style={{ marginBottom: 12 }}>
-        <Link href={ROUTES.purchaseOrders} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          ← All purchase orders
-        </Link>
-      </div>
-
-      <div className="bpm-page-header" style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Purchase Order</h1>
-          <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Order stock from a supplier</p>
+    <ObjectFormPage
+      backHref={ROUTES.purchaseOrders}
+      backLabel="All purchase orders"
+      title="New Purchase Order"
+      subtitle="Order stock from a supplier"
+      headerAction={<AdaptObjectDrawer objectType="purchase_order" objectLabel="Purchase Order" isAdmin={true} />}
+      onSubmit={handleSubmit}
+      saving={pending}
+      saveLabel="Save"
+      error={error}
+      maxWidth={980}
+    >
+      <Card title="Order details" padding={18}>
+        <div className="fg2">
+          <Field label="Supplier" required>
+            <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} required>
+              <option value="">— Select supplier —</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="Order date">
+            <Input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
+          </Field>
+          <Field label="Linked quote" hint="Optional">
+            <Select value={quoteId} onChange={(e) => setQuoteId(e.target.value)}>
+              <option value="">— None —</option>
+              {quotes.map((q) => <option key={q.id} value={q.id}>{q.ref}</option>)}
+            </Select>
+          </Field>
+          <Field label="Linked case" hint="Optional">
+            <Select value={caseId} onChange={(e) => setCaseId(e.target.value)}>
+              <option value="">— None —</option>
+              {cases.map((cs) => <option key={cs.id} value={cs.id}>{cs.ref}</option>)}
+            </Select>
+          </Field>
         </div>
-        <AdaptObjectDrawer objectType="purchase_order" objectLabel="Purchase Order" isAdmin={true} />
-      </div>
+        <Field label="Expected delivery date">
+          <Input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
+        </Field>
+        <Field label="Notes">
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </Field>
+        <Field label="Terms" style={{ marginBottom: 0 }}>
+          <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms, delivery conditions…" />
+        </Field>
+      </Card>
 
-      <form onSubmit={handleSubmit}>
-        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16, alignItems: "start" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-            <section style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 16px" }}>Order details</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                <div>
-                  <label style={lbl}>Supplier *</label>
-                  <select style={inp} value={supplierId} onChange={(e) => setSupplierId(e.target.value)} required>
-                    <option value="">— Select supplier —</option>
-                    {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>Order date</label>
-                  <input style={inp} type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
-                </div>
+      <Card
+        title="Line items"
+        padding={18}
+        action={<Button variant="quiet" size="sm" onClick={() => setLines((ls) => [...ls, newLine()])}>+ Add line</Button>}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {lines.map((line, idx) => (
+            <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: c.hint }}>Line {idx + 1}</span>
+                {lines.length > 1 && (
+                  <span style={{ marginLeft: "auto" }}>
+                    <Button variant="quiet" size="sm" onClick={() => setLines((ls) => ls.filter((l) => l.id !== line.id))}>Remove</Button>
+                  </span>
+                )}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                <div>
-                  <label style={lbl}>Linked quote <span style={{ color: c.hint, textTransform: "none", fontWeight: 400 }}>(optional)</span></label>
-                  <select style={inp} value={quoteId} onChange={(e) => setQuoteId(e.target.value)}>
-                    <option value="">— None —</option>
-                    {quotes.map((q) => <option key={q.id} value={q.id}>{q.ref}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>Linked case <span style={{ color: c.hint, textTransform: "none", fontWeight: 400 }}>(optional)</span></label>
-                  <select style={inp} value={caseId} onChange={(e) => setCaseId(e.target.value)}>
-                    <option value="">— None —</option>
-                    {cases.map((cs) => <option key={cs.id} value={cs.id}>{cs.ref}</option>)}
-                  </select>
-                </div>
+              <Field label="From inventory" hint="Optional — autofills below">
+                <Select value={line.inventory_item_id ?? ""} onChange={(e) => pickInventoryItem(line.id, e.target.value)}>
+                  <option value="">— Free-text line —</option>
+                  {items.map((i) => <option key={i.id} value={i.id}>{i.sku ? `${i.name} (${i.sku})` : i.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Description" required>
+                <Input value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} placeholder="What's being ordered" />
+              </Field>
+              <div className="fg3">
+                <Field label="UOM" style={{ marginBottom: 0 }}>
+                  <Select value={line.uom} onChange={(e) => updateLine(line.id, { uom: e.target.value })}>
+                    {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Qty" style={{ marginBottom: 0 }}>
+                  <Input type="number" min="0" step="any" value={line.qty_ordered} onChange={(e) => updateLine(line.id, { qty_ordered: e.target.value })} />
+                </Field>
+                <Field label={moneyLabel("Rate", cur)} style={{ marginBottom: 0 }}>
+                  <Input type="number" min="0" step="0.01" value={line.rate} onChange={(e) => updateLine(line.id, { rate: e.target.value })} />
+                </Field>
               </div>
-              <div style={fw}>
-                <label style={lbl}>Expected delivery date</label>
-                <input style={inp} type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
+              <div style={{ textAlign: "right", fontSize: 12.5, color: c.muted, marginTop: 6 }}>
+                = {inr((parseFloat(line.qty_ordered) || 0) * (parseFloat(line.rate) || 0))}
               </div>
-              <div style={fw}>
-                <label style={lbl}>Notes</label>
-                <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </div>
-              <div>
-                <label style={lbl}>Terms</label>
-                <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms, delivery conditions…" />
-              </div>
-            </section>
-
-            <section style={cardStyle}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: 0 }}>Line items</h3>
-                <button
-                  type="button"
-                  onClick={() => setLines((ls) => [...ls, newLine()])}
-                  style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
-                >
-                  + Add line
-                </button>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {lines.map((line, idx) => (
-                  <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: c.hint }}>Line {idx + 1}</span>
-                      {lines.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => setLines((ls) => ls.filter((l) => l.id !== line.id))}
-                          style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    <div style={fw}>
-                      <label style={lbl}>From inventory <span style={{ color: c.hint, textTransform: "none", fontWeight: 400 }}>(optional — autofills below)</span></label>
-                      <select style={inp} value={line.inventory_item_id ?? ""} onChange={(e) => pickInventoryItem(line.id, e.target.value)}>
-                        <option value="">— Free-text line —</option>
-                        {items.map((i) => <option key={i.id} value={i.id}>{i.sku ? `${i.name} (${i.sku})` : i.name}</option>)}
-                      </select>
-                    </div>
-                    <div style={fw}>
-                      <label style={lbl}>Description *</label>
-                      <input style={inp} value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} placeholder="What's being ordered" />
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                      <div>
-                        <label style={lbl}>UOM</label>
-                        <select style={inp} value={line.uom} onChange={(e) => updateLine(line.id, { uom: e.target.value })}>
-                          {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={lbl}>Qty</label>
-                        <input style={inp} type="number" min="0" step="any" value={line.qty_ordered} onChange={(e) => updateLine(line.id, { qty_ordered: e.target.value })} />
-                      </div>
-                      <div>
-                        <label style={lbl}>{moneyLabel("Rate", cur)}</label>
-                        <input style={inp} type="number" min="0" step="0.01" value={line.rate} onChange={(e) => updateLine(line.id, { rate: e.target.value })} />
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right", fontSize: 12.5, color: c.muted, marginTop: 6 }}>
-                      = {inr((parseFloat(line.qty_ordered) || 0) * (parseFloat(line.rate) || 0))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${c.line}` }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>Total: {inr(total)}</div>
-              </div>
-            </section>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {error && (
-              <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "var(--err-ink)" }}>
-                {error}
-              </div>
-            )}
-            <button
-              type="submit" disabled={pending}
-              style={{
-                width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-                background: c.accent, color: "#fff", fontWeight: 700, fontSize: 14,
-                cursor: pending ? "wait" : "pointer",
-              }}
-            >
-              {pending ? "Saving…" : "Create Purchase Order"}
-            </button>
-            <Link href={ROUTES.purchaseOrders} style={{
-              display: "block", textAlign: "center", padding: "10px 0",
-              borderRadius: 8, border: `1px solid ${c.line}`,
-              color: c.muted, fontSize: 13, textDecoration: "none",
-            }}>
-              Cancel
-            </Link>
-          </div>
+            </div>
+          ))}
         </div>
-      </form>
-    </>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${c.line}` }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>Total: {inr(total)}</div>
+        </div>
+      </Card>
+    </ObjectFormPage>
   );
 }
