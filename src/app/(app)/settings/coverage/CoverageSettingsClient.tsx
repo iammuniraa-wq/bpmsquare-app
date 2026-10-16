@@ -600,7 +600,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
 
       <section style={cardStyle}>
         <div style={{ ...lbl, marginBottom: 4 }}>ERP endpoints</div>
-        <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 12 }}>Named push targets a coverage row can route to. The tenant's single default endpoint (Settings → General → Developer) is used when a coverage doesn't specify one.</div>
+        <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 12 }}>Named push targets a coverage row can route to. The tenant's single default endpoint (Settings → Webhooks & push) is used when a coverage doesn't specify one.</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input style={{ ...inp, flex: 1 }} placeholder="Endpoint name (e.g. SAP South)" value={endpointName} onChange={(e) => setEndpointName(e.target.value)} />
           <input style={{ ...inp, flex: 2 }} placeholder="https://…" value={endpointUrl} onChange={(e) => setEndpointUrl(e.target.value)} />

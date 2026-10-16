@@ -556,7 +556,7 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   };
 
   const allMap  = new Map(flattenNav(features, viewable).map((i) => [i.href, i]));
-  // Tenant-wide hidden nav items (Settings → General), not a per-browser preference.
+  // Tenant-wide hidden nav items (Settings → Navigation visibility), not a per-browser preference.
   const hidden  = new Set(tenant?.config?.nav_hidden_hrefs ?? settings.hiddenNavHrefs);
 
   const favItems  = navState.favs

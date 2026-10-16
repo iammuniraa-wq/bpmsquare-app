@@ -722,7 +722,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
 
       <SettingsSection id="wfm-notifications" title="Email notifications" summary={summaries.notifications}>
         <div style={{ fontSize: 12, color: c.hint, marginBottom: 4 }}>
-          Requires email sending to be configured for this workspace — see Settings → General.
+          Requires email sending to be configured for this workspace — see Settings → Email output.
         </div>
         {NOTIFICATION_ITEMS.map(({ key, label, hint }) => (
           <SettingsRow key={key} label={label} help={hint}>

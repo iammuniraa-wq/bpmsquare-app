@@ -353,7 +353,7 @@ export default function TenantEditor({ tenant, users }: Props) {
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
         <h2 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Starting theme</h2>
         <p style={{ margin: "0 0 14px", fontSize: 12, color: "#6b7280" }}>
-          Sets what this tenant sees on day one. Their own workspace admin can change it anytime from Settings → General → Appearance — this is just the provisioning default, not a lock.
+          Sets what this tenant sees on day one. Their own workspace admin can change it anytime from Settings → Theme & colours — this is just the provisioning default, not a lock.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {([

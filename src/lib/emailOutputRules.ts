@@ -71,8 +71,8 @@ export function resolveOutbound(
     return {
       ok: false,
       error: output.forced
-        ? "This is a demo workspace: outbound email is redirected to an internal inbox, and none is set yet. Add one under Settings → General → Email output."
-        : "Email output is set to redirect, but no redirect address is set. Add one under Settings → General → Email output.",
+        ? "This is a demo workspace: outbound email is redirected to an internal inbox, and none is set yet. Add one under Settings → Email output."
+        : "Email output is set to redirect, but no redirect address is set. Add one under Settings → Email output.",
     };
   }
 

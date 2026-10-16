@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
-import SettingsSection from "@/components/settings/SettingsSection";
+import { Section } from "@/components/settings/generalShared";
 import { settingsInput as inp } from "@/components/settings/SettingsField";
 import { CURRENCIES, formatMoney, type CurrencyCode } from "@/lib/currency";
 
@@ -48,10 +48,9 @@ export default function CurrencySection({ accent }: { accent: string }) {
   }
 
   const def = CURRENCIES[code];
-  const summary = loaded ? `${loaded.code} — ${CURRENCIES[loaded.code].name}` : "Loading…";
 
   return (
-    <SettingsSection id="general-currency" title="Currency" summary={summary}>
+    <Section title="">
       <p style={{ fontSize: 12.5, color: c.muted, margin: "0 0 12px", lineHeight: 1.5 }}>
         How every amount in this workspace is shown, printed and emailed. Changing it relabels figures; it does not convert them.
       </p>
@@ -71,6 +70,6 @@ export default function CurrencySection({ accent }: { accent: string }) {
         </button>
       </div>
       {error && <div style={{ fontSize: 12, color: "var(--err-ink)", marginTop: 8 }}>{error}</div>}
-    </SettingsSection>
+    </Section>
   );
 }

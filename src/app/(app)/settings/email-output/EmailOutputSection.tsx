@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
-import SettingsSection from "@/components/settings/SettingsSection";
+import { Section } from "@/components/settings/generalShared";
 import { settingsInput as inp } from "@/components/settings/SettingsField";
 
 type Output = { mode: "partners" | "redirect"; redirect_to: string; forced: boolean };
@@ -53,14 +53,6 @@ export default function EmailOutputSection({ accent }: { accent: string }) {
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   }
 
-  const summary = !out
-    ? "Loading…"
-    : out.mode === "redirect"
-      ? out.redirect_to
-        ? `Everything goes to ${out.redirect_to}${out.forced ? " (demo workspace)" : ""}`
-        : "Redirect with no inbox set — nothing can be sent"
-      : "Sent to the address on each account, contact or employee";
-
   const option = (value: "partners" | "redirect", title: string, body: string, disabled = false) => {
     const on = mode === value;
     return (
@@ -82,7 +74,7 @@ export default function EmailOutputSection({ accent }: { accent: string }) {
 
   return (
     <div style={{ marginBottom: 12 }}>
-      <SettingsSection id="general-email-output" title="Email output" summary={summary}>
+      <Section title="">
         <div style={{ fontSize: 12.5, color: c.muted, lineHeight: 1.5, marginBottom: 12 }}>
           Where quotations, invoices, campaigns and workforce notifications are actually delivered.
           {out?.forced && (
@@ -135,7 +127,7 @@ export default function EmailOutputSection({ accent }: { accent: string }) {
           {saved && <span style={{ fontSize: 12.5, color: "var(--teal)", fontWeight: 500 }}>Saved</span>}
           {error && <span style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</span>}
         </div>
-      </SettingsSection>
+      </Section>
     </div>
   );
 }

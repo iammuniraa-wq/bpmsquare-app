@@ -1,0 +1,121 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { NAV } from "@/lib/constants";
+import { c } from "@/lib/theme";
+import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
+import { useTenant } from "@/lib/tenant-context";
+import PageHeader from "@/components/PageHeader";
+import Pager from "@/components/Pager";
+import { PILLAR_DOT, Section, Toggle, useSavedFlash } from "@/components/settings/generalShared";
+
+export default function NavigationVisibilityPage() {
+  const router = useRouter();
+  const { settings } = useSettings();
+  const tenant = useTenant();
+  const tenantFeatures = tenant?.features as Record<string, boolean> | undefined;
+  const accent = tenant?.accent_color || ACCENT_PRESETS[settings.accentPreset].color;
+  const [saved, flashSaved] = useSavedFlash();
+
+  // Only show nav items whose feature is enabled at the tenant (platform admin) level.
+  // If platform admin turns off a feature, local admin cannot see or re-enable it here.
+  // Flattens children too (e.g. Quotations/Standard Quotes/Pipeline/Invoices under the
+  // "Sales" parent) -- each gets its own row and its own toggle, keyed by its own href
+  // in the same nav_hidden_hrefs array a parent-level toggle already uses. Previously
+  // only top-level items were listed here, so there was no way to hide just one child
+  // while keeping its siblings visible; hiding the parent hid all of them together.
+  const allNavItems = NAV.flatMap((grp) =>
+    grp.items
+      .filter((item) => !item.featureKey || tenantFeatures?.[item.featureKey] === true)
+      .flatMap((item) => {
+        const parentRow = { ...item, group: grp.group, sub: null as string | null, indent: false };
+        if (!item.children?.length) return [parentRow];
+        const childRows = item.children
+          .filter((ch) => !ch.featureKey || tenantFeatures?.[ch.featureKey] === true)
+          .map((ch) => ({ ...ch, group: grp.group, sub: item.label, indent: true }));
+        // A bundled parent (Sales, Service, …) has no featureKey of its own --
+        // when every child is feature-filtered out, drop the parent row too
+        // instead of offering a toggle for an empty ghost group.
+        if (childRows.length === 0) return [];
+        return [parentRow, ...childRows];
+      })
+  );
+
+  // Grouped by NAV section (owner-flagged 2026-08-25: one long flat list was
+  // hard to scan) -- same top-level names the sidebar itself uses. Paginated
+  // by SECTION, not by row: a section's toggles all stay together on one
+  // page rather than a group getting split mid-way.
+  const navGroups: { group: string; items: typeof allNavItems }[] = [];
+  for (const item of allNavItems) {
+    const last = navGroups[navGroups.length - 1];
+    if (last && last.group === item.group) last.items.push(item);
+    else navGroups.push({ group: item.group, items: [item] });
+  }
+  const NAV_GROUPS_PER_PAGE = 3;
+  const [navGroupPage, setNavGroupPage] = useState(1);
+  const navPageStart = (navGroupPage - 1) * NAV_GROUPS_PER_PAGE;
+  const navGroupsOnPage = navGroups.slice(navPageStart, navPageStart + NAV_GROUPS_PER_PAGE);
+
+  // ── Navigation visibility — tenant-wide (tenants.config), not per-browser ──
+  const [navSaving, startNavSave] = useTransition();
+  const [navHidden, setNavHidden] = useState<string[]>(() => tenant?.config?.nav_hidden_hrefs ?? []);
+  const isVisible = (href: string) => !navHidden.includes(href);
+
+  const toggleNavItem = (href: string) => {
+    const next = navHidden.includes(href) ? navHidden.filter((h) => h !== href) : [...navHidden, href];
+    setNavHidden(next);
+    startNavSave(async () => {
+      await fetch("/api/settings/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nav_hidden_hrefs: next }),
+      });
+      flashSaved();
+      router.refresh();
+    });
+  };
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <PageHeader
+        title="Navigation visibility"
+        subtitle="Show or hide sidebar items for the whole workspace — every user, every device."
+        action={<span style={{ fontSize: 12, color: "var(--teal)", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>}
+      />
+
+      <Section
+        id="nav"
+        title=""
+        description="Toggle sidebar items on or off for the whole workspace — every user, every device. Hidden items are still reachable by URL."
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          {navGroupsOnPage.map((grp) => (
+            <div key={grp.group}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: c.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>
+                {grp.group}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {grp.items.map((item, idx) => {
+                  const visible = isVisible(item.href);
+                  return (
+                    <div key={item.href} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", paddingLeft: item.indent ? 28 : 4, borderTop: idx > 0 ? `1px solid ${c.line}` : "none", opacity: visible ? 1 : 0.4, transition: "opacity 0.15s" }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: PILLAR_DOT[item.pillar] ?? "#378ADD" }} />
+                      <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{item.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{item.label}</div>
+                        {item.sub && <div style={{ fontSize: 11, color: c.hint }}>{item.sub}</div>}
+                      </div>
+                      <Toggle on={visible} onChange={() => toggleNavItem(item.href)} accent={accent} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <Pager page={navGroupPage} total={navGroups.length} pageSize={NAV_GROUPS_PER_PAGE} onPage={setNavGroupPage} />
+      </Section>
+    </div>
+  );
+}

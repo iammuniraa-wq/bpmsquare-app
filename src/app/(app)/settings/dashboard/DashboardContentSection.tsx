@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { c } from "@/lib/theme";
-import SettingsSection from "@/components/settings/SettingsSection";
+import { Section } from "@/components/settings/generalShared";
 import { settingsInput as inp } from "@/components/settings/SettingsField";
 import { useTenant } from "@/lib/tenant-context";
 import { DEFAULT_NEWS_TOPICS_LABEL } from "@/lib/constants";
@@ -66,12 +66,9 @@ export default function DashboardContentSection({ accent }: { accent: string }) 
     setTimeout(() => setDone(false), 2500);
   }
 
-  const on = [news && "Business news", tips && "Tips"].filter(Boolean) as string[];
-  const summary = on.length ? on.join(" + ") : "Off";
-
   return (
     <div style={{ marginBottom: 12 }}>
-      <SettingsSection id="general-dashboard-content" title="Dashboard content" summary={summary}>
+      <Section title="">
         <p style={{ margin: "0 0 14px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>
           Blocks that have something to show before this workspace has data of its own.
           Switching one on adds it to everyone&apos;s dashboard; they can move or resize it,
@@ -123,7 +120,7 @@ export default function DashboardContentSection({ accent }: { accent: string }) 
           {done && <span style={{ fontSize: 11.5, color: c.muted }}>Saved — reload the dashboard to see it.</span>}
           {error && <span style={{ fontSize: 11.5, color: "var(--err-ink)" }}>{error}</span>}
         </div>
-      </SettingsSection>
+      </Section>
     </div>
   );
 }

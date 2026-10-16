@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     version: "1.0",
     generated_at: new Date().toISOString(),
     authentication:
-      "Bearer token — a per-tenant API key. Two kinds: the tenant's full-access key (Settings → General → Developer), or a scoped key you mint there (read-only vs write, and per-object). Every endpoint resolves the tenant from the key; there is no global/shared key. Treat any key like a password — scoped keys can be revoked individually.",
+      "Bearer token — a per-tenant API key. Two kinds: the tenant's full-access key (Settings → API keys & developer), or a scoped key you mint there (read-only vs write, and per-object). Every endpoint resolves the tenant from the key; there is no global/shared key. Treat any key like a password — scoped keys can be revoked individually.",
     start_here: {
       openapi: "GET /api/v1/openapi.json — OpenAPI 3.0 spec (import into Postman/Insomnia/SAP CPI or run codegen)",
       metadata: "GET /api/v1/metadata — every documented entity",
@@ -72,9 +72,9 @@ export async function GET(req: Request) {
       example:   "GET /api/v1/quotations?filter=status:eq:draft;total:gte:50000&select=ref,total,account.name&sort=-total&aggregate=sum:total",
     },
     access_control:
-      "Scoped API keys are live. A key carries a scope: read and/or write, and either all objects or a named subset (quotations, accounts, cases, inventory, invoices, purchase-orders). A read-only key gets 403 on any write; a key scoped to a subset gets 403 on any object outside it. \"employees\" is the one object the all-objects wildcard does NOT cover — staff personal data requires a key that names it explicitly. Mint and revoke keys in Settings → General → Developer.",
+      "Scoped API keys are live. A key carries a scope: read and/or write, and either all objects or a named subset (quotations, accounts, cases, inventory, invoices, purchase-orders). A read-only key gets 403 on any write; a key scoped to a subset gets 403 on any object outside it. \"employees\" is the one object the all-objects wildcard does NOT cover — staff personal data requires a key that names it explicitly. Mint and revoke keys in Settings → API keys & developer.",
     webhooks:
-      "Live (push). Register an endpoint in Settings → General → Developer; every create/update/delete is delivered as a signed batch (HMAC-SHA256, header X-BPMSquare-Signature) with the same event shape as GET /api/v1/changes. Only events after registration are sent; the /changes feed remains the pull-based backfill.",
+      "Live (push). Register an endpoint in Settings → API keys & developer; every create/update/delete is delivered as a signed batch (HMAC-SHA256, header X-BPMSquare-Signature) with the same event shape as GET /api/v1/changes. Only events after registration are sent; the /changes feed remains the pull-based backfill.",
     ask: {
       description: "Live. POST a plain-English question and the object to run it over; it is compiled to the same validated query engine (never to SQL) and executed with your read scope. The response echoes the exact `compiled` query string it ran, so you can lift it into a normal request.",
       example: 'POST /api/v1/ask  { "object": "quotations", "question": "top 5 draft quotes over 50,000 by value" }',

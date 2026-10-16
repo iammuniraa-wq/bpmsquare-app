@@ -1,0 +1,21 @@
+"use client";
+
+import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
+import { useTenant, useUserRole } from "@/lib/tenant-context";
+import PageHeader from "@/components/PageHeader";
+import { AdminOnlyNotice } from "@/components/settings/generalShared";
+import DashboardContentSection from "./DashboardContentSection";
+
+export default function DashboardContentSectionPage() {
+  const { settings } = useSettings();
+  const tenant = useTenant();
+  const role = useUserRole();
+  const accent = tenant?.accent_color || ACCENT_PRESETS[settings.accentPreset].color;
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <PageHeader title="Dashboard content" subtitle="Blocks that have something to show before this workspace has data of its own." />
+      {role === "admin" ? <DashboardContentSection accent={accent} /> : <AdminOnlyNotice what="change the dashboard content" />}
+    </div>
+  );
+}

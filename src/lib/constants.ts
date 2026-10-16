@@ -123,7 +123,17 @@ export const ROUTES = {
   invoice: (id: string) => `/invoices/${id}`,
   case: (id: string) => `/cases/${id}`,
   settings: "/settings",
-  settingsGeneral: "/settings/general",
+  settingsGeneral: "/settings/general", // redirects to settingsCompany
+  settingsCompany: "/settings/company",
+  settingsCurrency: "/settings/currency",
+  settingsNavigation: "/settings/navigation",
+  settingsQuoteTypes: "/settings/quote-types",
+  settingsDeveloper: "/settings/developer",
+  settingsPush: "/settings/push",
+  settingsEmailOutput: "/settings/email-output",
+  settingsAppearance: "/settings/appearance",
+  settingsDashboard: "/settings/dashboard",
+  settingsReset: "/settings/reset",
   settingsTeam: "/settings/team",
   settingsEntities: "/settings/entities",
   settingsCustomFields: "/settings/custom-fields",
@@ -1133,7 +1143,7 @@ export type TenantConfig = {
   email_output?: EmailOutputConfig;
   // Currency every money figure is shown, printed and emailed in
   // (src/lib/currency.ts). Absent = INR, exactly what every tenant saw before
-  // the setting existed. Set in Settings → General → Currency (admin).
+  // the setting existed. Set in Settings → Currency (admin).
   currency?: CurrencyCode;
   // BPMSquare Pricing (docs/pricing-engine-architecture.md §17). Absent keys
   // read as the defaults in src/lib/pricing/documents.ts.

@@ -44,13 +44,16 @@ const CRM_OBJECT_FEATURES: (keyof TenantFeatures)[] = ["accounts", "contacts", "
 
 export const SETTINGS_MENU: SettingsMenuEntry[] = [
   // ── Company ──
-  { id: "general", group: "company", label: "General settings", description: "Workspace name, navigation, appearance, integrations, developer API", href: ROUTES.settingsGeneral, keywords: ["workspace", "navigation", "theme", "api", "currency"], adminOnly: false },
+  { id: "company", group: "company", label: "Company profile", description: "Your organisation's name, shown in the sidebar header", href: ROUTES.settingsCompany, keywords: ["workspace", "name", "organisation"], adminOnly: false },
   { id: "entities", group: "company", label: "Entities & Tax", description: "Legal entities, print branding, and tax settings for quotations and PDFs", href: ROUTES.settingsEntities, keywords: ["gst", "vat", "legal", "branding", "logo"], adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
+  { id: "currency", group: "company", label: "Currency", description: "How every amount in this workspace is shown, printed and emailed", href: ROUTES.settingsCurrency, keywords: ["money", "rupee", "dollar", "format"], adminOnly: true },
   { id: "number-ranges", group: "company", label: "Number ranges", description: "One place for every business-ID convention — Quote ID format and all system-generated ranges", href: ROUTES.settingsNumberRanges, keywords: ["ids", "prefix", "numbering", "sequence"], adminOnly: true },
 
   // ── Users & access ──
   { id: "team", group: "access", label: "Team", description: "Invite teammates and manage roles", href: ROUTES.settingsTeam, keywords: ["users", "invite", "members", "roles"], adminOnly: true },
   { id: "business-roles", group: "access", label: "Business roles", description: "Named roles that decide which modules and screens each person reaches", href: ROUTES.administrationBusinessRoles, keywords: ["permissions", "workcenter", "access"], external: true, adminOnly: true, featureKey: "business_roles" },
+
+  { id: "navigation", group: "access", label: "Navigation visibility", description: "Show or hide sidebar items for the whole workspace", href: ROUTES.settingsNavigation, keywords: ["sidebar", "menu", "hide"], adminOnly: false },
 
   // ── Sales ──
   { id: "statuses", group: "sales", label: "Statuses & assets", description: "Configure pipeline stages and equipment print fields", href: ROUTES.settingsStatuses, keywords: ["pipeline", "stages", "quote status"], adminOnly: true, featureKey: "assets", relatedWorkcenter: "quotations" },
@@ -58,6 +61,7 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
   // screens AND any field whose selectSource is product_category, which can
   // sit on an object a tenant without the Products module still uses.
   { id: "product-categories", group: "sales", label: "Product categories", description: "The category tree products are filed under, and that category fields pick from", href: ROUTES.settingsSales, keywords: ["products", "tree"], adminOnly: true, featureAnyOf: ["products", "quotations"], relatedWorkcenter: "quotations" },
+  { id: "quote-types", group: "sales", label: "Quote types", description: "Show or hide offer types in the New Quotation picker", href: ROUTES.settingsQuoteTypes, keywords: ["offer", "technical", "budgetary", "amc", "installation"], adminOnly: false, featureKey: "quotations" },
   { id: "text-templates", group: "sales", label: "Text templates", description: "Saved snippets for line items, notes and terms", href: ROUTES.configTemplates, keywords: ["snippets", "terms", "notes"], adminOnly: false, featureKey: "quotations" },
   { id: "email-templates", group: "sales", label: "Email templates", description: "Subject and body pairs your team can pick between when emailing a quote", href: ROUTES.settingsEmailTemplates, keywords: ["mail", "subject"], adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
   { id: "pricing", group: "sales", label: "Small Scale Pricing", description: "Static standard rates for labour, materials, testing and transport — the simple pricing model for small tenants", href: ROUTES.configPricing, keywords: ["rates", "labour", "materials"], adminOnly: false, featureKey: "quotations" },
@@ -77,6 +81,14 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
 
   // ── Integrations ──
   { id: "connectors", group: "integrations", label: "Connectors", description: "Connect BPMSquare to other systems — Slack today, more on the way", href: ROUTES.settingsConnectors, keywords: ["slack", "dynamics", "d365"], adminOnly: true },
+  { id: "developer", group: "integrations", label: "API keys & developer", description: "Your API key, scoped keys, the REST API endpoints and the integrations catalogue", href: ROUTES.settingsDeveloper, keywords: ["rest", "token", "mcp", "openapi", "bearer"], adminOnly: false },
+  { id: "push", group: "integrations", label: "Webhooks & push", description: "Event webhooks, and pushing a single record to your ERP on demand", href: ROUTES.settingsPush, keywords: ["erp", "signing secret", "events", "outbound"], adminOnly: true },
+  { id: "email-output", group: "integrations", label: "Email output", description: "Where quotations, invoices, campaigns and workforce notifications are actually delivered", href: ROUTES.settingsEmailOutput, keywords: ["mail", "redirect", "demo", "inbox", "resend"], adminOnly: true },
+
+  // ── Appearance ──
+  { id: "appearance", group: "appearance", label: "Theme & colours", description: "Theme, accent colour and the compact sidebar for the whole workspace", href: ROUTES.settingsAppearance, keywords: ["look", "dark", "nova", "classic", "accent", "brand colour"], adminOnly: false },
+  { id: "dashboard", group: "appearance", label: "Dashboard content", description: "Business news and tips for a dashboard that has no data of its own yet", href: ROUTES.settingsDashboard, keywords: ["news", "tips", "home"], adminOnly: true },
+  { id: "reset", group: "appearance", label: "Reset layout", description: "Restore navigation visibility and the compact sidebar to their defaults", href: ROUTES.settingsReset, keywords: ["default", "restore"], adminOnly: false },
 ];
 
 /** Entries the signed-in person may open, grouped, empty groups dropped. */

@@ -72,7 +72,7 @@ export const DASHBOARD_TIPS: DashboardTip[] = [
     id: "api",
     title: "Connect your other systems",
     body: "A scoped REST key gives ERP, a website form or a partner read or write access to exactly the objects you choose — and nothing else.",
-    href: ROUTES.settingsGeneral,
+    href: ROUTES.settingsDeveloper,
     cta: "Create an API key",
     tone: "green",
   },
