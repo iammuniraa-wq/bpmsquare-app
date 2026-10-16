@@ -78,7 +78,9 @@ export default async function SuppliersPage({
   const page = Math.max(1, Number(params.page) || 1);
 
   let query = supabase.from("suppliers").select("*").eq("tenant_id", tenantId).order("name");
-  if (typeFilter && typeFilter !== "all") query = query.eq("type", typeFilter);
+  // "inactive" is a status, not a supplier type; every other chip value is a type.
+  if (typeFilter === "inactive") query = query.eq("status", "inactive");
+  else if (typeFilter && typeFilter !== "all") query = query.eq("type", typeFilter);
 
   const { data: rows } = await query;
   const suppliers: Supplier[] = rows ?? [];
@@ -111,7 +113,7 @@ export default async function SuppliersPage({
     { id: "both",          label: `Both` },
   ].map(({ id, label }) => ({ id, label, href: filterHref(id), active: (typeFilter ?? "all") === id }));
   if (inactive > 0) {
-    chips.push({ id: "inactive", label: `Inactive (${inactive})`, href: `${ROUTES.suppliers}?type=inactive`, active: false });
+    chips.push({ id: "inactive", label: `Inactive (${inactive})`, href: filterHref("inactive"), active: typeFilter === "inactive" });
   }
 
   const hasFilter = !!(q || af || (typeFilter && typeFilter !== "all") || Object.keys(cfParams).length > 0);
