@@ -4,18 +4,12 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { ROUTES } from "@/lib/constants";
 import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import PageHeader from "@/components/PageHeader";
-import TabTitle from "@/components/TabTitle";
-import Pill from "@/components/Pill";
+import StatusPill from "@/components/ui/StatusPill";
+import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
+import { paginate } from "@/lib/paginate";
 import type { FenceProject } from "@/lib/types";
 
-const th: React.CSSProperties = {
-  textAlign: "left", color: c.hint, fontWeight: 600,
-  padding: "9px 14px", fontSize: 11, letterSpacing: 0.4,
-  textTransform: "uppercase", whiteSpace: "nowrap", background: c.panel2,
-};
-const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, verticalAlign: "middle" };
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const STATUS_TONE: Record<FenceProject["status"], "green" | "amber" | "blue" | "red"> = {
   draft: "amber",
@@ -24,9 +18,15 @@ const STATUS_TONE: Record<FenceProject["status"], "green" | "amber" | "blue" | "
   lost: "red",
 };
 
-export default async function FenceProjectsPage() {
+export default async function FenceProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}) {
   await requireWorkcenterView("fence_projects");
   await requireFeature("fence_projects");
+  const { q, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
   const { supabase, tenantId } = await requireTenantUser();
 
   const { data: rows, error } = await supabase
@@ -42,115 +42,43 @@ export default async function FenceProjectsPage() {
     : { data: [] };
   const accountNames: Record<string, string> = Object.fromEntries((accountRows ?? []).map((a) => [a.id as string, a.name as string]));
 
+  const needle = (q ?? "").trim().toLowerCase();
+  const filtered = projects.filter((p) => !needle || `${p.ref ?? ""} ${p.name} ${p.account_id ? (accountNames[p.account_id] ?? "") : ""}`.toLowerCase().includes(needle));
+  const pageRows = paginate(filtered, page);
+
+  const columns: ListColumn<FenceProject>[] = [
+    { id: "ref", label: "ID", width: 88, card: "hidden", cellStyle: { fontFamily: MONO, fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }, render: (p) => p.ref ?? "—" },
+    {
+      id: "name", label: "Name", card: "title",
+      render: (p) => <Link href={ROUTES.fenceProject(p.id)} style={{ fontWeight: 600, color: c.ink, textDecoration: "none", fontSize: 13.5 }}>{p.name}</Link>,
+    },
+    { id: "account", label: "Account", cellStyle: { color: c.muted, fontSize: 13 }, render: (p) => (p.account_id ? (accountNames[p.account_id] ?? "—") : "—") },
+    { id: "layout", label: "Layout", cellStyle: { color: c.muted, fontSize: 13 }, render: (p) => (p.layout === "closed_perimeter" ? "Closed perimeter" : "Open run") },
+    { id: "length", label: "Length", cellStyle: { fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }, render: (p) => `${p.total_length_m} m` },
+    { id: "status", label: "Status", render: (p) => <StatusPill label={p.status[0].toUpperCase() + p.status.slice(1)} tone={STATUS_TONE[p.status]} /> },
+  ];
+
   return (
-    <>
-      <TabTitle title="Fence Projects" />
-      <PageHeader
-        title="Fence Projects"
-        subtitle={`${projects.length} total`}
-        action={
-          <Link
-            href={ROUTES.fenceProjectNew}
-            style={{ padding: "8px 16px", borderRadius: 7, fontSize: 13, fontWeight: 600, background: c.accent, color: "#fff", textDecoration: "none" }}
-          >
-            + New Fence Project
-          </Link>
-        }
-      />
-
-      {/* Below 640px the table (still horizontally scrollable as a
-          fallback) is replaced by a stacked card per row -- a data table
-          works on a tablet/laptop even with a side-scroll, but on an actual
-          phone a table with 6 columns just isn't a usable format. */}
-      <style>{`
-        @media (max-width: 640px) {
-          .fence-projects-table { display: none !important; }
-          .fence-projects-cards { display: flex !important; }
-        }
-      `}</style>
-
-      <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {projects.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 24px", color: c.hint, fontSize: 14 }}>
-            No fence projects yet.
-            <div style={{ marginTop: 12 }}>
-              <Link href={ROUTES.fenceProjectNew} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-                + Configure your first fence
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="fence-projects-table" style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${c.line}` }}>
-                    <th style={{ ...th, width: 88 }}>ID</th>
-                    <th style={th}>Name</th>
-                    <th style={th}>Account</th>
-                    <th style={th}>Layout</th>
-                    <th style={th}>Length</th>
-                    <th style={th}>Status</th>
-                    <th style={{ ...th, width: 60 }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projects.map((p) => (
-                    <tr key={p.id} style={{ borderBottom: `1px solid ${c.line}` }}>
-                      <td style={{ ...td, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>{p.ref ?? "—"}</td>
-                      <td style={td}>
-                        <Link href={ROUTES.fenceProject(p.id)} style={{ fontWeight: 600, color: c.ink, textDecoration: "none", fontSize: 13.5 }}>
-                          {p.name}
-                        </Link>
-                      </td>
-                      <td style={{ ...td, color: c.muted, fontSize: 13 }}>{p.account_id ? (accountNames[p.account_id] ?? "—") : "—"}</td>
-                      <td style={{ ...td, color: c.muted, fontSize: 13 }}>{p.layout === "closed_perimeter" ? "Closed perimeter" : "Open run"}</td>
-                      <td style={{ ...td, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{p.total_length_m} m</td>
-                      <td style={td}>
-                        <Pill label={p.status[0].toUpperCase() + p.status.slice(1)} tone={STATUS_TONE[p.status]} />
-                      </td>
-                      <td style={{ ...td, textAlign: "right" }}>
-                        <Link href={ROUTES.fenceProject(p.id)} style={{
-                          fontSize: 11.5, fontWeight: 600, color: c.accent,
-                          background: c.accentbg, borderRadius: 6, padding: "4px 10px",
-                          textDecoration: "none", whiteSpace: "nowrap",
-                        }}>
-                          Open in Fence Design Studio →
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="fence-projects-cards" style={{ display: "none", flexDirection: "column" }}>
-              {projects.map((p, i) => (
-                <div key={p.id} style={{ padding: "14px 16px", borderTop: i === 0 ? "none" : `1px solid ${c.line}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-                    <Link href={ROUTES.fenceProject(p.id)} style={{ fontWeight: 600, color: c.ink, textDecoration: "none", fontSize: 14.5 }}>
-                      {p.name}
-                    </Link>
-                    <Pill label={p.status[0].toUpperCase() + p.status.slice(1)} tone={STATUS_TONE[p.status]} />
-                  </div>
-                  <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11, color: c.hint, marginBottom: 8 }}>{p.ref ?? "—"}</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px", fontSize: 12.5, color: c.muted, marginBottom: 12 }}>
-                    <div>{p.account_id ? (accountNames[p.account_id] ?? "—") : "— No account —"}</div>
-                    <div style={{ textAlign: "right" }}>{p.total_length_m} m</div>
-                    <div>{p.layout === "closed_perimeter" ? "Closed perimeter" : "Open run"}</div>
-                  </div>
-                  <Link href={ROUTES.fenceProject(p.id)} style={{
-                    display: "block", textAlign: "center", fontSize: 12.5, fontWeight: 600, color: c.accent,
-                    background: c.accentbg, borderRadius: 7, padding: "8px 0", textDecoration: "none",
-                  }}>
-                    Open in Fence Design Studio →
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </>
+    <ObjectListPage
+      title="Fence Projects"
+      subtitle={`${projects.length} total`}
+      newLabel="Fence Project"
+      newHref={ROUTES.fenceProjectNew}
+      search={{ value: q, placeholder: "Search by ID, name or account…" }}
+      columns={columns}
+      rows={pageRows}
+      rowKey={(p) => p.id}
+      rowHref={(p) => ROUTES.fenceProject(p.id)}
+      total={filtered.length}
+      page={page}
+      baseHref={ROUTES.fenceProjects}
+      linkParams={{ q }}
+      filtered={!!needle}
+      empty={{
+        title: "No fence projects yet",
+        text: "Configure a fence in the Fence Design Studio, then quote it.",
+        filteredTitle: `No fence projects match "${q}".`,
+      }}
+    />
   );
 }
