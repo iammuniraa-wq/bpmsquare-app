@@ -297,3 +297,15 @@ claude.ai artifact "Settings Before and After"). Added requirements:
    redirects to Attendance rules. Same fields, same API, same gating
    (`features.wfm`, admin only, project billing only with wfm_projects +
    invoices).
+
+
+## 12. Themes decision (owner, 2026-10-16) -- supersedes section 6
+
+**No themes are retired or merged.** All existing looks stay selectable and
+render as today for every tenant: Classic, Modern, Nova (nextgen/nextgen2),
+Enterprise and Spectacular (navy and purple). Phase 7 therefore changes no
+tenant's look. It only makes sure the new kit, templates and settings
+screens read correctly in each look (light and dark where the look has both),
+and that Spectacular's Spaces rail is fed by the phase 6 navigation groups.
+The two-look reduction in section 6 is parked; revisit after the owner has
+reviewed the new screens on develop.
