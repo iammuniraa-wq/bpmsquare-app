@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import type { AccountType } from "@/lib/types";
 import type { SegmentFilter } from "@/lib/marketingSegmentation";
 import type { MarketingTemplateId } from "@/lib/marketingTemplates";
+import ObjectFormPage from "@/components/page/ObjectFormPage";
+import Card from "@/components/ui/Card";
+import Field from "@/components/ui/Field";
+import { Input } from "@/components/ui/Input";
 import dynamic from "next/dynamic";
 
 // tiptap (the editor's engine) is one of the heaviest client libraries in
@@ -20,15 +23,6 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
 });
 import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/TargetAudiencePicker";
 import TemplatePicker from "@/components/marketing/TemplatePicker";
-
-const inp: React.CSSProperties = {
-  width: "100%", boxSizing: "border-box", border: `1px solid ${c.line}`, borderRadius: 8,
-  padding: "8px 12px", fontSize: 13, color: c.ink, background: c.panel, outline: "none",
-};
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11, fontWeight: 600, color: c.muted,
-  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6,
-};
 
 export default function MarketingComposeForm({ accounts, initialGroupId }: { accounts: AccountLite[]; initialGroupId?: string }) {
   const router = useRouter();
@@ -74,11 +68,22 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 760 }}>
-      <section style={cardStyle}>
-        <label style={lbl}>Campaign name (internal)</label>
-        <input style={inp} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Diwali greeting 2026" />
-      </section>
+    <ObjectFormPage
+      backHref={ROUTES.marketing}
+      backLabel="All campaigns"
+      title="New Campaign"
+      subtitle="Send a rich-text email to a filtered set of accounts"
+      onSubmit={(e) => { e.preventDefault(); void saveDraft(); }}
+      saving={saving}
+      saveLabel="Save draft"
+      error={error}
+      maxWidth={760}
+    >
+      <Card>
+        <Field label="Campaign name (internal)" style={{ marginBottom: 0 }}>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Diwali greeting 2026" />
+        </Field>
+      </Card>
 
       <TemplatePicker
         selectedId={templateId}
@@ -90,17 +95,13 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
       />
 
       {!templateId && (
-        <section style={cardStyle}>
-          <div style={{ marginBottom: 12 }}>
-            <label style={lbl}>Subject</label>
-            <input style={inp} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Happy Diwali from {{company_name}}!" />
-            <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>Use {"{{account_name}}"} and {"{{company_name}}"} — replaced per recipient.</div>
-          </div>
-          <div>
-            <label style={lbl}>Message</label>
-            <RichTextEditor value={body} onChange={setBody} placeholder="Write your message…" minHeight={160} />
-          </div>
-        </section>
+        <Card>
+          <Field label="Subject" hint={"Use {{account_name}} and {{company_name}} — replaced per recipient."}>
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Happy Diwali from {{company_name}}!" />
+          </Field>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 }}>Message</div>
+          <RichTextEditor value={body} onChange={setBody} placeholder="Write your message…" minHeight={160} />
+        </Card>
       )}
 
       <TargetAudiencePicker
@@ -113,14 +114,6 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
         match={match} setMatch={setMatch}
         autoLoadGroupId={initialGroupId}
       />
-
-      {error && <div style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}
-
-      <div>
-        <button onClick={saveDraft} disabled={saving} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13.5, cursor: saving ? "not-allowed" : "pointer" }}>
-          {saving ? "Saving…" : "Save draft"}
-        </button>
-      </div>
-    </div>
+    </ObjectFormPage>
   );
 }
