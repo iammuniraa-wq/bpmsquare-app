@@ -8,7 +8,6 @@ import type { Employee } from "@/lib/types";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
-import MoreMenu from "@/components/ui/MoreMenu";
 import { Input, Select } from "@/components/ui/Input";
 
 type Draft = {
@@ -108,7 +107,7 @@ export function NewEmployeeButton() {
   );
 }
 
-/** The row's "..." menu: Edit opens the dialog, Delete asks first. */
+/** Row actions. Plain buttons rather than a menu: the table scrolls sideways, which would clip a dropdown on the last rows. */
 export function EmployeeRowActions({ employee }: { employee: Employee }) {
   const router = useRouter();
   const { confirm, toast } = useFeel();
@@ -123,13 +122,10 @@ export function EmployeeRowActions({ employee }: { employee: Employee }) {
 
   return (
     <>
-      <MoreMenu
-        label={`Actions for ${employee.first_name} ${employee.last_name}`}
-        items={[
-          { label: "Edit", onSelect: () => setEditing(true) },
-          { label: "Delete", danger: true, onSelect: () => { void remove(); } },
-        ]}
-      />
+      <span style={{ display: "inline-flex", gap: 4, whiteSpace: "nowrap" }}>
+        <Button variant="quiet" size="sm" onClick={() => setEditing(true)}>Edit</Button>
+        <Button variant="quiet" size="sm" onClick={() => { void remove(); }} style={{ color: "var(--err-ink)" }}>Delete</Button>
+      </span>
       {editing && <EmployeeDialog employee={employee} onClose={() => setEditing(false)} />}
     </>
   );

@@ -70,7 +70,7 @@ export default async function EmployeesPage({
     },
     { id: "status", label: "Status", sortKey: "status", render: (e) => <StatusPill label={e.status === "active" ? "Active" : "Inactive"} tone={e.status === "active" ? "green" : "red"} /> },
     ...(canEdit ? [{
-      id: "actions", label: "", width: 56, cellStyle: { textAlign: "right" as const },
+      id: "actions", label: "", width: 130, cellStyle: { textAlign: "right" as const },
       render: (e: Employee) => <EmployeeRowActions employee={e} />,
     }] : []),
   ];
