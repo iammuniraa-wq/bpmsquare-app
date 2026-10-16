@@ -53,7 +53,7 @@ const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, vertical
 export default function ObjectListPage<T>({
   title, subtitle, newLabel, newHref, menuItems, chips, search, advancedFilterObject,
   columns, rows, rowKey, rowHref, total, page, pageSize = DEFAULT_PAGE_SIZE, baseHref,
-  sort, dir, linkParams, empty, filtered, beforeTable,
+  sort, dir, linkParams, empty, filtered, beforeTable, wrapBody,
 }: {
   title: string;
   subtitle?: string;
@@ -92,51 +92,14 @@ export default function ObjectListPage<T>({
   filtered: boolean;
   /** Extra content between the filter bar and the table (a summary card the list keeps, e.g. Assets' loaner stock). */
   beforeTable?: React.ReactNode;
+  /** Wraps the table / cards / pager (or the empty state) -- for a list that offers alternative views of the same rows (Cases on Nova). */
+  wrapBody?: (body: React.ReactNode) => React.ReactNode;
 }) {
   const titleCol = columns.find((col) => col.card === "title") ?? columns.find((col) => col.card !== "hidden") ?? columns[0];
   const metaCols = columns.filter((col) => col !== titleCol && col.card !== "hidden");
 
-  return (
+  const body = (
     <>
-      <TabTitle title={title} />
-      <PageHeader
-        title={title}
-        subtitle={subtitle}
-        action={(newHref || (menuItems && menuItems.length > 0)) ? (
-          <>
-            {menuItems && menuItems.length > 0 && <MoreMenu items={menuItems} />}
-            {newHref && <Button href={newHref} variant="primary">+ New {newLabel}</Button>}
-          </>
-        ) : undefined}
-      />
-
-      {chips && chips.length > 0 && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          {chips.map((chip) => (
-            <Link key={chip.id} href={chip.href} aria-current={chip.active ? "true" : undefined} style={{
-              fontSize: 12.5, fontWeight: chip.active ? 700 : 500,
-              color: chip.active ? c.accent : c.muted,
-              background: chip.active ? c.accentbg : c.panel2,
-              border: `1px solid ${chip.active ? c.accent + "60" : c.line}`,
-              borderRadius: 6, padding: "5px 12px", textDecoration: "none",
-            }}>
-              {chip.label}
-            </Link>
-          ))}
-        </div>
-      )}
-
-      <ListFilterBar
-        searchValue={search.value}
-        searchPlaceholder={search.placeholder}
-        hiddenParams={search.hiddenParams}
-        selects={search.selects}
-        dates={search.dates}
-        clearHref={baseHref}
-      />
-      {advancedFilterObject && <AdvancedFilterPanel object={advancedFilterObject} />}
-      {beforeTable}
-
       {total === 0 ? (
         <Card padding={0}>
           <EmptyState
@@ -220,6 +183,51 @@ export default function ObjectListPage<T>({
           <PagerLink page={page} total={total} pageSize={pageSize} baseHref={baseHref} hiddenParams={{ ...linkParams, sort, dir: sort ? dir : undefined }} />
         </>
       )}
+    </>
+  );
+
+  return (
+    <>
+      <TabTitle title={title} />
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        action={(newHref || (menuItems && menuItems.length > 0)) ? (
+          <>
+            {menuItems && menuItems.length > 0 && <MoreMenu items={menuItems} />}
+            {newHref && <Button href={newHref} variant="primary">+ New {newLabel}</Button>}
+          </>
+        ) : undefined}
+      />
+
+      {chips && chips.length > 0 && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {chips.map((chip) => (
+            <Link key={chip.id} href={chip.href} aria-current={chip.active ? "true" : undefined} style={{
+              fontSize: 12.5, fontWeight: chip.active ? 700 : 500,
+              color: chip.active ? c.accent : c.muted,
+              background: chip.active ? c.accentbg : c.panel2,
+              border: `1px solid ${chip.active ? c.accent + "60" : c.line}`,
+              borderRadius: 6, padding: "5px 12px", textDecoration: "none",
+            }}>
+              {chip.label}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <ListFilterBar
+        searchValue={search.value}
+        searchPlaceholder={search.placeholder}
+        hiddenParams={search.hiddenParams}
+        selects={search.selects}
+        dates={search.dates}
+        clearHref={baseHref}
+      />
+      {advancedFilterObject && <AdvancedFilterPanel object={advancedFilterObject} />}
+      {beforeTable}
+
+      {wrapBody ? wrapBody(body) : body}
     </>
   );
 }

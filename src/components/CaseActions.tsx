@@ -9,6 +9,8 @@ import PhotoUploader from "./PhotoUploader";
 import type { CasePhoto } from "@/lib/types";
 import { Clipboard, Pencil, CheckIcon } from "@/components/Icons";
 import { useCurrency } from "@/lib/tenant-context";
+import Button from "@/components/ui/Button";
+import { Input, Textarea } from "@/components/ui/Input";
 import { moneyFormatter } from "@/lib/currency";
 
 type InspectionReportProps = {
@@ -33,37 +35,9 @@ type Props = {
   intakeNotes: string | null;
 };
 
-// ── Button styles — compact, not full-width ───────────────────────────────────
-
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 18px", borderRadius: 7, border: "none",
-  background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13,
-  cursor: "pointer",
-};
-const btnSuccess: React.CSSProperties = {
-  ...btnPrimary, background: "var(--teal)",
-};
-const btnSecondary: React.CSSProperties = {
-  padding: "7px 14px", borderRadius: 7,
-  border: `1px solid ${c.line}`, background: c.panel,
-  color: c.muted, fontWeight: 600, fontSize: 12.5,
-  cursor: "pointer",
-};
-const btnGhost: React.CSSProperties = {
-  padding: "5px 10px", borderRadius: 6,
-  border: `1px solid ${c.line}`, background: "none",
-  color: c.muted, fontWeight: 600, fontSize: 12,
-  cursor: "pointer",
-};
-
 const lbl: React.CSSProperties = {
   display: "block", fontSize: 11, fontWeight: 700,
   color: c.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6,
-};
-const inp: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", fontSize: 13,
-  border: `1px solid ${c.line}`, borderRadius: 8,
-  background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
 };
 const fw: React.CSSProperties = { marginBottom: 14 };
 
@@ -125,10 +99,10 @@ function IntakeReference({ notes, photos }: { notes: string | null; photos: Case
 function InspectionReportView({ report, onEdit }: { report: NonNullable<InspectionReportProps>; onEdit: () => void }) {
   const inr = moneyFormatter(useCurrency(), { maximumFractionDigits: 0 });
   return (
-    <div style={{ ...card, borderLeftColor: "#6c6bd4" }}>
+    <div style={{ ...card, borderLeftColor: "var(--purple)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#6c6bd4", textTransform: "uppercase", letterSpacing: 0.6 }}>Inspection report · Draft saved</span>
-        <button type="button" onClick={onEdit} style={btnGhost}><Pencil size={12} style={{ marginRight: 4 }} /> Edit</button>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--purple)", textTransform: "uppercase", letterSpacing: 0.6 }}>Inspection report · Draft saved</span>
+        <Button variant="quiet" size="sm" onClick={onEdit}><Pencil size={12} /> Edit</Button>
       </div>
       <div style={{ marginBottom: 10 }}>
         <div style={lbl}>Findings</div>
@@ -235,7 +209,7 @@ export default function CaseActions({
       <div style={card}>
         <div style={fw}>
           <label style={lbl}>Internal notes</label>
-          <textarea style={{ ...inp, minHeight: 80, resize: "vertical" }} value={localNotes}
+          <Textarea value={localNotes}
             onChange={(e) => { setLocalNotes(e.target.value); setNotesSaved(false); }}
             placeholder="Condition on arrival, accessories received, customer remarks…" />
         </div>
@@ -244,12 +218,12 @@ export default function CaseActions({
           <PhotoUploader caseId={caseId} stage="intake" existingPhotos={intakePhotos} onUploaded={() => router.refresh()} />
         </div>
         <div style={actionRow}>
-          <button style={{ ...btnSuccess }} onClick={() => patchCase({ status: "inspection" })} disabled={pending} type="button">
+          <Button variant="primary" onClick={() => patchCase({ status: "inspection" })} disabled={pending} type="button">
             {pending ? "…" : "Start Inspection →"}
-          </button>
-          <button style={btnSecondary} onClick={saveNotes} disabled={pending} type="button">
+          </Button>
+          <Button variant="secondary" onClick={saveNotes} disabled={pending}>
             {pending ? "Saving…" : notesSaved ? "Saved" : "Save notes"}
-          </button>
+          </Button>
         </div>
         {errorBox}
       </div>
@@ -272,21 +246,21 @@ export default function CaseActions({
               <span style={{ fontSize: 12, fontWeight: 700, color: c.accent, textTransform: "uppercase", letterSpacing: 0.6 }}>
                 {inspectionReport ? "Edit inspection report" : "Inspection report"}
               </span>
-              {inspectionReport && <button type="button" onClick={() => setEditing(false)} style={btnGhost}>Cancel</button>}
+              {inspectionReport && <Button variant="quiet" size="sm" onClick={() => setEditing(false)}>Cancel</Button>}
             </div>
             <div style={fw}>
               <label style={lbl}>Findings *</label>
-              <textarea style={{ ...inp, minHeight: 90, resize: "vertical" }} value={findings}
+              <Textarea value={findings}
                 onChange={(e) => setFindings(e.target.value)} placeholder="What was found during inspection…" />
             </div>
             <div style={fw}>
               <label style={lbl}>Recommendations *</label>
-              <textarea style={{ ...inp, minHeight: 90, resize: "vertical" }} value={recommendations}
+              <Textarea value={recommendations}
                 onChange={(e) => setRecommendations(e.target.value)} placeholder="Recommended repair actions…" />
             </div>
             <div style={fw}>
               <label style={lbl}>Estimated cost ({cur.symbol}, optional)</label>
-              <input style={inp} type="number" min={0} value={estimatedCost}
+              <Input type="number" min={0} value={estimatedCost}
                 onChange={(e) => setEstimatedCost(e.target.value)} placeholder="e.g. 14999" />
             </div>
             <div style={{ marginBottom: 4 }}>
@@ -294,9 +268,9 @@ export default function CaseActions({
               <PhotoUploader caseId={caseId} stage="inspection" existingPhotos={inspectionPhotos} onUploaded={() => router.refresh()} />
             </div>
             <div style={actionRow}>
-              <button style={btnSecondary} onClick={() => postInspectionReport("save")} disabled={pending} type="button">
+              <Button variant="secondary" onClick={() => postInspectionReport("save")} disabled={pending} type="button">
                 {pending ? "Saving…" : "Save draft"}
-              </button>
+              </Button>
             </div>
             {errorBox}
           </div>
@@ -304,14 +278,14 @@ export default function CaseActions({
 
         <div style={{ ...actionRow, borderTop: "none", paddingTop: 0, marginTop: 4 }}>
           <div>
-            <button style={btnPrimary} onClick={() => postInspectionReport("send")} disabled={pending} type="button">
+            <Button variant="primary" onClick={() => postInspectionReport("send")} disabled={pending} type="button">
               {pending ? "…" : "Send report to customer →"}
-            </button>
+            </Button>
             <div style={{ fontSize: 10.5, color: c.hint, marginTop: 4 }}>Marks the report as sent — no email is actually delivered yet</div>
           </div>
-          <button style={btnSecondary} onClick={goToNewQuotation} type="button">
+          <Button variant="secondary" onClick={goToNewQuotation}>
             Skip report — Create Quotation
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -326,12 +300,12 @@ export default function CaseActions({
           Report sent to customer — waiting for approval.
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button style={btnSuccess} onClick={() => patchCase({ status: "report_approved" })} disabled={pending} type="button">
+          <Button variant="primary" onClick={() => patchCase({ status: "report_approved" })} disabled={pending} type="button">
             {pending ? "…" : "Customer approved →"}
-          </button>
-          <button style={btnSecondary} onClick={goToNewQuotation} type="button">
+          </Button>
+          <Button variant="secondary" onClick={goToNewQuotation}>
             Create Quotation
-          </button>
+          </Button>
         </div>
         {errorBox}
       </div>
@@ -344,12 +318,12 @@ export default function CaseActions({
     return (
       <div style={card}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button style={btnPrimary} onClick={goToNewQuotation} type="button">
+          <Button variant="primary" onClick={goToNewQuotation}>
             Create Quotation →
-          </button>
-          <button style={btnSecondary} onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
+          </Button>
+          <Button variant="secondary" onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
             {pending ? "…" : "Skip quote — Start Repair"}
-          </button>
+          </Button>
         </div>
         {errorBox}
       </div>
@@ -364,9 +338,9 @@ export default function CaseActions({
         <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 12 }}>
           {currentStatus === "quote_sent" ? "Quote sent — awaiting customer approval." : "Quote approved."}
         </div>
-        <button style={btnPrimary} onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
+        <Button variant="primary" onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
           {pending ? "…" : "Start Repair →"}
-        </button>
+        </Button>
         {errorBox}
       </div>
     );
@@ -379,17 +353,17 @@ export default function CaseActions({
       <div style={card}>
         <div style={fw}>
           <label style={lbl}>Repair notes</label>
-          <textarea style={{ ...inp, minHeight: 80, resize: "vertical" }} value={localNotes}
+          <Textarea value={localNotes}
             onChange={(e) => { setLocalNotes(e.target.value); setNotesSaved(false); }}
             placeholder="Repair progress, parts replaced…" />
         </div>
         <div style={actionRow}>
-          <button style={{ ...btnPrimary, background: "#6c6bd4" }} onClick={() => patchCase({ status: "qa" })} disabled={pending} type="button">
+          <Button variant="primary" onClick={() => patchCase({ status: "qa" })} disabled={pending} type="button">
             {pending ? "…" : "Move to QA →"}
-          </button>
-          <button style={btnSecondary} onClick={saveNotes} disabled={pending} type="button">
+          </Button>
+          <Button variant="secondary" onClick={saveNotes} disabled={pending}>
             {pending ? "Saving…" : notesSaved ? "Saved" : "Save notes"}
-          </button>
+          </Button>
         </div>
         {errorBox}
       </div>
@@ -402,12 +376,12 @@ export default function CaseActions({
     return (
       <div style={card}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button style={btnSuccess} onClick={() => patchCase({ status: "ready" })} disabled={pending} type="button">
+          <Button variant="primary" onClick={() => patchCase({ status: "ready" })} disabled={pending} type="button">
             {pending ? "…" : "QA passed — Mark Ready →"}
-          </button>
-          <button style={btnSecondary} onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
+          </Button>
+          <Button variant="secondary" onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
             {pending ? "…" : "Failed — Back to Repair"}
-          </button>
+          </Button>
         </div>
         {errorBox}
       </div>
@@ -421,15 +395,15 @@ export default function CaseActions({
       <div style={{ ...card, borderLeftColor: "var(--teal)" }}>
         <div style={{ fontSize: 12.5, color: "var(--tealink)", marginBottom: 12 }}>Equipment is ready for pickup.</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button style={btnSuccess} onClick={() => patchCase({ status: "closed" })} disabled={pending} type="button">
+          <Button variant="primary" onClick={() => patchCase({ status: "closed" })} disabled={pending} type="button">
             {pending ? "…" : "Close — handed to customer ✓"}
-          </button>
-          <button style={{ ...btnSecondary, color: "var(--purple)", borderColor: "#c4c2f0" }} onClick={() => patchCase({ status: "buyback" })} disabled={pending} type="button">
+          </Button>
+          <Button variant="secondary" onClick={() => patchCase({ status: "buyback" })} disabled={pending} type="button">
             {pending ? "…" : "Buyback — customer sold unit"}
-          </button>
-          <button style={{ ...btnSecondary, color: "var(--red)", borderColor: "#f5c0c0" }} onClick={() => patchCase({ status: "scrapped" })} disabled={pending} type="button">
+          </Button>
+          <Button variant="danger" onClick={() => patchCase({ status: "scrapped" })} disabled={pending} type="button">
             {pending ? "…" : "Scrap unit"}
-          </button>
+          </Button>
         </div>
         {errorBox}
       </div>
@@ -441,14 +415,14 @@ export default function CaseActions({
   if (currentStatus === "closed") {
     return (
       <div style={{ ...card, borderLeftColor: "var(--teal)", background: "var(--tealbg)" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#04342c" }}>Case closed</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tealink)" }}>Case closed</div>
       </div>
     );
   }
   if (currentStatus === "buyback") {
     return (
       <div style={{ ...card, borderLeftColor: "var(--purple)", background: "var(--purplebg)" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#26215c" }}>Unit purchased (buyback)</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--purpleink, var(--purple))" }}>Unit purchased (buyback)</div>
       </div>
     );
   }

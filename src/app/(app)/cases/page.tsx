@@ -1,17 +1,19 @@
 import { requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { listCases } from "@/lib/data";
+import type { CaseSummary } from "@/lib/data";
 import type { ServiceCase } from "@/lib/types";
-import { c, pillar } from "@/lib/theme";
-import PageHeader from "@/components/PageHeader";
-import { ROUTES } from "@/lib/constants";
-import CasesTable from "@/components/CasesTable";
+import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/constants";
+import { c, type PillarKey } from "@/lib/theme";
+import StatusPill from "@/components/ui/StatusPill";
+import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
+import { optionalColumnsMenu, parseOptionalCols, type OptionalColumn } from "@/components/page/optionalColumns";
 import CaseBoardSlot from "@/components/CaseBoardSlot";
-import BreakdownBar from "@/components/BreakdownBar";
+import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
-import ListFilterBar from "@/components/ListFilterBar";
-import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
 import { applyAdvancedFilter } from "@/lib/advancedFilter";
+import { paginate } from "@/lib/paginate";
+import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 
 const OPEN_STATUSES: ServiceCase["status"][] = [
   "intake","inspection","report_sent","report_approved",
@@ -28,15 +30,49 @@ const FILTERS: { id: FilterKey; label: string }[] = [
   { id: "all",       label: "All"       },
 ];
 
+const statusTone: Record<ServiceCase["status"], PillarKey> = {
+  intake: "blue", inspection: "blue",
+  report_sent: "purple", report_approved: "purple",
+  quote_sent: "amber", quote_approved: "amber",
+  in_repair: "teal", qa: "teal", ready: "green",
+  closed: "green", buyback: "purple", scrapped: "red",
+};
+
+const typeTone: Record<ServiceCase["type"], PillarKey> = {
+  amc: "teal", adhoc: "amber", direct: "blue",
+};
+
+const SORT_EXTRACTORS: Record<string, SortExtractor<CaseSummary>> = {
+  ref: (r) => r.serviceCase.ref,
+  stage: (r) => r.serviceCase.status,
+  account: (r) => r.account.name,
+  type: (r) => r.serviceCase.type,
+  technician: (r) => r.technicianName,
+  intake: (r) => r.serviceCase.intake_at,
+  complaint: (r) => r.serviceCase.complaint,
+};
+
+// Off until asked for (the old in-table "Columns" picker's default).
+const OPTIONAL: OptionalColumn[] = [{ id: "complaint", label: "Complaint" }];
+
+const fmtDate = (s: string) =>
+  new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
 export default async function CasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; filter?: string; af?: string }>;
+  searchParams: Promise<{ q?: string; filter?: string; af?: string; cols?: string; sort?: string; dir?: string; page?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("cases");
   await requireFeature("cases");
-  const { q, filter: rawFilter, af } = await searchParams;
+  const params = await searchParams;
+  const { q, filter: rawFilter, af } = params;
   const filter = (FILTERS.find((f) => f.id === rawFilter)?.id) ?? "open";
+  const colFilters = parseColFilterParams(params);
+  const cfParams = colFilterQueryParams(colFilters);
+  const { sort, dir } = readSortParams(params);
+  const page = Math.max(1, Number(params.page) || 1);
+  const shownOptional = parseOptionalCols(params.cols, OPTIONAL);
 
   const allCases = await listCases();
 
@@ -63,49 +99,90 @@ export default async function CasesPage({
     );
   });
 
+  // `rows` (page filters + search + advanced filter) is what the Nova views
+  // get; the classic table adds column filters, sorting and paging on top.
   const rows = applyAdvancedFilter(basicFiltered, af, ({ serviceCase }) => serviceCase as unknown as Record<string, unknown>);
+  const colFiltered = applyColFilters(rows, colFilters, SORT_EXTRACTORS);
+  const sorted = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
+  const pageRows = paginate(sorted, page);
 
+  const counts: Record<FilterKey, number> = {
+    open: open.length, in_repair: inRepair.length, awaiting: awaiting.length, closed: closed.length, all: allCases.length,
+  };
   const href = (f: FilterKey) =>
     `${ROUTES.cases}?filter=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}${af ? `&af=${encodeURIComponent(af)}` : ""}`;
+  const chips = FILTERS.map((f) => ({ id: f.id, label: `${f.label} (${counts[f.id]})`, href: href(f.id), active: filter === f.id }));
+
+  const baseParams = { q, filter, af, ...cfParams };
+  const { colsParam, menuItems } = optionalColumnsMenu({ baseHref: ROUTES.cases, optional: OPTIONAL, shown: shownOptional, linkParams: baseParams, sort, dir });
+  const linkParams = { ...baseParams, cols: colsParam };
+
+  const columns: ListColumn<CaseSummary>[] = [
+    {
+      id: "ref", label: "Ref · Equipment", sortKey: "ref", card: "title",
+      render: ({ serviceCase: sc }) => (
+        <Link href={ROUTES.case(sc.id)} style={{ textDecoration: "none" }}>
+          <div style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: c.accent }}>{sc.ref}</div>
+          <div style={{ fontWeight: 600, fontSize: 13, color: c.ink, marginTop: 2 }}>{sc.equipment_label || "—"}</div>
+        </Link>
+      ),
+    },
+    { id: "stage", label: "Stage", sortKey: "stage", render: ({ serviceCase: sc }) => <StatusPill label={CASE_STATUS_LABEL[sc.status]} tone={statusTone[sc.status]} /> },
+    {
+      id: "account", label: "Account", sortKey: "account",
+      render: ({ account }) => (
+        <Link href={ROUTES.account(account.id)} style={{ fontSize: 13, fontWeight: 500, color: c.ink, textDecoration: "none" }}>{account.name}</Link>
+      ),
+    },
+    { id: "type", label: "Type", sortKey: "type", render: ({ serviceCase: sc }) => <StatusPill label={CASE_TYPE_LABEL[sc.type]} tone={typeTone[sc.type]} /> },
+    {
+      id: "technician", label: "Technician", sortKey: "technician", cellStyle: { fontSize: 13 },
+      render: ({ technicianName }) => <span style={{ color: technicianName ? c.muted : c.hint }}>{technicianName ?? "—"}</span>,
+    },
+    { id: "intake", label: "Intake", sortKey: "intake", cellStyle: { color: c.hint, fontSize: 12.5, whiteSpace: "nowrap" }, render: ({ serviceCase: sc }) => fmtDate(sc.intake_at) },
+    ...(shownOptional.has("complaint") ? [{
+      id: "complaint", label: "Complaint", sortKey: "complaint", cellStyle: { maxWidth: 200, fontSize: 12.5, color: c.muted },
+      render: ({ serviceCase: sc }: CaseSummary) => (
+        <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {sc.complaint || <span style={{ color: c.line }}>—</span>}
+        </span>
+      ),
+    }] : []),
+  ];
+
+  const hasFilter = !!(q || af || Object.keys(cfParams).length > 0);
 
   return (
-    <>
-      <PageHeader
-        title="Cases"
-        subtitle={`${allCases.length} total · ${open.length} open`}
-        action={
-          <Link
-            href={ROUTES.caseNew}
-            style={{
-              padding: "8px 16px", borderRadius: 7, fontSize: 13, fontWeight: 600,
-              background: c.accent, color: "#fff", textDecoration: "none",
-            }}
-          >
-            + New Case
-          </Link>
-        }
-      />
-
-      {/* ── Breakdown bar — clickable metrics ────────────────────────────── */}
-      <BreakdownBar items={[
-        { label: "Open",      count: open.length,     color: pillar.blue.base,  href: href("open"),      active: filter === "open" },
-        { label: "In repair", count: inRepair.length, color: pillar.teal.base,  href: href("in_repair"), active: filter === "in_repair" },
-        { label: "Awaiting",  count: awaiting.length, color: pillar.amber.base, href: href("awaiting"),  active: filter === "awaiting" },
-        { label: "Closed",    count: closed.length,   color: pillar.green.base, href: href("closed"),    active: filter === "closed" },
-        { label: "All",       count: allCases.length, color: c.muted,           href: href("all"),       active: filter === "all" },
-      ]} />
-
-      {/* ── Search ───────────────────────────────────────────────────────── */}
-      <ListFilterBar
-        searchValue={q}
-        searchPlaceholder="Search ref, equipment or account…"
-        hiddenParams={{ filter, af }}
-        clearHref={ROUTES.cases}
-      />
-      <AdvancedFilterPanel object="case" />
-
-      {/* ── Table with adapt mode (Nova tenants get Field/Lanes/List instead) ── */}
-      <CaseBoardSlot list={<CasesTable rows={rows} q={q} filter={filter} />} rows={rows} />
-    </>
+    <ObjectListPage
+      title="Cases"
+      subtitle={`${allCases.length} total · ${open.length} open`}
+      newLabel="Case"
+      newHref={ROUTES.caseNew}
+      menuItems={menuItems}
+      chips={chips}
+      search={{
+        value: q,
+        placeholder: "Search ref, equipment or account…",
+        hiddenParams: { filter, af, cols: colsParam, ...cfParams },
+      }}
+      advancedFilterObject="case"
+      columns={columns}
+      rows={pageRows}
+      rowKey={({ serviceCase }) => serviceCase.id}
+      rowHref={({ serviceCase }) => ROUTES.case(serviceCase.id)}
+      total={sorted.length}
+      page={page}
+      baseHref={ROUTES.cases}
+      sort={sort}
+      dir={dir}
+      linkParams={linkParams}
+      filtered={hasFilter}
+      empty={{
+        title: filter === "open" ? "No open cases" : "No cases in this category",
+        text: filter === "open" ? "Log a repair or service request as a case to track it from intake to delivery." : undefined,
+        filteredTitle: q ? `No cases match "${q}".` : "No cases match these filters.",
+      }}
+      wrapBody={(body) => <CaseBoardSlot list={body} rows={rows} />}
+    />
   );
 }

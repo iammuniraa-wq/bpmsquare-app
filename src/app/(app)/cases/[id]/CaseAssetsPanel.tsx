@@ -4,6 +4,8 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { CheckIcon } from "@/components/Icons";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 
 type AssetInfo = { id: string; name: string; make: string | null; model: string | null; rating: string | null; serial: string | null };
 
@@ -72,14 +74,13 @@ export default function CaseAssetsPanel({ caseId, accountId, assets }: Props) {
   const unselectedAccountAssets = accountAssets.filter((a) => !assetIds.includes(a.id));
 
   return (
-    <div style={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 12, padding: 16 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-        Assets
-        {saved && <span style={{ color: "var(--teal)", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3, textTransform: "none" }}><CheckIcon size={11} color="var(--teal)" /> Saved</span>}
-      </div>
-
+    <Card
+      title="Linked assets"
+      padding={14}
+      action={saved ? <span style={{ color: "var(--teal)", fontWeight: 500, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckIcon size={11} color="var(--teal)" /> Saved</span> : undefined}
+    >
       {assetIds.length === 0 && (
-        <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 6 }}>No assets linked</div>
+        <div style={{ fontSize: 12, color: c.hint, marginBottom: 8 }}>No assets linked</div>
       )}
       {assetIds.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
@@ -88,31 +89,28 @@ export default function CaseAssetsPanel({ caseId, accountId, assets }: Props) {
             return (
               <div key={id} style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                padding: "6px 10px", borderRadius: 7, background: c.panel2, border: `1px solid ${c.line}`,
+                padding: "4px 4px 4px 10px", borderRadius: 7, background: c.panel2, border: `1px solid ${c.line}`,
               }}>
                 <span style={{ fontSize: 12, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {a ? (assetLabel(a) || a.name) : id}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => { const next = assetIds.filter((x) => x !== id); toggleAsset(id); save(next); }}
-                  style={{ background: "none", border: "none", color: c.hint, cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 2px" }}
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  iconOnly
                   aria-label="Remove asset"
+                  disabled={pending}
+                  onClick={() => { const next = assetIds.filter((x) => x !== id); toggleAsset(id); save(next); }}
                 >
                   ×
-                </button>
+                </Button>
               </div>
             );
           })}
         </div>
       )}
       {!pickerOpen ? (
-        <button
-          type="button" onClick={() => setPickerOpen(true)}
-          style={{ background: "none", border: `1px dashed ${c.line}`, borderRadius: 7, padding: "6px 10px", fontSize: 12, color: c.accent, cursor: "pointer" }}
-        >
-          + Add asset
-        </button>
+        <Button variant="secondary" size="sm" onClick={() => setPickerOpen(true)}>+ Add asset</Button>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", border: `1px solid ${c.line}`, borderRadius: 7, padding: 8 }}>
           {unselectedAccountAssets.length === 0 ? (
@@ -133,11 +131,11 @@ export default function CaseAssetsPanel({ caseId, accountId, assets }: Props) {
       )}
 
       {error && (
-        <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginTop: 10 }}>
+        <div role="alert" style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginTop: 10 }}>
           {error}
         </div>
       )}
       {pending && <div style={{ fontSize: 11, color: c.hint, marginTop: 8 }}>Saving…</div>}
-    </div>
+    </Card>
   );
 }
