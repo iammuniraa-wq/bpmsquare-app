@@ -1449,7 +1449,18 @@ html, body {
   padding: 0;
   background: var(--panel2);
   color: var(--ink);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
+
+/* Type scale: 400 body, 600 subheadings, 700 headings. Inline weights set by
+   individual components still win; this fixes the unstyled default. */
+h1, h2 { font-weight: 700; line-height: 1.25; }
+h3, h4 { font-weight: 600; line-height: 1.3; }
+strong, b { font-weight: 600; }
 
 /* body's color resolves var(--ink) AT the body -- which sits OUTSIDE the
    Shell wrapper that carries data-theme/data-mode, so in nextgen dark mode
@@ -1458,7 +1469,7 @@ html, body {
    against that wrapper's own (possibly dark-remapped) tokens. */
 [data-theme] {
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
 }
