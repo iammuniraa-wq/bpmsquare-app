@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Field from "@/components/ui/Field";
+import { Input, Select } from "@/components/ui/Input";
 
 type AccountLite = { id: string; name: string };
 
@@ -12,15 +16,7 @@ const SOURCES: { value: string; label: string }[] = [
   { value: "amc", label: "AMC" },
 ];
 
-const inp: React.CSSProperties = {
-  width: "100%", boxSizing: "border-box", border: `1px solid ${c.line}`, borderRadius: 8,
-  padding: "8px 12px", fontSize: 13, color: c.ink, background: c.panel, outline: "none",
-};
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11, fontWeight: 600, color: c.muted,
-  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6,
-};
-
+/** "+ New Lead": leads are small enough to be created in a dialog rather than on a page. */
 export default function NewLeadButton({ accounts }: { accounts: AccountLite[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -67,62 +63,54 @@ export default function NewLeadButton({ accounts }: { accounts: AccountLite[] })
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        style={{ display: "inline-flex", alignItems: "center", gap: 6, background: c.accent, color: "#fff", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer" }}
-      >
-        + New lead
-      </button>
+      <Button variant="primary" onClick={() => setOpen(true)}>+ New Lead</Button>
 
       {open && (
         <div
           onClick={() => { setOpen(false); reset(); }}
           style={{ position: "fixed", inset: 0, background: "rgba(15,23,32,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}
         >
-          <div onClick={(e) => e.stopPropagation()} style={{ background: c.panel, borderRadius: 12, padding: 22, width: 420, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}>
-            <div style={{ fontSize: 14.5, fontWeight: 700, color: c.ink, marginBottom: 16 }}>New lead</div>
-
-            <div style={{ marginBottom: 12, position: "relative" }}>
-              <label style={lbl}>Account</label>
-              {selectedAccount ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", ...inp }}>
-                  <span>{selectedAccount.name}</span>
-                  <button onClick={() => setAccountId(null)} style={{ background: "none", border: "none", color: c.hint, cursor: "pointer", fontSize: 13 }}>×</button>
-                </div>
-              ) : (
-                <input style={inp} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search accounts by name…" autoFocus />
-              )}
-              {searchResults.length > 0 && (
-                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, background: c.panel, border: `1px solid ${c.line}`, borderRadius: 8, marginTop: 4, boxShadow: "0 8px 24px rgba(0,0,0,.1)", overflow: "hidden", maxHeight: 200, overflowY: "auto" }}>
-                  {searchResults.map((a) => (
-                    <div key={a.id} onClick={() => { setAccountId(a.id); setSearch(""); }} style={{ padding: "8px 12px", fontSize: 13, color: c.ink, cursor: "pointer", borderBottom: `1px solid ${c.line}` }}>
-                      {a.name}
+          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label="New lead" style={{ width: 420, maxWidth: "90vw" }}>
+            <Card padding={22} title="New lead">
+              <div style={{ marginBottom: 16, position: "relative" }}>
+                <Field label="Account" style={{ marginBottom: 0 }}>
+                  {selectedAccount ? (
+                    <div className="bpm-input" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span>{selectedAccount.name}</span>
+                      <Button variant="quiet" size="sm" iconOnly aria-label="Change account" onClick={() => setAccountId(null)}>×</Button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  ) : (
+                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search accounts by name…" autoFocus />
+                  )}
+                </Field>
+                {searchResults.length > 0 && (
+                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, background: c.panel, border: `1px solid ${c.line}`, borderRadius: 8, marginTop: 4, boxShadow: "0 8px 24px rgba(0,0,0,.1)", overflow: "hidden", maxHeight: 200, overflowY: "auto" }}>
+                    {searchResults.map((a) => (
+                      <div key={a.id} onClick={() => { setAccountId(a.id); setSearch(""); }} style={{ padding: "8px 12px", fontSize: 13, color: c.ink, cursor: "pointer", borderBottom: `1px solid ${c.line}` }}>
+                        {a.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <label style={lbl}>Title</label>
-              <input style={inp} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Ring-frame motor burnt — rewind enquiry" />
-            </div>
+              <Field label="Title">
+                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Ring-frame motor burnt — rewind enquiry" />
+              </Field>
 
-            <div style={{ marginBottom: 18 }}>
-              <label style={lbl}>Source</label>
-              <select style={inp} value={source} onChange={(e) => setSource(e.target.value)}>
-                {SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            </div>
+              <Field label="Source">
+                <Select value={source} onChange={(e) => setSource(e.target.value)}>
+                  {SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </Select>
+              </Field>
 
-            {error && <div style={{ fontSize: 12.5, color: "var(--err-ink)", marginBottom: 12 }}>{error}</div>}
+              {error && <div role="alert" style={{ fontSize: 12.5, color: "var(--err-ink)", marginBottom: 12 }}>{error}</div>}
 
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => { setOpen(false); reset(); }} style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${c.line}`, background: "var(--panel)", color: c.muted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: saving ? "not-allowed" : "pointer" }}>
-                {saving ? "Saving…" : "Create lead"}
-              </button>
-            </div>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <Button variant="secondary" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
+                <Button variant="primary" onClick={save} loading={saving}>{saving ? "Saving…" : "Save"}</Button>
+              </div>
+            </Card>
           </div>
         </div>
       )}

@@ -51,7 +51,7 @@ const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, vertical
  * hands over the already-filtered, already-paged `rows`.
  */
 export default function ObjectListPage<T>({
-  title, subtitle, newLabel, newHref, menuItems, chips, search, advancedFilterObject,
+  title, subtitle, newLabel, newHref, newAction, menuItems, chips, search, advancedFilterObject,
   columns, rows, rowKey, rowHref, total, page, pageSize = DEFAULT_PAGE_SIZE, baseHref,
   sort, dir, linkParams, empty, filtered, beforeTable, wrapBody,
 }: {
@@ -60,6 +60,8 @@ export default function ObjectListPage<T>({
   /** Singular object name: "Supplier" -> "+ New Supplier". Omit when the list has no create route. */
   newLabel?: string;
   newHref?: string;
+  /** The "+ New" control when creating is a dialog rather than a page (Leads): replaces the link button. */
+  newAction?: React.ReactNode;
   /** Bulk / secondary actions, as link items. */
   menuItems?: MenuItem[];
   chips?: ListChip[];
@@ -192,10 +194,10 @@ export default function ObjectListPage<T>({
       <PageHeader
         title={title}
         subtitle={subtitle}
-        action={(newHref || (menuItems && menuItems.length > 0)) ? (
+        action={(newHref || newAction || (menuItems && menuItems.length > 0)) ? (
           <>
             {menuItems && menuItems.length > 0 && <MoreMenu items={menuItems} />}
-            {newHref && <Button href={newHref} variant="primary">+ New {newLabel}</Button>}
+            {newAction ?? (newHref && <Button href={newHref} variant="primary">+ New {newLabel}</Button>)}
           </>
         ) : undefined}
       />
