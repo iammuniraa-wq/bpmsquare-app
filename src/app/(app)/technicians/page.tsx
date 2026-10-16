@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { listTechnicians, TECH_STATUS_LABEL } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import PageHeader from "@/components/PageHeader";
-import ListFilterBar from "@/components/ListFilterBar";
-import Pill from "@/components/Pill";
+import { CARD_SURFACE } from "@/components/ui/Card";
+import StatusPill from "@/components/ui/StatusPill";
+import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
 import { ROUTES } from "@/lib/constants";
 import type { Technician } from "@/lib/types";
 import { AlertTriangle } from "@/components/Icons";
@@ -12,16 +11,15 @@ import { requireWorkcenterView } from "@/lib/permissions";
 import { getTenant, requireFeature } from "@/lib/tenant";
 import { getTechnicianLiveStates } from "@/lib/wfm/server";
 import TechnicianLiveBadge from "@/components/wfm/TechnicianLiveBadge";
-import { sortRows, type SortExtractor } from "@/lib/listSort";
-import PagerLink from "@/components/PagerLink";
-import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
+import { paginate } from "@/lib/paginate";
 
 type TechRow = Awaited<ReturnType<typeof listTechnicians>>[number];
 
 const SORT_EXTRACTORS: Record<string, SortExtractor<TechRow>> = {
   name: (r) => r.technician.name,
-  status: (r) => r.technician.status,
   location: (r) => r.technician.base_location,
+  status: (r) => r.technician.status,
   visits: (r) => r.monthStats.visits,
 };
 
@@ -33,10 +31,10 @@ function Avatar({ name, tone }: { name: string; tone: PillarKey }) {
   const initials = name.split(" ").map((w) => w[0]).slice(0, 2).join("");
   return (
     <div style={{
-      width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
       background: pillar[tone].bg, color: pillar[tone].fg,
       display: "flex", alignItems: "center", justifyContent: "center",
-      fontSize: 14, fontWeight: 700, letterSpacing: "-0.5px",
+      fontSize: 13, fontWeight: 700, letterSpacing: "-0.5px",
     }}>
       {initials}
     </div>
@@ -46,12 +44,16 @@ function Avatar({ name, tone }: { name: string; tone: PillarKey }) {
 export default async function TechniciansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; sort?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; page?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("technicians");
   await requireFeature("technicians");
-  const { status: statusFilter, q, sort, page: pageParam } = await searchParams;
-  const page = Math.max(1, Number(pageParam) || 1);
+  const params = await searchParams;
+  const { status: statusFilter, q } = params;
+  const colFilters = parseColFilterParams(params);
+  const cfParams = colFilterQueryParams(colFilters);
+  const { sort, dir } = readSortParams(params);
+  const page = Math.max(1, Number(params.page) || 1);
   const [allTechs, tenant] = await Promise.all([listTechnicians(), getTenant()]);
   // The status filter already existed but had no control to reach it -- it
   // was only settable by hand-editing the URL. Now driven by the bar below.
@@ -66,7 +68,8 @@ export default async function TechniciansPage({
       (tech.skills ?? "").toLowerCase().includes(needle)
     );
   });
-  techs = sortRows(techs, sort, "asc", SORT_EXTRACTORS);
+  techs = applyColFilters(techs, colFilters, SORT_EXTRACTORS);
+  techs = sortRows(techs, sort, dir, SORT_EXTRACTORS);
   const pageTechs = paginate(techs, page);
   const liveStates = tenant?.features?.wfm
     ? await getTechnicianLiveStates(tenant.id, allTechs.map((t) => t.technician.id))
@@ -80,187 +83,114 @@ export default async function TechniciansPage({
     .filter((t) => t.technician.status === "active")
     .reduce((s, t) => s + t.todayWorkOrders.length, 0);
 
-  return (
-    <>
-      <PageHeader
-        title="Technicians"
-        subtitle={`Field team · ${activeCt} active${onLeaveCt > 0 ? ` · ${onLeaveCt} on leave` : ""}`}
-        action={
-          <Link
-            href={ROUTES.technicianNew}
-            style={{
-              padding: "7px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 600,
-              background: c.accent, color: "#fff", textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            + New Technician
-          </Link>
-        }
-      />
-
-      <ListFilterBar
-        searchValue={q}
-        searchPlaceholder="Search technician, phone or skill…"
-        selects={[
-          {
-            name: "status", value: statusFilter, placeholder: "All statuses",
-            options: [
-              { value: "active", label: "Active" },
-              { value: "on_leave", label: "On leave" },
-              { value: "inactive", label: "Inactive" },
-            ],
-          },
-          {
-            name: "sort", value: sort, placeholder: "Sort by…",
-            options: [
-              { value: "name", label: "Name" },
-              { value: "status", label: "Status" },
-              { value: "location", label: "Location" },
-              { value: "visits", label: "Visits / mo" },
-            ],
-          },
-        ]}
-        clearHref={ROUTES.technicians}
-      />
-
-      {/* Team capacity strip */}
-      <div style={{
-        display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap",
-      }}>
-        {[
-          { label: "Active today",  value: activeCt },
-          { label: "On leave",      value: onLeaveCt, warn: onLeaveCt > 0 },
-          { label: "Slots used",    value: `${usedSlots} / ${totalSlots}` },
-          { label: "Slots free",    value: totalSlots - usedSlots, accent: true },
-        ].map(({ label, value, warn, accent }) => (
-          <div key={label} style={{
-            ...cardStyle,
-            padding: "10px 16px",
-            display: "flex", flexDirection: "column", gap: 2, minWidth: 110,
-          }}>
-            <div style={{
-              fontSize: 20, fontWeight: 700,
-              color: warn ? pillar.amber.base : accent ? pillar.green.base : c.ink,
-            }}>
-              {value}
-            </div>
-            <div style={{ fontSize: 11, color: c.muted }}>{label}</div>
+  const columns: ListColumn<TechRow>[] = [
+    {
+      id: "name", label: "Technician", sortKey: "name", card: "title",
+      render: ({ technician: tech }) => (
+        <Link href={ROUTES.technician(tech.id)} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", opacity: tech.status === "inactive" ? 0.6 : 1 }}>
+          <Avatar name={tech.name} tone={STATUS_TONE[tech.status]} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5, color: c.ink }}>{tech.name}</div>
+            {tech.skills && <div style={{ fontSize: 11.5, color: c.muted, marginTop: 1, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 400 }}>{tech.skills}</div>}
           </div>
-        ))}
-      </div>
+        </Link>
+      ),
+    },
+    { id: "location", label: "Location", sortKey: "location", cellStyle: { color: c.muted, fontSize: 13 }, render: ({ technician: tech }) => tech.base_location ?? "—" },
+    {
+      id: "status", label: "Status", sortKey: "status",
+      render: ({ technician: tech, currentLeave }) => {
+        // Cert expiry within 90 days
+        const expiringSoon = tech.certifications.filter((cert) => {
+          const exp = tech.cert_expiry[cert];
+          return exp && new Date(exp) < new Date(Date.now() + 90 * 86400_000);
+        });
+        return (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+            <StatusPill label={TECH_STATUS_LABEL[tech.status]} tone={STATUS_TONE[tech.status]} />
+            <TechnicianLiveBadge state={liveStates.get(tech.id)} />
+            {tech.status === "on_leave" && currentLeave && (
+              <span style={{ fontSize: 11, color: pillar.amber.fg, background: pillar.amber.bg, borderRadius: 5, padding: "3px 8px", fontWeight: 500 }}>
+                Back {new Date(currentLeave.to_date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+              </span>
+            )}
+            {expiringSoon.length > 0 && (
+              <span title={expiringSoon.join(", ")} style={{ fontSize: 11, color: pillar.amber.fg, background: pillar.amber.bg, borderRadius: 5, padding: "3px 7px", fontWeight: 500 }}>
+                <AlertTriangle size={11} color={pillar.amber.fg} style={{ marginRight: 4 }} />{expiringSoon.length} cert{expiringSoon.length > 1 ? "s" : ""} expiring
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: "slots", label: "Free today",
+      render: ({ technician: tech, todayWorkOrders }) => {
+        if (tech.status === "on_leave") return <span style={{ color: c.hint }}>—</span>;
+        const slotsFree = Math.max(0, tech.max_visits_per_day - todayWorkOrders.length);
+        const isFull = slotsFree === 0;
+        const allFree = slotsFree === tech.max_visits_per_day;
+        const t = isFull ? pillar.red : allFree ? pillar.green : pillar.amber;
+        return (
+          <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 8, background: t.bg, border: `1px solid ${t.base}`, color: t.fg, fontSize: 13, fontWeight: 700 }}>
+            {slotsFree}/{tech.max_visits_per_day}
+          </span>
+        );
+      },
+    },
+    { id: "visits", label: "Visits / mo", sortKey: "visits", cellStyle: { fontWeight: 600, color: c.muted }, render: ({ monthStats }) => monthStats.visits },
+  ];
 
-      {/* Roster */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        {pageTechs.map(({ technician: tech, todayWorkOrders, currentLeave, monthStats }) => {
-          const tone      = STATUS_TONE[tech.status];
-          const isLeave   = tech.status === "on_leave";
-          const slotsUsed = todayWorkOrders.length;
-          const slotsFree = Math.max(0, tech.max_visits_per_day - slotsUsed);
-          const isFull    = slotsFree === 0 && !isLeave;
-
-          // Cert expiry within 90 days
-          const expiringSoon = tech.certifications.filter((cert) => {
-            const exp = tech.cert_expiry[cert];
-            return exp && new Date(exp) < new Date(Date.now() + 90 * 86400_000);
-          });
-
-          const skillsLine = tech.skills ?? "";
-
-          return (
-            <Link
-              key={tech.id}
-              href={ROUTES.technician(tech.id)}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <div style={{
-                display: "flex", alignItems: "center", gap: 14,
-                background: c.panel, borderRadius: 10, padding: "12px 16px",
-                border: `1px solid ${c.line}`,
-                borderLeft: `3px solid ${pillar[tone].base}`,
-                transition: "box-shadow 0.15s",
-                opacity: tech.status === "inactive" ? 0.55 : 1,
-              }}>
-
-                <Avatar name={tech.name} tone={tone} />
-
-                {/* Name + location + status */}
-                <div style={{ minWidth: 160, flexShrink: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13.5, color: c.ink }}>{tech.name}</div>
-                  <div style={{ fontSize: 11.5, color: c.muted, marginTop: 1 }}>{tech.base_location}</div>
-                </div>
-
-                <div style={{ flexShrink: 0, display: "flex", gap: 6 }}>
-                  <Pill label={TECH_STATUS_LABEL[tech.status]} tone={tone} />
-                  <TechnicianLiveBadge state={liveStates.get(tech.id)} />
-                </div>
-
-                {/* Skills — single truncated line */}
-                <div style={{
-                  flex: 1, fontSize: 12, color: c.muted,
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  minWidth: 0,
-                }}>
-                  {skillsLine}
-                </div>
-
-                {/* Cert expiry warning */}
-                {expiringSoon.length > 0 && (
-                  <div style={{
-                    flexShrink: 0,
-                    fontSize: 11, color: pillar.amber.fg,
-                    background: pillar.amber.bg, borderRadius: 5,
-                    padding: "3px 7px", fontWeight: 500,
-                  }} title={expiringSoon.join(", ")}>
-                    <AlertTriangle size={11} color={pillar.amber.fg} style={{ marginRight: 4 }} /> {expiringSoon.length} cert{expiringSoon.length > 1 ? "s" : ""} expiring
-                  </div>
-                )}
-
-                {/* Leave note */}
-                {isLeave && currentLeave && (
-                  <div style={{
-                    flexShrink: 0, fontSize: 11, color: pillar.amber.fg,
-                    background: pillar.amber.bg, borderRadius: 5,
-                    padding: "3px 8px", fontWeight: 500,
-                  }}>
-                    Back {new Date(currentLeave.to_date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                  </div>
-                )}
-
-                {/* Slot indicator */}
-                {!isLeave && (
-                  <div style={{
-                    flexShrink: 0, textAlign: "center",
-                    padding: "4px 12px", borderRadius: 8,
-                    background: isFull ? pillar.red.bg : slotsFree === tech.max_visits_per_day ? pillar.green.bg : pillar.amber.bg,
-                    border: `1px solid ${isFull ? pillar.red.base : slotsFree === tech.max_visits_per_day ? pillar.green.base : pillar.amber.base}`,
-                  }}>
-                    <div style={{
-                      fontSize: 14, fontWeight: 700,
-                      color: isFull ? pillar.red.fg : slotsFree === tech.max_visits_per_day ? pillar.green.fg : pillar.amber.fg,
-                    }}>
-                      {slotsFree}/{tech.max_visits_per_day}
-                    </div>
-                    <div style={{ fontSize: 9, color: c.muted, marginTop: 0 }}>free today</div>
-                  </div>
-                )}
-
-                {/* Month visits summary */}
-                <div style={{
-                  flexShrink: 0, textAlign: "right",
-                  fontSize: 11, color: c.hint, minWidth: 60,
-                }}>
-                  <div style={{ fontWeight: 600, color: c.muted }}>{monthStats.visits}</div>
-                  <div>visits / mo</div>
-                </div>
-
-                <div style={{ color: c.hint, fontSize: 16, flexShrink: 0 }}>›</div>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-      <PagerLink page={page} total={techs.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.technicians} hiddenParams={{ status: statusFilter, q, sort }} />
-    </>
+  return (
+    <ObjectListPage
+      title="Technicians"
+      subtitle={`Field team · ${activeCt} active${onLeaveCt > 0 ? ` · ${onLeaveCt} on leave` : ""}`}
+      newLabel="Technician"
+      newHref={ROUTES.technicianNew}
+      search={{
+        value: q,
+        placeholder: "Search technician, phone or skill…",
+        selects: [{
+          name: "status", value: statusFilter, placeholder: "All statuses",
+          options: [
+            { value: "active", label: "Active" },
+            { value: "on_leave", label: "On leave" },
+            { value: "inactive", label: "Inactive" },
+          ],
+        }],
+        hiddenParams: { ...cfParams },
+      }}
+      beforeTable={
+        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+          {[
+            { label: "Active today",  value: activeCt },
+            { label: "On leave",      value: onLeaveCt, warn: onLeaveCt > 0 },
+            { label: "Slots used",    value: `${usedSlots} / ${totalSlots}` },
+            { label: "Slots free",    value: totalSlots - usedSlots, accent: true },
+          ].map(({ label, value, warn, accent }) => (
+            <div key={label} style={{ ...CARD_SURFACE, padding: "10px 16px", display: "flex", flexDirection: "column", gap: 2, minWidth: 110 }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: warn ? pillar.amber.base : accent ? pillar.green.base : c.ink }}>{value}</div>
+              <div style={{ fontSize: 11, color: c.muted }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      }
+      columns={columns}
+      rows={pageTechs}
+      rowKey={({ technician }) => technician.id}
+      rowHref={({ technician }) => ROUTES.technician(technician.id)}
+      total={techs.length}
+      page={page}
+      baseHref={ROUTES.technicians}
+      sort={sort}
+      dir={dir}
+      linkParams={{ status: statusFilter, q, ...cfParams }}
+      filtered={!!(needle || statusFilter || Object.keys(cfParams).length > 0)}
+      empty={{
+        title: "No technicians yet",
+        text: "Add the field technicians on your team, then assign visits to them.",
+        filteredTitle: "No technicians match these filters.",
+      }}
+    />
   );
 }
