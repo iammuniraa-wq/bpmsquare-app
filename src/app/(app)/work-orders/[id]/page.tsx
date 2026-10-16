@@ -6,18 +6,18 @@ import { formatMoney, resolveCurrency } from "@/lib/currency";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { getTechnicianAttendanceForDate, dateKeyInTz } from "@/lib/wfm/server";
 import { c, pillar, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import PageHeader from "@/components/PageHeader";
-import Pill from "@/components/Pill";
+import StatusPill from "@/components/ui/StatusPill";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 import WorkOrderActions from "./WorkOrderActions";
 import { ROUTES } from "@/lib/constants";
-import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
-import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Activity } from "@/components/Icons";
-import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
+import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import RecordMoreMenu from "@/components/page/RecordMoreMenu";
+import RecordActivity from "@/components/page/RecordActivity";
 
 const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
   scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
@@ -49,16 +49,20 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default async function WorkOrderDetailPage({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const [data, role, tenant] = await Promise.all([getWorkOrder(id), getUserRole(), getTenant()]);
   if (!data) notFound();
   const cur = resolveCurrency(tenant?.config);
+  const isAdmin = role === "admin";
 
   const { workOrder: wo, account, asset, technician, serviceCase, quote, contract, loanerAsset } = data;
+  const basePath = ROUTES.workOrder(wo.id);
 
   const attendance =
     tenant?.features?.wfm && technician && wo.scheduled_for
@@ -91,93 +95,159 @@ export default async function WorkOrderDetailPage({
   }
   const laborUomIsHours = !!quotedLabour?.uom && /^h(ou)?rs?\.?$/i.test(quotedLabour.uom.trim());
 
-  return (
+  const overview = (
     <>
-      <TabTitle title={wo.ref} />
-      <div style={{ marginBottom: 10 }}>
-        <Link href={ROUTES.workOrders} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          ← All work orders
-        </Link>
-      </div>
-
-      <PageHeader
-        title={wo.ref}
-        subtitle={`Field Service · Work Order · ${account?.name ?? ""}`}
-        action={<AdaptObjectDrawer objectType="work_order" objectLabel="Work Order" isAdmin={role === "admin"} />}
+      <ObjectSections
+        objectType="work_order"
+        record={wo as unknown as Record<string, unknown>}
+        patchUrl={`/api/work-orders/${wo.id}`}
+        exclude={["ref"]}
       />
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-        <Pill label={STATUS_LABEL[wo.status]} tone={STATUS_TONE[wo.status]} />
-        <Pill label={wo.authorized_by.kind === "quote" ? "Billable" : "AMC"} tone={wo.authorized_by.kind === "quote" ? "blue" : "teal"} />
-        <div style={{ marginLeft: "auto" }}>
-          <WorkOrderActions id={wo.id} status={wo.status} />
-        </div>
-      </div>
+      {asset && (
+        <Card title="Asset under service">
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{
+              width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+              background: pillar.green.bg, color: pillar.green.fg,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              {asset.kind === "motor" ? <Zap size={20} color={pillar.green.fg} /> : asset.kind === "transformer" ? <Gear size={20} color={pillar.green.fg} /> : asset.kind === "pump" ? <Droplet size={20} color={pillar.green.fg} /> : asset.kind === "generator" ? <Battery size={20} color={pillar.green.fg} /> : <Activity size={20} color={pillar.green.fg} />}
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{asset.name}</div>
+              <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
+                {KIND_LABEL[asset.kind] ?? asset.kind}{asset.rating ? " · " + asset.rating : ""}
+              </div>
+              {asset.serial && (
+                <div style={{ fontSize: 11, color: c.hint, marginTop: 2, fontFamily: "monospace" }}>S/N {asset.serial}</div>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
-      <div style={{ marginBottom: 14 }}>
-        <ObjectSections
-          objectType="work_order"
-          record={wo as unknown as Record<string, unknown>}
-          patchUrl={`/api/work-orders/${wo.id}`}
-          exclude={["ref"]}
+      {loanerAsset && (
+        <Card style={{ borderLeft: `3px solid ${pillar.amber.base}`, background: pillar.amber.bg }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: pillar.amber.base }}>
+              Loaner dispatched
+            </span>
+            <StatusPill label="On Loan" tone="amber" />
+          </div>
+          <div style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{loanerAsset.name}</div>
+          {loanerAsset.rating && (
+            <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>{loanerAsset.rating}</div>
+          )}
+          {loanerAsset.serial && (
+            <div style={{ fontSize: 11, color: c.hint, marginTop: 2, fontFamily: "monospace" }}>S/N {loanerAsset.serial}</div>
+          )}
+          <div style={{ fontSize: 11.5, color: pillar.amber.base, marginTop: 8, fontWeight: 500 }}>
+            Return loaner on delivery of repaired unit
+          </div>
+        </Card>
+      )}
+    </>
+  );
+
+  const attendanceCard = attendance ? (
+    <Card title="Technician attendance">
+      {attendance.events.length === 0 ? (
+        <div style={{ fontSize: 12, color: c.hint }}>No punches recorded for the scheduled date.</div>
+      ) : (
+        <>
+          {attendance.events.map((e, i) => (
+            <Detail
+              key={i}
+              label={
+                e.kind === "check_in" ? "Check in" :
+                e.kind === "check_out" ? "Check out" :
+                e.kind === "break_start" ? "Break start" : "Break end"
+              }
+              value={
+                <>
+                  {new Date(e.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                  {e.within_geofence === false && <span style={{ color: pillar.amber.base, marginLeft: 6 }}>outside geofence</span>}
+                </>
+              }
+            />
+          ))}
+          <Detail
+            label="Net hours"
+            value={<strong>{Math.floor(attendance.hours.net_minutes / 60)}h {attendance.hours.net_minutes % 60}m</strong>}
+          />
+          {attendance.hours.break_minutes > 0 && (
+            <Detail label="Break time" value={`${Math.floor(attendance.hours.break_minutes / 60)}h ${attendance.hours.break_minutes % 60}m`} />
+          )}
+          {quotedLabour && (
+            <>
+              <Detail
+                label="Quoted labour"
+                value={`${quotedLabour.qty}${quotedLabour.uom ? " " + quotedLabour.uom : ""} (${formatMoney(quotedLabour.value, cur, {})})`}
+              />
+              {laborUomIsHours && (
+                <Detail
+                  label="Variance"
+                  value={
+                    <span style={{ color: attendance.hours.net_minutes / 60 > quotedLabour.qty ? pillar.red.base : pillar.green.base, fontWeight: 600 }}>
+                      {(attendance.hours.net_minutes / 60 - quotedLabour.qty).toFixed(1)}h {attendance.hours.net_minutes / 60 > quotedLabour.qty ? "over" : "under"} quote
+                    </span>
+                  }
+                />
+              )}
+            </>
+          )}
+        </>
+      )}
+      <div style={{ fontSize: 10.5, color: c.hint, marginTop: 8 }}>
+        From WFM attendance — cross-check against the technician&apos;s own visit log below.
+      </div>
+    </Card>
+  ) : null;
+
+  return (
+    <ObjectRecordPage
+      backHref={ROUTES.workOrders}
+      backLabel="All work orders"
+      title={wo.ref}
+      meta={`Field Service · Work Order${account?.name ? ` · ${account.name}` : ""}`}
+      status={
+        <>
+          <StatusPill label={STATUS_LABEL[wo.status]} tone={STATUS_TONE[wo.status]} />
+          <StatusPill label={wo.authorized_by.kind === "quote" ? "Billable" : "AMC"} tone={wo.authorized_by.kind === "quote" ? "blue" : "teal"} />
+        </>
+      }
+      primaryAction={<WorkOrderActions id={wo.id} status={wo.status} />}
+      menu={
+        <RecordMoreMenu
+          inlineEdit={{ overviewHref: basePath }}
+          adapt={{ objectType: "work_order", objectLabel: "Work Order", isAdmin }}
         />
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 12 }} className="hub-grid">
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-          {asset && (
-            <section style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 10px" }}>Asset under service</h3>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{
-                  width: 42, height: 42, borderRadius: 10, flexShrink: 0,
-                  background: pillar.green.bg, color: pillar.green.fg,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {asset.kind === "motor" ? <Zap size={20} color={pillar.green.fg} /> : asset.kind === "transformer" ? <Gear size={20} color={pillar.green.fg} /> : asset.kind === "pump" ? <Droplet size={20} color={pillar.green.fg} /> : asset.kind === "generator" ? <Battery size={20} color={pillar.green.fg} /> : <Activity size={20} color={pillar.green.fg} />}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{asset.name}</div>
-                  <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
-                    {KIND_LABEL[asset.kind] ?? asset.kind}{asset.rating ? " · " + asset.rating : ""}
-                  </div>
-                  {asset.serial && (
-                    <div style={{ fontSize: 11, color: c.hint, marginTop: 2, fontFamily: "monospace" }}>S/N {asset.serial}</div>
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {loanerAsset && (
-            <section style={{ ...cardStyle, borderLeft: `3px solid ${pillar.amber.base}`, background: pillar.amber.bg }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: pillar.amber.base }}>
-                  Loaner dispatched
-                </span>
-                <Pill label="On Loan" tone="amber" />
-              </div>
-              <div style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{loanerAsset.name}</div>
-              {loanerAsset.rating && (
-                <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>{loanerAsset.rating}</div>
-              )}
-              {loanerAsset.serial && (
-                <div style={{ fontSize: 11, color: c.hint, marginTop: 2, fontFamily: "monospace" }}>S/N {loanerAsset.serial}</div>
-              )}
-              <div style={{ fontSize: 11.5, color: pillar.amber.base, marginTop: 8, fontWeight: 500 }}>
-                Return loaner on delivery of repaired unit
-              </div>
-            </section>
-          )}
-
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-          <section style={cardStyle}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 6px" }}>Assignment</h3>
+      }
+      facts={[
+        ...(account ? [{ label: "Account", value: <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> }] : []),
+        { label: "Technician", value: technician?.name ?? "Not assigned" },
+        { label: "Scheduled", value: wo.scheduled_for ? fmtDate(wo.scheduled_for) : "—" },
+        ...(quote ? [{ label: "Quote value", value: formatMoney(quote.total, cur, {}) }] : []),
+      ]}
+      basePath={basePath}
+      activeTab={tab}
+      tabs={[
+        { id: "overview", label: "Overview", content: overview },
+        ...(attendanceCard ? [{ id: "attendance", label: "Attendance", content: attendanceCard }] : []),
+        {
+          id: "related",
+          label: "Related",
+          content: (
+            <RecordRfqsCard origin={{ type: "work_order", id }} originLabel={`Work order ${wo.ref}`} title={`Materials for ${wo.ref}`} compactTop
+              lines={(wo as { description?: string | null }).description ? [{ description: `Materials for: ${String((wo as { description?: string | null }).description).slice(0, 200)}`, qty: 1, uom: "Lot" }] : undefined} />
+          ),
+        },
+        { id: "activity", label: "Activity", content: <RecordActivity objectType="work_orders" objectId={wo.id} isAdmin={isAdmin} /> },
+      ]}
+      rail={
+        <>
+          <Card title="Assignment" padding={14}>
             {account && (
               <Detail label="Account" value={
                 <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link>
@@ -186,69 +256,12 @@ export default async function WorkOrderDetailPage({
             {technician && <Detail label="Technician" value={technician.name} />}
             {technician?.skills && <Detail label="Skills" value={<span style={{ fontSize: 11.5, color: c.muted }}>{technician.skills}</span>} />}
             {wo.scheduled_for && <Detail label="Scheduled" value={fmtDate(wo.scheduled_for)} />}
-          </section>
+          </Card>
 
-          {attendance && (
-            <section style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 6px" }}>Technician attendance</h3>
-              {attendance.events.length === 0 ? (
-                <div style={{ fontSize: 12, color: c.hint }}>No punches recorded for the scheduled date.</div>
-              ) : (
-                <>
-                  {attendance.events.map((e, i) => (
-                    <Detail
-                      key={i}
-                      label={
-                        e.kind === "check_in" ? "Check in" :
-                        e.kind === "check_out" ? "Check out" :
-                        e.kind === "break_start" ? "Break start" : "Break end"
-                      }
-                      value={
-                        <>
-                          {new Date(e.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                          {e.within_geofence === false && <span style={{ color: pillar.amber.base, marginLeft: 6 }}>outside geofence</span>}
-                        </>
-                      }
-                    />
-                  ))}
-                  <Detail
-                    label="Net hours"
-                    value={<strong>{Math.floor(attendance.hours.net_minutes / 60)}h {attendance.hours.net_minutes % 60}m</strong>}
-                  />
-                  {attendance.hours.break_minutes > 0 && (
-                    <Detail label="Break time" value={`${Math.floor(attendance.hours.break_minutes / 60)}h ${attendance.hours.break_minutes % 60}m`} />
-                  )}
-                  {quotedLabour && (
-                    <>
-                      <Detail
-                        label="Quoted labour"
-                        value={`${quotedLabour.qty}${quotedLabour.uom ? " " + quotedLabour.uom : ""} (${formatMoney(quotedLabour.value, cur, {})})`}
-                      />
-                      {laborUomIsHours && (
-                        <Detail
-                          label="Variance"
-                          value={
-                            <span style={{ color: attendance.hours.net_minutes / 60 > quotedLabour.qty ? pillar.red.base : pillar.green.base, fontWeight: 600 }}>
-                              {(attendance.hours.net_minutes / 60 - quotedLabour.qty).toFixed(1)}h {attendance.hours.net_minutes / 60 > quotedLabour.qty ? "over" : "under"} quote
-                            </span>
-                          }
-                        />
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-              <div style={{ fontSize: 10.5, color: c.hint, marginTop: 8 }}>
-                From WFM attendance — cross-check against the technician&apos;s own visit log below.
-              </div>
-            </section>
-          )}
-
-          <section style={cardStyle}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 6px" }}>Authorization</h3>
+          <Card title="Authorization" padding={14}>
             {quote && (
               <>
-                <Detail label="Type" value={<Pill label="Billable" tone="blue" />} />
+                <Detail label="Type" value={<StatusPill label="Billable" tone="blue" />} />
                 <Detail label="Quote" value={
                   <Link href={ROUTES.quotation(quote.id)} style={{ color: c.accent, fontFamily: "monospace", textDecoration: "none" }}>{quote.ref}</Link>
                 } />
@@ -257,16 +270,15 @@ export default async function WorkOrderDetailPage({
             )}
             {contract && (
               <>
-                <Detail label="Type" value={<Pill label="AMC" tone="teal" />} />
+                <Detail label="Type" value={<StatusPill label="AMC" tone="teal" />} />
                 <Detail label="Contract" value={<span style={{ fontFamily: "monospace", fontSize: 12 }}>{contract.ref}</span>} />
                 {contract.value && <Detail label="AMC value" value={formatMoney(contract.value, cur, {})} />}
               </>
             )}
-          </section>
+          </Card>
 
           {serviceCase && (
-            <section style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 8px" }}>Service case</h3>
+            <Card title="Service case" padding={14}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <Link
                   href={ROUTES.case(serviceCase.id)}
@@ -274,28 +286,18 @@ export default async function WorkOrderDetailPage({
                 >
                   {serviceCase.ref}
                 </Link>
-                <Pill label={CASE_STATUS_LABEL[serviceCase.status]} tone={CASE_TONE[serviceCase.status] ?? "blue"} />
+                <StatusPill label={CASE_STATUS_LABEL[serviceCase.status]} tone={CASE_TONE[serviceCase.status] ?? "blue"} />
               </div>
               <div style={{ fontSize: 12, color: c.muted, marginTop: 6, lineHeight: 1.4 }}>
                 {serviceCase.equipment_label}
               </div>
-              <Link
-                href={ROUTES.case(serviceCase.id)}
-                style={{
-                  display: "inline-block", marginTop: 10, fontSize: 11, fontWeight: 600,
-                  color: c.accent, background: c.accentbg, borderRadius: 6, padding: "3px 8px",
-                  textDecoration: "none",
-                }}
-              >
-                View case
-              </Link>
-            </section>
+              <div style={{ marginTop: 10 }}>
+                <Button href={ROUTES.case(serviceCase.id)} variant="secondary" size="sm">View case</Button>
+              </div>
+            </Card>
           )}
-        </div>
-      </div>
-      <RecordRfqsCard origin={{ type: "work_order", id }} originLabel={`Work order ${wo.ref}`} title={`Materials for ${wo.ref}`}
-        lines={(wo as { description?: string | null }).description ? [{ description: `Materials for: ${String((wo as { description?: string | null }).description).slice(0, 200)}`, qty: 1, uom: "Lot" }] : undefined} />
-      <NovaTimelineSlot objectType="work_orders" objectId={id} />
-    </>
+        </>
+      }
+    />
   );
 }

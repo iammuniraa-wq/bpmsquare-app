@@ -2,27 +2,29 @@ import { requireFeature, getTenantCurrency } from "@/lib/tenant";
 import Link from "next/link";
 import { listWorkOrders } from "@/lib/data";
 import { c, pillar, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import PageHeader from "@/components/PageHeader";
-import Pill from "@/components/Pill";
-import ViewToggle from "@/components/ViewToggle";
-import BreakdownBar from "@/components/BreakdownBar";
+import { CARD_SURFACE } from "@/components/ui/Card";
+import StatusPill from "@/components/ui/StatusPill";
+import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
+import PagerLink from "@/components/PagerLink";
 import { ROUTES } from "@/lib/constants";
 import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Monitor, Activity } from "@/components/Icons";
 import { requireWorkcenterView } from "@/lib/permissions";
-import ListFilterBar from "@/components/ListFilterBar";
-import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
 import { applyAdvancedFilter } from "@/lib/advancedFilter";
-import PagerLink from "@/components/PagerLink";
 import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
-import { sortRows, type SortExtractor } from "@/lib/listSort";
+import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
+import type { MenuItem } from "@/components/ui/menuItems";
 
 type WorkOrderRow = Awaited<ReturnType<typeof listWorkOrders>>[number];
+
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const SORT_EXTRACTORS: Record<string, SortExtractor<WorkOrderRow>> = {
   ref: (r) => r.workOrder.ref,
   account: (r) => r.account.name,
+  asset: (r) => r.asset?.name,
+  type: (r) => r.authKind,
+  technician: (r) => r.technician?.name,
   scheduled: (r) => r.workOrder.scheduled_for,
   status: (r) => r.workOrder.status,
 };
@@ -33,6 +35,7 @@ const STATUS_TONE: Record<WorkOrderStatus, PillarKey> = {
 const STATUS_LABEL: Record<WorkOrderStatus, string> = {
   scheduled: "Scheduled", in_progress: "In Progress", completed: "Completed", invoiced: "Invoiced",
 };
+const STATUSES: WorkOrderStatus[] = ["scheduled", "in_progress", "completed", "invoiced"];
 
 function KindIcon({ kind, size = 14, color }: { kind: string; size?: number; color?: string }) {
   const p = { size, color: color ?? "currentColor" };
@@ -52,17 +55,20 @@ const fmtDate = (s: string) =>
 export default async function WorkOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; view?: string; q?: string; sort?: string; page?: string; af?: string }>;
+  searchParams: Promise<{ status?: string; view?: string; q?: string; sort?: string; dir?: string; page?: string; af?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("work_orders");
   await requireFeature("work_orders");
   const cur = await getTenantCurrency();
   // Symbol currencies read as an icon ("₹ Billable"); ISO codes ("QAR Billable") do not.
   const moneyGlyph = cur.symbol.length === 1 ? cur.symbol + " " : "";
-  const { status: statusFilter, view, q, sort, page: pageParam, af } = await searchParams;
-  const page = Math.max(1, Number(pageParam) || 1);
-  const isCard = view !== "list";
-  const vp = view ? `&view=${view}` : "";
+  const params = await searchParams;
+  const { status: statusFilter, view, q, af } = params;
+  const colFilters = parseColFilterParams(params);
+  const cfParams = colFilterQueryParams(colFilters);
+  const { sort, dir } = readSortParams(params);
+  const page = Math.max(1, Number(params.page) || 1);
+  const isCard = view === "card";
 
   const all = await listWorkOrders();
   const cnt = (s: WorkOrderStatus) => all.filter((r) => r.workOrder.status === s).length;
@@ -76,167 +82,157 @@ export default async function WorkOrdersPage({
     );
   }
   rows = applyAdvancedFilter(rows, af, (r) => r.workOrder as unknown as Record<string, unknown>);
-  rows = sortRows(rows, sort, "asc", SORT_EXTRACTORS);
+  rows = applyColFilters(rows, colFilters, SORT_EXTRACTORS);
+  rows = sortRows(rows, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(rows, page);
 
-  return (
-    <>
-      <PageHeader
-        title="Work Orders"
-        subtitle={`${all.length} total · ${cnt("in_progress")} in progress · ${cnt("scheduled")} scheduled`}
-        action={<ViewToggle />}
-      />
+  const vp = view ? `&view=${view}` : "";
+  const chipHref = (s?: string) => `${ROUTES.workOrders}${s ? `?status=${s}${vp}` : vp ? `?${vp.slice(1)}` : ""}`;
+  const chips = [
+    ...STATUSES.map((s) => ({ id: s, label: `${STATUS_LABEL[s]} (${cnt(s)})`, href: chipHref(s), active: statusFilter === s })),
+    { id: "all", label: `All (${all.length})`, href: chipHref(), active: !statusFilter },
+  ];
 
-      {/* ── Breakdown bar — clickable status chart ─────────────────────── */}
-      <BreakdownBar items={[
-        { label: "Scheduled",   count: cnt("scheduled"),   color: pillar.blue.base,  href: `${ROUTES.workOrders}?status=scheduled${vp}`,   active: statusFilter === "scheduled"   },
-        { label: "In Progress", count: cnt("in_progress"), color: pillar.amber.base, href: `${ROUTES.workOrders}?status=in_progress${vp}`, active: statusFilter === "in_progress" },
-        { label: "Completed",   count: cnt("completed"),   color: pillar.green.base, href: `${ROUTES.workOrders}?status=completed${vp}`,   active: statusFilter === "completed"   },
-        { label: "Invoiced",    count: cnt("invoiced"),    color: pillar.teal.base,  href: `${ROUTES.workOrders}?status=invoiced${vp}`,    active: statusFilter === "invoiced"    },
-        { label: "All",         count: all.length,         color: c.muted,           href: `${ROUTES.workOrders}${vp ? "?" + vp.slice(1) : ""}`, active: !statusFilter },
-      ]} />
+  const linkParams = { status: statusFilter, view, q, af, ...cfParams };
+  const viewHref = (v?: string) => {
+    const qs = new URLSearchParams();
+    for (const [k, val] of Object.entries({ ...linkParams, view: v, sort, dir: sort ? dir : undefined })) if (val) qs.set(k, val);
+    const s = qs.toString();
+    return s ? `${ROUTES.workOrders}?${s}` : ROUTES.workOrders;
+  };
+  const menuItems: MenuItem[] = [
+    isCard ? { label: "Table view", href: viewHref(undefined) } : { label: "Card view", href: viewHref("card") },
+  ];
 
-      <ListFilterBar
-        searchValue={q}
-        searchPlaceholder="Search ref, account or asset…"
-        selects={[{
-          name: "sort", value: sort, placeholder: "Sort by…",
-          options: [
-            { value: "ref", label: "Ref" },
-            { value: "account", label: "Account" },
-            { value: "scheduled", label: "Scheduled date" },
-            { value: "status", label: "Status" },
-          ],
-        }]}
-        hiddenParams={{ status: statusFilter, view, af }}
-        clearHref={ROUTES.workOrders}
-      />
-      <AdvancedFilterPanel object="work_order" />
-
-      {rows.length === 0 ? (
-        <p style={{ color: c.muted, fontSize: 13 }}>No work orders match this filter.</p>
-      ) : isCard ? (
-        // ── Card grid ──────────────────────────────────────────────────────────
+  const columns: ListColumn<WorkOrderRow>[] = [
+    {
+      id: "ref", label: "Ref", sortKey: "ref", card: "title",
+      render: ({ workOrder: wo, serviceCase }) => (
         <>
-        <div className="card-grid">
-          {pageRows.map(({ workOrder: wo, account, asset, technician, authKind, serviceCase }) => {
-            const tone = STATUS_TONE[wo.status];
-            const p = pillar[tone];
-            return (
-              <Link
-                key={wo.id}
-                href={ROUTES.workOrder(wo.id)}
-                style={{
-                  ...cardStyle, textDecoration: "none",
-                  borderTop: `3px solid ${p.base}`,
-                  display: "flex", flexDirection: "column", gap: 8,
-                  transition: "box-shadow .15s",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                  <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: c.ink }}>
-                    {wo.ref}
-                  </span>
-                  <Pill label={STATUS_LABEL[wo.status]} tone={tone} />
-                </div>
-
-                <div style={{ fontSize: 13, fontWeight: 600, color: c.accent }}>{account.name}</div>
-
-                {asset && (
-                  <div style={{ fontSize: 12, color: c.muted }}>
-                    <KindIcon kind={asset.kind} size={12} /> {asset.name}
-                  </div>
-                )}
-
-                <div style={{ marginTop: "auto", paddingTop: 8, borderTop: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", fontSize: 11, color: c.hint }}>
-                  <span>
-                    {authKind === "contract" ? "▥ AMC" : `${moneyGlyph}Billable`}
-                    {serviceCase ? ` · ${serviceCase.ref}` : ""}
-                  </span>
-                  <span>{wo.scheduled_for ? fmtDate(wo.scheduled_for) : ""}</span>
-                </div>
-
-                {technician && (
-                  <div style={{ fontSize: 11, fontWeight: 600, background: p.bg, color: p.fg, borderRadius: 4, padding: "2px 7px", alignSelf: "flex-start" }}>
-                    {technician.name}
-                  </div>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-        <PagerLink page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.workOrders} hiddenParams={{ status: statusFilter, view, q, sort, af }} />
+          <Link href={ROUTES.workOrder(wo.id)} style={{ fontFamily: MONO, fontSize: 12.5, fontWeight: 700, color: c.ink, textDecoration: "none" }}>{wo.ref}</Link>
+          {serviceCase && (
+            <div style={{ marginTop: 2 }}>
+              <Link href={ROUTES.case(serviceCase.id)} style={{ color: pillar.teal.base, textDecoration: "none", fontWeight: 500, fontSize: 11.5 }}>{serviceCase.ref}</Link>
+            </div>
+          )}
         </>
-      ) : (
-        // ── Detailed list ──────────────────────────────────────────────────────
+      ),
+    },
+    {
+      id: "account", label: "Account", sortKey: "account",
+      render: ({ account }) => <Link href={ROUTES.account(account.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none", fontSize: 13 }}>{account.name}</Link>,
+    },
+    {
+      id: "asset", label: "Asset", sortKey: "asset", cellStyle: { color: c.muted, fontSize: 12.5 },
+      render: ({ asset }) => asset ? <span><KindIcon kind={asset.kind} size={12} /> {asset.name}</span> : "—",
+    },
+    {
+      id: "type", label: "Type", sortKey: "type",
+      render: ({ authKind, authRef }) => (
         <>
-        <section style={cardStyle}>
-          {pageRows.map(({ workOrder: wo, account, asset, technician, authRef, authKind, serviceCase }, i) => (
-            <div
+          <StatusPill label={authKind === "quote" ? "Billable" : "AMC"} tone={authKind === "quote" ? "blue" : "teal"} />
+          <div style={{ fontSize: 11, marginTop: 3, color: authKind === "contract" ? pillar.teal.base : c.hint }}>
+            {authKind === "contract" ? "▥ " : moneyGlyph}{authRef}
+          </div>
+        </>
+      ),
+    },
+    {
+      id: "technician", label: "Technician", sortKey: "technician", cellStyle: { fontSize: 13 },
+      render: ({ technician }) => <span style={{ color: technician ? c.muted : c.hint }}>{technician?.name ?? "—"}</span>,
+    },
+    {
+      id: "scheduled", label: "Scheduled", sortKey: "scheduled", cellStyle: { color: c.hint, fontSize: 12.5, whiteSpace: "nowrap" },
+      render: ({ workOrder: wo }) => (wo.scheduled_for ? fmtDate(wo.scheduled_for) : "—"),
+    },
+    {
+      id: "status", label: "Status", sortKey: "status",
+      render: ({ workOrder: wo }) => <StatusPill label={STATUS_LABEL[wo.status]} tone={STATUS_TONE[wo.status]} />,
+    },
+  ];
+
+  const cardGrid = (
+    <>
+      <div className="card-grid">
+        {pageRows.map(({ workOrder: wo, account, asset, technician, authKind, serviceCase }) => {
+          const tone = STATUS_TONE[wo.status];
+          const p = pillar[tone];
+          return (
+            <Link
               key={wo.id}
+              href={ROUTES.workOrder(wo.id)}
               style={{
-                display: "flex", alignItems: "flex-start", gap: 12,
-                padding: "13px 0", borderTop: i === 0 ? "none" : `1px solid ${c.line}`,
+                ...CARD_SURFACE, padding: 16, textDecoration: "none",
+                borderTop: `3px solid ${p.base}`,
+                display: "flex", flexDirection: "column", gap: 8,
+                transition: "box-shadow .15s",
               }}
             >
-              <div style={{
-                width: 3, alignSelf: "stretch", borderRadius: 2, flexShrink: 0,
-                background: pillar[STATUS_TONE[wo.status]].base, minHeight: 44,
-              }} />
-
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 5 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace", color: c.ink }}>{wo.ref}</span>
-                  <Pill label={STATUS_LABEL[wo.status]} tone={STATUS_TONE[wo.status]} />
-                  <Pill label={authKind === "quote" ? "Billable" : "AMC"} tone={authKind === "quote" ? "blue" : "teal"} />
-                </div>
-
-                <div style={{ fontSize: 13, marginBottom: 4 }}>
-                  <Link href={ROUTES.account(account.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>{account.name}</Link>
-                  {asset && (
-                    <span style={{ color: c.muted, fontSize: 12.5 }}>
-                      {" · "}<KindIcon kind={asset.kind} size={12} /> {asset.name}
-                    </span>
-                  )}
-                </div>
-
-                {wo.description && (
-                  <div style={{ fontSize: 12, color: c.muted, lineHeight: 1.45, marginBottom: 5 }}>
-                    {wo.description.length > 110 ? wo.description.slice(0, 110) + "…" : wo.description}
-                  </div>
-                )}
-
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: c.hint, alignItems: "center" }}>
-                  {technician && (
-                    <span style={{ background: pillar.blue.bg, color: pillar.blue.fg, borderRadius: 4, padding: "1px 6px", fontSize: 10, fontWeight: 600 }}>
-                      {technician.name}
-                    </span>
-                  )}
-                  {wo.scheduled_for && <span>{fmtDate(wo.scheduled_for)}</span>}
-                  <span style={{ color: authKind === "contract" ? pillar.teal.base : c.hint }}>
-                    {authKind === "contract" ? "▥ " : moneyGlyph}{authRef}
-                  </span>
-                  {serviceCase && (
-                    <Link href={ROUTES.case(serviceCase.id)} style={{ color: pillar.teal.base, textDecoration: "none", fontWeight: 500 }}>
-                      {serviceCase.ref}
-                    </Link>
-                  )}
-                </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: c.ink }}>{wo.ref}</span>
+                <StatusPill label={STATUS_LABEL[wo.status]} tone={tone} />
               </div>
 
-              <Link href={ROUTES.workOrder(wo.id)} style={{
-                fontSize: 11, fontWeight: 600, color: c.accent, textDecoration: "none",
-                background: c.accentbg, borderRadius: 6, padding: "4px 10px",
-                flexShrink: 0, whiteSpace: "nowrap", alignSelf: "flex-start",
-              }}>
-                Open →
-              </Link>
-            </div>
-          ))}
-        </section>
-        <PagerLink page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.workOrders} hiddenParams={{ status: statusFilter, view, q, sort, af }} />
-        </>
-      )}
+              <div style={{ fontSize: 13, fontWeight: 600, color: c.accent }}>{account.name}</div>
+
+              {asset && (
+                <div style={{ fontSize: 12, color: c.muted }}>
+                  <KindIcon kind={asset.kind} size={12} /> {asset.name}
+                </div>
+              )}
+
+              <div style={{ marginTop: "auto", paddingTop: 8, borderTop: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", fontSize: 11, color: c.hint }}>
+                <span>
+                  {authKind === "contract" ? "▥ AMC" : `${moneyGlyph}Billable`}
+                  {serviceCase ? ` · ${serviceCase.ref}` : ""}
+                </span>
+                <span>{wo.scheduled_for ? fmtDate(wo.scheduled_for) : ""}</span>
+              </div>
+
+              {technician && (
+                <div style={{ fontSize: 11, fontWeight: 600, background: p.bg, color: p.fg, borderRadius: 4, padding: "2px 7px", alignSelf: "flex-start" }}>
+                  {technician.name}
+                </div>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+      <PagerLink page={page} total={rows.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.workOrders} hiddenParams={{ ...linkParams, sort, dir: sort ? dir : undefined }} />
     </>
+  );
+
+  const hasFilter = !!(q || af || statusFilter || Object.keys(cfParams).length > 0);
+
+  return (
+    <ObjectListPage
+      title="Work Orders"
+      subtitle={`${all.length} total · ${cnt("in_progress")} in progress · ${cnt("scheduled")} scheduled`}
+      menuItems={menuItems}
+      chips={chips}
+      search={{
+        value: q,
+        placeholder: "Search ref, account or asset…",
+        hiddenParams: { status: statusFilter, view, af, ...cfParams },
+      }}
+      advancedFilterObject="work_order"
+      columns={columns}
+      rows={pageRows}
+      rowKey={({ workOrder }) => workOrder.id}
+      rowHref={({ workOrder }) => ROUTES.workOrder(workOrder.id)}
+      total={rows.length}
+      page={page}
+      baseHref={ROUTES.workOrders}
+      sort={sort}
+      dir={dir}
+      linkParams={linkParams}
+      filtered={hasFilter}
+      empty={{
+        title: "No work orders yet",
+        text: "Work orders appear here once they are imported through Data Workbench or created by an integration.",
+        filteredTitle: "No work orders match this filter.",
+      }}
+      wrapBody={isCard && rows.length > 0 ? () => cardGrid : undefined}
+    />
   );
 }
