@@ -1923,3 +1923,66 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
 [data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header .bpm-menu .bpm-menu-item[data-danger="true"] {
   color: var(--redink) !important;
 }
+
+/* ── Settings shell (src/components/settings/SettingsShell.tsx) ─────────────
+   Two panes on a desktop: a grouped menu card left, the chosen page right.
+   Under MOBILE_BREAKPOINT (780) the menu is the page at /settings and a
+   settings page is a sub-page ([data-root] flips which one shows), so the
+   menu is one set of links at every width. The menu is a card so that on
+   Spectacular, where a navy band is painted behind the top of <main>, it
+   floats on the band with its own ink instead of printing dark text on navy. */
+.bpm-sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.bpm-settings { display: grid; grid-template-columns: 264px minmax(0, 1fr); gap: 20px; align-items: start; }
+.bpm-settings-main { min-width: 0; }
+.bpm-settings-nav {
+  position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto;
+  padding: 12px 10px 14px; box-sizing: border-box;
+  background: var(--card-bg); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow);
+}
+.bpm-settings-search { padding: 0 2px 10px; }
+.bpm-settings-none { margin: 8px 6px; font-size: 12.5px; color: var(--muted); }
+.bpm-settings-group + .bpm-settings-group { margin-top: 12px; }
+.bpm-settings-group-label {
+  padding: 0 8px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--hint);
+}
+.bpm-settings-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.bpm-settings-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 8px; text-decoration: none;
+  color: var(--ink); border-radius: 7px; border-left: 3px solid transparent; font-size: 13px;
+}
+.bpm-settings-item:hover { background: var(--panel2); }
+.bpm-settings-item:focus-visible { outline: 2px solid var(--modern-accent, var(--accent)); outline-offset: 1px; }
+.bpm-settings-item[aria-current="page"] {
+  background: var(--panel2); font-weight: 700; border-left-color: var(--modern-accent, var(--accent));
+}
+.bpm-settings-item-text { flex: 1; min-width: 0; display: block; }
+.bpm-settings-item-label { display: block; }
+.bpm-settings-item-desc { display: none; margin-top: 2px; font-size: 12px; font-weight: 400; line-height: 1.45; color: var(--muted); }
+.bpm-settings-ext { color: var(--hint); }
+.bpm-settings-chevron { display: none; color: var(--hint); font-size: 18px; }
+.bpm-settings-back {
+  display: none; align-items: center; gap: 6px; margin-bottom: 14px; font-size: 13px;
+  font-weight: 500; color: var(--muted); text-decoration: none;
+}
+.bpm-settings-landing-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.bpm-settings-landing-links { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.bpm-settings-landing-links a { font-size: 12.5px; color: var(--muted); text-decoration: none; }
+.bpm-settings-landing-links a:hover { color: var(--ink); text-decoration: underline; }
+
+@media (max-width: 780px) {
+  .bpm-settings { display: flex; flex-direction: column; gap: 14px; }
+  .bpm-settings-nav { position: static; max-height: none; overflow: visible; padding: 10px 8px 12px; }
+  .bpm-settings-item { padding: 12px 10px; font-size: 14px; }
+  .bpm-settings-item-desc, .bpm-settings-chevron { display: block; }
+  .bpm-settings-back { display: inline-flex; }
+  /* Menu page: only the header of the landing stays, above the menu. */
+  .bpm-settings[data-root="true"] .bpm-settings-main { order: -1; }
+  .bpm-settings[data-root="true"] .bpm-settings-landing-body { display: none; }
+  /* Sub-page: the menu steps aside. */
+  .bpm-settings[data-root="false"] .bpm-settings-nav { display: none; }
+}

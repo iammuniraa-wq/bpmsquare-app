@@ -1,159 +1,38 @@
 import Link from "next/link";
-import { ROUTES, type TenantFeatures } from "@/lib/constants";
-import { c, pillar, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import { requireTenantUser } from "@/lib/supabase-server";
-import { resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
-import type { WorkcenterKey } from "@/lib/workcenters";
-import { getTenant } from "@/lib/tenant";
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/ui/Card";
+import { getVisibleSettingsMenu } from "@/lib/settingsMenuServer";
 
-// ── Settings hub — a menu of destinations, not a growing list of tabs ───────
-//
-// Each entry is its own full page (see the corresponding route). Grouped the
-// same way the app already groups everything else (Sales/Service pillars),
-// so this reads as an extension of the product, not a bolted-on admin panel.
-
-type SettingsCard = {
-  label: string;
-  description: string;
-  href: string;
-  icon: string;
-  pillarKey: PillarKey;
-  adminOnly: boolean;
-  /** Hidden entirely when this tenant feature is off (module not enabled).
-   * Was hardcoded to "wfm"; widened in 0067 so every settings tile can be
-   * tied to the module it configures -- a Workforce-only client shouldn't
-   * be offered Sales config or Entities & Tax. */
-  featureKey?: keyof TenantFeatures;
-  /** Shown when ANY of these features is on -- for tiles serving several
-   * modules (Custom fields, Deleted records cover the CRM object families).
-   * A tenant with none of them (e.g. Workforce-only) shouldn't see the tile. */
-  featureAnyOf?: (keyof TenantFeatures)[];
-  /** For an adminOnly tile: also reachable by a non-admin whose Business
-   * Role(s) grant EDIT on this workcenter -- e.g. a Sales Admin can
-   * configure quote statuses without the tenant-wide admin flag. Omitted
-   * for surfaces that stay strictly admin-only (workspace-wide config, or
-   * audit-sensitive data not scoped to one object family: Team, Deleted
-   * records, Connectors). */
-  relatedWorkcenter?: WorkcenterKey;
-};
-
-const SECTIONS: { group: string; items: SettingsCard[] }[] = [
-  {
-    group: "Workspace",
-    items: [
-      { label: "General settings", description: "Navigation, appearance, workspace name, integrations, developer API", href: ROUTES.settingsGeneral, icon: "◈", pillarKey: "blue", adminOnly: false },
-      { label: "Team", description: "Invite teammates and manage roles", href: ROUTES.settingsTeam, icon: "◉", pillarKey: "blue", adminOnly: true },
-      { label: "Number Ranges", description: "One place for every business-ID convention — Quote ID format and all system-generated ranges", href: ROUTES.settingsNumberRanges, icon: "#", pillarKey: "blue", adminOnly: true },
-    ],
-  },
-  {
-    group: "Sales & service setup",
-    items: [
-      { label: "Entities & Tax", description: "Legal entities, print branding, and tax settings for quotations and PDFs", href: ROUTES.settingsEntities, icon: "⌂", pillarKey: "teal", adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
-      { label: "Statuses & assets", description: "Configure pipeline stages and equipment print fields", href: ROUTES.settingsStatuses, icon: "▦", pillarKey: "teal", adminOnly: true, featureKey: "assets", relatedWorkcenter: "quotations" },
-      // Named for what is actually in it. The old text -- "territory and sales
-      // org picklist values" -- described contents that moved to Coverage,
-      // which now says so itself ("replaces flat territory/sales org
-      // assignment"); this page has only ever been the product category tree
-      // since, and its own PageHeader subtitle already said so. Owner
-      // 2026-09-22: the tile text was misleading against what is inside.
-      //
-      // featureAnyOf, not featureKey: "products" -- the tree feeds the
-      // products screens AND any field whose selectSource is
-      // product_category (FieldWidget), which can sit on an object a tenant
-      // without the Products module still uses. Narrowing the gate to
-      // Products would have taken the editor away from whoever has such a
-      // field, and it was reachable on "quotations" before this.
-      { label: "Product categories", description: "The category tree products are filed under, and that category fields pick from", href: ROUTES.settingsSales, icon: "▤", pillarKey: "teal", adminOnly: true, featureAnyOf: ["products", "quotations"], relatedWorkcenter: "quotations" },
-      { label: "Workforce", description: "Attendance rules, timezone, break deduction, leave and retention — plus punch sites and shifts", href: ROUTES.settingsWorkforce, icon: "⧖", pillarKey: "amber", adminOnly: true, featureKey: "wfm", relatedWorkcenter: "wfm" },
-      { label: "RFQ", description: "How requests for quotation reach suppliers and how their replies come back — your own mailbox or BPMSquare's, reply window, reminders and terms", href: ROUTES.settingsRfq, icon: "⇄", pillarKey: "blue", adminOnly: true, featureKey: "rfq", relatedWorkcenter: "rfqs" },
-      { label: "Coverage", description: "Teams, rule-based segments and the wiring that replaces flat territory/sales org assignment — also drives auto-ownership, product availability and ERP routing", href: ROUTES.settingsCoverage, icon: "◭", pillarKey: "teal", adminOnly: true, featureKey: "coverage_model" },
-    ],
-  },
-  {
-    group: "Content & data",
-    items: [
-      { label: "Email templates", description: "Subject and body pairs your team can pick between when emailing a quote", href: ROUTES.settingsEmailTemplates, icon: "✉", pillarKey: "purple", adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
-      { label: "Small Scale Pricing", description: "Static standard rates for labour, materials, testing and transport — the simple pricing model for small tenants", href: ROUTES.configPricing, icon: "▣", pillarKey: "amber", adminOnly: false, featureKey: "quotations" },
-      { label: "Dynamic Pricing", description: "Pick how you price, set your numbers, go live — has its own workcenter with rates, setup wizard, history and an advanced config cockpit", href: ROUTES.pricingSetup, icon: "◬", pillarKey: "amber", adminOnly: true, featureKey: "pricing_engine", relatedWorkcenter: "pricing" },
-      { label: "Text templates", description: "Saved snippets for line items, notes and terms", href: ROUTES.configTemplates, icon: "❑", pillarKey: "amber", adminOnly: false, featureKey: "quotations" },
-      { label: "Custom fields", description: "Add fields to any object — included automatically in the API and MCP", href: ROUTES.configCustomFields, icon: "✦", pillarKey: "amber", adminOnly: true, featureAnyOf: ["accounts", "contacts", "quotations", "cases", "work_orders", "assets", "suppliers", "purchasing", "invoices", "business_roles"] },
-      { label: "Deleted records", description: "Audit log of permanently deleted objects", href: ROUTES.settingsDeletionLog, icon: "⌫", pillarKey: "red", adminOnly: true, featureAnyOf: ["accounts", "contacts", "quotations", "cases", "work_orders", "assets", "suppliers", "purchasing", "invoices"] },
-    ],
-  },
-  {
-    group: "Integrations",
-    items: [
-      { label: "Connectors", description: "Connect BPMSquare to other systems — Slack today, more on the way", href: ROUTES.settingsConnectors, icon: "⇄", pillarKey: "blue", adminOnly: true },
-      { label: "Account 360", description: "The account drawer: which cards it shows, and the external sources plugged into it", href: ROUTES.settingsAccount360, icon: "◎", pillarKey: "blue", adminOnly: true, featureAnyOf: ["next_experience", "spectacular_theme"] },
-    ],
-  },
-];
-
-function SettingsTile({ item }: { item: SettingsCard }) {
-  const p = pillar[item.pillarKey];
-  return (
-    <Link
-      href={item.href}
-      className="modern-lift"
-      style={{
-        ...cardStyle,
-        display: "flex", gap: 12, alignItems: "flex-start",
-        padding: 16, textDecoration: "none", color: "inherit",
-        cursor: "pointer",
-      }}
-    >
-      <span style={{
-        width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-        background: p.bg, color: p.fg,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 16,
-      }}>
-        {item.icon}
-      </span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: c.ink }}>{item.label}</span>
-        <span style={{ display: "block", fontSize: 11.5, color: c.muted, marginTop: 3, lineHeight: 1.45 }}>{item.description}</span>
-      </span>
-    </Link>
-  );
-}
-
-export default async function SettingsHubPage() {
-  const { supabase, tenantId, userId, role } = await requireTenantUser();
-  const perms = await resolvePermissions(supabase, tenantId, userId, role);
-  const tenant = await getTenant();
-  const features = tenant?.features as Partial<TenantFeatures> | undefined;
-  const isAdmin = role === "admin";
-  const canReach = (item: SettingsCard) =>
-    (!item.adminOnly || isAdmin || (item.relatedWorkcenter ? canEditWorkcenter(perms, item.relatedWorkcenter) : false)) &&
-    (!item.featureKey || features?.[item.featureKey] === true) &&
-    (!item.featureAnyOf || item.featureAnyOf.some((k) => features?.[k] === true));
+// The landing for /settings. On a desktop it fills the right pane beside the
+// menu; on a phone only its header shows, above the menu (the menu is the
+// page there -- see .bpm-settings in globals.css). The groups and entries
+// come from the same visible-menu list the menu itself is drawn from, so this
+// can never offer something the menu hides.
+export default async function SettingsLandingPage() {
+  const groups = await getVisibleSettingsMenu();
 
   return (
-    <div style={{ maxWidth: 780 }}>
-      <div className="bpm-page-header" style={{ marginBottom: 22 }}>
-        <h1 style={{ fontSize: 19, margin: 0, fontWeight: 600 }}>Settings</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 12.5, color: c.muted }}>
-          Configure your workspace, sales &amp; service setup, and data.
+    <>
+      <PageHeader
+        title="Settings"
+        subtitle="Configure your workspace, sales & service setup, and data."
+      />
+      <div className="bpm-settings-landing-body">
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--muted)", maxWidth: 560 }}>
+          Pick a setting from the menu, or search for it by name. Everything here applies to your whole workspace.
         </p>
+        <div className="bpm-settings-landing-grid">
+          {groups.map((g) => (
+            <Card key={g.id} title={g.label}>
+              <ul className="bpm-settings-landing-links">
+                {g.items.map((item) => (
+                  <li key={item.id}><Link href={item.href}>{item.label}</Link></li>
+                ))}
+              </ul>
+            </Card>
+          ))}
+        </div>
       </div>
-
-      {SECTIONS.map((section) => {
-        const items = section.items.filter(canReach);
-        if (items.length === 0) return null;
-        return (
-          <div key={section.group} style={{ marginBottom: 22 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>
-              {section.group}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
-              {items.map((item) => <SettingsTile key={item.href} item={item} />)}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    </>
   );
 }
