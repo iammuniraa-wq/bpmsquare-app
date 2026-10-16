@@ -1,20 +1,17 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { requireTenantUser } from "@/lib/supabase-server";
 import type { Product } from "@/lib/types";
 import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import Pill from "@/components/Pill";
-import PageHeader from "@/components/PageHeader";
 import { ROUTES } from "@/lib/constants";
-import TabTitle from "@/components/TabTitle";
+import StatusPill from "@/components/ui/StatusPill";
+import Card from "@/components/ui/Card";
+import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import RecordMoreMenu from "@/components/page/RecordMoreMenu";
+import RecordActivity from "@/components/page/RecordActivity";
 import ObjectSections from "@/components/fields/ObjectSections";
-import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
-import DeleteProductButton from "./DeleteProductButton";
 import ProductAvailabilityCard from "./ProductAvailabilityCard";
 import ProductCostSheetCard from "./ProductCostSheetCard";
 import ProductQtyBreaksCard from "./ProductQtyBreaksCard";
-import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
 import { getTenant, getTenantCurrency } from "@/lib/tenant";
@@ -25,18 +22,24 @@ const fmtDate = (s: string) =>
 
 function CtxRow({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, marginTop: 5 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, marginTop: 6 }}>
       <span style={{ color: c.hint, flexShrink: 0 }}>{label}</span>
-      <span style={{ textAlign: "right", color: c.muted, wordBreak: "break-all" }}>{value}</span>
+      <span style={{ textAlign: "right", color: c.muted, wordBreak: "break-word" }}>{value}</span>
     </div>
   );
 }
 
-export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProductDetailPage({
+  params, searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { supabase, tenantId, role } = await requireTenantUser();
   const cur = await getTenantCurrency();
   const inr = (n: number | null) => (n == null ? "—" : formatMoney(n, cur, { maximumFractionDigits: 2 }));
   const { id } = await params;
+  const { tab } = await searchParams;
 
   const { data } = await supabase
     .from("products")
@@ -47,6 +50,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   if (!data) notFound();
   const product = data as Product;
+  const isAdmin = role === "admin";
   // Stored category values are codes; the header shows display names.
   const salesConfig = await getSalesConfig(supabase, tenantId);
   const catName = categoryLabel(salesConfig.product_categories, product.category);
@@ -56,72 +60,88 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     : null;
   const tenant = await getTenant();
   const coverageOn = tenant?.features?.coverage_model === true;
+  const costSheetOn = tenant?.features?.pricing_engine === true;
+  const qtyBreaksOn = tenant?.features?.standard_quotes === true;
+  const basePath = ROUTES.product(product.id);
+
+  const pricingCards = (
+    <>
+      {costSheetOn && (
+        <ProductCostSheetCard
+          productId={product.id}
+          initial={(product.cost_sheet as { path: string; qty: number; kind?: string }[] | null | undefined) ?? null}
+          initialAsOf={product.cost_price_as_of ?? null}
+          costPrice={product.cost_price}
+        />
+      )}
+      {qtyBreaksOn && (
+        <ProductQtyBreaksCard
+          productId={product.id}
+          initial={(product.qty_breaks as { from: number; rate: number | null }[] | null | undefined) ?? null}
+          uom={product.uom}
+        />
+      )}
+      {coverageOn && <ProductAvailabilityCard productId={product.id} initial={product.available_segment_ids ?? []} />}
+    </>
+  );
+  const hasPricingTab = costSheetOn || qtyBreaksOn || coverageOn;
 
   return (
-    <>
-      <TabTitle title={product.name} />
-
-      <div style={{ marginBottom: 8 }}>
-        <Link href={ROUTES.products} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>
-          ← All products
-        </Link>
-      </div>
-
-      <PageHeader
-        title={product.name}
-        subtitle={`${product.ref ? `${product.ref} · ` : ""}${catName || "Product"}${subName ? ` › ${subName}` : ""}${product.sku ? ` · ${product.sku}` : ""}`}
-        action={<AdaptObjectDrawer objectType="product" objectLabel="Product" isAdmin={role === "admin"} />}
-      />
-
-      <div className="prod-body" style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, alignItems: "start", marginTop: 16 }}>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <ObjectSections
-            objectType="product"
-            record={product as unknown as Record<string, unknown>}
-            patchUrl={`/api/products/${product.id}`}
-            exclude={["name", "status"]}
-          />
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <section style={{ ...cardStyle, padding: "14px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <Pill label={product.status === "active" ? "Active" : "Inactive"} tone={product.status === "active" ? "green" : "red"} />
-              {product.category && <Pill label={subName ? `${catName} › ${subName}` : catName} tone="blue" />}
-            </div>
-            <CtxRow label="List price" value={inr(product.list_price)} />
-            <CtxRow label="Cost price" value={inr(product.cost_price)} />
-            {margin != null && <CtxRow label="Margin" value={`${margin}%`} />}
-            {product.tax_percent != null && <CtxRow label="Tax" value={`${product.tax_percent}%`} />}
-            <CtxRow label="Added" value={fmtDate(product.created_at)} />
-          </section>
-
-          {coverageOn && <ProductAvailabilityCard productId={product.id} initial={product.available_segment_ids ?? []} />}
-
-          {tenant?.features?.pricing_engine === true && (
-            <ProductCostSheetCard
-              productId={product.id}
-              initial={(product.cost_sheet as { path: string; qty: number; kind?: string }[] | null | undefined) ?? null}
-              initialAsOf={product.cost_price_as_of ?? null}
-              costPrice={product.cost_price}
+    <ObjectRecordPage
+      backHref={ROUTES.products}
+      backLabel="All products"
+      title={product.name}
+      reference={product.ref}
+      meta={`${catName || "Product"}${subName ? ` › ${subName}` : ""}${product.sku ? ` · ${product.sku}` : ""}`}
+      status={<StatusPill label={product.status === "active" ? "Active" : "Inactive"} tone={product.status === "active" ? "green" : "red"} />}
+      menu={
+        <RecordMoreMenu
+          inlineEdit={{ overviewHref: basePath }}
+          adapt={{ objectType: "product", objectLabel: "Product", isAdmin }}
+          remove={{
+            endpoint: `/api/products/${product.id}`,
+            recordName: product.name,
+            entityLabel: "product",
+            confirmBody: "Existing quote lines keep their copied details. You'll have a few seconds to undo.",
+            afterHref: ROUTES.products,
+          }}
+        />
+      }
+      facts={[
+        { label: "List price", value: inr(product.list_price) },
+        { label: "Cost price", value: inr(product.cost_price) },
+        ...(margin != null ? [{ label: "Margin", value: `${margin}%` }] : []),
+        ...(product.tax_percent != null ? [{ label: "Tax", value: `${product.tax_percent}%` }] : []),
+      ]}
+      basePath={basePath}
+      activeTab={tab}
+      tabs={[
+        {
+          id: "overview",
+          label: "Overview",
+          content: (
+            <ObjectSections
+              objectType="product"
+              record={product as unknown as Record<string, unknown>}
+              patchUrl={`/api/products/${product.id}`}
+              exclude={["name", "status"]}
             />
-          )}
-
-          {tenant?.features?.standard_quotes === true && (
-            <ProductQtyBreaksCard
-              productId={product.id}
-              initial={(product.qty_breaks as { from: number; rate: number | null }[] | null | undefined) ?? null}
-              uom={product.uom}
-            />
-          )}
-
-          <DeleteProductButton product={product} />
-        </div>
-      </div>
-
-      <style>{`@media (max-width: 860px) { .prod-body { grid-template-columns: 1fr !important; } }`}</style>
-      <NovaTimelineSlot objectType="products" objectId={id} />
-    </>
+          ),
+        },
+        ...(hasPricingTab ? [{ id: "pricing", label: "Pricing", content: pricingCards }] : []),
+        {
+          id: "activity",
+          label: "Activity",
+          content: <RecordActivity objectType="products" objectId={product.id} isAdmin={isAdmin} />,
+        },
+      ]}
+      rail={
+        <Card title="Details" padding={14}>
+          {product.category && <CtxRow label="Category" value={subName ? `${catName} › ${subName}` : catName} />}
+          {product.uom && <CtxRow label="Unit" value={product.uom} />}
+          <CtxRow label="Added" value={fmtDate(product.created_at)} />
+        </Card>
+      }
+    />
   );
 }

@@ -4,7 +4,9 @@ import { useState } from "react";
 import { c } from "@/lib/theme";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter } from "@/lib/currency";
-import { cardStyle } from "@/components/Shell";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 // Quantity breaks (0118, owner decision 2026-09-06): the product's own
 // list of "from qty N, rate X" steps, kept here locally or synced from the
@@ -13,9 +15,6 @@ import { cardStyle } from "@/components/Shell";
 // priced the normal way (engine or list price) at that quantity.
 
 type Row = { from: string; rate: string };
-
-const inp: React.CSSProperties = { padding: "6px 8px", fontSize: 12.5, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel2, color: c.ink, boxSizing: "border-box", width: "100%" };
-const link: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 };
 
 export default function ProductQtyBreaksCard({ productId, initial, uom }: {
   productId: string;
@@ -49,46 +48,47 @@ export default function ProductQtyBreaksCard({ productId, initial, uom }: {
   }
 
   return (
-    <section style={{ ...cardStyle, padding: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Quantity breaks</div>
-        {!editing && <button style={link} onClick={() => setEditing(true)}>Edit</button>}
-      </div>
-      <div style={{ fontSize: 11.5, color: c.hint, marginTop: 4, lineHeight: 1.45 }}>
+    <Card
+      title="Quantity breaks"
+      action={!editing ? <Button variant="quiet" size="sm" onClick={() => setEditing(true)}>Edit</Button> : undefined}
+    >
+      <div style={{ fontSize: 12, color: c.hint, lineHeight: 1.45 }}>
         Quantities this product is offered at another rate from. Quotes offer these when a rep adds the product. Leave the rate blank to price it normally at that quantity.
       </div>
 
       {!editing ? (
-        <div style={{ marginTop: 8 }}>
+        <div style={{ marginTop: 10 }}>
           {saved.length === 0 ? (
-            <div style={{ fontSize: 12, color: c.muted }}>None — the quote offers the quantity typed on the line only.</div>
+            <div style={{ fontSize: 12.5, color: c.muted }}>None — the quote offers the quantity typed on the line only.</div>
           ) : saved.map((r, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4 }}>
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginTop: 4 }}>
               <span style={{ color: c.muted }}>From {r.from}{uom ? ` ${uom}` : ""}</span>
               <span style={{ color: c.ink }}>{r.rate ? inr(parseFloat(r.rate)) : "priced normally"}</span>
             </div>
           ))}
         </div>
       ) : (
-        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 20px", gap: 6, fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4 }}>
-            <span>From qty</span><span>Rate ({cur.symbol}, optional)</span><span />
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 30px", gap: 6, fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4 }}>
+            <span>From qty</span><span>Rate</span><span />
           </div>
           {rows.map((r, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 20px", gap: 6, alignItems: "center" }}>
-              <input type="number" min="2" step="1" style={inp} value={r.from} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))} />
-              <input type="number" min="0" step="0.01" style={inp} placeholder="normal" value={r.rate} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, rate: e.target.value } : x)))} />
-              <button style={{ ...link, color: "var(--err-ink)" }} onClick={() => setRows(rows.filter((_, j) => j !== i))}>×</button>
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 30px", gap: 6, alignItems: "center" }}>
+              <Input type="number" min="2" step="1" value={r.from} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))} />
+              <Input type="number" min="0" step="0.01" placeholder="normal" value={r.rate} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, rate: e.target.value } : x)))} />
+              <Button variant="quiet" size="sm" iconOnly aria-label="Remove break" onClick={() => setRows(rows.filter((_, j) => j !== i))}>×</Button>
             </div>
           ))}
-          <button style={{ ...link, alignSelf: "flex-start" }} onClick={() => setRows([...rows, { from: rows.length ? String((parseFloat(rows[rows.length - 1].from) || 0) * 5 || 10) : "10", rate: "" }])}>+ Add a break</button>
-          {error && <div style={{ fontSize: 12, color: "var(--err-ink)" }}>{error}</div>}
-          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-            <button disabled={saving} onClick={save} style={{ fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 6, border: "none", background: c.accent, color: "#fff", cursor: "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save"}</button>
-            <button disabled={saving} onClick={() => { setRows(saved); setEditing(false); setError(""); }} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: `1px solid ${c.line}`, background: "transparent", color: c.muted, cursor: "pointer" }}>Cancel</button>
+          <div>
+            <Button variant="quiet" size="sm" onClick={() => setRows([...rows, { from: rows.length ? String((parseFloat(rows[rows.length - 1].from) || 0) * 5 || 10) : "10", rate: "" }])}>+ Add a break</Button>
+          </div>
+          {error && <div role="alert" style={{ fontSize: 12, color: "var(--err-ink)" }}>{error}</div>}
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <Button variant="primary" size="sm" loading={saving} onClick={save}>{saving ? "Saving…" : "Save"}</Button>
+            <Button variant="secondary" size="sm" disabled={saving} onClick={() => { setRows(saved); setEditing(false); setError(""); }}>Cancel</Button>
           </div>
         </div>
       )}
-    </section>
+    </Card>
   );
 }

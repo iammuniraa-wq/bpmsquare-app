@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
+import Card from "@/components/ui/Card";
 
 type Segment = { id: string; code: string; name: string };
 
@@ -40,20 +40,17 @@ export default function ProductAvailabilityCard({ productId, initial }: { produc
   if (!loaded) return null;
 
   return (
-    <section style={{ ...cardStyle, padding: "14px" }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-        Availability
-      </div>
+    <Card title="Availability">
       {segments.length === 0 ? (
-        <div style={{ fontSize: 12, color: c.hint }}>No segments defined yet — sellable everywhere.</div>
+        <div style={{ fontSize: 12.5, color: c.hint }}>No segments defined yet — sellable everywhere.</div>
       ) : (
         <>
-          <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: c.hint, marginBottom: 8 }}>
             {selected.size === 0 ? "Sellable everywhere (no restriction)." : "Restricted to accounts matching:"}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {segments.map((s) => (
-              <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: c.ink, cursor: "pointer" }}>
+              <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: c.ink, cursor: "pointer" }}>
                 <input type="checkbox" checked={selected.has(s.id)} disabled={saving} onChange={() => toggle(s.id)} />
                 {s.code} — {s.name}
               </label>
@@ -61,6 +58,6 @@ export default function ProductAvailabilityCard({ productId, initial }: { produc
           </div>
         </>
       )}
-    </section>
+    </Card>
   );
 }

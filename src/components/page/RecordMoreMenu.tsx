@@ -15,6 +15,8 @@ export type RecordDelete = {
   recordName: string;
   /** Lower-case singular, for the error toast: "Could not delete this supplier". */
   entityLabel: string;
+  /** Overrides the confirm dialog text (default: "You'll have a few seconds to undo."). */
+  confirmBody?: string;
   /** Where to go once the delete is queued (the list page). */
   afterHref: string;
 };
@@ -53,7 +55,7 @@ export default function RecordMoreMenu({
   const items = useMemo<MenuItem[]>(() => {
     async function handleDelete() {
       if (!remove) return;
-      if (!(await confirm({ title: `Delete "${remove.recordName}"?`, body: "You'll have a few seconds to undo.", tone: "danger" }))) return;
+      if (!(await confirm({ title: `Delete "${remove.recordName}"?`, body: remove.confirmBody ?? "You'll have a few seconds to undo.", tone: "danger" }))) return;
       startTransition(() => {
         undoable({
           text: `"${remove.recordName}" deleted`,

@@ -2,24 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { c } from "@/lib/theme";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyLabel } from "@/lib/currency";
-import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { useSalesConfig } from "@/lib/useSalesConfig";
-
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11.5, fontWeight: 600,
-  color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,
-};
-const inp: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", fontSize: 13,
-  border: `1px solid ${c.line}`, borderRadius: 8,
-  background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
-};
-const fw: React.CSSProperties = { marginBottom: 16 };
+import ObjectFormPage from "@/components/page/ObjectFormPage";
+import Card from "@/components/ui/Card";
+import Field from "@/components/ui/Field";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 
 export default function NewProductPage() {
   const cur = useCurrency();
@@ -60,91 +50,69 @@ export default function NewProductPage() {
   }
 
   return (
-    <div style={{ maxWidth: 640 }}>
-      <div className="bpm-page-header" style={{ marginBottom: 8 }}>
-        <Link href={ROUTES.products} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>
-          ← All products
-        </Link>
-      </div>
-      <h1 className="bpm-page-header" style={{ fontSize: 19, fontWeight: 700, color: c.ink, margin: "0 0 16px" }}>New product</h1>
-
-      <form onSubmit={handleSubmit} style={{ ...cardStyle, padding: 20 }}>
-        <div style={fw}>
-          <label style={lbl}>Name *</label>
-          <input style={inp} value={form.name} onChange={set("name")} placeholder="e.g. Passenger Elevator 8P (630 kg)" autoFocus />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <div style={fw}>
-            <label style={lbl}>SKU</label>
-            <input style={inp} value={form.sku} onChange={set("sku")} placeholder="ELV-P8-630" />
-          </div>
-          <div style={fw}>
-            <label style={lbl}>Category</label>
+    <ObjectFormPage
+      backHref={ROUTES.products}
+      backLabel="All products"
+      title="New Product"
+      subtitle="Add an item or service you sell"
+      onSubmit={handleSubmit}
+      saving={pending}
+      saveLabel="Save"
+      error={error}
+    >
+      <Card title="Product details" padding={18}>
+        <Field label="Name" required>
+          <Input value={form.name} onChange={set("name")} required placeholder="e.g. Passenger Elevator 8P (630 kg)" autoFocus />
+        </Field>
+        <div className="fg2">
+          <Field label="SKU">
+            <Input value={form.sku} onChange={set("sku")} placeholder="ELV-P8-630" />
+          </Field>
+          <Field label="Unit of measure">
+            <Input value={form.uom} onChange={set("uom")} placeholder="Nos / Hrs / Job / Yr" />
+          </Field>
+          <Field label="Category">
             {catTree.length > 0 ? (
-              <select
-                style={{ ...inp, cursor: "pointer" }}
+              <Select
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value, sub_category: "" }))}
               >
                 <option value="">— None —</option>
                 {catTree.map((pc) => <option key={pc.code} value={pc.code}>{pc.name}</option>)}
-              </select>
+              </Select>
             ) : (
-              <input style={inp} value={form.category} onChange={set("category")} placeholder="Elevators" />
+              <Input value={form.category} onChange={set("category")} placeholder="Elevators" />
             )}
-          </div>
-          <div style={fw}>
-            <label style={lbl}>Sub-category</label>
+          </Field>
+          <Field label="Sub-category">
             {catTree.length > 0 ? (
-              <select
-                style={{ ...inp, cursor: subs.length ? "pointer" : "default" }}
-                value={form.sub_category}
-                onChange={set("sub_category")}
-                disabled={subs.length === 0}
-              >
+              <Select value={form.sub_category} onChange={set("sub_category")} disabled={subs.length === 0}>
                 <option value="">{subs.length ? "— None —" : "No sub-categories"}</option>
                 {subs.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
-              </select>
+              </Select>
             ) : (
-              <input style={inp} value={form.sub_category} onChange={set("sub_category")} placeholder="Passenger" />
+              <Input value={form.sub_category} onChange={set("sub_category")} placeholder="Passenger" />
             )}
-          </div>
-          <div style={fw}>
-            <label style={lbl}>Unit of measure</label>
-            <input style={inp} value={form.uom} onChange={set("uom")} placeholder="Nos / Hrs / Job / Yr" />
-          </div>
-          <div style={fw}>
-            <label style={lbl}>Tax %</label>
-            <input style={inp} type="number" step="0.01" value={form.tax_percent} onChange={set("tax_percent")} placeholder="18" />
-          </div>
-          <div style={fw}>
-            <label style={lbl}>{moneyLabel("List price", cur)}</label>
-            <input style={inp} type="number" step="0.01" value={form.list_price} onChange={set("list_price")} placeholder="External selling price" />
-          </div>
-          <div style={fw}>
-            <label style={lbl}>{moneyLabel("Cost price", cur)}</label>
-            <input style={inp} type="number" step="0.01" value={form.cost_price} onChange={set("cost_price")} placeholder="Internal cost" />
-          </div>
+          </Field>
         </div>
-        <div style={fw}>
-          <label style={lbl}>Description</label>
-          <textarea style={{ ...inp, resize: "vertical" }} rows={3} value={form.description} onChange={set("description")} placeholder="What this product includes" />
+        <Field label="Description" style={{ marginBottom: 0 }}>
+          <Textarea rows={3} value={form.description} onChange={set("description")} placeholder="What this product includes" />
+        </Field>
+      </Card>
+
+      <Card title="Pricing" padding={18}>
+        <div className="fg2">
+          <Field label={moneyLabel("List price", cur)}>
+            <Input type="number" step="0.01" value={form.list_price} onChange={set("list_price")} placeholder="External selling price" />
+          </Field>
+          <Field label={moneyLabel("Cost price", cur)}>
+            <Input type="number" step="0.01" value={form.cost_price} onChange={set("cost_price")} placeholder="Internal cost" />
+          </Field>
+          <Field label="Tax %" style={{ marginBottom: 0 }}>
+            <Input type="number" step="0.01" value={form.tax_percent} onChange={set("tax_percent")} placeholder="18" />
+          </Field>
         </div>
-
-        {error && <div style={{ color: "var(--redink, #c2402f)", fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
-
-        <button
-          type="submit"
-          disabled={pending}
-          style={{
-            padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer",
-            background: c.accent, color: "#fff", fontSize: 13.5, fontWeight: 600,
-            opacity: pending ? 0.6 : 1,
-          }}
-        >
-          {pending ? "Creating…" : "Create product"}
-        </button>
-      </form>
-    </div>
+      </Card>
+    </ObjectFormPage>
   );
 }

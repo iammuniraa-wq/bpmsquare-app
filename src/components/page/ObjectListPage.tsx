@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { c } from "@/lib/theme";
 import PageHeader from "@/components/PageHeader";
+import TabTitle from "@/components/TabTitle";
 import ListFilterBar, { type DateFilter, type SelectFilter } from "@/components/ListFilterBar";
 import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
 import SortableTh from "@/components/SortableTh";
@@ -95,6 +96,7 @@ export default function ObjectListPage<T>({
 
   return (
     <>
+      <TabTitle title={title} />
       <PageHeader
         title={title}
         subtitle={subtitle}
