@@ -5,10 +5,7 @@
 > Sonnet, phase by phase, from this document alone. Read
 > `bpmsquarecore.md` first; nothing here relaxes it.
 >
-> **Build status (2026-10-15): phases 1, 2 and 3 are built on `develop`
-> (kit, templates, Suppliers pilot) and await the owner's pilot approval.
-> Phases 4-7 are not started — do not begin them until the owner approves
-> the Suppliers look on the demo tenant.**
+> **Build status (2026-10-16): phases 1-3 built and approved (Suppliers pilot). Phase 4 is in progress on `develop`: Products, Accounts, Contacts, Assets, Cases, Work orders, Invoices, Purchase orders and Standard Quotes are converted (one commit each). Still to do from section 4: Deals, RFQs list, Inventory, Technicians and the item-15 lists. Phases 5-7 are not started.**
 >
 > **Out of scope, untouched:** Quotations — list (`/quotations`), detail
 > (`QuoteDetailLayout.tsx`), form (`quotations/new/QuoteForm.tsx`), print.
