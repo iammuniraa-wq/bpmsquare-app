@@ -1,24 +1,16 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
-import { c } from "@/lib/theme";
 import type { InventoryItem } from "@/lib/types";
-import { ROUTES } from "@/lib/constants";
 import { CheckIcon } from "@/components/Icons";
-
-const sel: React.CSSProperties = {
-  width: "100%", boxSizing: "border-box", padding: "8px 11px", fontSize: 13,
-  border: `1px solid ${c.line}`, borderRadius: 7,
-  background: c.panel, color: c.ink, outline: "none", fontFamily: "inherit",
-};
+import Card from "@/components/ui/Card";
+import { Select } from "@/components/ui/Input";
 
 // Preferred-supplier picker. Stays a dedicated component because there's no
 // "reference/lookup" widget type yet for ObjectSections to resolve a live
 // suppliers list -- see FIELD_REGISTRY_ROLLOUT.md. Every other flat field
-// moved to ObjectSections. Delete stays here too, same reasoning as
-// DeleteSupplierButton -- no ObjectSections equivalent for a destructive action.
+// moved to ObjectSections. Delete now lives in the record's "..." menu.
 export default function InventorySupplierPanel({ item }: { item: InventoryItem }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -48,52 +40,26 @@ export default function InventorySupplierPanel({ item }: { item: InventoryItem }
     });
   }
 
-  const { confirm } = useFeel();
-  async function handleDelete() {
-    if (!(await confirm({ title: `Delete "${item.name}"?`, body: "This cannot be undone.", tone: "danger" }))) return;
-    startTransition(async () => {
-      const res = await fetch(`/api/inventory/${item.id}`, { method: "DELETE" });
-      if (res.ok) router.push(ROUTES.inventory);
-      else { const j = await res.json(); setError(j.error ?? "Failed to delete"); }
-    });
-  }
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 12, padding: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-          Preferred supplier
-          {saved && <span style={{ color: "var(--teal)", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3, textTransform: "none" }}><CheckIcon size={11} color="var(--teal)" /> Saved</span>}
-        </div>
-        <select
-          style={sel}
-          value={supplierId}
-          onChange={(e) => { setSupplierId(e.target.value); save(e.target.value); }}
-          disabled={pending}
-        >
-          <option value="">— None —</option>
-          {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-        {error && (
-          <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginTop: 10 }}>
-            {error}
-          </div>
-        )}
-      </div>
-
-      <button
-        type="button"
-        onClick={handleDelete}
+    <Card
+      title="Preferred supplier"
+      padding={14}
+      action={saved ? <span style={{ color: "var(--teal)", fontWeight: 500, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckIcon size={11} color="var(--teal)" /> Saved</span> : undefined}
+    >
+      <Select
+        aria-label="Preferred supplier"
+        value={supplierId}
+        onChange={(e) => { setSupplierId(e.target.value); save(e.target.value); }}
         disabled={pending}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: "none", color: "var(--red)", borderRadius: 7,
-          padding: "7px 14px", fontSize: 12, fontWeight: 500,
-          border: "1px solid #f5c0c0", cursor: pending ? "default" : "pointer", width: "100%",
-        }}
       >
-        Delete item
-      </button>
-    </div>
+        <option value="">— None —</option>
+        {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </Select>
+      {error && (
+        <div role="alert" style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginTop: 10 }}>
+          {error}
+        </div>
+      )}
+    </Card>
   );
 }
