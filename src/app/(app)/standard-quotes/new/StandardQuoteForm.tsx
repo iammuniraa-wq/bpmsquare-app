@@ -6,26 +6,19 @@ import Link from "next/link";
 import { c } from "@/lib/theme";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter, moneyLabel } from "@/lib/currency";
-import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
 import { documentTotal, type SelectableLine } from "@/lib/sales/lineTotals";
 import { useUnsavedChangesGuard, setUnsavedGuard } from "@/lib/unsavedChanges";
 import StandardQuoteAttachments from "../[id]/StandardQuoteAttachments";
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import Field from "@/components/ui/Field";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 import DocumentLinesEditor, { newLine, lineAmount, type Line, type PrintOptions, type StandardQuoteProduct } from "@/components/sales/DocumentLinesEditor";
 
 export type { StandardQuoteProduct };
-
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11.5, fontWeight: 600,
-  color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,
-};
-const inp: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", fontSize: 13,
-  border: `1px solid ${c.line}`, borderRadius: 8,
-  background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
-};
-const fw: React.CSSProperties = { marginBottom: 16 };
 
 type EditQuote = {
   id: string;
@@ -273,23 +266,21 @@ export default function StandardQuoteForm({
       </button>
     );
   }
-  const errorBox = error ? (
-    <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "var(--err-ink)" }}>
-      {error}
-    </div>
-  ) : null;
-  const cancelLink = (
-    <Link href={editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes} style={{
-      display: "block", textAlign: "center", padding: "10px 0",
-      borderRadius: 8, border: `1px solid ${c.line}`,
-      color: c.muted, fontSize: 13, textDecoration: "none",
-    }}>
-      Cancel
-    </Link>
-  );
   const accountName = accounts.find((a) => a.id === accountId)?.name ?? "";
   const contactName = accountContacts.find((ct) => ct.id === contactId)?.name ?? "";
   const lineCount = lines.filter((l) => l.description.trim() && !l.break_of).length;
+
+  const cancelHref = editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes;
+
+  // Pages 1 and 3 close with the shared sticky footer: Cancel and the one
+  // forward step. Page 2 keeps its pinned bar (Save lives there so it is
+  // reachable above a long line editor -- owner decision 2026-09-06).
+  const stepFooter = (primaryLabel: string, onNext: () => void) => (
+    <div className="bpm-form-footer">
+      <Button href={cancelHref} variant="secondary">Cancel</Button>
+      <Button variant="primary" onClick={onNext}>{primaryLabel}</Button>
+    </div>
+  );
 
   return (
     <>
@@ -298,15 +289,15 @@ export default function StandardQuoteForm({
           below renders for page 1 only. */}
       {step !== "lines" && (
         <>
-          <div className="bpm-page-header" style={{ marginBottom: 12 }}>
-            <Link href={editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
+          <div style={{ marginBottom: 8 }}>
+            <Link href={cancelHref} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>
               ← {editQuote ? editQuote.ref : "All standard quotes"}
             </Link>
           </div>
-          <div className="bpm-page-header" style={{ marginBottom: 16 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>{editQuote ? `Edit ${editQuote.ref}` : "New Standard Quote"}</h1>
-            <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>A plain quote for an account — line items, discount, tax, shipping</p>
-          </div>
+          <PageHeader
+            title={editQuote ? `Edit ${editQuote.ref}` : "New Standard Quote"}
+            subtitle="A plain quote for an account — line items, discount, tax, shipping"
+          />
           <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: `1px solid ${c.line}` }}>
             {stepTab("details", "1", "Quote details")}
             {stepTab("lines", "2", lineCount > 0 ? `Line items (${lineCount})` : "Line items")}
@@ -317,6 +308,7 @@ export default function StandardQuoteForm({
 
       <form
         onSubmit={handleSubmit}
+        className="bpm-form-page"
         // Enter inside a line field must not submit the whole quote (an
         // implicit form submission saved and left the page with no warning).
         // Textareas keep Enter; inputs with their own Enter handler already
@@ -324,86 +316,65 @@ export default function StandardQuoteForm({
         onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault(); }}
       >
         {step === "details" && (
-        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <section style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 16px" }}>Quote for</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                <div>
-                  <label style={lbl}>Account *</label>
+        <div style={{ maxWidth: 820 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Card title="Quote for" padding={18}>
+              <div className="fg2">
+                <Field label="Account" required>
                   {editQuote ? (
-                    <div style={{ ...inp, background: c.panel2, color: c.muted }}>
+                    <div className="bpm-input" style={{ background: c.panel2, color: c.muted }}>
                       {accounts.find((a) => a.id === accountId)?.name ?? "—"}
                     </div>
                   ) : (
-                    <select style={inp} value={accountId} onChange={(e) => { setAccountId(e.target.value); setContactId(""); }} required>
+                    <Select value={accountId} onChange={(e) => { setAccountId(e.target.value); setContactId(""); }} required>
                       <option value="">— Select account —</option>
                       {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
+                    </Select>
                   )}
-                </div>
-                <div>
-                  <label style={lbl}>Contact</label>
-                  <select style={inp} value={contactId} onChange={(e) => setContactId(e.target.value)}>
+                </Field>
+                <Field label="Contact">
+                  <Select value={contactId} onChange={(e) => setContactId(e.target.value)}>
                     <option value="">— None —</option>
                     {accountContacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
-                  </select>
-                </div>
+                  </Select>
+                </Field>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>Inquiry date</label>
-                  <input style={inp} type="date" value={inquiryDate} onChange={(e) => setInquiryDate(e.target.value)} title="When the customer asked for this quote" />
-                </div>
-                <div>
-                  <label style={lbl}>Valid until</label>
-                  <input style={inp} type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
-                </div>
-                <div>
-                  <label style={lbl}>Template</label>
-                  <select style={inp} value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+              <div className="fg3">
+                <Field label="Inquiry date" style={{ marginBottom: 0 }}>
+                  <Input type="date" value={inquiryDate} onChange={(e) => setInquiryDate(e.target.value)} title="When the customer asked for this quote" />
+                </Field>
+                <Field label="Valid until" style={{ marginBottom: 0 }}>
+                  <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+                </Field>
+                <Field label="Template" style={{ marginBottom: 0 }}>
+                  <Select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
                     <option value="">Default layout</option>
                     {templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.is_default ? " (default)" : ""}</option>)}
-                  </select>
-                </div>
+                  </Select>
+                </Field>
               </div>
-            </section>
+            </Card>
 
-
-            <section style={cardStyle}>
-              <div style={fw}>
-                <label style={lbl}>Notes</label>
-                <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <Card padding={18}>
+              <Field label="Notes">
+                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </Field>
+              <Field label="Terms">
+                <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms…" />
+              </Field>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 5, flexWrap: "wrap" }}>
+                <label htmlFor="sq-intro" style={{ fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                  Intro text (overrides the template&apos;s intro block for this quote)
+                </label>
+                <Button variant="quiet" size="sm" disabled={aiIntroDrafting} onClick={draftIntroWithAI}>
+                  {aiIntroDrafting ? "Writing…" : "✨ Generate with AI"}
+                </Button>
               </div>
-              <div style={fw}>
-                <label style={lbl}>Terms</label>
-                <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms…" />
-              </div>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-                  <label style={{ ...lbl, marginBottom: 0 }}>Intro text (overrides the template&apos;s intro block for this quote)</label>
-                  <button
-                    type="button" disabled={aiIntroDrafting} onClick={draftIntroWithAI}
-                    style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: aiIntroDrafting ? "wait" : "pointer" }}
-                  >
-                    {aiIntroDrafting ? "Writing…" : "✨ Generate with AI"}
-                  </button>
-                </div>
-                <textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={introText} onChange={(e) => setIntroText(e.target.value)} placeholder="A short, personalized cover note for this quote…" />
-              </div>
-            </section>
+              <Textarea id="sq-intro" style={{ minHeight: 70 }} value={introText} onChange={(e) => setIntroText(e.target.value)} placeholder="A short, personalized cover note for this quote…" />
+            </Card>
           </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {errorBox}
-            <button
-              type="button" onClick={goToLines}
-              style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
-            >
-              Next: line items →
-            </button>
-            {cancelLink}
-          </div>
+          {error && <div role="alert" style={errorStyle}>{error}</div>}
+          {stepFooter("Next: line items →", goToLines)}
         </div>
         )}
 
@@ -416,7 +387,7 @@ export default function StandardQuoteForm({
               ? { position: "fixed" as const, top: 0, left: pin.left, width: pin.width, zIndex: 20, borderRadius: "0 0 10px 10px", boxShadow: "0 4px 14px rgba(0,0,0,0.12)", boxSizing: "border-box" as const }
               : { borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }),
           }}>
-            <Link href={editQuote ? ROUTES.standardQuote(editQuote.id) : ROUTES.standardQuotes} title={editQuote ? `Back to ${editQuote.ref}` : "All standard quotes"} style={{ fontSize: 14, color: c.muted, textDecoration: "none", whiteSpace: "nowrap" }}>←</Link>
+            <Link href={cancelHref} title={editQuote ? `Back to ${editQuote.ref}` : "All standard quotes"} style={{ fontSize: 14, color: c.muted, textDecoration: "none", whiteSpace: "nowrap" }}>←</Link>
             <div style={{ display: "flex", alignItems: "center", margin: "-10px 0" }}>
               {stepTab("details", "1", "Details", true)}
               {stepTab("lines", "2", lineCount > 0 ? `Lines (${lineCount})` : "Lines", true)}
@@ -429,7 +400,7 @@ export default function StandardQuoteForm({
               </div>
               <div style={{ fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" }}>
                 {contactName || "No contact"}{validUntil ? ` · valid until ${validUntil}` : ""}
-                <button type="button" onClick={() => setStep("details")} style={{ marginLeft: 8, fontSize: 11.5, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}>Edit details</button>
+                <Button variant="quiet" size="sm" onClick={() => setStep("details")} style={{ marginLeft: 8, height: "auto", padding: "0 4px" }}>Edit details</Button>
               </div>
             </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18 }}>
@@ -438,36 +409,30 @@ export default function StandardQuoteForm({
                 <div style={{ fontSize: 11, color: c.hint }}>Subtotal {inr(totals.subtotal)}{totals.taxAmount > 0 ? ` · tax ${inr(totals.taxAmount)}` : ""}</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: c.ink }}>Total {inr(totals.total)}</div>
               </div>
-              <button
-                type="submit" disabled={pending}
-                style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: pending ? "wait" : "pointer", whiteSpace: "nowrap" }}
-              >
+              <Button type="submit" variant="primary" loading={pending}>
                 {pending ? "Saving…" : editQuote ? "Save changes" : "Create quote"}
-              </button>
+              </Button>
             </div>
           </div>
           </div>
-          {errorBox}
-            <section style={cardStyle}>
+          {error && <div role="alert" style={errorStyle}>{error}</div>}
+            <Card padding={16}>
               <DocumentLinesEditor
                 lines={lines} onChange={setLines} products={products} pricingEnabled={pricingEngineQuotesEnabled}
                 accountId={accountId} accountName={accountName} documentType="standard_quote" documentId={editQuote?.id}
                 taxPct={taxPct} onTaxPct={setTaxPct} printOptions={printOptions} onPrintOptions={setPrintOptions} onError={setError}
               />
 
-              <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 14, paddingTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                <div>
-                  <label style={lbl}>Discount %</label>
-                  <input style={inp} type="number" min="0" max="100" step="0.1" value={headerDiscountPct} onChange={(e) => setHeaderDiscountPct(e.target.value)} />
-                </div>
-                <div>
-                  <label style={lbl}>Tax %</label>
-                  <input style={inp} type="number" min="0" max="100" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} />
-                </div>
-                <div>
-                  <label style={lbl}>{moneyLabel("Shipping / Handling", cur)}</label>
-                  <input style={inp} type="number" min="0" step="0.01" value={shippingAmount} onChange={(e) => setShippingAmount(e.target.value)} />
-                </div>
+              <div className="fg3" style={{ borderTop: `1px solid ${c.line}`, marginTop: 14, paddingTop: 14 }}>
+                <Field label="Discount %" style={{ marginBottom: 0 }}>
+                  <Input type="number" min="0" max="100" step="0.1" value={headerDiscountPct} onChange={(e) => setHeaderDiscountPct(e.target.value)} />
+                </Field>
+                <Field label="Tax %" style={{ marginBottom: 0 }}>
+                  <Input type="number" min="0" max="100" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} />
+                </Field>
+                <Field label={moneyLabel("Shipping / Handling", cur)} style={{ marginBottom: 0 }}>
+                  <Input type="number" min="0" step="0.01" value={shippingAmount} onChange={(e) => setShippingAmount(e.target.value)} />
+                </Field>
               </div>
 
               <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
@@ -477,13 +442,13 @@ export default function StandardQuoteForm({
                 {totals.shipping > 0 && <TotalLine label="Shipping" value={inr(totals.shipping)} />}
                 <div style={{ fontSize: 15, fontWeight: 700, color: c.ink, marginTop: 4 }}>Total: {inr(totals.total)}</div>
               </div>
-            </section>
+            </Card>
         </div>
         )}
 
         {step === "attachments" && editQuote && (
-        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
-          <section style={cardStyle}>
+        <div style={{ maxWidth: 820 }}>
+          <Card padding={16}>
             <StandardQuoteAttachments
               quoteId={editQuote.id}
               canCreateLines
@@ -493,20 +458,20 @@ export default function StandardQuoteForm({
               onLinesCreated={() => { window.location.href = ROUTES.standardQuoteEdit(editQuote.id); }}
             />
             <p style={{ fontSize: 11.5, color: c.hint, margin: "10px 0 0" }}>Creating line items from a file saves them to the quote straight away and reloads this form — save any other edits first.</p>
-          </section>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {errorBox}
-            <button type="button" onClick={goToLines} style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-              Back to line items →
-            </button>
-            {cancelLink}
-          </div>
+          </Card>
+          {error && <div role="alert" style={{ ...errorStyle, marginTop: 14 }}>{error}</div>}
+          {stepFooter("Back to line items →", goToLines)}
         </div>
         )}
       </form>
     </>
   );
 }
+
+const errorStyle: React.CSSProperties = {
+  background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8,
+  padding: "10px 14px", fontSize: 12.5, color: "var(--err-ink)", marginTop: 14,
+};
 
 function TotalLine({ label, value }: { label: string; value: string }) {
   return (

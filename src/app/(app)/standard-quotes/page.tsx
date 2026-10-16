@@ -6,14 +6,12 @@ import { moneyFormatter } from "@/lib/currency";
 import { listStandardQuotes } from "@/lib/data/live";
 import type { StandardQuoteRow } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import PageHeader from "@/components/PageHeader";
-import ListFilterBar from "@/components/ListFilterBar";
-import Pill from "@/components/Pill";
-import SortableTh from "@/components/SortableTh";
-import PagerLink from "@/components/PagerLink";
-import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
-import { sortRows, readSortParams, type SortExtractor } from "@/lib/listSort";
+import { CARD_SURFACE } from "@/components/ui/Card";
+import StatusPill from "@/components/ui/StatusPill";
+import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
+import type { MenuItem } from "@/components/ui/menuItems";
+import { paginate } from "@/lib/paginate";
+import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { StandardQuoteStatus } from "@/lib/types";
 
@@ -25,17 +23,10 @@ const STATUS_LABEL: Record<StandardQuoteStatus, string> = {
 };
 const SUMMARY_STATUSES: StandardQuoteStatus[] = ["draft", "sent", "accepted", "rejected"];
 
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
+
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-const th: React.CSSProperties = {
-  textAlign: "left", color: c.hint, fontWeight: 500,
-  padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 11.5,
-};
-const td: React.CSSProperties = {
-  padding: "10px 12px", borderBottom: `1px solid ${c.line}`,
-  fontSize: 12.5, verticalAlign: "middle",
-};
 
 const SORT_EXTRACTORS: Record<string, SortExtractor<StandardQuoteRow>> = {
   ref: (q) => q.ref,
@@ -49,13 +40,15 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<StandardQuoteRow>> = {
 export default async function StandardQuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; page?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("standard_quotes");
   await requireFeature("standard_quotes");
   const inr = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
   const params = await searchParams;
   const { status: statusFilter, q } = params;
+  const colFilters = parseColFilterParams(params);
+  const cfParams = colFilterQueryParams(colFilters);
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
   const [quotes, { role }] = await Promise.all([listStandardQuotes(), requireTenantUser()]);
@@ -75,125 +68,74 @@ export default async function StandardQuotesPage({
       (quote.account_name ?? "").toLowerCase().includes(needle)
     );
   });
-  const filtered = sortRows(searched, sort, dir, SORT_EXTRACTORS);
+  const colFiltered = applyColFilters(searched, colFilters, SORT_EXTRACTORS);
+  const filtered = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
 
-  return (
-    <>
-      <PageHeader
-        title="Standard Quotes"
-        subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as StandardQuoteStatus] ?? statusFilter}` : ""} of ${quotes.length} total`}
-        action={
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {role === "admin" && (
-              <Link
-                href={ROUTES.standardQuoteTemplates}
-                style={{ fontSize: 12.5, fontWeight: 600, color: c.muted, textDecoration: "none", border: `1px solid ${c.line}`, borderRadius: 8, padding: "8px 14px" }}
-              >
-                Manage Templates
-              </Link>
-            )}
-            <Link
-              href={ROUTES.standardQuoteNew}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                background: c.accent, color: "#fff", textDecoration: "none",
-              }}
-            >
-              + New Standard Quote
-            </Link>
-          </div>
-        }
-      />
+  const columns: ListColumn<StandardQuoteRow>[] = [
+    {
+      id: "ref", label: "Ref", sortKey: "ref", card: "title",
+      render: (qt) => <Link href={ROUTES.standardQuote(qt.id)} style={{ fontFamily: MONO, fontSize: 12.5, color: c.accent, fontWeight: 600, textDecoration: "none" }}>{qt.ref}</Link>,
+    },
+    { id: "account_name", label: "Account", sortKey: "account_name", render: (qt) => qt.account_name },
+    {
+      id: "status", label: "Status", sortKey: "status",
+      render: (qt) => <StatusPill label={STATUS_LABEL[qt.status as StandardQuoteStatus] ?? qt.status} tone={STATUS_TONE[qt.status as StandardQuoteStatus] ?? "blue"} />,
+    },
+    { id: "total", label: "Total", sortKey: "total", cellStyle: { fontWeight: 700 }, render: (qt) => inr(qt.total) },
+    { id: "valid_until", label: "Valid until", sortKey: "valid_until", cellStyle: { color: c.muted }, render: (qt) => (qt.valid_until ? fmtDate(qt.valid_until) : "—") },
+    { id: "created_at", label: "Created", sortKey: "created_at", cellStyle: { color: c.muted }, render: (qt) => fmtDate(qt.created_at) },
+  ];
 
-      <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: statusFilter ? 8 : 20 }}>
-        {summary.map(({ status, count, total }) => (
-          <Link key={status} href={statusFilter === status ? ROUTES.standardQuotes : `${ROUTES.standardQuotes}?status=${status}`} style={{ textDecoration: "none" }}>
-            <div style={{ ...cardStyle, textAlign: "center", borderColor: statusFilter === status ? pillar[STATUS_TONE[status]].base : undefined }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
-                {STATUS_LABEL[status]}
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: pillar[STATUS_TONE[status]].base }}>{inr(total)}</div>
-              <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{count} quote{count !== 1 ? "s" : ""}</div>
+  const summaryTiles = (
+    <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 14 }}>
+      {summary.map(({ status, count, total }) => (
+        <Link key={status} href={statusFilter === status ? ROUTES.standardQuotes : `${ROUTES.standardQuotes}?status=${status}`} style={{ textDecoration: "none" }}>
+          <div style={{ ...CARD_SURFACE, padding: 14, textAlign: "center", borderColor: statusFilter === status ? pillar[STATUS_TONE[status]].base : undefined }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+              {STATUS_LABEL[status]}
             </div>
-          </Link>
-        ))}
-      </div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: pillar[STATUS_TONE[status]].base }}>{inr(total)}</div>
+            <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{count} quote{count !== 1 ? "s" : ""}</div>
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
 
-      {statusFilter && (
-        <div style={{ marginBottom: 12 }}>
-          <Link href={ROUTES.standardQuotes} style={{ fontSize: 12, color: c.hint, textDecoration: "none" }}>← Show all standard quotes</Link>
-        </div>
-      )}
+  const menuItems: MenuItem[] = [
+    { label: "Manage Templates", href: ROUTES.standardQuoteTemplates, hidden: role !== "admin" },
+  ];
 
-      <ListFilterBar
-        searchValue={q}
-        searchPlaceholder="Search quote ref or account…"
-        hiddenParams={{ status: statusFilter }}
-        clearHref={ROUTES.standardQuotes}
-      />
-
-      {filtered.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>
-          No standard quotes yet.{" "}
-          <Link href={ROUTES.standardQuoteNew} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-            + Create one
-          </Link>
-        </div>
-      ) : (
-        <div style={{ ...cardStyle, overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {(() => {
-                  const hp = { status: statusFilter, q };
-                  return (
-                    <>
-                      <SortableTh label="Ref" sortKey="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
-                      <SortableTh label="Account" sortKey="account_name" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
-                      <SortableTh label="Status" sortKey="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
-                      <SortableTh label="Total" sortKey="total" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
-                      <SortableTh label="Valid until" sortKey="valid_until" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
-                      <SortableTh label="Created" sortKey="created_at" currentSort={sort} currentDir={dir} baseHref={ROUTES.standardQuotes} hiddenParams={hp} style={th} />
-                    </>
-                  );
-                })()}
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.map((q) => (
-                <tr key={q.id} style={{ cursor: "pointer" }}>
-                  <td style={td}>
-                    <Link href={ROUTES.standardQuote(q.id)} style={{ fontFamily: "monospace", fontSize: 12, color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-                      {q.ref}
-                    </Link>
-                  </td>
-                  <td style={td}>
-                    <Link href={ROUTES.standardQuote(q.id)} style={{ color: "inherit", textDecoration: "none" }}>{q.account_name}</Link>
-                  </td>
-                  <td style={td}>
-                    <Pill
-                      label={STATUS_LABEL[q.status as StandardQuoteStatus] ?? q.status}
-                      tone={STATUS_TONE[q.status as StandardQuoteStatus] ?? "blue"}
-                    />
-                  </td>
-                  <td style={{ ...td, fontWeight: 700 }}>{inr(q.total)}</td>
-                  <td style={{ ...td, color: c.muted }}>{q.valid_until ? fmtDate(q.valid_until) : "—"}</td>
-                  <td style={{ ...td, color: c.muted }}>{fmtDate(q.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <PagerLink
-            page={page}
-            total={filtered.length}
-            pageSize={DEFAULT_PAGE_SIZE}
-            baseHref={ROUTES.standardQuotes}
-            hiddenParams={{ status: statusFilter, q, sort, dir }}
-          />
-        </div>
-      )}
-    </>
+  return (
+    <ObjectListPage
+      title="Standard Quotes"
+      subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as StandardQuoteStatus] ?? statusFilter}` : ""} of ${quotes.length} total`}
+      newLabel="Standard Quote"
+      newHref={ROUTES.standardQuoteNew}
+      menuItems={menuItems}
+      search={{
+        value: q,
+        placeholder: "Search quote ref or account…",
+        hiddenParams: { status: statusFilter, ...cfParams },
+      }}
+      beforeTable={summaryTiles}
+      columns={columns}
+      rows={pageRows}
+      rowKey={(qt) => qt.id}
+      rowHref={(qt) => ROUTES.standardQuote(qt.id)}
+      total={filtered.length}
+      page={page}
+      baseHref={ROUTES.standardQuotes}
+      sort={sort}
+      dir={dir}
+      linkParams={{ status: statusFilter, q, ...cfParams }}
+      filtered={!!(q || statusFilter || Object.keys(cfParams).length > 0)}
+      empty={{
+        title: "No standard quotes yet",
+        text: "A plain quote for an account: line items, discount, tax and shipping.",
+        filteredTitle: "No standard quotes match these filters.",
+      }}
+    />
   );
 }

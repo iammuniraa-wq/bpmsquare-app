@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter } from "@/lib/currency";
+import Button from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 // Attachments on a Standard Quote (0119, docs/sales-engine-architecture.md
 // §3.7): customer communication kept with the quote, and -- for an .xlsx
@@ -18,11 +20,6 @@ type Preview = { file_name: string; rows: number; skipped_rows: number; existing
 const isSpreadsheet = (name: string) => /\.(xlsx|xlsm|csv|tsv|txt)$/i.test(name);
 const fmtSize = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-const btn: React.CSSProperties = { fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 6, border: `1px solid ${c.line}`, background: "transparent", color: c.ink, cursor: "pointer" };
-const primary: React.CSSProperties = { ...btn, border: "none", background: c.accent, color: "#fff" };
-const link: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 };
-const inp: React.CSSProperties = { padding: "7px 10px", fontSize: 12.5, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel, color: c.ink, boxSizing: "border-box" };
 
 export default function StandardQuoteAttachments({ quoteId, canCreateLines, onLinesCreated }: {
   quoteId: string;
@@ -119,9 +116,9 @@ export default function StandardQuoteAttachments({ quoteId, canCreateLines, onLi
                 <div style={{ fontSize: 11, color: c.hint }}>{fmtSize(a.size_bytes)} · {fmtDate(a.created_at)}{a.note ? ` · ${a.note}` : ""}</div>
               </div>
               {isSpreadsheet(a.file_name) && canCreateLines && (
-                <button type="button" disabled={busy} onClick={() => openPreview(a)} style={link}>Create line items</button>
+                <Button variant="quiet" size="sm" disabled={busy} onClick={() => openPreview(a)}>Create line items</Button>
               )}
-              <button type="button" disabled={busy} onClick={() => remove(a)} title="Remove" style={{ ...link, color: "var(--red)" }}>×</button>
+              <Button variant="quiet" size="sm" iconOnly disabled={busy} onClick={() => remove(a)} title="Remove" aria-label={`Remove ${a.file_name}`}>×</Button>
             </div>
           ))}
         </div>
@@ -144,17 +141,17 @@ export default function StandardQuoteAttachments({ quoteId, canCreateLines, onLi
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             {preview.data.existing_lines === 0 ? (
-              <button type="button" disabled={applying} onClick={() => apply("append")} style={primary}>Add {preview.data.rows} line{preview.data.rows === 1 ? "" : "s"}</button>
+              <Button variant="primary" size="sm" disabled={applying} onClick={() => apply("append")}>Add {preview.data.rows} line{preview.data.rows === 1 ? "" : "s"}</Button>
             ) : (
               <>
-                <button type="button" disabled={applying} onClick={() => apply("replace")} style={{ ...primary, background: "var(--red)" }}>Replace the {preview.data.existing_lines} existing</button>
-                <button type="button" disabled={applying} onClick={() => apply("append")} style={primary}>Append all {preview.data.rows}</button>
+                <Button variant="danger" size="sm" disabled={applying} onClick={() => apply("replace")}>Replace the {preview.data.existing_lines} existing</Button>
+                <Button variant="primary" size="sm" disabled={applying} onClick={() => apply("append")}>Append all {preview.data.rows}</Button>
                 {preview.data.duplicates > 0 && (
-                  <button type="button" disabled={applying} onClick={() => apply("skip_duplicates")} style={primary}>Append, skip {preview.data.duplicates} duplicate{preview.data.duplicates === 1 ? "" : "s"}</button>
+                  <Button variant="primary" size="sm" disabled={applying} onClick={() => apply("skip_duplicates")}>Append, skip {preview.data.duplicates} duplicate{preview.data.duplicates === 1 ? "" : "s"}</Button>
                 )}
               </>
             )}
-            <button type="button" disabled={applying} onClick={() => setPreview(null)} style={btn}>Cancel</button>
+            <Button variant="secondary" size="sm" disabled={applying} onClick={() => setPreview(null)}>Cancel</Button>
           </div>
         </div>
       )}
@@ -164,8 +161,8 @@ export default function StandardQuoteAttachments({ quoteId, canCreateLines, onLi
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <input ref={fileRef} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} style={{ fontSize: 12 }} accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.xlsx,.xlsm,.csv,.tsv,.txt,.doc,.docx,.eml,.msg,.ppt,.pptx" />
-        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional) — e.g. customer's RFQ of 3 Sep" style={{ ...inp, flex: 1, minWidth: 200 }} />
-        <button type="button" disabled={!file || busy} onClick={upload} style={{ ...primary, opacity: !file || busy ? 0.5 : 1 }}>{busy ? "Working…" : "Upload"}</button>
+        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional) — e.g. customer's RFQ of 3 Sep" aria-label="Attachment note" style={{ flex: 1, minWidth: 200, width: "auto" }} />
+        <Button variant="primary" size="sm" disabled={!file} loading={busy} onClick={upload}>{busy ? "Working…" : "Upload"}</Button>
       </div>
     </div>
   );

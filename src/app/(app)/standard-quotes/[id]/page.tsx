@@ -2,26 +2,29 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireFeature, getTenant, getTenantCurrency } from "@/lib/tenant";
+import { getUserRole } from "@/lib/tenant";
 import { moneyFormatter } from "@/lib/currency";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import StandardQuoteDealCard from "./StandardQuoteDealCard";
+import StandardQuoteDatesCard from "./StandardQuoteDatesCard";
 import { getStandardQuoteLive } from "@/lib/data/live";
 import { c, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import Pill from "@/components/Pill";
-import PageHeader from "@/components/PageHeader";
-import TabTitle from "@/components/TabTitle";
+import StatusPill from "@/components/ui/StatusPill";
+import Card from "@/components/ui/Card";
 import { ROUTES } from "@/lib/constants";
 import type { StandardQuoteStatus } from "@/lib/types";
-import StandardQuoteActionsPanel from "./StandardQuoteActionsPanel";
 import StandardQuoteAttachments from "./StandardQuoteAttachments";
-import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
 import RfqLineChip from "@/components/rfq/RfqLineChip";
 import { rfqPrefill } from "@/components/rfq/prefill";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 import { selectedLines } from "@/lib/sales/lineTotals";
 import { pricingOnStandardQuotes } from "../formData";
+import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import RecordMoreMenu from "@/components/page/RecordMoreMenu";
+import RecordActivity from "@/components/page/RecordActivity";
+import RelatedList from "@/components/page/RelatedList";
+import RecordActionButton, { type RecordAction } from "@/components/page/recordActions";
 
 const STATUS_TONE: Record<StandardQuoteStatus, PillarKey> = {
   draft: "blue", sent: "amber", accepted: "green", rejected: "red", expired: "red",
@@ -33,11 +36,11 @@ const STATUS_LABEL: Record<StandardQuoteStatus, string> = {
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-function CtxRow({ label, value }: { label: string; value: string }) {
+function CtxRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, marginTop: 5 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, marginTop: 6 }}>
       <span style={{ color: c.hint, flexShrink: 0 }}>{label}</span>
-      <span style={{ textAlign: "right", color: c.muted, wordBreak: "break-all" }}>{value}</span>
+      <span style={{ textAlign: "right", color: c.muted, wordBreak: "break-word" }}>{value}</span>
     </div>
   );
 }
@@ -49,14 +52,23 @@ function CtxLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function StandardQuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StandardQuoteDetailPage({
+  params, searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   await requireWorkcenterView("standard_quotes");
   await requireFeature("standard_quotes");
   const inr = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
   const { id } = await params;
+  const { tab } = await searchParams;
   const data = await getStandardQuoteLive(id);
   if (!data) notFound();
   const { quote, lines, account, contact } = data;
+  const role = await getUserRole();
+  const isAdmin = role === "admin";
+  const basePath = ROUTES.standardQuote(quote.id);
   // The deal this quote belongs to (0120), when Pipeline is on.
   const tenant = await getTenant();
   const pipelineOn = tenant?.features?.pipeline === true;
@@ -73,137 +85,51 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
     : {};
   const chosenGroupIds = new Set(selectedLines(lines).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string));
 
+  const isDraft = quote.status === "draft";
+  const isSent = quote.status === "sent";
+  const base = `/api/standard-quotes/${quote.id}`;
+  const emailAction: RecordAction = { label: isDraft ? "Email to customer" : "Resend email", endpoint: `${base}/email`, method: "POST", successText: "Sent to {sentTo}", errorText: "Failed to send email" };
+  const accept: RecordAction = { label: "Mark accepted", endpoint: base, body: { status: "accepted" }, errorText: "Failed to update status" };
+  const actions: RecordAction[] = [
+    { label: "Mark as sent", endpoint: base, body: { status: "sent" }, hidden: !isDraft, errorText: "Failed to update status" },
+    { ...emailAction, hidden: !isSent },
+    { label: "Mark rejected", endpoint: base, body: { status: "rejected" }, danger: true, hidden: !isSent, errorText: "Failed to update status" },
+  ];
+
   return (
-    <>
-      <TabTitle title={quote.ref} />
-
-      <div style={{ marginBottom: 8 }}>
-        <Link href={ROUTES.standardQuotes} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>
-          ← All standard quotes
-        </Link>
-      </div>
-
-      <PageHeader
-        title={quote.ref}
-        subtitle={`Standard Quote · ${account?.name ?? ""}`}
-        action={
-          <Link href={ROUTES.standardQuoteEdit(quote.id)} style={{ fontSize: 12.5, fontWeight: 600, color: c.accent, background: c.accentbg, borderRadius: 7, padding: "6px 12px", textDecoration: "none" }}>
-            Edit
-          </Link>
-        }
-      />
-
-      <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, alignItems: "start", marginTop: 16 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-          <section style={{ ...cardStyle, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-            <div>
-              <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 3 }}>Total</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: c.ink }}>{inr(quote.total)}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 3 }}>Valid until</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: c.ink }}>{fmtDate(quote.valid_until)}</div>
-            </div>
-          </section>
-
-          <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-            <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <h3 style={{ fontSize: 13, margin: 0, fontWeight: 600 }}>Line items</h3>
-              {pricingOnStandardQuotes(tenant) && quote.status === "draft" && (
-                <span style={{ fontSize: 11.5, color: c.muted }}>
-                  Engine pricing, the price trace and supplier RFQs are on the edit screen —{" "}
-                  <Link href={ROUTES.standardQuoteEdit(quote.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>click Edit to price the lines</Link>.
-                </span>
-              )}
-            </div>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: c.panel2 }}>
-                  <th style={{ textAlign: "left", padding: "7px 14px", fontSize: 11, color: c.hint, fontWeight: 600 }}>Description</th>
-                  <th style={{ textAlign: "center", padding: "7px 12px", fontSize: 11, color: c.hint, fontWeight: 600 }}>UOM</th>
-                  <th style={{ textAlign: "right", padding: "7px 12px", fontSize: 11, color: c.hint, fontWeight: 600 }}>Qty</th>
-                  <th style={{ textAlign: "right", padding: "7px 12px", fontSize: 11, color: c.hint, fontWeight: 600 }}>Rate</th>
-                  <th style={{ textAlign: "right", padding: "7px 12px", fontSize: 11, color: c.hint, fontWeight: 600 }}>Disc %</th>
-                  <th style={{ textAlign: "right", padding: "7px 14px", fontSize: 11, color: c.hint, fontWeight: 600 }}>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l) => {
-                  // Not selected: either an alternative option the customer
-                  // wasn't offered, or a quantity break that isn't the
-                  // chosen quantity (0116, §3.3/§3.4) -- either way the row
-                  // still prints, greyed out, so nothing looks silently
-                  // dropped, but it does not count toward the total.
-                  const notSelected = l.is_selected === false;
-                  const isBreak = !!l.break_of;
-                  const hiddenOnPdf = l.show_on_pdf === false;
-                  // A break family inside an option (0118): the option's own
-                  // "not chosen" is about the GROUP, the quantity's about the
-                  // row -- never both on one row for the same reason.
-                  const groupNotChosen = l.group_type === "alternative" && !!l.group_id && !chosenGroupIds.has(l.group_id);
-                  // A break is an offer (2026-09-06): ticked = printed, never
-                  // charged; the base line always is.
-                  const dim = isBreak ? (notSelected || groupNotChosen) : groupNotChosen;
-                  return (
-                  <tr key={l.id} style={{ borderTop: `1px solid ${c.line}`, opacity: dim ? 0.55 : 1 }}>
-                    <td style={{ padding: "8px 14px", fontSize: 13 }}>
-                      {hiddenOnPdf && (
-                        <span title="The rep hid this line from the PDF; it still counts if it is selected" style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: c.hint, marginRight: 6, border: `1px solid ${c.line}`, borderRadius: 4, padding: "0 4px" }}>
-                          not on PDF
-                        </span>
-                      )}
-                      {l.group_type === "alternative" && (
-                        <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: groupNotChosen ? c.hint : c.accent, marginRight: 6 }}>
-                          {l.group_label || "Option"}{groupNotChosen ? " · not chosen" : ""}
-                        </span>
-                      )}
-                      {isBreak && (
-                        <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: notSelected ? c.hint : c.accent, marginRight: 6 }}>
-                          Qty {l.qty} · {notSelected ? "not offered" : "offered"}
-                        </span>
-                      )}
-                      {l.description}
-                      {(() => {
-                        const rl = (l as { rfq_line_id?: string | null }).rfq_line_id;
-                        const st = rl ? rfqStatus[rl] : undefined;
-                        return st ? <div><RfqLineChip s={st} /></div> : null;
-                      })()}
-                      {(l.pricing_flags ?? []).map((f, i) => (
-                        <div key={i} style={{ fontSize: 11, fontWeight: 600, marginTop: 2, color: f.policy === "block" ? "var(--err-ink)" : "var(--amberink)" }}>
-                          {f.code === "MARGIN_FLOOR" ? `Margin ${f.actual_pct}% is below the ${f.floor_pct}% floor` : f.code}
-                          {f.policy === "block" ? " — can't be sent until re-priced or approved" : ""}
-                        </div>
-                      ))}
-                    </td>
-                    <td style={{ padding: "8px 12px", textAlign: "center", fontSize: 12.5, color: c.muted }}>{l.uom ?? ""}</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 12.5 }}>{l.qty}</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 12.5, color: c.muted }}>{inr(l.rate)}</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 12.5, color: c.muted }}>{l.discount_pct > 0 ? `${l.discount_pct}%` : "—"}</td>
-                    <td style={{ padding: "8px 14px", textAlign: "right", fontSize: 13, fontWeight: 500 }}>{inr(l.amount)}</td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
-
-          {rfqOn && (
-            <RecordRfqsCard
-              origin={{ type: "standard_quote", id }}
-              originLabel={`Quote ${quote.ref}${account?.name ? ` for ${account.name}` : ""}`}
-              title={account?.name ? `Prices for ${quote.ref} (${account.name})` : `Prices for ${quote.ref}`}
-              lines={rfqPrefill(lines as Parameters<typeof rfqPrefill>[0], (rl) => rfqStatus[rl]?.ref ?? null)}
-              compactTop
-            />
-          )}
-
-          <section style={cardStyle}>
-            <StandardQuoteAttachments quoteId={quote.id} canCreateLines={quote.status === "draft"} />
-          </section>
-
-          {(quote.notes || quote.terms) && (
-            <section style={cardStyle}>
+    <ObjectRecordPage
+      backHref={ROUTES.standardQuotes}
+      backLabel="All standard quotes"
+      title={quote.ref}
+      meta={`Standard Quote${account?.name ? ` · ${account.name}` : ""}`}
+      status={<StatusPill label={STATUS_LABEL[quote.status]} tone={STATUS_TONE[quote.status]} />}
+      primaryAction={isDraft ? <RecordActionButton action={emailAction} /> : isSent ? <RecordActionButton action={accept} /> : undefined}
+      menu={
+        <RecordMoreMenu
+          editHref={isDraft ? ROUTES.standardQuoteEdit(quote.id) : undefined}
+          printHref={`${base}/pdf`}
+          actions={actions}
+          remove={isDraft ? { endpoint: base, recordName: quote.ref, entityLabel: "draft quote", afterHref: ROUTES.standardQuotes } : undefined}
+        />
+      }
+      facts={[
+        { label: "Account", value: account ? <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> : "—" },
+        { label: "Total", value: inr(quote.total) },
+        { label: "Valid until", value: fmtDate(quote.valid_until) },
+        ...(contact ? [{ label: "Contact", value: contact.name }] : []),
+      ]}
+      basePath={basePath}
+      activeTab={tab}
+      tabs={[
+        {
+          id: "overview",
+          label: "Overview",
+          content: (
+            <Card title="Quote details">
+              <CtxRow label="Account" value={account ? <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> : "—"} />
+              <CtxRow label="Contact" value={contact?.name ?? "—"} />
+              <CtxRow label="Total" value={inr(quote.total)} />
+              <CtxRow label="Valid until" value={fmtDate(quote.valid_until)} />
               {quote.notes && (
                 <>
                   <CtxLabel>Notes</CtxLabel>
@@ -216,35 +142,113 @@ export default async function StandardQuoteDetailPage({ params }: { params: Prom
                   <div style={{ fontSize: 13, color: c.ink, whiteSpace: "pre-wrap" }}>{quote.terms}</div>
                 </>
               )}
-            </section>
-          )}
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <section style={{ ...cardStyle, padding: "14px" }}>
-            <div style={{ marginBottom: 10 }}>
-              <Pill label={STATUS_LABEL[quote.status]} tone={STATUS_TONE[quote.status]} />
-            </div>
-            {contact && (
-              <>
-                <CtxLabel>Contact</CtxLabel>
-                <div style={{ fontSize: 13, color: c.ink }}>{contact.name}</div>
-              </>
-            )}
-
-            <CtxLabel>Dates</CtxLabel>
-            <CtxRow label="Inquiry" value={fmtDate(quote.inquiry_date)} />
-            <CtxRow label="Created" value={fmtDate(quote.created_at)} />
-            <CtxRow label="Submitted" value={fmtDate(quote.sent_at)} />
-            <CtxRow label="Changed on" value={fmtDate(quote.updated_at)} />
-            <CtxRow label="Closed" value={fmtDate(quote.closed_at)} />
-          </section>
-
+            </Card>
+          ),
+        },
+        {
+          id: "lines",
+          label: "Lines",
+          count: lines.length,
+          content: (
+            <RelatedList
+              title="Line items"
+              summary={pricingOnStandardQuotes(tenant) && isDraft ? (
+                <span style={{ fontSize: 11.5 }}>
+                  Engine pricing, the price trace and supplier RFQs are on the edit screen —{" "}
+                  <Link href={ROUTES.standardQuoteEdit(quote.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>click Edit to price the lines</Link>.
+                </span>
+              ) : undefined}
+              emptyText="No line items."
+              rows={lines}
+              rowKey={(l) => l.id}
+              columns={[
+                {
+                  label: "Description",
+                  render: (l) => {
+                    // Not selected: either an alternative option the customer
+                    // wasn't offered, or a quantity break that isn't the
+                    // chosen quantity (0116, §3.3/§3.4) -- either way the row
+                    // still prints, greyed out, so nothing looks silently
+                    // dropped, but it does not count toward the total.
+                    const notSelected = l.is_selected === false;
+                    const isBreak = !!l.break_of;
+                    const hiddenOnPdf = l.show_on_pdf === false;
+                    // A break family inside an option (0118): the option's own
+                    // "not chosen" is about the GROUP, the quantity's about the
+                    // row -- never both on one row for the same reason.
+                    const groupNotChosen = l.group_type === "alternative" && !!l.group_id && !chosenGroupIds.has(l.group_id);
+                    // A break is an offer (2026-09-06): ticked = printed, never
+                    // charged; the base line always is.
+                    const dim = isBreak ? (notSelected || groupNotChosen) : groupNotChosen;
+                    const rl = (l as { rfq_line_id?: string | null }).rfq_line_id;
+                    const st = rl ? rfqStatus[rl] : undefined;
+                    return (
+                      <div style={{ opacity: dim ? 0.55 : 1 }}>
+                        {hiddenOnPdf && (
+                          <span title="The rep hid this line from the PDF; it still counts if it is selected" style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: c.hint, marginRight: 6, border: `1px solid ${c.line}`, borderRadius: 4, padding: "0 4px" }}>
+                            not on PDF
+                          </span>
+                        )}
+                        {l.group_type === "alternative" && (
+                          <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: groupNotChosen ? c.hint : c.accent, marginRight: 6 }}>
+                            {l.group_label || "Option"}{groupNotChosen ? " · not chosen" : ""}
+                          </span>
+                        )}
+                        {isBreak && (
+                          <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: notSelected ? c.hint : c.accent, marginRight: 6 }}>
+                            Qty {l.qty} · {notSelected ? "not offered" : "offered"}
+                          </span>
+                        )}
+                        {l.description}
+                        {st ? <div><RfqLineChip s={st} /></div> : null}
+                        {(l.pricing_flags ?? []).map((f, i) => (
+                          <div key={i} style={{ fontSize: 11, fontWeight: 600, marginTop: 2, color: f.policy === "block" ? "var(--err-ink)" : "var(--amberink)" }}>
+                            {f.code === "MARGIN_FLOOR" ? `Margin ${f.actual_pct}% is below the ${f.floor_pct}% floor` : f.code}
+                            {f.policy === "block" ? " — can't be sent until re-priced or approved" : ""}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  },
+                },
+                { label: "UOM", align: "center", cellStyle: { color: c.muted, fontSize: 12.5 }, render: (l) => l.uom ?? "" },
+                { label: "Qty", align: "right", render: (l) => l.qty },
+                { label: "Rate", align: "right", cellStyle: { color: c.muted }, render: (l) => inr(l.rate) },
+                { label: "Disc %", align: "right", cellStyle: { color: c.muted }, render: (l) => (l.discount_pct > 0 ? `${l.discount_pct}%` : "—") },
+                { label: "Amount", align: "right", cellStyle: { fontWeight: 500 }, render: (l) => inr(l.amount) },
+              ]}
+              footer={<div style={{ fontSize: 14, fontWeight: 700 }}>Total: {inr(quote.total)}</div>}
+            />
+          ),
+        },
+        {
+          id: "related",
+          label: "Related",
+          content: (
+            <>
+              {rfqOn && (
+                <RecordRfqsCard
+                  origin={{ type: "standard_quote", id }}
+                  originLabel={`Quote ${quote.ref}${account?.name ? ` for ${account.name}` : ""}`}
+                  title={account?.name ? `Prices for ${quote.ref} (${account.name})` : `Prices for ${quote.ref}`}
+                  lines={rfqPrefill(lines as Parameters<typeof rfqPrefill>[0], (rl) => rfqStatus[rl]?.ref ?? null)}
+                  compactTop
+                />
+              )}
+              <Card padding={16}>
+                <StandardQuoteAttachments quoteId={quote.id} canCreateLines={isDraft} />
+              </Card>
+            </>
+          ),
+        },
+        { id: "activity", label: "Activity", content: <RecordActivity objectType="standard_quotes" objectId={quote.id} isAdmin={isAdmin} /> },
+      ]}
+      rail={
+        <>
+          <StandardQuoteDatesCard quote={quote} />
           {pipelineOn && <StandardQuoteDealCard quoteId={quote.id} accountId={quote.account_id} deal={deal} />}
-          <StandardQuoteActionsPanel quote={quote} />
-        </div>
-      </div>
-      <NovaTimelineSlot objectType="standard_quotes" objectId={id} />
-    </>
+        </>
+      }
+    />
   );
 }

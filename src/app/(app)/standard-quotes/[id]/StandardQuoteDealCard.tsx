@@ -4,8 +4,10 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import { Select } from "@/components/ui/Input";
 
 // "Deal" on a Standard Quote (§4.3, decision 5): a quote MAY belong to a
 // deal. Shows the link when there is one; otherwise "Create deal from
@@ -47,35 +49,35 @@ export default function StandardQuoteDealCard({ quoteId, accountId, deal }: { qu
     });
   }
 
-  const small: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 };
   return (
-    <section style={{ ...cardStyle, padding: 14 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 6 }}>Deal</div>
+    <Card title="Deal" padding={14}>
       {deal ? (
         <div>
           <Link href={ROUTES.pipelineDetail(deal.id)} style={{ fontSize: 13, fontWeight: 600, color: c.accent, textDecoration: "none" }}>{deal.ref ? `${deal.ref} · ` : ""}{deal.title}</Link>
           <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2, textTransform: "capitalize" }}>{deal.stage} · {deal.outcome}</div>
-          <button type="button" disabled={pending} onClick={() => link(null)} style={{ ...small, color: c.hint, marginTop: 6, fontWeight: 400 }}>Unlink</button>
+          <div style={{ marginTop: 6 }}>
+            <Button variant="quiet" size="sm" disabled={pending} onClick={() => link(null)}>Unlink</Button>
+          </div>
         </div>
       ) : linking ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ padding: "6px 8px", fontSize: 12.5, borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel, color: c.ink }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <Select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Open deal">
             <option value="">{deals === null ? "Loading…" : deals.length ? "Pick an open deal" : "No open deal for this account"}</option>
             {(deals ?? []).map((d) => <option key={d.id} value={d.id}>{d.ref ? `${d.ref} · ` : ""}{d.title}</option>)}
-          </select>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button type="button" disabled={!pick || pending} onClick={() => link(pick)} style={small}>Link</button>
-            <button type="button" onClick={() => setLinking(false)} style={{ ...small, color: c.hint, fontWeight: 400 }}>Cancel</button>
+          </Select>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="primary" size="sm" disabled={!pick} loading={pending} onClick={() => link(pick)}>Link</Button>
+            <Button variant="secondary" size="sm" onClick={() => setLinking(false)}>Cancel</Button>
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
           <div style={{ fontSize: 12, color: c.muted }}>Not part of a deal.</div>
-          <button type="button" disabled={pending} onClick={createDeal} style={small}>Create deal from this quote</button>
-          <button type="button" onClick={() => setLinking(true)} style={small}>Link to a deal</button>
+          <Button variant="secondary" size="sm" loading={pending} onClick={createDeal}>Create deal from this quote</Button>
+          <Button variant="quiet" size="sm" onClick={() => setLinking(true)}>Link to a deal</Button>
         </div>
       )}
-      {error && <div style={{ fontSize: 12, color: "var(--err-ink)", marginTop: 6 }}>{error}</div>}
-    </section>
+      {error && <div role="alert" style={{ fontSize: 12, color: "var(--err-ink)", marginTop: 6 }}>{error}</div>}
+    </Card>
   );
 }
