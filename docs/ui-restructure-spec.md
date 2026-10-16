@@ -263,3 +263,37 @@ untouched. Update this document's status line per phase.
   pilot).
 - Themes reduced to Classic + Nova (default taken; runs last, owner go
   required before any client tenant).
+
+
+## 11. Settings decisions (owner, 2026-10-16)
+
+The grouped two-pane structure in section 5 is approved (interactive mock:
+claude.ai artifact "Settings Before and After"). Added requirements:
+
+1. **Save is always top right.** Every settings page that edits values has a
+   page-header action area: `Save` (disabled until something changed, with an
+   "Unsaved changes" hint beside it) at the top right. No Save at the bottom,
+   no per-section Save buttons, no floating save bar. The existing
+   `set-savebar` in `WorkforceConfigClient` moves into this header slot.
+2. **List-type settings follow the object pattern.** Team, Sites, Shifts,
+   Leave types, Kiosks, Custom fields, Business roles, Text/Email templates:
+   "+ New ..." (Team: "+ Invite member") top right, one row per record,
+   Edit/Remove inside a "⋯" menu, create/edit in a drawer or a form page with
+   the sticky Cancel/Save footer. Same kit as Suppliers (`src/components/ui`,
+   `src/components/page`). Team's inline role `<select>` and red Remove
+   button become the row's "⋯" menu and a role pill.
+3. **Workforce is split into eight pages** under the Workforce menu group,
+   in setup order, replacing the single page with five tabs and nine
+   accordion sections:
+   - Attendance rules (attendance rules, weekly off days, alternate Saturdays)
+   - Shifts
+   - Sites
+   - Leave types
+   - Punching & verification (punch types, verification & location)
+   - Kiosks
+   - Reminders & notifications (phone reminders, email notifications)
+   - Employment & billing (employment types, project billing)
+   Each is its own URL under `/settings/workforce/...`; `/settings/workforce`
+   redirects to Attendance rules. Same fields, same API, same gating
+   (`features.wfm`, admin only, project billing only with wfm_projects +
+   invoices).
