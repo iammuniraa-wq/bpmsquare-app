@@ -1,18 +1,14 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { requireFeature, getTenant } from "@/lib/tenant";
+import { requireFeature, getTenant, getUserRole } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantToday } from "@/lib/tenantClock";
-import { ROUTES } from "@/lib/constants";
-import { c } from "@/lib/theme";
-import TabTitle from "@/components/TabTitle";
-import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import { opportunityStages } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, loadLinkedQuotes, stageSinceMap, listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { standardQuoteProducts, pricingOnStandardQuotes } from "../../standard-quotes/formData";
 import OpportunityDetailClient from "./OpportunityDetailClient";
 import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
+import RecordActivity from "@/components/page/RecordActivity";
 import { rfqPrefill } from "@/components/rfq/prefill";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 
@@ -22,6 +18,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const { id } = await params;
   const { supabase, tenantId, userId } = await requireTenantUser();
   const tenant = await getTenant();
+  const role = await getUserRole();
   const admin = createAdminSupabase();
   const opp = await loadOpportunity(admin, tenantId, id);
   if (!opp) notFound();
@@ -44,34 +41,29 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
     : {};
 
   return (
-    <>
-      <TabTitle title={opp.title} />
-      <div style={{ marginBottom: 8 }}>
-        <Link href={ROUTES.pipeline} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← Pipeline</Link>
-      </div>
-      <OpportunityDetailClient
-        opp={{ ...opp, stage_since: since.get(opp.id) ?? opp.created_at }}
-        accountName={account?.name ?? "—"}
-        contacts={(contacts ?? []) as { id: string; name: string }[]}
-        initialLines={lines}
-        quotes={quotes}
-        stages={opportunityStages(tenant?.config)}
-        members={members}
-        products={products}
-        pricingEnabled={pricingOnStandardQuotes(tenant)}
-        standardQuotesEnabled={tenant?.features?.standard_quotes === true}
-        todayKey={todayKey}
-        currentUserId={userId}
-      />
-      {rfqOn && (
+    <OpportunityDetailClient
+      opp={{ ...opp, stage_since: since.get(opp.id) ?? opp.created_at }}
+      accountName={account?.name ?? "—"}
+      contacts={(contacts ?? []) as { id: string; name: string }[]}
+      initialLines={lines}
+      quotes={quotes}
+      stages={opportunityStages(tenant?.config)}
+      members={members}
+      products={products}
+      pricingEnabled={pricingOnStandardQuotes(tenant)}
+      standardQuotesEnabled={tenant?.features?.standard_quotes === true}
+      todayKey={todayKey}
+      currentUserId={userId}
+      related={rfqOn ? (
         <RecordRfqsCard
           origin={{ type: "opportunity", id }}
           originLabel={`Deal ${opp.ref ?? opp.title}${account?.name ? ` for ${account.name}` : ""}`}
           title={`Prices for ${opp.title}`}
           lines={rfqPrefill(lines as unknown as Parameters<typeof rfqPrefill>[0], (rl) => rfqStatus[rl]?.ref ?? null)}
+          compactTop
         />
-      )}
-      <NovaTimelineSlot objectType="opportunities" objectId={id} />
-    </>
+      ) : undefined}
+      activity={<RecordActivity objectType="opportunities" objectId={id} isAdmin={role === "admin"} />}
+    />
   );
 }

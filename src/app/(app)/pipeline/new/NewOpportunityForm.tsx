@@ -2,15 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
 import { ROUTES, type OpportunityStageDef } from "@/lib/constants";
 import { OPPORTUNITY_SOURCES, OPPORTUNITY_SOURCE_LABEL } from "@/lib/sales/opportunity";
-
-const lbl: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 };
-const inp: React.CSSProperties = { width: "100%", padding: "9px 12px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box" };
-const fw: React.CSSProperties = { marginBottom: 16 };
+import ObjectFormPage from "@/components/page/ObjectFormPage";
+import Card from "@/components/ui/Card";
+import Field from "@/components/ui/Field";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 
 export default function NewOpportunityForm({ accounts, contacts, members, stages, currentUserId }: {
   accounts: { id: string; name: string }[];
@@ -43,70 +40,60 @@ export default function NewOpportunityForm({ accounts, contacts, members, stages
   }
 
   return (
-    <div style={{ maxWidth: 680 }}>
-      <div className="bpm-page-header" style={{ marginBottom: 8 }}>
-        <Link href={ROUTES.pipeline} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← Pipeline</Link>
-      </div>
-      <h1 className="bpm-page-header" style={{ fontSize: 19, fontWeight: 700, color: c.ink, margin: "0 0 4px" }}>New deal</h1>
-      <p className="bpm-page-header" style={{ fontSize: 12.5, color: c.muted, margin: "0 0 16px" }}>A pursuit with a customer. Lines, pricing and quotes come next, on the deal itself.</p>
-
-      <form onSubmit={submit} style={{ ...cardStyle, padding: 20 }}>
-        <div style={fw}>
-          <label style={lbl}>Title *</label>
-          <input style={inp} value={form.title} onChange={set("title")} placeholder="e.g. Two passenger elevators for the new wing" autoFocus />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <div style={fw}>
-            <label style={lbl}>Account *</label>
-            <select style={inp} value={form.account_id} onChange={(e) => setForm((f) => ({ ...f, account_id: e.target.value, contact_id: "" }))}>
+    <ObjectFormPage
+      backHref={ROUTES.pipeline}
+      backLabel="Pipeline"
+      title="New Deal"
+      subtitle="A pursuit with a customer. Lines, pricing and quotes come next, on the deal itself."
+      onSubmit={submit}
+      saving={pending}
+      saveLabel="Save"
+      error={error}
+      maxWidth={720}
+    >
+      <Card padding={18}>
+        <Field label="Title" required>
+          <Input value={form.title} onChange={set("title")} placeholder="e.g. Two passenger elevators for the new wing" autoFocus />
+        </Field>
+        <div className="fg2">
+          <Field label="Account" required>
+            <Select value={form.account_id} onChange={(e) => setForm((f) => ({ ...f, account_id: e.target.value, contact_id: "" }))}>
               <option value="">— Select account —</option>
               {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </div>
-          <div style={fw}>
-            <label style={lbl}>Contact</label>
-            <select style={inp} value={form.contact_id} onChange={set("contact_id")} disabled={!form.account_id}>
+            </Select>
+          </Field>
+          <Field label="Contact">
+            <Select value={form.contact_id} onChange={set("contact_id")} disabled={!form.account_id}>
               <option value="">— None —</option>
               {accountContacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
-            </select>
-          </div>
-          <div style={fw}>
-            <label style={lbl}>Stage</label>
-            <select style={inp} value={form.stage} onChange={set("stage")}>
+            </Select>
+          </Field>
+          <Field label="Stage">
+            <Select value={form.stage} onChange={set("stage")}>
               {stages.map((s) => <option key={s.value} value={s.value}>{s.label}{s.probability_hint != null ? ` · ${s.probability_hint}%` : ""}</option>)}
-            </select>
-          </div>
-          <div style={fw}>
-            <label style={lbl}>Expected close</label>
-            <input style={inp} type="date" value={form.expected_close} onChange={set("expected_close")} />
-          </div>
-          <div style={fw}>
-            <label style={lbl}>Owner</label>
-            <select style={inp} value={form.owner_id} onChange={set("owner_id")}>
+            </Select>
+          </Field>
+          <Field label="Expected close">
+            <Input type="date" value={form.expected_close} onChange={set("expected_close")} />
+          </Field>
+          <Field label="Owner">
+            <Select value={form.owner_id} onChange={set("owner_id")}>
               {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name ?? m.email ?? m.user_id.slice(0, 8)}</option>)}
-            </select>
-          </div>
-          <div style={fw}>
-            <label style={lbl}>Source</label>
-            <select style={inp} value={form.source} onChange={set("source")}>
+            </Select>
+          </Field>
+          <Field label="Source">
+            <Select value={form.source} onChange={set("source")}>
               {OPPORTUNITY_SOURCES.map((s) => <option key={s} value={s}>{OPPORTUNITY_SOURCE_LABEL[s]}</option>)}
-            </select>
-          </div>
-          <div style={fw}>
-            <label style={lbl}>Competitor</label>
-            <input style={inp} value={form.competitor} onChange={set("competitor")} placeholder="Who else is quoting" />
-          </div>
+            </Select>
+          </Field>
+          <Field label="Competitor">
+            <Input value={form.competitor} onChange={set("competitor")} placeholder="Who else is quoting" />
+          </Field>
         </div>
-        <div style={fw}>
-          <label style={lbl}>Description</label>
-          <textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={form.description} onChange={set("description")} placeholder="What the customer wants, and why now" />
-        </div>
-        {error && <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginBottom: 12 }}>{error}</div>}
-        <div style={{ display: "flex", gap: 10 }}>
-          <button type="submit" disabled={pending} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: pending ? "wait" : "pointer" }}>{pending ? "Creating…" : "Create deal"}</button>
-          <Link href={ROUTES.pipeline} style={{ padding: "10px 18px", borderRadius: 8, border: `1px solid ${c.line}`, color: c.muted, fontSize: 13, textDecoration: "none" }}>Cancel</Link>
-        </div>
-      </form>
-    </div>
+        <Field label="Description" style={{ marginBottom: 0 }}>
+          <Textarea value={form.description} onChange={set("description")} placeholder="What the customer wants, and why now" />
+        </Field>
+      </Card>
+    </ObjectFormPage>
   );
 }

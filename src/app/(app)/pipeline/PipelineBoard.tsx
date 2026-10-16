@@ -7,6 +7,9 @@ import { c } from "@/lib/theme";
 import { useCurrency } from "@/lib/tenant-context";
 import { formatMoneyCompact } from "@/lib/currency";
 import { cardStyle } from "@/components/Shell";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import { Input, Select } from "@/components/ui/Input";
 import { ROUTES, LOSS_REASONS, LOSS_REASON_LABEL, type OpportunityStageDef } from "@/lib/constants";
 import { daysBetween, weightedValue, isClosedStage, outcomeForStage } from "@/lib/sales/opportunity";
 import type { OpportunityRow } from "@/lib/sales/opportunityServer";
@@ -23,7 +26,6 @@ const initials = (m: Member | undefined) => {
   const s = m?.name || m?.email || "?";
   return s.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((x) => x[0]?.toUpperCase() ?? "").join("") || "?";
 };
-const sel: React.CSSProperties = { padding: "6px 10px", fontSize: 12.5, borderRadius: 7, border: `1px solid ${c.line}`, background: c.panel, color: c.ink };
 
 export default function PipelineBoard({ rows, stages, members, accounts, todayKey, currentUserId }: {
   rows: OpportunityRow[];
@@ -109,20 +111,20 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
           <span>Weighted <b style={{ color: c.ink }}>{money(weighted)}</b></span>
         </div>
         <span style={{ marginLeft: "auto" }} />
-        <select value={owner} onChange={(e) => setOwner(e.target.value)} style={sel}>
+        <Select value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Owner" style={{ width: "auto" }}>
           <option value="">Every owner</option>
           {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name ?? m.email ?? m.user_id.slice(0, 8)}</option>)}
-        </select>
-        <select value={account} onChange={(e) => setAccount(e.target.value)} style={sel}>
+        </Select>
+        <Select value={account} onChange={(e) => setAccount(e.target.value)} aria-label="Account" style={{ width: "auto" }}>
           <option value="">Every account</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
+        </Select>
         <label style={{ fontSize: 12, color: c.muted, display: "inline-flex", alignItems: "center", gap: 5 }}>
           <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} /> Show closed
         </label>
-        <div style={{ display: "inline-flex", border: `1px solid ${c.line}`, borderRadius: 7, overflow: "hidden" }}>
+        <div style={{ display: "inline-flex", gap: 4 }}>
           {(["board", "list"] as const).map((v) => (
-            <button key={v} type="button" onClick={() => setView(v)} style={{ fontSize: 12, fontWeight: 600, padding: "6px 10px", border: "none", cursor: "pointer", background: view === v ? c.accentbg : "transparent", color: view === v ? c.accent : c.muted }}>{v === "board" ? "Board" : "List"}</button>
+            <Button key={v} size="sm" variant={view === v ? "primary" : "secondary"} onClick={() => setView(v)}>{v === "board" ? "Board" : "List"}</Button>
           ))}
         </div>
       </div>
@@ -188,25 +190,27 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
 
       {closing && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }} onClick={() => setClosing(null)}>
-          <div style={{ ...cardStyle, width: 380, maxWidth: "calc(100vw - 32px)", padding: 18 }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 10 }}>Close this deal as…</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              {(["won", "lost", "dropped"] as const).map((o) => (
-                <button key={o} type="button" onClick={() => setClosing({ ...closing, outcome: o })} style={{ flex: 1, padding: "7px 0", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer", border: `1px solid ${closing.outcome === o ? c.accent : c.line}`, background: closing.outcome === o ? c.accentbg : "transparent", color: closing.outcome === o ? c.accent : c.muted, textTransform: "capitalize" }}>{o}</button>
-              ))}
-            </div>
-            {closing.outcome !== "won" && (
-              <>
-                <select value={closing.loss_reason} onChange={(e) => setClosing({ ...closing, loss_reason: e.target.value })} style={{ ...sel, width: "100%", marginBottom: 8 }}>
-                  {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
-                </select>
-                <input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} placeholder="What happened (optional)" style={{ ...sel, width: "100%", marginBottom: 8, boxSizing: "border-box" }} />
-              </>
-            )}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => setClosing(null)} style={{ ...sel, cursor: "pointer" }}>Cancel</button>
-              <button type="button" disabled={busy} onClick={async () => { const cl = closing; setClosing(null); await moveTo(cl.id, cl.stage, { outcome: cl.outcome, ...(cl.outcome !== "won" ? { loss_reason: cl.loss_reason, loss_note: cl.loss_note || null } : {}) }); }} style={{ ...sel, cursor: "pointer", background: c.accent, color: "#fff", border: "none", fontWeight: 700 }}>Confirm</button>
-            </div>
+          <div style={{ width: 380, maxWidth: "calc(100vw - 32px)" }} onClick={(e) => e.stopPropagation()}>
+            <Card padding={18}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 10 }}>Close this deal as…</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                {(["won", "lost", "dropped"] as const).map((o) => (
+                  <Button key={o} size="sm" variant={closing.outcome === o ? "primary" : "secondary"} style={{ flex: 1, textTransform: "capitalize" }} onClick={() => setClosing({ ...closing, outcome: o })}>{o}</Button>
+                ))}
+              </div>
+              {closing.outcome !== "won" && (
+                <>
+                  <Select value={closing.loss_reason} onChange={(e) => setClosing({ ...closing, loss_reason: e.target.value })} aria-label="Loss reason" style={{ marginBottom: 8 }}>
+                    {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
+                  </Select>
+                  <Input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} placeholder="What happened (optional)" style={{ marginBottom: 8 }} />
+                </>
+              )}
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <Button variant="secondary" onClick={() => setClosing(null)}>Cancel</Button>
+                <Button variant="primary" loading={busy} onClick={async () => { const cl = closing; setClosing(null); await moveTo(cl.id, cl.stage, { outcome: cl.outcome, ...(cl.outcome !== "won" ? { loss_reason: cl.loss_reason, loss_note: cl.loss_note || null } : {}) }); }}>Confirm</Button>
+              </div>
+            </Card>
           </div>
         </div>
       )}

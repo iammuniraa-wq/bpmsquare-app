@@ -3,7 +3,7 @@ import { c } from "@/lib/theme";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import Tabs from "@/components/ui/Tabs";
-import { CARD_SURFACE } from "@/components/ui/Card";
+import RecordFacts, { type RecordFact } from "./RecordFacts";
 import { RecordEditProvider } from "./RecordEditContext";
 
 export type RecordTab = {
@@ -14,7 +14,7 @@ export type RecordTab = {
   content: React.ReactNode;
 };
 
-export type RecordFact = { label: string; value: React.ReactNode };
+export type { RecordFact };
 
 /**
  * The shared record (detail) page.
@@ -82,16 +82,7 @@ export default function ObjectRecordPage({
         ) : undefined}
       />
 
-      {shownFacts.length > 0 && (
-        <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
-          {shownFacts.map((f) => (
-            <div key={f.label} style={{ ...CARD_SURFACE, padding: "10px 14px", minWidth: 0 }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5 }}>{f.label}</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: c.ink, marginTop: 3, wordBreak: "break-word" }}>{f.value}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      <RecordFacts facts={shownFacts} />
 
       {tabs.length > 1 && (
         <div style={{ marginBottom: 14 }}>

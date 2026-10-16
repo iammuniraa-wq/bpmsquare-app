@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { useCurrency } from "@/lib/tenant-context";
 import { formatMoney } from "@/lib/currency";
-import { cardStyle } from "@/components/Shell";
 import { useFeel } from "@/components/FeelProvider";
 import { ROUTES, LOSS_REASONS, LOSS_REASON_LABEL, type OpportunityStageDef } from "@/lib/constants";
 import type { Opportunity, OpportunityLine } from "@/lib/types";
@@ -15,22 +14,26 @@ import type { LinkedQuote } from "@/lib/sales/opportunityServer";
 import { documentTotal } from "@/lib/sales/lineTotals";
 import { useUnsavedChangesGuard } from "@/lib/unsavedChanges";
 import DocumentLinesEditor, { newLine, lineAmount, type Line, type StandardQuoteProduct } from "@/components/sales/DocumentLinesEditor";
+import PageHeader from "@/components/PageHeader";
+import TabTitle from "@/components/TabTitle";
+import Tabs from "@/components/ui/Tabs";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import Field from "@/components/ui/Field";
+import MoreMenu from "@/components/ui/MoreMenu";
+import StatusPill from "@/components/ui/StatusPill";
+import { Input, Select, Textarea } from "@/components/ui/Input";
+import RecordFacts from "@/components/page/RecordFacts";
 
-// The deal page (§4.5): header with the stage, the money and the people;
-// tabs Overview · Lines · Quotes. "Win this deal" and "Approvals" arrive
-// with pieces E and C; the Nova timeline under the page is Activity.
+// The deal page (§4.5): the record-page look (header with one primary step and
+// the "..." menu, facts, tabs) built client-side, because the Lines editor and
+// the header form keep unsaved state across tab switches -- so the tabs here
+// are state, not ?tab=. Tabs: Overview · Lines · Quotes · Related · Activity.
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "lines" | "quotes";
+type Tab = "overview" | "lines" | "quotes" | "related" | "activity";
 
 const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
-const lbl: React.CSSProperties = { display: "block", fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 };
-const inp: React.CSSProperties = { width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 7, background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box" };
-const btn = (kind: "primary" | "ghost" | "danger"): React.CSSProperties => ({
-  padding: "8px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-  background: kind === "primary" ? c.accent : "transparent", color: kind === "primary" ? "#fff" : kind === "danger" ? "var(--red)" : c.muted,
-  border: kind === "primary" ? "none" : `1px solid ${kind === "danger" ? "#f5c0c0" : c.line}`,
-});
 
 function toEditorLines(rows: OpportunityLine[]): Line[] {
   return rows.map((l) => ({
@@ -42,7 +45,7 @@ function toEditorLines(rows: OpportunityLine[]): Line[] {
   }));
 }
 
-export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId }: {
+export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity }: {
   opp: Opportunity & { stage_since: string };
   accountName: string;
   contacts: { id: string; name: string }[];
@@ -55,6 +58,10 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   standardQuotesEnabled: boolean;
   todayKey: string;
   currentUserId: string;
+  /** The deal's RFQ card, when the RFQ module is on. */
+  related?: React.ReactNode;
+  /** The Activity tab (Nova timeline + change history). */
+  activity: React.ReactNode;
 }) {
   const cur = useCurrency();
   const inr = (n: number) => formatMoney(Math.round(n), cur, {});
@@ -80,6 +87,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const linesDirty = JSON.stringify(lines) !== savedLinesKey;
   useUnsavedChangesGuard(linesDirty, { body: "The deal's lines have unsaved edits. If you leave now they will be lost." });
   const linesTotal = documentTotal(lines.map((l) => ({ id: l.id, amount: lineAmount(l), group_id: l.group_id || null, group_type: l.group_type || null, break_of: l.break_of || null, is_selected: l.is_selected })));
+  const lineCount = lines.filter((l) => l.description.trim() && !l.break_of).length;
 
   const stageDefNow = stages.find((s) => s.value === opp.stage);
   const closed = isClosedStage(stages, opp.stage) || opp.outcome !== "open";
@@ -160,122 +168,153 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     });
   }
 
-  const tabBtn = (key: Tab, label: string) => (
-    <button type="button" onClick={() => setTab(key)} style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, background: "none", border: "none", borderBottom: `2px solid ${tab === key ? c.accent : "transparent"}`, color: tab === key ? c.accent : c.muted, cursor: "pointer", marginBottom: -1 }}>{label}</button>
-  );
+  const markWon = () => setClosing({ stage: stages.find((s) => s.is_closed && (s.outcome ?? "won") === "won")?.value ?? opp.stage, outcome: "won", loss_reason: "price", loss_note: "" });
+  const markLost = () => setClosing({ stage: stages.find((s) => s.is_closed && s.outcome === "lost")?.value ?? opp.stage, outcome: "lost", loss_reason: "price", loss_note: "" });
+  const reopen = () => startTransition(async () => { await patch({ stage: stages.find((s) => !s.is_closed)?.value ?? opp.stage, outcome: "open" }, "Reopened"); });
+
+  const canConvert = !closed && standardQuotesEnabled;
+  // One primary step: convert to a quote when that module is on, else close
+  // the deal as won; a closed deal has none (Reopen is in the menu).
+  const primary = canConvert
+    ? <Button variant="primary" onClick={convert} loading={pending}>Convert to Standard Quote</Button>
+    : !closed
+      ? <Button variant="primary" onClick={markWon}>Mark won</Button>
+      : null;
+
+  const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
+    { id: "quotes", label: "Quotes", count: quotes.length },
+    ...(related ? [{ id: "related" as Tab, label: "Related" }] : []),
+    { id: "activity", label: "Activity" },
+  ];
+
+  const outcomeLabel = closed ? `${opp.outcome}${opp.loss_reason ? ` (${LOSS_REASON_LABEL[opp.loss_reason]})` : ""}` : null;
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ ...cardStyle, padding: "14px 18px", marginBottom: 12, display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 11, color: c.hint }}>{opp.ref} · {accountName}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: c.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opp.title}</div>
-          <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>
-            Owner {memberName(opp.owner_id)} · {daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}
-            {opp.expected_close ? ` · close by ${fmtDate(opp.expected_close)}` : ""}
-            {closed ? ` · ${opp.outcome}${opp.loss_reason ? ` (${LOSS_REASON_LABEL[opp.loss_reason]})` : ""}` : ""}
-          </div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 11, color: c.hint }}>Amount{quotes.length > 0 ? " (latest quote)" : ""}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: c.ink }}>{inr(Number(opp.amount || 0))}</div>
-          <div style={{ fontSize: 11, color: c.muted }}>{opp.probability ?? 0}% · weighted {inr(weightedValue(Number(opp.amount || 0), opp.probability ?? 0))}</div>
-        </div>
-        <div>
-          <label style={lbl}>Stage</label>
-          <select value={opp.stage} onChange={(e) => changeStage(e.target.value)} disabled={pending} style={{ ...inp, width: 170, borderColor: stageDefNow?.color ?? c.line }}>
-            {stages.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-        </div>
+      <TabTitle title={opp.title} />
+      <div style={{ marginBottom: 8 }}>
+        <Link href={ROUTES.pipeline} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← Pipeline</Link>
       </div>
+      <PageHeader
+        title={opp.title}
+        subtitle={[opp.ref, accountName, opp.expected_close ? `close by ${fmtDate(opp.expected_close)}` : null].filter(Boolean).join(" · ")}
+        badge={
+          <>
+            <StatusPill label={stageDefNow?.label ?? opp.stage} tone="blue" />
+            {outcomeLabel && <StatusPill label={outcomeLabel} tone={opp.outcome === "won" ? "green" : "red"} />}
+          </>
+        }
+        action={
+          <>
+            {primary}
+            <MoreMenu
+              items={[
+                { label: "Mark won", onSelect: markWon, hidden: closed || !canConvert },
+                { label: "Mark lost", onSelect: markLost, hidden: closed },
+                { label: "Reopen", onSelect: reopen, hidden: !closed },
+                { label: "Delete", danger: true, onSelect: () => { void remove(); } },
+              ]}
+            />
+          </>
+        }
+      />
 
-      {error && <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>{error}</div>}
-      {notice && <div style={{ background: "var(--tealbg)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--tealink)", marginBottom: 10 }}>{notice}</div>}
+      <RecordFacts
+        facts={[
+          { label: "Amount", value: <>{inr(Number(opp.amount || 0))}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{quotes.length > 0 ? "latest quote" : "lines total"}</div></> },
+          {
+            label: "Stage",
+            value: (
+              <Select value={opp.stage} onChange={(e) => changeStage(e.target.value)} disabled={pending} aria-label="Stage" style={{ borderColor: stageDefNow?.color ?? undefined }}>
+                {stages.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </Select>
+            ),
+          },
+          { label: "Probability", value: <>{opp.probability ?? 0}%<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>weighted {inr(weightedValue(Number(opp.amount || 0), opp.probability ?? 0))}</div></> },
+          { label: "Owner", value: <>{memberName(opp.owner_id)}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}</div></> },
+        ]}
+      />
 
-      <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${c.line}`, marginBottom: 12 }}>
-        {tabBtn("overview", "Overview")}
-        {tabBtn("lines", `Lines${lines.filter((l) => l.description.trim() && !l.break_of).length ? ` (${lines.filter((l) => l.description.trim() && !l.break_of).length})` : ""}${linesDirty ? " •" : ""}`)}
-        {tabBtn("quotes", `Quotes${quotes.length ? ` (${quotes.length})` : ""}`)}
+      {error && <div role="alert" style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>{error}</div>}
+      {notice && <div role="status" style={{ background: "var(--tealbg)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--tealink)", marginBottom: 10 }}>{notice}</div>}
+
+      <div style={{ marginBottom: 14 }}>
+        <Tabs tabs={tabs} value={tab} onChange={(id) => setTab(id as Tab)} />
       </div>
 
       {tab === "overview" && (
-        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 14, alignItems: "start" }}>
-          <section style={cardStyle}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div style={{ gridColumn: "1 / -1" }}><label style={lbl}>Title</label><input style={inp} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-              <div><label style={lbl}>Contact</label>
-                <select style={inp} value={form.contact_id} onChange={(e) => setForm({ ...form, contact_id: e.target.value })}>
-                  <option value="">— None —</option>{contacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
-                </select></div>
-              <div><label style={lbl}>Expected close</label><input style={inp} type="date" value={form.expected_close} onChange={(e) => setForm({ ...form, expected_close: e.target.value })} /></div>
-              <div><label style={lbl}>Owner</label>
-                <select style={inp} value={form.owner_id} onChange={(e) => setForm({ ...form, owner_id: e.target.value })}>
-                  <option value="">— Unassigned —</option>{members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name ?? m.email ?? m.user_id.slice(0, 8)}</option>)}
-                </select></div>
-              <div><label style={lbl}>Source</label>
-                <select style={inp} value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}>
-                  {OPPORTUNITY_SOURCES.map((s) => <option key={s} value={s}>{OPPORTUNITY_SOURCE_LABEL[s]}</option>)}
-                </select></div>
-              <div><label style={lbl}>Competitor</label><input style={inp} value={form.competitor} onChange={(e) => setForm({ ...form, competitor: e.target.value })} /></div>
-              <div><label style={lbl}>Probability override %</label><input style={inp} type="number" min="0" max="100" value={form.probability_override} onChange={(e) => setForm({ ...form, probability_override: e.target.value })} placeholder={`${stageDefNow?.probability_hint ?? 0} from the stage`} /></div>
-              <div style={{ gridColumn: "1 / -1" }}><label style={lbl}>Why the override</label><input style={inp} value={form.probability_override_reason} onChange={(e) => setForm({ ...form, probability_override_reason: e.target.value })} placeholder="Only needed when you override" /></div>
-              <div style={{ gridColumn: "1 / -1" }}><label style={lbl}>Description</label><textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <label style={lbl}>Team</label>
-              {form.team.map((t, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                  <select style={{ ...inp, flex: 1 }} value={t.user_id} onChange={(e) => setForm({ ...form, team: form.team.map((x, j) => (j === i ? { ...x, user_id: e.target.value } : x)) })}>
-                    {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name ?? m.email ?? m.user_id.slice(0, 8)}</option>)}
-                  </select>
-                  <select style={{ ...inp, width: 180 }} value={t.role} onChange={(e) => setForm({ ...form, team: form.team.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)) })}>
-                    {TEAM_ROLES.map((r) => <option key={r} value={r}>{TEAM_ROLE_LABEL[r as TeamRole]}</option>)}
-                  </select>
-                  <button type="button" onClick={() => setForm({ ...form, team: form.team.filter((_, j) => j !== i) })} style={{ ...btn("danger"), padding: "0 10px" }}>×</button>
-                </div>
-              ))}
-              <button type="button" onClick={() => setForm({ ...form, team: [...form.team, { user_id: members.find((m) => !form.team.some((t) => t.user_id === m.user_id))?.user_id ?? currentUserId, role: "sales" }] })} style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Add someone</button>
-            </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-              <button type="button" onClick={saveHeader} disabled={pending} style={btn("primary")}>{pending ? "Saving…" : "Save"}</button>
-            </div>
-          </section>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {!closed && standardQuotesEnabled && <button type="button" onClick={convert} disabled={pending} style={btn("primary")}>Convert to Standard Quote</button>}
-            {!closed && <button type="button" onClick={() => setClosing({ stage: stages.find((s) => s.is_closed && (s.outcome ?? "won") === "won")?.value ?? opp.stage, outcome: "won", loss_reason: "price", loss_note: "" })} style={btn("ghost")}>Mark won</button>}
-            {!closed && <button type="button" onClick={() => setClosing({ stage: stages.find((s) => s.is_closed && s.outcome === "lost")?.value ?? opp.stage, outcome: "lost", loss_reason: "price", loss_note: "" })} style={btn("ghost")}>Mark lost</button>}
-            {closed && <button type="button" onClick={() => startTransition(async () => { await patch({ stage: stages.find((s) => !s.is_closed)?.value ?? opp.stage, outcome: "open" }, "Reopened"); })} style={btn("ghost")}>Reopen</button>}
-            <button type="button" onClick={remove} disabled={pending} style={btn("danger")}>Delete deal</button>
-            <div style={{ fontSize: 11, color: c.hint, marginTop: 6 }}>Created {fmtDate(opp.created_at)}{opp.closed_at ? ` · closed ${fmtDate(opp.closed_at)}` : ""}</div>
+        <Card padding={18}>
+          <div className="fg2">
+            <Field label="Title" style={{ gridColumn: "1 / -1" }}><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
+            <Field label="Contact">
+              <Select value={form.contact_id} onChange={(e) => setForm({ ...form, contact_id: e.target.value })}>
+                <option value="">— None —</option>{contacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Expected close"><Input type="date" value={form.expected_close} onChange={(e) => setForm({ ...form, expected_close: e.target.value })} /></Field>
+            <Field label="Owner">
+              <Select value={form.owner_id} onChange={(e) => setForm({ ...form, owner_id: e.target.value })}>
+                <option value="">— Unassigned —</option>{members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name ?? m.email ?? m.user_id.slice(0, 8)}</option>)}
+              </Select>
+            </Field>
+            <Field label="Source">
+              <Select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}>
+                {OPPORTUNITY_SOURCES.map((s) => <option key={s} value={s}>{OPPORTUNITY_SOURCE_LABEL[s]}</option>)}
+              </Select>
+            </Field>
+            <Field label="Competitor"><Input value={form.competitor} onChange={(e) => setForm({ ...form, competitor: e.target.value })} /></Field>
+            <Field label="Probability override %"><Input type="number" min="0" max="100" value={form.probability_override} onChange={(e) => setForm({ ...form, probability_override: e.target.value })} placeholder={`${stageDefNow?.probability_hint ?? 0} from the stage`} /></Field>
+            <Field label="Why the override" style={{ gridColumn: "1 / -1" }}><Input value={form.probability_override_reason} onChange={(e) => setForm({ ...form, probability_override_reason: e.target.value })} placeholder="Only needed when you override" /></Field>
+            <Field label="Description" style={{ gridColumn: "1 / -1" }}><Textarea style={{ minHeight: 70 }} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
           </div>
-        </div>
+          <div style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 }}>Team</div>
+            {form.team.map((t, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                <Select style={{ flex: "1 1 180px", width: "auto" }} aria-label="Team member" value={t.user_id} onChange={(e) => setForm({ ...form, team: form.team.map((x, j) => (j === i ? { ...x, user_id: e.target.value } : x)) })}>
+                  {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name ?? m.email ?? m.user_id.slice(0, 8)}</option>)}
+                </Select>
+                <Select style={{ flex: "0 1 180px", width: "auto" }} aria-label="Team role" value={t.role} onChange={(e) => setForm({ ...form, team: form.team.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)) })}>
+                  {TEAM_ROLES.map((r) => <option key={r} value={r}>{TEAM_ROLE_LABEL[r as TeamRole]}</option>)}
+                </Select>
+                <Button variant="quiet" iconOnly aria-label="Remove team member" onClick={() => setForm({ ...form, team: form.team.filter((_, j) => j !== i) })}>×</Button>
+              </div>
+            ))}
+            <Button variant="quiet" size="sm" onClick={() => setForm({ ...form, team: [...form.team, { user_id: members.find((m) => !form.team.some((t) => t.user_id === m.user_id))?.user_id ?? currentUserId, role: "sales" }] })}>+ Add someone</Button>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center", flexWrap: "wrap" }}>
+            <Button variant="primary" onClick={saveHeader} loading={pending}>{pending ? "Saving…" : "Save"}</Button>
+            <span style={{ fontSize: 11, color: c.hint }}>Created {fmtDate(opp.created_at)}{opp.closed_at ? ` · closed ${fmtDate(opp.closed_at)}` : ""}</span>
+          </div>
+        </Card>
       )}
 
       {tab === "lines" && (
-        <section style={cardStyle}>
+        <Card padding={16}>
           <DocumentLinesEditor
             lines={lines} onChange={setLines} products={products} pricingEnabled={pricingEnabled}
             accountId={opp.account_id} accountName={accountName} documentType="opportunity" documentId={opp.id} onError={setError}
           />
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, borderTop: `1px solid ${c.line}`, paddingTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, borderTop: `1px solid ${c.line}`, paddingTop: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12.5, color: c.muted }}>Lines total <b style={{ color: c.ink }}>{inr(linesTotal)}</b>{quotes.length > 0 ? " · the deal amount follows its latest quote" : ""}</span>
             <span style={{ marginLeft: "auto" }} />
             {linesDirty && <span style={{ fontSize: 11.5, color: "var(--amberink)" }}>Unsaved changes</span>}
-            <button type="button" onClick={saveLines} disabled={pending || !linesDirty} style={{ ...btn("primary"), opacity: linesDirty ? 1 : 0.5 }}>{pending ? "Saving…" : "Save lines"}</button>
-            {!closed && standardQuotesEnabled && <button type="button" onClick={convert} disabled={pending} style={btn("ghost")}>Convert to Standard Quote</button>}
+            {canConvert && <Button variant="secondary" onClick={convert} disabled={pending}>Convert to Standard Quote</Button>}
+            <Button variant="primary" onClick={saveLines} disabled={!linesDirty} loading={pending}>{pending ? "Saving…" : "Save lines"}</Button>
           </div>
-        </section>
+        </Card>
       )}
 
       {tab === "quotes" && (
-        <section style={cardStyle}>
+        <Card padding={16}>
           {quotes.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: c.hint, padding: "8px 0" }}>No quote yet. Convert the deal to a Standard Quote, or link one from the quote's own page.</div>
+            <div style={{ fontSize: 12.5, color: c.hint, padding: "8px 0" }}>No quote yet. Convert the deal to a Standard Quote, or link one from the quote&apos;s own page.</div>
           ) : (
             <div style={{ border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden" }}>
               {quotes.map((q, i) => (
-                <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 13 }}>
+                <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 13, flexWrap: "wrap" }}>
                   <Link href={q.object === "standard_quote" ? ROUTES.standardQuote(q.id) : ROUTES.quotation(q.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>{q.ref}</Link>
                   <span style={{ fontSize: 11.5, color: c.hint }}>{q.object === "standard_quote" ? "Standard Quote" : "Quotation"} · {fmtDate(q.created_at)}{i === 0 ? " · latest" : ""}</span>
                   <span style={{ fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "capitalize" }}>{q.status}</span>
@@ -284,36 +323,42 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
               ))}
             </div>
           )}
-          {!closed && standardQuotesEnabled && (
-            <div style={{ marginTop: 12 }}>
-              <button type="button" onClick={convert} disabled={pending} style={btn("primary")}>Convert to Standard Quote</button>
-              <span style={{ fontSize: 11.5, color: c.hint, marginLeft: 10 }}>Copies the saved lines and re-prices product lines on today&apos;s date.</span>
+          {canConvert && (
+            <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <Button variant="primary" onClick={convert} loading={pending}>Convert to Standard Quote</Button>
+              <span style={{ fontSize: 11.5, color: c.hint }}>Copies the saved lines and re-prices product lines on today&apos;s date.</span>
             </div>
           )}
-        </section>
+        </Card>
       )}
+
+      {tab === "related" && related}
+      {tab === "activity" && activity}
 
       {closing && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }} onClick={() => setClosing(null)}>
-          <div style={{ ...cardStyle, width: 380, maxWidth: "calc(100vw - 32px)", padding: 18 }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 10 }}>Close this deal as…</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              {(["won", "lost", "dropped"] as const).map((o) => (
-                <button key={o} type="button" onClick={() => setClosing({ ...closing, outcome: o, stage: stages.find((s) => s.is_closed && (s.outcome ?? "won") === (o === "dropped" ? "lost" : o))?.value ?? closing.stage })} style={{ flex: 1, padding: "7px 0", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer", border: `1px solid ${closing.outcome === o ? c.accent : c.line}`, background: closing.outcome === o ? c.accentbg : "transparent", color: closing.outcome === o ? c.accent : c.muted, textTransform: "capitalize" }}>{o}</button>
-              ))}
-            </div>
-            {closing.outcome !== "won" && (
-              <>
-                <select value={closing.loss_reason} onChange={(e) => setClosing({ ...closing, loss_reason: e.target.value })} style={{ ...inp, marginBottom: 8 }}>
-                  {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
-                </select>
-                <input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} placeholder="What happened (optional)" style={{ ...inp, marginBottom: 8 }} />
-              </>
-            )}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => setClosing(null)} style={btn("ghost")}>Cancel</button>
-              <button type="button" disabled={pending} onClick={() => { const cl = closing; setClosing(null); startTransition(async () => { await patch({ stage: cl.stage, outcome: cl.outcome, ...(cl.outcome !== "won" ? { loss_reason: cl.loss_reason, loss_note: cl.loss_note || null } : {}) }); }); }} style={btn("primary")}>Confirm</button>
-            </div>
+          <div style={{ width: 380, maxWidth: "calc(100vw - 32px)" }} onClick={(e) => e.stopPropagation()}>
+            <Card padding={18}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 10 }}>Close this deal as…</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                {(["won", "lost", "dropped"] as const).map((o) => (
+                  <Button key={o} variant={closing.outcome === o ? "primary" : "secondary"} size="sm" style={{ flex: 1, textTransform: "capitalize" }}
+                    onClick={() => setClosing({ ...closing, outcome: o, stage: stages.find((s) => s.is_closed && (s.outcome ?? "won") === (o === "dropped" ? "lost" : o))?.value ?? closing.stage })}>{o}</Button>
+                ))}
+              </div>
+              {closing.outcome !== "won" && (
+                <>
+                  <Select value={closing.loss_reason} onChange={(e) => setClosing({ ...closing, loss_reason: e.target.value })} aria-label="Loss reason" style={{ marginBottom: 8 }}>
+                    {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
+                  </Select>
+                  <Input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} placeholder="What happened (optional)" style={{ marginBottom: 8 }} />
+                </>
+              )}
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <Button variant="secondary" onClick={() => setClosing(null)}>Cancel</Button>
+                <Button variant="primary" loading={pending} onClick={() => { const cl = closing; setClosing(null); startTransition(async () => { await patch({ stage: cl.stage, outcome: cl.outcome, ...(cl.outcome !== "won" ? { loss_reason: cl.loss_reason, loss_note: cl.loss_note || null } : {}) }); }); }}>Confirm</Button>
+              </div>
+            </Card>
           </div>
         </div>
       )}

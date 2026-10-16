@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { requireFeature, getTenant } from "@/lib/tenant";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantToday } from "@/lib/tenantClock";
 import { ROUTES } from "@/lib/constants";
-import { c } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import { opportunityStages } from "@/lib/sales/opportunity";
@@ -39,11 +38,7 @@ export default async function PipelinePage() {
       <PageHeader
         title="Pipeline"
         subtitle={`Sales · ${rows.filter((r) => r.outcome === "open").length} open deals`}
-        action={
-          <Link href={ROUTES.pipelineNew} style={{ padding: "8px 16px", borderRadius: 7, fontSize: 13, fontWeight: 600, background: c.accent, color: "#fff", textDecoration: "none" }}>
-            + New deal
-          </Link>
-        }
+        action={<Button href={ROUTES.pipelineNew} variant="primary">+ New Deal</Button>}
       />
       <PipelineBoard rows={rows} stages={stages} members={members} accounts={accounts ?? []} todayKey={todayKey} currentUserId={userId} />
     </>
