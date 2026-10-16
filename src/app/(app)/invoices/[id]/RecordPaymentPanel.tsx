@@ -3,10 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
 import type { InvoicePayment, InvoiceStatus } from "@/lib/types";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter, moneyLabel } from "@/lib/currency";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import Field from "@/components/ui/Field";
+import { Input } from "@/components/ui/Input";
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -48,11 +51,7 @@ export default function RecordPaymentPanel({
   }
 
   return (
-    <section style={cardStyle}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: c.accent, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>
-        Payment history
-      </div>
-
+    <Card title="Payment history">
       {payments.length === 0 ? (
         <div style={{ fontSize: 12.5, color: c.hint, marginBottom: canRecord ? 14 : 0 }}>No payments recorded yet.</div>
       ) : (
@@ -73,38 +72,26 @@ export default function RecordPaymentPanel({
       {canRecord && balanceDue > 0 && (
         <form onSubmit={submit}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ flex: "0 0 120px" }}>
-              <label style={{ display: "block", fontSize: 11, color: c.hint, marginBottom: 4 }}>{moneyLabel("Amount", cur)}</label>
-              <input type="number" min="0" max={balanceDue} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
-                placeholder={String(balanceDue)}
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${c.line}`, fontSize: 13, boxSizing: "border-box" }} />
-            </div>
-            <div style={{ flex: "0 0 140px" }}>
-              <label style={{ display: "block", fontSize: 11, color: c.hint, marginBottom: 4 }}>Method</label>
-              <input value={method} onChange={(e) => setMethod(e.target.value)} placeholder="Bank transfer"
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${c.line}`, fontSize: 13, boxSizing: "border-box" }} />
-            </div>
-            <div style={{ flex: "0 0 140px" }}>
-              <label style={{ display: "block", fontSize: 11, color: c.hint, marginBottom: 4 }}>Reference</label>
-              <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="UTR / cheque no."
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${c.line}`, fontSize: 13, boxSizing: "border-box" }} />
-            </div>
-            <div style={{ flex: 1, minWidth: 140 }}>
-              <label style={{ display: "block", fontSize: 11, color: c.hint, marginBottom: 4 }}>Note (optional)</label>
-              <input value={note} onChange={(e) => setNote(e.target.value)}
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${c.line}`, fontSize: 13, boxSizing: "border-box" }} />
-            </div>
-            <button type="submit" disabled={pending}
-              style={{ padding: "7px 16px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: pending ? "wait" : "pointer" }}>
-              {pending ? "…" : "Record payment"}
-            </button>
+            <Field label={moneyLabel("Amount", cur)} style={{ flex: "1 1 120px", marginBottom: 0 }}>
+              <Input type="number" min="0" max={balanceDue} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={String(balanceDue)} />
+            </Field>
+            <Field label="Method" style={{ flex: "1 1 140px", marginBottom: 0 }}>
+              <Input value={method} onChange={(e) => setMethod(e.target.value)} placeholder="Bank transfer" />
+            </Field>
+            <Field label="Reference" style={{ flex: "1 1 140px", marginBottom: 0 }}>
+              <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="UTR / cheque no." />
+            </Field>
+            <Field label="Note (optional)" style={{ flex: "2 1 160px", marginBottom: 0 }}>
+              <Input value={note} onChange={(e) => setNote(e.target.value)} />
+            </Field>
+            <Button type="submit" variant="primary" loading={pending}>Record payment</Button>
           </div>
-          {error && <div style={{ marginTop: 8, fontSize: 12, color: "var(--err-ink)" }}>{error}</div>}
+          {error && <div role="alert" style={{ marginTop: 8, fontSize: 12, color: "var(--err-ink)" }}>{error}</div>}
         </form>
       )}
       {!canRecord && (
         <div style={{ fontSize: 11.5, color: c.hint }}>Mark the invoice as sent before recording a payment.</div>
       )}
-    </section>
+    </Card>
   );
 }

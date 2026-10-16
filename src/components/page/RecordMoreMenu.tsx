@@ -7,6 +7,7 @@ import type { MenuItem } from "@/components/ui/menuItems";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { useFeel } from "@/components/FeelProvider";
 import { useRecordEdit } from "./RecordEditContext";
+import { useRecordActionRunner, type RecordAction } from "./recordActions";
 
 export type RecordDelete = {
   /** The record's DELETE endpoint, e.g. `/api/suppliers/<id>`. */
@@ -32,7 +33,7 @@ export type RecordDelete = {
  * window closes.
  */
 export default function RecordMoreMenu({
-  inlineEdit, editHref, printHref, duplicateHref, extraItems = [], adapt, remove,
+  inlineEdit, editHref, printHref, duplicateHref, extraItems = [], actions = [], adapt, remove,
 }: {
   /** Edit toggles the Overview tab's inline field editor (ObjectSections). */
   inlineEdit?: { overviewHref: string };
@@ -42,6 +43,8 @@ export default function RecordMoreMenu({
   duplicateHref?: string;
   /** Object-specific entries (link items only -- this prop crosses the server boundary). */
   extraItems?: MenuItem[];
+  /** Object-specific endpoint calls (Mark as sent, Cancel...), described as data. */
+  actions?: RecordAction[];
   adapt?: { objectType: string; objectLabel: string; isAdmin: boolean };
   remove?: RecordDelete;
 }) {
@@ -51,6 +54,7 @@ export default function RecordMoreMenu({
   const { confirm, toast, undoable } = useFeel();
   const [, startTransition] = useTransition();
   const [adaptOpen, setAdaptOpen] = useState(false);
+  const runAction = useRecordActionRunner();
 
   const items = useMemo<MenuItem[]>(() => {
     async function handleDelete() {
@@ -82,10 +86,11 @@ export default function RecordMoreMenu({
       { label: "Print / PDF", hidden: !printHref, href: printHref, newTab: true },
       { label: "Duplicate", hidden: !duplicateHref, href: duplicateHref },
       ...extraItems,
+      ...actions.map((a): MenuItem => ({ label: a.label, danger: a.danger, hidden: a.hidden, onSelect: () => { void runAction(a); } })),
       { label: "Adapt fields", hidden: !adapt?.isAdmin, onSelect: () => setAdaptOpen(true) },
       { label: "Delete", danger: true, hidden: !remove, onSelect: handleDelete },
     ];
-  }, [inlineEdit, editHref, printHref, duplicateHref, extraItems, adapt?.isAdmin, remove, recordEdit, search, router, confirm, toast, undoable]);
+  }, [inlineEdit, editHref, printHref, duplicateHref, extraItems, actions, runAction, adapt?.isAdmin, remove, recordEdit, search, router, confirm, toast, undoable]);
 
   return (
     <>

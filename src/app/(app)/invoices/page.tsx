@@ -4,15 +4,11 @@ import { moneyFormatter } from "@/lib/currency";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { listInvoices, type InvoiceRow } from "@/lib/data/live";
 import { c, pillar, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import PageHeader from "@/components/PageHeader";
-import Pill from "@/components/Pill";
-import ListFilterBar from "@/components/ListFilterBar";
-import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import { CARD_SURFACE } from "@/components/ui/Card";
+import StatusPill from "@/components/ui/StatusPill";
+import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
 import { applyAdvancedFilter } from "@/lib/advancedFilter";
-import SortableTh from "@/components/SortableTh";
-import PagerLink from "@/components/PagerLink";
-import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { paginate } from "@/lib/paginate";
 import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { InvoiceStatus } from "@/lib/types";
@@ -25,17 +21,10 @@ const STATUS_LABEL: Record<InvoiceStatus, string> = {
 };
 const SUMMARY_STATUSES: InvoiceStatus[] = ["draft", "sent", "partial", "paid", "overdue"];
 
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
+
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-const th: React.CSSProperties = {
-  textAlign: "left", color: c.hint, fontWeight: 500,
-  padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 11.5,
-};
-const td: React.CSSProperties = {
-  padding: "10px 12px", borderBottom: `1px solid ${c.line}`,
-  fontSize: 12.5, verticalAlign: "middle",
-};
 
 const SORT_EXTRACTORS: Record<string, SortExtractor<InvoiceRow>> = {
   ref: (i) => i.ref,
@@ -90,126 +79,77 @@ export default async function InvoicesPage({
   const filtered = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
 
-  return (
-    <>
-      <PageHeader
-        title="Invoices"
-        subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as InvoiceStatus] ?? statusFilter}` : ""} of ${invoices.length} total · Finance & billing`}
-        action={
-          <Link
-            href={ROUTES.invoiceNew}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-              background: c.accent, color: "#fff", textDecoration: "none",
-            }}
-          >
-            + New Invoice
-          </Link>
-        }
-      />
+  const columns: ListColumn<InvoiceRow>[] = [
+    {
+      id: "ref", label: "Ref", sortKey: "ref", card: "title",
+      render: (inv) => (
+        <Link href={ROUTES.invoice(inv.id)} style={{ fontFamily: MONO, fontSize: 12.5, color: c.accent, fontWeight: 600, textDecoration: "none" }}>{inv.ref}</Link>
+      ),
+    },
+    { id: "account", label: "Account", sortKey: "account", render: (inv) => inv.account_name },
+    {
+      id: "status", label: "Status", sortKey: "status",
+      render: (inv) => <StatusPill label={STATUS_LABEL[inv.status as InvoiceStatus] ?? inv.status} tone={STATUS_TONE[inv.status as InvoiceStatus] ?? "blue"} />,
+    },
+    { id: "total", label: "Total", sortKey: "total", cellStyle: { fontWeight: 700 }, render: (inv) => inr(inv.total) },
+    {
+      id: "balance", label: "Balance due", sortKey: "balance",
+      render: (inv) => {
+        const due = inv.total - inv.paid_amount > 0;
+        return <span style={{ color: due ? "var(--red)" : c.muted, fontWeight: due ? 600 : 400 }}>{inr(Math.max(0, inv.total - inv.paid_amount))}</span>;
+      },
+    },
+    { id: "issued", label: "Issued", sortKey: "issued", cellStyle: { color: c.muted }, render: (inv) => (inv.issued_at ? fmtDate(inv.issued_at) : "—") },
+  ];
 
-      <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: statusFilter ? 8 : 20 }}>
-        {summary.map(({ status, count, total }) => (
-          <Link key={status} href={statusFilter === status ? ROUTES.invoices : `${ROUTES.invoices}?status=${status}`} style={{ textDecoration: "none" }}>
-            <div style={{ ...cardStyle, textAlign: "center", borderColor: statusFilter === status ? pillar[STATUS_TONE[status]].base : undefined }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
-                {STATUS_LABEL[status]}
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: pillar[STATUS_TONE[status]].base }}>{inr(total)}</div>
-              <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{count} invoice{count !== 1 ? "s" : ""}</div>
+  const summaryTiles = (
+    <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 14 }}>
+      {summary.map(({ status, count, total }) => (
+        <Link key={status} href={statusFilter === status ? ROUTES.invoices : `${ROUTES.invoices}?status=${status}`} style={{ textDecoration: "none" }}>
+          <div style={{ ...CARD_SURFACE, padding: 14, textAlign: "center", borderColor: statusFilter === status ? pillar[STATUS_TONE[status]].base : undefined }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+              {STATUS_LABEL[status]}
             </div>
-          </Link>
-        ))}
-      </div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: pillar[STATUS_TONE[status]].base }}>{inr(total)}</div>
+            <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{count} invoice{count !== 1 ? "s" : ""}</div>
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
 
-      <ListFilterBar
-        searchValue={q}
-        searchPlaceholder="Search invoice ref or account…"
-        dates={[{ name: "from", value: from, label: "Issued from" }, { name: "to", value: to, label: "to" }]}
-        hiddenParams={{ status: statusFilter, af, ...cfParams }}
-        clearHref={ROUTES.invoices}
-      />
-      <AdvancedFilterPanel object="invoice" />
+  const hasFilter = !!(q || af || from || to || statusFilter || Object.keys(cfParams).length > 0);
 
-      {statusFilter && (
-        <div style={{ marginBottom: 12 }}>
-          <Link href={ROUTES.invoices} style={{ fontSize: 12, color: c.hint, textDecoration: "none" }}>← Show all invoices</Link>
-        </div>
-      )}
-
-      {filtered.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>
-          {invoices.length > 0 ? (
-            <>
-              No invoices match these filters.{" "}
-              <Link href={ROUTES.invoices} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>Clear them</Link>
-            </>
-          ) : (
-            <>
-              No invoices yet.{" "}
-              <Link href={ROUTES.invoiceNew} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-                + Create one
-              </Link>
-              , or raise one from a completed work order or an approved quote.
-            </>
-          )}
-        </div>
-      ) : (
-        <div style={{ ...cardStyle, overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {(() => {
-                  const hp = { status: statusFilter, q, from, to, af, ...cfParams };
-                  return (
-                    <>
-                      <SortableTh label="Ref" sortKey="ref" searchId="ref" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                      <SortableTh label="Account" sortKey="account" searchId="account" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                      <SortableTh label="Status" sortKey="status" searchId="status" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                      <SortableTh label="Total" sortKey="total" searchId="total" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                      <SortableTh label="Balance due" sortKey="balance" searchId="balance" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                      <SortableTh label="Issued" sortKey="issued" searchId="issued" currentSort={sort} currentDir={dir} baseHref={ROUTES.invoices} hiddenParams={hp} style={th} />
-                    </>
-                  );
-                })()}
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.map((inv) => (
-                <tr key={inv.id} style={{ cursor: "pointer" }}>
-                  <td style={td}>
-                    <Link href={ROUTES.invoice(inv.id)} style={{ fontFamily: "monospace", fontSize: 12, color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-                      {inv.ref}
-                    </Link>
-                  </td>
-                  <td style={td}>
-                    <Link href={ROUTES.invoice(inv.id)} style={{ color: "inherit", textDecoration: "none" }}>{inv.account_name}</Link>
-                  </td>
-                  <td style={td}>
-                    <Pill
-                      label={STATUS_LABEL[inv.status as InvoiceStatus] ?? inv.status}
-                      tone={STATUS_TONE[inv.status as InvoiceStatus] ?? "blue"}
-                    />
-                  </td>
-                  <td style={{ ...td, fontWeight: 700 }}>{inr(inv.total)}</td>
-                  <td style={{ ...td, color: inv.total - inv.paid_amount > 0 ? "var(--red)" : c.muted, fontWeight: inv.total - inv.paid_amount > 0 ? 600 : 400 }}>
-                    {inr(Math.max(0, inv.total - inv.paid_amount))}
-                  </td>
-                  <td style={{ ...td, color: c.muted }}>{inv.issued_at ? fmtDate(inv.issued_at) : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <PagerLink
-            page={page}
-            total={filtered.length}
-            pageSize={DEFAULT_PAGE_SIZE}
-            baseHref={ROUTES.invoices}
-            hiddenParams={{ status: statusFilter, q, from, to, sort, dir, af, ...cfParams }}
-          />
-        </div>
-      )}
-    </>
+  return (
+    <ObjectListPage
+      title="Invoices"
+      subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as InvoiceStatus] ?? statusFilter}` : ""} of ${invoices.length} total · Finance & billing`}
+      newLabel="Invoice"
+      newHref={ROUTES.invoiceNew}
+      search={{
+        value: q,
+        placeholder: "Search invoice ref or account…",
+        dates: [{ name: "from", value: from, label: "Issued from" }, { name: "to", value: to, label: "to" }],
+        hiddenParams: { status: statusFilter, af, ...cfParams },
+      }}
+      advancedFilterObject="invoice"
+      beforeTable={summaryTiles}
+      columns={columns}
+      rows={pageRows}
+      rowKey={(inv) => inv.id}
+      rowHref={(inv) => ROUTES.invoice(inv.id)}
+      total={filtered.length}
+      page={page}
+      baseHref={ROUTES.invoices}
+      sort={sort}
+      dir={dir}
+      linkParams={{ status: statusFilter, q, from, to, af, ...cfParams }}
+      filtered={hasFilter}
+      empty={{
+        title: "No invoices yet",
+        text: "Create one, or raise one from a completed work order or an approved quote.",
+        filteredTitle: "No invoices match these filters.",
+      }}
+    />
   );
 }

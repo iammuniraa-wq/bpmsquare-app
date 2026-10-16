@@ -25,7 +25,7 @@ const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, vertical
  * offers the same action. Server component.
  */
 export default function RelatedList<T>({
-  title, newHref, newLabel, summary, columns, rows, rowKey, rowHref, emptyText,
+  title, newHref, newLabel, summary, columns, rows, rowKey, rowHref, emptyText, footer,
 }: {
   title: string;
   /** Where the header's "+ New <label>" goes; omit when the tenant cannot create one here. */
@@ -37,6 +37,8 @@ export default function RelatedList<T>({
   rowKey: (row: T) => string;
   rowHref?: (row: T) => string;
   emptyText: string;
+  /** Under the table (a total row). */
+  footer?: React.ReactNode;
 }) {
   const action = newHref ? <Button href={newHref} variant="quiet" size="sm">+ New {newLabel}</Button> : null;
   return (
@@ -76,6 +78,7 @@ export default function RelatedList<T>({
           </table>
         </div>
       )}
+      {footer && rows.length > 0 && <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 16px", borderTop: `1px solid ${c.line}` }}>{footer}</div>}
     </section>
   );
 }

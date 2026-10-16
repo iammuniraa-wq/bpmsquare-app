@@ -2,13 +2,16 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { c } from "@/lib/theme";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter, moneyLabel } from "@/lib/currency";
-import { cardStyle } from "@/components/Shell";
 import { ROUTES, UOM_OPTIONS } from "@/lib/constants";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
+import ObjectFormPage from "@/components/page/ObjectFormPage";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import Field from "@/components/ui/Field";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 
 type QuoteOption = {
   id: string; ref: string; account_id: string; contact_id: string | null; entity_id: string | null;
@@ -16,17 +19,6 @@ type QuoteOption = {
 };
 
 type Line = { id: string; description: string; uom: string; qty: string; rate: string };
-
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11.5, fontWeight: 600,
-  color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,
-};
-const inp: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", fontSize: 13,
-  border: `1px solid ${c.line}`, borderRadius: 8,
-  background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
-};
-const fw: React.CSSProperties = { marginBottom: 16 };
 
 function newLine(): Line {
   return { id: Math.random().toString(36).slice(2), description: "", uom: "Nos", qty: "1", rate: "0" };
@@ -39,9 +31,9 @@ export default function InvoiceForm({
   contacts: { id: string; name: string; account_id: string }[];
   entities: { id: string; name: string; is_default?: boolean }[];
   quotes: QuoteOption[];
-  /** Set when arriving from an account's own page (accounts/[id]/page.tsx
-   *  passes ?account_id=) -- prefills the account and is where Cancel
-   *  returns to instead of the unfiltered invoices list. */
+  /** Set when arriving from an account page (it passes ?account_id=) --
+   *  prefills the account and is where Cancel returns to instead of the
+   *  unfiltered invoices list. */
   defaultAccountId?: string | null;
 }) {
   const cur = useCurrency();
@@ -119,182 +111,124 @@ export default function InvoiceForm({
   }
 
   return (
-    <>
-      <div className="bpm-page-header" style={{ marginBottom: 12 }}>
-        <Link href={defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.invoices} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          ← {defaultAccountId ? "Back to account" : "All invoices"}
-        </Link>
-      </div>
-
-      <div className="bpm-page-header" style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Invoice</h1>
-          <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Bill an account, optionally from an approved quote</p>
+    <ObjectFormPage
+      backHref={defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.invoices}
+      backLabel={defaultAccountId ? "Back to account" : "All invoices"}
+      title="New Invoice"
+      subtitle="Bill an account, optionally from an approved quote"
+      headerAction={<AdaptObjectDrawer objectType="invoice" objectLabel="Invoice" isAdmin={true} />}
+      onSubmit={handleSubmit}
+      saving={pending}
+      saveLabel="Save"
+      error={error}
+      maxWidth={980}
+    >
+      <Card title="Bill to" padding={18}>
+        {accountQuotes.length > 0 && (
+          <Field label="From approved quote" hint="Optional — autofills everything below">
+            <Select value={quoteId} onChange={(e) => pickQuote(e.target.value)}>
+              <option value="">— Manual entry —</option>
+              {accountQuotes.map((q) => <option key={q.id} value={q.id}>{q.ref}</option>)}
+            </Select>
+          </Field>
+        )}
+        <div className="fg2">
+          <Field label="Account" required>
+            <Select value={accountId} onChange={(e) => { setAccountId(e.target.value); setContactId(""); setQuoteId(""); }} required>
+              <option value="">— Select account —</option>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="Contact">
+            <Select value={contactId} onChange={(e) => setContactId(e.target.value)}>
+              <option value="">— None —</option>
+              {accountContacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+            </Select>
+          </Field>
+          {entities.length > 0 && (
+            <Field label="Issuing entity">
+              <Select value={entityId} onChange={(e) => setEntityId(e.target.value)}>
+                <option value="">— Select entity —</option>
+                {entities.map((e) => <option key={e.id} value={e.id}>{e.name}{e.is_default ? " (default)" : ""}</option>)}
+              </Select>
+            </Field>
+          )}
+          <Field label="Due date">
+            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </Field>
         </div>
-        <AdaptObjectDrawer objectType="invoice" objectLabel="Invoice" isAdmin={true} />
-      </div>
+      </Card>
 
-      <form onSubmit={handleSubmit}>
-        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-            <section style={cardStyle}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: "0 0 16px" }}>Bill to</h3>
-              {accountQuotes.length > 0 && (
-                <div style={fw}>
-                  <label style={lbl}>From approved quote <span style={{ color: c.hint, textTransform: "none", fontWeight: 400 }}>(optional — autofills everything below)</span></label>
-                  <select style={inp} value={quoteId} onChange={(e) => pickQuote(e.target.value)}>
-                    <option value="">— Manual entry —</option>
-                    {accountQuotes.map((q) => <option key={q.id} value={q.id}>{q.ref}</option>)}
-                  </select>
-                </div>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                <div>
-                  <label style={lbl}>Account *</label>
-                  <select style={inp} value={accountId} onChange={(e) => { setAccountId(e.target.value); setContactId(""); setQuoteId(""); }} required>
-                    <option value="">— Select account —</option>
-                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>Contact</label>
-                  <select style={inp} value={contactId} onChange={(e) => setContactId(e.target.value)}>
-                    <option value="">— None —</option>
-                    {accountContacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                {entities.length > 0 && (
-                  <div>
-                    <label style={lbl}>Issuing entity</label>
-                    <select style={inp} value={entityId} onChange={(e) => setEntityId(e.target.value)}>
-                      <option value="">— Select entity —</option>
-                      {entities.map((e) => <option key={e.id} value={e.id}>{e.name}{e.is_default ? " (default)" : ""}</option>)}
-                    </select>
-                  </div>
-                )}
-                <div>
-                  <label style={lbl}>Due date</label>
-                  <input style={inp} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-                </div>
-              </div>
-            </section>
-
-            <section style={cardStyle}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700, color: c.ink, margin: 0 }}>Line items</h3>
-                <button
-                  type="button"
-                  onClick={() => setLines((ls) => [...ls, newLine()])}
-                  style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
-                >
-                  + Add line
-                </button>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {lines.map((line, idx) => (
-                  <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: c.hint }}>Line {idx + 1}</span>
-                      {lines.length > 1 && (
-                        <button type="button" onClick={() => setLines((ls) => ls.filter((l) => l.id !== line.id))} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--red)", fontSize: 12, cursor: "pointer" }}>
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    <div style={fw}>
-                      <label style={lbl}>Description *</label>
-                      <input style={inp} value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} placeholder="What's being billed" />
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                      <div>
-                        <label style={lbl}>UOM</label>
-                        <select style={inp} value={line.uom} onChange={(e) => updateLine(line.id, { uom: e.target.value })}>
-                          {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={lbl}>Qty</label>
-                        <input style={inp} type="number" min="0" step="any" value={line.qty} onChange={(e) => updateLine(line.id, { qty: e.target.value })} />
-                      </div>
-                      <div>
-                        <label style={lbl}>{moneyLabel("Rate", cur)}</label>
-                        <input style={inp} type="number" min="0" step="0.01" value={line.rate} onChange={(e) => updateLine(line.id, { rate: e.target.value })} />
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right", fontSize: 12.5, color: c.muted, marginTop: 6 }}>
-                      = {inr((parseFloat(line.qty) || 0) * (parseFloat(line.rate) || 0))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
-                <div>
-                  <label style={lbl}>Discount type</label>
-                  <select style={inp} value={discountType} onChange={(e) => setDiscountType(e.target.value as "pct" | "fixed")}>
-                    <option value="pct">Percent</option>
-                    <option value="fixed">Fixed amount</option>
-                  </select>
-                </div>
-                {discountType === "pct" ? (
-                  <div>
-                    <label style={lbl}>Discount %</label>
-                    <input style={inp} type="number" min="0" max="100" step="0.1" value={discountPct} onChange={(e) => setDiscountPct(e.target.value)} />
-                  </div>
-                ) : (
-                  <div>
-                    <label style={lbl}>{moneyLabel("Discount", cur)}</label>
-                    <input style={inp} type="number" min="0" step="0.01" value={discountFixed} onChange={(e) => setDiscountFixed(e.target.value)} />
-                  </div>
+      <Card
+        title="Line items"
+        padding={18}
+        action={<Button variant="quiet" size="sm" onClick={() => setLines((ls) => [...ls, newLine()])}>+ Add line</Button>}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {lines.map((line, idx) => (
+            <div key={line.id} style={{ border: `1px solid ${c.line}`, borderRadius: 8, padding: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: c.hint }}>Line {idx + 1}</span>
+                {lines.length > 1 && (
+                  <span style={{ marginLeft: "auto" }}>
+                    <Button variant="quiet" size="sm" onClick={() => setLines((ls) => ls.filter((l) => l.id !== line.id))}>Remove</Button>
+                  </span>
                 )}
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, gap: 24 }}>
-                <div style={{ fontSize: 12.5, color: c.muted }}>Subtotal: {inr(subtotal)}</div>
-                {discountAmt > 0 && <div style={{ fontSize: 12.5, color: c.muted }}>Discount: − {inr(discountAmt)}</div>}
-                <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>Net: {inr(subtotal - discountAmt)} <span style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>(+ tax on print)</span></div>
+              <Field label="Description" required>
+                <Input value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} placeholder="What's being billed" />
+              </Field>
+              <div className="fg3">
+                <Field label="UOM" style={{ marginBottom: 0 }}>
+                  <Select value={line.uom} onChange={(e) => updateLine(line.id, { uom: e.target.value })}>
+                    {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Qty" style={{ marginBottom: 0 }}>
+                  <Input type="number" min="0" step="any" value={line.qty} onChange={(e) => updateLine(line.id, { qty: e.target.value })} />
+                </Field>
+                <Field label={moneyLabel("Rate", cur)} style={{ marginBottom: 0 }}>
+                  <Input type="number" min="0" step="0.01" value={line.rate} onChange={(e) => updateLine(line.id, { rate: e.target.value })} />
+                </Field>
               </div>
-            </section>
-
-            <section style={cardStyle}>
-              <div style={fw}>
-                <label style={lbl}>Notes</label>
-                <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <div style={{ textAlign: "right", fontSize: 12.5, color: c.muted, marginTop: 6 }}>
+                = {inr((parseFloat(line.qty) || 0) * (parseFloat(line.rate) || 0))}
               </div>
-              <div>
-                <label style={lbl}>Terms</label>
-                <textarea style={{ ...inp, minHeight: 50, resize: "vertical" }} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms…" />
-              </div>
-            </section>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {error && (
-              <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "var(--err-ink)" }}>
-                {error}
-              </div>
-            )}
-            <button
-              type="submit" disabled={pending}
-              style={{
-                width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-                background: c.accent, color: "#fff", fontWeight: 700, fontSize: 14,
-                cursor: pending ? "wait" : "pointer",
-              }}
-            >
-              {pending ? "Saving…" : "Create Invoice"}
-            </button>
-            <Link href={defaultAccountId ? ROUTES.account(defaultAccountId) : ROUTES.invoices} style={{
-              display: "block", textAlign: "center", padding: "10px 0",
-              borderRadius: 8, border: `1px solid ${c.line}`,
-              color: c.muted, fontSize: 13, textDecoration: "none",
-            }}>
-              Cancel
-            </Link>
-          </div>
+            </div>
+          ))}
         </div>
-      </form>
-    </>
+        <div className="fg3" style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
+          <Field label="Discount type" style={{ marginBottom: 0 }}>
+            <Select value={discountType} onChange={(e) => setDiscountType(e.target.value as "pct" | "fixed")}>
+              <option value="pct">Percent</option>
+              <option value="fixed">Fixed amount</option>
+            </Select>
+          </Field>
+          {discountType === "pct" ? (
+            <Field label="Discount %" style={{ marginBottom: 0 }}>
+              <Input type="number" min="0" max="100" step="0.1" value={discountPct} onChange={(e) => setDiscountPct(e.target.value)} />
+            </Field>
+          ) : (
+            <Field label={moneyLabel("Discount", cur)} style={{ marginBottom: 0 }}>
+              <Input type="number" min="0" step="0.01" value={discountFixed} onChange={(e) => setDiscountFixed(e.target.value)} />
+            </Field>
+          )}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", marginTop: 12, gap: 24 }}>
+          <div style={{ fontSize: 12.5, color: c.muted }}>Subtotal: {inr(subtotal)}</div>
+          {discountAmt > 0 && <div style={{ fontSize: 12.5, color: c.muted }}>Discount: − {inr(discountAmt)}</div>}
+          <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>Net: {inr(subtotal - discountAmt)} <span style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>(+ tax on print)</span></div>
+        </div>
+      </Card>
+
+      <Card padding={18}>
+        <Field label="Notes">
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </Field>
+        <Field label="Terms" style={{ marginBottom: 0 }}>
+          <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms…" />
+        </Field>
+      </Card>
+    </ObjectFormPage>
   );
 }
