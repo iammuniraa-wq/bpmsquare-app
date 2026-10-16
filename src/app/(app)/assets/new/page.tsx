@@ -2,11 +2,12 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { c } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import CreateExtraFields from "@/components/fields/CreateExtraFields";
-import Link from "next/link";
+import ObjectFormPage from "@/components/page/ObjectFormPage";
+import Card from "@/components/ui/Card";
+import Field from "@/components/ui/Field";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 
 const CORE_ASSET_KEYS = ["name", "kind", "make", "model", "serial", "rating", "notes", "account_id", "is_loaner"];
 
@@ -17,17 +18,6 @@ const KINDS = [
   { value: "generator",   label: "Generator" },
   { value: "panel",       label: "Panel / Switchgear" },
 ];
-
-const label: React.CSSProperties = {
-  display: "block", fontSize: 11.5, fontWeight: 600,
-  color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,
-};
-const input: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", fontSize: 13,
-  border: `1px solid ${c.line}`, borderRadius: 8,
-  background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
-};
-const fieldWrap: React.CSSProperties = { marginBottom: 14 };
 
 type AccountOption = { id: string; name: string };
 
@@ -63,6 +53,8 @@ export default function NewAssetPage() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const backHref = prefillAccountId ? ROUTES.account(prefillAccountId) : ROUTES.assets;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -74,10 +66,10 @@ export default function NewAssetPage() {
       });
       const json = await res.json();
       if (res.ok) {
-        // Created from an account's own page (accounts/[id]/page.tsx passes
-        // ?account_id=) -- return there so the new asset shows up under it,
-        // rather than dropping the rep on the unfiltered assets list.
-        router.push(prefillAccountId ? ROUTES.account(prefillAccountId) : ROUTES.assets);
+        // Created from an account page (it passes ?account_id=) -- return
+        // there so the new asset shows up under it, rather than dropping
+        // the rep on the unfiltered assets list.
+        router.push(backHref);
       } else {
         setError(json.error ?? "Failed to create asset");
       }
@@ -85,141 +77,74 @@ export default function NewAssetPage() {
   }
 
   return (
-    <>
-      <div className="bpm-page-header" style={{ marginBottom: 12 }}>
-        <Link href={prefillAccountId ? ROUTES.account(prefillAccountId) : ROUTES.assets} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-          {prefillAccountId ? "← Back to account" : "← All assets"}
-        </Link>
-      </div>
-
-      <div className="bpm-page-header" style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: c.ink, margin: 0 }}>New Asset</h1>
-        <p style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Register a customer asset or loaner unit</p>
-      </div>
-
-      <form onSubmit={handleSubmit}>
-        <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16, alignItems: "start" }}>
-
-          {/* Left — asset details */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-            <div style={cardStyle}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, margin: "0 0 14px" }}>Equipment</p>
-
-              <div style={fieldWrap}>
-                <label style={label}>Asset name *</label>
-                <input style={input} value={form.name} onChange={set("name")} required placeholder="e.g. Ring-frame drive motor" />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div style={fieldWrap}>
-                  <label style={label}>Kind *</label>
-                  <select style={input} value={form.kind} onChange={set("kind")} required>
-                    {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
-                  </select>
-                </div>
-                <div style={fieldWrap}>
-                  <label style={label}>Make / brand</label>
-                  <input style={input} value={form.make} onChange={set("make")} placeholder="e.g. Crompton Greaves" />
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div style={fieldWrap}>
-                  <label style={label}>Model</label>
-                  <input style={input} value={form.model} onChange={set("model")} placeholder="e.g. ND315S-2" />
-                </div>
-                <div style={fieldWrap}>
-                  <label style={label}>Serial number</label>
-                  <input style={input} value={form.serial} onChange={set("serial")} placeholder="e.g. CG-75-2291" />
-                </div>
-              </div>
-
-              <div style={fieldWrap}>
-                <label style={label}>Rating / specs</label>
-                <input style={input} value={form.rating} onChange={set("rating")} placeholder="e.g. 75 kW · 415V · 1480 rpm" />
-              </div>
-
-              <div style={{ ...fieldWrap, marginBottom: 0 }}>
-                <label style={label}>Notes / history</label>
-                <textarea
-                  style={{ ...input, resize: "vertical", minHeight: 72 }}
-                  value={form.notes}
-                  onChange={set("notes")}
-                  placeholder="e.g. Rewound once — June 2024. Bearings last replaced Jan 2025."
-                />
-              </div>
-            </div>
-
-            <CreateExtraFields
-              objectType="asset"
-              exclude={CORE_ASSET_KEYS}
-              values={{ ...form, ...extra, ...customData }}
-              onChange={setExtraField}
-            />
-          </div>
-
-          {/* Right — ownership + actions */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-            <div style={cardStyle}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.6, margin: "0 0 14px" }}>Ownership</p>
-
-              <div style={fieldWrap}>
-                <label style={label}>Customer account</label>
-                <select style={input} value={form.account_id} onChange={set("account_id")}>
-                  <option value="">— None (loaner / workshop stock) —</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${c.line}` }}>
-                <input
-                  type="checkbox"
-                  id="is_loaner"
-                  checked={form.is_loaner}
-                  onChange={(e) => setForm((f) => ({ ...f, is_loaner: e.target.checked }))}
-                  style={{ width: 16, height: 16, cursor: "pointer" }}
-                />
-                <label htmlFor="is_loaner" style={{ fontSize: 13, color: c.ink, cursor: "pointer" }}>
-                  This is a loaner unit
-                </label>
-              </div>
-            </div>
-
-            {error && (
-              <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "var(--err-ink)" }}>
-                {error}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="submit"
-                disabled={pending}
-                style={{
-                  flex: 1, padding: "10px 0", borderRadius: 8, border: "none",
-                  background: c.accent, color: "#fff", fontWeight: 700, fontSize: 13,
-                  cursor: pending ? "wait" : "pointer",
-                }}
-              >
-                {pending ? "Saving…" : "Create Asset"}
-              </button>
-              <Link
-                href={prefillAccountId ? ROUTES.account(prefillAccountId) : ROUTES.assets}
-                style={{
-                  padding: "10px 18px", borderRadius: 8, border: `1px solid ${c.line}`,
-                  color: c.muted, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center",
-                }}
-              >
-                Cancel
-              </Link>
-            </div>
-          </div>
+    <ObjectFormPage
+      backHref={backHref}
+      backLabel={prefillAccountId ? "Back to account" : "All assets"}
+      title="New Asset"
+      subtitle="Register a customer asset or loaner unit"
+      onSubmit={handleSubmit}
+      saving={pending}
+      saveLabel="Save"
+      error={error}
+    >
+      <Card title="Equipment" padding={18}>
+        <Field label="Asset name" required>
+          <Input value={form.name} onChange={set("name")} required placeholder="e.g. Ring-frame drive motor" />
+        </Field>
+        <div className="fg2">
+          <Field label="Kind" required>
+            <Select value={form.kind} onChange={set("kind")} required>
+              {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+            </Select>
+          </Field>
+          <Field label="Make / brand">
+            <Input value={form.make} onChange={set("make")} placeholder="e.g. Crompton Greaves" />
+          </Field>
+          <Field label="Model">
+            <Input value={form.model} onChange={set("model")} placeholder="e.g. ND315S-2" />
+          </Field>
+          <Field label="Serial number">
+            <Input value={form.serial} onChange={set("serial")} placeholder="e.g. CG-75-2291" />
+          </Field>
         </div>
-      </form>
-    </>
+        <Field label="Rating / specs">
+          <Input value={form.rating} onChange={set("rating")} placeholder="e.g. 75 kW · 415V · 1480 rpm" />
+        </Field>
+        <Field label="Notes / history" style={{ marginBottom: 0 }}>
+          <Textarea
+            value={form.notes}
+            onChange={set("notes")}
+            placeholder="e.g. Rewound once — June 2024. Bearings last replaced Jan 2025."
+          />
+        </Field>
+      </Card>
+
+      <Card title="Ownership" padding={18}>
+        <Field label="Customer account">
+          <Select value={form.account_id} onChange={set("account_id")}>
+            <option value="">— None (loaner / workshop stock) —</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </Select>
+        </Field>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={form.is_loaner}
+            onChange={(e) => setForm((f) => ({ ...f, is_loaner: e.target.checked }))}
+            style={{ width: 16, height: 16, cursor: "pointer" }}
+          />
+          This is a loaner unit
+        </label>
+      </Card>
+
+      <CreateExtraFields
+        objectType="asset"
+        exclude={CORE_ASSET_KEYS}
+        values={{ ...form, ...extra, ...customData }}
+        onChange={setExtraField}
+      />
+    </ObjectFormPage>
   );
 }

@@ -53,7 +53,7 @@ const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, vertical
 export default function ObjectListPage<T>({
   title, subtitle, newLabel, newHref, menuItems, chips, search, advancedFilterObject,
   columns, rows, rowKey, rowHref, total, page, pageSize = DEFAULT_PAGE_SIZE, baseHref,
-  sort, dir, linkParams, empty, filtered,
+  sort, dir, linkParams, empty, filtered, beforeTable,
 }: {
   title: string;
   subtitle?: string;
@@ -90,6 +90,8 @@ export default function ObjectListPage<T>({
   empty: { title: string; text?: string; filteredTitle: string };
   /** A search / filter is active (picks which empty message to show). */
   filtered: boolean;
+  /** Extra content between the filter bar and the table (a summary card the list keeps, e.g. Assets' loaner stock). */
+  beforeTable?: React.ReactNode;
 }) {
   const titleCol = columns.find((col) => col.card === "title") ?? columns.find((col) => col.card !== "hidden") ?? columns[0];
   const metaCols = columns.filter((col) => col !== titleCol && col.card !== "hidden");
@@ -133,6 +135,7 @@ export default function ObjectListPage<T>({
         clearHref={baseHref}
       />
       {advancedFilterObject && <AdvancedFilterPanel object={advancedFilterObject} />}
+      {beforeTable}
 
       {total === 0 ? (
         <Card padding={0}>

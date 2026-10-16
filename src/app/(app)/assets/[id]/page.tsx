@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAssetLive } from "@/lib/data/live";
-import { getUserRole } from "@/lib/tenant";
+import { getUserRole, getTenant } from "@/lib/tenant";
 import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/data";
-import { c, pillar, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import Pill from "@/components/Pill";
+import { c, type PillarKey } from "@/lib/theme";
+import StatusPill from "@/components/ui/StatusPill";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
 import { ROUTES } from "@/lib/constants";
-import TabTitle from "@/components/TabTitle";
 import ObjectSections from "@/components/fields/ObjectSections";
-import AssetHeaderCard from "./AssetHeaderCard";
-import NovaTimelineSlot from "@/components/NovaTimelineSlot";
+import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import RecordMoreMenu from "@/components/page/RecordMoreMenu";
+import RecordActivity from "@/components/page/RecordActivity";
+import RelatedList, { type RelatedColumn } from "@/components/page/RelatedList";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -24,105 +26,125 @@ const CASE_TONE: Record<string, PillarKey> = {
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
+type CaseRowData = { id: string; ref: string; status: string; type: string; complaint: string; equipment_label: string; intake_at: string; closed_at?: string | null };
+
+const CASE_COLUMNS: RelatedColumn<CaseRowData>[] = [
+  { label: "Ref", render: (sc) => <span style={{ fontWeight: 600, color: c.ink }}>{sc.ref}</span> },
+  { label: "Stage", render: (sc) => <StatusPill label={CASE_STATUS_LABEL[sc.status as keyof typeof CASE_STATUS_LABEL] ?? sc.status} tone={CASE_TONE[sc.status] ?? "blue"} /> },
+  { label: "Type", render: (sc) => <StatusPill label={CASE_TYPE_LABEL[sc.type as keyof typeof CASE_TYPE_LABEL] ?? sc.type} tone="blue" /> },
+  { label: "Complaint", cellStyle: { maxWidth: 240, color: c.muted, fontSize: 12.5 }, render: (sc) => (
+    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{sc.complaint || "—"}</span>
+  ) },
+  { label: "Intake", cellStyle: { color: c.hint, fontSize: 12, whiteSpace: "nowrap" }, render: (sc) => fmtDate(sc.intake_at) },
+  { label: "Closed", cellStyle: { color: c.hint, fontSize: 12, whiteSpace: "nowrap" }, render: (sc) => (sc.closed_at ? fmtDate(sc.closed_at) : "—") },
+];
+
 export default async function AssetDetailPage({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
-  const [data, role] = await Promise.all([getAssetLive(id), getUserRole()]);
+  const { tab } = await searchParams;
+  const [data, role, tenant] = await Promise.all([getAssetLive(id), getUserRole(), getTenant()]);
   if (!data) notFound();
   const { asset, account, cases } = data;
+  const isAdmin = role === "admin";
+  const casesOn = tenant?.features?.cases === true;
+  const basePath = ROUTES.asset(asset.id);
 
-  const openCases  = cases.filter((c) => !["closed", "buyback", "scrapped"].includes(c.status));
-  const closedCases = cases.filter((c) => ["closed", "buyback", "scrapped"].includes(c.status));
+  const openCases  = cases.filter((sc) => !["closed", "buyback", "scrapped"].includes(sc.status));
+  const closedCases = cases.filter((sc) => ["closed", "buyback", "scrapped"].includes(sc.status));
+  const newCaseHref = account ? `${ROUTES.caseNew}?account_id=${account.id}` : undefined;
 
   return (
-    <>
-      <TabTitle title={asset.name} />
-
-      <AssetHeaderCard asset={asset} account={account} casesCount={cases.length} openCasesCount={openCases.length} isAdmin={role === "admin"} />
-
-      <div style={{ marginBottom: 14 }}>
-        <ObjectSections
-          objectType="asset"
-          record={asset as unknown as Record<string, unknown>}
-          patchUrl={`/api/assets/${asset.id}`}
-          exclude={["name", "kind", "make", "model", "serial", "rating", "notes"]}
+    <ObjectRecordPage
+      backHref={ROUTES.assets}
+      backLabel="All assets"
+      title={asset.name}
+      reference={asset.ref}
+      meta={[asset.kind.charAt(0).toUpperCase() + asset.kind.slice(1), asset.make, asset.model].filter(Boolean).join(" · ")}
+      primaryAction={casesOn && newCaseHref ? <Button href={newCaseHref} variant="primary">+ New Case</Button> : undefined}
+      menu={
+        <RecordMoreMenu
+          inlineEdit={{ overviewHref: basePath }}
+          adapt={{ objectType: "asset", objectLabel: "Asset", isAdmin }}
         />
-      </div>
-
-      {/* Open cases */}
-      {openCases.length > 0 && (
-        <section style={{ ...cardStyle, marginBottom: 12 }}>
-          <h3 style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 600, color: c.ink }}>
-            Open cases
-            <span style={{ marginLeft: 8, fontSize: 11, background: pillar.amber.bg, color: pillar.amber.fg, borderRadius: 4, padding: "1px 7px" }}>
-              {openCases.length}
-            </span>
-          </h3>
-          {openCases.map((sc) => (
-            <CaseRow key={sc.id} sc={sc} />
-          ))}
-        </section>
-      )}
-
-      {/* Service history */}
-      {closedCases.length > 0 && (
-        <section style={cardStyle}>
-          <h3 style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 600, color: c.ink }}>
-            Service history
-            <span style={{ marginLeft: 8, fontSize: 11, background: c.panel2, color: c.muted, borderRadius: 4, padding: "1px 7px" }}>
-              {closedCases.length}
-            </span>
-          </h3>
-          {closedCases.map((sc) => (
-            <CaseRow key={sc.id} sc={sc} />
-          ))}
-        </section>
-      )}
-
-      {cases.length === 0 && (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "32px 16px", color: c.hint, fontSize: 13 }}>
-          No service history yet.
-          {account && (
-            <div style={{ marginTop: 10 }}>
-              <Link href={`${ROUTES.caseNew}?account_id=${account.id}`}
-                style={{ fontSize: 13, fontWeight: 600, color: c.accent, textDecoration: "none" }}>
-                + Create first case →
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
-      <NovaTimelineSlot objectType="assets" objectId={id} />
-    </>
-  );
-}
-
-function CaseRow({ sc }: { sc: { id: string; ref: string; status: string; type: string; complaint: string; equipment_label: string; intake_at: string; closed_at?: string | null } }) {
-  const fmtDate = (s: string) =>
-    new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-  return (
-    <div style={{ padding: "9px 0", borderTop: `1px solid ${c.line}`, display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{sc.ref}</span>
-          <Pill label={CASE_STATUS_LABEL[sc.status as keyof typeof CASE_STATUS_LABEL] ?? sc.status} tone={CASE_TONE[sc.status] ?? "blue"} />
-          <Pill label={CASE_TYPE_LABEL[sc.type as keyof typeof CASE_TYPE_LABEL] ?? sc.type} tone="blue" />
-        </div>
-        <div style={{ fontSize: 11, color: c.hint, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {sc.complaint}
-        </div>
-        <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1 }}>
-          {fmtDate(sc.intake_at)}
-          {sc.closed_at && <span> → {fmtDate(sc.closed_at)}</span>}
-        </div>
-      </div>
-      <Link href={ROUTES.case(sc.id)} style={{ fontSize: 11, fontWeight: 600, color: c.accent, background: c.accentbg, borderRadius: 6, padding: "3px 8px", textDecoration: "none", flexShrink: 0 }}>
-        Open →
-      </Link>
-    </div>
+      }
+      facts={[
+        ...(asset.serial ? [{ label: "Serial no.", value: <span style={{ fontFamily: "monospace" }}>{asset.serial}</span> }] : []),
+        ...(asset.rating ? [{ label: "Rating / specs", value: asset.rating }] : []),
+        ...(account ? [{ label: "Account", value: <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> }] : []),
+        ...(casesOn ? [{ label: "Service history", value: <>{cases.length} case{cases.length === 1 ? "" : "s"}{openCases.length > 0 && <span style={{ color: c.accent }}> · {openCases.length} open</span>}</> }] : []),
+      ]}
+      basePath={basePath}
+      activeTab={tab}
+      tabs={[
+        {
+          id: "overview",
+          label: "Overview",
+          content: (
+            <ObjectSections
+              objectType="asset"
+              record={asset as unknown as Record<string, unknown>}
+              patchUrl={`/api/assets/${asset.id}`}
+              exclude={["name", "kind", "make", "model", "serial", "rating", "notes"]}
+            />
+          ),
+        },
+        ...(casesOn ? [{
+          id: "cases",
+          label: "Service history",
+          count: cases.length,
+          content: cases.length === 0 ? (
+            <RelatedList
+              title="Service history"
+              newHref={newCaseHref}
+              newLabel="Case"
+              emptyText="No service history yet."
+              rows={[] as CaseRowData[]}
+              rowKey={(sc) => sc.id}
+              columns={CASE_COLUMNS}
+            />
+          ) : (
+            <>
+              {openCases.length > 0 && (
+                <RelatedList
+                  title={`Open cases (${openCases.length})`}
+                  newHref={newCaseHref}
+                  newLabel="Case"
+                  emptyText=""
+                  rows={openCases as CaseRowData[]}
+                  rowKey={(sc) => sc.id}
+                  rowHref={(sc) => ROUTES.case(sc.id)}
+                  columns={CASE_COLUMNS}
+                />
+              )}
+              {closedCases.length > 0 && (
+                <RelatedList
+                  title={`Service history (${closedCases.length})`}
+                  emptyText=""
+                  rows={closedCases as CaseRowData[]}
+                  rowKey={(sc) => sc.id}
+                  rowHref={(sc) => ROUTES.case(sc.id)}
+                  columns={CASE_COLUMNS}
+                />
+              )}
+            </>
+          ),
+        }] : []),
+        {
+          id: "activity",
+          label: "Activity",
+          content: <RecordActivity objectType="assets" objectId={asset.id} isAdmin={isAdmin} />,
+        },
+      ]}
+      rail={asset.notes ? (
+        <Card title="Notes" padding={14}>
+          <div style={{ fontSize: 12.5, color: c.muted, fontStyle: "italic", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{asset.notes}</div>
+        </Card>
+      ) : undefined}
+    />
   );
 }
