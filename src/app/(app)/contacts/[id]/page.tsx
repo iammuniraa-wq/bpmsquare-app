@@ -1,17 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getContactLive } from "@/lib/data/live";
-import { getUserRole } from "@/lib/tenant";
+import { getUserRole, getTenant } from "@/lib/tenant";
 import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from "@/lib/data";
-import { c, pillar, type PillarKey } from "@/lib/theme";
-import { cardStyle } from "@/components/Shell";
-import Pill from "@/components/Pill";
+import { c, type PillarKey } from "@/lib/theme";
+import StatusPill from "@/components/ui/StatusPill";
+import Card from "@/components/ui/Card";
 import { ROUTES } from "@/lib/constants";
-import TabTitle from "@/components/TabTitle";
-import { Phone, Mail, MapPin } from "@/components/Icons";
-import ContactHeader from "./ContactHeader";
+import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import RecordMoreMenu from "@/components/page/RecordMoreMenu";
+import RecordActivity from "@/components/page/RecordActivity";
+import RelatedList from "@/components/page/RelatedList";
 import ContactDetailSections from "./ContactDetailSections";
-import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -26,114 +26,89 @@ const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 export default async function ContactDetailPage({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
-  const [data, role] = await Promise.all([getContactLive(id), getUserRole()]);
+  const { tab } = await searchParams;
+  const [data, role, tenant] = await Promise.all([getContactLive(id), getUserRole(), getTenant()]);
   if (!data) notFound();
   const { contact, account, cases } = data;
-
-  const openCases = cases.filter((c) => !["closed", "buyback", "scrapped"].includes(c.status));
+  const isAdmin = role === "admin";
+  const casesOn = tenant?.features?.cases === true;
+  const basePath = ROUTES.contact(contact.id);
+  const openCases = cases.filter((sc) => !["closed", "buyback", "scrapped"].includes(sc.status));
+  const newCaseHref = account ? `${ROUTES.caseNew}?account_id=${account.id}` : undefined;
 
   return (
-    <>
-      <TabTitle title={contact.name} />
-
-      {/* Header */}
-      <ContactHeader isAdmin={role === "admin"}>
-        <div style={{ marginBottom: 10 }}>
-          <Link href={ROUTES.contacts} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
-            ← All contacts
+    <ObjectRecordPage
+      backHref={ROUTES.contacts}
+      backLabel="All contacts"
+      title={contact.name}
+      reference={contact.ref}
+      meta={contact.role ?? undefined}
+      menu={
+        <RecordMoreMenu
+          inlineEdit={{ overviewHref: basePath }}
+          adapt={{ objectType: "contact", objectLabel: "Contact", isAdmin }}
+        />
+      }
+      facts={[
+        { label: "Account", value: account ? <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> : "—" },
+        { label: "Phone", value: contact.phone ? <a href={`tel:${contact.phone}`} style={{ color: "inherit", textDecoration: "none" }}>{contact.phone}</a> : "—" },
+        { label: "Email", value: contact.email ? <a href={`mailto:${contact.email}`} style={{ color: c.accent, textDecoration: "none" }}>{contact.email}</a> : "—" },
+        ...(account?.city ? [{ label: "City", value: account.city }] : []),
+      ]}
+      basePath={basePath}
+      activeTab={tab}
+      tabs={[
+        {
+          id: "overview",
+          label: "Overview",
+          content: <ContactDetailSections contact={contact} accountAddress={account ?? null} />,
+        },
+        ...(casesOn ? [{
+          id: "cases",
+          label: "Cases",
+          count: cases.length,
+          content: (
+            <RelatedList
+              title={`Cases${openCases.length > 0 ? ` · ${openCases.length} open` : ""}`}
+              newHref={newCaseHref}
+              newLabel="Case"
+              emptyText="No cases linked to this contact yet."
+              rows={cases}
+              rowKey={(sc) => sc.id}
+              rowHref={(sc) => ROUTES.case(sc.id)}
+              columns={[
+                { label: "Ref", render: (sc) => <span style={{ fontWeight: 600, color: c.ink }}>{sc.ref}</span> },
+                { label: "Stage", render: (sc) => <StatusPill label={CASE_STATUS_LABEL[sc.status]} tone={CASE_TONE[sc.status] ?? "blue"} /> },
+                { label: "Type", render: (sc) => <StatusPill label={CASE_TYPE_LABEL[sc.type]} tone="blue" /> },
+                { label: "Equipment", cellStyle: { color: c.muted }, render: (sc) => sc.equipment_label || "—" },
+                { label: "Complaint", cellStyle: { maxWidth: 220, color: c.muted, fontSize: 12.5 }, render: (sc) => (
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{sc.complaint || "—"}</span>
+                ) },
+                { label: "Intake", cellStyle: { color: c.hint, fontSize: 12, whiteSpace: "nowrap" }, render: (sc) => fmtDate(sc.intake_at) },
+              ]}
+            />
+          ),
+        }] : []),
+        {
+          id: "activity",
+          label: "Activity",
+          content: <RecordActivity objectType="contacts" objectId={contact.id} isAdmin={isAdmin} />,
+        },
+      ]}
+      rail={account ? (
+        <Card title="Account" padding={14}>
+          <Link href={ROUTES.account(account.id)} style={{ color: c.accent, fontWeight: 600, fontSize: 13.5, textDecoration: "none" }}>
+            {account.name}
           </Link>
-          {account && (
-            <>
-              <span style={{ fontSize: 12, color: c.hint, margin: "0 6px" }}>/</span>
-              <Link href={ROUTES.account(account.id)} style={{ fontSize: 12, color: c.accent, textDecoration: "none" }}>
-                {account.name}
-              </Link>
-            </>
-          )}
-        </div>
-
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 6px", color: c.ink, display: "flex", alignItems: "center", gap: 10 }}>{contact.name} {contact.ref && <span style={{ fontSize: 11.5, color: c.hint, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", border: `1px solid ${c.line}`, borderRadius: 6, padding: "2px 8px" }}>{contact.ref}</span>}</h1>
-            {contact.role && <div style={{ fontSize: 13, color: c.muted }}>{contact.role}</div>}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: c.muted, textAlign: "right" }}>
-            {contact.phone && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Phone size={12} color={c.hint} /> {contact.phone}</span>}
-            {contact.email && (
-              <a href={`mailto:${contact.email}`} style={{ color: c.accent, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}><Mail size={12} color={c.accent} /> {contact.email}</a>
-            )}
-          </div>
-        </div>
-
-        {account && (
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.line}`, fontSize: 12.5, color: c.muted }}>
-            Account:{" "}
-            <Link href={ROUTES.account(account.id)} style={{ color: c.accent, fontWeight: 600, textDecoration: "none" }}>
-              {account.name}
-            </Link>
-            {account.city && <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={11} color={c.hint} /> {account.city}</span>}
-          </div>
-        )}
-      </ContactHeader>
-
-      <div style={{ marginBottom: 14 }}>
-        <ContactDetailSections contact={contact} accountAddress={account ?? null} />
-      </div>
-
-      {/* Cases */}
-      {cases.length > 0 && (
-        <section style={cardStyle}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: c.ink }}>
-              Cases
-              <span style={{ marginLeft: 8, fontSize: 11, background: c.accentbg, color: c.accent, borderRadius: 4, padding: "1px 7px" }}>
-                {cases.length}{openCases.length > 0 ? ` · ${openCases.length} open` : ""}
-              </span>
-            </h3>
-            <Link href={`${ROUTES.caseNew}?account_id=${account?.id ?? ""}`}
-              style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: c.accentbg, borderRadius: 6, padding: "4px 10px", textDecoration: "none" }}>
-              + New case
-            </Link>
-          </div>
-          {cases.map((sc) => (
-            <div key={sc.id} style={{ padding: "9px 0", borderTop: `1px solid ${c.line}`, display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{sc.ref}</span>
-                  <Pill label={CASE_STATUS_LABEL[sc.status]} tone={CASE_TONE[sc.status] ?? "blue"} />
-                  <Pill label={CASE_TYPE_LABEL[sc.type]} tone="blue" />
-                </div>
-                <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{sc.equipment_label}</div>
-                <div style={{ fontSize: 11, color: c.hint, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sc.complaint}</div>
-                <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1 }}>{fmtDate(sc.intake_at)}</div>
-              </div>
-              <Link href={ROUTES.case(sc.id)} style={{ fontSize: 11, fontWeight: 600, color: c.accent, background: c.accentbg, borderRadius: 6, padding: "3px 8px", textDecoration: "none", flexShrink: 0 }}>
-                Open →
-              </Link>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {cases.length === 0 && (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "32px 16px", color: c.hint, fontSize: 13 }}>
-          No cases linked to this contact yet.
-          {account && (
-            <div style={{ marginTop: 10 }}>
-              <Link href={`${ROUTES.caseNew}?account_id=${account.id}`}
-                style={{ fontSize: 13, fontWeight: 600, color: c.accent, textDecoration: "none" }}>
-                + Create first case →
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
-      <NovaTimelineSlot objectType="contacts" objectId={id} />
-    </>
+          {account.city && <div style={{ fontSize: 12.5, color: c.muted, marginTop: 4 }}>{account.city}</div>}
+        </Card>
+      ) : undefined}
+    />
   );
 }

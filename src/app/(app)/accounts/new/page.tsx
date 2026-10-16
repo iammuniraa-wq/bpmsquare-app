@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { useCurrency } from "@/lib/tenant-context";
@@ -11,13 +10,7 @@ import ObjectFormPage from "@/components/page/ObjectFormPage";
 import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
-
-interface CFDef {
-  id: string; field_key: string; field_label: string;
-  field_type: "text"|"number"|"date"|"select"|"checkbox"|"textarea";
-  field_section: string | null;
-  options: string[] | null; is_required: boolean;
-}
+import SectionCustomFields, { useSectionCustomFields } from "@/components/fields/SectionCustomFields";
 
 const ACCOUNT_TYPES = [
   { value: "prospect",     label: "Prospect" },
@@ -31,23 +24,7 @@ export default function NewAccountPage() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [cfDefs, setCfDefs] = useState<CFDef[]>([]);
-  const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
-
-  function fetchCFDefs() {
-    fetch("/api/settings/custom-fields?object=account")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setCfDefs(data); })
-      .catch(() => {});
-  }
-
-  useEffect(() => {
-    fetchCFDefs();
-    const handler = () => fetchCFDefs();
-    window.addEventListener("bpm:cf-changed", handler);
-    return () => window.removeEventListener("bpm:cf-changed", handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const cf = useSectionCustomFields("account");
 
   const [form, setForm] = useState({
     // Identity
@@ -67,34 +44,7 @@ export default function NewAccountPage() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  // Renders custom field inputs for a given section name.
-  function cfInputs(section: string) {
-    const sfs = cfDefs.filter((f) => f.field_section === section);
-    if (sfs.length === 0) return null;
-    return (
-      <>
-        {sfs.map((f) => (
-          <Field key={f.id} label={f.field_label} required={f.is_required}>
-            {f.field_type === "select" && f.options ? (
-              <Select value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))}>
-                <option value="">— select —</option>
-                {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-              </Select>
-            ) : f.field_type === "checkbox" ? (
-              <span style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: c.ink, marginTop: 4, textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
-                <input type="checkbox" checked={!!(cfValues[f.field_key])} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.checked }))} style={{ width: 15, height: 15 }} />
-                {cfValues[f.field_key] ? "Yes" : "No"}
-              </span>
-            ) : f.field_type === "textarea" ? (
-              <Textarea value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-            ) : (
-              <Input type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"} value={(cfValues[f.field_key] as string) ?? ""} onChange={(e) => setCfValues((v) => ({ ...v, [f.field_key]: e.target.value }))} />
-            )}
-          </Field>
-        ))}
-      </>
-    );
-  }
+  const cfInputs = (section: string) => <SectionCustomFields defs={cf.defs} values={cf.values} setValue={cf.setValue} section={section} />;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,7 +53,7 @@ export default function NewAccountPage() {
       const res = await fetch("/api/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, custom_data: Object.keys(cfValues).length > 0 ? cfValues : undefined }),
+        body: JSON.stringify({ ...form, custom_data: Object.keys(cf.values).length > 0 ? cf.values : undefined }),
       });
       const json = await res.json();
       if (res.ok) {

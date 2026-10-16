@@ -13,7 +13,7 @@ import { paginate } from "@/lib/paginate";
 import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
-import type { MenuItem } from "@/components/ui/menuItems";
+import { optionalColumnsMenu, parseOptionalCols, type OptionalColumn } from "@/components/page/optionalColumns";
 
 const ALL_TYPES: Account["type"][] = ["prospect", "oem", "direct", "end_customer"];
 
@@ -37,7 +37,7 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<AccountSummary>> = {
 
 // Columns that are off until asked for (the old in-table "Columns" picker's
 // defaults). Shown when listed in `?cols=`; the "..." menu toggles them.
-const OPTIONAL: { id: string; label: string }[] = [
+const OPTIONAL: OptionalColumn[] = [
   { id: "phone", label: "Phone" },
   { id: "contracts", label: "AMC" },
 ];
@@ -63,7 +63,7 @@ export default async function AccountsPage({
   const cfParams = colFilterQueryParams(colFilters);
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
-  const shownOptional = new Set((params.cols ?? "").split(",").filter(Boolean));
+  const shownOptional = parseOptionalCols(params.cols, OPTIONAL);
 
   const allRows = await listAccountsLive();
 
@@ -77,8 +77,9 @@ export default async function AccountsPage({
   const filtered = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
 
-  const colsParam = [...shownOptional].join(",") || undefined;
-  const linkParams = { q, type: typeFilter, af, cols: colsParam, ...cfParams };
+  const baseParams = { q, type: typeFilter, af, ...cfParams };
+  const { colsParam, menuItems } = optionalColumnsMenu({ baseHref: ROUTES.accounts, optional: OPTIONAL, shown: shownOptional, linkParams: baseParams, sort, dir });
+  const linkParams = { ...baseParams, cols: colsParam };
 
   const columns: ListColumn<AccountSummary>[] = [
     {
@@ -132,19 +133,6 @@ export default async function AccountsPage({
       render: ({ counts }: AccountSummary) => <CountBadge n={counts.contracts} />,
     }] : []),
   ];
-
-  const colsHref = (id: string) => {
-    const next = new Set(shownOptional);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    const qs = new URLSearchParams();
-    for (const [k, v] of Object.entries({ ...linkParams, cols: [...next].join(",") || undefined, sort, dir: sort ? dir : undefined })) if (v) qs.set(k, v);
-    const s = qs.toString();
-    return s ? `${ROUTES.accounts}?${s}` : ROUTES.accounts;
-  };
-  const menuItems: MenuItem[] = OPTIONAL.map((o) => ({
-    label: `${shownOptional.has(o.id) ? "Hide" : "Show"} ${o.label} column`,
-    href: colsHref(o.id),
-  }));
 
   const hasFilter = !!(q || typeFilter || af || Object.keys(cfParams).length > 0);
 

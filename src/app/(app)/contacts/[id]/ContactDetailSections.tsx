@@ -1,8 +1,8 @@
 "use client";
 
-import { c } from "@/lib/theme";
 import type { Contact } from "@/lib/types";
 import ObjectSections, { type FormHelpers } from "@/components/fields/ObjectSections";
+import Button from "@/components/ui/Button";
 
 type AccountAddress = {
   address_line1: string | null;
@@ -25,8 +25,9 @@ export default function ContactDetailSections({ contact, accountAddress }: { con
       exclude={["name", "role", "phone"]}
       sectionExtras={accountAddress ? {
         Address: ({ setValues }: FormHelpers) => (
-          <button
-            type="button"
+          <Button
+            variant="quiet"
+            size="sm"
             onClick={() => setValues({
               address_line1: accountAddress.address_line1 ?? "",
               address_line2: accountAddress.address_line2 ?? "",
@@ -35,14 +36,9 @@ export default function ContactDetailSections({ contact, accountAddress }: { con
               postal_code: accountAddress.postal_code ?? "",
               country: accountAddress.country ?? "",
             })}
-            style={{
-              fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 5,
-              border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent,
-              cursor: "pointer",
-            }}
           >
             ↙ Copy from account
-          </button>
+          </Button>
         ),
       } : undefined}
     />

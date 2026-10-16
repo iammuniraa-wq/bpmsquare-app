@@ -1,23 +1,63 @@
 import { requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { listContacts } from "@/lib/data";
-import { c } from "@/lib/theme";
-import PageHeader from "@/components/PageHeader";
-import { ROUTES } from "@/lib/constants";
-import ContactsTable from "@/components/ContactsTable";
-import ListFilterBar from "@/components/ListFilterBar";
-import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
+import type { Account, Contact } from "@/lib/types";
+import { c, pillar, type PillarKey } from "@/lib/theme";
+import StatusPill from "@/components/ui/StatusPill";
+import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
+import { optionalColumnsMenu, parseOptionalCols, type OptionalColumn } from "@/components/page/optionalColumns";
+import { Phone, Mail } from "@/components/Icons";
 import { applyAdvancedFilter } from "@/lib/advancedFilter";
+import { paginate } from "@/lib/paginate";
+import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
+import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
+
+type Row = { contact: Contact; account: Account };
+
+const ACCOUNT_TYPE_LABEL: Record<Account["type"], string> = {
+  prospect: "Prospect", oem: "OEM", direct: "Direct", end_customer: "End customer",
+};
+const TYPE_TONE: Record<Account["type"], PillarKey> = {
+  prospect: "amber", oem: "purple", direct: "blue", end_customer: "teal",
+};
+
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
+
+const SORT_EXTRACTORS: Record<string, SortExtractor<Row>> = {
+  ref: (r) => r.contact.ref,
+  name: (r) => r.contact.name,
+  account: (r) => r.account.name,
+  role: (r) => r.contact.role,
+  phone: (r) => r.contact.phone,
+  email: (r) => r.contact.email,
+  acct_type: (r) => r.account.type,
+};
+
+// Off until asked for (the old in-table "Columns" picker's defaults).
+const OPTIONAL: OptionalColumn[] = [
+  { id: "email", label: "Email" },
+  { id: "acct_type", label: "Account type" },
+];
+
+const initials = (name: string) =>
+  name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; af?: string }>;
+  searchParams: Promise<{ q?: string; af?: string; cols?: string; sort?: string; dir?: string; page?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("contacts");
   await requireFeature("contacts");
-  const { q, af } = await searchParams;
+  const params = await searchParams;
+  const { q, af } = params;
+  const colFilters = parseColFilterParams(params);
+  const cfParams = colFilterQueryParams(colFilters);
+  const { sort, dir } = readSortParams(params);
+  const page = Math.max(1, Number(params.page) || 1);
+  const shownOptional = parseOptionalCols(params.cols, OPTIONAL);
+
   const allRows = await listContacts();
 
   const basicFiltered = allRows.filter(({ contact, account }) => {
@@ -29,35 +69,96 @@ export default async function ContactsPage({
       account.name.toLowerCase().includes(term)
     );
   });
-  const rows = applyAdvancedFilter(basicFiltered, af, ({ contact }) => contact as unknown as Record<string, unknown>);
+  const advFiltered = applyAdvancedFilter(basicFiltered, af, ({ contact }) => contact as unknown as Record<string, unknown>);
+  const colFiltered = applyColFilters(advFiltered, colFilters, SORT_EXTRACTORS);
+  const filtered = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
+  const pageRows = paginate(filtered, page);
+
+  const baseParams = { q, af, ...cfParams };
+  const { colsParam, menuItems } = optionalColumnsMenu({ baseHref: ROUTES.contacts, optional: OPTIONAL, shown: shownOptional, linkParams: baseParams, sort, dir });
+  const linkParams = { ...baseParams, cols: colsParam };
+
+  const columns: ListColumn<Row>[] = [
+    {
+      id: "ref", label: "ID", sortKey: "ref", width: 88, card: "hidden",
+      cellStyle: { fontFamily: MONO, fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" },
+      render: ({ contact }) => contact.ref ?? "—",
+    },
+    {
+      id: "name", label: "Name", sortKey: "name", card: "title",
+      render: ({ contact, account }) => {
+        const p = pillar[TYPE_TONE[account.type]];
+        return (
+          <Link href={ROUTES.contact(contact.id)} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: "50%", flexShrink: 0, background: p.bg, color: p.fg,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700,
+            }}>
+              {initials(contact.name)}
+            </div>
+            <span style={{ fontWeight: 600, fontSize: 13.5, color: c.ink }}>{contact.name}</span>
+          </Link>
+        );
+      },
+    },
+    {
+      id: "account", label: "Account", sortKey: "account",
+      render: ({ account }) => (
+        <Link href={ROUTES.account(account.id)} style={{ fontSize: 13, fontWeight: 500, color: c.accent, textDecoration: "none" }}>
+          {account.name}
+        </Link>
+      ),
+    },
+    { id: "role", label: "Role", sortKey: "role", cellStyle: { color: c.muted }, render: ({ contact }) => contact.role ?? <span style={{ color: c.line }}>—</span> },
+    {
+      id: "phone", label: "Phone", sortKey: "phone",
+      render: ({ contact }) => contact.phone
+        ? <a href={`tel:${contact.phone}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, color: c.muted, textDecoration: "none", fontSize: 13 }}><Phone size={11} color={c.hint} />{contact.phone}</a>
+        : <span style={{ color: c.line }}>—</span>,
+    },
+    ...(shownOptional.has("email") ? [{
+      id: "email", label: "Email", sortKey: "email",
+      render: ({ contact }: Row) => contact.email
+        ? <a href={`mailto:${contact.email}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, color: c.accent, textDecoration: "none", fontSize: 13 }}><Mail size={11} color={c.accent} />{contact.email}</a>
+        : <span style={{ color: c.line }}>—</span>,
+    }] : []),
+    ...(shownOptional.has("acct_type") ? [{
+      id: "acct_type", label: "Account type", sortKey: "acct_type",
+      render: ({ account }: Row) => <StatusPill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />,
+    }] : []),
+  ];
+
+  const hasFilter = !!(q || af || Object.keys(cfParams).length > 0);
 
   return (
-    <>
-      <PageHeader
-        title="Contacts"
-        subtitle={`${allRows.length} people across all accounts`}
-        action={
-          <Link
-            href={ROUTES.contactNew}
-            style={{
-              padding: "7px 15px", borderRadius: 7, fontSize: 13, fontWeight: 600,
-              background: `var(--modern-accent, ${c.accent})`, color: "#fff", textDecoration: "none",
-            }}
-          >
-            + New Contact
-          </Link>
-        }
-      />
-
-      <ListFilterBar
-        searchValue={q}
-        searchPlaceholder="Search by name, role or account…"
-        hiddenParams={{ af }}
-        clearHref={ROUTES.contacts}
-      />
-      <AdvancedFilterPanel object="contact" />
-
-      <ContactsTable rows={rows} />
-    </>
+    <ObjectListPage
+      title="Contacts"
+      subtitle={`${allRows.length} people across all accounts`}
+      newLabel="Contact"
+      newHref={ROUTES.contactNew}
+      menuItems={menuItems}
+      search={{
+        value: q,
+        placeholder: "Search by name, role or account…",
+        hiddenParams: { af, cols: colsParam, ...cfParams },
+      }}
+      advancedFilterObject="contact"
+      columns={columns}
+      rows={pageRows}
+      rowKey={({ contact }) => contact.id}
+      rowHref={({ contact }) => ROUTES.contact(contact.id)}
+      total={filtered.length}
+      page={page}
+      baseHref={ROUTES.contacts}
+      sort={sort}
+      dir={dir}
+      linkParams={linkParams}
+      filtered={hasFilter}
+      empty={{
+        title: "No contacts yet",
+        text: "Contacts are the people at your accounts. Add the first one to start.",
+        filteredTitle: q ? `No contacts match "${q}".` : "No contacts match these filters.",
+      }}
+    />
   );
 }
