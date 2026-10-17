@@ -197,6 +197,7 @@ on `develop`, never push; owner pushes)
   pipeline (pure), element-schedule parser, BOM/WBS export builders, unit
   tests for every pure part (including the illustrative template's golden
   numbers).
+  **Status: built 2026-10-17, see section 11.**
 - **E2 API + surfaces**: routes (estimates CRUD, lines, compute, import
   schedule, quote conversion, exports, templates CRUD), DW routes, v1 + MCP,
   search/Nova/palette/analytics wiring, change history.
@@ -312,3 +313,56 @@ engine (§1) as the "hybrid":
   version must dispose geometry/renderer on unmount, respect
   `prefers-reduced-motion` (no auto-play, no drop animation), read theme
   colours from CSS variables, and work with touch (rotate/zoom/tap-to-pick).
+
+## 11. E1 as built (2026-10-17) — status: E1 built, E2 next
+
+Pure engine under `src/lib/estimator/` (no I/O, all unit-tested; `tsc` and
+`vitest` clean):
+
+| File | What it is |
+|---|---|
+| `types.ts` | template jsonb shapes, cost components, `groupSlug()` |
+| `formula.ts` | tokenizer, parser, evaluator (no `eval`); limits: 1000 chars, 500 nodes, depth 40, 10 000 steps; divide-by-zero and overflow are errors |
+| `template.ts` | hand validation (no schema library in the repo), forward-reference/cycle checks, `resolveParams()` |
+| `geometry/` | `types.ts` (Piece exactly as 10.2), `precastVilla.ts` (port of the reference `layout()`, named constants, degenerate-input handling, 5000-piece cap), `index.ts` (registry `getGeometry`, `pieceScope`, `markRange`) |
+| `compute.ts` | `computeEstimate(template, params, {margin_pct, vat_pct, unit_costs, schedule})` and `summariseLines()` |
+| `schedule.ts` | CSV/XLSX element-schedule parser, template workbook/CSV builders |
+| `exports.ts` | BOM/WBS rows, `ErpExportProfile` (`generic` default, `dynamics365`, `sap`), CSV/XLSX writers |
+| `starterTemplates.ts` | "Precast villa (illustrative)" |
+
+Conventions the later phases rely on:
+
+- **Rounding**: quantities 3 dp, money 2 dp, unit costs 4 dp, half away from
+  zero. `qty_<code>` reads the rounded net quantity. Cost is charged on the
+  GROSS quantity (net + waste). A zero-quantity rule produces no line.
+- **Margin is a markup on cost** (`price = cost × (1 + margin%)`); VAT is on
+  the price.
+- **Select inputs read as the chosen option's number** in formulas (the
+  starter's finish level is a price multiplier: 1, 1.08, 1.18).
+- **Two-pass pricing**: product-priced rules come back `needs_price: true`
+  with their `sku`; E2 prices them via `priceDocumentLine()` and calls
+  `computeEstimate` again with `unit_costs` (keyed by rule code), which also
+  lets `sub_<group>` formulas (overhead) see the real figures.
+- **Geometry**: a template's `geometry` key (column `estimate_templates.geometry`)
+  names a module; its pieces put `vol_<code>`, `n_<code>`, `area_<code>` (code
+  upper-case, e.g. `vol_EW`) and `vol_total`, `n_total`, `area_total`,
+  `weight_total` into the formula scope. `compute` returns the `model` for
+  `estimates.model`. A rule's `element_ref` is the mark range of the piece
+  families its qty formula reads (`EW-01..EW-40`); building-wide lines carry
+  none. Schedule quantities replace a rule's own formula only; they do not
+  change piece totals.
+- **BOM export** (spec 5.1 columns) lists physical items (a SKU, or component
+  materials/moulds); labour, transport, erection and overhead are WBS tasks
+  (`include: "all"` lists everything). `quantity` is the gross quantity. WBS
+  codes are numbered by group order (`1`, `1.1`, `1.2`, `2`, ...).
+- **Starter vs the mock-up**: the reference villa prices to 174 256.59 cost /
+  236 466.20 incl. margin 18 % and VAT 15 %, against the mock-up's 174 256.34 /
+  236 465.86. The cents are per-line rounding. The starter's `wastage_pct`
+  rate is 0 to match the mock-up; set it to price waste.
+
+Deviations from the spec text: `estimate_lines.component` was added (a manual
+line needs a cost bucket); `estimate_templates.geometry` and `estimates.model`
+were appended to 0131 for 10.2; an ERP profile holds `columns: { bom, wbs }`
+because the two exports have different fields; the starter's groups
+gained "Production" and "Insulation and fixings" so the overhead base matches
+the mock-up.
