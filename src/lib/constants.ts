@@ -140,7 +140,9 @@ export const ROUTES = {
   settingsTemplates: "/settings/templates",
   settingsStatuses: "/settings/statuses",
   settingsEmailTemplates: "/settings/email-templates",
-  settingsSales: "/settings/sales",
+  settingsSales: "/settings/sales", // redirects to settingsProductCategories
+  settingsProductCategories: "/settings/product-categories",
+  settingsAssetPrintFields: "/settings/asset-print-fields",
   settingsDeletionLog: "/settings/deletion-log",
   settingsConnectors: "/settings/connectors",
   settingsAccount360: "/settings/account-360",
