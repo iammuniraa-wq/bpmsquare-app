@@ -1815,7 +1815,7 @@ main textarea::placeholder { color: var(--hint); opacity: 1; }
 .bpm-btn-md { height: 36px; padding: 0 16px; font-size: 13px; }
 .bpm-btn-icon.bpm-btn-sm { width: 30px; padding: 0; }
 .bpm-btn-icon.bpm-btn-md { width: 36px; padding: 0; }
-.bpm-btn-primary { background: var(--modern-accent, var(--accent)); color: #fff; }
+.bpm-btn-primary { background: color-mix(in srgb, var(--modern-accent, var(--accent)) 86%, #000); color: #fff; }
 .bpm-btn-primary:hover:not(:disabled):not([aria-disabled="true"]) { filter: brightness(0.93); }
 .bpm-btn-secondary { background: var(--panel); color: var(--ink); border-color: var(--line); }
 .bpm-btn-secondary:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--panel2); }
@@ -1917,10 +1917,14 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
 @media (max-width: 780px) {
   .bpm-list-cards { display: flex; }
   .bpm-list-table { display: none !important; }
-  /* Clear the fixed bottom tab bar, or Save lands underneath it (same
-     arithmetic as .sticky-actions above). */
-  .bpm-form-footer { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
-  .bpm-form-page { padding-bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
+  /* The fixed bottom tab bar exists on Nova only (MobileTabBar returns null
+     otherwise), so only Nova leaves room for it (same arithmetic as
+     .sticky-actions above); every other look sits the footer on the screen
+     edge instead of floating 58px above it. */
+  .bpm-form-footer { bottom: env(safe-area-inset-bottom, 0px); }
+  .bpm-form-page { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+  [data-nova="true"] .bpm-form-footer { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+  [data-nova="true"] .bpm-form-page { padding-bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
   .bpm-menu { right: 0; left: auto; }
 }
 
@@ -2047,3 +2051,56 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
 
 /* Settings list rows (components/settings/RecordRows.tsx): the first row has no top rule. */
 .bpm-record-row:first-child { border-top: none !important; }
+
+/* ── Kit theme check (ui-restructure-spec 12.1) ──────────────────────────────
+   Fixes found reading every theme's token remaps against the new components.
+   All of it is keyed to bpm-* classes only the kit renders. */
+
+/* Back link ("<- All suppliers", "<- All settings"): it sits above the page
+   header, and on Spectacular navy that is ON the band, where the normal muted
+   ink is grey-on-navy. */
+.bpm-backlink { font-size: 11.5px; color: var(--muted); text-decoration: none; }
+.bpm-backlink:hover { color: var(--ink); text-decoration: underline; }
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]):not([data-spectacular-variant="purple"]) .bpm-backlink,
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]):not([data-spectacular-variant="purple"]) .bpm-settings-back {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Nova's identity hue for tabs, matching its top-bar tab underline. */
+[data-nova="true"] .bpm-tabs, [data-nova="true"] .bpm-tab { --tab-accent: var(--nova-pink); }
+
+/* Primary button on dark: the lifted dark accent under white text is ~3.3:1;
+   deepen the fill so the label clears 4.5:1. */
+[data-theme="nextgen"][data-mode="dark"] .bpm-btn-primary {
+  background: color-mix(in srgb, var(--modern-accent, var(--accent)) 76%, #000);
+}
+[data-theme="nextgen"][data-mode="dark"] .bpm-menu { box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55); }
+
+/* Kit buttons inside a page header. Spectacular forces every unpainted header
+   button to one ink with !important (navy: white, purple: the violet accent),
+   which is right for outline CTAs but turns a primary into violet-on-violet
+   (purple) and a danger into white-on-white (navy). A primary keeps its white
+   label, a danger its red one; the extra class pair out-ranks both rules. */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header .bpm-btn.bpm-btn-primary:not([style*="background"]) {
+  color: #ffffff !important;
+}
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]) .bpm-page-header .bpm-btn.bpm-btn-danger:not([style*="background"]) {
+  color: var(--redink) !important;
+}
+/* Navy only: the accent fill is close to the band, so the primary gets a light
+   edge and the focus ring turns white (an accent ring vanishes on navy). */
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]):not([data-spectacular-variant="purple"]) .bpm-page-header .bpm-btn-primary {
+  border-color: rgba(255, 255, 255, 0.55);
+}
+[data-theme="nextgen"][data-spectacular="true"]:not([data-mode="dark"]):not([data-spectacular-variant="purple"]) .bpm-page-header .bpm-btn:focus-visible {
+  outline-color: #ffffff;
+}
+/* Spectacular purple forces unpainted header links/buttons to the violet
+   accent with !important; the ... menu's rows would all turn violet, danger
+   included. Navy already restores them above; this is the purple twin. */
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header .bpm-menu .bpm-menu-item:not([style*="background"]) {
+  color: var(--ink) !important;
+}
+[data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header .bpm-menu .bpm-menu-item[data-danger="true"]:not([style*="background"]) {
+  color: var(--redink) !important;
+}

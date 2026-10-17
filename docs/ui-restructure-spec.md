@@ -5,7 +5,7 @@
 > Sonnet, phase by phase, from this document alone. Read
 > `bpmsquarecore.md` first; nothing here relaxes it.
 >
-> **Build status (2026-10-16): phases 1-3 built and approved (Suppliers pilot). Phase 4 is built on `develop`, one commit per object: Products, Accounts, Contacts, Assets, Cases, Work orders, Invoices, Purchase orders, Standard Quotes, Deals, RFQs list, Inventory, Technicians, Leads, AMC, Fence projects, Marketing campaigns, Employees, and the WFM projects list shell. Not converted (own layouts, see the commit notes): the WFM project record and form, Partners (placeholder), Standard Quote templates, Marketing segments, the Fence Design Studio. Phase 5 (Settings revamp) is in progress on `develop`: settings shell built (grouped two-pane menu, search, mobile menu-as-page; `src/lib/settingsMenu.ts` is the single menu/gating table). General settings is split into ten pages (company, currency, navigation, quote-types, developer, push, email-output, appearance, dashboard, reset); `/settings/general` redirects to `/settings/company`. Save is top right on every settings page that has one (`SettingsPageHeader` + `SettingsSave`); Navigation visibility and Quote types are batch-saved, Theme & colours applies each choice immediately. List-type settings (Team, Sites, Shifts, Leave types, Kiosks, Custom fields, Text/Email templates, Pricing, Coverage) follow the object pattern: `+ New ...` in the header, one row per record, Edit/Remove in a `...` menu (`RecordRows`). Workforce settings are eight pages under `/settings/workforce/...` (attendance, shifts, sites, leave-types, verification, kiosks, reminders, employment); `/settings/workforce` redirects to attendance. Admin tenant editor groups modules by the settings groups, shows dependencies and what each flag unlocks, and has a read-only "Who sees what" panel (`lib/accessView.ts`, `lib/moduleDependencies.ts`). Phase 5 is complete. Phase 6 (navigation) is built: NAV is regrouped into the eight groups of section 7, grouping/gating lives in `src/lib/navGroups.ts` and Spaces/tab bar derive from it, Settings is an `adminOnly` Admin item. Phase 8a (tabs for multi-section screens) is built, audit in 13.4. Phase 8b (settings type scale: `--ts-*`/`--tw-*` tokens and `.bpm-t-*` classes in globals.css, `src/lib/typeScale.ts`, applied through SettingsPageHeader/SettingsSection/SettingsField/Card/Field and a codemod over the settings pages) is built. Phase 8c (one tab style: `.bpm-tab` rebuilt on `--tab-accent`, hand-rolled strips replaced) is built. The theme check (phase 7, section 12.1) follows.**
+> **Build status (2026-10-16): phases 1-3 built and approved (Suppliers pilot). Phase 4 is built on `develop`, one commit per object: Products, Accounts, Contacts, Assets, Cases, Work orders, Invoices, Purchase orders, Standard Quotes, Deals, RFQs list, Inventory, Technicians, Leads, AMC, Fence projects, Marketing campaigns, Employees, and the WFM projects list shell. Not converted (own layouts, see the commit notes): the WFM project record and form, Partners (placeholder), Standard Quote templates, Marketing segments, the Fence Design Studio. Phase 5 (Settings revamp) is in progress on `develop`: settings shell built (grouped two-pane menu, search, mobile menu-as-page; `src/lib/settingsMenu.ts` is the single menu/gating table). General settings is split into ten pages (company, currency, navigation, quote-types, developer, push, email-output, appearance, dashboard, reset); `/settings/general` redirects to `/settings/company`. Save is top right on every settings page that has one (`SettingsPageHeader` + `SettingsSave`); Navigation visibility and Quote types are batch-saved, Theme & colours applies each choice immediately. List-type settings (Team, Sites, Shifts, Leave types, Kiosks, Custom fields, Text/Email templates, Pricing, Coverage) follow the object pattern: `+ New ...` in the header, one row per record, Edit/Remove in a `...` menu (`RecordRows`). Workforce settings are eight pages under `/settings/workforce/...` (attendance, shifts, sites, leave-types, verification, kiosks, reminders, employment); `/settings/workforce` redirects to attendance. Admin tenant editor groups modules by the settings groups, shows dependencies and what each flag unlocks, and has a read-only "Who sees what" panel (`lib/accessView.ts`, `lib/moduleDependencies.ts`). Phase 5 is complete. Phase 6 (navigation) is built: NAV is regrouped into the eight groups of section 7, grouping/gating lives in `src/lib/navGroups.ts` and Spaces/tab bar derive from it, Settings is an `adminOnly` Admin item. Phase 8a (tabs for multi-section screens) is built, audit in 13.4. Phase 8b (settings type scale: `--ts-*`/`--tw-*` tokens and `.bpm-t-*` classes in globals.css, `src/lib/typeScale.ts`, applied through SettingsPageHeader/SettingsSection/SettingsField/Card/Field and a codemod over the settings pages) is built. Phase 8c (one tab style: `.bpm-tab` rebuilt on `--tab-accent`, hand-rolled strips replaced) is built. The theme check (phase 7) is done at code level, see 12.1.**
 >
 > **Out of scope, untouched:** Quotations — list (`/quotations`), detail
 > (`QuoteDetailLayout.tsx`), form (`quotations/new/QuoteForm.tsx`), print.
@@ -309,6 +309,36 @@ screens read correctly in each look (light and dark where the look has both),
 and that Spectacular's Spaces rail is fed by the phase 6 navigation groups.
 The two-look reduction in section 6 is parked; revisit after the owner has
 reviewed the new screens on develop.
+
+
+### 12.1 Theme check of the kit, templates and settings (2026-10-17)
+
+Done by reading the token remaps in `globals.css` against the new components
+(`.bpm-*` rules, the TSX in `components/ui`, `page`, `settings`) -- **no
+browser was available** (a tenant login is needed), so every row below is a
+code-level verdict and the owner's eyes on each look remain the real test.
+Looks: Classic, Modern, Nova (nextgen dark + Nova ground), nextgen light,
+Enterprise, Spectacular navy, Spectacular purple. Dark exists for nextgen and
+Nova only; the rest are light-only.
+
+| Component | Verdict | What was fixed | Not verifiable without a browser |
+|---|---|---|---|
+| Button (primary) | Fixed | White label on the accent was 3.3-3.6:1 in Classic and nextgen dark. Fill is now the accent mixed 14% toward black (dark: 24%), about 4.5-6:1. | Whether the slightly deeper blue still reads as the tenant brand. |
+| Button (secondary, quiet, danger) | OK | Tokens only (`--panel`, `--ink`, `--line`, `--redink`, `--redbg`); all defined in `:root` and the nextgen dark block. | |
+| Buttons inside a page header on Spectacular | Fixed | The header's forced link ink made a purple primary violet-on-violet and a navy danger white-on-white; primary keeps a white label, danger its red one; navy primary gets a light edge, focus ring turns white. | Real look of the band with the new edge. |
+| Tabs | Fixed | See 13.5. Nova uses its pink. | Active state on each theme at 375 px. |
+| MoreMenu popover | Fixed (dark) / OK | Panel, border and item inks are tokens; navy and (new) purple header overrides keep rows readable and danger red. Dark shadow deepened. | Popover clipping near the right edge on a phone. |
+| StatusPill / Pill | OK | `pillar.*` resolve to `--*bg/--*ink`, redefined for nextgen dark. | |
+| Card, Field, Input | OK | `--card-bg`, `--card-radius`, `--card-shadow`, `--line`, `--panel`; nextgen dark re-declares `--card-bg`. | Spectacular forces a white input fill on `main input` -- inside a dark card there is none, so no clash. |
+| FormFooter (sticky) | Fixed | The 58 px lift for a bottom tab bar applied to every look, floating the bar above the screen edge where no tab bar exists; now Nova only (`[data-nova]`), others sit on the edge with the safe-area inset. | Sticky behaviour over the on-screen keyboard. |
+| Back links ("<- All ...") | Fixed | Grey muted ink on the Spectacular navy band; now a `bpm-backlink` class, light on navy. | |
+| Settings menu card, landing tiles | OK | Card surface and tokens; floats on the Spectacular band by design. Mobile back link fixed above. | Menu-as-page on a phone in each look. |
+| Settings type scale | OK | Colours are `--ink`/`--muted`, so every look follows. | |
+| Settings toggle (off track) | Fixed | Hard-coded light grey in dark; now a mix of `--muted` and `--panel`. | |
+| Record facts, EmptyState, RelatedList, record rail | OK | Tokens only. | |
+| List page card view (< 780 px) | OK | `--card-bg`, `--line`. | |
+| Focus rings | OK / Fixed | `.bpm-btn`, `.bpm-tab`, `.bpm-menu-item`, `.bpm-input`, settings item use the theme accent; navy header buttons use white. | Visibility on every surface. |
+| Not touched | | Quotations; Nova-specific panels; any look's own look. No theme was retired or merged. | |
 
 
 ## 13. Follow-up requirements (owner, 2026-10-17) -- phase 8, after phase 5-7

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { c } from "@/lib/theme";
 import PageHeader from "@/components/PageHeader";
 import FormFooter from "@/components/ui/FormFooter";
 
@@ -36,7 +35,7 @@ export default function ObjectFormPage({
   return (
     <>
       <div style={{ marginBottom: 8 }}>
-        <Link href={backHref} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>
+        <Link href={backHref} className="bpm-backlink">
           ← {backLabel}
         </Link>
       </div>
